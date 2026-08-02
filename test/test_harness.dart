@@ -77,7 +77,7 @@ Future<PtwTestEnvironment> pumpPtw(
     ComponentIds.createProjectScreen,
     ComponentIds.visitorComposer,
     ComponentIds.inboxScreen,
-    ComponentIds.discoverScreen,
+    ComponentIds.feedScreen,
     ComponentIds.shareScreen,
     ComponentIds.responseSent,
   ];

@@ -7,9 +7,9 @@ Believe/Doubt position → read it in the private creator inbox.**
 
 Every project is represented by a mandatory image and creator-selected primary
 color. The shared page is intentionally short: visitors see the goal, choose a
-side, write one anonymous message, and send. Project is the creator hub for
-Inbox, Discover, proof updates, and Story sharing; secondary destinations are
-immersive pages without persistent tabs.
+side, write one anonymous message, and send. The creator's current project is a
+dedicated full-bleed page with its latest proof, recent private responses, and
+a derived social activity feed.
 
 ## Local prototype data
 
@@ -30,7 +30,7 @@ Public routes:
 
 Creator routes:
 
-- `/`, `/inbox`, `/discover`
+- `/`, `/inbox`, `/feed`
 - `/projects/new`
 - `/projects/:projectId/share`
 - `/projects/:projectId/proof/new`

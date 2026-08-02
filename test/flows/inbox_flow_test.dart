@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ptw/core/constants/component_ids.dart';
+import 'package:ptw/core/data/mock_json_loader.dart';
+import 'package:ptw/core/data/ptw_prototype_repository.dart';
+import 'package:ptw/models/ptw_project.dart';
+import 'package:ptw/models/ptw_response.dart';
 import 'package:ptw/ui_kit/atoms/ptw_black_button.dart';
 
 import '../test_harness.dart';
@@ -9,7 +13,41 @@ void main() {
   testWidgets(
     'inbox shows full responses, reads them, and keeps them private',
     (tester) async {
-      final environment = await pumpPtw(tester, initialLocation: '/inbox');
+      final seed = await const MockJsonLoader().load();
+      final current = seed.snapshot.projects.firstWhere(
+        (project) => project.id == 'challenge_red_friday',
+      );
+      final previousProject = PtwProject(
+        id: 'previous_project',
+        ownerId: current.ownerId,
+        ownerName: current.ownerName,
+        ownerHandle: current.ownerHandle,
+        ownerAvatarAsset: current.ownerAvatarAsset,
+        goal: 'A previous private project',
+        deadline: DateTime(2026, 7, 1),
+        image: current.image,
+        primaryColor: current.primaryColor,
+        status: PtwProjectStatus.completed,
+        createdAt: DateTime(2026, 5, 1),
+      );
+      final previousResponse = PtwResponse(
+        id: 'previous_response',
+        projectId: previousProject.id,
+        side: PtwResponseSide.doubt,
+        message: 'This belongs to the previous project.',
+        createdAt: DateTime(2026, 7, 1),
+      );
+      final repository = MemoryPrototypeRepository(
+        initial: seed.snapshot.copyWith(
+          projects: [previousProject, ...seed.snapshot.projects],
+          responses: [previousResponse, ...seed.snapshot.responses],
+        ),
+      );
+      final environment = await pumpPtw(
+        tester,
+        initialLocation: '/inbox',
+        repository: repository,
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Anonymous inbox'), findsNothing);
@@ -36,6 +74,7 @@ void main() {
         find.byKey(const ValueKey('response_seed_response_1')),
         findsOneWidget,
       );
+      expect(find.text('This belongs to the previous project.'), findsNothing);
 
       final panels = find.byKey(const ValueKey('response_seed_response_1'));
       final nextPanels = find.byKey(const ValueKey('response_seed_response_2'));

@@ -2,14 +2,13 @@
 abstract final class ComponentIds {
   static const actionSheet = 'action_sheet';
   static const projectHome = 'project_home';
+  static const projectHero = 'project_hero';
+  static const projectProofsPreview = 'project_proofs_preview';
+  static const projectReactionsPreview = 'project_reactions_preview';
+  static const projectOpenReactions = 'project_open_reactions';
+  static const projectOpenFeed = 'project_open_feed';
   static const projectTile = 'project_tile';
-  static const projectShare = 'project_share';
   static const projectAddProof = 'project_add_proof';
-  static const projectInbox = 'project_inbox';
-  static const projectDiscover = 'project_discover';
-  static const projectCreate = 'project_create';
-  static const projectMenu = 'project_menu';
-  static const projectActionShare = 'project_action_share';
   static const createProjectScreen = 'create_project_screen';
   static const createProjectBack = 'create_project_back';
   static const createProjectGoal = 'create_project_goal';
@@ -34,9 +33,9 @@ abstract final class ComponentIds {
   static const inboxBack = 'inbox_back';
   static const inboxList = 'inbox_list';
   static const inboxShare = 'inbox_share';
-  static const discoverScreen = 'discover_screen';
-  static const discoverBack = 'discover_back';
-  static const discoverList = 'discover_list';
+  static const feedScreen = 'feed_screen';
+  static const feedBack = 'feed_back';
+  static const feedList = 'feed_list';
   static const shareScreen = 'share_screen';
   static const shareBack = 'share_back';
   static const sharePrimary = 'share_primary';
@@ -48,7 +47,6 @@ abstract final class ComponentIds {
   static const evidenceBack = 'evidence_back';
   static const evidenceTitle = 'evidence_title';
   static const evidenceDetails = 'evidence_details';
-  static const resetPrototype = 'reset_prototype';
   static const participantHome = 'participant_home';
   static const participantShareButton = 'participant_share_button';
   static const participantAddEvidenceButton = 'participant_add_evidence_button';

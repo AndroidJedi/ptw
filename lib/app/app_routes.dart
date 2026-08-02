@@ -1,7 +1,7 @@
 abstract final class AppRoutes {
   static const project = 'route_project';
   static const inbox = 'route_inbox';
-  static const discover = 'route_discover';
+  static const feed = 'route_feed';
   static const createProject = 'route_create_project';
   static const shareProject = 'route_share_project';
   static const addEvidence = 'route_add_evidence';

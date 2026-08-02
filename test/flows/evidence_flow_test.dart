@@ -10,8 +10,6 @@ void main() {
     tester,
   ) async {
     final environment = await pumpPtw(tester);
-    await tester.tap(find.byKey(const ValueKey(ComponentIds.projectShare)));
-    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey(ComponentIds.projectAddProof)));
     await tester.pumpAndSettle();
     expect(find.byType(PtwBlackButton), findsOneWidget);

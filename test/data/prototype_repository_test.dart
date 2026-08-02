@@ -1,9 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ptw/core/data/ptw_prototype_repository.dart';
+import 'package:ptw/models/ptw_evidence.dart';
 import 'package:ptw/models/ptw_image_ref.dart';
 import 'package:ptw/models/ptw_project.dart';
 import 'package:ptw/models/ptw_prototype_snapshot.dart';
 import 'package:ptw/models/ptw_response.dart';
+import 'package:ptw/models/ptw_social_activity.dart';
 
 void main() {
   test('snapshot round-trips through repository and reset clears it', () async {
@@ -56,5 +58,36 @@ void main() {
       }),
       throwsFormatException,
     );
+  });
+
+  test('proof activity falls back to its project image', () {
+    final project = PtwProject(
+      id: 'project',
+      ownerId: 'owner',
+      ownerName: 'Owner',
+      ownerHandle: 'owner',
+      ownerAvatarAsset: 'avatar.jpg',
+      goal: 'Finish the prototype',
+      deadline: DateTime(2026, 12, 31),
+      image: const PtwImageRef.asset('project.jpg'),
+      primaryColor: 0xFFF4066E,
+      status: PtwProjectStatus.active,
+      createdAt: DateTime(2026, 8, 1),
+    );
+    final proof = PtwEvidence(
+      id: 'proof',
+      projectId: project.id,
+      title: 'First result',
+      details: 'It worked.',
+      createdAt: DateTime(2026, 8, 2),
+    );
+
+    final activity = PtwSocialActivity.proofAdded(
+      project: project,
+      proof: proof,
+    );
+
+    expect(activity.image, same(project.image));
+    expect(activity.title, proof.title);
   });
 }

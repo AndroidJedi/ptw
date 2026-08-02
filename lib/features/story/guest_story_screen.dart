@@ -101,7 +101,7 @@ final class _GuestStoryScreenState extends State<GuestStoryScreen> {
                               alignment: Alignment.centerLeft,
                               child: PtwBackButton(
                                 key: ValueKey(ComponentIds.visitorBack),
-                                fallbackRoute: '/discover',
+                                fallbackRoute: '/feed',
                               ),
                             ),
                           PtwProjectTile(
@@ -272,8 +272,8 @@ final class _ProjectNotFound extends StatelessWidget {
         ),
         PtwPinnedActionBar(
           child: PtwBlackButton(
-            label: 'Discover projects',
-            onPressed: () => context.go('/discover'),
+            label: 'Open feed',
+            onPressed: () => context.go('/feed'),
           ),
         ),
       ],

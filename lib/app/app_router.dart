@@ -1,6 +1,6 @@
 import 'package:go_router/go_router.dart';
 
-import '../features/discover/discover_screen.dart';
+import '../features/discover/feed_screen.dart';
 import '../features/evidence/add_evidence_screen.dart';
 import '../features/inbox/inbox_screen.dart';
 import '../features/participant/create_post_screen.dart';
@@ -24,9 +24,9 @@ abstract final class AppRouter {
         builder: (_, __) => const InboxScreen(),
       ),
       GoRoute(
-        path: '/discover',
-        name: AppRoutes.discover,
-        builder: (_, __) => const DiscoverScreen(),
+        path: '/feed',
+        name: AppRoutes.feed,
+        builder: (_, __) => const FeedScreen(),
       ),
       GoRoute(
         path: '/projects/new',

@@ -5,8 +5,8 @@ PTW must feel direct, bold, human, and emotionally immediate.
 ## Content
 
 - Do not explain what navigation, layout, or context already makes obvious.
-- Show primary content directly. Never add preview/detail interactions when
-  both surfaces contain the same information.
+- Show primary content directly. A bounded recent-activity preview may open a
+  larger collection, but every previewed entry stays complete and untruncated.
 - Show complete primary content without truncation.
 - Supporting copy must answer a real question or enable the next action.
   Otherwise, delete it.
@@ -26,6 +26,11 @@ PTW must feel direct, bold, human, and emotionally immediate.
   color, whitespace, and minimal metadata.
 - Images and color must have a purpose. Remove them when they compete with the
   primary content.
+- A creator's current project is a dedicated page, not a project tile. Its
+  image, identity, goal, and deadline form one full-bleed hero.
+- Use borderless editorial sections, direct response typography, image bands,
+  and thin dividers for ongoing content. Do not package updates or social
+  activity into generic cards.
 
 ## Typography
 
@@ -44,6 +49,8 @@ PTW must feel direct, bold, human, and emotionally immediate.
 ## Interaction
 
 - Project is the creator hub. Do not use persistent tab bars.
+- Social activity is an immersive feed of full-width content, not a discovery
+  grid or another navigation shell.
 - Secondary creator screens use a white Apple-style back chevron.
 - A screen has at most one prominent black capsule action. It stays pinned
   while the content scrolls.
@@ -54,5 +61,11 @@ PTW must feel direct, bold, human, and emotionally immediate.
   on the screen.
 - Every tap must perform a real action, not merely reveal information that
   could already be visible.
+- Important navigation destinations remain available even when their content
+  is empty.
+- Do not promote the same destination with both a navigation control and a
+  separate content preview.
+- Organize mixed activity with typography and thin separators, not cards or
+  section containers.
 - Navigation, status bars, and backgrounds must feel like one continuous
   surface.

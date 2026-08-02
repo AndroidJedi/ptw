@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../core/data/mock_json_loader.dart';
+import '../core/data/ptw_demo_activity_factory.dart';
 import '../core/data/ptw_media_service.dart';
 import '../core/data/ptw_prototype_repository.dart';
 import '../models/ptw_evidence.dart';
@@ -9,6 +10,7 @@ import '../models/ptw_post_background.dart';
 import '../models/ptw_project.dart';
 import '../models/ptw_prototype_snapshot.dart';
 import '../models/ptw_response.dart';
+import '../models/ptw_social_activity.dart';
 import '../models/ptw_user.dart';
 
 /// App state backed by a single versioned local prototype snapshot.
@@ -48,8 +50,14 @@ final class PtwAppState extends ChangeNotifier {
       curatedImages = seed.curatedImages;
       await mediaService.initialize();
       final restored = await repository.load();
-      _snapshot = restored ?? seed.snapshot;
-      if (restored == null) await repository.save(_snapshot);
+      final initial = restored ?? seed.snapshot;
+      _snapshot = _withCurrentProjectDemoActivity(
+        initial,
+        referenceTime: _now(),
+      );
+      if (restored == null || !identical(_snapshot, restored)) {
+        await repository.save(_snapshot);
+      }
       recoveredProjectImage = await mediaService.recoverLostProjectImage();
       isReady = true;
     } catch (error) {
@@ -101,35 +109,48 @@ final class PtwAppState extends ChangeNotifier {
         _snapshot.responses
             .where((response) => response.projectId == projectId)
             .toList();
-    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return items;
-  }
-
-  List<PtwResponse> get creatorResponses {
-    final ownedIds =
-        _snapshot.projects
-            .where((project) => project.ownerId == currentUser.id)
-            .map((project) => project.id)
-            .toSet();
-    final items =
-        _snapshot.responses
-            .where((response) => ownedIds.contains(response.projectId))
-            .toList();
-    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    items.sort((a, b) {
+      final byTime = b.createdAt.compareTo(a.createdAt);
+      return byTime == 0 ? a.id.compareTo(b.id) : byTime;
+    });
     return items;
   }
 
   int responseCountFor(String projectId) => responsesFor(projectId).length;
 
-  int get unreadResponseCount =>
-      creatorResponses.where((response) => !response.isRead).length;
+  int unreadResponseCountFor(String projectId) =>
+      responsesFor(projectId).where((response) => !response.isRead).length;
+
+  List<PtwSocialActivity> get socialActivity {
+    final projectsById = {
+      for (final project in _snapshot.projects) project.id: project,
+    };
+    final items = <PtwSocialActivity>[];
+    for (final project in _snapshot.projects) {
+      if (project.ownerId == currentUser.id) continue;
+      items.add(PtwSocialActivity.projectStarted(project: project));
+    }
+    for (final proof in _snapshot.evidence) {
+      final project = projectsById[proof.projectId];
+      if (project == null || project.ownerId == currentUser.id) continue;
+      items.add(PtwSocialActivity.proofAdded(project: project, proof: proof));
+    }
+    items.sort((a, b) {
+      final byTime = b.createdAt.compareTo(a.createdAt);
+      return byTime == 0 ? a.id.compareTo(b.id) : byTime;
+    });
+    return List.unmodifiable(items);
+  }
 
   List<PtwEvidence> evidenceFor(String projectId) {
     final items =
         _snapshot.evidence
             .where((item) => item.projectId == projectId)
             .toList();
-    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    items.sort((a, b) {
+      final byTime = b.createdAt.compareTo(a.createdAt);
+      return byTime == 0 ? a.id.compareTo(b.id) : byTime;
+    });
     return items;
   }
 
@@ -156,10 +177,16 @@ final class PtwAppState extends ChangeNotifier {
     final nextCurrent = Map<String, String>.from(
       _snapshot.currentProjectByOwner,
     )..[currentUser.id] = project.id;
+    final demoActivity = PtwDemoActivityFactory.forProject(
+      project: project,
+      referenceTime: timestamp,
+    );
     await _commit(
       _snapshot.copyWith(
         currentProjectByOwner: nextCurrent,
         projects: [project, ..._snapshot.projects],
+        responses: [...demoActivity.responses, ..._snapshot.responses],
+        evidence: [...demoActivity.evidence, ..._snapshot.evidence],
       ),
     );
     recoveredProjectImage = null;
@@ -185,22 +212,14 @@ final class PtwAppState extends ChangeNotifier {
     return response;
   }
 
-  Future<void> markResponseRead(String id) async {
-    final current = _snapshot.responses.firstWhere(
-      (response) => response.id == id,
-    );
-    if (current.isRead) return;
-    final updated = [
-      for (final response in _snapshot.responses)
-        if (response.id == id) response.markRead(_now()) else response,
-    ];
-    await _commit(_snapshot.copyWith(responses: updated));
-  }
-
-  Future<void> markCreatorResponsesRead() async {
+  Future<void> markResponsesRead(Iterable<String> ids) async {
+    final requestedIds = ids.toSet();
     final unreadIds =
-        creatorResponses
-            .where((response) => !response.isRead)
+        _snapshot.responses
+            .where(
+              (response) =>
+                  requestedIds.contains(response.id) && !response.isRead,
+            )
             .map((response) => response.id)
             .toSet();
     if (unreadIds.isEmpty) return;
@@ -239,6 +258,39 @@ final class PtwAppState extends ChangeNotifier {
     await repository.save(next);
     _snapshot = next;
     notifyListeners();
+  }
+
+  PtwPrototypeSnapshot _withCurrentProjectDemoActivity(
+    PtwPrototypeSnapshot snapshot, {
+    required DateTime referenceTime,
+  }) {
+    final currentProjectId = snapshot.currentProjectByOwner[currentUser.id];
+    if (currentProjectId == null) return snapshot;
+    final project = snapshot.projects.where(
+      (item) => item.id == currentProjectId,
+    );
+    if (project.isEmpty) return snapshot;
+
+    final needsResponses =
+        !snapshot.responses.any((item) => item.projectId == currentProjectId);
+    final needsEvidence =
+        !snapshot.evidence.any((item) => item.projectId == currentProjectId);
+    if (!needsResponses && !needsEvidence) return snapshot;
+
+    final demoActivity = PtwDemoActivityFactory.forProject(
+      project: project.single,
+      referenceTime: referenceTime,
+    );
+    return snapshot.copyWith(
+      responses:
+          needsResponses
+              ? [...demoActivity.responses, ...snapshot.responses]
+              : snapshot.responses,
+      evidence:
+          needsEvidence
+              ? [...demoActivity.evidence, ...snapshot.evidence]
+              : snapshot.evidence,
+    );
   }
 }
 

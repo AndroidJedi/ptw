@@ -46,5 +46,14 @@ void main() {
     final stored = await environment.repository.load();
     expect(stored!.projects.first.goal, goal);
     expect(stored.currentProjectByOwner['user_alex'], stored.projects.first.id);
+    final projectId = stored.projects.first.id;
+    expect(
+      stored.responses.where((item) => item.projectId == projectId),
+      hasLength(5),
+    );
+    expect(
+      stored.evidence.where((item) => item.projectId == projectId),
+      hasLength(2),
+    );
   });
 }

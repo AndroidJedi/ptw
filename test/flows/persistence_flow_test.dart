@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ptw/core/constants/component_ids.dart';
 import 'package:ptw/models/ptw_image_ref.dart';
 import 'package:ptw/state/ptw_app_state.dart';
 
@@ -10,7 +11,9 @@ void main() {
     tester,
   ) async {
     final environment = await pumpPtw(tester);
-    final context = tester.element(find.text('Your project'));
+    final context = tester.element(
+      find.byKey(const ValueKey(ComponentIds.projectHome)),
+    );
     final state = PtwScope.of(context);
     const goal = 'Persist this project after restart';
     await state.createProject(

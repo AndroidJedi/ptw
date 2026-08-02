@@ -47,5 +47,6 @@ void main() {
     final stored = await environment.repository.load();
     expect(stored!.projects.first.image.source, PtwImageSource.file);
     expect(stored.projects.first.image.path, 'ptw_media/imported.jpg');
+    expect(stored.projects.first.primaryColor, PtwColors.teal.toARGB32());
   });
 }

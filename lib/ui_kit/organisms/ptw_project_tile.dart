@@ -34,7 +34,10 @@ final class PtwProjectTile extends StatelessWidget {
       child: Material(
         key: const ValueKey(ComponentIds.projectTile),
         color: PtwColors.transparent,
-        borderRadius: BorderRadius.circular(PtwRadius.xl),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(PtwRadius.xl),
+          side: const BorderSide(color: PtwColors.textOnAccent, width: 1),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -77,44 +80,10 @@ final class PtwProjectTile extends StatelessWidget {
                           ),
                           const SizedBox(width: PtwSpacing.xs),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  project.ownerName,
-                                  style: PtwTypography.bodyStrong.copyWith(
-                                    color: PtwColors.textOnAccent,
-                                  ),
-                                ),
-                                Text(
-                                  '@${project.ownerHandle}',
-                                  style: PtwTypography.caption.copyWith(
-                                    color: PtwColors.softWhite,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: PtwColors.ink.withValues(alpha: 0.48),
-                              borderRadius: BorderRadius.circular(
-                                PtwRadius.pill,
-                              ),
-                            ),
                             child: Text(
-                              project.status == PtwProjectStatus.completed
-                                  ? 'PROVED'
-                                  : 'IN PROGRESS',
-                              style: PtwTypography.caption.copyWith(
+                              '@${project.ownerHandle}',
+                              style: PtwTypography.bodyStrong.copyWith(
                                 color: PtwColors.textOnAccent,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.7,
                               ),
                             ),
                           ),
@@ -123,8 +92,6 @@ final class PtwProjectTile extends StatelessWidget {
                       const Spacer(),
                       Text(
                         project.goal,
-                        maxLines: compact ? 3 : 4,
-                        overflow: TextOverflow.ellipsis,
                         style: (compact
                                 ? PtwTypography.titleLarge
                                 : PtwTypography.display)

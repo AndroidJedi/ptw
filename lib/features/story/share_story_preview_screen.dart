@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/constants/component_ids.dart';
 import '../../core/theme/ptw_colors.dart';
-import '../../core/theme/ptw_gradients.dart';
 import '../../core/theme/ptw_radius.dart';
 import '../../core/theme/ptw_spacing.dart';
 import '../../core/theme/ptw_typography.dart';
 import '../../state/ptw_app_state.dart';
+import '../../ui_kit/atoms/ptw_back_button.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
+import '../../ui_kit/organisms/ptw_immersive_page.dart';
 import '../../ui_kit/organisms/ptw_project_tile.dart';
 
 final class ShareStoryPreviewScreen extends StatelessWidget {
@@ -28,128 +28,121 @@ final class ShareStoryPreviewScreen extends StatelessWidget {
     final state = PtwScope.of(context);
     final project = state.maybeProjectById(projectId);
     if (project == null) {
-      return const Scaffold(body: Center(child: Text('Project not found')));
+      return PtwImmersivePage(
+        child: Column(
+          children: [
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: PtwBackButton(fallbackRoute: '/'),
+            ),
+            Expanded(
+              child: Center(
+                child: Text(
+                  'Project unavailable',
+                  style: PtwTypography.titleLarge.copyWith(
+                    color: PtwColors.textOnAccent,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
     }
-    final primary = Color(project.primaryColor);
     final link = 'https://ptw.to/${project.ownerHandle}';
-    return Scaffold(
+    return PtwImmersivePage(
       key: const ValueKey(ComponentIds.shareScreen),
-      body: DecoratedBox(
-        decoration: BoxDecoration(gradient: PtwGradients.project(primary)),
-        child: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            children: [
-              Row(
-                children: [
-                  IconButton.filled(
-                    onPressed: () => context.go('/'),
-                    style: IconButton.styleFrom(
-                      backgroundColor: PtwColors.softWhite,
-                      foregroundColor: PtwColors.ink,
-                    ),
-                    icon: const Icon(Icons.close_rounded),
+      child: Column(
+        children: [
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: PtwBackButton(
+              key: ValueKey(ComponentIds.shareBack),
+              fallbackRoute: '/',
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                PtwSpacing.screenHorizontal,
+                PtwSpacing.xs,
+                PtwSpacing.screenHorizontal,
+                PtwSpacing.xxl,
+              ),
+              children: [
+                PtwProjectTile(project: project, height: 410),
+                const SizedBox(height: PtwSpacing.md),
+                OutlinedButton.icon(
+                  key: const ValueKey(ComponentIds.shareCopyLink),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: link));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Link copied')),
+                    );
+                  },
+                  icon: const Icon(Icons.link_rounded),
+                  label: Text(
+                    'PTW.TO/${project.ownerHandle.toUpperCase()}',
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const Spacer(),
-                  Text(
-                    'READY TO SHARE',
-                    style: PtwTypography.caption.copyWith(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(56),
+                    foregroundColor: PtwColors.textOnAccent,
+                    side: const BorderSide(
                       color: PtwColors.textOnAccent,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
+                      width: 1,
+                    ),
+                    textStyle: PtwTypography.bodyStrong,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(PtwRadius.lg),
                     ),
                   ),
-                  const Spacer(),
-                  const SizedBox(width: 48),
-                ],
-              ),
-              const SizedBox(height: PtwSpacing.md),
-              Center(
-                child: SizedBox(
-                  width: 310,
-                  child: PtwProjectTile(project: project, height: 450),
                 ),
-              ),
-              const SizedBox(height: PtwSpacing.md),
-              Container(
-                padding: const EdgeInsets.all(PtwSpacing.md),
-                decoration: BoxDecoration(
-                  color: PtwColors.softWhite,
-                  borderRadius: BorderRadius.circular(PtwRadius.lg),
+                const SizedBox(height: PtwSpacing.sm),
+                PtwBlackButton(
+                  label: 'Share to Stories',
+                  icon: Icons.auto_awesome_rounded,
+                  onPressed: () => _prepared(context, 'Stories'),
                 ),
-                child: Row(
+                const SizedBox(height: PtwSpacing.sm),
+                Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        'PTW.TO/${project.ownerHandle.toUpperCase()}',
-                        overflow: TextOverflow.ellipsis,
-                        style: PtwTypography.bodyStrong,
+                      child: _ShareAction(
+                        icon: Icons.camera_alt_rounded,
+                        label: 'Instagram',
+                        onTap: () => _prepared(context, 'Instagram'),
                       ),
                     ),
-                    IconButton.filled(
-                      key: const ValueKey(ComponentIds.shareCopyLink),
-                      tooltip: 'Copy link',
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: link));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Link copied')),
-                        );
-                      },
-                      style: IconButton.styleFrom(
-                        backgroundColor: PtwColors.ink,
+                    const SizedBox(width: PtwSpacing.xs),
+                    Expanded(
+                      child: _ShareAction(
+                        icon: Icons.music_note_rounded,
+                        label: 'TikTok',
+                        onTap: () => _prepared(context, 'TikTok'),
                       ),
-                      icon: const Icon(
-                        Icons.link_rounded,
-                        color: PtwColors.textOnAccent,
+                    ),
+                    const SizedBox(width: PtwSpacing.xs),
+                    Expanded(
+                      child: _ShareAction(
+                        icon: Icons.more_horiz_rounded,
+                        label: 'More',
+                        onTap: () => _prepared(context, 'other apps'),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: PtwSpacing.sm),
-              PtwBlackButton(
-                label: 'Share to Stories',
-                icon: Icons.auto_awesome_rounded,
-                onPressed: () => _prepared(context, 'Stories'),
-              ),
-              const SizedBox(height: PtwSpacing.sm),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ShareChip(
-                      icon: Icons.camera_alt_rounded,
-                      label: 'Instagram',
-                      onTap: () => _prepared(context, 'Instagram'),
-                    ),
-                  ),
-                  const SizedBox(width: PtwSpacing.xs),
-                  Expanded(
-                    child: _ShareChip(
-                      icon: Icons.music_note_rounded,
-                      label: 'TikTok',
-                      onTap: () => _prepared(context, 'TikTok'),
-                    ),
-                  ),
-                  const SizedBox(width: PtwSpacing.xs),
-                  Expanded(
-                    child: _ShareChip(
-                      icon: Icons.more_horiz_rounded,
-                      label: 'More',
-                      onTap: () => _prepared(context, 'other apps'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-final class _ShareChip extends StatelessWidget {
-  const _ShareChip({
+final class _ShareAction extends StatelessWidget {
+  const _ShareAction({
     required this.icon,
     required this.label,
     required this.onTap,
@@ -160,28 +153,30 @@ final class _ShareChip extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: PtwColors.softWhite,
-    borderRadius: BorderRadius.circular(PtwRadius.lg),
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(PtwRadius.lg),
-      child: SizedBox(
-        height: 72,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: PtwTypography.caption.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ],
-        ),
+  Widget build(BuildContext context) => OutlinedButton(
+    onPressed: onTap,
+    style: OutlinedButton.styleFrom(
+      minimumSize: const Size.fromHeight(70),
+      padding: const EdgeInsets.symmetric(horizontal: PtwSpacing.xs),
+      foregroundColor: PtwColors.textOnAccent,
+      side: const BorderSide(color: PtwColors.textOnAccent, width: 1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(PtwRadius.lg),
       ),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon),
+        const SizedBox(height: PtwSpacing.xxs),
+        Text(
+          label,
+          style: PtwTypography.caption.copyWith(
+            color: PtwColors.textOnAccent,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
     ),
   );
 }

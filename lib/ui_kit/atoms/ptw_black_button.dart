@@ -28,6 +28,7 @@ final class PtwBlackButton extends StatelessWidget {
         disabledBackgroundColor: PtwColors.ink,
         foregroundColor: PtwColors.textOnAccent,
         disabledForegroundColor: PtwColors.textOnAccent.withValues(alpha: 0.62),
+        side: const BorderSide(color: PtwColors.textOnAccent, width: 1),
         textStyle: PtwTypography.button,
         shape: const StadiumBorder(),
         elevation: 7,

@@ -13,6 +13,7 @@ void main() {
 
     expect(find.text('Community pulse'), findsNothing);
     expect(find.text('THE HONEST STORY'), findsNothing);
+    expect(find.byKey(const ValueKey(ComponentIds.visitorBack)), findsNothing);
     expect(
       tester
           .widget<PtwBlackButton>(

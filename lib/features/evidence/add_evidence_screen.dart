@@ -8,8 +8,10 @@ import '../../core/theme/ptw_spacing.dart';
 import '../../core/theme/ptw_typography.dart';
 import '../../models/ptw_image_ref.dart';
 import '../../state/ptw_app_state.dart';
+import '../../ui_kit/atoms/ptw_back_button.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
 import '../../ui_kit/atoms/ptw_media_image.dart';
+import '../../ui_kit/organisms/ptw_immersive_page.dart';
 
 final class AddEvidenceScreen extends StatefulWidget {
   const AddEvidenceScreen({required this.projectId, super.key});
@@ -77,109 +79,143 @@ final class _AddEvidenceScreenState extends State<AddEvidenceScreen> {
     final state = PtwScope.of(context);
     final project = state.maybeProjectById(widget.projectId);
     if (project == null) {
-      return const Scaffold(body: Center(child: Text('Project not found')));
+      return _MissingProject(fallbackRoute: '/');
     }
-    return Scaffold(
-      appBar: AppBar(title: const Text('Add proof')),
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(PtwSpacing.screenHorizontal),
-                children: [
-                  Text(
-                    'Show the next real step.',
-                    style: PtwTypography.titleLarge,
-                  ),
-                  const SizedBox(height: PtwSpacing.lg),
-                  InkWell(
-                    onTap: () => _pick(state),
-                    borderRadius: BorderRadius.circular(PtwRadius.lg),
-                    child: Container(
-                      height: 150,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        color: Color(
-                          project.primaryColor,
-                        ).withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(PtwRadius.lg),
+    return PtwImmersivePage(
+      child: Column(
+        children: [
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: PtwBackButton(
+              key: ValueKey(ComponentIds.evidenceBack),
+              fallbackRoute: '/',
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                PtwSpacing.screenHorizontal,
+                PtwSpacing.xs,
+                PtwSpacing.screenHorizontal,
+                PtwSpacing.md,
+              ),
+              children: [
+                InkWell(
+                  onTap: () => _pick(state),
+                  borderRadius: BorderRadius.circular(PtwRadius.xl),
+                  child: Container(
+                    height: 170,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: Color(project.primaryColor),
+                      border: Border.all(
+                        color: PtwColors.textOnAccent,
+                        width: 1,
                       ),
-                      child:
-                          _media == null
-                              ? const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.add_photo_alternate_rounded,
-                                    size: 36,
+                      borderRadius: BorderRadius.circular(PtwRadius.xl),
+                    ),
+                    child:
+                        _media == null
+                            ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.add_photo_alternate_rounded,
+                                  color: PtwColors.textOnAccent,
+                                  size: 38,
+                                ),
+                                const SizedBox(height: PtwSpacing.xs),
+                                Text(
+                                  'PHOTO · OPTIONAL',
+                                  style: PtwTypography.caption.copyWith(
+                                    color: PtwColors.textOnAccent,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.1,
                                   ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Add a photo · optional',
-                                    style: PtwTypography.bodyStrong,
-                                  ),
-                                ],
-                              )
-                              : Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  PtwMediaImage(image: _media!),
-                                  const Align(
-                                    alignment: Alignment.topRight,
-                                    child: Padding(
-                                      padding: EdgeInsets.all(8),
-                                      child: CircleAvatar(
-                                        backgroundColor: PtwColors.ink,
-                                        child: Icon(
-                                          Icons.edit_rounded,
-                                          color: PtwColors.textOnAccent,
-                                        ),
+                                ),
+                              ],
+                            )
+                            : Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                PtwMediaImage(image: _media!),
+                                const Align(
+                                  alignment: Alignment.topRight,
+                                  child: Padding(
+                                    padding: EdgeInsets.all(PtwSpacing.xs),
+                                    child: CircleAvatar(
+                                      backgroundColor: PtwColors.ink,
+                                      child: Icon(
+                                        Icons.edit_rounded,
+                                        color: PtwColors.textOnAccent,
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
-                    ),
+                                ),
+                              ],
+                            ),
                   ),
-                  const SizedBox(height: PtwSpacing.md),
-                  TextField(
-                    key: const ValueKey(ComponentIds.evidenceTitle),
-                    controller: _titleController,
-                    maxLength: 70,
-                    decoration: const InputDecoration(
-                      labelText: 'What happened?',
-                      hintText: 'The first 20 people signed up',
-                    ),
+                ),
+                const SizedBox(height: PtwSpacing.md),
+                TextField(
+                  key: const ValueKey(ComponentIds.evidenceTitle),
+                  controller: _titleController,
+                  maxLength: 70,
+                  decoration: const InputDecoration(hintText: 'What happened?'),
+                ),
+                const SizedBox(height: PtwSpacing.md),
+                TextField(
+                  key: const ValueKey(ComponentIds.evidenceDetails),
+                  controller: _detailsController,
+                  minLines: 4,
+                  maxLines: 6,
+                  maxLength: 240,
+                  decoration: const InputDecoration(
+                    hintText: 'Why does it matter?',
                   ),
-                  const SizedBox(height: PtwSpacing.md),
-                  TextField(
-                    key: const ValueKey(ComponentIds.evidenceDetails),
-                    controller: _detailsController,
-                    minLines: 3,
-                    maxLines: 5,
-                    maxLength: 240,
-                    decoration: const InputDecoration(
-                      labelText: 'Why does it matter?',
-                      alignLabelWithHint: true,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: PtwBlackButton(
-                key: const ValueKey(ComponentIds.addEvidencePublish),
-                label: 'Publish proof',
-                icon: Icons.bolt_rounded,
-                onPressed: _saving ? null : () => _publish(state),
-              ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+            child: PtwBlackButton(
+              key: const ValueKey(ComponentIds.addEvidencePublish),
+              label: 'Publish proof',
+              icon: Icons.bolt_rounded,
+              onPressed: _saving ? null : () => _publish(state),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+}
+
+final class _MissingProject extends StatelessWidget {
+  const _MissingProject({required this.fallbackRoute});
+
+  final String fallbackRoute;
+
+  @override
+  Widget build(BuildContext context) => PtwImmersivePage(
+    child: Column(
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: PtwBackButton(fallbackRoute: fallbackRoute),
+        ),
+        Expanded(
+          child: Center(
+            child: Text(
+              'Project unavailable',
+              style: PtwTypography.titleLarge.copyWith(
+                color: PtwColors.textOnAccent,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }

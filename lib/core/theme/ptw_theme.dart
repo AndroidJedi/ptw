@@ -8,7 +8,7 @@ import 'ptw_typography.dart';
 abstract final class PtwTheme {
   static ThemeData get light {
     final scheme = ColorScheme.fromSeed(
-      seedColor: PtwColors.accentPurple,
+      seedColor: PtwColors.hotPink,
       brightness: Brightness.light,
       surface: PtwColors.surfacePrimary,
     );
@@ -16,7 +16,7 @@ abstract final class PtwTheme {
       useMaterial3: true,
       fontFamily: 'PtwRoboto',
       colorScheme: scheme,
-      scaffoldBackgroundColor: PtwColors.paper,
+      scaffoldBackgroundColor: PtwColors.hotPink,
       textTheme: const TextTheme(
         headlineLarge: PtwTypography.display,
         headlineMedium: PtwTypography.titleLarge,
@@ -26,8 +26,8 @@ abstract final class PtwTheme {
         labelLarge: PtwTypography.button,
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: PtwColors.paper,
-        foregroundColor: PtwColors.textPrimary,
+        backgroundColor: PtwColors.hotPink,
+        foregroundColor: PtwColors.textOnAccent,
         surfaceTintColor: PtwColors.transparent,
         centerTitle: true,
         elevation: 0,
@@ -35,6 +35,7 @@ abstract final class PtwTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: PtwColors.surfacePrimary,
+        counterStyle: const TextStyle(color: PtwColors.softWhite),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(PtwRadius.md),
           borderSide: const BorderSide(color: PtwColors.borderDefault),
@@ -47,6 +48,14 @@ abstract final class PtwTheme {
           borderRadius: BorderRadius.circular(PtwRadius.md),
           borderSide: const BorderSide(color: PtwColors.borderAccent),
         ),
+      ),
+      snackBarTheme: const SnackBarThemeData(
+        backgroundColor: PtwColors.ink,
+        contentTextStyle: TextStyle(
+          color: PtwColors.textOnAccent,
+          fontWeight: FontWeight.w700,
+        ),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }

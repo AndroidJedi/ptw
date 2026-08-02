@@ -1,4 +1,6 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ptw/core/constants/component_ids.dart';
 import 'package:ptw/core/data/ptw_prototype_repository.dart';
 import 'package:ptw/models/ptw_prototype_snapshot.dart';
 
@@ -30,6 +32,9 @@ void main() {
     expect(find.text('Reset local prototype'), findsOneWidget);
     await tester.tap(find.text('Reset local prototype'));
     await tester.pumpAndSettle();
-    expect(find.text('Your project'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey(ComponentIds.projectHome)),
+      findsOneWidget,
+    );
   });
 }

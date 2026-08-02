@@ -7,9 +7,9 @@ Believe/Doubt position → read it in the private creator inbox.**
 
 Every project is represented by a mandatory image and creator-selected primary
 color. The shared page is intentionally short: visitors see the goal, choose a
-side, write one anonymous message, and send. Creator navigation contains only
-Project, Inbox, and Discover; proof updates and Story sharing support that core
-loop.
+side, write one anonymous message, and send. Project is the creator hub for
+Inbox, Discover, proof updates, and Story sharing; secondary destinations are
+immersive pages without persistent tabs.
 
 ## Local prototype data
 
@@ -35,6 +35,8 @@ Creator routes:
 - `/projects/:projectId/share`
 - `/projects/:projectId/proof/new`
 
+Product design decisions are captured in [DESIGN_RULES.md](DESIGN_RULES.md).
+
 ## Run and verify
 
 ```sh
@@ -42,10 +44,4 @@ flutter pub get
 flutter run
 flutter analyze
 flutter test
-```
-
-Golden baselines use a fixed `393 × 852` viewport:
-
-```sh
-flutter test --update-goldens test/goldens
 ```

@@ -7,10 +7,11 @@ import '../../core/theme/ptw_colors.dart';
 import '../../core/theme/ptw_radius.dart';
 import '../../core/theme/ptw_spacing.dart';
 import '../../core/theme/ptw_typography.dart';
-import '../../models/ptw_response.dart';
+import '../../models/ptw_image_ref.dart';
 import '../../state/ptw_app_state.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
-import '../../ui_kit/organisms/ptw_creator_shell.dart';
+import '../../ui_kit/atoms/ptw_media_image.dart';
+import '../../ui_kit/organisms/ptw_immersive_page.dart';
 import '../../ui_kit/organisms/ptw_project_tile.dart';
 
 final class ParticipantHomeScreen extends StatelessWidget {
@@ -22,9 +23,7 @@ final class ParticipantHomeScreen extends StatelessWidget {
       builder:
           (context) => AlertDialog(
             title: const Text('Reset prototype?'),
-            content: const Text(
-              'Local projects and responses will be replaced by seed data.',
-            ),
+            content: const Text('Replace local changes with the seed data?'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -45,228 +44,212 @@ final class ParticipantHomeScreen extends StatelessWidget {
     final state = PtwScope.of(context);
     final project = state.currentProject;
     final proof = state.evidenceFor(project.id);
-    final responses = state.creatorResponses.take(2).toList();
-    return PtwCreatorShell(
-      destination: PtwCreatorDestination.project,
-      child: SafeArea(
-        child: ListView(
-          key: const ValueKey(ComponentIds.projectHome),
-          padding: const EdgeInsets.fromLTRB(
-            PtwSpacing.screenHorizontal,
-            PtwSpacing.sm,
-            PtwSpacing.screenHorizontal,
-            124,
-          ),
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'PROVE THEM WRONG',
-                        style: PtwTypography.caption.copyWith(
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                      Text('Your project', style: PtwTypography.titleLarge),
-                    ],
-                  ),
-                ),
-                IconButton.filled(
-                  tooltip: 'Create another project',
-                  onPressed: () => context.push('/projects/new'),
-                  style: IconButton.styleFrom(backgroundColor: PtwColors.ink),
-                  icon: const Icon(
-                    Icons.add_rounded,
-                    color: PtwColors.textOnAccent,
-                  ),
-                ),
-                IconButton(
-                  key: const ValueKey(ComponentIds.resetPrototype),
-                  tooltip: 'Reset prototype data',
-                  onPressed: () => _reset(context, state),
-                  icon: const Icon(Icons.restart_alt_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: PtwSpacing.md),
-            PtwProjectTile(project: project, height: 330),
-            const SizedBox(height: PtwSpacing.md),
-            PtwBlackButton(
-              key: const ValueKey(ComponentIds.projectShare),
-              label: 'Share project',
-              icon: Icons.ios_share_rounded,
-              onPressed: () => context.push('/projects/${project.id}/share'),
-            ),
-            const SizedBox(height: PtwSpacing.sm),
-            OutlinedButton.icon(
-              key: const ValueKey(ComponentIds.projectAddProof),
-              onPressed:
-                  () => context.push('/projects/${project.id}/proof/new'),
-              icon: const Icon(Icons.add_photo_alternate_rounded),
-              label: const Text('Add proof'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(54),
-                foregroundColor: PtwColors.ink,
-                side: const BorderSide(color: PtwColors.ink, width: 2),
-                textStyle: PtwTypography.button,
-                shape: const StadiumBorder(),
-              ),
-            ),
-            const SizedBox(height: PtwSpacing.xl),
-            _SectionHeader(
-              title: 'Latest proof',
-              action:
-                  proof.isEmpty
-                      ? null
-                      : PtwFormatters.relative(proof.first.createdAt),
-            ),
-            const SizedBox(height: PtwSpacing.xs),
-            if (proof.isEmpty)
-              const _EmptyCard(
-                text: 'Nothing polished. Just show the next real step.',
-              )
-            else
-              Container(
-                padding: const EdgeInsets.all(PtwSpacing.md),
-                decoration: BoxDecoration(
-                  color: PtwColors.surfacePrimary,
-                  borderRadius: BorderRadius.circular(PtwRadius.lg),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: Color(project.primaryColor),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.bolt_rounded,
-                        color: PtwColors.textOnAccent,
-                      ),
-                    ),
-                    const SizedBox(width: PtwSpacing.sm),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            proof.first.title,
-                            style: PtwTypography.bodyStrong,
-                          ),
-                          Text(
-                            proof.first.details,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: PtwTypography.caption,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: PtwSpacing.xl),
-            _SectionHeader(
-              title: 'Anonymous inbox',
-              action: responses.isEmpty ? null : 'See all',
-              onTap: responses.isEmpty ? null : () => context.go('/inbox'),
-            ),
-            const SizedBox(height: PtwSpacing.xs),
-            if (responses.isEmpty)
-              const _EmptyCard(
-                text: 'Share your link. The honest takes land here.',
-              )
-            else
-              Container(
-                key: const ValueKey(ComponentIds.projectInboxPreview),
-                decoration: BoxDecoration(
-                  color: PtwColors.surfacePrimary,
-                  borderRadius: BorderRadius.circular(PtwRadius.lg),
-                ),
-                child: Column(
-                  children: [
-                    for (var index = 0; index < responses.length; index++) ...[
-                      _ResponsePreview(response: responses[index]),
-                      if (index != responses.length - 1)
-                        const Divider(height: 1, indent: 16, endIndent: 16),
-                    ],
-                  ],
-                ),
-              ),
-          ],
+    return PtwImmersivePage(
+      key: const ValueKey(ComponentIds.projectHome),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          PtwSpacing.screenHorizontal,
+          PtwSpacing.sm,
+          PtwSpacing.screenHorizontal,
+          PtwSpacing.xxl,
         ),
+        children: [
+          PtwProjectTile(project: project, height: 330),
+          const SizedBox(height: PtwSpacing.md),
+          PtwBlackButton(
+            key: const ValueKey(ComponentIds.projectShare),
+            label: 'Share project',
+            icon: Icons.ios_share_rounded,
+            onPressed: () => context.push('/projects/${project.id}/share'),
+          ),
+          const SizedBox(height: PtwSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: _HubAction(
+                  key: const ValueKey(ComponentIds.projectInbox),
+                  icon: Icons.inbox_rounded,
+                  label:
+                      state.unreadResponseCount == 0
+                          ? 'Inbox'
+                          : 'Inbox ${state.unreadResponseCount}',
+                  onPressed: () => context.push('/inbox'),
+                ),
+              ),
+              const SizedBox(width: PtwSpacing.xs),
+              Expanded(
+                child: _HubAction(
+                  key: const ValueKey(ComponentIds.projectDiscover),
+                  icon: Icons.explore_rounded,
+                  label: 'Discover',
+                  onPressed: () => context.push('/discover'),
+                ),
+              ),
+              const SizedBox(width: PtwSpacing.xs),
+              Expanded(
+                child: _HubAction(
+                  key: const ValueKey(ComponentIds.projectAddProof),
+                  icon: Icons.add_photo_alternate_rounded,
+                  label: 'Proof',
+                  onPressed:
+                      () => context.push('/projects/${project.id}/proof/new'),
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              TextButton.icon(
+                key: const ValueKey(ComponentIds.projectCreate),
+                onPressed: () => context.push('/projects/new'),
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('New project'),
+                style: TextButton.styleFrom(
+                  foregroundColor: PtwColors.textOnAccent,
+                  textStyle: PtwTypography.bodyStrong,
+                ),
+              ),
+              const Spacer(),
+              PopupMenuButton<String>(
+                key: const ValueKey(ComponentIds.projectMenu),
+                tooltip: 'Project menu',
+                color: PtwColors.surfacePrimary,
+                icon: const Icon(
+                  Icons.more_horiz_rounded,
+                  color: PtwColors.textOnAccent,
+                ),
+                onSelected: (value) {
+                  if (value == 'reset') _reset(context, state);
+                },
+                itemBuilder:
+                    (_) => const [
+                      PopupMenuItem(
+                        value: 'reset',
+                        child: Text('Reset prototype'),
+                      ),
+                    ],
+              ),
+            ],
+          ),
+          if (proof.isNotEmpty) ...[
+            const SizedBox(height: PtwSpacing.sm),
+            _ProofPanel(
+              projectColor: Color(project.primaryColor),
+              title: proof.first.title,
+              details: proof.first.details,
+              time: PtwFormatters.relative(proof.first.createdAt),
+              media: proof.first.media,
+            ),
+          ],
+        ],
       ),
     );
   }
 }
 
-final class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, this.action, this.onTap});
+final class _HubAction extends StatelessWidget {
+  const _HubAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    super.key,
+  });
 
-  final String title;
-  final String? action;
-  final VoidCallback? onTap;
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(child: Text(title, style: PtwTypography.title)),
-      if (action != null) TextButton(onPressed: onTap, child: Text(action!)),
-    ],
+  Widget build(BuildContext context) => OutlinedButton(
+    onPressed: onPressed,
+    style: OutlinedButton.styleFrom(
+      minimumSize: const Size.fromHeight(62),
+      padding: const EdgeInsets.symmetric(horizontal: PtwSpacing.xs),
+      foregroundColor: PtwColors.textOnAccent,
+      side: const BorderSide(color: PtwColors.textOnAccent, width: 1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(PtwRadius.lg),
+      ),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(height: PtwSpacing.xxs),
+        Text(
+          label,
+          maxLines: 1,
+          style: PtwTypography.caption.copyWith(
+            color: PtwColors.textOnAccent,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    ),
   );
 }
 
-final class _EmptyCard extends StatelessWidget {
-  const _EmptyCard({required this.text});
-  final String text;
+final class _ProofPanel extends StatelessWidget {
+  const _ProofPanel({
+    required this.projectColor,
+    required this.title,
+    required this.details,
+    required this.time,
+    this.media,
+  });
+
+  final Color projectColor;
+  final String title;
+  final String details;
+  final String time;
+  final PtwImageRef? media;
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(PtwSpacing.lg),
+    clipBehavior: Clip.antiAlias,
     decoration: BoxDecoration(
-      color: PtwColors.surfacePrimary,
-      borderRadius: BorderRadius.circular(PtwRadius.lg),
+      color: projectColor,
+      border: Border.all(color: PtwColors.textOnAccent, width: 1),
+      borderRadius: BorderRadius.circular(PtwRadius.xl),
     ),
-    child: Text(text, style: PtwTypography.bodyStrong),
-  );
-}
-
-final class _ResponsePreview extends StatelessWidget {
-  const _ResponsePreview({required this.response});
-  final PtwResponse response;
-
-  @override
-  Widget build(BuildContext context) => ListTile(
-    onTap: () => context.go('/inbox'),
-    leading: CircleAvatar(
-      backgroundColor:
-          response.side == PtwResponseSide.believe
-              ? PtwColors.electricBlue
-              : PtwColors.hotPink,
-      child: Icon(
-        response.side == PtwResponseSide.believe
-            ? Icons.thumb_up_rounded
-            : Icons.thumb_down_rounded,
-        color: PtwColors.textOnAccent,
-        size: 18,
-      ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (media != null)
+          SizedBox(
+            height: 180,
+            width: double.infinity,
+            child: PtwMediaImage(image: media!),
+          ),
+        Padding(
+          padding: const EdgeInsets.all(PtwSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'PROOF · $time',
+                style: PtwTypography.caption.copyWith(
+                  color: PtwColors.textOnAccent,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: PtwSpacing.sm),
+              Text(
+                title,
+                style: PtwTypography.titleLarge.copyWith(
+                  color: PtwColors.textOnAccent,
+                ),
+              ),
+              const SizedBox(height: PtwSpacing.xs),
+              Text(
+                details,
+                style: PtwTypography.body.copyWith(color: PtwColors.softWhite),
+              ),
+            ],
+          ),
+        ),
+      ],
     ),
-    title: Text(
-      response.message,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: PtwTypography.bodyStrong,
-    ),
-    subtitle: Text('Anonymous · ${PtwFormatters.relative(response.createdAt)}'),
-    trailing:
-        response.isRead
-            ? const Icon(Icons.chevron_right_rounded)
-            : const Icon(Icons.circle, color: PtwColors.hotPink, size: 10),
   );
 }

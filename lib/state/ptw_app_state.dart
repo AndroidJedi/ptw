@@ -197,6 +197,25 @@ final class PtwAppState extends ChangeNotifier {
     await _commit(_snapshot.copyWith(responses: updated));
   }
 
+  Future<void> markCreatorResponsesRead() async {
+    final unreadIds =
+        creatorResponses
+            .where((response) => !response.isRead)
+            .map((response) => response.id)
+            .toSet();
+    if (unreadIds.isEmpty) return;
+
+    final readAt = _now();
+    final updated = [
+      for (final response in _snapshot.responses)
+        if (unreadIds.contains(response.id))
+          response.markRead(readAt)
+        else
+          response,
+    ];
+    await _commit(_snapshot.copyWith(responses: updated));
+  }
+
   Future<PtwEvidence> addEvidence({
     required String projectId,
     required String title,

@@ -8,6 +8,8 @@ import '../core/theme/ptw_typography.dart';
 import '../core/data/ptw_media_service.dart';
 import '../core/data/ptw_prototype_repository.dart';
 import '../state/ptw_app_state.dart';
+import '../ui_kit/atoms/ptw_black_button.dart';
+import '../ui_kit/organisms/ptw_immersive_page.dart';
 import 'app_router.dart';
 
 /// Root application that loads mock assets before exposing the router.
@@ -61,8 +63,10 @@ final class _PtwAppState extends State<PtwApp> {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: PtwTheme.light,
-          home: const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+          home: const PtwImmersivePage(
+            child: Center(
+              child: CircularProgressIndicator(color: PtwColors.textOnAccent),
+            ),
           ),
         );
       }
@@ -70,29 +74,33 @@ final class _PtwAppState extends State<PtwApp> {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: PtwTheme.light,
-          home: Scaffold(
-            body: Padding(
+          home: PtwImmersivePage(
+            child: Padding(
               padding: const EdgeInsets.all(PtwSpacing.lg),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.warning_amber_rounded, size: 48),
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: PtwColors.textOnAccent,
+                      size: 48,
+                    ),
                     const SizedBox(height: PtwSpacing.md),
                     Text(
-                      'Local prototype data could not be loaded.\n${_state.errorMessage}',
+                      'Local data unavailable',
                       textAlign: TextAlign.center,
-                      style: PtwTypography.body.copyWith(
-                        color: PtwColors.textSecondary,
+                      style: PtwTypography.titleLarge.copyWith(
+                        color: PtwColors.textOnAccent,
                       ),
                     ),
                     const SizedBox(height: PtwSpacing.md),
-                    FilledButton(
+                    PtwBlackButton(
+                      label: 'Reset local prototype',
                       onPressed: () async {
                         await _state.reset();
                         if (mounted) setState(() {});
                       },
-                      child: const Text('Reset local prototype'),
                     ),
                   ],
                 ),

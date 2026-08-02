@@ -10,7 +10,9 @@ import '../../core/theme/ptw_typography.dart';
 import '../../models/ptw_image_ref.dart';
 import '../../models/ptw_project.dart';
 import '../../state/ptw_app_state.dart';
+import '../../ui_kit/atoms/ptw_back_button.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
+import '../../ui_kit/organisms/ptw_immersive_page.dart';
 import '../../ui_kit/organisms/ptw_project_tile.dart';
 
 final class CreatePostScreen extends StatefulWidget {
@@ -98,43 +100,37 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
   Widget build(BuildContext context) {
     final state = PtwScope.of(context);
     _image ??= state.recoveredProjectImage;
-    return Scaffold(
+    return PtwImmersivePage(
       key: const ValueKey(ComponentIds.createProjectScreen),
-      backgroundColor: PtwColors.paper,
-      appBar: AppBar(
-        leading: IconButton(
-          onPressed:
-              () => _step == 0 ? context.pop() : setState(() => _step = 0),
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-        title: Text('${_step + 1} / 2'),
-      ),
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            Expanded(child: _step == 0 ? _goalStep() : _visualStep(state)),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
-              child: PtwBlackButton(
-                key: ValueKey(
-                  _step == 0
-                      ? ComponentIds.createProjectContinue
-                      : ComponentIds.createProjectPublish,
-                ),
-                label: _step == 0 ? 'Make it visual' : 'Create & share',
-                icon:
-                    _step == 0
-                        ? Icons.arrow_forward_rounded
-                        : Icons.bolt_rounded,
-                onPressed:
-                    _saving
-                        ? null
-                        : (_step == 0 ? _continue : () => _publish(state)),
-              ),
+      child: Column(
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: PtwBackButton(
+              key: const ValueKey(ComponentIds.createProjectBack),
+              fallbackRoute: '/',
+              onPressed: _step == 0 ? null : () => setState(() => _step = 0),
             ),
-          ],
-        ),
+          ),
+          Expanded(child: _step == 0 ? _goalStep() : _visualStep(state)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+            child: PtwBlackButton(
+              key: ValueKey(
+                _step == 0
+                    ? ComponentIds.createProjectContinue
+                    : ComponentIds.createProjectPublish,
+              ),
+              label: _step == 0 ? 'Continue' : 'Create & share',
+              icon:
+                  _step == 0 ? Icons.arrow_forward_rounded : Icons.bolt_rounded,
+              onPressed:
+                  _saving
+                      ? null
+                      : (_step == 0 ? _continue : () => _publish(state)),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -142,11 +138,9 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
   Widget _goalStep() => ListView(
     padding: const EdgeInsets.all(PtwSpacing.screenHorizontal),
     children: [
-      Text('What will you prove?', style: PtwTypography.display),
-      const SizedBox(height: PtwSpacing.xs),
       Text(
-        'One goal. No essay.',
-        style: PtwTypography.body.copyWith(color: PtwColors.textSecondary),
+        'What will you prove?',
+        style: PtwTypography.display.copyWith(color: PtwColors.textOnAccent),
       ),
       const SizedBox(height: PtwSpacing.xl),
       TextField(
@@ -169,7 +163,8 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
         child: Container(
           padding: const EdgeInsets.all(PtwSpacing.md),
           decoration: BoxDecoration(
-            color: PtwColors.surfacePrimary,
+            color: PtwColors.transparent,
+            border: Border.all(color: PtwColors.textOnAccent, width: 1),
             borderRadius: BorderRadius.circular(PtwRadius.lg),
           ),
           child: Row(
@@ -184,10 +179,15 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
                   _deadline == null
                       ? 'Choose a deadline'
                       : PtwFormatters.deadline(_deadline!),
-                  style: PtwTypography.bodyStrong,
+                  style: PtwTypography.bodyStrong.copyWith(
+                    color: PtwColors.textOnAccent,
+                  ),
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: PtwColors.textOnAccent,
+              ),
             ],
           ),
         ),
@@ -215,14 +215,13 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
     return ListView(
       padding: const EdgeInsets.all(PtwSpacing.screenHorizontal),
       children: [
-        Text('Make it impossible to ignore.', style: PtwTypography.titleLarge),
-        const SizedBox(height: PtwSpacing.md),
         if (preview == null)
           Container(
             height: 270,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: PtwColors.ink,
+              border: Border.all(color: PtwColors.textOnAccent, width: 1),
               borderRadius: BorderRadius.circular(PtwRadius.xl),
             ),
             child: Column(
@@ -246,7 +245,14 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
         else
           PtwProjectTile(project: preview, height: 270, compact: true),
         const SizedBox(height: PtwSpacing.lg),
-        Text('Project image · required', style: PtwTypography.bodyStrong),
+        Text(
+          'IMAGE',
+          style: PtwTypography.caption.copyWith(
+            color: PtwColors.textOnAccent,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.1,
+          ),
+        ),
         const SizedBox(height: PtwSpacing.xs),
         SizedBox(
           key: const ValueKey(ComponentIds.createProjectCuratedImages),
@@ -266,6 +272,10 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: PtwColors.ink,
+                      border: Border.all(
+                        color: PtwColors.textOnAccent,
+                        width: 1,
+                      ),
                       borderRadius: BorderRadius.circular(PtwRadius.md),
                     ),
                     child: const Column(
@@ -305,8 +315,8 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(PtwRadius.md),
                     border: Border.all(
-                      color: selected ? PtwColors.ink : PtwColors.transparent,
-                      width: 3,
+                      color: PtwColors.textOnAccent,
+                      width: selected ? 3 : 1,
                     ),
                   ),
                   child: Image.asset(curated.asset, fit: BoxFit.cover),
@@ -316,7 +326,14 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
           ),
         ),
         const SizedBox(height: PtwSpacing.lg),
-        Text('Primary color · required', style: PtwTypography.bodyStrong),
+        Text(
+          'COLOR',
+          style: PtwTypography.caption.copyWith(
+            color: PtwColors.textOnAccent,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.1,
+          ),
+        ),
         const SizedBox(height: PtwSpacing.xs),
         Row(
           key: const ValueKey(ComponentIds.createProjectPalette),
@@ -334,11 +351,8 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color:
-                          _primaryColor == color.toARGB32()
-                              ? PtwColors.ink
-                              : PtwColors.transparent,
-                      width: 3,
+                      color: PtwColors.textOnAccent,
+                      width: _primaryColor == color.toARGB32() ? 3 : 1,
                     ),
                   ),
                   child: DecoratedBox(

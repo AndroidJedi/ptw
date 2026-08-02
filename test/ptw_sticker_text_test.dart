@@ -5,6 +5,7 @@ import 'package:ptw/core/constants/component_ids.dart';
 import 'package:ptw/core/theme/ptw_colors.dart';
 import 'package:ptw/models/ptw_image_ref.dart';
 import 'package:ptw/models/ptw_project.dart';
+import 'package:ptw/ui_kit/atoms/ptw_finish_flag_icon.dart';
 import 'package:ptw/ui_kit/atoms/ptw_sticker_text.dart';
 import 'package:ptw/ui_kit/organisms/ptw_project_tile.dart';
 
@@ -26,16 +27,7 @@ void main() {
           body: Column(
             children: [
               PtwStickerText.hero('Sent!', key: ValueKey('hero')),
-              PtwStickerText.action(
-                'Share project',
-                key: ValueKey('action'),
-                accentColor: PtwColors.electricBlue,
-              ),
-              PtwStickerText.action(
-                'Disabled action',
-                key: ValueKey('disabled'),
-                enabled: false,
-              ),
+              PtwStickerText.action('Add proof', key: ValueKey('action')),
               PtwStickerText.actionSheet(
                 'Primary sheet action',
                 key: ValueKey('sheet'),
@@ -46,10 +38,10 @@ void main() {
       ),
     );
 
-    expect(find.byType(PtwStickerText), findsNWidgets(4));
-    expect(find.text('Share project'), findsOneWidget);
-    expect(find.bySemanticsLabel('Share project'), findsOneWidget);
-    for (final key in const ['hero', 'action', 'disabled', 'sheet']) {
+    expect(find.byType(PtwStickerText), findsNWidgets(3));
+    expect(find.text('Primary sheet action'), findsOneWidget);
+    expect(find.bySemanticsLabel('Primary sheet action'), findsOneWidget);
+    for (final key in const ['hero', 'action', 'sheet']) {
       expect(
         find.descendant(
           of: find.byKey(ValueKey(key)),
@@ -65,24 +57,29 @@ void main() {
         matching: find.byType(Text),
       ),
     );
-    final action = tester.widget<Text>(
+    final sheet = tester.widget<Text>(
       find.descendant(
-        of: find.byKey(const ValueKey('action')),
-        matching: find.byType(Text),
-      ),
-    );
-    final disabled = tester.widget<Text>(
-      find.descendant(
-        of: find.byKey(const ValueKey('disabled')),
+        of: find.byKey(const ValueKey('sheet')),
         matching: find.byType(Text),
       ),
     );
     expect(hero.style!.fontFamily, PtwStickerText.fontFamily);
     expect(hero.style!.color, PtwColors.textOnAccent);
     expect(hero.style!.shadows, hasLength(17));
-    expect(action.style!.color, PtwColors.electricBlue);
-    expect(action.style!.shadows, hasLength(8));
-    expect(disabled.style!.color!.a, closeTo(0.55, 0.01));
+    final action = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('action')),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(action.style!.color, PtwColors.textOnAccent);
+    expect(action.style!.fontSize, 20);
+    expect(action.style!.shadows, hasLength(9));
+    expect(action.style!.shadows!.first.color, PtwColors.hotPink);
+    expect(action.style!.shadows!.first.offset, const Offset(2, 2));
+    expect(action.style!.shadows![1].color, PtwColors.ink);
+    expect(sheet.style!.color, PtwColors.hotPink);
+    expect(sheet.style!.shadows, hasLength(8));
     semantics.dispose();
   });
 
@@ -131,6 +128,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text(goal), findsOneWidget);
+      expect(find.byType(PtwFinishFlagIcon), findsOneWidget);
       expect(
         tester
             .getSize(find.byKey(const ValueKey(ComponentIds.projectTile)))

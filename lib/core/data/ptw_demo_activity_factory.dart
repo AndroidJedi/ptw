@@ -1,4 +1,5 @@
 import '../../models/ptw_evidence.dart';
+import '../../models/ptw_image_ref.dart';
 import '../../models/ptw_project.dart';
 import '../../models/ptw_response.dart';
 
@@ -14,6 +15,7 @@ abstract final class PtwDemoActivityFactory {
   static PtwDemoActivity forProject({
     required PtwProject project,
     required DateTime referenceTime,
+    required PtwImageRef proofImage,
   }) => PtwDemoActivity(
     evidence: [
       PtwEvidence(
@@ -22,8 +24,8 @@ abstract final class PtwDemoActivityFactory {
         title: 'The first milestone is complete',
         details:
             'I finished the first concrete step and documented what changed.',
-        createdAt: referenceTime.subtract(const Duration(minutes: 25)),
-        media: project.image,
+        createdAt: referenceTime.subtract(const Duration(minutes: 10)),
+        media: proofImage,
       ),
       PtwEvidence(
         id: 'demo_proof_${project.id}_2',
@@ -31,7 +33,7 @@ abstract final class PtwDemoActivityFactory {
         title: 'The next step is scheduled',
         details:
             'I committed to the next checkpoint and put it on the calendar.',
-        createdAt: referenceTime.subtract(const Duration(hours: 4)),
+        createdAt: referenceTime.subtract(const Duration(hours: 2)),
       ),
     ],
     responses: [
@@ -41,7 +43,7 @@ abstract final class PtwDemoActivityFactory {
         side: PtwResponseSide.believe,
         message:
             'This feels specific enough to follow. Keep showing the progress.',
-        createdAt: referenceTime.subtract(const Duration(minutes: 12)),
+        createdAt: referenceTime.subtract(const Duration(minutes: 25)),
       ),
       PtwResponse(
         id: 'demo_response_${project.id}_2',
@@ -55,7 +57,7 @@ abstract final class PtwDemoActivityFactory {
         projectId: project.id,
         side: PtwResponseSide.believe,
         message: 'The deadline makes this feel real. I am watching.',
-        createdAt: referenceTime.subtract(const Duration(hours: 2)),
+        createdAt: referenceTime.subtract(const Duration(hours: 4)),
       ),
       PtwResponse(
         id: 'demo_response_${project.id}_4',

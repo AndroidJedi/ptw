@@ -9,6 +9,7 @@ import '../../core/theme/ptw_spacing.dart';
 import '../../core/theme/ptw_typography.dart';
 import '../../models/ptw_project.dart';
 import '../atoms/ptw_media_image.dart';
+import '../atoms/ptw_finish_flag_icon.dart';
 import '../atoms/ptw_sticker_text.dart';
 
 /// The canonical image-and-color representation of a PTW project.
@@ -100,11 +101,7 @@ final class PtwProjectTile extends StatelessWidget {
                       const SizedBox(height: PtwSpacing.sm),
                       Row(
                         children: [
-                          const Icon(
-                            Icons.flag_rounded,
-                            color: PtwColors.textOnAccent,
-                            size: 18,
-                          ),
+                          const PtwFinishFlagIcon(size: 18),
                           const SizedBox(width: PtwSpacing.xs),
                           Text(
                             PtwFormatters.deadline(project.deadline),

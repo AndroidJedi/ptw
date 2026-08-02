@@ -198,8 +198,6 @@ final class _GuestStoryScreenState extends State<GuestStoryScreen> {
             child: PtwBlackButton(
               key: const ValueKey(ComponentIds.responseSend),
               label: 'Send anonymously',
-              icon: Icons.arrow_upward_rounded,
-              accentColor: primary,
               onPressed: _canSend ? () => _send(state) : null,
             ),
           ),
@@ -272,7 +270,7 @@ final class _ProjectNotFound extends StatelessWidget {
         ),
         PtwPinnedActionBar(
           child: PtwBlackButton(
-            label: 'Open feed',
+            label: 'Others',
             onPressed: () => context.go('/feed'),
           ),
         ),
@@ -386,8 +384,6 @@ final class ResponseSentScreen extends StatelessWidget {
             child: PtwBlackButton(
               key: const ValueKey(ComponentIds.responseStartProject),
               label: 'Start your own project',
-              icon: Icons.bolt_rounded,
-              accentColor: primary,
               onPressed: () => _openActions(context, primary),
             ),
           ),

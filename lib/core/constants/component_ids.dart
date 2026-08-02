@@ -3,10 +3,14 @@ abstract final class ComponentIds {
   static const actionSheet = 'action_sheet';
   static const projectHome = 'project_home';
   static const projectHero = 'project_hero';
+  static const projectHeroTitle = 'project_hero_title';
   static const projectProofsPreview = 'project_proofs_preview';
   static const projectReactionsPreview = 'project_reactions_preview';
   static const projectOpenReactions = 'project_open_reactions';
   static const projectOpenFeed = 'project_open_feed';
+  static const projectFeedDuck = 'project_feed_duck';
+  static const projectAudiencePulse = 'project_audience_pulse';
+  static const projectAudienceMeter = 'project_audience_meter';
   static const projectTile = 'project_tile';
   static const projectAddProof = 'project_add_proof';
   static const createProjectScreen = 'create_project_screen';

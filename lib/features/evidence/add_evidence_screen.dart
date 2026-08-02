@@ -183,7 +183,6 @@ final class _AddEvidenceScreenState extends State<AddEvidenceScreen> {
             child: PtwBlackButton(
               key: const ValueKey(ComponentIds.addEvidencePublish),
               label: 'Publish proof',
-              icon: Icons.bolt_rounded,
               onPressed: _saving ? null : () => _publish(state),
             ),
           ),

@@ -144,7 +144,6 @@ final class ShareStoryPreviewScreen extends StatelessWidget {
             child: PtwBlackButton(
               key: const ValueKey(ComponentIds.sharePrimary),
               label: 'Share to Stories',
-              icon: Icons.auto_awesome_rounded,
               onPressed: () => _openActions(context, link),
             ),
           ),

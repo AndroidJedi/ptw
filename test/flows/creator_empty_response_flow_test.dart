@@ -4,6 +4,8 @@ import 'package:ptw/core/constants/component_ids.dart';
 import 'package:ptw/core/data/mock_json_loader.dart';
 import 'package:ptw/core/data/ptw_prototype_repository.dart';
 import 'package:ptw/ui_kit/atoms/ptw_black_button.dart';
+import 'package:ptw/ui_kit/atoms/ptw_duck_icon.dart';
+import 'package:ptw/ui_kit/atoms/ptw_finish_flag_icon.dart';
 
 import '../test_harness.dart';
 
@@ -32,6 +34,15 @@ void main() {
       find.byKey(const ValueKey(ComponentIds.projectAddProof)),
       findsOneWidget,
     );
+    expect(find.byType(PtwDuckIcon), findsOneWidget);
+    expect(find.byType(PtwFinishFlagIcon), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey(ComponentIds.projectAudiencePulse)),
+      findsOneWidget,
+    );
+    expect(find.text('5 reactions'), findsNothing);
+    expect(find.text('3 BELIEVE'), findsOneWidget);
+    expect(find.text('2 DOUBT'), findsOneWidget);
     await tester.dragUntilVisible(
       find.byKey(const ValueKey(ComponentIds.projectOpenReactions)),
       find.byType(ListView),

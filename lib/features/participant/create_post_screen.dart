@@ -12,6 +12,7 @@ import '../../models/ptw_project.dart';
 import '../../state/ptw_app_state.dart';
 import '../../ui_kit/atoms/ptw_back_button.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
+import '../../ui_kit/atoms/ptw_finish_flag_icon.dart';
 import '../../ui_kit/atoms/ptw_sticker_text.dart';
 import '../../ui_kit/organisms/ptw_immersive_page.dart';
 import '../../ui_kit/organisms/ptw_pinned_action_bar.dart';
@@ -123,8 +124,6 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
                     : ComponentIds.createProjectPublish,
               ),
               label: _step == 0 ? 'Continue' : 'Create & share',
-              icon:
-                  _step == 0 ? Icons.arrow_forward_rounded : Icons.bolt_rounded,
               onPressed:
                   _saving
                       ? null
@@ -169,7 +168,7 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
             children: [
               const CircleAvatar(
                 backgroundColor: PtwColors.ink,
-                child: Icon(Icons.flag_rounded, color: PtwColors.textOnAccent),
+                child: PtwFinishFlagIcon(size: 22),
               ),
               const SizedBox(width: PtwSpacing.sm),
               Expanded(

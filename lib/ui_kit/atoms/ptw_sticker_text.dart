@@ -38,12 +38,12 @@ final class PtwStickerText extends StatelessWidget {
   const PtwStickerText.action(
     this.text, {
     super.key,
-    this.accentColor = PtwColors.hotPink,
     this.enabled = true,
     this.textAlign = TextAlign.center,
     this.maxLines = 1,
   }) : variant = PtwStickerVariant.action,
        surface = PtwStickerSurface.dark,
+       accentColor = PtwColors.hotPink,
        compact = false,
        alignment = null;
 
@@ -74,7 +74,7 @@ final class PtwStickerText extends StatelessWidget {
   double get _maximumFontSize => switch (variant) {
     PtwStickerVariant.hero => 44,
     PtwStickerVariant.project => compact ? 30 : 38,
-    PtwStickerVariant.action => 18,
+    PtwStickerVariant.action => 20,
     PtwStickerVariant.actionSheet => 28,
   };
 
@@ -87,15 +87,27 @@ final class PtwStickerText extends StatelessWidget {
       enabled ? color : color.withValues(alpha: 0.55);
 
   TextStyle _style(double fontSize) {
+    final isAction = variant == PtwStickerVariant.action;
     final fill = _withEnabledOpacity(
-      surface == PtwStickerSurface.dark ? accentColor : PtwColors.textOnAccent,
+      isAction
+          ? PtwColors.textOnAccent
+          : surface == PtwStickerSurface.dark
+          ? accentColor
+          : PtwColors.textOnAccent,
     );
     final outline = _withEnabledOpacity(
-      surface == PtwStickerSurface.dark
+      isAction
+          ? PtwColors.ink
+          : surface == PtwStickerSurface.dark
           ? PtwColors.textOnAccent
           : PtwColors.ink,
     );
     final shadows = <Shadow>[
+      if (isAction)
+        Shadow(
+          color: _withEnabledOpacity(accentColor),
+          offset: const Offset(2, 2),
+        ),
       ..._outlineShadows(
         color: outline,
         radius: surface == PtwStickerSurface.dark ? 1 : 2,
@@ -110,6 +122,7 @@ final class PtwStickerText extends StatelessWidget {
       fontFamily: fontFamily,
       fontSize: fontSize,
       height: 0.96,
+      letterSpacing: isAction ? 0.2 : null,
       color: fill,
       shadows: shadows,
     );

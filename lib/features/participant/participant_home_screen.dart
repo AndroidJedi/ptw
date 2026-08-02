@@ -11,11 +11,15 @@ import '../../core/theme/ptw_spacing.dart';
 import '../../core/theme/ptw_typography.dart';
 import '../../models/ptw_evidence.dart';
 import '../../models/ptw_project.dart';
+import '../../models/ptw_reaction_summary.dart';
 import '../../models/ptw_response.dart';
 import '../../state/ptw_app_state.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
+import '../../ui_kit/atoms/ptw_duck_icon.dart';
+import '../../ui_kit/atoms/ptw_finish_flag_icon.dart';
 import '../../ui_kit/atoms/ptw_media_image.dart';
 import '../../ui_kit/atoms/ptw_sticker_text.dart';
+import '../../ui_kit/organisms/ptw_audience_pulse.dart';
 import '../../ui_kit/organisms/ptw_immersive_page.dart';
 import '../../ui_kit/organisms/ptw_pinned_action_bar.dart';
 import '../../ui_kit/organisms/ptw_response_content.dart';
@@ -50,6 +54,11 @@ final class _ParticipantHomeScreenState extends State<ParticipantHomeScreen> {
     final project = state.currentProject;
     final previewProofs = state.evidenceFor(project.id).take(2).toList();
     final previewResponses = state.responsesFor(project.id).take(2).toList();
+    final recentActivity = <_HomeActivityEntry>[
+      for (final proof in previewProofs) _HomeProofActivity(proof),
+      for (final response in previewResponses) _HomeResponseActivity(response),
+    ]..sort(_compareHomeActivity);
+    final reactionSummary = state.reactionSummaryFor(project.id);
     _schedulePreviewRead(state, previewResponses);
     final heroHeight =
         (MediaQuery.sizeOf(context).height * 0.54)
@@ -68,14 +77,11 @@ final class _ParticipantHomeScreenState extends State<ParticipantHomeScreen> {
                 _ProjectHero(
                   project: project,
                   height: heroHeight,
-                  onOpenFeed: () => context.push('/feed'),
+                  reactionSummary: reactionSummary,
+                  onOpenOthers: () => context.push('/feed'),
                 ),
-                if (previewProofs.isNotEmpty) ...[
-                  _ProofPreview(proofs: previewProofs),
-                  const _WhiteRule(),
-                ],
-                _ResponsePreview(
-                  responses: previewResponses,
+                _RecentActivity(
+                  activity: recentActivity,
                   unreadCount: state.unreadResponseCountFor(project.id),
                   onOpenAll: () => context.push('/inbox'),
                 ),
@@ -89,7 +95,6 @@ final class _ParticipantHomeScreenState extends State<ParticipantHomeScreen> {
               child: PtwBlackButton(
                 key: const ValueKey(ComponentIds.projectAddProof),
                 label: 'Add proof',
-                icon: Icons.bolt_rounded,
                 onPressed:
                     () => context.push('/projects/${project.id}/proof/new'),
               ),
@@ -105,12 +110,14 @@ final class _ProjectHero extends StatelessWidget {
   const _ProjectHero({
     required this.project,
     required this.height,
-    required this.onOpenFeed,
+    required this.reactionSummary,
+    required this.onOpenOthers,
   });
 
   final PtwProject project;
   final double height;
-  final VoidCallback onOpenFeed;
+  final PtwReactionSummary reactionSummary;
+  final VoidCallback onOpenOthers;
 
   @override
   Widget build(BuildContext context) {
@@ -142,23 +149,34 @@ final class _ProjectHero extends StatelessWidget {
                   children: [
                     Expanded(child: _OwnerIdentity(project: project)),
                     const SizedBox(width: PtwSpacing.sm),
-                    _HeroFeedButton(onTap: onOpenFeed),
+                    _HeroOthersButton(onTap: onOpenOthers),
                   ],
                 ),
                 Expanded(
-                  child: PtwStickerText.project(
-                    project.goal,
-                    alignment: Alignment.bottomLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      PtwSpacing.xxs,
+                      PtwSpacing.zero,
+                      PtwSpacing.xxs,
+                      PtwSpacing.md,
+                    ),
+                    child: PtwStickerText.project(
+                      project.goal,
+                      key: const ValueKey(ComponentIds.projectHeroTitle),
+                      alignment: Alignment.bottomLeft,
+                    ),
                   ),
                 ),
-                const SizedBox(height: PtwSpacing.sm),
+                if (reactionSummary.total > 0) ...[
+                  PtwAudiencePulse(
+                    key: const ValueKey(ComponentIds.projectAudiencePulse),
+                    summary: reactionSummary,
+                  ),
+                  const SizedBox(height: PtwSpacing.sm),
+                ],
                 Row(
                   children: [
-                    const Icon(
-                      Icons.flag_rounded,
-                      color: PtwColors.textOnAccent,
-                      size: 19,
-                    ),
+                    const PtwFinishFlagIcon(size: 19),
                     const SizedBox(width: PtwSpacing.xs),
                     Text(
                       PtwFormatters.deadline(project.deadline),
@@ -212,65 +230,49 @@ final class _OwnerIdentity extends StatelessWidget {
   );
 }
 
-final class _HeroFeedButton extends StatelessWidget {
-  const _HeroFeedButton({required this.onTap});
+final class _HeroOthersButton extends StatelessWidget {
+  const _HeroOthersButton({required this.onTap});
 
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-    key: const ValueKey(ComponentIds.projectOpenFeed),
-    color: PtwColors.ink.withValues(alpha: 0.58),
-    shape: const StadiumBorder(
-      side: BorderSide(color: PtwColors.textOnAccent, width: 1),
-    ),
-    clipBehavior: Clip.antiAlias,
-    child: InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: PtwSpacing.sm,
-          vertical: PtwSpacing.xs,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.explore_rounded,
-              color: PtwColors.textOnAccent,
-              size: 18,
-            ),
-            const SizedBox(width: PtwSpacing.xs),
-            Text(
-              'Feed',
-              style: PtwTypography.label.copyWith(
-                color: PtwColors.textOnAccent,
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Others',
+    excludeSemantics: true,
+    child: Material(
+      key: const ValueKey(ComponentIds.projectOpenFeed),
+      color: PtwColors.ink.withValues(alpha: 0.58),
+      shape: const StadiumBorder(
+        side: BorderSide(color: PtwColors.textOnAccent, width: 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: PtwSpacing.sm,
+            vertical: PtwSpacing.xs,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const PtwDuckIcon(
+                key: ValueKey(ComponentIds.projectFeedDuck),
+                size: 18,
               ),
-            ),
-          ],
+              const SizedBox(width: PtwSpacing.xs),
+              Text(
+                'Others',
+                style: PtwTypography.label.copyWith(
+                  color: PtwColors.textOnAccent,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     ),
-  );
-}
-
-final class _ProofPreview extends StatelessWidget {
-  const _ProofPreview({required this.proofs});
-
-  final List<PtwEvidence> proofs;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    key: const ValueKey(ComponentIds.projectProofsPreview),
-    children: [
-      for (var index = 0; index < proofs.length; index++) ...[
-        _ProofUpdate(
-          key: ValueKey('home_proof_${proofs[index].id}'),
-          proof: proofs[index],
-        ),
-        if (index != proofs.length - 1) const _WhiteRule(),
-      ],
-    ],
   );
 }
 
@@ -321,14 +323,14 @@ final class _ProofUpdate extends StatelessWidget {
   );
 }
 
-final class _ResponsePreview extends StatelessWidget {
-  const _ResponsePreview({
-    required this.responses,
+final class _RecentActivity extends StatelessWidget {
+  const _RecentActivity({
+    required this.activity,
     required this.unreadCount,
     required this.onOpenAll,
   });
 
-  final List<PtwResponse> responses;
+  final List<_HomeActivityEntry> activity;
   final int unreadCount;
   final VoidCallback onOpenAll;
 
@@ -336,13 +338,19 @@ final class _ResponsePreview extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     key: const ValueKey(ComponentIds.projectReactionsPreview),
     children: [
-      for (var index = 0; index < responses.length; index++) ...[
-        PtwResponseContent(
-          key: ValueKey('home_response_${responses[index].id}'),
-          response: responses[index],
-          padding: const EdgeInsets.all(PtwSpacing.screenHorizontal),
-        ),
-        if (index != responses.length - 1) const _WhiteRule(),
+      for (var index = 0; index < activity.length; index++) ...[
+        switch (activity[index]) {
+          _HomeProofActivity(:final proof) => _ProofUpdate(
+            key: ValueKey('home_proof_${proof.id}'),
+            proof: proof,
+          ),
+          _HomeResponseActivity(:final response) => PtwResponseContent(
+            key: ValueKey('home_response_${response.id}'),
+            response: response,
+            padding: const EdgeInsets.all(PtwSpacing.screenHorizontal),
+          ),
+        },
+        const _WhiteRule(),
       ],
       _TextAction(
         key: const ValueKey(ComponentIds.projectOpenReactions),
@@ -354,6 +362,42 @@ final class _ResponsePreview extends StatelessWidget {
       ),
     ],
   );
+}
+
+sealed class _HomeActivityEntry {
+  const _HomeActivityEntry();
+
+  DateTime get createdAt;
+  String get id;
+}
+
+final class _HomeProofActivity extends _HomeActivityEntry {
+  const _HomeProofActivity(this.proof);
+
+  final PtwEvidence proof;
+
+  @override
+  DateTime get createdAt => proof.createdAt;
+
+  @override
+  String get id => proof.id;
+}
+
+final class _HomeResponseActivity extends _HomeActivityEntry {
+  const _HomeResponseActivity(this.response);
+
+  final PtwResponse response;
+
+  @override
+  DateTime get createdAt => response.createdAt;
+
+  @override
+  String get id => response.id;
+}
+
+int _compareHomeActivity(_HomeActivityEntry first, _HomeActivityEntry second) {
+  final byTime = second.createdAt.compareTo(first.createdAt);
+  return byTime == 0 ? first.id.compareTo(second.id) : byTime;
 }
 
 final class _TextAction extends StatelessWidget {

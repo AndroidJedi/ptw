@@ -31,13 +31,18 @@ PTW must feel direct, bold, human, and emotionally immediate.
 - Use borderless editorial sections, direct response typography, image bands,
   and thin dividers for ongoing content. Do not package updates or social
   activity into generic cards.
+- Hero social signals expose real stored activity through compact text and
+  custom indicators. They are information, not another card or button.
+- Prototype proof imagery must be visually distinct from its project hero.
 
 ## Typography
 
-- Sticker typography identifies the project, the hero state, or the single
-  primary action. It is hierarchy, never decoration.
-- Use the outlined Lilita One treatment for project goals, CTA labels, hero
-  facts, and the first action-sheet choice only.
+- Sticker typography identifies the project, a hero state, or the first
+  action-sheet choice. It is hierarchy, never decoration.
+- Use the outlined Lilita One treatment for project goals, hero facts, and the
+  first action-sheet choice only.
+- CTA labels use a centered white sticker wordmark with a crisp black contour,
+  a small hot-pink hard shadow, and no leading icon.
 - Keep supporting copy, messages, proof, metadata, selectors, fields, and
   secondary actions in Roboto.
 - Preserve natural capitalization and complete content. Project stickers may
@@ -45,17 +50,21 @@ PTW must feel direct, bold, human, and emotionally immediate.
 - On images and saturated surfaces, sticker text is white with a hard black
   outline and offset shadow. On black controls, it uses the current accent with
   a thin white outline.
+- Reserve enough inset around sticker text for its outline and offset shadow;
+  the visible mark must never touch or clip against a screen edge.
 
 ## Interaction
 
 - Project is the creator hub. Do not use persistent tab bars.
-- Social activity is an immersive feed of full-width content, not a discovery
-  grid or another navigation shell.
+- Other creators appear in an immersive full-width activity stream, not a
+  discovery grid or another navigation shell.
 - Secondary creator screens use a white Apple-style back chevron.
 - A screen has at most one prominent black capsule action. It stays pinned
   while the content scrolls.
 - Back controls, inputs, selectors, and tappable content do not count as the
   screen action. A screen may have no capsule when its content is the action.
+- Reserve small, minimal outlined icons for meaningful navigation and
+  metadata. Primary CTA capsules remain icon-free.
 - When secondary actions are necessary, the single capsule opens a focused
   action sheet. The primary action appears first; no secondary buttons remain
   on the screen.
@@ -67,5 +76,7 @@ PTW must feel direct, bold, human, and emotionally immediate.
   separate content preview.
 - Organize mixed activity with typography and thin separators, not cards or
   section containers.
+- Merge proofs and reactions into one chronological stream. Do not separate
+  related activity into type-based sections when time is the useful context.
 - Navigation, status bars, and backgrounds must feel like one continuous
   surface.

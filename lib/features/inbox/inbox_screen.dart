@@ -86,7 +86,6 @@ final class _InboxScreenState extends State<InboxScreen> {
             child: PtwBlackButton(
               key: const ValueKey(ComponentIds.inboxShare),
               label: 'Share project',
-              icon: Icons.ios_share_rounded,
               onPressed:
                   () => context.push(
                     '/projects/${state.currentProject.id}/share',

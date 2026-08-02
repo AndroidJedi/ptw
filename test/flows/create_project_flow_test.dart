@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ptw/core/constants/component_ids.dart';
 import 'package:ptw/core/theme/ptw_colors.dart';
 import 'package:ptw/ui_kit/atoms/ptw_black_button.dart';
+import 'package:ptw/ui_kit/atoms/ptw_finish_flag_icon.dart';
 
 import '../test_harness.dart';
 
@@ -12,6 +13,7 @@ void main() {
   ) async {
     final environment = await pumpPtw(tester, initialLocation: '/projects/new');
     expect(find.byType(PtwBlackButton), findsOneWidget);
+    expect(find.byType(PtwFinishFlagIcon), findsOneWidget);
     const goal = 'Ship the boldest local launch of the year';
     await tester.enterText(
       find.byKey(const ValueKey(ComponentIds.createProjectGoal)),
@@ -55,5 +57,10 @@ void main() {
       stored.evidence.where((item) => item.projectId == projectId),
       hasLength(2),
     );
+    final project = stored.projects.first;
+    final proof = stored.evidence.firstWhere(
+      (item) => item.projectId == projectId && item.media != null,
+    );
+    expect(proof.media!.path, isNot(project.image.path));
   });
 }

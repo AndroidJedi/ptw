@@ -34,6 +34,17 @@ void main() {
       expect(hero, findsOneWidget);
       expect(tester.getTopLeft(hero).dx, 0);
       expect(tester.getSize(hero).width, testSurfaceSize.width);
+      final heroTitle = find.byKey(
+        const ValueKey(ComponentIds.projectHeroTitle),
+      );
+      expect(tester.getTopLeft(heroTitle).dx, 24);
+      expect(tester.getBottomRight(heroTitle).dx, 369);
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey(ComponentIds.projectFeedDuck)),
+        ),
+        const Size.square(18),
+      );
       expect(find.byType(PtwProjectTile), findsNothing);
       expect(find.byType(PtwBlackButton), findsOneWidget);
       expect(
@@ -44,6 +55,17 @@ void main() {
         find.byKey(const ValueKey(ComponentIds.projectOpenFeed)),
         findsOneWidget,
       );
+      final feedSemantics = tester.widget<Semantics>(
+        find
+            .ancestor(
+              of: find.byKey(const ValueKey(ComponentIds.projectOpenFeed)),
+              matching: find.byType(Semantics),
+            )
+            .first,
+      );
+      expect(feedSemantics.properties.label, 'Others');
+      expect(feedSemantics.properties.button, isTrue);
+      expect(find.text('Others'), findsOneWidget);
       expect(find.text('Open feed'), findsNothing);
 
       await tester.tap(
@@ -79,6 +101,27 @@ void main() {
         ),
         findsOneWidget,
       );
+
+      final chronologicalKeys =
+          find
+              .descendant(
+                of: find.byType(ListView),
+                matching: find.byWidgetPredicate((widget) {
+                  final key = widget.key;
+                  return key is ValueKey<String> &&
+                      (key.value.startsWith('home_proof_') ||
+                          key.value.startsWith('home_response_'));
+                }),
+              )
+              .evaluate()
+              .map((element) => (element.widget.key! as ValueKey<String>).value)
+              .toList();
+      expect(chronologicalKeys, [
+        'home_proof_evidence_001',
+        'home_response_seed_response_1',
+        'home_response_seed_response_2',
+        'home_proof_evidence_002',
+      ]);
 
       await tester.dragUntilVisible(
         find.byKey(const ValueKey(ComponentIds.projectOpenReactions)),

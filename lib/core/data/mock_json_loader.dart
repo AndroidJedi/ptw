@@ -27,6 +27,7 @@ final class MockJsonLoader {
   const MockJsonLoader();
 
   static final _prototypeToday = DateTime(2026, 8, 2);
+  static final _prototypeActivityTime = DateTime(2026, 8, 2, 12);
 
   Future<PtwSeedData> load() async {
     final values = await Future.wait([
@@ -79,7 +80,15 @@ final class MockJsonLoader {
           projectId: row['challengeId'] as String,
           title: row['title'] as String,
           details: row['details'] as String,
-          createdAt: _prototypeToday.subtract(Duration(days: index + 1)),
+          createdAt: switch (row['id']) {
+            'evidence_001' => _prototypeActivityTime.subtract(
+              const Duration(minutes: 10),
+            ),
+            'evidence_002' => _prototypeActivityTime.subtract(
+              const Duration(hours: 2),
+            ),
+            _ => _prototypeToday.subtract(Duration(days: index + 1)),
+          },
           media:
               row['mediaAsset'] == null
                   ? null
@@ -92,7 +101,12 @@ final class MockJsonLoader {
     final responses = <PtwResponse>[];
     for (var index = 0; index < commentRows.length; index++) {
       final row = commentRows[index];
-      final createdAt = _prototypeToday.subtract(Duration(hours: index + 1));
+      final createdAt = switch (index) {
+        0 => _prototypeActivityTime.subtract(const Duration(minutes: 25)),
+        1 => _prototypeActivityTime.subtract(const Duration(minutes: 47)),
+        2 => _prototypeActivityTime.subtract(const Duration(hours: 4)),
+        _ => _prototypeToday.subtract(Duration(hours: index + 1)),
+      };
       responses.add(
         PtwResponse(
           id: 'seed_response_${index + 1}',

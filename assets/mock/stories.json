@@ -1,0 +1,74 @@
+[
+  {
+    "id": "story_alex",
+    "challengeId": "challenge_red_friday",
+    "ownerName": "Alex",
+    "avatarAsset": "assets/images/users/alex.jpg",
+    "backgroundAsset": "assets/images/backgrounds/startup.jpg",
+    "update": "The first 14 sign-ups arrived in two days",
+    "viewed": false
+  },
+  {
+    "id": "story_maya",
+    "challengeId": "challenge_fitness",
+    "ownerName": "Maya",
+    "avatarAsset": "assets/images/users/maya.jpg",
+    "backgroundAsset": "assets/images/backgrounds/fitness.jpg",
+    "update": "Three kilograms down this week",
+    "viewed": false
+  },
+  {
+    "id": "story_daniel",
+    "challengeId": "challenge_clients",
+    "ownerName": "Daniel",
+    "avatarAsset": "assets/images/users/daniel.jpg",
+    "backgroundAsset": "assets/images/backgrounds/business.jpg",
+    "update": "I signed my first two clients",
+    "viewed": true
+  },
+  {
+    "id": "story_nina",
+    "challengeId": "challenge_prototype",
+    "ownerName": "Nina",
+    "avatarAsset": "assets/images/users/nina.jpg",
+    "backgroundAsset": "assets/images/backgrounds/technology.jpg",
+    "update": "The prototype passed its first user test",
+    "viewed": true
+  },
+  {
+    "id": "story_jordan",
+    "challengeId": "challenge_book",
+    "ownerName": "Jordan",
+    "avatarAsset": "assets/images/users/jordan.jpg",
+    "backgroundAsset": "assets/images/backgrounds/creative.jpg",
+    "update": "The first chapter is fully illustrated",
+    "viewed": false
+  },
+  {
+    "id": "story_chloe",
+    "challengeId": "challenge_spanish",
+    "ownerName": "Chloe",
+    "avatarAsset": "assets/images/users/chloe.jpg",
+    "backgroundAsset": "assets/images/backgrounds/education.jpg",
+    "update": "I completed my first 20-minute conversation",
+    "viewed": false
+  },
+  {
+    "id": "story_marcus",
+    "challengeId": "challenge_design_lead",
+    "ownerName": "Marcus",
+    "avatarAsset": "assets/images/users/marcus.jpg",
+    "backgroundAsset": "assets/images/backgrounds/career.jpg",
+    "update": "I led my first design critique",
+    "viewed": true
+  },
+  {
+    "id": "story_elena",
+    "challengeId": "challenge_parks",
+    "ownerName": "Elena",
+    "avatarAsset": "assets/images/users/elena.jpg",
+    "backgroundAsset": "assets/images/backgrounds/travel.jpg",
+    "update": "Park number two is booked",
+    "viewed": false
+  }
+]

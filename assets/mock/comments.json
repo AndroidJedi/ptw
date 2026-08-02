@@ -1,0 +1,42 @@
+[
+  {
+    "id": "comment_001",
+    "challengeId": "challenge_red_friday",
+    "authorName": "Sam",
+    "body": "The first sign-ups are a strong signal. Keep shipping in public!",
+    "timeLabel": "18 min ago",
+    "sentiment": "believe"
+  },
+  {
+    "id": "comment_002",
+    "challengeId": "challenge_red_friday",
+    "authorName": "Taylor",
+    "body": "What will make people come back after the first meetup?",
+    "timeLabel": "1 hr ago",
+    "sentiment": "doubt"
+  },
+  {
+    "id": "comment_003",
+    "challengeId": "challenge_red_friday",
+    "authorName": "Jamie",
+    "body": "I would join this. The idea feels useful and genuinely social.",
+    "timeLabel": "3 hr ago",
+    "sentiment": "believe"
+  },
+  {
+    "id": "comment_004",
+    "challengeId": "challenge_fitness",
+    "authorName": "Chris",
+    "body": "Consistency beats intensity. You have this!",
+    "timeLabel": "42 min ago",
+    "sentiment": "believe"
+  },
+  {
+    "id": "comment_005",
+    "challengeId": "challenge_clients",
+    "authorName": "Morgan",
+    "body": "Show the outreach numbers too. That will make the progress real.",
+    "timeLabel": "2 hr ago",
+    "sentiment": "neutral"
+  }
+]

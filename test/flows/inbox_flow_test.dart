@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ptw/core/constants/component_ids.dart';
+import 'package:ptw/ui_kit/atoms/ptw_black_button.dart';
 
 import '../test_harness.dart';
 
@@ -17,6 +18,11 @@ void main() {
         find.byKey(const ValueKey(ComponentIds.inboxBack)),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const ValueKey(ComponentIds.inboxShare)),
+        findsOneWidget,
+      );
+      expect(find.byType(PtwBlackButton), findsOneWidget);
       expect(find.text('THEY BELIEVE'), findsNWidgets(2));
       expect(find.text('THEY DOUBT'), findsOneWidget);
       expect(find.text('1'), findsNothing);
@@ -49,6 +55,14 @@ void main() {
             .every((item) => !item.isRead),
         isTrue,
       );
+
+      await tester.tap(find.byKey(const ValueKey(ComponentIds.inboxShare)));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey(ComponentIds.shareScreen)),
+        findsOneWidget,
+      );
+      expect(find.byType(PtwBlackButton), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();

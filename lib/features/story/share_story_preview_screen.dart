@@ -3,14 +3,18 @@ import 'package:flutter/services.dart';
 
 import '../../core/constants/component_ids.dart';
 import '../../core/theme/ptw_colors.dart';
-import '../../core/theme/ptw_radius.dart';
 import '../../core/theme/ptw_spacing.dart';
 import '../../core/theme/ptw_typography.dart';
 import '../../state/ptw_app_state.dart';
 import '../../ui_kit/atoms/ptw_back_button.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
+import '../../ui_kit/atoms/ptw_sticker_text.dart';
+import '../../ui_kit/organisms/ptw_action_sheet.dart';
 import '../../ui_kit/organisms/ptw_immersive_page.dart';
+import '../../ui_kit/organisms/ptw_pinned_action_bar.dart';
 import '../../ui_kit/organisms/ptw_project_tile.dart';
+
+enum _ShareAction { stories, copy, instagram, tiktok, more }
 
 final class ShareStoryPreviewScreen extends StatelessWidget {
   const ShareStoryPreviewScreen({required this.projectId, super.key});
@@ -21,6 +25,62 @@ final class ShareStoryPreviewScreen extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Project card prepared for $platform')),
     );
+  }
+
+  Future<void> _openActions(BuildContext context, String link) async {
+    final action = await showPtwActionSheet<_ShareAction>(
+      context,
+      actions: const [
+        PtwActionSheetItem(
+          id: ComponentIds.shareActionStories,
+          label: 'Share to Stories',
+          value: _ShareAction.stories,
+        ),
+        PtwActionSheetItem(
+          id: ComponentIds.shareCopyLink,
+          label: 'Copy link',
+          value: _ShareAction.copy,
+        ),
+        PtwActionSheetItem(
+          id: ComponentIds.shareActionInstagram,
+          label: 'Instagram',
+          value: _ShareAction.instagram,
+        ),
+        PtwActionSheetItem(
+          id: ComponentIds.shareActionTiktok,
+          label: 'TikTok',
+          value: _ShareAction.tiktok,
+        ),
+        PtwActionSheetItem(
+          id: ComponentIds.shareActionMore,
+          label: 'More',
+          value: _ShareAction.more,
+        ),
+      ],
+    );
+    if (action == null || !context.mounted) return;
+    switch (action) {
+      case _ShareAction.stories:
+        _prepared(context, 'Stories');
+        break;
+      case _ShareAction.copy:
+        await Clipboard.setData(ClipboardData(text: link));
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Link copied')));
+        }
+        break;
+      case _ShareAction.instagram:
+        _prepared(context, 'Instagram');
+        break;
+      case _ShareAction.tiktok:
+        _prepared(context, 'TikTok');
+        break;
+      case _ShareAction.more:
+        _prepared(context, 'other apps');
+        break;
+    }
   }
 
   @override
@@ -37,11 +97,9 @@ final class ShareStoryPreviewScreen extends StatelessWidget {
             ),
             Expanded(
               child: Center(
-                child: Text(
+                child: const PtwStickerText.hero(
                   'Project unavailable',
-                  style: PtwTypography.titleLarge.copyWith(
-                    color: PtwColors.textOnAccent,
-                  ),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),
@@ -67,116 +125,31 @@ final class ShareStoryPreviewScreen extends StatelessWidget {
                 PtwSpacing.screenHorizontal,
                 PtwSpacing.xs,
                 PtwSpacing.screenHorizontal,
-                PtwSpacing.xxl,
+                PtwSpacing.md,
               ),
               children: [
                 PtwProjectTile(project: project, height: 410),
                 const SizedBox(height: PtwSpacing.md),
-                OutlinedButton.icon(
-                  key: const ValueKey(ComponentIds.shareCopyLink),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: link));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Link copied')),
-                    );
-                  },
-                  icon: const Icon(Icons.link_rounded),
-                  label: Text(
-                    'PTW.TO/${project.ownerHandle.toUpperCase()}',
-                    overflow: TextOverflow.ellipsis,
+                Text(
+                  'PTW.TO/${project.ownerHandle.toUpperCase()}',
+                  textAlign: TextAlign.center,
+                  style: PtwTypography.bodyStrong.copyWith(
+                    color: PtwColors.textOnAccent,
                   ),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(56),
-                    foregroundColor: PtwColors.textOnAccent,
-                    side: const BorderSide(
-                      color: PtwColors.textOnAccent,
-                      width: 1,
-                    ),
-                    textStyle: PtwTypography.bodyStrong,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(PtwRadius.lg),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: PtwSpacing.sm),
-                PtwBlackButton(
-                  label: 'Share to Stories',
-                  icon: Icons.auto_awesome_rounded,
-                  onPressed: () => _prepared(context, 'Stories'),
-                ),
-                const SizedBox(height: PtwSpacing.sm),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ShareAction(
-                        icon: Icons.camera_alt_rounded,
-                        label: 'Instagram',
-                        onTap: () => _prepared(context, 'Instagram'),
-                      ),
-                    ),
-                    const SizedBox(width: PtwSpacing.xs),
-                    Expanded(
-                      child: _ShareAction(
-                        icon: Icons.music_note_rounded,
-                        label: 'TikTok',
-                        onTap: () => _prepared(context, 'TikTok'),
-                      ),
-                    ),
-                    const SizedBox(width: PtwSpacing.xs),
-                    Expanded(
-                      child: _ShareAction(
-                        icon: Icons.more_horiz_rounded,
-                        label: 'More',
-                        onTap: () => _prepared(context, 'other apps'),
-                      ),
-                    ),
-                  ],
                 ),
               ],
+            ),
+          ),
+          PtwPinnedActionBar(
+            child: PtwBlackButton(
+              key: const ValueKey(ComponentIds.sharePrimary),
+              label: 'Share to Stories',
+              icon: Icons.auto_awesome_rounded,
+              onPressed: () => _openActions(context, link),
             ),
           ),
         ],
       ),
     );
   }
-}
-
-final class _ShareAction extends StatelessWidget {
-  const _ShareAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => OutlinedButton(
-    onPressed: onTap,
-    style: OutlinedButton.styleFrom(
-      minimumSize: const Size.fromHeight(70),
-      padding: const EdgeInsets.symmetric(horizontal: PtwSpacing.xs),
-      foregroundColor: PtwColors.textOnAccent,
-      side: const BorderSide(color: PtwColors.textOnAccent, width: 1),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(PtwRadius.lg),
-      ),
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon),
-        const SizedBox(height: PtwSpacing.xxs),
-        Text(
-          label,
-          style: PtwTypography.caption.copyWith(
-            color: PtwColors.textOnAccent,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ],
-    ),
-  );
 }

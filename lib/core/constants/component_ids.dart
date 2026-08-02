@@ -1,5 +1,6 @@
 /// Stable identifiers used by automated tests and semantic tooling.
 abstract final class ComponentIds {
+  static const actionSheet = 'action_sheet';
   static const projectHome = 'project_home';
   static const projectTile = 'project_tile';
   static const projectShare = 'project_share';
@@ -8,6 +9,7 @@ abstract final class ComponentIds {
   static const projectDiscover = 'project_discover';
   static const projectCreate = 'project_create';
   static const projectMenu = 'project_menu';
+  static const projectActionShare = 'project_action_share';
   static const createProjectScreen = 'create_project_screen';
   static const createProjectBack = 'create_project_back';
   static const createProjectGoal = 'create_project_goal';
@@ -25,16 +27,23 @@ abstract final class ComponentIds {
   static const responseSent = 'response_sent';
   static const responseSendAnother = 'response_send_another';
   static const responseStartProject = 'response_start_project';
+  static const responseActionStartProject = 'response_action_start_project';
   static const responseSentBack = 'response_sent_back';
   static const visitorBack = 'visitor_back';
   static const inboxScreen = 'inbox_screen';
   static const inboxBack = 'inbox_back';
   static const inboxList = 'inbox_list';
+  static const inboxShare = 'inbox_share';
   static const discoverScreen = 'discover_screen';
   static const discoverBack = 'discover_back';
   static const discoverList = 'discover_list';
   static const shareScreen = 'share_screen';
   static const shareBack = 'share_back';
+  static const sharePrimary = 'share_primary';
+  static const shareActionStories = 'share_action_stories';
+  static const shareActionInstagram = 'share_action_instagram';
+  static const shareActionTiktok = 'share_action_tiktok';
+  static const shareActionMore = 'share_action_more';
   static const shareCopyLink = 'share_copy_link';
   static const evidenceBack = 'evidence_back';
   static const evidenceTitle = 'evidence_title';

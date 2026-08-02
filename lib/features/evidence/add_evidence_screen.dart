@@ -11,7 +11,9 @@ import '../../state/ptw_app_state.dart';
 import '../../ui_kit/atoms/ptw_back_button.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
 import '../../ui_kit/atoms/ptw_media_image.dart';
+import '../../ui_kit/atoms/ptw_sticker_text.dart';
 import '../../ui_kit/organisms/ptw_immersive_page.dart';
+import '../../ui_kit/organisms/ptw_pinned_action_bar.dart';
 
 final class AddEvidenceScreen extends StatefulWidget {
   const AddEvidenceScreen({required this.projectId, super.key});
@@ -177,8 +179,7 @@ final class _AddEvidenceScreenState extends State<AddEvidenceScreen> {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+          PtwPinnedActionBar(
             child: PtwBlackButton(
               key: const ValueKey(ComponentIds.addEvidencePublish),
               label: 'Publish proof',
@@ -207,11 +208,9 @@ final class _MissingProject extends StatelessWidget {
         ),
         Expanded(
           child: Center(
-            child: Text(
+            child: const PtwStickerText.hero(
               'Project unavailable',
-              style: PtwTypography.titleLarge.copyWith(
-                color: PtwColors.textOnAccent,
-              ),
+              textAlign: TextAlign.center,
             ),
           ),
         ),

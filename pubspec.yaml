@@ -63,6 +63,7 @@ flutter:
     - assets/images/
     - assets/images/users/
     - assets/images/backgrounds/
+    - assets/fonts/LilitaOne-OFL.txt
 
   fonts:
     - family: PtwRoboto
@@ -73,6 +74,9 @@ flutter:
           weight: 500
         - asset: assets/fonts/Roboto-Bold.ttf
           weight: 700
+    - family: PtwLilitaOne
+      fonts:
+        - asset: assets/fonts/LilitaOne-Regular.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

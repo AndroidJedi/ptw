@@ -57,9 +57,11 @@ Future<PtwTestEnvironment> pumpPtw(
         ..addFont(rootBundle.load('assets/fonts/Roboto-Regular.ttf'))
         ..addFont(rootBundle.load('assets/fonts/Roboto-Medium.ttf'))
         ..addFont(rootBundle.load('assets/fonts/Roboto-Bold.ttf'));
+  final stickerFonts = FontLoader('PtwLilitaOne')
+    ..addFont(rootBundle.load('assets/fonts/LilitaOne-Regular.ttf'));
   final iconFonts = FontLoader('MaterialIcons')
     ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
-  await Future.wait([textFonts.load(), iconFonts.load()]);
+  await Future.wait([textFonts.load(), stickerFonts.load(), iconFonts.load()]);
   await tester.binding.setSurfaceSize(testSurfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(

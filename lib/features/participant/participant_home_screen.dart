@@ -11,8 +11,12 @@ import '../../models/ptw_image_ref.dart';
 import '../../state/ptw_app_state.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
 import '../../ui_kit/atoms/ptw_media_image.dart';
+import '../../ui_kit/organisms/ptw_action_sheet.dart';
 import '../../ui_kit/organisms/ptw_immersive_page.dart';
+import '../../ui_kit/organisms/ptw_pinned_action_bar.dart';
 import '../../ui_kit/organisms/ptw_project_tile.dart';
+
+enum _ProjectAction { share, inbox, discover, proof, create, reset }
 
 final class ParticipantHomeScreen extends StatelessWidget {
   const ParticipantHomeScreen({super.key});
@@ -39,6 +43,70 @@ final class ParticipantHomeScreen extends StatelessWidget {
     if (approved == true) await state.reset();
   }
 
+  Future<void> _openActions(BuildContext context, PtwAppState state) async {
+    final project = state.currentProject;
+    final action = await showPtwActionSheet<_ProjectAction>(
+      context,
+      actions: [
+        const PtwActionSheetItem(
+          id: ComponentIds.projectActionShare,
+          label: 'Share project',
+          value: _ProjectAction.share,
+        ),
+        PtwActionSheetItem(
+          id: ComponentIds.projectInbox,
+          label:
+              state.unreadResponseCount == 0
+                  ? 'Inbox'
+                  : 'Inbox · ${state.unreadResponseCount} unread',
+          value: _ProjectAction.inbox,
+        ),
+        const PtwActionSheetItem(
+          id: ComponentIds.projectDiscover,
+          label: 'Discover',
+          value: _ProjectAction.discover,
+        ),
+        const PtwActionSheetItem(
+          id: ComponentIds.projectAddProof,
+          label: 'Add proof',
+          value: _ProjectAction.proof,
+        ),
+        const PtwActionSheetItem(
+          id: ComponentIds.projectCreate,
+          label: 'New project',
+          value: _ProjectAction.create,
+        ),
+        const PtwActionSheetItem(
+          id: ComponentIds.resetPrototype,
+          label: 'Reset prototype',
+          value: _ProjectAction.reset,
+          isDestructive: true,
+        ),
+      ],
+    );
+    if (action == null || !context.mounted) return;
+    switch (action) {
+      case _ProjectAction.share:
+        context.push('/projects/${project.id}/share');
+        break;
+      case _ProjectAction.inbox:
+        context.push('/inbox');
+        break;
+      case _ProjectAction.discover:
+        context.push('/discover');
+        break;
+      case _ProjectAction.proof:
+        context.push('/projects/${project.id}/proof/new');
+        break;
+      case _ProjectAction.create:
+        context.push('/projects/new');
+        break;
+      case _ProjectAction.reset:
+        await _reset(context, state);
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = PtwScope.of(context);
@@ -46,147 +114,43 @@ final class ParticipantHomeScreen extends StatelessWidget {
     final proof = state.evidenceFor(project.id);
     return PtwImmersivePage(
       key: const ValueKey(ComponentIds.projectHome),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          PtwSpacing.screenHorizontal,
-          PtwSpacing.sm,
-          PtwSpacing.screenHorizontal,
-          PtwSpacing.xxl,
-        ),
+      child: Column(
         children: [
-          PtwProjectTile(project: project, height: 330),
-          const SizedBox(height: PtwSpacing.md),
-          PtwBlackButton(
-            key: const ValueKey(ComponentIds.projectShare),
-            label: 'Share project',
-            icon: Icons.ios_share_rounded,
-            onPressed: () => context.push('/projects/${project.id}/share'),
-          ),
-          const SizedBox(height: PtwSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: _HubAction(
-                  key: const ValueKey(ComponentIds.projectInbox),
-                  icon: Icons.inbox_rounded,
-                  label:
-                      state.unreadResponseCount == 0
-                          ? 'Inbox'
-                          : 'Inbox ${state.unreadResponseCount}',
-                  onPressed: () => context.push('/inbox'),
-                ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                PtwSpacing.screenHorizontal,
+                PtwSpacing.sm,
+                PtwSpacing.screenHorizontal,
+                PtwSpacing.md,
               ),
-              const SizedBox(width: PtwSpacing.xs),
-              Expanded(
-                child: _HubAction(
-                  key: const ValueKey(ComponentIds.projectDiscover),
-                  icon: Icons.explore_rounded,
-                  label: 'Discover',
-                  onPressed: () => context.push('/discover'),
-                ),
-              ),
-              const SizedBox(width: PtwSpacing.xs),
-              Expanded(
-                child: _HubAction(
-                  key: const ValueKey(ComponentIds.projectAddProof),
-                  icon: Icons.add_photo_alternate_rounded,
-                  label: 'Proof',
-                  onPressed:
-                      () => context.push('/projects/${project.id}/proof/new'),
-                ),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              TextButton.icon(
-                key: const ValueKey(ComponentIds.projectCreate),
-                onPressed: () => context.push('/projects/new'),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('New project'),
-                style: TextButton.styleFrom(
-                  foregroundColor: PtwColors.textOnAccent,
-                  textStyle: PtwTypography.bodyStrong,
-                ),
-              ),
-              const Spacer(),
-              PopupMenuButton<String>(
-                key: const ValueKey(ComponentIds.projectMenu),
-                tooltip: 'Project menu',
-                color: PtwColors.surfacePrimary,
-                icon: const Icon(
-                  Icons.more_horiz_rounded,
-                  color: PtwColors.textOnAccent,
-                ),
-                onSelected: (value) {
-                  if (value == 'reset') _reset(context, state);
-                },
-                itemBuilder:
-                    (_) => const [
-                      PopupMenuItem(
-                        value: 'reset',
-                        child: Text('Reset prototype'),
-                      ),
-                    ],
-              ),
-            ],
-          ),
-          if (proof.isNotEmpty) ...[
-            const SizedBox(height: PtwSpacing.sm),
-            _ProofPanel(
-              projectColor: Color(project.primaryColor),
-              title: proof.first.title,
-              details: proof.first.details,
-              time: PtwFormatters.relative(proof.first.createdAt),
-              media: proof.first.media,
+              children: [
+                PtwProjectTile(project: project, height: 330),
+                if (proof.isNotEmpty) ...[
+                  const SizedBox(height: PtwSpacing.md),
+                  _ProofPanel(
+                    projectColor: Color(project.primaryColor),
+                    title: proof.first.title,
+                    details: proof.first.details,
+                    time: PtwFormatters.relative(proof.first.createdAt),
+                    media: proof.first.media,
+                  ),
+                ],
+              ],
             ),
-          ],
+          ),
+          PtwPinnedActionBar(
+            child: PtwBlackButton(
+              key: const ValueKey(ComponentIds.projectShare),
+              label: 'Share project',
+              icon: Icons.ios_share_rounded,
+              onPressed: () => _openActions(context, state),
+            ),
+          ),
         ],
       ),
     );
   }
-}
-
-final class _HubAction extends StatelessWidget {
-  const _HubAction({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    super.key,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) => OutlinedButton(
-    onPressed: onPressed,
-    style: OutlinedButton.styleFrom(
-      minimumSize: const Size.fromHeight(62),
-      padding: const EdgeInsets.symmetric(horizontal: PtwSpacing.xs),
-      foregroundColor: PtwColors.textOnAccent,
-      side: const BorderSide(color: PtwColors.textOnAccent, width: 1),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(PtwRadius.lg),
-      ),
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 20),
-        const SizedBox(height: PtwSpacing.xxs),
-        Text(
-          label,
-          maxLines: 1,
-          style: PtwTypography.caption.copyWith(
-            color: PtwColors.textOnAccent,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 final class _ProofPanel extends StatelessWidget {

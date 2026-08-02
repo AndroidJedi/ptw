@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ptw/core/constants/component_ids.dart';
 import 'package:ptw/core/theme/ptw_colors.dart';
+import 'package:ptw/ui_kit/atoms/ptw_black_button.dart';
 
 import '../test_harness.dart';
 
@@ -10,6 +11,7 @@ void main() {
     tester,
   ) async {
     final environment = await pumpPtw(tester, initialLocation: '/projects/new');
+    expect(find.byType(PtwBlackButton), findsOneWidget);
     const goal = 'Ship the boldest local launch of the year';
     await tester.enterText(
       find.byKey(const ValueKey(ComponentIds.createProjectGoal)),

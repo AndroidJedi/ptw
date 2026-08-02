@@ -14,6 +14,7 @@ import '../../state/ptw_app_state.dart';
 import '../../ui_kit/atoms/ptw_back_button.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
 import '../../ui_kit/organisms/ptw_immersive_page.dart';
+import '../../ui_kit/organisms/ptw_pinned_action_bar.dart';
 
 final class InboxScreen extends StatefulWidget {
   const InboxScreen({super.key});
@@ -57,28 +58,14 @@ final class _InboxScreenState extends State<InboxScreen> {
           Expanded(
             child:
                 responses.isEmpty
-                    ? Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: PtwSpacing.screenHorizontal,
-                      ),
-                      child: Center(
-                        child: PtwBlackButton(
-                          label: 'Share project',
-                          icon: Icons.ios_share_rounded,
-                          onPressed:
-                              () => context.push(
-                                '/projects/${state.currentProject.id}/share',
-                              ),
-                        ),
-                      ),
-                    )
+                    ? const SizedBox.shrink()
                     : ListView.separated(
                       key: const ValueKey(ComponentIds.inboxList),
                       padding: const EdgeInsets.fromLTRB(
                         PtwSpacing.screenHorizontal,
                         PtwSpacing.xs,
                         PtwSpacing.screenHorizontal,
-                        PtwSpacing.xxl,
+                        PtwSpacing.md,
                       ),
                       itemCount: responses.length,
                       separatorBuilder:
@@ -92,6 +79,17 @@ final class _InboxScreenState extends State<InboxScreen> {
                         );
                       },
                     ),
+          ),
+          PtwPinnedActionBar(
+            child: PtwBlackButton(
+              key: const ValueKey(ComponentIds.inboxShare),
+              label: 'Share project',
+              icon: Icons.ios_share_rounded,
+              onPressed:
+                  () => context.push(
+                    '/projects/${state.currentProject.id}/share',
+                  ),
+            ),
           ),
         ],
       ),

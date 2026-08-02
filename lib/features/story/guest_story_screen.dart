@@ -11,7 +11,10 @@ import '../../models/ptw_response.dart';
 import '../../state/ptw_app_state.dart';
 import '../../ui_kit/atoms/ptw_back_button.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
+import '../../ui_kit/atoms/ptw_sticker_text.dart';
+import '../../ui_kit/organisms/ptw_action_sheet.dart';
 import '../../ui_kit/organisms/ptw_immersive_page.dart';
+import '../../ui_kit/organisms/ptw_pinned_action_bar.dart';
 import '../../ui_kit/organisms/ptw_project_tile.dart';
 
 final class SharedPromiseScreen extends StatelessWidget {
@@ -80,108 +83,127 @@ final class _GuestStoryScreenState extends State<GuestStoryScreen> {
       key: const ValueKey(ComponentIds.visitorComposer),
       backgroundColor: primary,
       decoration: BoxDecoration(gradient: PtwGradients.project(primary)),
-      child: LayoutBuilder(
-        builder:
-            (context, constraints) => SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight - 32,
-                ),
-                child: Column(
-                  children: [
-                    if (context.canPop())
-                      const Align(
-                        alignment: Alignment.centerLeft,
-                        child: PtwBackButton(
-                          key: ValueKey(ComponentIds.visitorBack),
-                          fallbackRoute: '/discover',
-                        ),
+      child: Column(
+        children: [
+          Expanded(
+            child: LayoutBuilder(
+              builder:
+                  (context, constraints) => SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - 32,
                       ),
-                    PtwProjectTile(
-                      project: project,
-                      height: 244,
-                      compact: true,
-                    ),
-                    const SizedBox(height: PtwSpacing.sm),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _PositionButton(
-                            key: const ValueKey(ComponentIds.responseBelieve),
-                            label: 'Believe',
-                            icon: Icons.thumb_up_rounded,
-                            selected: _side == PtwResponseSide.believe,
-                            onTap:
-                                () => setState(
-                                  () => _side = PtwResponseSide.believe,
+                      child: Column(
+                        children: [
+                          if (context.canPop())
+                            const Align(
+                              alignment: Alignment.centerLeft,
+                              child: PtwBackButton(
+                                key: ValueKey(ComponentIds.visitorBack),
+                                fallbackRoute: '/discover',
+                              ),
+                            ),
+                          PtwProjectTile(
+                            project: project,
+                            height: 244,
+                            compact: true,
+                          ),
+                          const SizedBox(height: PtwSpacing.sm),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _PositionButton(
+                                  key: const ValueKey(
+                                    ComponentIds.responseBelieve,
+                                  ),
+                                  label: 'Believe',
+                                  icon: Icons.thumb_up_rounded,
+                                  selected: _side == PtwResponseSide.believe,
+                                  onTap:
+                                      () => setState(
+                                        () => _side = PtwResponseSide.believe,
+                                      ),
                                 ),
-                          ),
-                        ),
-                        const SizedBox(width: PtwSpacing.xs),
-                        Expanded(
-                          child: _PositionButton(
-                            key: const ValueKey(ComponentIds.responseDoubt),
-                            label: 'Doubt',
-                            icon: Icons.thumb_down_rounded,
-                            selected: _side == PtwResponseSide.doubt,
-                            onTap:
-                                () => setState(
-                                  () => _side = PtwResponseSide.doubt,
+                              ),
+                              const SizedBox(width: PtwSpacing.xs),
+                              Expanded(
+                                child: _PositionButton(
+                                  key: const ValueKey(
+                                    ComponentIds.responseDoubt,
+                                  ),
+                                  label: 'Doubt',
+                                  icon: Icons.thumb_down_rounded,
+                                  selected: _side == PtwResponseSide.doubt,
+                                  onTap:
+                                      () => setState(
+                                        () => _side = PtwResponseSide.doubt,
+                                      ),
                                 ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: PtwSpacing.sm),
-                    TextField(
-                      key: const ValueKey(ComponentIds.responseMessage),
-                      controller: _messageController,
-                      maxLength: 180,
-                      minLines: 3,
-                      maxLines: 3,
-                      onChanged: (_) => setState(() {}),
-                      style: PtwTypography.bodyStrong,
-                      decoration: InputDecoration(
-                        hintText: 'Say what you really think…',
-                        counterText: '',
-                        fillColor: PtwColors.softWhite,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(PtwRadius.lg),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(PtwRadius.lg),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(PtwRadius.lg),
-                          borderSide: const BorderSide(
-                            color: PtwColors.ink,
-                            width: 2,
+                          const SizedBox(height: PtwSpacing.sm),
+                          TextField(
+                            key: const ValueKey(ComponentIds.responseMessage),
+                            controller: _messageController,
+                            maxLength: 180,
+                            minLines: 3,
+                            maxLines: 3,
+                            onChanged: (_) => setState(() {}),
+                            style: PtwTypography.bodyStrong,
+                            decoration: InputDecoration(
+                              hintText: 'Say what you really think…',
+                              counterText: '',
+                              fillColor: PtwColors.softWhite,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  PtwRadius.lg,
+                                ),
+                                borderSide: BorderSide.none,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  PtwRadius.lg,
+                                ),
+                                borderSide: BorderSide.none,
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  PtwRadius.lg,
+                                ),
+                                borderSide: const BorderSide(
+                                  color: PtwColors.ink,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: PtwSpacing.sm),
+                          Text(
+                            '${state.responseCountFor(project.id)} people responded',
+                            textAlign: TextAlign.center,
+                            style: PtwTypography.bodyStrong.copyWith(
+                              color: PtwColors.textOnAccent,
+                            ),
+                          ),
+                          const SizedBox(height: PtwSpacing.md),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: PtwSpacing.sm),
-                    Text(
-                      '${state.responseCountFor(project.id)} people responded',
-                      textAlign: TextAlign.center,
-                      style: PtwTypography.bodyStrong.copyWith(
-                        color: PtwColors.textOnAccent,
-                      ),
-                    ),
-                    const SizedBox(height: PtwSpacing.md),
-                    PtwBlackButton(
-                      key: const ValueKey(ComponentIds.responseSend),
-                      label: 'Send anonymously',
-                      icon: Icons.arrow_upward_rounded,
-                      onPressed: _canSend ? () => _send(state) : null,
-                    ),
-                  ],
-                ),
-              ),
+                  ),
             ),
+          ),
+          PtwPinnedActionBar(
+            child: PtwBlackButton(
+              key: const ValueKey(ComponentIds.responseSend),
+              label: 'Send anonymously',
+              icon: Icons.arrow_upward_rounded,
+              accentColor: primary,
+              onPressed: _canSend ? () => _send(state) : null,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -238,32 +260,61 @@ final class _ProjectNotFound extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PtwImmersivePage(
-    child: Padding(
-      padding: const EdgeInsets.all(PtwSpacing.lg),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'Project unavailable',
-            style: PtwTypography.titleLarge.copyWith(
-              color: PtwColors.textOnAccent,
+    child: Column(
+      children: [
+        Expanded(
+          child: Center(
+            child: const PtwStickerText.hero(
+              'Project unavailable',
+              textAlign: TextAlign.center,
             ),
           ),
-          const SizedBox(height: PtwSpacing.lg),
-          PtwBlackButton(
+        ),
+        PtwPinnedActionBar(
+          child: PtwBlackButton(
             label: 'Discover projects',
             onPressed: () => context.go('/discover'),
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
+
+enum _SentAction { startProject, sendAnother }
 
 final class ResponseSentScreen extends StatelessWidget {
   const ResponseSentScreen({required this.projectId, super.key});
 
   final String projectId;
+
+  Future<void> _openActions(BuildContext context, Color accentColor) async {
+    final action = await showPtwActionSheet<_SentAction>(
+      context,
+      accentColor: accentColor,
+      actions: const [
+        PtwActionSheetItem(
+          id: ComponentIds.responseActionStartProject,
+          label: 'Start your own project',
+          value: _SentAction.startProject,
+        ),
+        PtwActionSheetItem(
+          id: ComponentIds.responseSendAnother,
+          label: 'Send another',
+          value: _SentAction.sendAnother,
+        ),
+      ],
+    );
+    if (action == null || !context.mounted) return;
+    switch (action) {
+      case _SentAction.startProject:
+        context.go('/projects/new?source=response');
+        break;
+      case _SentAction.sendAnother:
+        context.go('/p/$projectId');
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -275,81 +326,72 @@ final class ResponseSentScreen extends StatelessWidget {
       key: const ValueKey(ComponentIds.responseSent),
       backgroundColor: primary,
       decoration: BoxDecoration(gradient: PtwGradients.project(primary)),
-      child: Padding(
-        padding: const EdgeInsets.all(PtwSpacing.lg),
-        child: Column(
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: PtwBackButton(
-                key: const ValueKey(ComponentIds.responseSentBack),
-                fallbackRoute: '/p/$projectId',
-              ),
-            ),
-            const Spacer(flex: 2),
-            Container(
-              width: 112,
-              height: 112,
-              decoration: const BoxDecoration(
-                color: PtwColors.surfacePrimary,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.check_rounded, size: 72, color: primary),
-            ),
-            const SizedBox(height: PtwSpacing.lg),
-            Text(
-              'Sent!',
-              style: PtwTypography.display.copyWith(
-                color: PtwColors.textOnAccent,
-                fontSize: 46,
-              ),
-            ),
-            const SizedBox(height: PtwSpacing.xs),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.arrow_downward_rounded,
-                  color: PtwColors.textOnAccent,
-                ),
-                const SizedBox(width: PtwSpacing.xs),
-                Flexible(
-                  child: Text(
-                    '${state.responseCountFor(project.id)} people have responded',
-                    textAlign: TextAlign.center,
-                    style: PtwTypography.title.copyWith(
-                      color: PtwColors.textOnAccent,
+      child: Column(
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(PtwSpacing.lg),
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: PtwBackButton(
+                      key: const ValueKey(ComponentIds.responseSentBack),
+                      fallbackRoute: '/p/$projectId',
                     ),
                   ),
-                ),
-                const SizedBox(width: PtwSpacing.xs),
-                const Icon(
-                  Icons.arrow_downward_rounded,
-                  color: PtwColors.textOnAccent,
-                ),
-              ],
+                  const Spacer(flex: 2),
+                  Container(
+                    width: 112,
+                    height: 112,
+                    decoration: const BoxDecoration(
+                      color: PtwColors.surfacePrimary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.check_rounded, size: 72, color: primary),
+                  ),
+                  const SizedBox(height: PtwSpacing.lg),
+                  const PtwStickerText.hero('Sent!'),
+                  const SizedBox(height: PtwSpacing.xs),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.arrow_downward_rounded,
+                        color: PtwColors.textOnAccent,
+                      ),
+                      const SizedBox(width: PtwSpacing.xs),
+                      Flexible(
+                        child: Text(
+                          '${state.responseCountFor(project.id)} people have responded',
+                          textAlign: TextAlign.center,
+                          style: PtwTypography.title.copyWith(
+                            color: PtwColors.textOnAccent,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: PtwSpacing.xs),
+                      const Icon(
+                        Icons.arrow_downward_rounded,
+                        color: PtwColors.textOnAccent,
+                      ),
+                    ],
+                  ),
+                  const Spacer(flex: 3),
+                ],
+              ),
             ),
-            const Spacer(flex: 3),
-            PtwBlackButton(
+          ),
+          PtwPinnedActionBar(
+            child: PtwBlackButton(
               key: const ValueKey(ComponentIds.responseStartProject),
               label: 'Start your own project',
               icon: Icons.bolt_rounded,
-              onPressed: () => context.go('/projects/new?source=response'),
+              accentColor: primary,
+              onPressed: () => _openActions(context, primary),
             ),
-            TextButton(
-              key: const ValueKey(ComponentIds.responseSendAnother),
-              onPressed: () => context.go('/p/$projectId'),
-              child: Text(
-                'Send another',
-                style: PtwTypography.bodyStrong.copyWith(
-                  color: PtwColors.textOnAccent,
-                  decoration: TextDecoration.underline,
-                  decorationColor: PtwColors.textOnAccent,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

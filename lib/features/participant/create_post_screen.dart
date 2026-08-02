@@ -12,7 +12,9 @@ import '../../models/ptw_project.dart';
 import '../../state/ptw_app_state.dart';
 import '../../ui_kit/atoms/ptw_back_button.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
+import '../../ui_kit/atoms/ptw_sticker_text.dart';
 import '../../ui_kit/organisms/ptw_immersive_page.dart';
+import '../../ui_kit/organisms/ptw_pinned_action_bar.dart';
 import '../../ui_kit/organisms/ptw_project_tile.dart';
 
 final class CreatePostScreen extends StatefulWidget {
@@ -113,8 +115,7 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
             ),
           ),
           Expanded(child: _step == 0 ? _goalStep() : _visualStep(state)),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+          PtwPinnedActionBar(
             child: PtwBlackButton(
               key: ValueKey(
                 _step == 0
@@ -138,10 +139,7 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
   Widget _goalStep() => ListView(
     padding: const EdgeInsets.all(PtwSpacing.screenHorizontal),
     children: [
-      Text(
-        'What will you prove?',
-        style: PtwTypography.display.copyWith(color: PtwColors.textOnAccent),
-      ),
+      const PtwStickerText.hero('What will you prove?'),
       const SizedBox(height: PtwSpacing.xl),
       TextField(
         key: const ValueKey(ComponentIds.createProjectGoal),

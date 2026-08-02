@@ -27,12 +27,31 @@ PTW must feel direct, bold, human, and emotionally immediate.
 - Images and color must have a purpose. Remove them when they compete with the
   primary content.
 
+## Typography
+
+- Sticker typography identifies the project, the hero state, or the single
+  primary action. It is hierarchy, never decoration.
+- Use the outlined Lilita One treatment for project goals, CTA labels, hero
+  facts, and the first action-sheet choice only.
+- Keep supporting copy, messages, proof, metadata, selectors, fields, and
+  secondary actions in Roboto.
+- Preserve natural capitalization and complete content. Project stickers may
+  scale down to fit, but never truncate.
+- On images and saturated surfaces, sticker text is white with a hard black
+  outline and offset shadow. On black controls, it uses the current accent with
+  a thin white outline.
+
 ## Interaction
 
 - Project is the creator hub. Do not use persistent tab bars.
 - Secondary creator screens use a white Apple-style back chevron.
-- Black capsules are primary actions. Underlined text or compact outlined
-  controls are secondary actions.
+- A screen has at most one prominent black capsule action. It stays pinned
+  while the content scrolls.
+- Back controls, inputs, selectors, and tappable content do not count as the
+  screen action. A screen may have no capsule when its content is the action.
+- When secondary actions are necessary, the single capsule opens a focused
+  action sheet. The primary action appears first; no secondary buttons remain
+  on the screen.
 - Every tap must perform a real action, not merely reveal information that
   could already be visible.
 - Navigation, status bars, and backgrounds must feel like one continuous

@@ -9,6 +9,7 @@ import '../../core/theme/ptw_spacing.dart';
 import '../../core/theme/ptw_typography.dart';
 import '../../models/ptw_project.dart';
 import '../atoms/ptw_media_image.dart';
+import '../atoms/ptw_sticker_text.dart';
 
 /// The canonical image-and-color representation of a PTW project.
 final class PtwProjectTile extends StatelessWidget {
@@ -89,13 +90,12 @@ final class PtwProjectTile extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const Spacer(),
-                      Text(
-                        project.goal,
-                        style: (compact
-                                ? PtwTypography.titleLarge
-                                : PtwTypography.display)
-                            .copyWith(color: PtwColors.textOnAccent),
+                      Expanded(
+                        child: PtwStickerText.project(
+                          project.goal,
+                          compact: compact,
+                          alignment: Alignment.bottomLeft,
+                        ),
                       ),
                       const SizedBox(height: PtwSpacing.sm),
                       Row(

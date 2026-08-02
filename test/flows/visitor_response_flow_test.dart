@@ -14,6 +14,7 @@ void main() {
     expect(find.text('Community pulse'), findsNothing);
     expect(find.text('THE HONEST STORY'), findsNothing);
     expect(find.byKey(const ValueKey(ComponentIds.visitorBack)), findsNothing);
+    expect(find.byType(PtwBlackButton), findsOneWidget);
     expect(
       tester
           .widget<PtwBlackButton>(
@@ -38,6 +39,14 @@ void main() {
     );
     expect((await environment.repository.load())!.responses.length, 6);
 
+    await tester.tap(
+      find.byKey(const ValueKey(ComponentIds.responseStartProject)),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey(ComponentIds.actionSheet)),
+      findsOneWidget,
+    );
     await tester.tap(
       find.byKey(const ValueKey(ComponentIds.responseSendAnother)),
     );

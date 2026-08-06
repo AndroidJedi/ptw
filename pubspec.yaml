@@ -63,6 +63,7 @@ flutter:
     - assets/images/
     - assets/images/users/
     - assets/images/backgrounds/
+    - assets/images/stickers/
     - assets/fonts/LilitaOne-OFL.txt
 
   fonts:

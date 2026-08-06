@@ -6,7 +6,7 @@ import 'package:ptw/ui_kit/atoms/ptw_black_button.dart';
 import '../test_harness.dart';
 
 void main() {
-  testWidgets('creator publishes proof and it is persisted on project home', (
+  testWidgets('creator publishes proof and lands on milestone sharing', (
     tester,
   ) async {
     final environment = await pumpPtw(tester);
@@ -26,6 +26,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(const ValueKey(ComponentIds.shareScreen)),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('share_template_milestone')),
+      findsOneWidget,
+    );
     expect(find.text('Interviewed 20 potential users'), findsOneWidget);
     final stored = await environment.repository.load();
     expect(stored!.evidence.first.title, 'Interviewed 20 potential users');

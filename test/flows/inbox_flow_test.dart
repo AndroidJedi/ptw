@@ -101,6 +101,10 @@ void main() {
         find.byKey(const ValueKey(ComponentIds.shareScreen)),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const ValueKey('share_template_criticism')),
+        findsOneWidget,
+      );
       expect(find.byType(PtwBlackButton), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());

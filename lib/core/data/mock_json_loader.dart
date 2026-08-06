@@ -9,16 +9,19 @@ import '../../models/ptw_project.dart';
 import '../../models/ptw_prototype_snapshot.dart';
 import '../../models/ptw_response.dart';
 import '../../models/ptw_user.dart';
+import '../../features/share/share_models.dart';
 
 final class PtwSeedData {
   const PtwSeedData({
     required this.currentUser,
     required this.curatedImages,
+    required this.shareCatalog,
     required this.snapshot,
   });
 
   final PtwUser currentUser;
   final List<PtwPostBackground> curatedImages;
+  final ShareCatalog shareCatalog;
   final PtwPrototypeSnapshot snapshot;
 }
 
@@ -37,6 +40,7 @@ final class MockJsonLoader {
       rootBundle.loadString('assets/mock/evidence.json'),
       rootBundle.loadString('assets/mock/backgrounds.json'),
       rootBundle.loadString('assets/mock/comments.json'),
+      rootBundle.loadString('assets/mock/share_content.json'),
     ]);
     final currentUser = PtwUser.fromJson(_object(values[0]));
     final users = _list(values[1]).map(PtwUser.fromJson).toList();
@@ -125,6 +129,7 @@ final class MockJsonLoader {
     return PtwSeedData(
       currentUser: currentUser,
       curatedImages: _list(values[4]).map(PtwPostBackground.fromJson).toList(),
+      shareCatalog: ShareCatalog.fromJson(_object(values[6])),
       snapshot: PtwPrototypeSnapshot(
         schemaVersion: PtwPrototypeSnapshot.currentSchemaVersion,
         currentProjectByOwner: {

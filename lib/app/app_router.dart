@@ -7,6 +7,7 @@ import '../features/participant/create_post_screen.dart';
 import '../features/participant/participant_home_screen.dart';
 import '../features/story/guest_story_screen.dart';
 import '../features/story/share_story_preview_screen.dart';
+import '../features/share/share_models.dart';
 import 'app_routes.dart';
 
 abstract final class AppRouter {
@@ -36,10 +37,18 @@ abstract final class AppRouter {
       GoRoute(
         path: '/projects/:projectId/share',
         name: AppRoutes.shareProject,
-        builder:
-            (_, state) => ShareStoryPreviewScreen(
-              projectId: state.pathParameters['projectId']!,
-            ),
+        builder: (_, state) {
+          final templateName = state.uri.queryParameters['template'];
+          final template =
+              ShareTemplateType.values
+                  .where((item) => item.name == templateName)
+                  .firstOrNull;
+          return ShareStoryPreviewScreen(
+            projectId: state.pathParameters['projectId']!,
+            event: ShareEvent.fromWire(state.uri.queryParameters['event']),
+            initialTemplate: template,
+          );
+        },
       ),
       GoRoute(
         path: '/projects/:projectId/proof/new',
@@ -75,4 +84,11 @@ abstract final class AppRouter {
       ),
     ],
   );
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull {
+    final iterator = this.iterator;
+    return iterator.moveNext() ? iterator.current : null;
+  }
 }

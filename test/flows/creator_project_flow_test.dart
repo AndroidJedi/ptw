@@ -55,6 +55,10 @@ void main() {
         find.byKey(const ValueKey(ComponentIds.projectOpenFeed)),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const ValueKey(ComponentIds.participantShareButton)),
+        findsOneWidget,
+      );
       final feedSemantics = tester.widget<Semantics>(
         find
             .ancestor(
@@ -67,6 +71,17 @@ void main() {
       expect(feedSemantics.properties.button, isTrue);
       expect(find.text('Others'), findsOneWidget);
       expect(find.text('Open feed'), findsNothing);
+
+      await tester.tap(
+        find.byKey(const ValueKey(ComponentIds.participantShareButton)),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey(ComponentIds.shareScreen)),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey(ComponentIds.shareBack)));
+      await tester.pumpAndSettle();
 
       await tester.tap(
         find.byKey(const ValueKey(ComponentIds.projectOpenFeed)),

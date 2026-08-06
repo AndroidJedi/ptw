@@ -13,6 +13,7 @@ import '../models/ptw_reaction_summary.dart';
 import '../models/ptw_response.dart';
 import '../models/ptw_social_activity.dart';
 import '../models/ptw_user.dart';
+import '../features/share/share_models.dart';
 
 /// App state backed by a single versioned local prototype snapshot.
 final class PtwAppState extends ChangeNotifier {
@@ -37,12 +38,14 @@ final class PtwAppState extends ChangeNotifier {
   String? errorMessage;
   late PtwUser currentUser;
   List<PtwPostBackground> curatedImages = [];
+  late ShareCatalog shareCatalog;
   PtwImageRef? recoveredProjectImage;
   late PtwPrototypeSnapshot _snapshot;
 
   List<PtwProject> get projects => List.unmodifiable(_snapshot.projects);
   List<PtwResponse> get responses => List.unmodifiable(_snapshot.responses);
   List<PtwEvidence> get evidence => List.unmodifiable(_snapshot.evidence);
+  DateTime get now => _now();
 
   Future<void> load() async {
     isReady = false;
@@ -51,6 +54,7 @@ final class PtwAppState extends ChangeNotifier {
       final seed = await _loader.load();
       currentUser = seed.currentUser;
       curatedImages = seed.curatedImages;
+      shareCatalog = seed.shareCatalog;
       await mediaService.initialize();
       final restored = await repository.load();
       final initial = restored ?? seed.snapshot;
@@ -78,6 +82,7 @@ final class PtwAppState extends ChangeNotifier {
     final seed = await _loader.load();
     currentUser = seed.currentUser;
     curatedImages = seed.curatedImages;
+    shareCatalog = seed.shareCatalog;
     _snapshot = _withDistinctPrototypeProofMedia(
       _withChronologicalPrototypeActivity(seed.snapshot),
     );

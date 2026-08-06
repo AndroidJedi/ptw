@@ -89,7 +89,11 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
         image: _image!,
         primaryColor: _primaryColor!,
       );
-      if (mounted) context.go('/projects/${project.id}/share');
+      if (mounted) {
+        context.go(
+          '/projects/${project.id}/share?event=challengeCreated&template=challenge',
+        );
+      }
     } on Exception {
       if (!mounted) return;
       setState(() => _saving = false);

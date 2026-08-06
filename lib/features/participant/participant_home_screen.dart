@@ -79,6 +79,7 @@ final class _ParticipantHomeScreenState extends State<ParticipantHomeScreen> {
                   height: heroHeight,
                   reactionSummary: reactionSummary,
                   onOpenOthers: () => context.push('/feed'),
+                  onShare: () => context.push('/projects/${project.id}/share'),
                 ),
                 _RecentActivity(
                   activity: recentActivity,
@@ -112,12 +113,14 @@ final class _ProjectHero extends StatelessWidget {
     required this.height,
     required this.reactionSummary,
     required this.onOpenOthers,
+    required this.onShare,
   });
 
   final PtwProject project;
   final double height;
   final PtwReactionSummary reactionSummary;
   final VoidCallback onOpenOthers;
+  final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -149,6 +152,8 @@ final class _ProjectHero extends StatelessWidget {
                   children: [
                     Expanded(child: _OwnerIdentity(project: project)),
                     const SizedBox(width: PtwSpacing.sm),
+                    _HeroShareButton(onTap: onShare),
+                    const SizedBox(width: PtwSpacing.xs),
                     _HeroOthersButton(onTap: onOpenOthers),
                   ],
                 ),
@@ -269,6 +274,40 @@ final class _HeroOthersButton extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+final class _HeroShareButton extends StatelessWidget {
+  const _HeroShareButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Share project',
+    excludeSemantics: true,
+    child: Material(
+      key: const ValueKey(ComponentIds.participantShareButton),
+      color: PtwColors.ink.withValues(alpha: 0.58),
+      shape: const CircleBorder(
+        side: BorderSide(color: PtwColors.textOnAccent, width: 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: const SizedBox(
+          width: 42,
+          height: 42,
+          child: Icon(
+            Icons.ios_share_rounded,
+            color: PtwColors.textOnAccent,
+            size: 19,
           ),
         ),
       ),

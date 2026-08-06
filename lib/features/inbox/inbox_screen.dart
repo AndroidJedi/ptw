@@ -88,7 +88,7 @@ final class _InboxScreenState extends State<InboxScreen> {
               label: 'Share project',
               onPressed:
                   () => context.push(
-                    '/projects/${state.currentProject.id}/share',
+                    '/projects/${state.currentProject.id}/share?event=newSkeptic&template=criticism',
                   ),
             ),
           ),

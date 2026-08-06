@@ -293,7 +293,7 @@ final class ResponseSentScreen extends StatelessWidget {
       actions: const [
         PtwActionSheetItem(
           id: ComponentIds.responseActionStartProject,
-          label: 'Start your own project',
+          label: 'Create your challenge',
           value: _SentAction.startProject,
         ),
         PtwActionSheetItem(
@@ -349,7 +349,10 @@ final class ResponseSentScreen extends StatelessWidget {
                     child: Icon(Icons.check_rounded, size: 72, color: primary),
                   ),
                   const SizedBox(height: PtwSpacing.lg),
-                  const PtwStickerText.hero('Sent!'),
+                  const PtwStickerText.hero(
+                    'What are YOU trying to prove?',
+                    textAlign: TextAlign.center,
+                  ),
                   const SizedBox(height: PtwSpacing.xs),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -383,7 +386,7 @@ final class ResponseSentScreen extends StatelessWidget {
           PtwPinnedActionBar(
             child: PtwBlackButton(
               key: const ValueKey(ComponentIds.responseStartProject),
-              label: 'Start your own project',
+              label: 'Create your challenge',
               onPressed: () => _openActions(context, primary),
             ),
           ),

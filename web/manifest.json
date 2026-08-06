@@ -1,0 +1,10 @@
+{
+  "name": "PTW Story Studio",
+  "short_name": "PTW Studio",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F7F6FC",
+  "theme_color": "#F4066E",
+  "description": "Local PTW social Story and reaction sticker studio",
+  "orientation": "portrait-primary"
+}

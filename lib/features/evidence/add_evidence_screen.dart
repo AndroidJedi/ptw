@@ -66,7 +66,11 @@ final class _AddEvidenceScreenState extends State<AddEvidenceScreen> {
         details: _detailsController.text,
         media: _media,
       );
-      if (mounted) context.pop();
+      if (mounted) {
+        context.go(
+          '/projects/${widget.projectId}/share?event=milestoneReached&template=milestone',
+        );
+      }
     } on Exception {
       if (!mounted) return;
       setState(() => _saving = false);

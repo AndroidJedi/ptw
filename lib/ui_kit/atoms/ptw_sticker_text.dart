@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/ptw_colors.dart';
 
-enum PtwStickerVariant { hero, project, action, actionSheet }
+enum PtwStickerVariant { hero, brand, project, action, actionSheet }
 
 enum PtwStickerSurface { saturated, dark }
 
@@ -17,6 +17,18 @@ final class PtwStickerText extends StatelessWidget {
     this.textAlign = TextAlign.start,
     this.maxLines,
   }) : variant = PtwStickerVariant.hero,
+       surface = PtwStickerSurface.saturated,
+       accentColor = PtwColors.hotPink,
+       compact = false,
+       enabled = true,
+       alignment = null;
+
+  const PtwStickerText.brand(
+    this.text, {
+    super.key,
+    this.textAlign = TextAlign.center,
+    this.maxLines = 1,
+  }) : variant = PtwStickerVariant.brand,
        surface = PtwStickerSurface.saturated,
        accentColor = PtwColors.hotPink,
        compact = false,
@@ -73,6 +85,7 @@ final class PtwStickerText extends StatelessWidget {
 
   double get _maximumFontSize => switch (variant) {
     PtwStickerVariant.hero => 44,
+    PtwStickerVariant.brand => 30,
     PtwStickerVariant.project => compact ? 30 : 38,
     PtwStickerVariant.action => 20,
     PtwStickerVariant.actionSheet => 28,

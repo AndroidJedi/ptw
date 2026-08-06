@@ -5,6 +5,11 @@ Bold, offline Flutter prototype built around one viral loop:
 **Create a project → share its link → receive an anonymous message and
 Believe/Doubt position → read it in the private creator inbox.**
 
+The creator share hub generates six JSON-driven social card types in Story,
+Square, and Portrait formats. Cards can be edited, varied, copied, rendered to
+exact-size PNGs, and taken through simulated Instagram, TikTok, LinkedIn, and X
+handoff guides without requiring social SDK credentials.
+
 Every project is represented by a mandatory image and creator-selected primary
 color. The shared page is intentionally short: visitors see the goal, choose a
 side, write one anonymous message, and send. The creator's current project is a
@@ -17,6 +22,10 @@ Bundled JSON and images seed the first launch. A versioned JSON snapshot is then
 stored under `ptw.prototype.snapshot.v2` with `SharedPreferencesAsync`. Projects,
 responses, read state, and evidence survive app restarts. This is intentionally
 prototype-only persistence, not a production database.
+
+Share templates, mock lifecycle scenarios, copy variations, and guide steps are
+defined in `assets/mock/share_content.json`; share edits remain session-only and
+do not change the persisted snapshot schema.
 
 Creators can choose a bundled project image or import one from the device photo
 library. Imported files are copied into application documents before their
@@ -45,3 +54,17 @@ flutter run
 flutter analyze
 flutter test
 ```
+
+## Story Studio web prototype
+
+The standalone browser editor has its own entry point and does not change the
+mobile prototype startup flow:
+
+```sh
+flutter run -d chrome -t lib/social_studio_main.dart
+flutter build web -t lib/social_studio_main.dart
+```
+
+The first studio milestone is session-only. It supports one 9:16 card, local
+avatar import, bundled backgrounds, and up to three original reaction stickers;
+download and share handoff are intentionally deferred.

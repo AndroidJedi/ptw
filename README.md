@@ -1,17 +1,20 @@
 # PTW — Prove Them Wrong
 
-Bold, offline Flutter prototype built around one viral loop:
+Bold, offline Flutter prototype built around one share-first viral loop:
 
-**Create a project → share its link → receive an anonymous message and
-Believe/Doubt position → read it in the private creator inbox.**
+**Write a challenge → construct one playful Story → copy its link → share it →
+receive anonymous Believe/Doubt responses.**
 
-The creator share hub generates six JSON-driven social card types in Story,
-Square, and Portrait formats. Cards can be edited, varied, copied, rendered to
-exact-size PNGs, and taken through simulated Instagram, TikTok, LinkedIn, and X
-handoff guides without requiring social SDK credentials.
+Every creator share entry opens the same Story-only constructor. Magic cycles
+six deterministic PTW looks; the editor changes share-only text, a curated
+background, and up to three draggable stickers. The exact visible composition
+is exported as a 1080×1920 PNG. Copy activates a draft without closing the
+constructor, while Share Story walks through an original four-step Instagram
+link guide before opening the native operating-system share sheet.
 
-Every project is represented by a mandatory image and creator-selected primary
-color. The shared page is intentionally short: visitors see the goal, choose a
+Every project receives a publishable default image and color while deadline,
+custom image, and doubt context remain optional. The shared page is intentionally
+short: visitors see the goal, choose a
 side, write one anonymous message, and send. The creator's current project is a
 dedicated full-bleed page with its latest proof, recent private responses, and
 a derived social activity feed.
@@ -19,13 +22,13 @@ a derived social activity feed.
 ## Local prototype data
 
 Bundled JSON and images seed the first launch. A versioned JSON snapshot is then
-stored under `ptw.prototype.snapshot.v2` with `SharedPreferencesAsync`. Projects,
-responses, read state, and evidence survive app restarts. This is intentionally
+stored under `ptw.prototype.snapshot.v5` with `SharedPreferencesAsync`. Projects,
+responses, read state, evidence, draft Story edits, and share history survive
+app restarts. v2–v4 snapshots migrate locally. This is intentionally
 prototype-only persistence, not a production database.
 
-Share templates, mock lifecycle scenarios, copy variations, and guide steps are
-defined in `assets/mock/share_content.json`; share edits remain session-only and
-do not change the persisted snapshot schema.
+Legacy share cards remain decodable in persisted history, but are no longer
+loaded by the runtime. New share attempts persist the exact Story composition.
 
 Creators can choose a bundled project image or import one from the device photo
 library. Imported files are copied into application documents before their
@@ -39,12 +42,34 @@ Public routes:
 
 Creator routes:
 
-- `/`, `/inbox`, `/feed`
+- `/` — share-first entry (draft onboarding or returning share layer)
+- `/projects/:projectId`, `/inbox`, `/feed`
 - `/projects/new`
+- `/share/draft`
 - `/projects/:projectId/share`
 - `/projects/:projectId/proof/new`
 
 Product design decisions are captured in [DESIGN_RULES.md](DESIGN_RULES.md).
+
+## Share theme builder
+
+The customer Story editor is schema-driven from
+`lib/generated_share_editor/config/share_theme.json`. The canonical reusable
+runtime lives in `lib/generated_share_editor/`; PTW supplies project content,
+persistence, navigation, link copying, Instagram guidance, and native sharing.
+
+Launch the internal desktop web builder with:
+
+```sh
+flutter run -d chrome -t lib/share_theme_builder_main.dart
+```
+
+The builder autosaves its working theme in browser storage. It can import or
+export the portable versioned JSON (including embedded image/font bytes), and
+**Generate ZIP** downloads one copyable `generated_share_editor/` directory.
+That directory contains the Flutter-only runtime, extracted content-hashed
+assets, runtime config, portable source JSON, integration README, and a
+`pubspec.yaml` snippet. The normal PTW entry point remains `lib/main.dart`.
 
 ## Run and verify
 
@@ -53,18 +78,5 @@ flutter pub get
 flutter run
 flutter analyze
 flutter test
+flutter build web -t lib/share_theme_builder_main.dart
 ```
-
-## Story Studio web prototype
-
-The standalone browser editor has its own entry point and does not change the
-mobile prototype startup flow:
-
-```sh
-flutter run -d chrome -t lib/social_studio_main.dart
-flutter build web -t lib/social_studio_main.dart
-```
-
-The first studio milestone is session-only. It supports one 9:16 card, local
-avatar import, bundled backgrounds, and up to three original reaction stickers;
-download and share handoff are intentionally deferred.

@@ -45,7 +45,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey(ComponentIds.feedBack)));
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey(ComponentIds.projectHome)),
+      find.byKey(const ValueKey(ComponentIds.shareScreen)),
       findsOneWidget,
     );
   });

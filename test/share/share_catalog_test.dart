@@ -7,14 +7,13 @@ import 'package:ptw/features/share/share_models.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('catalog defines every template and platform guide', () async {
+  test('catalog defines every template and share-card scenario', () async {
     final raw = await rootBundle.loadString('assets/mock/share_content.json');
     final catalog = ShareCatalog.fromJson(
       jsonDecode(raw) as Map<String, dynamic>,
     );
 
     expect(catalog.templates.keys, containsAll(ShareTemplateType.values));
-    expect(catalog.guides.keys, containsAll(SharePlatform.values));
     expect(
       catalog.scenarios.map((item) => item.template),
       containsAll(ShareTemplateType.values),
@@ -26,7 +25,6 @@ void main() {
       );
       expect(ShareCardData.fromJson(scenario.toJson()).template, type);
     }
-    expect(catalog.guide(SharePlatform.instagramStories).steps, hasLength(4));
   });
 
   test('catalog rejects a malformed type-specific fallback', () {

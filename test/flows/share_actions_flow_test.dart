@@ -1,124 +1,65 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ptw/core/constants/component_ids.dart';
-import 'package:ptw/ui_kit/atoms/ptw_black_button.dart';
 
 import '../test_harness.dart';
 
 void main() {
-  testWidgets('share hub edits, varies, copies, and opens guided handoff', (
+  testWidgets('Story constructor edits, cycles, resets, and shares', (
     tester,
   ) async {
-    String? copiedText;
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (call) async {
-        if (call.method == 'Clipboard.setData') {
-          copiedText =
-              (call.arguments as Map<Object?, Object?>)['text'] as String?;
-        }
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        null,
-      ),
-    );
-
-    await pumpPtw(
+    final environment = await pumpPtw(
       tester,
       initialLocation:
           '/projects/challenge_red_friday/share?event=challengeCreated',
     );
 
-    expect(find.text('Get Your First Doubts'), findsOneWidget);
-    expect(find.byType(PtwBlackButton), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey(ComponentIds.shareTemplateSelector)),
-      findsOneWidget,
-    );
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey(ComponentIds.sharePlatformSelector)),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
+    expect(find.text('BUILD YOUR STORY'), findsOneWidget);
     expect(
       find.byKey(const ValueKey(ComponentIds.sharePlatformSelector)),
-      findsOneWidget,
+      findsNothing,
     );
 
-    final copyLink = find.byKey(const ValueKey(ComponentIds.shareCopyLink));
-    await tester.ensureVisible(copyLink);
-    await tester.tap(copyLink);
+    await tester.tap(find.byKey(const ValueKey('story_canvas_headline')));
     await tester.pump();
-    expect(copiedText, 'https://ptw.to/p/challenge_red_friday');
-
-    final edit = find.byKey(const ValueKey(ComponentIds.shareEditText));
-    await tester.tap(edit);
-    await tester.pumpAndSettle();
     await tester.enterText(
-      find.byKey(const ValueKey(ComponentIds.shareEditHook)),
-      'Watch me answer this.',
+      find.byKey(const ValueKey('story_headline_field')),
+      'Watch me prove this.',
     );
     await tester.enterText(
-      find.byKey(const ValueKey(ComponentIds.shareEditCaption)),
-      'The public version of my promise.',
+      find.byKey(const ValueKey('story_dare_field')),
+      'Say I can’t.',
     );
-    await tester.tap(find.byKey(const ValueKey(ComponentIds.shareEditSave)));
+    await tester.tap(find.byKey(const ValueKey('story_editor_done')));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey(ComponentIds.sharePreview)),
-      -300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('Watch me answer this.'), findsOneWidget);
+    expect(find.text('Watch me prove this.'), findsWidgets);
+    expect(find.text('Say I can’t.'), findsWidgets);
 
-    final another = find.byKey(
-      const ValueKey(ComponentIds.shareGenerateAnother),
+    await tester.tap(
+      find.byKey(const ValueKey(ComponentIds.shareGenerateAnother)),
     );
-    await tester.scrollUntilVisible(
-      another,
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(another);
     await tester.pump();
-    expect(find.text('Watch me answer this.'), findsNothing);
+    expect(find.text('Watch me prove this.'), findsWidgets);
+    expect(find.byKey(const ValueKey('story_reset')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('story_reset')));
+    await tester.pump();
+    expect(find.text('Watch me prove this.'), findsNothing);
 
-    tester
-        .widget<PtwBlackButton>(
-          find.byKey(const ValueKey(ComponentIds.sharePrimary)),
-        )
-        .onPressed!();
-    await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 300)),
-    );
-    await tester.pumpAndSettle();
+    await openStoryGuideAtFinalStep(tester);
+    await submitFinalStoryShare(tester);
+
+    expect(environment.share.shareCount, 1);
     expect(
-      find.byKey(const ValueKey(ComponentIds.storyShareGuide)),
+      environment.share.lastText,
+      contains('https://ptw.to/p/challenge_red_friday'),
+    );
+    expect(
+      find.byKey(const ValueKey(ComponentIds.projectHome)),
       findsOneWidget,
     );
-
-    for (var step = 0; step < 3; step++) {
-      final next = find.byKey(const ValueKey(ComponentIds.storyShareGuideNext));
-      await tester.ensureVisible(next);
-      await tester.tap(next);
-      await tester.pumpAndSettle();
-    }
-    final finish = find.byKey(
-      const ValueKey(ComponentIds.storyShareGuideFinish),
-    );
-    await tester.ensureVisible(finish);
-    await tester.tap(finish);
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey(ComponentIds.storyViewer)),
-      findsOneWidget,
-    );
-    expect(find.text('Your card is ready'), findsOneWidget);
+    final stored = await environment.repository.load();
+    expect(stored!.shareRecords.first.projectId, 'challenge_red_friday');
+    expect(stored.shareRecords.first.story, isNotNull);
+    expect(stored.shareRecords.first.format.name, 'story');
   });
 }

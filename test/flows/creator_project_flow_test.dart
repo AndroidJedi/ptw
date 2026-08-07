@@ -25,9 +25,20 @@ void main() {
           ),
       ];
       final repository = MemoryPrototypeRepository(
-        initial: seed.snapshot.copyWith(responses: allUnread),
+        initial: seed.snapshot.copyWith(
+          currentProjectByOwner: {
+            ...seed.snapshot.currentProjectByOwner,
+            seed.currentUser.id: seed.currentUser.initialProjectId,
+          },
+          responses: allUnread,
+          activatedAt: testNow.subtract(const Duration(days: 35)),
+        ),
       );
-      await pumpPtw(tester, repository: repository);
+      await pumpPtw(
+        tester,
+        repository: repository,
+        initialLocation: '/projects/challenge_red_friday',
+      );
       await tester.pumpAndSettle();
 
       final hero = find.byKey(const ValueKey(ComponentIds.projectHero));
@@ -48,7 +59,7 @@ void main() {
       expect(find.byType(PtwProjectTile), findsNothing);
       expect(find.byType(PtwBlackButton), findsOneWidget);
       expect(
-        find.byKey(const ValueKey(ComponentIds.projectAddProof)),
+        find.byKey(const ValueKey(ComponentIds.projectShareAgain)),
         findsOneWidget,
       );
       expect(

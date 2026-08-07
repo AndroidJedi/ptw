@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ptw/core/constants/component_ids.dart';
-import 'package:ptw/core/theme/ptw_colors.dart';
 import 'package:ptw/models/ptw_image_ref.dart';
 
 import '../test_harness.dart';
 
 void main() {
-  testWidgets('imported device image is persisted as a file reference', (
+  testWidgets('Story background edit does not mutate the project photo', (
     tester,
   ) async {
-    final media = FakePtwMediaService(
-      pickResult: const PtwImageRef.file('ptw_media/imported.jpg'),
-    );
+    final media = FakePtwMediaService();
     final environment = await pumpPtw(
       tester,
       initialLocation: '/projects/new',
@@ -23,30 +20,26 @@ void main() {
       'Use a real image for this project',
     );
     await tester.tap(
-      find.byKey(const ValueKey(ComponentIds.createProjectDeadline)),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
-    await tester.tap(
       find.byKey(const ValueKey(ComponentIds.createProjectContinue)),
     );
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey(ComponentIds.createProjectDeviceImage)),
-    );
+    await tester.tap(find.byKey(const ValueKey(ComponentIds.storyToolLooks)));
     await tester.pump();
-    await tester.tap(
-      find.byKey(ValueKey('color_${PtwColors.teal.toARGB32()}')),
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('story_background_technology')),
     );
-    await tester.tap(
-      find.byKey(const ValueKey(ComponentIds.createProjectPublish)),
-    );
+    await tester.tap(find.byKey(const ValueKey('story_background_technology')));
     await tester.pumpAndSettle();
 
+    await openStoryShareStep(tester);
+    await tester.tap(find.byKey(const ValueKey(ComponentIds.shareCopyLink)));
+    await tester.pump(const Duration(milliseconds: 500));
+
     final stored = await environment.repository.load();
-    expect(stored!.projects.first.image.source, PtwImageSource.file);
-    expect(stored.projects.first.image.path, 'ptw_media/imported.jpg');
-    expect(stored.projects.first.primaryColor, PtwColors.teal.toARGB32());
+    final created = stored!.projects.first;
+    expect(created.image, isA<PtwImageRef>());
+    expect(created.image.source, PtwImageSource.asset);
+    expect(created.image.path, 'assets/images/backgrounds/startup.jpg');
+    expect(stored.shareRecords.first.story!.backgroundId, 'technology');
   });
 }

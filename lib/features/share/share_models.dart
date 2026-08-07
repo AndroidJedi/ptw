@@ -48,44 +48,6 @@ enum ShareFormat {
   double get aspectRatio => width / height;
 }
 
-enum SharePlatform {
-  instagramStories,
-  instagramFeed,
-  tiktok,
-  linkedin,
-  x;
-
-  static SharePlatform fromWire(String value) {
-    try {
-      return SharePlatform.values.byName(value);
-    } on ArgumentError {
-      throw FormatException('Unknown share platform: $value');
-    }
-  }
-
-  String get label => switch (this) {
-    instagramStories => 'Instagram Stories',
-    instagramFeed => 'Instagram Feed',
-    tiktok => 'TikTok',
-    linkedin => 'LinkedIn',
-    x => 'X',
-  };
-
-  String get compactLabel => switch (this) {
-    instagramStories => 'Stories',
-    instagramFeed => 'Feed',
-    tiktok => 'TikTok',
-    linkedin => 'LinkedIn',
-    x => 'X',
-  };
-
-  ShareFormat get recommendedFormat => switch (this) {
-    instagramStories || tiktok => ShareFormat.story,
-    instagramFeed || linkedin => ShareFormat.portrait,
-    x => ShareFormat.square,
-  };
-}
-
 enum ShareEvent {
   manual,
   challengeCreated,
@@ -217,60 +179,13 @@ final class ShareTemplateDefinition {
   }
 }
 
-final class ShareGuideStep {
-  const ShareGuideStep({
-    required this.title,
-    required this.body,
-    required this.illustration,
-  });
-
-  factory ShareGuideStep.fromJson(Map<String, dynamic> json) => ShareGuideStep(
-    title: _requiredString(json, 'title'),
-    body: _requiredString(json, 'body'),
-    illustration: _requiredString(json, 'illustration'),
-  );
-
-  final String title;
-  final String body;
-  final String illustration;
-}
-
-final class SharePlatformGuide {
-  const SharePlatformGuide({required this.platform, required this.steps});
-
-  factory SharePlatformGuide.fromJson(Map<String, dynamic> json) {
-    final steps = _requiredList(
-      json,
-      'steps',
-    ).map(_requiredObject).map(ShareGuideStep.fromJson).toList(growable: false);
-    if (steps.isEmpty) {
-      throw const FormatException('Share platform guide needs a step');
-    }
-    return SharePlatformGuide(
-      platform: SharePlatform.fromWire(_requiredString(json, 'platform')),
-      steps: List.unmodifiable(steps),
-    );
-  }
-
-  final SharePlatform platform;
-  final List<ShareGuideStep> steps;
-}
-
 final class ShareCatalog {
-  const ShareCatalog({
-    required this.templates,
-    required this.guides,
-    required this.scenarios,
-  });
+  const ShareCatalog({required this.templates, required this.scenarios});
 
   factory ShareCatalog.fromJson(Map<String, dynamic> json) {
     final definitions = _requiredList(json, 'templates')
         .map(_requiredObject)
         .map(ShareTemplateDefinition.fromJson)
-        .toList(growable: false);
-    final guideItems = _requiredList(json, 'guides')
-        .map(_requiredObject)
-        .map(SharePlatformGuide.fromJson)
         .toList(growable: false);
     final scenarios = _requiredList(
       json,
@@ -279,15 +194,9 @@ final class ShareCatalog {
     final templates = {
       for (final definition in definitions) definition.type: definition,
     };
-    final guides = {for (final guide in guideItems) guide.platform: guide};
     if (templates.length != ShareTemplateType.values.length) {
       throw const FormatException(
         'Share catalog must define every template exactly once',
-      );
-    }
-    if (guides.length != SharePlatform.values.length) {
-      throw const FormatException(
-        'Share catalog must define every platform guide exactly once',
       );
     }
     if (scenarios.map((item) => item.template).toSet().length !=
@@ -298,18 +207,14 @@ final class ShareCatalog {
     }
     return ShareCatalog(
       templates: Map.unmodifiable(templates),
-      guides: Map.unmodifiable(guides),
       scenarios: List.unmodifiable(scenarios),
     );
   }
 
   final Map<ShareTemplateType, ShareTemplateDefinition> templates;
-  final Map<SharePlatform, SharePlatformGuide> guides;
   final List<ShareCardData> scenarios;
 
   ShareTemplateDefinition template(ShareTemplateType type) => templates[type]!;
-
-  SharePlatformGuide guide(SharePlatform platform) => guides[platform]!;
 }
 
 final class ShareCardData {
@@ -355,7 +260,10 @@ final class ShareCardData {
     ownerAvatarAsset: _requiredString(json, 'ownerAvatarAsset'),
     background: PtwImageRef.fromJson(_requiredObject(json['background'])),
     challengeTitle: _requiredString(json, 'challengeTitle'),
-    deadline: DateTime.parse(_requiredString(json, 'deadline')),
+    deadline:
+        json['deadline'] == null
+            ? null
+            : DateTime.parse(json['deadline'] as String),
     primaryColor: _requiredInt(json, 'primaryColor'),
     hook: _requiredString(json, 'hook'),
     caption: _requiredString(json, 'caption'),
@@ -368,13 +276,13 @@ final class ShareCardData {
     progressValue: _requiredString(json, 'progressValue'),
     progressMetric: _requiredString(json, 'progressMetric'),
     progressSecondary: _requiredString(json, 'progressSecondary'),
-    featuredComment: _requiredString(json, 'featuredComment'),
-    authorResponse: _requiredString(json, 'authorResponse'),
-    milestone: _requiredString(json, 'milestone'),
+    featuredComment: _string(json, 'featuredComment'),
+    authorResponse: _string(json, 'authorResponse'),
+    milestone: _string(json, 'milestone'),
     resultLead: _requiredString(json, 'resultLead'),
     resultOutcome: _requiredString(json, 'resultOutcome'),
     doubtPercent: _requiredInt(json, 'doubtPercent'),
-    opinionChange: _requiredString(json, 'opinionChange'),
+    opinionChange: _string(json, 'opinionChange'),
     usesFallbackData: _requiredBool(json, 'usesFallbackData'),
     variationIndex: _requiredInt(json, 'variationIndex'),
   );
@@ -387,7 +295,7 @@ final class ShareCardData {
   final String ownerAvatarAsset;
   final PtwImageRef background;
   final String challengeTitle;
-  final DateTime deadline;
+  final DateTime? deadline;
   final int primaryColor;
   final String hook;
   final String caption;
@@ -421,7 +329,7 @@ final class ShareCardData {
     'ownerAvatarAsset': ownerAvatarAsset,
     'background': background.toJson(),
     'challengeTitle': challengeTitle,
-    'deadline': deadline.toIso8601String(),
+    'deadline': deadline?.toIso8601String(),
     'primaryColor': primaryColor,
     'hook': hook,
     'caption': caption,
@@ -493,11 +401,29 @@ final class ShareAsset {
   String get mimeType => 'image/png';
 }
 
+final class ShareRecommendation {
+  const ShareRecommendation({
+    required this.event,
+    required this.template,
+    this.momentId,
+  });
+
+  final ShareEvent event;
+  final ShareTemplateType template;
+  final String? momentId;
+}
+
 String _requiredString(Map<String, dynamic> json, String key) {
   final value = json[key];
   if (value is! String || value.trim().isEmpty) {
     throw FormatException('Missing non-empty string: $key');
   }
+  return value;
+}
+
+String _string(Map<String, dynamic> json, String key) {
+  final value = json[key];
+  if (value is! String) throw FormatException('Missing string: $key');
   return value;
 }
 

@@ -60,7 +60,7 @@ final class _AddEvidenceScreenState extends State<AddEvidenceScreen> {
     }
     setState(() => _saving = true);
     try {
-      await state.addEvidence(
+      final proof = await state.addEvidence(
         projectId: widget.projectId,
         title: _titleController.text,
         details: _detailsController.text,
@@ -68,7 +68,8 @@ final class _AddEvidenceScreenState extends State<AddEvidenceScreen> {
       );
       if (mounted) {
         context.go(
-          '/projects/${widget.projectId}/share?event=milestoneReached&template=milestone',
+          '/projects/${widget.projectId}/share?event=milestoneReached'
+          '&source=evidence&moment=proof%3A${proof.id}',
         );
       }
     } on Exception {

@@ -9,9 +9,10 @@ void main() {
   testWidgets('creator publishes proof and lands on milestone sharing', (
     tester,
   ) async {
-    final environment = await pumpPtw(tester);
-    await tester.tap(find.byKey(const ValueKey(ComponentIds.projectAddProof)));
-    await tester.pumpAndSettle();
+    final environment = await pumpPtw(
+      tester,
+      initialLocation: '/projects/challenge_red_friday/proof/new',
+    );
     expect(find.byType(PtwBlackButton), findsOneWidget);
     await tester.enterText(
       find.byKey(const ValueKey(ComponentIds.evidenceTitle)),
@@ -30,11 +31,8 @@ void main() {
       find.byKey(const ValueKey(ComponentIds.shareScreen)),
       findsOneWidget,
     );
-    expect(
-      find.byKey(const ValueKey('share_template_milestone')),
-      findsOneWidget,
-    );
-    expect(find.text('Interviewed 20 potential users'), findsOneWidget);
+    expect(find.text('BUILD YOUR STORY'), findsOneWidget);
+    expect(find.text('Still doubting?'), findsOneWidget);
     final stored = await environment.repository.load();
     expect(stored!.evidence.first.title, 'Interviewed 20 potential users');
   });

@@ -25,7 +25,14 @@ import '../../ui_kit/organisms/ptw_pinned_action_bar.dart';
 import '../../ui_kit/organisms/ptw_response_content.dart';
 
 final class ParticipantHomeScreen extends StatefulWidget {
-  const ParticipantHomeScreen({super.key});
+  const ParticipantHomeScreen({
+    required this.projectId,
+    super.key,
+    this.showActivatedMessage = false,
+  });
+
+  final String projectId;
+  final bool showActivatedMessage;
 
   @override
   State<ParticipantHomeScreen> createState() => _ParticipantHomeScreenState();
@@ -51,7 +58,8 @@ final class _ParticipantHomeScreenState extends State<ParticipantHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final state = PtwScope.of(context);
-    final project = state.currentProject;
+    final project = state.maybeProjectById(widget.projectId);
+    if (project == null) return const _MissingProjectHome();
     final previewProofs = state.evidenceFor(project.id).take(2).toList();
     final previewResponses = state.responsesFor(project.id).take(2).toList();
     final recentActivity = <_HomeActivityEntry>[
@@ -79,13 +87,32 @@ final class _ParticipantHomeScreenState extends State<ParticipantHomeScreen> {
                   height: heroHeight,
                   reactionSummary: reactionSummary,
                   onOpenOthers: () => context.push('/feed'),
-                  onShare: () => context.push('/projects/${project.id}/share'),
+                  onShare:
+                      () => context.push(
+                        '/projects/${project.id}/share?source=project',
+                      ),
                 ),
-                _RecentActivity(
-                  activity: recentActivity,
-                  unreadCount: state.unreadResponseCountFor(project.id),
-                  onOpenAll: () => context.push('/inbox'),
-                ),
+                if (project.doubt?.trim().isNotEmpty == true)
+                  _DoubtStatement(doubt: project.doubt!),
+                if (recentActivity.isEmpty)
+                  _EmptyProjectFrame(
+                    onAddProof:
+                        () => context.push('/projects/${project.id}/proof/new'),
+                  )
+                else ...[
+                  if (widget.showActivatedMessage) const _ActivationNotice(),
+                  _RecentActivity(
+                    activity: recentActivity,
+                    unreadCount: state.unreadResponseCountFor(project.id),
+                    onOpenAll: () => context.push('/inbox'),
+                  ),
+                  _TextAction(
+                    key: const ValueKey(ComponentIds.projectAddProof),
+                    label: 'Add proof',
+                    onTap:
+                        () => context.push('/projects/${project.id}/proof/new'),
+                  ),
+                ],
                 const SizedBox(height: PtwSpacing.md),
               ],
             ),
@@ -94,10 +121,12 @@ final class _ParticipantHomeScreenState extends State<ParticipantHomeScreen> {
             top: false,
             child: PtwPinnedActionBar(
               child: PtwBlackButton(
-                key: const ValueKey(ComponentIds.projectAddProof),
-                label: 'Add proof',
+                key: const ValueKey(ComponentIds.projectShareAgain),
+                label: 'Share again',
                 onPressed:
-                    () => context.push('/projects/${project.id}/proof/new'),
+                    () => context.push(
+                      '/projects/${project.id}/share?source=project',
+                    ),
               ),
             ),
           ),
@@ -179,18 +208,19 @@ final class _ProjectHero extends StatelessWidget {
                   ),
                   const SizedBox(height: PtwSpacing.sm),
                 ],
-                Row(
-                  children: [
-                    const PtwFinishFlagIcon(size: 19),
-                    const SizedBox(width: PtwSpacing.xs),
-                    Text(
-                      PtwFormatters.deadline(project.deadline),
-                      style: PtwTypography.bodyStrong.copyWith(
-                        color: PtwColors.textOnAccent,
+                if (project.deadline != null)
+                  Row(
+                    children: [
+                      const PtwFinishFlagIcon(size: 19),
+                      const SizedBox(width: PtwSpacing.xs),
+                      Text(
+                        PtwFormatters.deadline(project.deadline!),
+                        style: PtwTypography.bodyStrong.copyWith(
+                          color: PtwColors.textOnAccent,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -480,4 +510,100 @@ final class _WhiteRule extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       const Divider(height: 1, thickness: 1, color: PtwColors.softWhite);
+}
+
+final class _DoubtStatement extends StatelessWidget {
+  const _DoubtStatement({required this.doubt});
+
+  final String doubt;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(PtwSpacing.screenHorizontal),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'THE DOUBT',
+          style: PtwTypography.caption.copyWith(
+            color: PtwColors.textOnAccent,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.1,
+          ),
+        ),
+        const SizedBox(height: PtwSpacing.xs),
+        Text(
+          doubt,
+          style: PtwTypography.titleLarge.copyWith(
+            color: PtwColors.textOnAccent,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+final class _EmptyProjectFrame extends StatelessWidget {
+  const _EmptyProjectFrame({required this.onAddProof});
+
+  final VoidCallback onAddProof;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(
+      PtwSpacing.screenHorizontal,
+      PtwSpacing.lg,
+      PtwSpacing.screenHorizontal,
+      PtwSpacing.xl,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Your challenge is live.',
+          style: PtwTypography.titleLarge.copyWith(
+            color: PtwColors.textOnAccent,
+          ),
+        ),
+        const SizedBox(height: PtwSpacing.xs),
+        Text(
+          'Reactions and comments will appear here.',
+          style: PtwTypography.body.copyWith(color: PtwColors.softWhite),
+        ),
+        const SizedBox(height: PtwSpacing.md),
+        _TextAction(
+          key: const ValueKey(ComponentIds.projectAddProof),
+          label: 'Add your first proof',
+          onTap: onAddProof,
+        ),
+      ],
+    ),
+  );
+}
+
+final class _ActivationNotice extends StatelessWidget {
+  const _ActivationNotice();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(PtwSpacing.screenHorizontal),
+    child: Text(
+      'Your challenge is live.',
+      style: PtwTypography.title.copyWith(color: PtwColors.textOnAccent),
+    ),
+  );
+}
+
+final class _MissingProjectHome extends StatelessWidget {
+  const _MissingProjectHome();
+
+  @override
+  Widget build(BuildContext context) => const PtwImmersivePage(
+    child: Center(
+      child: PtwStickerText.hero(
+        'Project unavailable',
+        textAlign: TextAlign.center,
+      ),
+    ),
+  );
 }

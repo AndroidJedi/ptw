@@ -9,19 +9,19 @@ import '../../models/ptw_project.dart';
 import '../../models/ptw_prototype_snapshot.dart';
 import '../../models/ptw_response.dart';
 import '../../models/ptw_user.dart';
-import '../../features/share/share_models.dart';
+import '../../features/social_post_studio/studio_models.dart';
 
 final class PtwSeedData {
   const PtwSeedData({
     required this.currentUser,
     required this.curatedImages,
-    required this.shareCatalog,
+    required this.stickerCatalog,
     required this.snapshot,
   });
 
   final PtwUser currentUser;
   final List<PtwPostBackground> curatedImages;
-  final ShareCatalog shareCatalog;
+  final MemeStickerCatalog stickerCatalog;
   final PtwPrototypeSnapshot snapshot;
 }
 
@@ -31,8 +31,11 @@ final class MockJsonLoader {
 
   static final _prototypeToday = DateTime(2026, 8, 2);
   static final _prototypeActivityTime = DateTime(2026, 8, 2, 12);
+  static PtwSeedData? _cachedSeed;
 
-  Future<PtwSeedData> load() async {
+  Future<PtwSeedData> load() async => _cachedSeed ??= await _loadFresh();
+
+  Future<PtwSeedData> _loadFresh() async {
     final values = await Future.wait([
       rootBundle.loadString('assets/mock/current_user.json'),
       rootBundle.loadString('assets/mock/users.json'),
@@ -40,7 +43,7 @@ final class MockJsonLoader {
       rootBundle.loadString('assets/mock/evidence.json'),
       rootBundle.loadString('assets/mock/backgrounds.json'),
       rootBundle.loadString('assets/mock/comments.json'),
-      rootBundle.loadString('assets/mock/share_content.json'),
+      rootBundle.loadString('assets/mock/sticker_catalog.json'),
     ]);
     final currentUser = PtwUser.fromJson(_object(values[0]));
     final users = _list(values[1]).map(PtwUser.fromJson).toList();
@@ -129,11 +132,12 @@ final class MockJsonLoader {
     return PtwSeedData(
       currentUser: currentUser,
       curatedImages: _list(values[4]).map(PtwPostBackground.fromJson).toList(),
-      shareCatalog: ShareCatalog.fromJson(_object(values[6])),
+      stickerCatalog: MemeStickerCatalog.fromJson(_object(values[6])),
       snapshot: PtwPrototypeSnapshot(
         schemaVersion: PtwPrototypeSnapshot.currentSchemaVersion,
         currentProjectByOwner: {
-          for (final user in users) user.id: user.initialProjectId,
+          for (final user in users)
+            if (user.id != currentUser.id) user.id: user.initialProjectId,
         },
         projects: projects,
         responses: responses,

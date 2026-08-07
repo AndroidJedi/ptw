@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/component_ids.dart';
 import '../../core/theme/ptw_colors.dart';
 import '../../core/theme/ptw_spacing.dart';
+import '../../models/ptw_response.dart';
 import '../../state/ptw_app_state.dart';
 import '../../ui_kit/atoms/ptw_back_button.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
@@ -44,6 +45,10 @@ final class _InboxScreenState extends State<InboxScreen> {
   Widget build(BuildContext context) {
     final state = PtwScope.of(context);
     final responses = state.responsesFor(state.currentProject.id);
+    final latest = responses.isEmpty ? null : responses.first;
+    final shareEvent =
+        latest?.side == PtwResponseSide.doubt ? 'newSkeptic' : 'newSupporter';
+    final moment = latest == null ? '' : '&moment=response%3A${latest.id}';
     const background = PtwColors.hotPink;
     return PtwImmersivePage(
       key: const ValueKey(ComponentIds.inboxScreen),
@@ -88,7 +93,8 @@ final class _InboxScreenState extends State<InboxScreen> {
               label: 'Share project',
               onPressed:
                   () => context.push(
-                    '/projects/${state.currentProject.id}/share?event=newSkeptic&template=criticism',
+                    '/projects/${state.currentProject.id}/share?event=$shareEvent'
+                    '&source=inbox$moment',
                   ),
             ),
           ),

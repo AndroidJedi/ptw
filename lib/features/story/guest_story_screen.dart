@@ -109,6 +109,16 @@ final class _GuestStoryScreenState extends State<GuestStoryScreen> {
                             height: 244,
                             compact: true,
                           ),
+                          if (project.doubt?.trim().isNotEmpty == true) ...[
+                            const SizedBox(height: PtwSpacing.sm),
+                            Text(
+                              '“${project.doubt}”',
+                              textAlign: TextAlign.center,
+                              style: PtwTypography.title.copyWith(
+                                color: PtwColors.textOnAccent,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: PtwSpacing.sm),
                           Row(
                             children: [

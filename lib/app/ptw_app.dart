@@ -6,6 +6,7 @@ import '../core/theme/ptw_spacing.dart';
 import '../core/theme/ptw_theme.dart';
 import '../core/data/ptw_media_service.dart';
 import '../core/data/ptw_prototype_repository.dart';
+import '../features/share/share_service.dart';
 import '../state/ptw_app_state.dart';
 import '../ui_kit/atoms/ptw_black_button.dart';
 import '../ui_kit/atoms/ptw_sticker_text.dart';
@@ -20,12 +21,14 @@ final class PtwApp extends StatefulWidget {
     this.initialLocation,
     this.repository,
     this.mediaService,
+    this.shareService,
     this.now,
   });
 
   final String? initialLocation;
   final PtwPrototypeRepository? repository;
   final PtwMediaService? mediaService;
+  final PtwShareService? shareService;
   final DateTime Function()? now;
 
   @override
@@ -43,10 +46,14 @@ final class _PtwAppState extends State<PtwApp> {
     _state = PtwAppState(
       repository: widget.repository,
       mediaService: widget.mediaService,
+      shareService: widget.shareService,
       now: widget.now,
     );
     _loadFuture = _state.load();
-    _router = AppRouter.create(initialLocation: widget.initialLocation ?? '/');
+    _router = AppRouter.create(
+      state: _state,
+      initialLocation: widget.initialLocation ?? '/',
+    );
   }
 
   @override

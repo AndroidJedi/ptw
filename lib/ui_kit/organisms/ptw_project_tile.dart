@@ -99,18 +99,19 @@ final class PtwProjectTile extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: PtwSpacing.sm),
-                      Row(
-                        children: [
-                          const PtwFinishFlagIcon(size: 18),
-                          const SizedBox(width: PtwSpacing.xs),
-                          Text(
-                            PtwFormatters.deadline(project.deadline),
-                            style: PtwTypography.bodyStrong.copyWith(
-                              color: PtwColors.textOnAccent,
+                      if (project.deadline != null)
+                        Row(
+                          children: [
+                            const PtwFinishFlagIcon(size: 18),
+                            const SizedBox(width: PtwSpacing.xs),
+                            Text(
+                              PtwFormatters.deadline(project.deadline!),
+                              style: PtwTypography.bodyStrong.copyWith(
+                                color: PtwColors.textOnAccent,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
                     ],
                   ),
                 ),

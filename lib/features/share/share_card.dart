@@ -261,13 +261,14 @@ Widget _challengeBody(BuildContext context, ShareCardData data, double scale) =>
           ),
         ),
         SizedBox(height: 8 * scale),
-        Text(
-          PtwFormatters.deadline(data.deadline),
-          style: PtwTypography.bodyStrong.copyWith(
-            color: PtwColors.textOnAccent.withValues(alpha: 0.82),
-            fontSize: 12 * scale,
+        if (data.deadline != null)
+          Text(
+            PtwFormatters.deadline(data.deadline!),
+            style: PtwTypography.bodyStrong.copyWith(
+              color: PtwColors.textOnAccent.withValues(alpha: 0.82),
+              fontSize: 12 * scale,
+            ),
           ),
-        ),
         const Spacer(),
         Flexible(
           flex: 3,

@@ -33,7 +33,7 @@ void main() {
     await tester.tap(find.text('Reset local prototype'));
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey(ComponentIds.projectHome)),
+      find.byKey(const ValueKey(ComponentIds.createProjectScreen)),
       findsOneWidget,
     );
   });

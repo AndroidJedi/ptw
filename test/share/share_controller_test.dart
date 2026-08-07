@@ -44,26 +44,20 @@ void main() {
         event: event,
       );
 
-  test('event, platform, and format defaults are deterministic', () {
+  test('event and format defaults are deterministic', () {
     final value = controller(event: ShareEvent.milestoneReached);
     addTearDown(value.dispose);
 
     expect(value.template, ShareTemplateType.milestone);
-    expect(value.platform, SharePlatform.instagramStories);
     expect(value.format, ShareFormat.story);
 
-    value.selectPlatform(SharePlatform.linkedin);
-    expect(value.format, ShareFormat.portrait);
     value.selectFormat(ShareFormat.square);
-    expect(value.format, ShareFormat.square);
-    value.selectPlatform(SharePlatform.x);
     expect(value.format, ShareFormat.square);
   });
 
-  test('variation resets manual edits but preserves platform and format', () {
+  test('variation resets manual edits but preserves format', () {
     final value = controller();
     addTearDown(value.dispose);
-    value.selectPlatform(SharePlatform.linkedin);
     value.selectFormat(ShareFormat.square);
     value.editCopy(hook: 'My own hook', caption: 'My own caption');
 
@@ -73,7 +67,6 @@ void main() {
     expect(value.variationIndex, 1);
     expect(value.card.hook, isNot('My own hook'));
     expect(value.card.caption, isNot('My own caption'));
-    expect(value.platform, SharePlatform.linkedin);
     expect(value.format, ShareFormat.square);
   });
 

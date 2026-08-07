@@ -15,10 +15,8 @@ final class ShareController extends ChangeNotifier {
     required this.referenceTime,
     this.event = ShareEvent.manual,
     ShareTemplateType? initialTemplate,
-    SharePlatform initialPlatform = SharePlatform.instagramStories,
   }) : _template = initialTemplate ?? event.recommendedTemplate,
-       _platform = initialPlatform,
-       _format = initialPlatform.recommendedFormat;
+       _format = ShareFormat.story;
 
   final ShareEngine engine;
   final PtwProject project;
@@ -28,14 +26,12 @@ final class ShareController extends ChangeNotifier {
   final ShareEvent event;
 
   ShareTemplateType _template;
-  SharePlatform _platform;
   ShareFormat _format;
   int _variationIndex = 0;
   String? _hookOverride;
   String? _captionOverride;
 
   ShareTemplateType get template => _template;
-  SharePlatform get platform => _platform;
   ShareFormat get format => _format;
   int get variationIndex => _variationIndex;
 
@@ -59,13 +55,6 @@ final class ShareController extends ChangeNotifier {
     _template = value;
     _variationIndex = 0;
     _clearEdits();
-    notifyListeners();
-  }
-
-  void selectPlatform(SharePlatform value) {
-    if (value == _platform) return;
-    _platform = value;
-    _format = value.recommendedFormat;
     notifyListeners();
   }
 

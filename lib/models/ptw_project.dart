@@ -11,7 +11,8 @@ final class PtwProject {
     required this.ownerHandle,
     required this.ownerAvatarAsset,
     required this.goal,
-    required this.deadline,
+    this.doubt,
+    this.deadline,
     required this.image,
     required this.primaryColor,
     required this.status,
@@ -25,7 +26,11 @@ final class PtwProject {
     ownerHandle: json['ownerHandle'] as String,
     ownerAvatarAsset: json['ownerAvatarAsset'] as String,
     goal: json['goal'] as String,
-    deadline: DateTime.parse(json['deadline'] as String),
+    doubt: json['doubt'] as String?,
+    deadline:
+        json['deadline'] == null
+            ? null
+            : DateTime.parse(json['deadline'] as String),
     image: PtwImageRef.fromJson(json['image'] as Map<String, dynamic>),
     primaryColor: json['primaryColor'] as int,
     status: PtwProjectStatus.values.byName(json['status'] as String),
@@ -38,7 +43,8 @@ final class PtwProject {
   final String ownerHandle;
   final String ownerAvatarAsset;
   final String goal;
-  final DateTime deadline;
+  final String? doubt;
+  final DateTime? deadline;
   final PtwImageRef image;
   final int primaryColor;
   final PtwProjectStatus status;
@@ -51,7 +57,8 @@ final class PtwProject {
     'ownerHandle': ownerHandle,
     'ownerAvatarAsset': ownerAvatarAsset,
     'goal': goal,
-    'deadline': deadline.toIso8601String(),
+    'doubt': doubt,
+    'deadline': deadline?.toIso8601String(),
     'image': image.toJson(),
     'primaryColor': primaryColor,
     'status': status.name,

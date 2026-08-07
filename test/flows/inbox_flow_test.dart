@@ -39,6 +39,11 @@ void main() {
       );
       final repository = MemoryPrototypeRepository(
         initial: seed.snapshot.copyWith(
+          currentProjectByOwner: {
+            ...seed.snapshot.currentProjectByOwner,
+            seed.currentUser.id: seed.currentUser.initialProjectId,
+          },
+          activatedAt: testNow.subtract(const Duration(days: 35)),
           projects: [previousProject, ...seed.snapshot.projects],
           responses: [previousResponse, ...seed.snapshot.responses],
         ),
@@ -101,11 +106,8 @@ void main() {
         find.byKey(const ValueKey(ComponentIds.shareScreen)),
         findsOneWidget,
       );
-      expect(
-        find.byKey(const ValueKey('share_template_criticism')),
-        findsOneWidget,
-      );
-      expect(find.byType(PtwBlackButton), findsOneWidget);
+      expect(find.text('BUILD YOUR STORY'), findsOneWidget);
+      expect(find.text('They believe. Do you?'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();

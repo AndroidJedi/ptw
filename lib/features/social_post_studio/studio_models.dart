@@ -209,6 +209,11 @@ abstract final class StudioBackgrounds {
       colors: [Color(0xFF315CFF), Color(0xFF00A39A)],
     ),
     StudioBackgroundDefinition.gradient(
+      id: 'gradient_yellow',
+      label: 'Loud',
+      colors: [Color(0xFFFFF36D), Color(0xFFBFF7FF)],
+    ),
+    StudioBackgroundDefinition.gradient(
       id: 'gradient_candy',
       label: 'Candy',
       colors: [Color(0xFFFF8BC2), Color(0xFF8A6BFF), Color(0xFFFFD84D)],

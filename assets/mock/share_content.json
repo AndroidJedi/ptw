@@ -356,46 +356,5 @@
       "usesFallbackData": false,
       "variationIndex": 0
     }
-  ],
-  "guides": [
-    {
-      "platform": "instagramStories",
-      "steps": [
-        {"title": "Open stickers", "body": "Tap the sticker button in the Story editor.", "illustration": "stickers"},
-        {"title": "Choose Link", "body": "Pick the Link sticker from the tray.", "illustration": "link"},
-        {"title": "Paste your journey", "body": "Paste the PTW project link copied below.", "illustration": "paste"},
-        {"title": "Frame the link", "body": "Place the sticker where it invites a verdict without covering the challenge.", "illustration": "frame"}
-      ]
-    },
-    {
-      "platform": "instagramFeed",
-      "steps": [
-        {"title": "Choose the card", "body": "Add the generated portrait card as a new post.", "illustration": "image"},
-        {"title": "Keep the full frame", "body": "Use the portrait crop so every word stays visible.", "illustration": "crop"},
-        {"title": "Paste the caption", "body": "Use the generated caption and keep the PTW link close by.", "illustration": "caption"}
-      ]
-    },
-    {
-      "platform": "tiktok",
-      "steps": [
-        {"title": "Start a photo post", "body": "Choose the generated Story card from your photos.", "illustration": "image"},
-        {"title": "Keep it full screen", "body": "Use the original 9:16 crop for maximum readability.", "illustration": "crop"},
-        {"title": "Add the challenge", "body": "Paste the caption and invite people to choose a side.", "illustration": "caption"}
-      ]
-    },
-    {
-      "platform": "linkedin",
-      "steps": [
-        {"title": "Start a post", "body": "Attach the generated portrait card.", "illustration": "image"},
-        {"title": "Add the context", "body": "Paste the caption and project link, then ask for an honest verdict.", "illustration": "caption"}
-      ]
-    },
-    {
-      "platform": "x",
-      "steps": [
-        {"title": "Start a post", "body": "Attach the generated square card.", "illustration": "image"},
-        {"title": "Make the ask", "body": "Paste the concise caption and project link.", "illustration": "caption"}
-      ]
-    }
   ]
 }

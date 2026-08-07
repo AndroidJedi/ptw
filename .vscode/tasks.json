@@ -1,0 +1,17 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "PTW: Start Android emulator",
+      "type": "process",
+      "command": "${workspaceFolder}/tool/run_android.sh",
+      "args": ["--emulator-only"],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated",
+        "clear": true
+      }
+    }
+  ]
+}

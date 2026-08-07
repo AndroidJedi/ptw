@@ -1,19 +1,24 @@
 import 'package:flutter/widgets.dart';
 
 import '../core/data/mock_json_loader.dart';
-import '../core/data/ptw_demo_activity_factory.dart';
 import '../core/data/ptw_media_service.dart';
 import '../core/data/ptw_prototype_repository.dart';
+import '../features/share/share_models.dart';
+import '../features/share/share_service.dart';
+import '../features/social_post_studio/studio_models.dart';
+import '../generated_share_editor/generated_share_editor.dart';
 import '../models/ptw_evidence.dart';
 import '../models/ptw_image_ref.dart';
 import '../models/ptw_post_background.dart';
 import '../models/ptw_project.dart';
+import '../models/ptw_project_draft.dart';
 import '../models/ptw_prototype_snapshot.dart';
 import '../models/ptw_reaction_summary.dart';
 import '../models/ptw_response.dart';
+import '../models/ptw_share_record.dart';
 import '../models/ptw_social_activity.dart';
+import '../models/ptw_story_composition.dart';
 import '../models/ptw_user.dart';
-import '../features/share/share_models.dart';
 
 /// App state backed by a single versioned local prototype snapshot.
 final class PtwAppState extends ChangeNotifier {
@@ -23,66 +28,73 @@ final class PtwAppState extends ChangeNotifier {
     MockJsonLoader loader = const MockJsonLoader(),
     PtwPrototypeRepository? repository,
     PtwMediaService? mediaService,
+    PtwShareService? shareService,
     DateTime Function()? now,
   }) : _loader = loader,
        repository = repository ?? SharedPreferencesPrototypeRepository(),
        mediaService = mediaService ?? LocalPtwMediaService(),
+       shareService = shareService ?? const NativePtwShareService(),
        _now = now ?? DateTime.now;
 
   final MockJsonLoader _loader;
   final DateTime Function() _now;
   final PtwPrototypeRepository repository;
   final PtwMediaService mediaService;
+  final PtwShareService shareService;
 
   bool isReady = false;
   String? errorMessage;
   late PtwUser currentUser;
   List<PtwPostBackground> curatedImages = [];
-  late ShareCatalog shareCatalog;
+  late MemeStickerCatalog stickerCatalog;
+  late ShareThemeConfig shareEditorTheme;
   PtwImageRef? recoveredProjectImage;
   late PtwPrototypeSnapshot _snapshot;
+  bool _isDisposed = false;
 
   List<PtwProject> get projects => List.unmodifiable(_snapshot.projects);
   List<PtwResponse> get responses => List.unmodifiable(_snapshot.responses);
   List<PtwEvidence> get evidence => List.unmodifiable(_snapshot.evidence);
+  List<PtwShareRecord> get shareRecords =>
+      List.unmodifiable(_snapshot.shareRecords);
+  PtwProjectDraft? get draft => _snapshot.draft;
   DateTime get now => _now();
+  bool get isActivated =>
+      _snapshot.activatedAt != null && currentProjectOrNull != null;
+  DateTime? get activatedAt => _snapshot.activatedAt;
 
   Future<void> load() async {
     isReady = false;
     errorMessage = null;
     try {
       final seed = await _loader.load();
+      shareEditorTheme = await ShareThemeBundle.loadAsset();
       currentUser = seed.currentUser;
       curatedImages = seed.curatedImages;
-      shareCatalog = seed.shareCatalog;
+      stickerCatalog = seed.stickerCatalog;
       await mediaService.initialize();
       final restored = await repository.load();
       final initial = restored ?? seed.snapshot;
-      final withDemoActivity = _withCurrentProjectDemoActivity(
-        initial,
-        referenceTime: _now(),
-      );
       final withChronologicalActivity = _withChronologicalPrototypeActivity(
-        withDemoActivity,
+        initial,
       );
       _snapshot = _withDistinctPrototypeProofMedia(withChronologicalActivity);
-      if (restored == null || !identical(_snapshot, restored)) {
-        await repository.save(_snapshot);
-      }
+      await repository.save(_snapshot);
       recoveredProjectImage = await mediaService.recoverLostProjectImage();
       isReady = true;
     } catch (error) {
       errorMessage = error.toString();
     }
-    notifyListeners();
+    if (!_isDisposed) notifyListeners();
   }
 
   Future<void> reset() async {
     await repository.reset();
     final seed = await _loader.load();
+    shareEditorTheme = await ShareThemeBundle.loadAsset();
     currentUser = seed.currentUser;
     curatedImages = seed.curatedImages;
-    shareCatalog = seed.shareCatalog;
+    stickerCatalog = seed.stickerCatalog;
     _snapshot = _withDistinctPrototypeProofMedia(
       _withChronologicalPrototypeActivity(seed.snapshot),
     );
@@ -90,12 +102,18 @@ final class PtwAppState extends ChangeNotifier {
     recoveredProjectImage = null;
     errorMessage = null;
     isReady = true;
-    notifyListeners();
+    if (!_isDisposed) notifyListeners();
   }
 
   PtwProject get currentProject {
+    final project = currentProjectOrNull;
+    if (project == null) throw StateError('Creator has no active project');
+    return project;
+  }
+
+  PtwProject? get currentProjectOrNull {
     final id = _snapshot.currentProjectByOwner[currentUser.id];
-    return projectById(id!);
+    return id == null ? null : maybeProjectById(id);
   }
 
   PtwProject projectById(String id) =>
@@ -185,44 +203,254 @@ final class PtwAppState extends ChangeNotifier {
     return items;
   }
 
-  Future<PtwProject> createProject({
+  Future<PtwProjectDraft> ensureDraft(PtwProjectDraftIntent intent) async {
+    final existing = _snapshot.draft;
+    if (existing != null && existing.intent == intent) return existing;
+    final timestamp = _now();
+    final draft = PtwProjectDraft(
+      id: 'project_${timestamp.microsecondsSinceEpoch}',
+      intent: intent,
+      goal: '',
+      image: const PtwImageRef.asset('assets/images/backgrounds/startup.jpg'),
+      primaryColor: 0xFFF4066E,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    );
+    await _commit(_snapshot.copyWith(draft: draft));
+    return draft;
+  }
+
+  Future<PtwProjectDraft> saveDraft({
     required String goal,
-    required DateTime deadline,
+    required String doubt,
+    required DateTime? deadline,
     required PtwImageRef image,
     required int primaryColor,
+    bool markPreviewGenerated = false,
   }) async {
+    final existing = _snapshot.draft;
+    if (existing == null) throw StateError('No project draft exists');
     final timestamp = _now();
+    final trimmedDoubt = doubt.trim();
+    final next = PtwProjectDraft(
+      id: existing.id,
+      intent: existing.intent,
+      goal: goal.trim(),
+      doubt: trimmedDoubt.isEmpty ? null : trimmedDoubt,
+      deadline:
+          deadline == null
+              ? null
+              : DateTime(deadline.year, deadline.month, deadline.day),
+      image: image,
+      primaryColor: primaryColor,
+      createdAt: existing.createdAt,
+      updatedAt: timestamp,
+      previewGeneratedAt:
+          markPreviewGenerated ? timestamp : existing.previewGeneratedAt,
+      storyComposition: existing.storyComposition,
+    );
+    await _commit(_snapshot.copyWith(draft: next));
+    return next;
+  }
+
+  Future<void> saveDraftStory(PtwStoryComposition composition) async {
+    final existing = _snapshot.draft;
+    if (existing == null || existing.id != composition.projectId) return;
+    await _commit(
+      _snapshot.copyWith(
+        draft: existing.copyWith(
+          storyComposition: composition,
+          updatedAt: _now(),
+        ),
+      ),
+    );
+  }
+
+  Future<PtwProject?> completeStoryShare({
+    required PtwStoryComposition composition,
+    required PtwShareSource source,
+    required PtwShareOutcome outcome,
+    required DateTime startedAt,
+    String? target,
+  }) async {
+    final completedAt = _now();
+    final record = PtwShareRecord(
+      id:
+          'share_${completedAt.microsecondsSinceEpoch}_${_snapshot.shareRecords.length}',
+      projectId: composition.projectId,
+      source: source,
+      outcome: outcome,
+      story: composition,
+      format: ShareFormat.story,
+      startedAt: startedAt,
+      completedAt: completedAt,
+      momentId: composition.momentId,
+      target: target,
+    );
+    final records = [record, ..._snapshot.shareRecords];
+    final draft = _snapshot.draft;
+    final shouldActivate =
+        record.isMeaningfulShare && draft?.id == composition.projectId;
+    if (!shouldActivate) {
+      await _commit(_snapshot.copyWith(shareRecords: records));
+      return maybeProjectById(composition.projectId);
+    }
+
+    final existingProject = maybeProjectById(composition.projectId);
+    if (existingProject != null) {
+      await _commit(
+        _snapshot.copyWith(shareRecords: records, clearDraft: true),
+      );
+      return existingProject;
+    }
+    if (!draft!.hasValidGoal) throw StateError('Draft goal is invalid');
     final project = PtwProject(
-      id: 'project_${timestamp.microsecondsSinceEpoch}',
+      id: draft.id,
       ownerId: currentUser.id,
       ownerName: currentUser.name,
       ownerHandle: currentUser.handle,
       ownerAvatarAsset: currentUser.avatarAsset,
-      goal: goal.trim(),
-      deadline: DateTime(deadline.year, deadline.month, deadline.day),
-      image: image,
-      primaryColor: primaryColor,
+      goal: draft.goal.trim(),
+      doubt: draft.doubt,
+      deadline: draft.deadline,
+      image: draft.image,
+      primaryColor: draft.primaryColor,
       status: PtwProjectStatus.active,
-      createdAt: timestamp,
+      createdAt: completedAt,
     );
     final nextCurrent = Map<String, String>.from(
       _snapshot.currentProjectByOwner,
     )..[currentUser.id] = project.id;
-    final demoActivity = PtwDemoActivityFactory.forProject(
-      project: project,
-      referenceTime: timestamp,
-      proofImage: _alternateProofImageFor(project),
-    );
     await _commit(
       _snapshot.copyWith(
         currentProjectByOwner: nextCurrent,
         projects: [project, ..._snapshot.projects],
-        responses: [...demoActivity.responses, ..._snapshot.responses],
-        evidence: [...demoActivity.evidence, ..._snapshot.evidence],
+        activatedAt: _snapshot.activatedAt ?? completedAt,
+        clearDraft: true,
+        shareRecords: records,
       ),
     );
     recoveredProjectImage = null;
     return project;
+  }
+
+  Future<PtwProject?> completeShare({
+    required ShareCardData card,
+    required ShareFormat format,
+    required PtwShareSource source,
+    required PtwShareOutcome outcome,
+    required DateTime startedAt,
+    String? momentId,
+    String? target,
+  }) async {
+    final completedAt = _now();
+    final record = PtwShareRecord(
+      id: 'share_${completedAt.microsecondsSinceEpoch}',
+      projectId: card.projectId,
+      source: source,
+      outcome: outcome,
+      card: card,
+      format: format,
+      startedAt: startedAt,
+      completedAt: completedAt,
+      momentId: momentId,
+      target: target,
+    );
+    final records = [record, ..._snapshot.shareRecords];
+    final draft = _snapshot.draft;
+    final shouldActivate =
+        record.isMeaningfulShare && draft?.id == card.projectId;
+    if (!shouldActivate) {
+      await _commit(_snapshot.copyWith(shareRecords: records));
+      return maybeProjectById(card.projectId);
+    }
+
+    final existingProject = maybeProjectById(card.projectId);
+    if (existingProject != null) return existingProject;
+    if (!draft!.hasValidGoal) throw StateError('Draft goal is invalid');
+    final project = PtwProject(
+      id: draft.id,
+      ownerId: currentUser.id,
+      ownerName: currentUser.name,
+      ownerHandle: currentUser.handle,
+      ownerAvatarAsset: currentUser.avatarAsset,
+      goal: draft.goal.trim(),
+      doubt: draft.doubt,
+      deadline: draft.deadline,
+      image: draft.image,
+      primaryColor: draft.primaryColor,
+      status: PtwProjectStatus.active,
+      createdAt: completedAt,
+    );
+    final nextCurrent = Map<String, String>.from(
+      _snapshot.currentProjectByOwner,
+    )..[currentUser.id] = project.id;
+    await _commit(
+      _snapshot.copyWith(
+        currentProjectByOwner: nextCurrent,
+        projects: [project, ..._snapshot.projects],
+        activatedAt: _snapshot.activatedAt ?? completedAt,
+        clearDraft: true,
+        shareRecords: records,
+      ),
+    );
+    recoveredProjectImage = null;
+    return project;
+  }
+
+  ShareRecommendation recommendedShareFor(String projectId) {
+    final project = projectById(projectId);
+    final meaningful =
+        _snapshot.shareRecords
+            .where(
+              (record) =>
+                  record.projectId == projectId && record.isMeaningfulShare,
+            )
+            .toList()
+          ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
+    if (project.status == PtwProjectStatus.completed &&
+        !meaningful.any((record) => record.momentId == 'result:$projectId')) {
+      return ShareRecommendation(
+        event: ShareEvent.goalCompleted,
+        template: ShareTemplateType.result,
+        momentId: 'result:$projectId',
+      );
+    }
+
+    final after =
+        meaningful.isEmpty
+            ? DateTime.fromMillisecondsSinceEpoch(0)
+            : meaningful.first.completedAt;
+    final latestProof =
+        evidenceFor(
+          projectId,
+        ).where((item) => item.createdAt.isAfter(after)).firstOrNull;
+    final latestResponse =
+        responsesFor(
+          projectId,
+        ).where((item) => item.createdAt.isAfter(after)).firstOrNull;
+    if (latestProof != null &&
+        (latestResponse == null ||
+            !latestResponse.createdAt.isAfter(latestProof.createdAt))) {
+      return ShareRecommendation(
+        event: ShareEvent.milestoneReached,
+        template: ShareTemplateType.milestone,
+        momentId: 'proof:${latestProof.id}',
+      );
+    }
+    if (latestResponse != null) {
+      final isDoubt = latestResponse.side == PtwResponseSide.doubt;
+      return ShareRecommendation(
+        event: isDoubt ? ShareEvent.newSkeptic : ShareEvent.newSupporter,
+        template:
+            isDoubt ? ShareTemplateType.criticism : ShareTemplateType.progress,
+        momentId: 'response:${latestResponse.id}',
+      );
+    }
+    return const ShareRecommendation(
+      event: ShareEvent.manual,
+      template: ShareTemplateType.challenge,
+    );
   }
 
   Future<PtwResponse> submitResponse({
@@ -288,42 +516,15 @@ final class PtwAppState extends ChangeNotifier {
 
   Future<void> _commit(PtwPrototypeSnapshot next) async {
     await repository.save(next);
+    if (_isDisposed) return;
     _snapshot = next;
     notifyListeners();
   }
 
-  PtwPrototypeSnapshot _withCurrentProjectDemoActivity(
-    PtwPrototypeSnapshot snapshot, {
-    required DateTime referenceTime,
-  }) {
-    final currentProjectId = snapshot.currentProjectByOwner[currentUser.id];
-    if (currentProjectId == null) return snapshot;
-    final project = snapshot.projects.where(
-      (item) => item.id == currentProjectId,
-    );
-    if (project.isEmpty) return snapshot;
-
-    final needsResponses =
-        !snapshot.responses.any((item) => item.projectId == currentProjectId);
-    final needsEvidence =
-        !snapshot.evidence.any((item) => item.projectId == currentProjectId);
-    if (!needsResponses && !needsEvidence) return snapshot;
-
-    final demoActivity = PtwDemoActivityFactory.forProject(
-      project: project.single,
-      referenceTime: referenceTime,
-      proofImage: _alternateProofImageFor(project.single),
-    );
-    return snapshot.copyWith(
-      responses:
-          needsResponses
-              ? [...demoActivity.responses, ...snapshot.responses]
-              : snapshot.responses,
-      evidence:
-          needsEvidence
-              ? [...demoActivity.evidence, ...snapshot.evidence]
-              : snapshot.evidence,
-    );
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
   }
 
   PtwPrototypeSnapshot _withDistinctPrototypeProofMedia(
@@ -527,5 +728,12 @@ final class PtwScope extends InheritedNotifier<PtwAppState> {
     final scope = context.dependOnInheritedWidgetOfExactType<PtwScope>();
     assert(scope != null, 'PtwScope was not found in this context');
     return scope!.notifier!;
+  }
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull {
+    final iterator = this.iterator;
+    return iterator.moveNext() ? iterator.current : null;
   }
 }

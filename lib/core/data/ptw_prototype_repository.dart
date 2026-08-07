@@ -18,13 +18,20 @@ final class SharedPreferencesPrototypeRepository
   SharedPreferencesPrototypeRepository({SharedPreferencesAsync? preferences})
     : _preferences = preferences ?? SharedPreferencesAsync();
 
-  static const snapshotKey = 'ptw.prototype.snapshot.v2';
+  static const snapshotKey = 'ptw.prototype.snapshot.v5';
+  static const legacyV4SnapshotKey = 'ptw.prototype.snapshot.v4';
+  static const legacyV3SnapshotKey = 'ptw.prototype.snapshot.v3';
+  static const legacyV2SnapshotKey = 'ptw.prototype.snapshot.v2';
 
   final SharedPreferencesAsync _preferences;
 
   @override
   Future<PtwPrototypeSnapshot?> load() async {
-    final raw = await _preferences.getString(snapshotKey);
+    final raw =
+        await _preferences.getString(snapshotKey) ??
+        await _preferences.getString(legacyV4SnapshotKey) ??
+        await _preferences.getString(legacyV3SnapshotKey) ??
+        await _preferences.getString(legacyV2SnapshotKey);
     if (raw == null) return null;
     final json = jsonDecode(raw);
     if (json is! Map<String, dynamic>) {
@@ -38,7 +45,12 @@ final class SharedPreferencesPrototypeRepository
       _preferences.setString(snapshotKey, jsonEncode(snapshot.toJson()));
 
   @override
-  Future<void> reset() => _preferences.remove(snapshotKey);
+  Future<void> reset() async {
+    await _preferences.remove(snapshotKey);
+    await _preferences.remove(legacyV4SnapshotKey);
+    await _preferences.remove(legacyV3SnapshotKey);
+    await _preferences.remove(legacyV2SnapshotKey);
+  }
 }
 
 /// Deterministic repository used by widget and unit tests.

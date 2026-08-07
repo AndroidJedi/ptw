@@ -1,25 +1,25 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/component_ids.dart';
-import '../../core/formatters/ptw_formatters.dart';
 import '../../core/theme/ptw_colors.dart';
-import '../../core/theme/ptw_radius.dart';
 import '../../core/theme/ptw_spacing.dart';
 import '../../core/theme/ptw_typography.dart';
 import '../../models/ptw_image_ref.dart';
-import '../../models/ptw_project.dart';
+import '../../models/ptw_project_draft.dart';
 import '../../state/ptw_app_state.dart';
 import '../../ui_kit/atoms/ptw_back_button.dart';
 import '../../ui_kit/atoms/ptw_black_button.dart';
-import '../../ui_kit/atoms/ptw_finish_flag_icon.dart';
 import '../../ui_kit/atoms/ptw_sticker_text.dart';
 import '../../ui_kit/organisms/ptw_immersive_page.dart';
 import '../../ui_kit/organisms/ptw_pinned_action_bar.dart';
-import '../../ui_kit/organisms/ptw_project_tile.dart';
 
 final class CreatePostScreen extends StatefulWidget {
-  const CreatePostScreen({super.key});
+  const CreatePostScreen({super.key, this.intent});
+
+  final PtwProjectDraftIntent? intent;
 
   @override
   State<CreatePostScreen> createState() => _CreatePostScreenState();
@@ -27,78 +27,101 @@ final class CreatePostScreen extends StatefulWidget {
 
 final class _CreatePostScreenState extends State<CreatePostScreen> {
   final _goalController = TextEditingController();
-  DateTime? _deadline;
+  final _doubtController = TextEditingController();
+  PtwProjectDraft? _draft;
   PtwImageRef? _image;
-  int? _primaryColor;
-  int _step = 0;
+  DateTime? _deadline;
+  int _primaryColor = PtwColors.hotPink.toARGB32();
+  Timer? _autosaveTimer;
+  bool _initializing = false;
   bool _saving = false;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_draft == null && !_initializing) {
+      _initializing = true;
+      unawaited(_initialize(PtwScope.of(context)));
+    }
+  }
+
+  Future<void> _initialize(PtwAppState state) async {
+    final intent =
+        widget.intent ??
+        (state.isActivated
+            ? PtwProjectDraftIntent.newChallenge
+            : PtwProjectDraftIntent.firstProject);
+    final draft = await state.ensureDraft(intent);
+    if (!mounted) return;
+    _goalController.text = draft.goal;
+    _doubtController.text = draft.doubt ?? '';
+    setState(() {
+      _draft = draft;
+      _image = state.recoveredProjectImage ?? draft.image;
+      _deadline = draft.deadline;
+      _primaryColor = draft.primaryColor;
+      _initializing = false;
+    });
+  }
+
+  @override
   void dispose() {
+    _autosaveTimer?.cancel();
     _goalController.dispose();
+    _doubtController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickDeadline() async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final result = await showDatePicker(
-      context: context,
-      initialDate: today.add(const Duration(days: 30)),
-      firstDate: today,
-      lastDate: DateTime(today.year + 5, 12, 31),
+  void _scheduleAutosave() {
+    _autosaveTimer?.cancel();
+    _autosaveTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted || _draft == null) return;
+      unawaited(_save(PtwScope.of(context), markPreview: false));
+    });
+  }
+
+  Future<PtwProjectDraft?> _save(
+    PtwAppState state, {
+    required bool markPreview,
+  }) async {
+    final draft = _draft;
+    if (draft == null) return null;
+    final saved = await state.saveDraft(
+      goal: _goalController.text,
+      doubt: _doubtController.text,
+      deadline: _deadline,
+      image: _image ?? draft.image,
+      primaryColor: _primaryColor,
+      markPreviewGenerated: markPreview,
     );
-    if (result != null) setState(() => _deadline = result);
+    if (mounted) _draft = saved;
+    return saved;
   }
 
-  void _continue() {
+  Future<void> _makeShare(PtwAppState state) async {
     final goal = _goalController.text.trim();
-    if (goal.isEmpty || goal.length > 90 || _deadline == null) {
+    final doubt = _doubtController.text.trim();
+    if (goal.isEmpty || goal.length > 90 || doubt.length > 140) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add a clear goal and a deadline.')),
+        const SnackBar(content: Text('Add a clear challenge before sharing.')),
       );
       return;
     }
-    setState(() => _step = 1);
-  }
-
-  Future<void> _pickDeviceImage(PtwAppState state) async {
-    try {
-      final image = await state.mediaService.pickProjectImage();
-      if (image != null && mounted) setState(() => _image = image);
-    } on Exception {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('That photo could not be imported.')),
-      );
-    }
-  }
-
-  Future<void> _publish(PtwAppState state) async {
-    if (_image == null || _primaryColor == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Choose a project image and color.')),
-      );
-      return;
-    }
+    _autosaveTimer?.cancel();
     setState(() => _saving = true);
     try {
-      final project = await state.createProject(
-        goal: _goalController.text,
-        deadline: _deadline!,
-        image: _image!,
-        primaryColor: _primaryColor!,
-      );
-      if (mounted) {
-        context.go(
-          '/projects/${project.id}/share?event=challengeCreated&template=challenge',
-        );
-      }
-    } on Exception {
+      final saved = await _save(state, markPreview: true);
+      if (!mounted || saved == null) return;
+      final source =
+          saved.intent == PtwProjectDraftIntent.firstProject
+              ? 'onboarding'
+              : 'newChallenge';
+      context.go('/share/draft?source=$source');
+    } on Object {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Project could not be saved. Try again.')),
+        const SnackBar(content: Text('Your draft could not be saved.')),
       );
     }
   }
@@ -106,267 +129,89 @@ final class _CreatePostScreenState extends State<CreatePostScreen> {
   @override
   Widget build(BuildContext context) {
     final state = PtwScope.of(context);
-    _image ??= state.recoveredProjectImage;
+    final draft = _draft;
     return PtwImmersivePage(
       key: const ValueKey(ComponentIds.createProjectScreen),
       child: Column(
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: PtwBackButton(
-              key: const ValueKey(ComponentIds.createProjectBack),
-              fallbackRoute: '/',
-              onPressed: _step == 0 ? null : () => setState(() => _step = 0),
-            ),
-          ),
-          Expanded(child: _step == 0 ? _goalStep() : _visualStep(state)),
-          PtwPinnedActionBar(
-            child: PtwBlackButton(
-              key: ValueKey(
-                _step == 0
-                    ? ComponentIds.createProjectContinue
-                    : ComponentIds.createProjectPublish,
+          if (draft != null &&
+              (draft.intent == PtwProjectDraftIntent.newChallenge ||
+                  draft.hasPreview))
+            Align(
+              alignment: Alignment.centerLeft,
+              child: PtwBackButton(
+                key: const ValueKey(ComponentIds.createProjectBack),
+                fallbackRoute:
+                    draft.intent == PtwProjectDraftIntent.newChallenge &&
+                            state.currentProjectOrNull != null
+                        ? '/projects/${state.currentProject.id}'
+                        : '/share/draft?source=onboarding',
               ),
-              label: _step == 0 ? 'Continue' : 'Create & share',
-              onPressed:
-                  _saving
-                      ? null
-                      : (_step == 0 ? _continue : () => _publish(state)),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _goalStep() => ListView(
-    padding: const EdgeInsets.all(PtwSpacing.screenHorizontal),
-    children: [
-      const PtwStickerText.hero('What will you prove?'),
-      const SizedBox(height: PtwSpacing.xl),
-      TextField(
-        key: const ValueKey(ComponentIds.createProjectGoal),
-        controller: _goalController,
-        maxLength: 90,
-        minLines: 3,
-        maxLines: 4,
-        style: PtwTypography.title,
-        decoration: const InputDecoration(
-          hintText: 'Launch my product and reach 100 active users',
-          alignLabelWithHint: true,
-        ),
-      ),
-      const SizedBox(height: PtwSpacing.md),
-      InkWell(
-        key: const ValueKey(ComponentIds.createProjectDeadline),
-        onTap: _pickDeadline,
-        borderRadius: BorderRadius.circular(PtwRadius.lg),
-        child: Container(
-          padding: const EdgeInsets.all(PtwSpacing.md),
-          decoration: BoxDecoration(
-            color: PtwColors.transparent,
-            border: Border.all(color: PtwColors.textOnAccent, width: 1),
-            borderRadius: BorderRadius.circular(PtwRadius.lg),
-          ),
-          child: Row(
-            children: [
-              const CircleAvatar(
-                backgroundColor: PtwColors.ink,
-                child: PtwFinishFlagIcon(size: 22),
-              ),
-              const SizedBox(width: PtwSpacing.sm),
-              Expanded(
-                child: Text(
-                  _deadline == null
-                      ? 'Choose a deadline'
-                      : PtwFormatters.deadline(_deadline!),
-                  style: PtwTypography.bodyStrong.copyWith(
-                    color: PtwColors.textOnAccent,
-                  ),
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: PtwColors.textOnAccent,
-              ),
-            ],
-          ),
-        ),
-      ),
-    ],
-  );
-
-  Widget _visualStep(PtwAppState state) {
-    final preview =
-        _image == null
-            ? null
-            : PtwProject(
-              id: 'preview',
-              ownerId: state.currentUser.id,
-              ownerName: state.currentUser.name,
-              ownerHandle: state.currentUser.handle,
-              ownerAvatarAsset: state.currentUser.avatarAsset,
-              goal: _goalController.text.trim(),
-              deadline: _deadline!,
-              image: _image!,
-              primaryColor: _primaryColor ?? PtwColors.hotPink.toARGB32(),
-              status: PtwProjectStatus.active,
-              createdAt: DateTime.now(),
-            );
-    return ListView(
-      padding: const EdgeInsets.all(PtwSpacing.screenHorizontal),
-      children: [
-        if (preview == null)
-          Container(
-            height: 270,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: PtwColors.ink,
-              border: Border.all(color: PtwColors.textOnAccent, width: 1),
-              borderRadius: BorderRadius.circular(PtwRadius.xl),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.add_photo_alternate_rounded,
-                  color: PtwColors.textOnAccent,
-                  size: 52,
-                ),
-                const SizedBox(height: PtwSpacing.sm),
-                Text(
-                  'Choose the image below',
-                  style: PtwTypography.title.copyWith(
-                    color: PtwColors.textOnAccent,
-                  ),
-                ),
-              ],
-            ),
-          )
-        else
-          PtwProjectTile(project: preview, height: 270, compact: true),
-        const SizedBox(height: PtwSpacing.lg),
-        Text(
-          'IMAGE',
-          style: PtwTypography.caption.copyWith(
-            color: PtwColors.textOnAccent,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.1,
-          ),
-        ),
-        const SizedBox(height: PtwSpacing.xs),
-        SizedBox(
-          key: const ValueKey(ComponentIds.createProjectCuratedImages),
-          height: 96,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: state.curatedImages.length + 1,
-            separatorBuilder: (_, __) => const SizedBox(width: PtwSpacing.xs),
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return InkWell(
-                  key: const ValueKey(ComponentIds.createProjectDeviceImage),
-                  onTap: () => _pickDeviceImage(state),
-                  borderRadius: BorderRadius.circular(PtwRadius.md),
-                  child: Container(
-                    width: 96,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: PtwColors.ink,
-                      border: Border.all(
+          Expanded(
+            child:
+                draft == null
+                    ? const Center(
+                      child: CircularProgressIndicator(
                         color: PtwColors.textOnAccent,
-                        width: 1,
                       ),
-                      borderRadius: BorderRadius.circular(PtwRadius.md),
-                    ),
-                    child: const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    )
+                    : ListView(
+                      padding: const EdgeInsets.all(
+                        PtwSpacing.screenHorizontal,
+                      ),
                       children: [
-                        Icon(
-                          Icons.photo_library_rounded,
-                          color: PtwColors.textOnAccent,
+                        const PtwStickerText.hero('What will you prove?'),
+                        const SizedBox(height: PtwSpacing.xl),
+                        TextField(
+                          key: const ValueKey(ComponentIds.createProjectGoal),
+                          controller: _goalController,
+                          onChanged: (_) => _scheduleAutosave(),
+                          maxLength: 90,
+                          minLines: 3,
+                          maxLines: 4,
+                          autofocus: draft.goal.isEmpty,
+                          style: PtwTypography.title,
+                          decoration: const InputDecoration(
+                            hintText:
+                                'Launch my product and reach 100 active users',
+                            alignLabelWithHint: true,
+                          ),
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: PtwSpacing.lg),
                         Text(
-                          'My photo',
-                          style: TextStyle(
+                          'WHY MIGHT PEOPLE DOUBT IT? · OPTIONAL',
+                          style: PtwTypography.caption.copyWith(
                             color: PtwColors.textOnAccent,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: PtwSpacing.xs),
+                        TextField(
+                          key: const ValueKey(ComponentIds.createProjectDoubt),
+                          controller: _doubtController,
+                          onChanged: (_) => _scheduleAutosave(),
+                          maxLength: 140,
+                          minLines: 2,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            hintText: 'I have never shipped anything this big.',
                           ),
                         ),
                       ],
                     ),
-                  ),
-                );
-              }
-              final curated = state.curatedImages[index - 1];
-              final selected =
-                  _image?.source == PtwImageSource.asset &&
-                  _image?.path == curated.asset;
-              return InkWell(
-                key: ValueKey('curated_${curated.id}'),
-                onTap:
-                    () => setState(
-                      () => _image = PtwImageRef.asset(curated.asset),
-                    ),
-                borderRadius: BorderRadius.circular(PtwRadius.md),
-                child: Container(
-                  width: 96,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(PtwRadius.md),
-                    border: Border.all(
-                      color: PtwColors.textOnAccent,
-                      width: selected ? 3 : 1,
-                    ),
-                  ),
-                  child: Image.asset(curated.asset, fit: BoxFit.cover),
-                ),
-              );
-            },
           ),
-        ),
-        const SizedBox(height: PtwSpacing.lg),
-        Text(
-          'COLOR',
-          style: PtwTypography.caption.copyWith(
-            color: PtwColors.textOnAccent,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.1,
+          PtwPinnedActionBar(
+            child: PtwBlackButton(
+              key: const ValueKey(ComponentIds.createProjectContinue),
+              label: _saving ? 'Saving draft' : 'Make my share',
+              onPressed:
+                  draft == null || _saving ? null : () => _makeShare(state),
+            ),
           ),
-        ),
-        const SizedBox(height: PtwSpacing.xs),
-        Row(
-          key: const ValueKey(ComponentIds.createProjectPalette),
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            for (final color in PtwColors.projectPalette)
-              InkWell(
-                key: ValueKey('color_${color.toARGB32()}'),
-                onTap: () => setState(() => _primaryColor = color.toARGB32()),
-                customBorder: const CircleBorder(),
-                child: Container(
-                  width: 46,
-                  height: 46,
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: PtwColors.textOnAccent,
-                      width: _primaryColor == color.toARGB32() ? 3 : 1,
-                    ),
-                  ),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

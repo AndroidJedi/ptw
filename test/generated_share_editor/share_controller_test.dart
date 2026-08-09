@@ -20,7 +20,7 @@ void main() {
 
   test('value JSON preserves images, transforms, properties, and stickers', () {
     final value = ShareEditorValue(
-      lookId: 'project_focus',
+      lookId: 'soft_focus_1',
       templateId: 'comparison',
       backgroundId: 'project_cover',
       layerValues: const {
@@ -81,7 +81,7 @@ void main() {
 
   test('legacy value JSON decodes photo and overlays as defaults', () {
     final legacy = <String, dynamic>{
-      'lookId': 'project_focus',
+      'lookId': 'soft_focus_1',
       'backgroundId': 'project_cover',
       'layerValues': <String, dynamic>{},
       'transforms': <String, dynamic>{},
@@ -172,7 +172,7 @@ void main() {
         isTrue,
       );
 
-      expect(controller.selectLook('candy_hype'), isTrue);
+      expect(controller.selectLook('holo_crush_1'), isTrue);
 
       expect(controller.layerValue('headline'), 'Keep this');
       expect(controller.layerValue('avatar'), same(replacement));
@@ -259,7 +259,7 @@ void main() {
     final theme = await ShareThemeBundle.loadAsset();
     final controller = ShareEditorController(theme: theme, content: content);
     addTearDown(controller.dispose);
-    expect(controller.selectLook('yellow_chaos'), isTrue);
+    expect(controller.selectLook('peach_collage_1'), isTrue);
     expect(controller.decorationCount, 4);
 
     expect(
@@ -330,7 +330,7 @@ void main() {
     expect(controller.effectiveLayer('current_media').visible, isTrue);
     expect(controller.effectiveLayer('progress_value').visible, isFalse);
 
-    expect(controller.selectLook('candy_hype'), isTrue);
+    expect(controller.selectLook('holo_crush_1'), isTrue);
     expect(controller.activeTemplate.id, 'comparison');
     expect(controller.effectiveLayer('previous_media').visible, isTrue);
   });
@@ -348,7 +348,7 @@ void main() {
     expect(controller.layerValue('headline'), 'Runtime edit');
     expect(controller.updateLayerTransform('headline', x: 60), isFalse);
     expect(controller.updateLayerProperty('headline', 'fontSize', 50), isFalse);
-    expect(controller.selectLook('candy_hype'), isFalse);
+    expect(controller.selectLook('holo_crush_1'), isFalse);
     expect(controller.addSticker('candy_heart'), isFalse);
     expect(
       controller.replaceBackgroundImage(

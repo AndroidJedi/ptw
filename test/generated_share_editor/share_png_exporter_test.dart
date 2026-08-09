@@ -122,7 +122,7 @@ void main() {
         const ShareImageValue.asset('assets/images/backgrounds/creative.jpg'),
       )
       ..updateBackgroundCrop(alignmentX: 0.3, alignmentY: -0.25, zoom: 1.8)
-      ..selectLook('candy_hype')
+      ..selectLook('holo_crush_1')
       ..addOverlay(
         const ShareImageValue.asset(
           'assets/images/decorations/doodle_heart.png',

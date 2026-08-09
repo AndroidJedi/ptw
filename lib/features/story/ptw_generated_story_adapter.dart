@@ -17,7 +17,7 @@ final class PtwGeneratedStoryAdapter {
       .create(project: project, event: event, momentId: momentId, now: now)
       .copyWith(
         clearBackgroundId: true,
-        lookId: 'project_focus',
+        lookId: 'soft_focus_1',
         textTreatment: PtwStoryTextTreatment.clean,
         stickers: const [],
       );
@@ -169,24 +169,34 @@ final class PtwGeneratedStoryAdapter {
     ShareThemeConfig theme,
   ) {
     final candidate = switch (treatment) {
-      PtwStoryTextTreatment.clean => 'project_focus',
-      PtwStoryTextTreatment.sticker => 'hot_dare',
-      PtwStoryTextTreatment.night => 'night_detective',
-      PtwStoryTextTreatment.candy => 'candy_hype',
-      PtwStoryTextTreatment.chaos => 'yellow_chaos',
-      PtwStoryTextTreatment.victory => 'sky_victory',
+      PtwStoryTextTreatment.clean => 'soft_focus_1',
+      PtwStoryTextTreatment.sticker => 'pixel_pop_1',
+      PtwStoryTextTreatment.night => 'static_note_1',
+      PtwStoryTextTreatment.candy => 'holo_crush_1',
+      PtwStoryTextTreatment.chaos => 'peach_collage_1',
+      PtwStoryTextTreatment.victory => 'legacy_victory_1',
     };
     return theme.looks.any((item) => item.id == candidate)
         ? candidate
         : theme.defaultLookId;
   }
 
-  PtwStoryTextTreatment _treatmentForLook(String lookId) => switch (lookId) {
-    'hot_dare' => PtwStoryTextTreatment.sticker,
-    'night_detective' => PtwStoryTextTreatment.night,
-    'candy_hype' => PtwStoryTextTreatment.candy,
-    'yellow_chaos' => PtwStoryTextTreatment.chaos,
-    'sky_victory' => PtwStoryTextTreatment.victory,
-    _ => PtwStoryTextTreatment.clean,
-  };
+  PtwStoryTextTreatment _treatmentForLook(String lookId) {
+    if (lookId.startsWith('pixel_pop_') || lookId == 'hot_dare') {
+      return PtwStoryTextTreatment.sticker;
+    }
+    if (lookId.startsWith('static_note_') || lookId == 'night_detective') {
+      return PtwStoryTextTreatment.night;
+    }
+    if (lookId.startsWith('holo_crush_') || lookId == 'candy_hype') {
+      return PtwStoryTextTreatment.candy;
+    }
+    if (lookId.startsWith('peach_collage_') || lookId == 'yellow_chaos') {
+      return PtwStoryTextTreatment.chaos;
+    }
+    if (lookId.startsWith('legacy_victory_') || lookId == 'sky_victory') {
+      return PtwStoryTextTreatment.victory;
+    }
+    return PtwStoryTextTreatment.clean;
+  }
 }

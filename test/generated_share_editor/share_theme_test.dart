@@ -10,7 +10,7 @@ void main() {
   test('bundled PTW theme validates and round-trips', () async {
     final theme = await ShareThemeBundle.loadAsset();
     expect(theme.id, 'ptw_story_v1');
-    expect(theme.looks, hasLength(6));
+    expect(theme.looks, hasLength(18));
     expect(theme.canvas.outputWidth, 1080);
     expect(theme.canvas.outputHeight, 1920);
     expect(theme.maximumDecorationCount, 6);
@@ -24,7 +24,72 @@ void main() {
     ]);
     expect(
       theme.looks.where((item) => item.editorVisible).map((item) => item.label),
-      ['Soft Focus', 'Pixel Pop', 'Static Note', 'Holo Crush', 'Peach Collage'],
+      [
+        'Soft Focus 1',
+        'Soft Focus 2',
+        'Soft Focus 3',
+        'Pixel Pop 1',
+        'Pixel Pop 2',
+        'Pixel Pop 3',
+        'Static Note 1',
+        'Static Note 2',
+        'Static Note 3',
+        'Holo Crush 1',
+        'Holo Crush 2',
+        'Holo Crush 3',
+        'Peach Collage 1',
+        'Peach Collage 2',
+        'Peach Collage 3',
+      ],
+    );
+    for (final family in const [
+      'soft_focus',
+      'pixel_pop',
+      'static_note',
+      'holo_crush',
+      'peach_collage',
+      'legacy_victory',
+    ]) {
+      final variants =
+          theme.looks
+              .where((item) => item.id.startsWith('${family}_'))
+              .toList();
+      expect(variants.map((item) => item.id), [
+        '${family}_1',
+        '${family}_2',
+        '${family}_3',
+      ]);
+      expect(
+        variants
+            .map((item) => jsonEncode(item.backgroundTreatment.toJson()))
+            .toSet(),
+        hasLength(3),
+        reason: '$family variants must use three different photo treatments',
+      );
+      expect(
+        variants.map((item) => jsonEncode(item.layerOverrides)).toSet(),
+        hasLength(3),
+        reason: '$family variants must use three different type treatments',
+      );
+      expect(
+        variants
+            .map(
+              (item) => jsonEncode(
+                item.defaultStickers
+                    .map((sticker) => sticker.toJson())
+                    .toList(),
+              ),
+            )
+            .toSet(),
+        hasLength(3),
+        reason: '$family variants must use three different decorations',
+      );
+    }
+    expect(
+      theme.looks
+          .where((item) => item.id.startsWith('legacy_victory_'))
+          .every((item) => !item.editorVisible),
+      isTrue,
     );
     expect(
       theme.assets

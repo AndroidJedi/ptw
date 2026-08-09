@@ -31,7 +31,7 @@ void main() {
       expect(controller.selectedLayer!.transform.y, base.y);
       expect(controller.editingLayer!.transform.y, base.y + 12);
 
-      controller.selectLook('project_focus');
+      controller.selectLook('soft_focus_1');
       controller.addLookSticker('cheering_blob');
       final sticker = controller.selectedLook.defaultStickers.single;
       controller.updateLookSticker(sticker.instanceId, rotation: 0.4);
@@ -74,7 +74,7 @@ void main() {
   test('sticker drag deltas accumulate across pointer updates', () async {
     final controller = ThemeBuilderController(
       await ShareThemeBundle.loadAsset(),
-    )..selectLook('candy_hype');
+    )..selectLook('holo_crush_1');
     addTearDown(controller.dispose);
     final workspace =
         controller.theme.layers
@@ -83,13 +83,13 @@ void main() {
     final before = controller.selectedLook.defaultStickers.single.centerX;
 
     controller.moveLookStickerBy(
-      'preset_candy_heart',
+      'holo_crush_1_heart',
       deltaX: 18,
       deltaY: 0,
       workspace: workspace,
     );
     controller.moveLookStickerBy(
-      'preset_candy_heart',
+      'holo_crush_1_heart',
       deltaX: 18,
       deltaY: 0,
       workspace: workspace,
@@ -185,7 +185,7 @@ void main() {
   test('sticker and style gestures each commit once', () async {
     final controller = ThemeBuilderController(
       await ShareThemeBundle.loadAsset(),
-    )..selectLook('candy_hype');
+    )..selectLook('holo_crush_1');
     addTearDown(controller.dispose);
     controller.updateGrid(snap: false);
     final sticker = controller.selectedLook.defaultStickers.single;
@@ -425,14 +425,14 @@ void main() {
     expect(controller.editingLayer!.transform.height, 220);
 
     controller
-      ..selectLook('candy_hype')
+      ..selectLook('holo_crush_1')
       ..updateLookSticker(
-        'preset_candy_heart',
+        'holo_crush_1_heart',
         centerX: 0.713,
         centerY: 0.337,
         scale: 0.277,
       )
-      ..snapLookSticker('preset_candy_heart');
+      ..snapLookSticker('holo_crush_1_heart');
     final sticker = controller.selectedLook.defaultStickers.single;
     expect(sticker.centerX, closeTo(0.7222, 0.001));
     expect(sticker.centerY, closeTo(0.34375, 0.001));

@@ -24,10 +24,10 @@ void main() {
     ]);
   });
 
-  testWidgets('five photo-first looks use the same personal photo', (
+  testWidgets('all 18 numbered looks render as six series of three', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(956, 336));
+    await tester.binding.setSurfaceSize(const Size(1150, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final theme = await ShareThemeBundle.loadAsset();
     const content = ShareEditorContent(
@@ -41,17 +41,10 @@ void main() {
       caption: 'Caption',
       publicLink: 'https://ptw.to/p/photo_first',
     );
-    const lookIds = [
-      'project_focus',
-      'hot_dare',
-      'candy_hype',
-      'night_detective',
-      'yellow_chaos',
-    ];
     final values = <ShareEditorValue>[];
-    for (final lookId in lookIds) {
+    for (final look in theme.looks) {
       final controller = ShareEditorController(theme: theme, content: content);
-      controller.selectLook(lookId);
+      controller.selectLook(look.id);
       values.add(controller.value);
       controller.dispose();
     }
@@ -63,21 +56,21 @@ void main() {
           color: const Color(0xFF0E1423),
           child: Padding(
             padding: const EdgeInsets.all(8),
-            child: Row(
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
               children: [
-                for (var index = 0; index < values.length; index++) ...[
-                  if (index > 0) const SizedBox(width: 10),
+                for (final value in values)
                   SizedBox(
                     width: 180,
                     height: 320,
                     child: GeneratedShareRenderer(
                       theme: theme,
                       content: content,
-                      value: values[index],
+                      value: value,
                       showSelection: false,
                     ),
                   ),
-                ],
               ],
             ),
           ),
@@ -90,17 +83,12 @@ void main() {
     );
     await tester.runAsync(
       () => Future.wait([
-        for (final path in [
+        for (final path in {
           'assets/images/users/alex.jpg',
-          'assets/images/backgrounds/startup.jpg',
-          'assets/images/decorations/pixel_cat.png',
-          'assets/images/decorations/candy_heart.png',
-          'assets/images/decorations/doodle_heart.png',
-          'assets/images/decorations/palm_leaf.png',
-          'assets/images/decorations/flamingo.png',
-          'assets/images/decorations/gesture_figure.png',
-          'assets/images/decorations/sparkle.png',
-        ])
+          ...theme.assets
+              .where((asset) => asset.kind == 'image' && asset.path != null)
+              .map((asset) => asset.path!),
+        })
           precacheImage(AssetImage(path), context),
       ]),
     );

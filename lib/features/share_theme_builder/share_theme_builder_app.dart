@@ -10,6 +10,7 @@ import '../../generated_share_editor/generated_share_editor.dart';
 import 'ptw_template_validator.dart';
 import 'share_theme_builder_web_io.dart';
 import 'theme_builder_controller.dart';
+import 'theme_builder_draft_migration.dart';
 import 'theme_package_exporter.dart';
 
 final class ShareThemeBuilderApp extends StatefulWidget {
@@ -37,7 +38,14 @@ final class _ShareThemeBuilderAppState extends State<ShareThemeBuilderApp> {
     ShareThemeConfig theme = fallback;
     if (saved != null) {
       try {
-        theme = ShareThemeBundle.fromJsonString(saved);
+        final restored = ShareThemeBundle.fromJsonString(saved);
+        theme = migrateThemeBuilderDraft(saved: restored, bundled: fallback);
+        if (!identical(theme, restored)) {
+          await _preferences.setString(
+            _draftKey,
+            ShareThemeBundle.toJsonString(theme),
+          );
+        }
       } on FormatException {
         // An invalid local draft never prevents the builder from opening.
       }

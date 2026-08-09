@@ -52,7 +52,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller =
         ThemeBuilderController(await ShareThemeBundle.loadAsset())
-          ..selectLook('candy_hype')
+          ..selectLook('holo_crush_1')
           ..selectLayer('stickers');
     addTearDown(controller.dispose);
 
@@ -74,18 +74,18 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('builder_canvas_sticker_preset_candy_heart')),
+      find.byKey(const ValueKey('builder_canvas_sticker_holo_crush_1_heart')),
       findsOneWidget,
     );
 
     await tester.tap(
-      find.byKey(const ValueKey('builder_canvas_sticker_preset_candy_heart')),
+      find.byKey(const ValueKey('builder_canvas_sticker_holo_crush_1_heart')),
     );
     await tester.pump();
-    expect(controller.selectedLookStickerId, 'preset_candy_heart');
+    expect(controller.selectedLookStickerId, 'holo_crush_1_heart');
     expect(
       find.byKey(
-        const ValueKey('builder_transform_sticker_preset_candy_heart'),
+        const ValueKey('builder_transform_sticker_holo_crush_1_heart'),
       ),
       findsOneWidget,
     );
@@ -93,7 +93,7 @@ void main() {
         controller.selectedLook.defaultStickers.single.centerX;
     controller.updateGrid(snap: false);
     await tester.drag(
-      find.byKey(const ValueKey('builder_canvas_sticker_preset_candy_heart')),
+      find.byKey(const ValueKey('builder_canvas_sticker_holo_crush_1_heart')),
       const Offset(24, 0),
     );
     await tester.pump();
@@ -321,10 +321,10 @@ void main() {
       findsOneWidget,
     );
     await tester.tap(
-      find.byKey(const ValueKey('builder_visual_option_hot_dare')),
+      find.byKey(const ValueKey('builder_visual_option_pixel_pop_1')),
     );
     await tester.pumpAndSettle();
-    expect(controller.selectedLookId, 'hot_dare');
+    expect(controller.selectedLookId, 'pixel_pop_1');
 
     final inspector =
         find

@@ -15,6 +15,10 @@ void main() {
         'hero_photo',
         'progress',
         'comparison',
+        'documentary',
+        'conflict',
+        'milestone_number',
+        'proof_card',
       ]);
       expect(results.every((result) => result.isReady), isTrue);
       expect(results.every((result) => result.score >= 90), isTrue);

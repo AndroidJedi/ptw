@@ -3,6 +3,7 @@ import 'ptw_project.dart';
 import 'ptw_project_draft.dart';
 import 'ptw_response.dart';
 import 'ptw_share_record.dart';
+import 'ptw_share_generation_event.dart';
 
 /// Versioned, database-like snapshot stored as one SharedPreferences JSON value.
 final class PtwPrototypeSnapshot {
@@ -15,15 +16,17 @@ final class PtwPrototypeSnapshot {
     this.activatedAt,
     this.draft,
     this.shareRecords = const [],
+    this.shareGenerationEvents = const [],
   });
 
-  static const currentSchemaVersion = 5;
+  static const currentSchemaVersion = 6;
 
   factory PtwPrototypeSnapshot.fromJson(Map<String, dynamic> json) {
     final version = json['schemaVersion'] as int;
     if (version != 2 &&
         version != 3 &&
         version != 4 &&
+        version != 5 &&
         version != currentSchemaVersion) {
       throw FormatException('Unsupported prototype schema: $version');
     }
@@ -74,6 +77,11 @@ final class PtwPrototypeSnapshot {
                 ),
               )
               .toList(),
+      shareGenerationEvents:
+          ((json['shareGenerationEvents'] as List<dynamic>?) ?? const [])
+              .cast<Map<String, dynamic>>()
+              .map(ShareGenerationEvent.fromJson)
+              .toList(),
     );
   }
 
@@ -85,6 +93,7 @@ final class PtwPrototypeSnapshot {
   final DateTime? activatedAt;
   final PtwProjectDraft? draft;
   final List<PtwShareRecord> shareRecords;
+  final List<ShareGenerationEvent> shareGenerationEvents;
 
   PtwPrototypeSnapshot copyWith({
     Map<String, String>? currentProjectByOwner,
@@ -96,6 +105,7 @@ final class PtwPrototypeSnapshot {
     PtwProjectDraft? draft,
     bool clearDraft = false,
     List<PtwShareRecord>? shareRecords,
+    List<ShareGenerationEvent>? shareGenerationEvents,
   }) => PtwPrototypeSnapshot(
     schemaVersion: currentSchemaVersion,
     currentProjectByOwner: currentProjectByOwner ?? this.currentProjectByOwner,
@@ -105,6 +115,7 @@ final class PtwPrototypeSnapshot {
     activatedAt: clearActivatedAt ? null : activatedAt ?? this.activatedAt,
     draft: clearDraft ? null : draft ?? this.draft,
     shareRecords: shareRecords ?? this.shareRecords,
+    shareGenerationEvents: shareGenerationEvents ?? this.shareGenerationEvents,
   );
 
   Map<String, dynamic> toJson() => {
@@ -116,5 +127,7 @@ final class PtwPrototypeSnapshot {
     'activatedAt': activatedAt?.toIso8601String(),
     'draft': draft?.toJson(),
     'shareRecords': shareRecords.map((item) => item.toJson()).toList(),
+    'shareGenerationEvents':
+        shareGenerationEvents.map((item) => item.toJson()).toList(),
   };
 }

@@ -13,8 +13,9 @@ void main() {
       initialLocation:
           '/projects/challenge_red_friday/share?event=challengeCreated',
     );
+    await openStoryBuilder(tester);
 
-    expect(find.byKey(const ValueKey('story_template_tray')), findsOneWidget);
+    expect(find.byKey(const ValueKey('story_template_tray')), findsNothing);
     expect(
       find.byKey(const ValueKey(ComponentIds.storyBuilderCanvas)),
       findsOneWidget,
@@ -26,22 +27,17 @@ void main() {
       find.byKey(const ValueKey(ComponentIds.storyHeadlineField)),
       '   ',
     );
-    await tester.enterText(
-      find.byKey(const ValueKey(ComponentIds.storyDareField)),
-      ' ',
-    );
     await tester.tap(find.byKey(const ValueKey(ComponentIds.storyContinue)));
     await tester.pump();
-    expect(find.text('Both Story lines are required.'), findsOneWidget);
+    expect(
+      find.text('Add a short headline before continuing.'),
+      findsOneWidget,
+    );
     expect(find.text('READY TO SHARE'), findsNothing);
 
     await tester.enterText(
       find.byKey(const ValueKey(ComponentIds.storyHeadlineField)),
       'Watch this challenge happen.',
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey(ComponentIds.storyDareField)),
-      'Try to stop me.',
     );
     await tester.tap(find.byKey(const ValueKey(ComponentIds.storyEditorDone)));
     await tester.pump();
@@ -55,12 +51,11 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey(ComponentIds.shareBack)));
     await tester.pumpAndSettle();
-    expect(find.text('BUILD YOUR STORY'), findsOneWidget);
-    expect(find.text('Watch this challenge happen.'), findsOneWidget);
+    expect(find.text('Watch this challenge happen.'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('runtime layout selection persists the comparison template', (
+  testWidgets('candidate selection persists generated metadata', (
     tester,
   ) async {
     final environment = await pumpPtw(
@@ -69,15 +64,8 @@ void main() {
           '/projects/challenge_red_friday/share?event=challengeCreated',
     );
 
-    await tester.tap(find.byKey(const ValueKey('story_tool_templates')));
-    await tester.pump();
-    expect(find.byKey(const ValueKey('story_template_tray')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('story_template_comparison')));
-    await tester.pump();
-    final comparison = tester.widget<ChoiceChip>(
-      find.byKey(const ValueKey('story_template_comparison')),
-    );
-    expect(comparison.selected, isTrue);
+    await openStoryBuilder(tester);
+    expect(find.byKey(const ValueKey('story_template_tray')), findsNothing);
     expect(
       find.byKey(const ValueKey(ComponentIds.storyToolStickers)),
       findsNothing,
@@ -89,6 +77,19 @@ void main() {
 
     final stored = await environment.repository.load();
     final story = stored!.shareRecords.first.story!;
-    expect(story.editorValue!['templateId'], 'comparison');
+    expect(
+      story.editorValue!['templateId'],
+      isIn([
+        'hero_photo',
+        'progress',
+        'comparison',
+        'documentary',
+        'conflict',
+        'milestone_number',
+        'proof_card',
+      ]),
+    );
+    expect(story.candidateId, isNotNull);
+    expect(story.familyId, isNotNull);
   });
 }

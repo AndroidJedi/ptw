@@ -76,6 +76,12 @@ final class PtwStoryComposition {
     this.themeId = 'ptw_story_v1',
     this.themeSchemaVersion = 1,
     this.editorValue,
+    this.journeyState,
+    this.candidateId,
+    this.familyId,
+    this.templateId,
+    this.regenerationIndex = 0,
+    this.progressFraction,
   }) : stickers = List.unmodifiable(stickers);
 
   factory PtwStoryComposition.fromJson(
@@ -116,6 +122,12 @@ final class PtwStoryComposition {
       caption: json['caption'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      journeyState: _canonicalJourneyState(json['journeyState'] as String?),
+      candidateId: json['candidateId'] as String?,
+      familyId: json['familyId'] as String?,
+      templateId: json['templateId'] as String?,
+      regenerationIndex: json['regenerationIndex'] as int? ?? 0,
+      progressFraction: (json['progressFraction'] as num?)?.toDouble(),
     );
   }
 
@@ -139,6 +151,12 @@ final class PtwStoryComposition {
   final String caption;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? journeyState;
+  final String? candidateId;
+  final String? familyId;
+  final String? templateId;
+  final int regenerationIndex;
+  final double? progressFraction;
 
   String get publicLink => 'https://ptw.to/p/$projectId';
 
@@ -153,6 +171,12 @@ final class PtwStoryComposition {
     String? caption,
     DateTime? updatedAt,
     Map<String, dynamic>? editorValue,
+    String? journeyState,
+    String? candidateId,
+    String? familyId,
+    String? templateId,
+    int? regenerationIndex,
+    double? progressFraction,
   }) => PtwStoryComposition(
     projectId: projectId,
     eventName: eventName,
@@ -171,6 +195,12 @@ final class PtwStoryComposition {
     caption: caption ?? this.caption,
     createdAt: createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    journeyState: journeyState ?? this.journeyState,
+    candidateId: candidateId ?? this.candidateId,
+    familyId: familyId ?? this.familyId,
+    templateId: templateId ?? this.templateId,
+    regenerationIndex: regenerationIndex ?? this.regenerationIndex,
+    progressFraction: progressFraction ?? this.progressFraction,
   );
 
   Map<String, dynamic> toJson() => {
@@ -191,8 +221,21 @@ final class PtwStoryComposition {
     'caption': caption,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
+    'journeyState': journeyState,
+    'candidateId': candidateId,
+    'familyId': familyId,
+    'templateId': templateId,
+    'regenerationIndex': regenerationIndex,
+    'progressFraction': progressFraction,
   };
 }
+
+String? _canonicalJourneyState(String? value) => switch (value) {
+  'grind' => 'grinding',
+  'result' => 'finish',
+  'setback' => 'failure',
+  _ => value,
+};
 
 Map<String, dynamic> _migrateFixedEditorValue(Map<String, dynamic> json) {
   final avatar = Map<String, dynamic>.from(

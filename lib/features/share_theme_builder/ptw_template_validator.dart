@@ -1,4 +1,4 @@
-import '../../generated_share_editor/generated_share_editor.dart';
+import '../../generated_share_editor/src/share_theme.dart';
 
 enum PtwValidationSeverity { error, warning, note }
 
@@ -52,6 +52,49 @@ abstract final class PtwTemplateValidator {
       PtwValidationIssue(code: code, message: message, severity: severity),
     );
 
+    const requiredFamilies = {
+      ShareTemplateFamily.heroPhoto,
+      ShareTemplateFamily.comparison,
+      ShareTemplateFamily.progress,
+      ShareTemplateFamily.documentary,
+      ShareTemplateFamily.conflict,
+      ShareTemplateFamily.milestone,
+      ShareTemplateFamily.proof,
+    };
+    final production = theme.templates.where(
+      (item) => item.status == ShareTemplateStatus.production,
+    );
+    final missingFamilies = requiredFamilies.difference(
+      production.map((item) => item.family).toSet(),
+    );
+    if (missingFamilies.isNotEmpty) {
+      issue(
+        'theme_families',
+        'The production theme is missing ${missingFamilies.length} PTW family or families.',
+      );
+    }
+    for (final journey in ShareJourneyState.values) {
+      if (journey == ShareJourneyState.unassigned) continue;
+      final familyCount =
+          production
+              .where((item) => item.supportedJourneyStates.contains(journey))
+              .map((item) => item.family)
+              .toSet()
+              .length;
+      if (familyCount < 3) {
+        issue(
+          'journey_coverage_${journey.name}',
+          '${journey.label} needs at least three production template families.',
+        );
+      }
+    }
+    if (theme.maximumStickerCount > 3 || theme.maximumDecorationCount > 3) {
+      issue(
+        'sticker_limit',
+        'Runtime themes may expose at most three stickers.',
+      );
+    }
+
     if (template.family == ShareTemplateFamily.unassigned) {
       issue('family', 'Choose a PTW template family.');
     }
@@ -78,7 +121,31 @@ abstract final class PtwTemplateValidator {
     for (final layer in theme.layers) {
       final override = template.layerOverrides[layer.id];
       final isVisible = override?['visible'] as bool? ?? layer.visible;
-      if (isVisible) visible.add(layer);
+      if (isVisible) {
+        final overrideStyle = override?['style'];
+        final rawTransform = override?['transform'];
+        final rawEmphasis = override?['emphasis'];
+        visible.add(
+          layer.copyWith(
+            transform:
+                rawTransform is Map<String, dynamic>
+                    ? ShareLayerTransform.fromJson(rawTransform)
+                    : layer.transform,
+            emphasis:
+                rawEmphasis is String
+                    ? ShareLayerEmphasis.values.firstWhere(
+                      (item) => item.name == rawEmphasis,
+                      orElse: () => layer.emphasis,
+                    )
+                    : layer.emphasis,
+            style: {
+              ...layer.style,
+              if (overrideStyle is Map<String, dynamic>) ...overrideStyle,
+              if (overrideStyle is Map<String, Object?>) ...overrideStyle,
+            },
+          ),
+        );
+      }
     }
     final visibleRoles = visible.map((layer) => layer.semanticRole).toSet();
     for (final role in template.requiredContentRoles) {
@@ -104,7 +171,6 @@ abstract final class PtwTemplateValidator {
       issue(
         'emphasis',
         'Use one dominant primary-emphasis layer; found $primaryCount.',
-        severity: PtwValidationSeverity.warning,
       );
     }
 
@@ -137,6 +203,88 @@ abstract final class PtwTemplateValidator {
       issue('proof', 'Proof support needs a visible proof or evidence role.');
     }
 
+    if (template.mediaCoverage < 0.7 || template.mediaCoverage > 0.9) {
+      issue(
+        'media_coverage',
+        'User media must occupy 70–90% of the fixed composition.',
+      );
+    }
+    if (template.accentColorToken.trim().isEmpty) {
+      issue('accent_token', 'Declare exactly one PTW accent color token.');
+    }
+
+    final editable = visible.where(
+      (layer) => layer.runtimePermissions.canEditContent,
+    );
+    if (editable.length > 5) {
+      issue(
+        'editable_fields',
+        'A template may declare at most five editable fields.',
+      );
+    }
+    if (editable.any(
+      (layer) => layer.semanticRole != ShareSemanticRole.headline,
+    )) {
+      issue(
+        'runtime_copy',
+        'The public runtime may edit only the optional headline.',
+      );
+    }
+
+    const countedTypographyRoles = {
+      ShareSemanticRole.headline,
+      ShareSemanticRole.challenge,
+      ShareSemanticRole.criticism,
+      ShareSemanticRole.proof,
+      ShareSemanticRole.metric,
+      ShareSemanticRole.progress,
+      ShareSemanticRole.goal,
+    };
+    final typography = visible.where(
+      (layer) =>
+          layer.type == 'text' &&
+          countedTypographyRoles.contains(layer.semanticRole),
+    );
+    final fontSizes =
+        typography
+            .map((layer) => layer.style['fontSize'])
+            .whereType<num>()
+            .map((value) => value.toDouble())
+            .toSet();
+    final fontWeights =
+        typography
+            .map((layer) => layer.style['fontWeight'])
+            .whereType<num>()
+            .map((value) => value.toInt())
+            .toSet();
+    if (fontSizes.length > 2 || fontWeights.length > 2) {
+      issue(
+        'typography_limit',
+        'Visible content may use at most two font sizes and two weights.',
+      );
+    }
+
+    final brandLayers = visible.where(
+      (layer) => layer.semanticRole == ShareSemanticRole.brand,
+    );
+    final canvasArea = theme.canvas.width * theme.canvas.height;
+    if (brandLayers.any(
+      (layer) =>
+          layer.transform.width * layer.transform.height / canvasArea > 0.05,
+    )) {
+      issue(
+        'logo_size',
+        'The PTW logo footprint must remain under 5% of the canvas.',
+      );
+    }
+
+    final animation = template.animation;
+    if (animation.delayMilliseconds < 0 ||
+        animation.durationMilliseconds <= 0 ||
+        animation.easing.trim().isEmpty) {
+      issue('animation', 'Export valid fixed animation metadata.');
+    }
+
     const requiredZones = {
       ShareSafeZoneKind.instagramTopDanger,
       ShareSafeZoneKind.instagramBottomDanger,
@@ -154,11 +302,7 @@ abstract final class PtwTemplateValidator {
     }
 
     for (final layer in visible.where((item) => item.type == 'text')) {
-      final overrideStyle = template.layerOverrides[layer.id]?['style'];
-      final style = <String, Object?>{
-        ...layer.style,
-        if (overrideStyle is Map<String, dynamic>) ...overrideStyle,
-      };
+      final style = layer.style;
       final family = style['fontFamily'];
       if (family is String && !family.startsWith('Ptw')) {
         issue(

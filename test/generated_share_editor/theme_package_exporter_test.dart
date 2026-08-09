@@ -34,6 +34,22 @@ void main() {
     );
 
     final runtime = jsonDecode(first.runtimeJson) as Map<String, dynamic>;
+    final runtimeTemplates =
+        (runtime['templates'] as List<dynamic>).cast<Map<String, dynamic>>();
+    final runtimeLayers =
+        (runtime['layers'] as List<dynamic>).cast<Map<String, dynamic>>();
+    expect(
+      runtimeTemplates.every(
+        (template) => (template['animation'] as Map)['preset'] is String,
+      ),
+      isTrue,
+    );
+    expect(
+      runtimeLayers.every(
+        (layer) => (layer['animation'] as Map)['preset'] is String,
+      ),
+      isTrue,
+    );
     final runtimeAssets =
         (runtime['assets'] as List<dynamic>).cast<Map<String, dynamic>>();
     expect(runtimeAssets.every((asset) => asset['data'] == null), isTrue);

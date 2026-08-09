@@ -29,6 +29,11 @@ void main() {
       repository: environment.repository,
       media: environment.media,
     );
-    expect(find.text(goal), findsOneWidget);
+    final restored = await environment.repository.load();
+    expect(restored!.projects.where((item) => item.goal == goal), hasLength(1));
+    expect(
+      find.byKey(const ValueKey(ComponentIds.shareScreen)),
+      findsOneWidget,
+    );
   });
 }

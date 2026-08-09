@@ -5,8 +5,10 @@ import 'package:ptw/generated_share_editor/generated_share_editor.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  late ShareThemeConfig theme;
 
   setUpAll(() async {
+    theme = await ShareThemeBundle.loadAsset();
     await Future.wait([
       (FontLoader('PtwRoboto')
             ..addFont(rootBundle.load('assets/fonts/Roboto-Regular.ttf'))
@@ -29,7 +31,6 @@ void main() {
   ) async {
     await tester.binding.setSurfaceSize(const Size(1150, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    final theme = await ShareThemeBundle.loadAsset();
     const content = ShareEditorContent(
       projectId: 'photo_first',
       headline: 'SEND ME A PERSONAL DARE',
@@ -81,13 +82,20 @@ void main() {
     final context = tester.element(
       find.byKey(const ValueKey('photo_first_looks_golden')),
     );
+    final usedStickerIds =
+        values
+            .expand((value) => value.stickers)
+            .map((item) => item.stickerId)
+            .toSet();
     await tester.runAsync(
       () => Future.wait([
         for (final path in {
           'assets/images/users/alex.jpg',
-          ...theme.assets
-              .where((asset) => asset.kind == 'image' && asset.path != null)
-              .map((asset) => asset.path!),
+          'assets/images/backgrounds/startup.jpg',
+          ...theme.stickers
+              .where((sticker) => usedStickerIds.contains(sticker.id))
+              .map((sticker) => theme.asset(sticker.assetId).path)
+              .whereType<String>(),
         })
           precacheImage(AssetImage(path), context),
       ]),

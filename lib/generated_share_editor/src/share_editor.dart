@@ -39,6 +39,8 @@ final class GeneratedShareEditor extends StatefulWidget {
     this.onContinue,
     this.onClose,
     this.onLockedFeatureTap,
+    this.onGenerateAnother,
+    this.title = 'MAKE YOUR STORY',
   });
 
   final ShareThemeConfig theme;
@@ -52,6 +54,8 @@ final class GeneratedShareEditor extends StatefulWidget {
   final VoidCallback? onContinue;
   final VoidCallback? onClose;
   final ValueChanged<ShareLockedFeature>? onLockedFeatureTap;
+  final VoidCallback? onGenerateAnother;
+  final String title;
 
   @override
   State<GeneratedShareEditor> createState() => _GeneratedShareEditorState();
@@ -116,10 +120,14 @@ final class _GeneratedShareEditorState extends State<GeneratedShareEditor> {
         child: Column(
           children: [
             _TopBar(
+              title: widget.title,
               hasChanges: _controller.hasChanges,
               onClose: widget.onClose,
               onReset: _reset,
-              onMagic: _controller.cycleLook,
+              onMagic: widget.onGenerateAnother ?? _controller.cycleLook,
+              showMagic:
+                  _controller.mode == ShareEditorMode.authoring ||
+                  widget.onGenerateAnother != null,
             ),
             Expanded(
               child: Padding(
@@ -343,16 +351,20 @@ final class _GeneratedShareEditorState extends State<GeneratedShareEditor> {
 
 final class _TopBar extends StatelessWidget {
   const _TopBar({
+    required this.title,
     required this.hasChanges,
     required this.onClose,
     required this.onReset,
     required this.onMagic,
+    required this.showMagic,
   });
 
+  final String title;
   final bool hasChanges;
   final VoidCallback? onClose;
   final VoidCallback onReset;
   final VoidCallback onMagic;
+  final bool showMagic;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -365,9 +377,9 @@ final class _TopBar extends StatelessWidget {
           color: Colors.white,
           icon: const Icon(Icons.close_rounded, size: 28),
         ),
-        const Expanded(
+        Expanded(
           child: Text(
-            'BUILD YOUR STORY',
+            title,
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white,
@@ -386,15 +398,18 @@ final class _TopBar extends StatelessWidget {
           )
         else
           const SizedBox(width: 48),
-        IconButton.filled(
-          key: const ValueKey('share_generate_another'),
-          onPressed: onMagic,
-          style: IconButton.styleFrom(
-            backgroundColor: const Color(0xFFFFE557),
-            foregroundColor: const Color(0xFF111827),
+        if (showMagic)
+          IconButton.filled(
+            key: const ValueKey('share_generate_another'),
+            tooltip: 'New options',
+            onPressed: onMagic,
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFFFFE557),
+              foregroundColor: const Color(0xFF111827),
+            ),
+            icon: const Icon(Icons.refresh_rounded),
           ),
-          icon: const Icon(Icons.auto_awesome_rounded),
-        ),
+        if (!showMagic) const SizedBox(width: 48),
         const SizedBox(width: 7),
       ],
     ),

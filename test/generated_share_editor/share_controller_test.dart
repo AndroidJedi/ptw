@@ -255,25 +255,26 @@ void main() {
     expect(controller.effectiveStyle('headline')['shadowX'], 5.0);
   });
 
-  test('catalog and uploaded decorations share the six-layer limit', () async {
-    final theme = await ShareThemeBundle.loadAsset();
-    final controller = ShareEditorController(theme: theme, content: content);
-    addTearDown(controller.dispose);
-    expect(controller.selectLook('peach_collage_1'), isTrue);
-    expect(controller.decorationCount, 4);
-
-    expect(
-      controller.addOverlay(const ShareImageValue.file('share/one.png')),
-      isTrue,
-    );
-    expect(controller.addSticker('candy_heart'), isTrue);
-    expect(controller.decorationCount, 6);
-    expect(
-      controller.addOverlay(const ShareImageValue.file('share/two.webp')),
-      isFalse,
-    );
-    expect(controller.addSticker('sparkle'), isFalse);
-  });
+  test(
+    'catalog and uploaded decorations share the three-layer limit',
+    () async {
+      final theme = await ShareThemeBundle.loadAsset();
+      final controller = ShareEditorController(theme: theme, content: content);
+      addTearDown(controller.dispose);
+      expect(controller.selectLook('peach_collage_1'), isTrue);
+      expect(controller.decorationCount, 3);
+      expect(
+        controller.addOverlay(const ShareImageValue.file('share/one.png')),
+        isFalse,
+      );
+      expect(controller.addSticker('candy_heart'), isFalse);
+      expect(
+        controller.addOverlay(const ShareImageValue.file('share/two.webp')),
+        isFalse,
+      );
+      expect(controller.addSticker('sparkle'), isFalse);
+    },
+  );
 
   test('invalid saved compositions are rejected before use', () async {
     final theme = await ShareThemeBundle.loadAsset();
@@ -358,17 +359,17 @@ void main() {
     );
     expect(controller.updateBackgroundCrop(zoom: 1.5), isTrue);
 
-    expect(controller.selectTemplate('comparison'), isTrue);
+    expect(controller.selectTemplate('comparison'), isFalse);
     expect(
       controller.updateLayerValue(
         'previous_media',
         const ShareImageValue.file('share/before.jpg'),
       ),
-      isTrue,
+      isFalse,
     );
     expect(
       controller.controlAccess('previous_media', 'edit'),
-      ShareAccessState.available,
+      ShareAccessState.hidden,
     );
     expect(
       controller.controlAccess('headline', 'fontSize'),

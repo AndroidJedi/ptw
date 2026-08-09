@@ -13,7 +13,47 @@ void main() {
     expect(theme.looks, hasLength(18));
     expect(theme.canvas.outputWidth, 1080);
     expect(theme.canvas.outputHeight, 1920);
-    expect(theme.maximumDecorationCount, 6);
+    expect(theme.maximumDecorationCount, 3);
+    expect(theme.maximumStickerCount, 3);
+    expect(theme.templates.map((item) => item.family).toSet(), {
+      ShareTemplateFamily.heroPhoto,
+      ShareTemplateFamily.comparison,
+      ShareTemplateFamily.progress,
+      ShareTemplateFamily.documentary,
+      ShareTemplateFamily.conflict,
+      ShareTemplateFamily.milestone,
+      ShareTemplateFamily.proof,
+    });
+    expect(
+      theme.templates.every((item) => item.animation.durationMilliseconds > 0),
+      isTrue,
+    );
+    for (final category in const [
+      'startup',
+      'business',
+      'career',
+      'fitness',
+      'creative',
+      'education',
+      'relationships',
+      'travel',
+      'personal',
+      'technology',
+      'other',
+    ]) {
+      final pack = theme.stickers.where((item) => item.category == category);
+      expect(pack, hasLength(3), reason: '$category needs three stickers');
+      expect(
+        pack.every(
+          (item) =>
+              !item.canMove &&
+              !item.canResize &&
+              !item.canRotate &&
+              !item.canDelete,
+        ),
+        isTrue,
+      );
+    }
     expect(theme.toolbar.map((item) => item.id), [
       'templates',
       'text',
@@ -101,6 +141,10 @@ void main() {
       jsonDecode(ShareThemeBundle.toJsonString(theme)) as Map<String, dynamic>,
     );
     expect(decoded.toJson(), theme.toJson());
+    expect(
+      decoded.templates.map((item) => item.animation.toJson()),
+      theme.templates.map((item) => item.animation.toJson()),
+    );
   });
 
   test('missing photo-first fields retain defaults', () async {
@@ -161,6 +205,29 @@ void main() {
     (look['backgroundTreatment'] as Map<String, dynamic>)['imageOpacity'] = 0.1;
 
     expect(() => ShareThemeConfig.fromJson(source), throwsFormatException);
+  });
+
+  test('animation metadata is validated and preserved', () async {
+    final source =
+        jsonDecode(await rootBundle.loadString(ShareThemeBundle.defaultAsset))
+            as Map<String, dynamic>;
+    final templates =
+        (source['templates'] as List<dynamic>).cast<Map<String, dynamic>>();
+    final animation = Map<String, dynamic>.from(
+      templates.first['animation'] as Map,
+    )..['durationMilliseconds'] = 0;
+    templates.first['animation'] = animation;
+
+    expect(
+      () => ShareThemeConfig.fromJson(source),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('animation metadata'),
+        ),
+      ),
+    );
   });
 
   test('canvas corner radius round-trips and validates its bounds', () async {

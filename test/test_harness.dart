@@ -289,7 +289,30 @@ Future<void> openStoryGuideAtFinalStep(WidgetTester tester) async {
   expect(find.byKey(const ValueKey('instagram_guide_next_4')), findsOneWidget);
 }
 
+Future<void> openStoryBuilder(WidgetTester tester) async {
+  final confirm = find.byKey(const ValueKey('confirm_journey'));
+  if (confirm.evaluate().isNotEmpty) {
+    await tester.ensureVisible(confirm);
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+  }
+  final candidates = find.byKey(const ValueKey('share_candidate_list'));
+  if (candidates.evaluate().isNotEmpty) {
+    final list = tester.widget<ListView>(candidates);
+    // ListView.separated exposes item + separator children: 3 + 2.
+    expect(list.childrenDelegate.estimatedChildCount, 5);
+    expect(find.text('Use this'), findsAtLeastNWidgets(1));
+    await tester.tap(find.text('Use this').first);
+    await tester.pumpAndSettle();
+  }
+  expect(
+    find.byKey(const ValueKey(ComponentIds.storyContinue)),
+    findsOneWidget,
+  );
+}
+
 Future<void> openStoryShareStep(WidgetTester tester) async {
+  await openStoryBuilder(tester);
   final continueButton = find.byKey(const ValueKey(ComponentIds.storyContinue));
   if (continueButton.evaluate().isNotEmpty) {
     await tester.tap(continueButton);

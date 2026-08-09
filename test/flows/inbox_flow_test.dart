@@ -106,8 +106,7 @@ void main() {
         find.byKey(const ValueKey(ComponentIds.shareScreen)),
         findsOneWidget,
       );
-      expect(find.text('BUILD YOUR STORY'), findsOneWidget);
-      expect(find.text('They believe. Do you?'), findsOneWidget);
+      expect(find.byKey(const ValueKey('confirm_journey')), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();

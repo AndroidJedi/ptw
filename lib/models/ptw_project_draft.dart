@@ -1,4 +1,5 @@
 import 'ptw_image_ref.dart';
+import 'ptw_project.dart';
 import 'ptw_story_composition.dart';
 
 enum PtwProjectDraftIntent { firstProject, newChallenge }
@@ -16,6 +17,9 @@ final class PtwProjectDraft {
     this.deadline,
     this.previewGeneratedAt,
     this.storyComposition,
+    this.category,
+    this.categoryConfirmed = false,
+    this.progressMetric,
   });
 
   factory PtwProjectDraft.fromJson(
@@ -45,6 +49,17 @@ final class PtwProjectDraft {
               json['storyComposition'] as Map<String, dynamic>,
               migrateGeneratedValue: migrateStoryComposition,
             ),
+    category:
+        json['category'] == null
+            ? null
+            : PtwProjectCategory.values.byName(json['category'] as String),
+    categoryConfirmed: json['categoryConfirmed'] as bool? ?? false,
+    progressMetric:
+        json['progressMetric'] == null
+            ? null
+            : PtwProgressMetric.fromJson(
+              json['progressMetric'] as Map<String, dynamic>,
+            ),
   );
 
   final String id;
@@ -58,6 +73,9 @@ final class PtwProjectDraft {
   final DateTime updatedAt;
   final DateTime? previewGeneratedAt;
   final PtwStoryComposition? storyComposition;
+  final PtwProjectCategory? category;
+  final bool categoryConfirmed;
+  final PtwProgressMetric? progressMetric;
 
   bool get hasValidGoal => goal.trim().isNotEmpty && goal.trim().length <= 90;
   bool get hasPreview => hasValidGoal && previewGeneratedAt != null;
@@ -75,6 +93,10 @@ final class PtwProjectDraft {
     bool clearPreview = false,
     PtwStoryComposition? storyComposition,
     bool clearStoryComposition = false,
+    PtwProjectCategory? category,
+    bool? categoryConfirmed,
+    PtwProgressMetric? progressMetric,
+    bool clearProgressMetric = false,
   }) => PtwProjectDraft(
     id: id,
     intent: intent,
@@ -91,6 +113,10 @@ final class PtwProjectDraft {
         clearStoryComposition
             ? null
             : storyComposition ?? this.storyComposition,
+    category: category ?? this.category,
+    categoryConfirmed: categoryConfirmed ?? this.categoryConfirmed,
+    progressMetric:
+        clearProgressMetric ? null : progressMetric ?? this.progressMetric,
   );
 
   Map<String, dynamic> toJson() => {
@@ -105,5 +131,8 @@ final class PtwProjectDraft {
     'updatedAt': updatedAt.toIso8601String(),
     'previewGeneratedAt': previewGeneratedAt?.toIso8601String(),
     'storyComposition': storyComposition?.toJson(),
+    'category': category?.name,
+    'categoryConfirmed': categoryConfirmed,
+    'progressMetric': progressMetric?.toJson(),
   };
 }

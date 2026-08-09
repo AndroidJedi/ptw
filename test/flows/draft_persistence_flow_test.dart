@@ -50,6 +50,7 @@ void main() {
       find.byKey(const ValueKey(ComponentIds.createProjectContinue)),
     );
     await tester.pumpAndSettle();
+    await openStoryBuilder(tester);
     environment.media.pickResult = const PtwImageRef.file(
       'ptw_media/share_draft_photo.webp',
     );
@@ -64,10 +65,6 @@ void main() {
       find.byKey(const ValueKey('story_headline_field')),
       'This headline exists only in my Story',
     );
-    await tester.enterText(
-      find.byKey(const ValueKey('story_dare_field')),
-      'Would you bet against me?',
-    );
     await tester.tap(find.byKey(const ValueKey('story_editor_done')));
     await tester.pump(const Duration(milliseconds: 400));
 
@@ -76,7 +73,7 @@ void main() {
       saved!.draft!.storyComposition!.headline,
       'This headline exists only in my Story',
     );
-    expect(saved.draft!.storyComposition!.dare, 'Would you bet against me?');
+    expect(saved.draft!.storyComposition!.dare, isNotEmpty);
     expect(saved.draft!.image.path, 'assets/images/backgrounds/startup.jpg');
     expect(
       (((saved.draft!.storyComposition!.editorValue!['backgroundEdit']
@@ -94,8 +91,7 @@ void main() {
       media: environment.media,
       share: environment.share,
     );
-    expect(find.text('This headline exists only in my Story'), findsOneWidget);
-    expect(find.text('Would you bet against me?'), findsOneWidget);
+    expect(find.text('This headline exists only in my Story'), findsWidgets);
     await tester.tap(find.byKey(const ValueKey(ComponentIds.storyToolPhoto)));
     await tester.pump();
     final projectPhoto = tester.widget<FilterChip>(

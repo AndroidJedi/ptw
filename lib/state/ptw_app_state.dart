@@ -4,6 +4,7 @@ import '../core/data/mock_json_loader.dart';
 import '../core/data/ptw_media_service.dart';
 import '../core/data/ptw_prototype_repository.dart';
 import '../features/share/share_models.dart';
+import '../features/share/share_generation.dart';
 import '../features/share/share_service.dart';
 import '../features/social_post_studio/studio_models.dart';
 import '../generated_share_editor/generated_share_editor.dart';
@@ -16,12 +17,14 @@ import '../models/ptw_prototype_snapshot.dart';
 import '../models/ptw_reaction_summary.dart';
 import '../models/ptw_response.dart';
 import '../models/ptw_share_record.dart';
+import '../models/ptw_share_generation_event.dart';
 import '../models/ptw_social_activity.dart';
 import '../models/ptw_story_composition.dart';
 import '../models/ptw_user.dart';
 
 /// App state backed by a single versioned local prototype snapshot.
-final class PtwAppState extends ChangeNotifier {
+final class PtwAppState extends ChangeNotifier
+    implements ShareGenerationEventSink {
   static final _seedActivityTime = DateTime(2026, 8, 2, 12);
 
   PtwAppState({
@@ -57,6 +60,8 @@ final class PtwAppState extends ChangeNotifier {
   List<PtwEvidence> get evidence => List.unmodifiable(_snapshot.evidence);
   List<PtwShareRecord> get shareRecords =>
       List.unmodifiable(_snapshot.shareRecords);
+  List<ShareGenerationEvent> get shareGenerationEvents =>
+      List.unmodifiable(_snapshot.shareGenerationEvents);
   PtwProjectDraft? get draft => _snapshot.draft;
   DateTime get now => _now();
   bool get isActivated =>
@@ -203,6 +208,15 @@ final class PtwAppState extends ChangeNotifier {
     return items;
   }
 
+  List<PtwShareRecord> shareRecordsFor(String projectId) {
+    final items =
+        _snapshot.shareRecords
+            .where((item) => item.projectId == projectId)
+            .toList();
+    items.sort((a, b) => b.completedAt.compareTo(a.completedAt));
+    return items;
+  }
+
   Future<PtwProjectDraft> ensureDraft(PtwProjectDraftIntent intent) async {
     final existing = _snapshot.draft;
     if (existing != null && existing.intent == intent) return existing;
@@ -227,6 +241,10 @@ final class PtwAppState extends ChangeNotifier {
     required PtwImageRef image,
     required int primaryColor,
     bool markPreviewGenerated = false,
+    PtwProjectCategory? category,
+    bool? categoryConfirmed,
+    PtwProgressMetric? progressMetric,
+    bool clearProgressMetric = false,
   }) async {
     final existing = _snapshot.draft;
     if (existing == null) throw StateError('No project draft exists');
@@ -248,6 +266,12 @@ final class PtwAppState extends ChangeNotifier {
       previewGeneratedAt:
           markPreviewGenerated ? timestamp : existing.previewGeneratedAt,
       storyComposition: existing.storyComposition,
+      category: category ?? existing.category,
+      categoryConfirmed: categoryConfirmed ?? existing.categoryConfirmed,
+      progressMetric:
+          clearProgressMetric
+              ? null
+              : progressMetric ?? existing.progressMetric,
     );
     await _commit(_snapshot.copyWith(draft: next));
     return next;
@@ -317,6 +341,9 @@ final class PtwAppState extends ChangeNotifier {
       primaryColor: draft.primaryColor,
       status: PtwProjectStatus.active,
       createdAt: completedAt,
+      category: draft.category,
+      categoryConfirmed: draft.categoryConfirmed,
+      progressMetric: draft.progressMetric,
     );
     final nextCurrent = Map<String, String>.from(
       _snapshot.currentProjectByOwner,
@@ -381,6 +408,9 @@ final class PtwAppState extends ChangeNotifier {
       primaryColor: draft.primaryColor,
       status: PtwProjectStatus.active,
       createdAt: completedAt,
+      category: draft.category,
+      categoryConfirmed: draft.categoryConfirmed,
+      progressMetric: draft.progressMetric,
     );
     final nextCurrent = Map<String, String>.from(
       _snapshot.currentProjectByOwner,
@@ -512,6 +542,46 @@ final class PtwAppState extends ChangeNotifier {
     );
     await _commit(_snapshot.copyWith(evidence: [item, ..._snapshot.evidence]));
     return item;
+  }
+
+  Future<PtwProject?> updateProjectMetadata({
+    required String projectId,
+    PtwProjectCategory? category,
+    bool? categoryConfirmed,
+    PtwProgressMetric? progressMetric,
+    bool clearProgressMetric = false,
+  }) async {
+    final current = maybeProjectById(projectId);
+    if (current == null) return null;
+    final updated = current.copyWith(
+      category: category,
+      categoryConfirmed: categoryConfirmed,
+      progressMetric: progressMetric,
+      clearProgressMetric: clearProgressMetric,
+    );
+    await _commit(
+      _snapshot.copyWith(
+        projects: [
+          for (final project in _snapshot.projects)
+            if (project.id == projectId) updated else project,
+        ],
+      ),
+    );
+    return updated;
+  }
+
+  @override
+  Future<void> recordShareGenerationEvent(ShareGenerationEvent event) async {
+    const maximumLocalEvents = 200;
+    final events = [event, ..._snapshot.shareGenerationEvents];
+    await _commit(
+      _snapshot.copyWith(
+        shareGenerationEvents:
+            events.length <= maximumLocalEvents
+                ? events
+                : events.take(maximumLocalEvents).toList(growable: false),
+      ),
+    );
   }
 
   Future<void> _commit(PtwPrototypeSnapshot next) async {

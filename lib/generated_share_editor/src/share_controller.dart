@@ -107,6 +107,7 @@ final class ShareEditorController extends ChangeNotifier {
       if (styleOverride is Map<String, Object?>) ...styleOverride,
     };
     final rawTransform = override['transform'];
+    final rawEmphasis = override['emphasis'];
     return base.copyWith(
       visible: override['visible'] as bool?,
       defaultValue: override['defaultValue'],
@@ -115,6 +116,13 @@ final class ShareEditorController extends ChangeNotifier {
               ? ShareLayerTransform.fromJson(rawTransform)
               : base.transform,
       style: mergedStyle,
+      emphasis:
+          rawEmphasis is String
+              ? ShareLayerEmphasis.values.firstWhere(
+                (item) => item.name == rawEmphasis,
+                orElse: () => base.emphasis,
+              )
+              : base.emphasis,
     );
   }
 
@@ -600,6 +608,16 @@ final class ShareEditorController extends ChangeNotifier {
     if (_selectedStickerId == instanceId) _selectedStickerId = null;
     _changed();
     return true;
+  }
+
+  /// Safety escape hatch used after a photo changes. It intentionally bypasses
+  /// runtime decoration permissions because removing uncertain stickers must
+  /// never depend on whether the public editor exposes decoration controls.
+  void suppressSemanticStickers() {
+    if (_value.stickers.isEmpty) return;
+    _value = _value.copyWith(stickers: const []);
+    _selectedStickerId = null;
+    _changed();
   }
 
   void reset() {

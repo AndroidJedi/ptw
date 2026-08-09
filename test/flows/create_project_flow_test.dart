@@ -32,7 +32,8 @@ void main() {
       find.byKey(const ValueKey(ComponentIds.shareScreen)),
       findsOneWidget,
     );
-    expect(find.text(goal), findsOneWidget);
+    await openStoryBuilder(tester);
+    expect(find.text(goal), findsWidgets);
     final beforeShare = await environment.repository.load();
     expect(beforeShare!.draft!.goal, goal);
     expect(beforeShare.projects.where((item) => item.goal == goal), isEmpty);

@@ -26,6 +26,7 @@ void main() {
       find.byKey(const ValueKey(ComponentIds.createProjectContinue)),
     );
     await tester.pumpAndSettle();
+    await openStoryBuilder(tester);
     await tester.tap(find.byKey(const ValueKey(ComponentIds.storyToolPhoto)));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('story_replace_background')));

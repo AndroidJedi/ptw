@@ -9,11 +9,14 @@ import '../../core/constants/component_ids.dart';
 import '../../core/data/ptw_media_service.dart';
 import '../../core/theme/ptw_colors.dart';
 import '../../features/share/share_models.dart';
+import '../../features/share/share_face_safety.dart';
+import '../../features/share/share_generation.dart';
 import '../../features/share/share_service.dart';
 import '../../generated_share_editor/generated_share_editor.dart';
 import '../../models/ptw_image_ref.dart';
 import '../../models/ptw_project.dart';
 import '../../models/ptw_share_record.dart';
+import '../../models/ptw_share_generation_event.dart';
 import '../../models/ptw_story_composition.dart';
 import '../../state/ptw_app_state.dart';
 import 'instagram_story_guide.dart';
@@ -52,7 +55,12 @@ final class _ShareStoryPreviewScreenState
     extends State<ShareStoryPreviewScreen> {
   final _assetGenerator = const SharePngExporter();
   final _adapter = const PtwGeneratedStoryAdapter();
+  final _candidateGenerator = const PtwShareCandidateGenerator();
+  final _journeyRecommender = const PtwJourneyRecommender();
+  final _categorySuggester = const PtwProjectCategorySuggester();
+  final _faceSafety = createShareFaceSafetyService();
   ShareEditorController? _controller;
+  ShareEditorValue? _lastObservedValue;
   ShareEditorContent? _content;
   PtwStoryComposition? _baseComposition;
   PtwAppState? _appState;
@@ -61,19 +69,33 @@ final class _ShareStoryPreviewScreenState
   String? _activatedProjectId;
   bool _copied = false;
   bool _busy = false;
-  bool _showShareStep = false;
+  bool _initialized = false;
+  bool _headlineEventRecorded = false;
+  bool _photoEventRecorded = false;
+  late DateTime _generationStartedAt;
+  late String _generationSessionId;
+  ShareEvent _generationEvent = ShareEvent.manual;
+  String? _generationMomentId;
+  ShareJourneyState _journeyState = ShareJourneyState.beginning;
+  PtwProjectCategory _category = PtwProjectCategory.other;
+  int _regenerationIndex = 0;
+  List<ShareCandidate> _candidates = const [];
+  ShareCandidate? _selectedCandidate;
+  bool _stickersAllowed = false;
+  _ShareBuilderStep _step = _ShareBuilderStep.confirmJourney;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final state = PtwScope.of(context);
     _appState = state;
-    _controller ??= _createController(state);
+    if (!_initialized) _initializeGeneration(state);
   }
 
-  ShareEditorController? _createController(PtwAppState state) {
+  void _initializeGeneration(PtwAppState state) {
+    _initialized = true;
     final project = _storyProject(state);
-    if (project == null) return null;
+    if (project == null) return;
     _subject = project;
     var event = widget.event ?? ShareEvent.manual;
     var momentId = widget.momentId;
@@ -82,41 +104,45 @@ final class _ShareStoryPreviewScreenState
       event = recommendation.event;
       momentId = recommendation.momentId;
     }
-    final saved = state.draft?.storyComposition;
-    final composition =
-        widget.isDraft && saved?.projectId == project.id
-            ? saved!
-            : _adapter.createBase(
-              project: project,
-              event: event,
-              momentId: momentId,
-              now: state.now,
-            );
-    _baseComposition = composition;
-    final content = _adapter.content(
+    _generationEvent = event;
+    _generationMomentId = momentId;
+    _generationStartedAt = state.now;
+    _generationSessionId =
+        'generation_${project.id}_${_generationStartedAt.microsecondsSinceEpoch}';
+    _category = project.category ?? _categorySuggester.suggest(project.goal);
+    _journeyState = _journeyRecommender.recommend(
       project: project,
-      composition: composition,
+      evidence: state.evidenceFor(project.id),
+      shares: state.shareRecordsFor(project.id),
     );
-    _content = content;
-    final controller = ShareEditorController(
-      theme: state.shareEditorTheme,
-      content: content,
-      mode: ShareEditorMode.runtime,
-      initialValue: _adapter.value(
+
+    final saved = state.draft?.storyComposition;
+    if (widget.isDraft &&
+        saved?.projectId == project.id &&
+        saved?.journeyState != null &&
+        saved?.templateId != null) {
+      _journeyState = ShareJourneyState.values.firstWhere(
+        (item) => item.name == saved!.journeyState,
+        orElse: () => _journeyState,
+      );
+      _baseComposition = saved;
+      _content = _adapter.content(project: project, composition: saved!);
+      _controller = ShareEditorController(
         theme: state.shareEditorTheme,
-        content: content,
-        composition: composition,
-      ),
-    )..addListener(_onCompositionChanged);
-    if (widget.isDraft && saved == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final current = _currentComposition;
-        if (mounted && current != null) {
-          unawaited(state.saveDraftStory(current));
-        }
-      });
+        content: _content!,
+        mode: ShareEditorMode.runtime,
+        initialValue: _adapter.value(
+          theme: state.shareEditorTheme,
+          content: _content!,
+          composition: saved,
+          project: project,
+        ),
+      )..addListener(_onCompositionChanged);
+      _step = _ShareBuilderStep.edit;
     }
-    return controller;
+    unawaited(
+      _recordGenerationEvent(ShareGenerationEventType.generationStarted),
+    );
   }
 
   PtwProject? _storyProject(PtwAppState state) {
@@ -136,11 +162,251 @@ final class _ShareStoryPreviewScreenState
       primaryColor: draft.primaryColor,
       status: PtwProjectStatus.active,
       createdAt: draft.createdAt,
+      category: draft.category,
+      categoryConfirmed: draft.categoryConfirmed,
+      progressMetric: draft.progressMetric,
+    );
+  }
+
+  Future<void> _confirmJourneyAndGenerate() async {
+    final state = _appState;
+    var project = _subject;
+    if (state == null || project == null || _busy) return;
+    setState(() => _busy = true);
+    try {
+      if (widget.isDraft) {
+        final draft = state.draft;
+        if (draft != null) {
+          await state.saveDraft(
+            goal: draft.goal,
+            doubt: draft.doubt ?? '',
+            deadline: draft.deadline,
+            image: draft.image,
+            primaryColor: draft.primaryColor,
+            category: _category,
+            categoryConfirmed: true,
+            progressMetric: draft.progressMetric,
+          );
+          project = project.copyWith(
+            category: _category,
+            categoryConfirmed: true,
+          );
+        }
+      } else if (!project.categoryConfirmed || project.category != _category) {
+        project =
+            await state.updateProjectMetadata(
+              projectId: project.id,
+              category: _category,
+              categoryConfirmed: true,
+            ) ??
+            project;
+      }
+      _subject = project;
+      await _recordGenerationEvent(ShareGenerationEventType.stateConfirmed);
+      final evidence = state.evidenceFor(project.id);
+      final currentMedia =
+          evidence
+              .map((item) => item.media)
+              .whereType<PtwImageRef>()
+              .firstOrNull ??
+          project.image;
+      _stickersAllowed = await _faceSafety.canUseSemanticStickers(
+        currentMedia,
+        resolveFilePath: state.mediaService.resolveFilePath,
+      );
+      _generateCandidates();
+      await _recordGenerationEvent(ShareGenerationEventType.candidatesShown);
+      if (mounted) {
+        setState(() {
+          _step = _ShareBuilderStep.candidates;
+          _busy = false;
+        });
+      }
+    } on Object {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _message('Could not generate those options. Try again.');
+    }
+  }
+
+  void _generateCandidates() {
+    final state = _appState!;
+    final project = _subject!;
+    _candidates = _candidateGenerator.generate(
+      ShareGenerationContext(
+        theme: state.shareEditorTheme,
+        project: project,
+        evidence: state.evidenceFor(project.id),
+        responses: state.responsesFor(project.id),
+        previousShares: state.shareRecordsFor(project.id),
+        event: _generationEvent,
+        momentId: _generationMomentId,
+        journeyState: _journeyState,
+        now: state.now,
+        regenerationIndex: _regenerationIndex,
+        stickersAllowed: _stickersAllowed,
+      ),
+    );
+  }
+
+  Future<void> _regenerateCandidates() async {
+    if (_busy) return;
+    final controller = _controller;
+    controller?.removeListener(_onCompositionChanged);
+    controller?.dispose();
+    _controller = null;
+    _content = null;
+    _baseComposition = null;
+    _selectedCandidate = null;
+    _regenerationIndex++;
+    _generateCandidates();
+    setState(() => _step = _ShareBuilderStep.candidates);
+    await _recordGenerationEvent(ShareGenerationEventType.optionsRegenerated);
+    await _recordGenerationEvent(ShareGenerationEventType.candidatesShown);
+  }
+
+  void _selectCandidate(ShareCandidate candidate) {
+    final state = _appState!;
+    final project = _subject!;
+    final base = _adapter.createBase(
+      project: project,
+      event: _generationEvent,
+      momentId: _generationMomentId,
+      now: state.now,
+      candidate: candidate,
+    );
+    final content = _adapter.content(
+      project: project,
+      composition: base,
+      candidate: candidate,
+    );
+    final value = _adapter.value(
+      theme: state.shareEditorTheme,
+      content: content,
+      composition: base,
+      project: project,
+      candidate: candidate,
+    );
+    final oldController = _controller;
+    oldController?.removeListener(_onCompositionChanged);
+    oldController?.dispose();
+    _selectedCandidate = candidate;
+    _baseComposition = base;
+    _content = content;
+    _controller = ShareEditorController(
+      theme: state.shareEditorTheme,
+      content: content,
+      mode: ShareEditorMode.runtime,
+      initialValue: value,
+    )..addListener(_onCompositionChanged);
+    _lastObservedValue = value;
+    _headlineEventRecorded = false;
+    _photoEventRecorded = false;
+    setState(() => _step = _ShareBuilderStep.edit);
+    unawaited(
+      _recordGenerationEvent(
+        ShareGenerationEventType.candidateSelected,
+        candidateId: candidate.id,
+      ),
+    );
+    if (widget.isDraft) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final current = _currentComposition;
+        if (mounted && current != null) {
+          unawaited(state.saveDraftStory(current));
+        }
+      });
+    }
+  }
+
+  ({
+    PtwStoryComposition composition,
+    ShareEditorContent content,
+    ShareEditorValue value,
+  })
+  _previewFor(ShareCandidate candidate) {
+    final state = _appState!;
+    final project = _subject!;
+    final composition = _adapter.createBase(
+      project: project,
+      event: _generationEvent,
+      momentId: _generationMomentId,
+      now: state.now,
+      candidate: candidate,
+    );
+    final content = _adapter.content(
+      project: project,
+      composition: composition,
+      candidate: candidate,
+    );
+    return (
+      composition: composition,
+      content: content,
+      value: _adapter.value(
+        theme: state.shareEditorTheme,
+        content: content,
+        composition: composition,
+        project: project,
+        candidate: candidate,
+      ),
+    );
+  }
+
+  Future<void> _recordGenerationEvent(
+    ShareGenerationEventType type, {
+    String? candidateId,
+  }) async {
+    final state = _appState;
+    final project = _subject;
+    if (state == null || project == null) return;
+    final timestamp = state.now;
+    await state.recordShareGenerationEvent(
+      ShareGenerationEvent(
+        id: 'event_${timestamp.microsecondsSinceEpoch}_${type.name}',
+        sessionId: _generationSessionId,
+        projectId: project.id,
+        type: type,
+        timestamp: timestamp,
+        candidateId: candidateId ?? _selectedCandidate?.id,
+        journeyState: _journeyState.name,
+        elapsedMilliseconds:
+            timestamp.difference(_generationStartedAt).inMilliseconds,
+      ),
     );
   }
 
   void _onCompositionChanged() {
     if (!mounted) return;
+    final currentValue = _controller?.value;
+    final previousValue = _lastObservedValue;
+    if (currentValue != null && previousValue != null) {
+      if (!_headlineEventRecorded &&
+          currentValue.layerValues['headline'] !=
+              previousValue.layerValues['headline']) {
+        _headlineEventRecorded = true;
+        unawaited(
+          _recordGenerationEvent(ShareGenerationEventType.headlineEdited),
+        );
+      }
+      final currentImage = currentValue.backgroundEdit.image;
+      final previousImage = previousValue.backgroundEdit.image;
+      if (!_photoEventRecorded &&
+          (currentImage?.path != previousImage?.path ||
+              currentValue.backgroundEdit.alignmentX !=
+                  previousValue.backgroundEdit.alignmentX ||
+              currentValue.backgroundEdit.alignmentY !=
+                  previousValue.backgroundEdit.alignmentY ||
+              currentValue.backgroundEdit.zoom !=
+                  previousValue.backgroundEdit.zoom ||
+              currentValue.layerValues['current_media'] !=
+                  previousValue.layerValues['current_media'])) {
+        _photoEventRecorded = true;
+        unawaited(
+          _recordGenerationEvent(ShareGenerationEventType.photoChanged),
+        );
+      }
+      _lastObservedValue = currentValue;
+    }
     setState(() {});
     if (!widget.isDraft || _appState?.draft == null) return;
     _autosaveTimer?.cancel();
@@ -310,11 +576,13 @@ final class _ShareStoryPreviewScreenState
         imageResolver: _resolveImage,
         fileName: 'ptw_${composition.projectId}_story.png',
       );
+      await _recordGenerationEvent(ShareGenerationEventType.exportCompleted);
       if (!mounted) {
         return const InstagramGuideShareResult(
           InstagramGuideShareStatus.failed,
         );
       }
+      await _recordGenerationEvent(ShareGenerationEventType.shareInvoked);
       final result = await state.shareService.share(
         asset: ShareAsset(
           bytes: png.bytes,
@@ -392,6 +660,12 @@ final class _ShareStoryPreviewScreenState
         ShareImagePurpose.decoration => PtwShareImagePurpose.decoration,
       });
       if (selected == null) return null;
+      final stickersAllowed = await _faceSafety.canUseSemanticStickers(
+        selected,
+        resolveFilePath: state.mediaService.resolveFilePath,
+      );
+      _stickersAllowed = stickersAllowed;
+      if (!stickersAllowed) _controller?.suppressSemanticStickers();
       return switch (selected.source) {
         PtwImageSource.asset => ShareImageValue.asset(selected.path),
         PtwImageSource.file => ShareImageValue.file(selected.path),
@@ -445,29 +719,25 @@ final class _ShareStoryPreviewScreenState
 
   Future<void> _openShareStep() async {
     final composition = _currentComposition;
-    if (composition == null ||
-        composition.headline.trim().isEmpty ||
-        composition.dare.trim().isEmpty) {
-      _message('Both Story lines are required.');
+    if (composition == null || composition.headline.trim().isEmpty) {
+      _message('Add a short headline before continuing.');
       return;
     }
     await _persistDraftNow();
     if (!mounted) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _showShareStep = true);
+    setState(() => _step = _ShareBuilderStep.share);
   }
 
   void _backToBuilder() {
     if (_busy) return;
-    setState(() => _showShareStep = false);
+    setState(() => _step = _ShareBuilderStep.edit);
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = _controller;
     final state = _appState;
-    final content = _content;
-    if (controller == null || state == null || content == null) {
+    if (state == null || _subject == null) {
       return const Scaffold(
         body: Center(child: Text('This Story is no longer available.')),
       );
@@ -476,8 +746,12 @@ final class _ShareStoryPreviewScreenState
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        if (_showShareStep) {
+        if (_step == _ShareBuilderStep.share) {
           _backToBuilder();
+        } else if (_step == _ShareBuilderStep.edit) {
+          setState(() => _step = _ShareBuilderStep.candidates);
+        } else if (_step == _ShareBuilderStep.candidates) {
+          setState(() => _step = _ShareBuilderStep.confirmJourney);
         } else {
           unawaited(_close());
         }
@@ -486,37 +760,369 @@ final class _ShareStoryPreviewScreenState
         key: const ValueKey(ComponentIds.shareScreen),
         backgroundColor: const Color(0xFF0E1423),
         body: SafeArea(
-          child:
-              _showShareStep
-                  ? _ShareHandoff(
-                    controller: controller,
-                    theme: state.shareEditorTheme,
-                    content: content,
-                    composition: _currentComposition!,
-                    imageResolver: _resolveImage,
-                    copied: _copied,
-                    busy: _busy,
-                    onBack: _backToBuilder,
-                    onCopy: _copyPressed,
-                    onShare: _startShare,
-                  )
-                  : GeneratedShareEditor(
-                    theme: state.shareEditorTheme,
-                    content: content,
-                    controller: controller,
-                    imagePicker: _pickEditorImage,
-                    imageResolver: _resolveImage,
-                    onClose: () => unawaited(_close()),
-                    onContinue: () => unawaited(_openShareStep()),
-                    onLockedFeatureTap:
-                        (feature) => _message(
-                          '${feature.label} requires premium access.',
-                        ),
-                  ),
+          child: switch (_step) {
+            _ShareBuilderStep.confirmJourney => _JourneyConfirmation(
+              selectedJourney: _journeyState,
+              selectedCategory: _category,
+              categoryConfirmed: _subject!.categoryConfirmed,
+              busy: _busy,
+              onJourneyChanged:
+                  (value) => setState(() => _journeyState = value),
+              onCategoryChanged: (value) => setState(() => _category = value),
+              onClose: () => unawaited(_close()),
+              onContinue: () => unawaited(_confirmJourneyAndGenerate()),
+            ),
+            _ShareBuilderStep.candidates => _CandidateSelection(
+              candidates: _candidates,
+              theme: state.shareEditorTheme,
+              previewFor: _previewFor,
+              imageResolver: _resolveImage,
+              onBack:
+                  () =>
+                      setState(() => _step = _ShareBuilderStep.confirmJourney),
+              onSelect: _selectCandidate,
+              onRegenerate: () => unawaited(_regenerateCandidates()),
+            ),
+            _ShareBuilderStep.edit => GeneratedShareEditor(
+              theme: state.shareEditorTheme,
+              content: _content!,
+              controller: _controller!,
+              imagePicker: _pickEditorImage,
+              imageResolver: _resolveImage,
+              title: _journeyState.label.toUpperCase(),
+              onGenerateAnother: () => unawaited(_regenerateCandidates()),
+              onClose:
+                  () => setState(() => _step = _ShareBuilderStep.candidates),
+              onContinue: () => unawaited(_openShareStep()),
+              onLockedFeatureTap:
+                  (feature) =>
+                      _message('${feature.label} requires premium access.'),
+            ),
+            _ShareBuilderStep.share => _ShareHandoff(
+              controller: _controller!,
+              theme: state.shareEditorTheme,
+              content: _content!,
+              composition: _currentComposition!,
+              imageResolver: _resolveImage,
+              copied: _copied,
+              busy: _busy,
+              onBack: _backToBuilder,
+              onCopy: _copyPressed,
+              onShare: _startShare,
+            ),
+          },
         ),
       ),
     );
   }
+}
+
+extension _FirstImageOrNull<T> on Iterable<T> {
+  T? get firstOrNull {
+    final iterator = this.iterator;
+    return iterator.moveNext() ? iterator.current : null;
+  }
+}
+
+enum _ShareBuilderStep { confirmJourney, candidates, edit, share }
+
+final class _JourneyConfirmation extends StatelessWidget {
+  const _JourneyConfirmation({
+    required this.selectedJourney,
+    required this.selectedCategory,
+    required this.categoryConfirmed,
+    required this.busy,
+    required this.onJourneyChanged,
+    required this.onCategoryChanged,
+    required this.onClose,
+    required this.onContinue,
+  });
+
+  final ShareJourneyState selectedJourney;
+  final PtwProjectCategory selectedCategory;
+  final bool categoryConfirmed;
+  final bool busy;
+  final ValueChanged<ShareJourneyState> onJourneyChanged;
+  final ValueChanged<PtwProjectCategory> onCategoryChanged;
+  final VoidCallback onClose;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      SizedBox(
+        height: 56,
+        child: Row(
+          children: [
+            IconButton(
+              key: const ValueKey('journey_close'),
+              onPressed: busy ? null : onClose,
+              color: Colors.white,
+              icon: const Icon(Icons.close_rounded),
+            ),
+            const Expanded(
+              child: Text(
+                'TODAY’S CHAPTER',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'PtwLilitaOne',
+                  fontSize: 21,
+                  letterSpacing: 0.7,
+                ),
+              ),
+            ),
+            const SizedBox(width: 48),
+          ],
+        ),
+      ),
+      Expanded(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
+          children: [
+            const Text(
+              'Where are you in the journey today?',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'PTW suggested ${selectedJourney.label}. Confirm it or choose the honest stage.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 22),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 9,
+              runSpacing: 9,
+              children: [
+                for (final journey in ShareJourneyState.values)
+                  if (journey != ShareJourneyState.unassigned)
+                    ChoiceChip(
+                      key: ValueKey('journey_${journey.name}'),
+                      label: Text(journey.label),
+                      selected: journey == selectedJourney,
+                      onSelected: (_) => onJourneyChanged(journey),
+                    ),
+              ],
+            ),
+            const SizedBox(height: 28),
+            Text(
+              categoryConfirmed
+                  ? 'SEMANTIC STYLE · ${selectedCategory.label.toUpperCase()}'
+                  : 'CONFIRM THE JOURNEY TOPIC',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (!categoryConfirmed)
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final category in PtwProjectCategory.values)
+                    ChoiceChip(
+                      key: ValueKey('share_category_${category.name}'),
+                      label: Text(category.label),
+                      selected: category == selectedCategory,
+                      onSelected: (_) => onCategoryChanged(category),
+                    ),
+                ],
+              ),
+            const SizedBox(height: 30),
+            SizedBox(
+              height: 56,
+              child: FilledButton.icon(
+                key: const ValueKey('confirm_journey'),
+                onPressed: busy ? null : onContinue,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFF4066E),
+                  foregroundColor: Colors.white,
+                  shape: const StadiumBorder(),
+                ),
+                icon:
+                    busy
+                        ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                        : const Icon(Icons.auto_awesome_rounded),
+                label: Text(
+                  busy ? 'Generating…' : 'Show me 3 options',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+final class _CandidateSelection extends StatelessWidget {
+  const _CandidateSelection({
+    required this.candidates,
+    required this.theme,
+    required this.previewFor,
+    required this.imageResolver,
+    required this.onBack,
+    required this.onSelect,
+    required this.onRegenerate,
+  });
+
+  final List<ShareCandidate> candidates;
+  final ShareThemeConfig theme;
+  final ({
+    PtwStoryComposition composition,
+    ShareEditorContent content,
+    ShareEditorValue value,
+  })
+  Function(ShareCandidate candidate)
+  previewFor;
+  final ShareImageProviderResolver imageResolver;
+  final VoidCallback onBack;
+  final ValueChanged<ShareCandidate> onSelect;
+  final VoidCallback onRegenerate;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      SizedBox(
+        height: 58,
+        child: Row(
+          children: [
+            IconButton(
+              key: const ValueKey('candidate_back'),
+              onPressed: onBack,
+              color: Colors.white,
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            const Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'CHOOSE YOUR STORY',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontFamily: 'PtwLilitaOne',
+                      fontSize: 21,
+                    ),
+                  ),
+                  Text(
+                    '3 different families · 3 different styles',
+                    style: TextStyle(color: Colors.white60, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              key: const ValueKey('candidate_regenerate'),
+              tooltip: 'New options',
+              onPressed: onRegenerate,
+              color: const Color(0xFFFFE557),
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+          ],
+        ),
+      ),
+      Expanded(
+        child: ListView.separated(
+          key: const ValueKey('share_candidate_list'),
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+          itemCount: candidates.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 14),
+          itemBuilder: (context, index) {
+            final candidate = candidates[index];
+            final preview = previewFor(candidate);
+            return SizedBox(
+              width: 238,
+              child: Material(
+                color: const Color(0xFF1B2741),
+                borderRadius: BorderRadius.circular(24),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  key: ValueKey('share_candidate_${candidate.id}'),
+                  onTap: () => onSelect(candidate),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: AspectRatio(
+                            aspectRatio:
+                                theme.canvas.width / theme.canvas.height,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: GeneratedShareRenderer(
+                                theme: theme,
+                                content: preview.content,
+                                value: preview.value,
+                                imageResolver: imageResolver,
+                                showSelection: false,
+                                interactionEnabled: false,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          candidate.label,
+                          maxLines: 2,
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: () => onSelect(candidate),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFFF4066E),
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Use this'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    ],
+  );
 }
 
 enum _ClipboardFailureChoice { retry, continueWithoutLink }

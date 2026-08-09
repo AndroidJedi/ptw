@@ -30,6 +30,8 @@ final class ShareThemePackageExporter {
     'src/share_png_exporter.dart',
     'src/share_renderer.dart',
     'src/share_theme.dart',
+    'src/share_theme_asset_loader_flutter.dart',
+    'src/share_theme_asset_loader_stub.dart',
     'src/share_value.dart',
   ];
 

@@ -1,7 +1,8 @@
 import 'dart:convert';
 
-import 'package:flutter/services.dart';
-
+import 'share_theme_asset_loader_stub.dart'
+    if (dart.library.ui) 'share_theme_asset_loader_flutter.dart'
+    as asset_loader;
 import 'share_value.dart';
 
 enum ShareTemplateFamily {
@@ -21,14 +22,73 @@ enum ShareTemplateFamily {
 enum ShareJourneyState {
   unassigned,
   beginning,
-  grind,
+  grinding,
   smallWin,
-  setback,
+  milestone,
   failure,
   recovery,
-  milestone,
   reflection,
-  result,
+  finish;
+
+  @Deprecated('Use grinding')
+  static const grind = grinding;
+
+  @Deprecated('Use failure')
+  static const setback = failure;
+
+  @Deprecated('Use finish')
+  static const result = finish;
+
+  String get label => switch (this) {
+    unassigned => 'Choose stage',
+    beginning => 'Beginning',
+    grinding => 'Grinding',
+    smallWin => 'Small Win',
+    milestone => 'Milestone',
+    failure => 'Failure',
+    recovery => 'Recovery',
+    reflection => 'Reflection',
+    finish => 'Finish',
+  };
+}
+
+enum ShareAnimationPreset { none, fade, slideUp, scaleIn, reveal }
+
+final class ShareAnimationSpec {
+  const ShareAnimationSpec({
+    this.preset = ShareAnimationPreset.none,
+    this.delayMilliseconds = 0,
+    this.durationMilliseconds = 300,
+    this.easing = 'easeOut',
+  });
+
+  factory ShareAnimationSpec.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const ShareAnimationSpec();
+    return ShareAnimationSpec(
+      preset: _enumValue(
+        ShareAnimationPreset.values,
+        json['preset'],
+        'animation preset',
+        fallback: ShareAnimationPreset.none,
+      ),
+      delayMilliseconds: (json['delayMilliseconds'] as num?)?.toInt() ?? 0,
+      durationMilliseconds:
+          (json['durationMilliseconds'] as num?)?.toInt() ?? 300,
+      easing: json['easing'] as String? ?? 'easeOut',
+    );
+  }
+
+  final ShareAnimationPreset preset;
+  final int delayMilliseconds;
+  final int durationMilliseconds;
+  final String easing;
+
+  Map<String, dynamic> toJson() => {
+    'preset': preset.name,
+    'delayMilliseconds': delayMilliseconds,
+    'durationMilliseconds': durationMilliseconds,
+    'easing': easing,
+  };
 }
 
 enum ShareSemanticRole {
@@ -249,6 +309,9 @@ final class ShareTemplateConfig {
     required this.templateVersion,
     required this.status,
     Map<String, Map<String, Object?>> layerOverrides = const {},
+    this.animation = const ShareAnimationSpec(),
+    this.accentColorToken = 'ptwAccent',
+    this.mediaCoverage = 0.85,
   }) : supportedJourneyStates = Set.unmodifiable(supportedJourneyStates),
        requiredContentRoles = Set.unmodifiable(requiredContentRoles),
        optionalContentRoles = Set.unmodifiable(optionalContentRoles),
@@ -269,13 +332,11 @@ final class ShareTemplateConfig {
         ),
         variant: _string(json, 'variant'),
         narrativeIntent: _string(json, 'narrativeIntent'),
-        primaryJourneyState: _enumValue(
-          ShareJourneyState.values,
+        primaryJourneyState: _journeyState(
           json['primaryJourneyState'],
           'primary journey state',
         ),
-        supportedJourneyStates: _enumSet(
-          ShareJourneyState.values,
+        supportedJourneyStates: _journeyStateSet(
           json['supportedJourneyStates'],
           'supported journey states',
         ),
@@ -317,6 +378,9 @@ final class ShareTemplateConfig {
             Map<String, Object?>.from(value as Map<String, dynamic>),
           ),
         ),
+        animation: ShareAnimationSpec.fromJson(_mapOrNull(json['animation'])),
+        accentColorToken: json['accentColorToken'] as String? ?? 'ptwAccent',
+        mediaCoverage: (json['mediaCoverage'] as num?)?.toDouble() ?? 0.85,
       );
 
   final String id;
@@ -338,6 +402,9 @@ final class ShareTemplateConfig {
   final int templateVersion;
   final ShareTemplateStatus status;
   final Map<String, Map<String, Object?>> layerOverrides;
+  final ShareAnimationSpec animation;
+  final String accentColorToken;
+  final double mediaCoverage;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -362,6 +429,9 @@ final class ShareTemplateConfig {
     'templateVersion': templateVersion,
     'status': status.name,
     'layerOverrides': layerOverrides,
+    'animation': animation.toJson(),
+    'accentColorToken': accentColorToken,
+    'mediaCoverage': mediaCoverage,
   };
 }
 
@@ -560,6 +630,7 @@ final class ShareLayerConfig {
     Map<String, Object?> style = const {},
     List<ShareControlConfig> controls = const [],
     this.access = const ShareAccessPolicy(),
+    this.animation = const ShareAnimationSpec(),
   }) : style = Map<String, Object?>.unmodifiable(style),
        controls = List.unmodifiable(controls);
 
@@ -594,6 +665,7 @@ final class ShareLayerConfig {
               json['controls'],
             ).map(_object).map(ShareControlConfig.fromJson).toList(),
         access: ShareAccessPolicy.fromJson(_mapOrNull(json['access'])),
+        animation: ShareAnimationSpec.fromJson(_mapOrNull(json['animation'])),
       );
 
   final String id;
@@ -610,6 +682,7 @@ final class ShareLayerConfig {
   final Map<String, Object?> style;
   final List<ShareControlConfig> controls;
   final ShareAccessPolicy access;
+  final ShareAnimationSpec animation;
 
   ShareControlConfig? control(String id) {
     for (final control in controls) {
@@ -634,6 +707,7 @@ final class ShareLayerConfig {
     Map<String, Object?>? style,
     List<ShareControlConfig>? controls,
     ShareAccessPolicy? access,
+    ShareAnimationSpec? animation,
   }) => ShareLayerConfig(
     id: id ?? this.id,
     label: label ?? this.label,
@@ -649,6 +723,7 @@ final class ShareLayerConfig {
     style: style ?? this.style,
     controls: controls ?? this.controls,
     access: access ?? this.access,
+    animation: animation ?? this.animation,
   );
 
   Map<String, dynamic> toJson() => {
@@ -666,6 +741,7 @@ final class ShareLayerConfig {
     'style': style,
     'controls': controls.map((item) => item.toJson()).toList(),
     'access': access.toJson(),
+    'animation': animation.toJson(),
   };
 }
 
@@ -972,7 +1048,7 @@ final class ShareThemeConfig {
     );
   }
 
-  static const currentSchemaVersion = 2;
+  static const currentSchemaVersion = 3;
   static const supportedLayerTypes = {
     'background',
     'text',
@@ -1140,6 +1216,7 @@ final class ShareThemeConfig {
       }
     }
     for (final layer in layers) {
+      _validateAnimation(layer.animation, 'Layer ${layer.id}');
       final rect = layer.transform;
       if (rect.width <= 0 || rect.height <= 0) {
         throw FormatException('Layer ${layer.id} has invalid dimensions');
@@ -1290,6 +1367,15 @@ final class ShareThemeConfig {
       }
     }
     for (final item in templates) {
+      _validateAnimation(item.animation, 'Template ${item.id}');
+      if (item.accentColorToken.trim().isEmpty) {
+        throw FormatException('Template ${item.id} requires an accent token');
+      }
+      if (item.mediaCoverage < 0 || item.mediaCoverage > 1) {
+        throw FormatException(
+          'Template ${item.id} has invalid media coverage',
+        );
+      }
       if (item.variant.trim().isEmpty || item.narrativeIntent.trim().isEmpty) {
         throw FormatException(
           'Template ${item.id} requires variant and narrative intent',
@@ -1378,12 +1464,12 @@ abstract final class ShareThemeBundle {
 
   static Future<ShareThemeConfig> loadAsset({
     String path = defaultAsset,
-    AssetBundle? bundle,
+    Object? bundle,
   }) async {
     if (bundle == null && path == defaultAsset && _cachedDefault != null) {
       return _cachedDefault!;
     }
-    final raw = await (bundle ?? rootBundle).loadString(path);
+    final raw = await asset_loader.loadShareThemeAsset(path, bundle);
     final theme = fromJsonString(raw);
     if (bundle == null && path == defaultAsset) _cachedDefault = theme;
     return theme;
@@ -1529,7 +1615,7 @@ double? _numberOrNull(Object? value) => value is num ? value.toDouble() : null;
 Map<String, dynamic> _migrateThemeJson(Map<String, dynamic> json) {
   final version = json['schemaVersion'];
   if (version == ShareThemeConfig.currentSchemaVersion) return json;
-  if (version != 1) {
+  if (version != 1 && version != 2) {
     throw FormatException('Unsupported share theme schema: $version');
   }
 
@@ -1538,59 +1624,85 @@ Map<String, dynamic> _migrateThemeJson(Map<String, dynamic> json) {
   migrated['schemaVersion'] = ShareThemeConfig.currentSchemaVersion;
   migrated['designSystemVersion'] = designSystemVersion;
 
-  final legacyPermissions =
-      const ShareLayerRuntimePermissions(
-        canEditContent: true,
-        canReplaceMedia: true,
-        canCropMedia: true,
-        canMove: true,
-        canResize: true,
-        canRotate: true,
-        canStyle: true,
-        canHide: true,
-      ).toJson();
-  for (final rawLayer in _list(migrated['layers'])) {
-    final layer = _object(rawLayer);
-    layer['semanticRole'] ??= ShareSemanticRole.unassigned.name;
-    layer['emphasis'] ??= ShareLayerEmphasis.tertiary.name;
-    layer['runtimePermissions'] ??= legacyPermissions;
+  if (version == 1) {
+    final legacyPermissions =
+        const ShareLayerRuntimePermissions(
+          canEditContent: true,
+          canReplaceMedia: true,
+          canCropMedia: true,
+          canMove: true,
+          canResize: true,
+          canRotate: true,
+          canStyle: true,
+          canHide: true,
+        ).toJson();
+    for (final rawLayer in _list(migrated['layers'])) {
+      final layer = _object(rawLayer);
+      layer['semanticRole'] ??= ShareSemanticRole.unassigned.name;
+      layer['emphasis'] ??= ShareLayerEmphasis.tertiary.name;
+      layer['runtimePermissions'] ??= legacyPermissions;
+    }
+
+    const legacyTemplateId = 'legacy_default';
+    migrated['templates'] = [
+      {
+        'id': legacyTemplateId,
+        'label': 'Legacy template',
+        'family': ShareTemplateFamily.unassigned.name,
+        'variant': 'legacy',
+        'narrativeIntent': 'Preserve an imported schema v1 composition.',
+        'primaryJourneyState': ShareJourneyState.unassigned.name,
+        'supportedJourneyStates': [ShareJourneyState.unassigned.name],
+        'requiredContentRoles': <String>[],
+        'optionalContentRoles': <String>[],
+        'runtimePermissions':
+            const ShareTemplateRuntimePermissions(
+              userCanReplaceMedia: true,
+              userCanCropMedia: true,
+              userCanEditHeadline: true,
+              userCanEditProofValue: true,
+              userCanChooseAlternateTemplate: true,
+              userCanHideOptionalNote: true,
+              userCanEditDecorations: true,
+            ).toJson(),
+        'primaryAnchor': ShareSemanticRole.unassigned.name,
+        'supportedMediaCount': 1,
+        'supportsComparison': false,
+        'supportsProof': false,
+        'safeZones': <Object?>[],
+        'designSystemVersion': designSystemVersion,
+        'templateVersion': 1,
+        'status': ShareTemplateStatus.experimental.name,
+        'layerOverrides': <String, Object?>{},
+      },
+    ];
+    migrated['defaultTemplateId'] = legacyTemplateId;
   }
 
-  const legacyTemplateId = 'legacy_default';
-  migrated['templates'] = [
-    {
-      'id': legacyTemplateId,
-      'label': 'Legacy template',
-      'family': ShareTemplateFamily.unassigned.name,
-      'variant': 'legacy',
-      'narrativeIntent': 'Preserve an imported schema v1 composition.',
-      'primaryJourneyState': ShareJourneyState.unassigned.name,
-      'supportedJourneyStates': [ShareJourneyState.unassigned.name],
-      'requiredContentRoles': <String>[],
-      'optionalContentRoles': <String>[],
-      'runtimePermissions':
-          const ShareTemplateRuntimePermissions(
-            userCanReplaceMedia: true,
-            userCanCropMedia: true,
-            userCanEditHeadline: true,
-            userCanEditProofValue: true,
-            userCanChooseAlternateTemplate: true,
-            userCanHideOptionalNote: true,
-            userCanEditDecorations: true,
-          ).toJson(),
-      'primaryAnchor': ShareSemanticRole.unassigned.name,
-      'supportedMediaCount': 1,
-      'supportsComparison': false,
-      'supportsProof': false,
-      'safeZones': <Object?>[],
-      'designSystemVersion': designSystemVersion,
-      'templateVersion': 1,
-      'status': ShareTemplateStatus.experimental.name,
-      'layerOverrides': <String, Object?>{},
-    },
-  ];
-  migrated['defaultTemplateId'] = legacyTemplateId;
+  for (final rawLayer in _list(migrated['layers'])) {
+    final layer = _object(rawLayer);
+    layer['animation'] ??= const ShareAnimationSpec().toJson();
+  }
+  for (final rawTemplate in _list(migrated['templates'])) {
+    final template = _object(rawTemplate);
+    template['animation'] ??= const ShareAnimationSpec().toJson();
+  }
   return migrated;
+}
+
+ShareJourneyState _journeyState(Object? raw, String label) {
+  final canonical = switch (raw) {
+    'grind' => 'grinding',
+    'setback' => 'failure',
+    'result' => 'finish',
+    _ => raw,
+  };
+  return _enumValue(ShareJourneyState.values, canonical, label);
+}
+
+Set<ShareJourneyState> _journeyStateSet(Object? raw, String label) {
+  final values = _list(raw);
+  return {for (final value in values) _journeyState(value, label)};
 }
 
 T _enumValue<T extends Enum>(
@@ -1628,6 +1740,14 @@ void _validateRect(
       rect.x + rect.width > canvas.width + 0.001 ||
       rect.y + rect.height > canvas.height + 0.001) {
     throw FormatException('$label is outside the canvas');
+  }
+}
+
+void _validateAnimation(ShareAnimationSpec animation, String owner) {
+  if (animation.delayMilliseconds < 0 ||
+      animation.durationMilliseconds <= 0 ||
+      animation.easing.trim().isEmpty) {
+    throw FormatException('$owner has invalid animation metadata');
   }
 }
 

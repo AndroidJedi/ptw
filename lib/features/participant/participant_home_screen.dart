@@ -41,6 +41,166 @@ final class ParticipantHomeScreen extends StatefulWidget {
 final class _ParticipantHomeScreenState extends State<ParticipantHomeScreen> {
   final Set<String> _scheduledReadIds = {};
 
+  Future<void> _editProgress(PtwAppState state, PtwProject project) async {
+    final metric = project.progressMetric;
+    final start = TextEditingController(
+      text: metric == null ? '' : '${metric.start}',
+    );
+    final current = TextEditingController(
+      text: metric == null ? '' : '${metric.current}',
+    );
+    final target = TextEditingController(
+      text: metric == null ? '' : '${metric.target}',
+    );
+    final unit = TextEditingController(text: metric?.unit ?? '');
+    String? error;
+    final result = await showDialog<Object>(
+      context: context,
+      builder:
+          (dialogContext) => StatefulBuilder(
+            builder:
+                (context, setDialogState) => AlertDialog(
+                  title: const Text('Project progress'),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Keep the metric factual. Share designs will use it instead '
+                          'of inventing a progress claim.',
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                key: const ValueKey('edit_metric_start'),
+                                controller: start,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Start',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextField(
+                                key: const ValueKey('edit_metric_current'),
+                                controller: current,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Current',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextField(
+                                key: const ValueKey('edit_metric_target'),
+                                controller: target,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Target',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          key: const ValueKey('edit_metric_unit'),
+                          controller: unit,
+                          maxLength: 18,
+                          decoration: const InputDecoration(
+                            labelText: 'Unit',
+                            hintText: 'users, km, pages…',
+                          ),
+                        ),
+                        if (error != null)
+                          Text(
+                            error!,
+                            style: const TextStyle(color: Color(0xFFFF5A69)),
+                          ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    if (metric != null)
+                      TextButton(
+                        key: const ValueKey('remove_progress_metric'),
+                        onPressed:
+                            () => Navigator.pop(dialogContext, _removeMetric),
+                        child: const Text('Remove'),
+                      ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      key: const ValueKey('save_progress_metric'),
+                      onPressed: () {
+                        final parsedStart = double.tryParse(start.text.trim());
+                        final parsedCurrent = double.tryParse(
+                          current.text.trim(),
+                        );
+                        final parsedTarget = double.tryParse(
+                          target.text.trim(),
+                        );
+                        final parsedUnit = unit.text.trim();
+                        if (parsedStart == null ||
+                            parsedCurrent == null ||
+                            parsedTarget == null ||
+                            parsedStart == parsedTarget ||
+                            parsedUnit.isEmpty) {
+                          setDialogState(
+                            () =>
+                                error =
+                                    'Enter start, current, target, and a unit.',
+                          );
+                          return;
+                        }
+                        Navigator.pop(
+                          dialogContext,
+                          PtwProgressMetric(
+                            start: parsedStart,
+                            current: parsedCurrent,
+                            target: parsedTarget,
+                            unit: parsedUnit,
+                          ),
+                        );
+                      },
+                      child: const Text('Save'),
+                    ),
+                  ],
+                ),
+          ),
+    );
+    start.dispose();
+    current.dispose();
+    target.dispose();
+    unit.dispose();
+    if (result is PtwProgressMetric) {
+      await state.updateProjectMetadata(
+        projectId: project.id,
+        progressMetric: result,
+      );
+    } else if (identical(result, _removeMetric)) {
+      await state.updateProjectMetadata(
+        projectId: project.id,
+        clearProgressMetric: true,
+      );
+    }
+  }
+
   void _schedulePreviewRead(PtwAppState state, List<PtwResponse> responses) {
     final ids =
         responses
@@ -94,6 +254,11 @@ final class _ParticipantHomeScreenState extends State<ParticipantHomeScreen> {
                 ),
                 if (project.doubt?.trim().isNotEmpty == true)
                   _DoubtStatement(doubt: project.doubt!),
+                _ProjectProgress(
+                  metric: project.progressMetric,
+                  proofCount: state.evidenceFor(project.id).length,
+                  onEdit: () => unawaited(_editProgress(state, project)),
+                ),
                 if (recentActivity.isEmpty)
                   _EmptyProjectFrame(
                     onAddProof:
@@ -134,6 +299,51 @@ final class _ParticipantHomeScreenState extends State<ParticipantHomeScreen> {
       ),
     );
   }
+}
+
+const _removeMetric = Object();
+
+final class _ProjectProgress extends StatelessWidget {
+  const _ProjectProgress({
+    required this.metric,
+    required this.proofCount,
+    required this.onEdit,
+  });
+
+  final PtwProgressMetric? metric;
+  final int proofCount;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(
+      PtwSpacing.screenHorizontal,
+      PtwSpacing.md,
+      PtwSpacing.screenHorizontal,
+      PtwSpacing.xs,
+    ),
+    child: Material(
+      color: PtwColors.textOnAccent.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(18),
+      child: ListTile(
+        key: const ValueKey('project_progress_details'),
+        leading: const Icon(Icons.trending_up_rounded),
+        title: Text(
+          metric == null
+              ? '$proofCount ${proofCount == 1 ? 'proof' : 'proofs'} posted'
+              : '${metric!.currentLabel} · ${metric!.progressLabel}',
+          style: PtwTypography.bodyStrong,
+        ),
+        subtitle: Text(
+          metric == null
+              ? 'Add an optional real progress metric'
+              : '${metric!.start} → ${metric!.target} ${metric!.unit}',
+        ),
+        trailing: const Icon(Icons.edit_outlined),
+        onTap: onEdit,
+      ),
+    ),
+  );
 }
 
 final class _ProjectHero extends StatelessWidget {

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ptw/core/constants/component_ids.dart';
+import 'package:ptw/core/data/ptw_media_service.dart';
 
 import '../test_harness.dart';
 
 void main() {
-  testWidgets('Story editor only offers project and bundled backgrounds', (
+  testWidgets('cancelling a share photo replacement keeps the project photo', (
     tester,
   ) async {
     final media = FakePtwMediaService();
@@ -22,21 +23,19 @@ void main() {
       find.byKey(const ValueKey(ComponentIds.createProjectContinue)),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey(ComponentIds.storyToolLooks)));
+    await tester.tap(find.byKey(const ValueKey(ComponentIds.storyToolPhoto)));
     await tester.pump();
-    await tester.ensureVisible(
-      find.byKey(const ValueKey('story_background_technology')),
-    );
-    await tester.tap(find.byKey(const ValueKey('story_background_technology')));
+    await tester.tap(find.byKey(const ValueKey('story_replace_background')));
     await tester.pumpAndSettle();
 
-    expect(media.pickCount, 0);
+    expect(media.pickCount, 1);
+    expect(media.lastSharePurpose, PtwShareImagePurpose.background);
     expect(
       (await environment.repository.load())!
           .draft!
           .storyComposition!
           .backgroundId,
-      'technology',
+      isNull,
     );
   });
 }

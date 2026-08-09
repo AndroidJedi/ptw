@@ -14,10 +14,7 @@ void main() {
           '/projects/challenge_red_friday/share?event=challengeCreated',
     );
 
-    expect(
-      find.byKey(const ValueKey(ComponentIds.storyStickerTray)),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('story_template_tray')), findsOneWidget);
     expect(
       find.byKey(const ValueKey(ComponentIds.storyBuilderCanvas)),
       findsOneWidget,
@@ -63,7 +60,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('sticker tray adds, transforms, selects, and deletes layers', (
+  testWidgets('runtime layout selection persists the comparison template', (
     tester,
   ) async {
     final environment = await pumpPtw(
@@ -72,40 +69,19 @@ void main() {
           '/projects/challenge_red_friday/share?event=challengeCreated',
     );
 
-    await tester.tap(find.byKey(const ValueKey(ComponentIds.storyToolLooks)));
+    await tester.tap(find.byKey(const ValueKey('story_tool_templates')));
     await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('story_look_project_focus')));
+    expect(find.byKey(const ValueKey('story_template_tray')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('story_template_comparison')));
     await tester.pump();
-    await tester.tap(
-      find.byKey(const ValueKey(ComponentIds.storyToolStickers)),
+    final comparison = tester.widget<ChoiceChip>(
+      find.byKey(const ValueKey('story_template_comparison')),
     );
-    await tester.pump();
-
-    await tester.tap(find.byKey(const ValueKey('story_sticker_cheering_blob')));
-    await tester.pump();
+    expect(comparison.selected, isTrue);
     expect(
-      find.byKey(const ValueKey(ComponentIds.storyTransformHandle)),
-      findsOneWidget,
+      find.byKey(const ValueKey(ComponentIds.storyToolStickers)),
+      findsNothing,
     );
-    expect(find.byKey(const ValueKey('story_delete_sticker')), findsOneWidget);
-    await tester.drag(
-      find.byKey(const ValueKey(ComponentIds.storyTransformHandle)),
-      const Offset(18, -12),
-    );
-    await tester.pump();
-
-    await tester.tap(find.byKey(const ValueKey('story_sticker_victory_hand')));
-    await tester.tap(find.byKey(const ValueKey('story_sticker_turbo_rocket')));
-    await tester.pump();
-    expect(find.text('3/3 · Delete one to add'), findsOneWidget);
-
-    await tester.tap(
-      find.byKey(const ValueKey('story_canvas_sticker_cheering_blob_1')),
-    );
-    await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('story_delete_sticker')));
-    await tester.pump();
-    expect(find.text('2/3'), findsOneWidget);
 
     await openStoryShareStep(tester);
     await tester.tap(find.byKey(const ValueKey(ComponentIds.shareCopyLink)));
@@ -113,14 +89,6 @@ void main() {
 
     final stored = await environment.repository.load();
     final story = stored!.shareRecords.first.story!;
-    expect(story.stickers, hasLength(2));
-    expect(
-      story.stickers.any((item) => item.stickerId == 'cheering_blob'),
-      isFalse,
-    );
-    expect(
-      story.stickers.any((item) => item.stickerId == 'turbo_rocket'),
-      isTrue,
-    );
+    expect(story.editorValue!['templateId'], 'comparison');
   });
 }

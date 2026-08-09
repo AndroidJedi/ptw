@@ -6,11 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/component_ids.dart';
+import '../../core/data/ptw_media_service.dart';
 import '../../core/theme/ptw_colors.dart';
 import '../../features/share/share_models.dart';
 import '../../features/share/share_service.dart';
-import '../../features/social_post_studio/studio_avatar_picker.dart';
-import '../../features/social_post_studio/ptw_story_composer.dart';
 import '../../generated_share_editor/generated_share_editor.dart';
 import '../../models/ptw_image_ref.dart';
 import '../../models/ptw_project.dart';
@@ -53,7 +52,6 @@ final class _ShareStoryPreviewScreenState
     extends State<ShareStoryPreviewScreen> {
   final _assetGenerator = const SharePngExporter();
   final _adapter = const PtwGeneratedStoryAdapter();
-  final _imagePicker = BrowserStudioAvatarPicker();
   ShareEditorController? _controller;
   ShareEditorContent? _content;
   PtwStoryComposition? _baseComposition;
@@ -88,7 +86,7 @@ final class _ShareStoryPreviewScreenState
     final composition =
         widget.isDraft && saved?.projectId == project.id
             ? saved!
-            : const PtwStoryComposer().create(
+            : _adapter.createBase(
               project: project,
               event: event,
               momentId: momentId,
@@ -103,6 +101,7 @@ final class _ShareStoryPreviewScreenState
     final controller = ShareEditorController(
       theme: state.shareEditorTheme,
       content: content,
+      mode: ShareEditorMode.runtime,
       initialValue: _adapter.value(
         theme: state.shareEditorTheme,
         content: content,
@@ -383,14 +382,21 @@ final class _ShareStoryPreviewScreenState
   }
 
   Future<ShareImageValue?> _pickEditorImage(ShareImageRequest request) async {
+    final state = _appState;
+    if (state == null) return null;
     try {
-      final selection = await _imagePicker.pickAvatar();
-      if (selection == null) return null;
-      return ShareImageValue.memory(
-        selection.bytes,
-        mimeType: selection.mimeType,
-      );
-    } on StudioAvatarPickException catch (error) {
+      final selected = await state.mediaService.pickShareImage(switch (request
+          .purpose) {
+        ShareImagePurpose.layer => PtwShareImagePurpose.layer,
+        ShareImagePurpose.background => PtwShareImagePurpose.background,
+        ShareImagePurpose.decoration => PtwShareImagePurpose.decoration,
+      });
+      if (selected == null) return null;
+      return switch (selected.source) {
+        PtwImageSource.asset => ShareImageValue.asset(selected.path),
+        PtwImageSource.file => ShareImageValue.file(selected.path),
+      };
+    } on PtwMediaException catch (error) {
       if (mounted) _message(error.message);
       return null;
     } on Object {

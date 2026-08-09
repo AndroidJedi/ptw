@@ -1,7 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "ptw_story_v1",
   "name": "PTW Story",
+  "designSystemVersion": "ptw_ds_v1",
   "canvas": {
     "width": 360,
     "height": 640,
@@ -29,21 +30,36 @@
     {"id":"background_creative","kind":"image","mimeType":"image/jpeg","path":"assets/images/backgrounds/creative.jpg"},
     {"id":"background_education","kind":"image","mimeType":"image/jpeg","path":"assets/images/backgrounds/education.jpg"},
     {"id":"background_career","kind":"image","mimeType":"image/jpeg","path":"assets/images/backgrounds/career.jpg"},
-    {"id":"background_travel","kind":"image","mimeType":"image/jpeg","path":"assets/images/backgrounds/travel.jpg"}
+    {"id":"background_travel","kind":"image","mimeType":"image/jpeg","path":"assets/images/backgrounds/travel.jpg"},
+    {"id":"font_roboto_regular","kind":"font","mimeType":"font/ttf","path":"assets/fonts/Roboto-Regular.ttf","fontFamily":"PtwRoboto","fontWeight":400},
+    {"id":"font_roboto_bold","kind":"font","mimeType":"font/ttf","path":"assets/fonts/Roboto-Bold.ttf","fontFamily":"PtwRoboto","fontWeight":700},
+    {"id":"font_lilita_one","kind":"font","mimeType":"font/ttf","path":"assets/fonts/LilitaOne-Regular.ttf","fontFamily":"PtwLilitaOne","fontWeight":400},
+    {"id":"font_press_start_2p","kind":"font","mimeType":"font/ttf","path":"assets/fonts/PressStart2P-Regular.ttf","fontFamily":"PtwPressStart2P","fontWeight":400},
+    {"id":"font_rubik_dirt","kind":"font","mimeType":"font/ttf","path":"assets/fonts/RubikDirt-Regular.ttf","fontFamily":"PtwRubikDirt","fontWeight":400},
+    {"id":"decor_pixel_cat","kind":"image","mimeType":"image/png","path":"assets/images/decorations/pixel_cat.png"},
+    {"id":"decor_candy_heart","kind":"image","mimeType":"image/png","path":"assets/images/decorations/candy_heart.png"},
+    {"id":"decor_doodle_heart","kind":"image","mimeType":"image/png","path":"assets/images/decorations/doodle_heart.png"},
+    {"id":"decor_palm_leaf","kind":"image","mimeType":"image/png","path":"assets/images/decorations/palm_leaf.png"},
+    {"id":"decor_flamingo","kind":"image","mimeType":"image/png","path":"assets/images/decorations/flamingo.png"},
+    {"id":"decor_gesture_figure","kind":"image","mimeType":"image/png","path":"assets/images/decorations/gesture_figure.png"},
+    {"id":"decor_sparkle","kind":"image","mimeType":"image/png","path":"assets/images/decorations/sparkle.png"}
   ],
   "layers": [
     {
       "id":"background","label":"Background","type":"background","zIndex":0,
       "transform":{"x":0,"y":0,"width":360,"height":640,"rotation":0},
-      "visible":true,"style":{},"controls":[],"access":{"mode":"free"}
+      "visible":true,"semanticRole":"heroMedia","emphasis":"secondary",
+      "runtimePermissions":{"canReplaceMedia":true,"canCropMedia":true},
+      "style":{},"controls":[],"access":{"mode":"free"}
     },
     {
       "id":"avatar","label":"Avatar","type":"image","zIndex":10,"binding":"avatar",
       "transform":{"x":142,"y":72,"width":76,"height":76,"rotation":0},
-      "visible":true,
+      "visible":true,"semanticRole":"avatar","emphasis":"secondary",
+      "runtimePermissions":{"canReplaceMedia":true,"canCropMedia":true},
       "style":{"fit":"cover","clip":"oval","borderWidth":4,"borderColor":"#FFFFFFFF","shadowBlur":12,"shadowY":5,"shadowColor":"#57000000"},
       "controls":[
-        {"id":"edit","label":"Replace avatar","kind":"action","access":{"mode":"free"}},
+        {"id":"edit","label":"Replace avatar","kind":"action","capability":"replace","access":{"mode":"free"}},
         {"id":"move","label":"Move avatar","kind":"action","access":{"mode":"free"}},
         {"id":"resize","label":"Resize avatar","kind":"action","access":{"mode":"free"}},
         {"id":"rotate","label":"Rotate avatar","kind":"action","access":{"mode":"free"}},
@@ -54,50 +70,130 @@
     {
       "id":"headline","label":"Headline","type":"text","zIndex":20,"binding":"headline",
       "transform":{"x":30,"y":181,"width":300,"height":250,"rotation":0},
-      "visible":true,
+      "visible":true,"semanticRole":"headline","emphasis":"primary",
+      "runtimePermissions":{"canEditContent":true},
       "style":{"fontFamily":"PtwLilitaOne","fontSize":43,"minFontSize":23,"fontWeight":400,"lineHeight":0.98,"letterSpacing":0.1,"maxLines":5,"maxLength":90,"autoSize":true,"textAlign":"center","alignment":"center","color":"#FFFFFFFF","overflow":"ellipsis","shadowBlur":0,"shadowX":2,"shadowY":2,"shadowColor":"#C0000000"},
       "controls":[
         {"id":"edit","label":"Edit headline","kind":"text","access":{"mode":"free"}},
         {"id":"move","label":"Move headline","kind":"action","access":{"mode":"free"}},
         {"id":"resize","label":"Resize headline","kind":"action","access":{"mode":"free"}},
         {"id":"rotate","label":"Rotate headline","kind":"action","access":{"mode":"free"}},
+        {"id":"fontFamily","label":"Font","kind":"choice","options":["PtwRoboto","PtwLilitaOne","PtwPressStart2P","PtwRubikDirt"],"access":{"mode":"free"}},
+        {"id":"fontWeight","label":"Font weight","kind":"number","minimum":400,"maximum":900,"access":{"mode":"free"}},
         {"id":"fontSize","label":"Text size","kind":"number","minimum":18,"maximum":72,"access":{"mode":"free"}},
-        {"id":"letterSpacing","label":"Letter spacing","kind":"number","minimum":-2,"maximum":12,"access":{"mode":"free"}}
+        {"id":"letterSpacing","label":"Letter spacing","kind":"number","minimum":-2,"maximum":12,"access":{"mode":"free"}},
+        {"id":"color","label":"Text color","kind":"color","access":{"mode":"free"}},
+        {"id":"textAlign","label":"Text alignment","kind":"choice","options":["left","center","right"],"access":{"mode":"free"}},
+        {"id":"alignment","label":"Box alignment","kind":"choice","options":["centerLeft","center","centerRight"],"access":{"mode":"free"}},
+        {"id":"italic","label":"Italic","kind":"toggle","access":{"mode":"free"}},
+        {"id":"shadowBlur","label":"Shadow blur","kind":"number","minimum":0,"maximum":20,"access":{"mode":"free"}},
+        {"id":"shadowX","label":"Shadow X","kind":"number","minimum":-12,"maximum":12,"access":{"mode":"free"}},
+        {"id":"shadowY","label":"Shadow Y","kind":"number","minimum":-12,"maximum":12,"access":{"mode":"free"}},
+        {"id":"shadowColor","label":"Shadow color","kind":"color","access":{"mode":"free"}},
+        {"id":"strokeWidth","label":"Outline width","kind":"number","minimum":0,"maximum":6,"access":{"mode":"free"}},
+        {"id":"strokeColor","label":"Outline color","kind":"color","access":{"mode":"free"}}
       ],
       "access":{"mode":"free"}
     },
     {
       "id":"secondary","label":"Dare","type":"text","zIndex":21,"binding":"secondaryText",
       "transform":{"x":30,"y":448,"width":300,"height":68,"rotation":0},
-      "visible":true,
+      "visible":true,"semanticRole":"challenge","emphasis":"secondary",
+      "runtimePermissions":{"canEditContent":true,"canHide":true},
       "style":{"fontFamily":"PtwRoboto","fontSize":21,"fontWeight":900,"lineHeight":1.05,"letterSpacing":0.1,"maxLines":2,"maxLength":48,"autoSize":true,"minFontSize":14,"textAlign":"center","alignment":"center","color":"#FFFFFFFF","overflow":"ellipsis","backgroundColor":"#990F172A","borderRadius":16,"padding":7},
       "controls":[
         {"id":"edit","label":"Edit dare","kind":"text","access":{"mode":"free"}},
         {"id":"move","label":"Move dare","kind":"action","access":{"mode":"free"}},
         {"id":"resize","label":"Resize dare","kind":"action","access":{"mode":"free"}},
         {"id":"rotate","label":"Rotate dare","kind":"action","access":{"mode":"free"}},
-        {"id":"fontSize","label":"Text size","kind":"number","minimum":12,"maximum":40,"access":{"mode":"free"}}
+        {"id":"fontFamily","label":"Font","kind":"choice","options":["PtwRoboto","PtwLilitaOne","PtwPressStart2P","PtwRubikDirt"],"access":{"mode":"free"}},
+        {"id":"fontWeight","label":"Font weight","kind":"number","minimum":400,"maximum":900,"access":{"mode":"free"}},
+        {"id":"fontSize","label":"Text size","kind":"number","minimum":12,"maximum":40,"access":{"mode":"free"}},
+        {"id":"letterSpacing","label":"Letter spacing","kind":"number","minimum":-2,"maximum":12,"access":{"mode":"free"}},
+        {"id":"color","label":"Text color","kind":"color","access":{"mode":"free"}},
+        {"id":"textAlign","label":"Text alignment","kind":"choice","options":["left","center","right"],"access":{"mode":"free"}},
+        {"id":"alignment","label":"Box alignment","kind":"choice","options":["centerLeft","center","centerRight"],"access":{"mode":"free"}},
+        {"id":"italic","label":"Italic","kind":"toggle","access":{"mode":"free"}},
+        {"id":"shadowBlur","label":"Shadow blur","kind":"number","minimum":0,"maximum":20,"access":{"mode":"free"}},
+        {"id":"shadowX","label":"Shadow X","kind":"number","minimum":-12,"maximum":12,"access":{"mode":"free"}},
+        {"id":"shadowY","label":"Shadow Y","kind":"number","minimum":-12,"maximum":12,"access":{"mode":"free"}},
+        {"id":"shadowColor","label":"Shadow color","kind":"color","access":{"mode":"free"}},
+        {"id":"strokeWidth","label":"Outline width","kind":"number","minimum":0,"maximum":6,"access":{"mode":"free"}},
+        {"id":"strokeColor","label":"Outline color","kind":"color","access":{"mode":"free"}}
       ],
       "access":{"mode":"free"}
     },
     {
       "id":"brand","label":"Brand","type":"text","zIndex":30,"defaultValue":"PTW",
       "transform":{"x":23,"y":585,"width":72,"height":34,"rotation":0},
-      "visible":true,
+      "visible":true,"semanticRole":"brand","emphasis":"secondary",
+      "runtimePermissions":{},
       "style":{"fontFamily":"PtwLilitaOne","fontSize":25,"fontWeight":400,"maxLines":1,"textAlign":"left","alignment":"centerLeft","color":"#FFFFFFFF","shadowX":2,"shadowY":2,"shadowColor":"#FF111827"},
       "controls":[],"access":{"mode":"free"}
     },
     {
       "id":"tagline","label":"Tagline","type":"text","zIndex":31,"defaultValue":"PROVE THEM WRONG",
       "transform":{"x":218,"y":598,"width":119,"height":18,"rotation":0},
-      "visible":true,
+      "visible":true,"semanticRole":"semanticDecoration","emphasis":"tertiary",
+      "runtimePermissions":{},
       "style":{"fontFamily":"PtwRoboto","fontSize":8.5,"fontWeight":900,"letterSpacing":1.1,"maxLines":1,"textAlign":"right","alignment":"centerRight","color":"#DBFFFFFF"},
       "controls":[],"access":{"mode":"free"}
     },
     {
+      "id":"previous_media","label":"Previous media","type":"image","zIndex":12,"binding":"previousMedia",
+      "transform":{"x":20,"y":106,"width":154,"height":286,"rotation":0},
+      "visible":false,"semanticRole":"previousMedia","emphasis":"secondary",
+      "runtimePermissions":{"canReplaceMedia":true,"canCropMedia":true},
+      "style":{"fit":"cover","clip":"rounded","borderRadius":18,"borderWidth":2,"borderColor":"#99FFFFFF","fallbackBinding":"cover"},
+      "controls":[{"id":"edit","label":"Replace previous media","kind":"action","capability":"replace","access":{"mode":"free"}}],
+      "access":{"mode":"free"}
+    },
+    {
+      "id":"current_media","label":"Current media","type":"image","zIndex":13,"binding":"currentMedia",
+      "transform":{"x":186,"y":106,"width":154,"height":286,"rotation":0},
+      "visible":false,"semanticRole":"currentMedia","emphasis":"primary",
+      "runtimePermissions":{"canReplaceMedia":true,"canCropMedia":true},
+      "style":{"fit":"cover","clip":"rounded","borderRadius":18,"borderWidth":2,"borderColor":"#FFFFFFFF","fallbackBinding":"cover"},
+      "controls":[{"id":"edit","label":"Replace current media","kind":"action","capability":"replace","access":{"mode":"free"}}],
+      "access":{"mode":"free"}
+    },
+    {
+      "id":"previous_time","label":"Previous time","type":"text","zIndex":22,"binding":"previousTimeLabel","defaultValue":"BEFORE",
+      "transform":{"x":28,"y":356,"width":138,"height":30,"rotation":0},
+      "visible":false,"semanticRole":"time","emphasis":"tertiary","runtimePermissions":{},
+      "style":{"fontFamily":"PtwRoboto","fontSize":12,"fontWeight":900,"letterSpacing":1.2,"maxLines":1,"textAlign":"center","alignment":"center","color":"#FFFFFFFF","backgroundColor":"#B3111827","borderRadius":12,"padding":5},
+      "controls":[],"access":{"mode":"free"}
+    },
+    {
+      "id":"current_time","label":"Current time","type":"text","zIndex":23,"binding":"currentTimeLabel","defaultValue":"NOW",
+      "transform":{"x":194,"y":356,"width":138,"height":30,"rotation":0},
+      "visible":false,"semanticRole":"time","emphasis":"tertiary","runtimePermissions":{},
+      "style":{"fontFamily":"PtwRoboto","fontSize":12,"fontWeight":900,"letterSpacing":1.2,"maxLines":1,"textAlign":"center","alignment":"center","color":"#FFFFFFFF","backgroundColor":"#B3111827","borderRadius":12,"padding":5},
+      "controls":[],"access":{"mode":"free"}
+    },
+    {
+      "id":"progress_value","label":"Progress value","type":"text","zIndex":24,"binding":"progressValue","defaultValue":"68%",
+      "transform":{"x":55,"y":280,"width":250,"height":132,"rotation":0},
+      "visible":false,"semanticRole":"progress","emphasis":"primary",
+      "runtimePermissions":{"canEditContent":true},
+      "style":{"fontFamily":"PtwLilitaOne","fontSize":86,"minFontSize":48,"fontWeight":400,"maxLines":1,"autoSize":true,"textAlign":"center","alignment":"center","color":"#FFFFFFFF","backgroundColor":"#8A111827","borderRadius":28,"padding":12,"shadowBlur":10,"shadowY":4,"shadowColor":"#66000000"},
+      "controls":[{"id":"edit","label":"Edit progress","kind":"text","access":{"mode":"free"}}],
+      "access":{"mode":"free"}
+    },
+    {
+      "id":"metric_value","label":"Proof metric","type":"text","zIndex":25,"binding":"metricValue","defaultValue":"+12 this week",
+      "transform":{"x":64,"y":420,"width":232,"height":54,"rotation":0},
+      "visible":false,"semanticRole":"metric","emphasis":"secondary",
+      "runtimePermissions":{"canEditContent":true},
+      "style":{"fontFamily":"PtwRoboto","fontSize":20,"minFontSize":13,"fontWeight":900,"maxLines":1,"autoSize":true,"textAlign":"center","alignment":"center","color":"#FFFFFFFF","backgroundColor":"#B3315CFF","borderRadius":18,"padding":8},
+      "controls":[{"id":"edit","label":"Edit proof metric","kind":"text","access":{"mode":"free"}}],
+      "access":{"mode":"free"}
+    },
+    {
       "id":"stickers","label":"Stickers","type":"stickerWorkspace","zIndex":50,
       "transform":{"x":0,"y":0,"width":360,"height":640,"rotation":0},
-      "visible":true,"style":{},
+      "visible":true,"semanticRole":"semanticDecoration","emphasis":"tertiary",
+      "runtimePermissions":{},"style":{},
       "controls":[
         {"id":"add","label":"Add stickers","kind":"action","access":{"mode":"free"}},
         {"id":"move","label":"Move stickers","kind":"action","access":{"mode":"free"}},
@@ -136,27 +232,101 @@
     {"id":"screaming_toaster","label":"Screaming toaster","category":"Chaos","assetId":"screaming_toaster","defaultScale":0.26,"minimumScale":0.12,"maximumScale":0.42,"canMove":true,"canResize":true,"canRotate":true,"canDelete":true,"access":{"mode":"free"}},
     {"id":"popcorn_monster","label":"Popcorn monster","category":"Chaos","assetId":"popcorn_monster","defaultScale":0.25,"minimumScale":0.12,"maximumScale":0.42,"canMove":true,"canResize":true,"canRotate":true,"canDelete":true,"access":{"mode":"free"}},
     {"id":"dancing_flame","label":"Dancing flame","category":"Chaos","assetId":"dancing_flame","defaultScale":0.24,"minimumScale":0.12,"maximumScale":0.42,"canMove":true,"canResize":true,"canRotate":true,"canDelete":true,"access":{"mode":"free"}},
-    {"id":"confetti_brain","label":"Confetti brain","category":"Chaos","assetId":"confetti_brain","defaultScale":0.27,"minimumScale":0.12,"maximumScale":0.42,"canMove":true,"canResize":true,"canRotate":true,"canDelete":true,"access":{"mode":"free"}}
+    {"id":"confetti_brain","label":"Confetti brain","category":"Chaos","assetId":"confetti_brain","defaultScale":0.27,"minimumScale":0.12,"maximumScale":0.42,"canMove":true,"canResize":true,"canRotate":true,"canDelete":true,"access":{"mode":"free"}},
+    {"id":"pixel_cat","label":"Pixel rainbow cat","category":"Collage","assetId":"decor_pixel_cat","defaultScale":0.22,"minimumScale":0.08,"maximumScale":0.55,"canMove":true,"canResize":true,"canRotate":true,"canDelete":true,"access":{"mode":"free"}},
+    {"id":"candy_heart","label":"Candy heart","category":"Collage","assetId":"decor_candy_heart","defaultScale":0.18,"minimumScale":0.08,"maximumScale":0.55,"canMove":true,"canResize":true,"canRotate":true,"canDelete":true,"access":{"mode":"free"}},
+    {"id":"doodle_heart","label":"Doodle heart","category":"Collage","assetId":"decor_doodle_heart","defaultScale":0.18,"minimumScale":0.08,"maximumScale":0.55,"canMove":true,"canResize":true,"canRotate":true,"canDelete":true,"access":{"mode":"free"}},
+    {"id":"palm_leaf","label":"Palm leaf","category":"Collage","assetId":"decor_palm_leaf","defaultScale":0.34,"minimumScale":0.12,"maximumScale":0.65,"canMove":true,"canResize":true,"canRotate":true,"canDelete":true,"access":{"mode":"free"}},
+    {"id":"flamingo","label":"Flamingo","category":"Collage","assetId":"decor_flamingo","defaultScale":0.28,"minimumScale":0.1,"maximumScale":0.6,"canMove":true,"canResize":true,"canRotate":true,"canDelete":true,"access":{"mode":"free"}},
+    {"id":"gesture_figure","label":"Gesture figure","category":"Collage","assetId":"decor_gesture_figure","defaultScale":0.28,"minimumScale":0.1,"maximumScale":0.6,"canMove":true,"canResize":true,"canRotate":true,"canDelete":true,"access":{"mode":"free"}},
+    {"id":"sparkle","label":"Sparkle","category":"Collage","assetId":"decor_sparkle","defaultScale":0.14,"minimumScale":0.06,"maximumScale":0.42,"canMove":true,"canResize":true,"canRotate":true,"canDelete":true,"access":{"mode":"free"}}
   ],
   "looks": [
-    {"id":"project_focus","label":"My photo","backgroundId":"project_cover","layerOverrides":{},"defaultStickers":[],"access":{"mode":"free"}},
-    {"id":"hot_dare","label":"Hot dare","backgroundId":"gradient_hot","layerOverrides":{"headline":{"style":{"strokeWidth":0,"strokeColor":"#FF111827"}},"secondary":{"style":{"backgroundColor":"#CC111827","color":"#FFFFE557"}}},"defaultStickers":[{"instanceId":"preset_hot_dare","stickerId":"side_eye_orb","centerX":0.78,"centerY":0.24,"scale":0.23,"rotation":0}],"access":{"mode":"free"}},
-    {"id":"night_detective","label":"Night watch","backgroundId":"gradient_night","layerOverrides":{"headline":{"style":{"color":"#FFE8EEFF","letterSpacing":1.1}},"secondary":{"style":{"backgroundColor":"#D9081226"}}},"defaultStickers":[{"instanceId":"preset_night_detective","stickerId":"tiny_detective","centerX":0.22,"centerY":0.72,"scale":0.23,"rotation":0}],"access":{"mode":"free"}},
-    {"id":"candy_hype","label":"Candy hype","backgroundId":"gradient_candy","layerOverrides":{"headline":{"style":{"color":"#FFFFFFFF","strokeWidth":0,"strokeColor":"#FFF4066E"}},"secondary":{"style":{"backgroundColor":"#B35B21B6"}},"brand":{"style":{"color":"#FFFFE557"}}},"defaultStickers":[{"instanceId":"preset_candy_hype","stickerId":"cheering_blob","centerX":0.78,"centerY":0.24,"scale":0.23,"rotation":0}],"access":{"mode":"free"}},
-    {"id":"yellow_chaos","label":"Pure chaos","backgroundId":"gradient_yellow","layerOverrides":{"headline":{"transform":{"x":30,"y":181,"width":300,"height":250,"rotation":-0.035},"style":{"color":"#FF111827","strokeWidth":0,"shadowColor":"#00000000"}},"secondary":{"style":{"color":"#FF111827","backgroundColor":"#CCFFFFFF"}},"brand":{"style":{"color":"#FFF4066E"}},"tagline":{"style":{"color":"#D9111827"}}},"defaultStickers":[{"instanceId":"preset_yellow_chaos","stickerId":"screaming_toaster","centerX":0.76,"centerY":0.72,"scale":0.23,"rotation":0}],"access":{"mode":"free"}},
-    {"id":"sky_victory","label":"Victory lap","backgroundId":"gradient_sky","layerOverrides":{"headline":{"style":{"color":"#FFFFFFFF","shadowBlur":8,"shadowColor":"#8A081226"}},"secondary":{"style":{"backgroundColor":"#B3081226","color":"#FFFFE557"}},"brand":{"style":{"color":"#FFFFE557"}}},"defaultStickers":[{"instanceId":"preset_sky_victory","stickerId":"trophy_gremlin","centerX":0.24,"centerY":0.72,"scale":0.23,"rotation":0}],"access":{"mode":"free"}}
+    {"id":"project_focus","label":"Soft Focus","backgroundId":"project_cover","backgroundTreatment":{"blur":13,"saturation":0.72,"contrast":1.08,"brightness":-0.06,"overlayColor":"#FF081226","overlayOpacity":0.38,"imageOpacity":1},"layerOverrides":{"headline":{"style":{"fontFamily":"PtwRoboto","fontWeight":700,"fontSize":39,"color":"#FFFFFFFF","italic":false,"shadowBlur":8,"shadowX":0,"shadowY":4,"shadowColor":"#99000000","strokeWidth":0}},"secondary":{"style":{"fontFamily":"PtwRoboto","fontWeight":700,"color":"#FFFFFFFF","backgroundColor":"#99111827"}}},"defaultStickers":[],"access":{"mode":"free"}},
+    {"id":"hot_dare","label":"Pixel Pop","backgroundId":"project_cover","backgroundTreatment":{"imageOpacity":0.42,"saturation":0.18,"contrast":1.08,"brightness":0.1,"tintColor":"#FFFFF36D","tintOpacity":0.72,"texture":"blobs","textureColor":"#FFBFF7FF","textureSecondaryColor":"#FFFFF36D","textureIntensity":0.62,"textureScale":1.2},"layerOverrides":{"headline":{"style":{"fontFamily":"PtwPressStart2P","fontWeight":400,"fontSize":31,"minFontSize":17,"lineHeight":1.24,"color":"#FF111111","italic":false,"letterSpacing":0,"shadowBlur":0,"shadowX":0,"shadowY":0,"strokeWidth":0}},"secondary":{"style":{"fontFamily":"PtwPressStart2P","fontSize":15,"fontWeight":400,"color":"#FF111111","backgroundColor":"#B3FFFFFF"}},"brand":{"style":{"color":"#FF111111"}},"tagline":{"style":{"color":"#CC111111"}}},"defaultStickers":[{"instanceId":"preset_pixel_cat","stickerId":"pixel_cat","centerX":0.78,"centerY":0.24,"scale":0.22,"rotation":0}],"access":{"mode":"free"}},
+    {"id":"night_detective","label":"Static Note","backgroundId":"project_cover","backgroundTreatment":{"imageOpacity":0.35,"saturation":0,"contrast":0.78,"brightness":0.22,"tintColor":"#FFF1F2F6","tintOpacity":0.72,"texture":"grain","textureColor":"#FF111827","textureSecondaryColor":"#FFFFFFFF","textureIntensity":0.58,"textureScale":0.8},"layerOverrides":{"headline":{"style":{"fontFamily":"PtwRubikDirt","fontWeight":400,"fontSize":39,"color":"#FF4038B8","italic":false,"letterSpacing":0.5,"shadowBlur":0,"shadowX":0,"shadowY":0,"strokeWidth":0}},"secondary":{"style":{"fontFamily":"PtwRoboto","fontWeight":700,"color":"#FF4038B8","backgroundColor":"#B3FFFFFF"}},"brand":{"style":{"color":"#FF4038B8"}},"tagline":{"style":{"color":"#CC4038B8"}}},"defaultStickers":[{"instanceId":"preset_doodle_heart","stickerId":"doodle_heart","centerX":0.78,"centerY":0.22,"scale":0.17,"rotation":-0.12}],"access":{"mode":"free"}},
+    {"id":"candy_hype","label":"Holo Crush","backgroundId":"project_cover","backgroundTreatment":{"imageOpacity":0.48,"saturation":0.55,"contrast":0.82,"brightness":0.18,"tintColor":"#FFFFD9F3","tintOpacity":0.24,"texture":"iridescent","textureColor":"#FFBFF7FF","textureSecondaryColor":"#FFFFF0A8","textureIntensity":0.55,"textureScale":1},"layerOverrides":{"headline":{"style":{"fontFamily":"PtwRoboto","fontWeight":700,"fontSize":43,"color":"#FFF4069A","italic":true,"shadowBlur":0,"shadowX":3,"shadowY":4,"shadowColor":"#FFFFE557","strokeWidth":0}},"secondary":{"style":{"fontFamily":"PtwRoboto","fontWeight":700,"color":"#FFF4069A","backgroundColor":"#99FFFFFF"}},"brand":{"style":{"color":"#FFF4069A"}},"tagline":{"style":{"color":"#CCF4069A"}}},"defaultStickers":[{"instanceId":"preset_candy_heart","stickerId":"candy_heart","centerX":0.78,"centerY":0.22,"scale":0.18,"rotation":0.08}],"access":{"mode":"free"}},
+    {"id":"yellow_chaos","label":"Peach Collage","backgroundId":"project_cover","backgroundTreatment":{"imageOpacity":0.38,"saturation":0.28,"contrast":0.9,"brightness":0.12,"tintColor":"#FFFFB38A","tintOpacity":0.66,"texture":"stripes","textureColor":"#66FFFFFF","textureSecondaryColor":"#FFFFB38A","textureIntensity":0.42,"textureScale":1.3},"layerOverrides":{"headline":{"style":{"fontFamily":"PtwLilitaOne","fontWeight":400,"fontSize":42,"color":"#FFF4069A","italic":false,"letterSpacing":0.2,"shadowBlur":0,"shadowX":0,"shadowY":0,"strokeWidth":0}},"secondary":{"style":{"fontFamily":"PtwRoboto","fontWeight":700,"color":"#FFF4069A","backgroundColor":"#B3FFFFFF"}},"brand":{"style":{"color":"#FFF4069A"}},"tagline":{"style":{"color":"#CC111827"}}},"defaultStickers":[{"instanceId":"preset_palm","stickerId":"palm_leaf","centerX":0.17,"centerY":0.16,"scale":0.34,"rotation":-0.18},{"instanceId":"preset_flamingo","stickerId":"flamingo","centerX":0.83,"centerY":0.74,"scale":0.28,"rotation":0.04},{"instanceId":"preset_figure","stickerId":"gesture_figure","centerX":0.18,"centerY":0.73,"scale":0.28,"rotation":-0.06},{"instanceId":"preset_sparkle","stickerId":"sparkle","centerX":0.82,"centerY":0.22,"scale":0.13,"rotation":0.1}],"access":{"mode":"free"}},
+    {"id":"sky_victory","label":"Legacy Victory","editorVisible":false,"backgroundId":"project_cover","backgroundTreatment":{"blur":4,"saturation":1.2,"contrast":1.15,"overlayColor":"#FF081226","overlayOpacity":0.25,"texture":"none"},"layerOverrides":{"headline":{"style":{"color":"#FFFFFFFF","shadowBlur":8,"shadowColor":"#8A081226"}},"secondary":{"style":{"backgroundColor":"#B3081226","color":"#FFFFE557"}},"brand":{"style":{"color":"#FFFFE557"}}},"defaultStickers":[{"instanceId":"preset_sky_victory","stickerId":"trophy_gremlin","centerX":0.24,"centerY":0.72,"scale":0.23,"rotation":0}],"access":{"mode":"free"}}
+  ],
+  "templates": [
+    {
+      "id":"hero_photo","label":"Hero Photo","family":"heroPhoto","variant":"classic","narrativeIntent":"Lead with one personal image and a concise declaration.",
+      "primaryJourneyState":"beginning","supportedJourneyStates":["beginning","grind","smallWin","setback","recovery","milestone","reflection","result"],
+      "requiredContentRoles":["heroMedia","headline","brand"],"optionalContentRoles":["avatar","challenge","semanticDecoration"],
+      "runtimePermissions":{"userCanReplaceMedia":true,"userCanCropMedia":true,"userCanEditHeadline":true,"userCanEditProofValue":false,"userCanChooseAlternateTemplate":true,"userCanHideOptionalNote":true,"userCanEditDecorations":false},
+      "primaryAnchor":"headline","supportedMediaCount":1,"supportsComparison":false,"supportsProof":false,
+      "safeZones":[
+        {"id":"top_danger","label":"Instagram top danger","kind":"instagramTopDanger","rect":{"x":0,"y":0,"width":360,"height":52,"rotation":0}},
+        {"id":"bottom_danger","label":"Instagram bottom danger","kind":"instagramBottomDanger","rect":{"x":0,"y":570,"width":360,"height":70,"rotation":0}},
+        {"id":"link_zone","label":"Recommended link area","kind":"recommendedLink","rect":{"x":20,"y":516,"width":320,"height":48,"rotation":0}},
+        {"id":"subject_zone","label":"Protect main subject","kind":"protectedSubject","rect":{"x":24,"y":64,"width":312,"height":388,"rotation":0}},
+        {"id":"brand_zone","label":"Brand-safe area","kind":"brandSafe","rect":{"x":20,"y":574,"width":320,"height":48,"rotation":0}}
+      ],
+      "designSystemVersion":"ptw_ds_v1","templateVersion":1,"status":"experimental",
+      "layerOverrides":{
+        "background":{"visible":true},"avatar":{"visible":true},"headline":{"visible":true,"transform":{"x":30,"y":181,"width":300,"height":250,"rotation":0}},
+        "secondary":{"visible":true},"brand":{"visible":true},"tagline":{"visible":true},"previous_media":{"visible":false},"current_media":{"visible":false},
+        "previous_time":{"visible":false},"current_time":{"visible":false},"progress_value":{"visible":false},"metric_value":{"visible":false},"stickers":{"visible":true}
+      }
+    },
+    {
+      "id":"progress","label":"Progress","family":"progress","variant":"proof_meter","narrativeIntent":"Make measurable forward movement the dominant proof point.",
+      "primaryJourneyState":"grind","supportedJourneyStates":["grind","smallWin","recovery","milestone","result"],
+      "requiredContentRoles":["headline","progress","brand"],"optionalContentRoles":["heroMedia","metric","challenge"],
+      "runtimePermissions":{"userCanReplaceMedia":true,"userCanCropMedia":true,"userCanEditHeadline":true,"userCanEditProofValue":true,"userCanChooseAlternateTemplate":true,"userCanHideOptionalNote":true,"userCanEditDecorations":false},
+      "primaryAnchor":"progress","supportedMediaCount":1,"supportsComparison":false,"supportsProof":true,
+      "safeZones":[
+        {"id":"top_danger","label":"Instagram top danger","kind":"instagramTopDanger","rect":{"x":0,"y":0,"width":360,"height":52,"rotation":0}},
+        {"id":"bottom_danger","label":"Instagram bottom danger","kind":"instagramBottomDanger","rect":{"x":0,"y":570,"width":360,"height":70,"rotation":0}},
+        {"id":"link_zone","label":"Recommended link area","kind":"recommendedLink","rect":{"x":20,"y":516,"width":320,"height":48,"rotation":0}},
+        {"id":"subject_zone","label":"Protect main subject","kind":"protectedSubject","rect":{"x":32,"y":238,"width":296,"height":252,"rotation":0}},
+        {"id":"brand_zone","label":"Brand-safe area","kind":"brandSafe","rect":{"x":20,"y":574,"width":320,"height":48,"rotation":0}}
+      ],
+      "designSystemVersion":"ptw_ds_v1","templateVersion":1,"status":"experimental",
+      "layerOverrides":{
+        "background":{"visible":true},"avatar":{"visible":false},"headline":{"visible":true,"transform":{"x":32,"y":92,"width":296,"height":136,"rotation":0},"style":{"fontSize":35,"minFontSize":21,"maxLines":3}},
+        "secondary":{"visible":true,"transform":{"x":48,"y":492,"width":264,"height":58,"rotation":0}},"brand":{"visible":true},"tagline":{"visible":true},
+        "previous_media":{"visible":false},"current_media":{"visible":false},"previous_time":{"visible":false},"current_time":{"visible":false},
+        "progress_value":{"visible":true},"metric_value":{"visible":true},"stickers":{"visible":false}
+      }
+    },
+    {
+      "id":"comparison","label":"Comparison","family":"comparison","variant":"split_before_after","narrativeIntent":"Show visible change by placing previous and current evidence side by side.",
+      "primaryJourneyState":"result","supportedJourneyStates":["smallWin","recovery","milestone","reflection","result"],
+      "requiredContentRoles":["previousMedia","currentMedia","headline","brand"],"optionalContentRoles":["time","challenge"],
+      "runtimePermissions":{"userCanReplaceMedia":true,"userCanCropMedia":true,"userCanEditHeadline":true,"userCanEditProofValue":false,"userCanChooseAlternateTemplate":true,"userCanHideOptionalNote":true,"userCanEditDecorations":false},
+      "primaryAnchor":"currentMedia","supportedMediaCount":2,"supportsComparison":true,"supportsProof":true,
+      "safeZones":[
+        {"id":"top_danger","label":"Instagram top danger","kind":"instagramTopDanger","rect":{"x":0,"y":0,"width":360,"height":52,"rotation":0}},
+        {"id":"bottom_danger","label":"Instagram bottom danger","kind":"instagramBottomDanger","rect":{"x":0,"y":570,"width":360,"height":70,"rotation":0}},
+        {"id":"link_zone","label":"Recommended link area","kind":"recommendedLink","rect":{"x":20,"y":516,"width":320,"height":48,"rotation":0}},
+        {"id":"subject_zone","label":"Protect comparison evidence","kind":"protectedSubject","rect":{"x":16,"y":92,"width":328,"height":312,"rotation":0}},
+        {"id":"brand_zone","label":"Brand-safe area","kind":"brandSafe","rect":{"x":20,"y":574,"width":320,"height":48,"rotation":0}}
+      ],
+      "designSystemVersion":"ptw_ds_v1","templateVersion":1,"status":"experimental",
+      "layerOverrides":{
+        "background":{"visible":true},"avatar":{"visible":false},"headline":{"visible":true,"transform":{"x":30,"y":405,"width":300,"height":104,"rotation":0},"style":{"fontSize":31,"minFontSize":19,"maxLines":3}},
+        "secondary":{"visible":true,"transform":{"x":48,"y":518,"width":264,"height":44,"rotation":0},"style":{"fontSize":15}},"brand":{"visible":true},"tagline":{"visible":true},
+        "previous_media":{"visible":true},"current_media":{"visible":true},"previous_time":{"visible":true},"current_time":{"visible":true},
+        "progress_value":{"visible":false},"metric_value":{"visible":false},"stickers":{"visible":false}
+      }
+    }
   ],
   "toolbar": [
-    {"id":"text","label":"Text","icon":"text","order":0,"access":{"mode":"free"}},
-    {"id":"looks","label":"Looks","icon":"magic","order":1,"access":{"mode":"free"}},
-    {"id":"backgrounds","label":"BG","icon":"palette","order":2,"access":{"mode":"free"}},
-    {"id":"stickers","label":"Stickers","icon":"sticker","order":3,"access":{"mode":"free"}},
-    {"id":"images","label":"Photos","icon":"image","order":4,"access":{"mode":"free"}}
+    {"id":"templates","label":"Layout","icon":"templates","order":0,"access":{"mode":"free"}},
+    {"id":"text","label":"Text","icon":"text","order":1,"access":{"mode":"free"}},
+    {"id":"looks","label":"Looks","icon":"magic","order":2,"access":{"mode":"free"}},
+    {"id":"photo","label":"Photo","icon":"image","order":3,"access":{"mode":"free"}},
+    {"id":"effects","label":"FX","icon":"palette","order":4,"access":{"mode":"free"}},
+    {"id":"decor","label":"Decor","icon":"sticker","order":5,"access":{"mode":"free"}}
   ],
   "defaultLookId": "project_focus",
+  "defaultTemplateId": "hero_photo",
   "defaultBackgroundId": "project_cover",
-  "maximumStickerCount": 3,
-  "defaultToolbarGroupId": "stickers",
+  "maximumStickerCount": 6,
+  "maximumDecorationCount": 6,
+  "defaultToolbarGroupId": "looks",
   "premiumIcon": "workspace_premium",
   "sampleContent": {
     "projectId":"sample_project",

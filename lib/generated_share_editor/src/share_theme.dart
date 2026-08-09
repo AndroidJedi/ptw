@@ -4,6 +4,367 @@ import 'package:flutter/services.dart';
 
 import 'share_value.dart';
 
+enum ShareTemplateFamily {
+  unassigned,
+  heroPhoto,
+  progress,
+  comparison,
+  proof,
+  conflict,
+  milestone,
+  documentary,
+  reflection,
+  recovery,
+  result,
+}
+
+enum ShareJourneyState {
+  unassigned,
+  beginning,
+  grind,
+  smallWin,
+  setback,
+  failure,
+  recovery,
+  milestone,
+  reflection,
+  result,
+}
+
+enum ShareSemanticRole {
+  unassigned,
+  heroMedia,
+  previousMedia,
+  currentMedia,
+  headline,
+  challenge,
+  criticism,
+  proof,
+  metric,
+  progress,
+  time,
+  goal,
+  avatar,
+  brand,
+  semanticDecoration,
+}
+
+enum ShareLayerEmphasis { primary, secondary, tertiary }
+
+enum ShareSafeZoneKind {
+  instagramTopDanger,
+  instagramBottomDanger,
+  recommendedLink,
+  protectedSubject,
+  brandSafe,
+}
+
+enum ShareTemplateStatus { experimental, production }
+
+final class ShareLayerRuntimePermissions {
+  const ShareLayerRuntimePermissions({
+    this.canEditContent = false,
+    this.canReplaceMedia = false,
+    this.canCropMedia = false,
+    this.canMove = false,
+    this.canResize = false,
+    this.canRotate = false,
+    this.canStyle = false,
+    this.canHide = false,
+  });
+
+  factory ShareLayerRuntimePermissions.fromJson(Map<String, dynamic>? json) {
+    final source = json ?? const <String, dynamic>{};
+    return ShareLayerRuntimePermissions(
+      canEditContent: source['canEditContent'] as bool? ?? false,
+      canReplaceMedia: source['canReplaceMedia'] as bool? ?? false,
+      canCropMedia: source['canCropMedia'] as bool? ?? false,
+      canMove: source['canMove'] as bool? ?? false,
+      canResize: source['canResize'] as bool? ?? false,
+      canRotate: source['canRotate'] as bool? ?? false,
+      canStyle: source['canStyle'] as bool? ?? false,
+      canHide: source['canHide'] as bool? ?? false,
+    );
+  }
+
+  final bool canEditContent;
+  final bool canReplaceMedia;
+  final bool canCropMedia;
+  final bool canMove;
+  final bool canResize;
+  final bool canRotate;
+  final bool canStyle;
+  final bool canHide;
+
+  ShareLayerRuntimePermissions copyWith({
+    bool? canEditContent,
+    bool? canReplaceMedia,
+    bool? canCropMedia,
+    bool? canMove,
+    bool? canResize,
+    bool? canRotate,
+    bool? canStyle,
+    bool? canHide,
+  }) => ShareLayerRuntimePermissions(
+    canEditContent: canEditContent ?? this.canEditContent,
+    canReplaceMedia: canReplaceMedia ?? this.canReplaceMedia,
+    canCropMedia: canCropMedia ?? this.canCropMedia,
+    canMove: canMove ?? this.canMove,
+    canResize: canResize ?? this.canResize,
+    canRotate: canRotate ?? this.canRotate,
+    canStyle: canStyle ?? this.canStyle,
+    canHide: canHide ?? this.canHide,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'canEditContent': canEditContent,
+    'canReplaceMedia': canReplaceMedia,
+    'canCropMedia': canCropMedia,
+    'canMove': canMove,
+    'canResize': canResize,
+    'canRotate': canRotate,
+    'canStyle': canStyle,
+    'canHide': canHide,
+  };
+}
+
+final class ShareTemplateRuntimePermissions {
+  const ShareTemplateRuntimePermissions({
+    this.userCanReplaceMedia = false,
+    this.userCanCropMedia = false,
+    this.userCanEditHeadline = false,
+    this.userCanEditProofValue = false,
+    this.userCanChooseAlternateTemplate = false,
+    this.userCanHideOptionalNote = false,
+    this.userCanEditDecorations = false,
+  });
+
+  factory ShareTemplateRuntimePermissions.fromJson(Map<String, dynamic>? json) {
+    final source = json ?? const <String, dynamic>{};
+    return ShareTemplateRuntimePermissions(
+      userCanReplaceMedia: source['userCanReplaceMedia'] as bool? ?? false,
+      userCanCropMedia: source['userCanCropMedia'] as bool? ?? false,
+      userCanEditHeadline: source['userCanEditHeadline'] as bool? ?? false,
+      userCanEditProofValue: source['userCanEditProofValue'] as bool? ?? false,
+      userCanChooseAlternateTemplate:
+          source['userCanChooseAlternateTemplate'] as bool? ?? false,
+      userCanHideOptionalNote:
+          source['userCanHideOptionalNote'] as bool? ?? false,
+      userCanEditDecorations:
+          source['userCanEditDecorations'] as bool? ?? false,
+    );
+  }
+
+  final bool userCanReplaceMedia;
+  final bool userCanCropMedia;
+  final bool userCanEditHeadline;
+  final bool userCanEditProofValue;
+  final bool userCanChooseAlternateTemplate;
+  final bool userCanHideOptionalNote;
+  final bool userCanEditDecorations;
+
+  ShareTemplateRuntimePermissions copyWith({
+    bool? userCanReplaceMedia,
+    bool? userCanCropMedia,
+    bool? userCanEditHeadline,
+    bool? userCanEditProofValue,
+    bool? userCanChooseAlternateTemplate,
+    bool? userCanHideOptionalNote,
+    bool? userCanEditDecorations,
+  }) => ShareTemplateRuntimePermissions(
+    userCanReplaceMedia: userCanReplaceMedia ?? this.userCanReplaceMedia,
+    userCanCropMedia: userCanCropMedia ?? this.userCanCropMedia,
+    userCanEditHeadline: userCanEditHeadline ?? this.userCanEditHeadline,
+    userCanEditProofValue: userCanEditProofValue ?? this.userCanEditProofValue,
+    userCanChooseAlternateTemplate:
+        userCanChooseAlternateTemplate ?? this.userCanChooseAlternateTemplate,
+    userCanHideOptionalNote:
+        userCanHideOptionalNote ?? this.userCanHideOptionalNote,
+    userCanEditDecorations:
+        userCanEditDecorations ?? this.userCanEditDecorations,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'userCanReplaceMedia': userCanReplaceMedia,
+    'userCanCropMedia': userCanCropMedia,
+    'userCanEditHeadline': userCanEditHeadline,
+    'userCanEditProofValue': userCanEditProofValue,
+    'userCanChooseAlternateTemplate': userCanChooseAlternateTemplate,
+    'userCanHideOptionalNote': userCanHideOptionalNote,
+    'userCanEditDecorations': userCanEditDecorations,
+  };
+}
+
+final class ShareSafeZoneConfig {
+  const ShareSafeZoneConfig({
+    required this.id,
+    required this.label,
+    required this.kind,
+    required this.rect,
+  });
+
+  factory ShareSafeZoneConfig.fromJson(Map<String, dynamic> json) =>
+      ShareSafeZoneConfig(
+        id: _string(json, 'id'),
+        label: _string(json, 'label'),
+        kind: _enumValue(
+          ShareSafeZoneKind.values,
+          json['kind'],
+          'safe-zone kind',
+        ),
+        rect: ShareLayerTransform.fromJson(_map(json, 'rect')),
+      );
+
+  final String id;
+  final String label;
+  final ShareSafeZoneKind kind;
+  final ShareLayerTransform rect;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'label': label,
+    'kind': kind.name,
+    'rect': rect.toJson(),
+  };
+}
+
+final class ShareTemplateConfig {
+  ShareTemplateConfig({
+    required this.id,
+    required this.label,
+    required this.family,
+    required this.variant,
+    required this.narrativeIntent,
+    required this.primaryJourneyState,
+    required Set<ShareJourneyState> supportedJourneyStates,
+    required Set<ShareSemanticRole> requiredContentRoles,
+    required Set<ShareSemanticRole> optionalContentRoles,
+    required this.runtimePermissions,
+    required this.primaryAnchor,
+    required this.supportedMediaCount,
+    required this.supportsComparison,
+    required this.supportsProof,
+    required List<ShareSafeZoneConfig> safeZones,
+    required this.designSystemVersion,
+    required this.templateVersion,
+    required this.status,
+    Map<String, Map<String, Object?>> layerOverrides = const {},
+  }) : supportedJourneyStates = Set.unmodifiable(supportedJourneyStates),
+       requiredContentRoles = Set.unmodifiable(requiredContentRoles),
+       optionalContentRoles = Set.unmodifiable(optionalContentRoles),
+       safeZones = List.unmodifiable(safeZones),
+       layerOverrides = Map<String, Map<String, Object?>>.unmodifiable({
+         for (final entry in layerOverrides.entries)
+           entry.key: Map<String, Object?>.unmodifiable(entry.value),
+       });
+
+  factory ShareTemplateConfig.fromJson(Map<String, dynamic> json) =>
+      ShareTemplateConfig(
+        id: _string(json, 'id'),
+        label: _string(json, 'label'),
+        family: _enumValue(
+          ShareTemplateFamily.values,
+          json['family'],
+          'template family',
+        ),
+        variant: _string(json, 'variant'),
+        narrativeIntent: _string(json, 'narrativeIntent'),
+        primaryJourneyState: _enumValue(
+          ShareJourneyState.values,
+          json['primaryJourneyState'],
+          'primary journey state',
+        ),
+        supportedJourneyStates: _enumSet(
+          ShareJourneyState.values,
+          json['supportedJourneyStates'],
+          'supported journey states',
+        ),
+        requiredContentRoles: _enumSet(
+          ShareSemanticRole.values,
+          json['requiredContentRoles'],
+          'required content roles',
+        ),
+        optionalContentRoles: _enumSet(
+          ShareSemanticRole.values,
+          json['optionalContentRoles'],
+          'optional content roles',
+        ),
+        runtimePermissions: ShareTemplateRuntimePermissions.fromJson(
+          _mapOrNull(json['runtimePermissions']),
+        ),
+        primaryAnchor: _enumValue(
+          ShareSemanticRole.values,
+          json['primaryAnchor'],
+          'primary anchor',
+        ),
+        supportedMediaCount: _int(json, 'supportedMediaCount'),
+        supportsComparison: json['supportsComparison'] as bool? ?? false,
+        supportsProof: json['supportsProof'] as bool? ?? false,
+        safeZones:
+            _list(
+              json['safeZones'],
+            ).map(_object).map(ShareSafeZoneConfig.fromJson).toList(),
+        designSystemVersion: _string(json, 'designSystemVersion'),
+        templateVersion: _int(json, 'templateVersion'),
+        status: _enumValue(
+          ShareTemplateStatus.values,
+          json['status'],
+          'template status',
+        ),
+        layerOverrides: _mapOrEmpty(json['layerOverrides']).map(
+          (key, value) => MapEntry(
+            key,
+            Map<String, Object?>.from(value as Map<String, dynamic>),
+          ),
+        ),
+      );
+
+  final String id;
+  final String label;
+  final ShareTemplateFamily family;
+  final String variant;
+  final String narrativeIntent;
+  final ShareJourneyState primaryJourneyState;
+  final Set<ShareJourneyState> supportedJourneyStates;
+  final Set<ShareSemanticRole> requiredContentRoles;
+  final Set<ShareSemanticRole> optionalContentRoles;
+  final ShareTemplateRuntimePermissions runtimePermissions;
+  final ShareSemanticRole primaryAnchor;
+  final int supportedMediaCount;
+  final bool supportsComparison;
+  final bool supportsProof;
+  final List<ShareSafeZoneConfig> safeZones;
+  final String designSystemVersion;
+  final int templateVersion;
+  final ShareTemplateStatus status;
+  final Map<String, Map<String, Object?>> layerOverrides;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'label': label,
+    'family': family.name,
+    'variant': variant,
+    'narrativeIntent': narrativeIntent,
+    'primaryJourneyState': primaryJourneyState.name,
+    'supportedJourneyStates':
+        supportedJourneyStates.map((item) => item.name).toList()..sort(),
+    'requiredContentRoles':
+        requiredContentRoles.map((item) => item.name).toList()..sort(),
+    'optionalContentRoles':
+        optionalContentRoles.map((item) => item.name).toList()..sort(),
+    'runtimePermissions': runtimePermissions.toJson(),
+    'primaryAnchor': primaryAnchor.name,
+    'supportedMediaCount': supportedMediaCount,
+    'supportsComparison': supportsComparison,
+    'supportsProof': supportsProof,
+    'safeZones': safeZones.map((item) => item.toJson()).toList(),
+    'designSystemVersion': designSystemVersion,
+    'templateVersion': templateVersion,
+    'status': status.name,
+    'layerOverrides': layerOverrides,
+  };
+}
+
 enum ShareAccessMode { free, premiumVisible, premiumHidden }
 
 final class ShareAccessPolicy {
@@ -106,6 +467,7 @@ final class ShareCanvasConfig {
     required this.outputWidth,
     required this.outputHeight,
     this.safeInset = 0,
+    this.cornerRadius = 0,
   });
 
   factory ShareCanvasConfig.fromJson(Map<String, dynamic> json) =>
@@ -115,6 +477,7 @@ final class ShareCanvasConfig {
         outputWidth: _int(json, 'outputWidth'),
         outputHeight: _int(json, 'outputHeight'),
         safeInset: (json['safeInset'] as num?)?.toDouble() ?? 0,
+        cornerRadius: (json['cornerRadius'] as num?)?.toDouble() ?? 0,
       );
 
   final double width;
@@ -122,6 +485,7 @@ final class ShareCanvasConfig {
   final int outputWidth;
   final int outputHeight;
   final double safeInset;
+  final double cornerRadius;
 
   Map<String, dynamic> toJson() => {
     'width': width,
@@ -129,6 +493,7 @@ final class ShareCanvasConfig {
     'outputWidth': outputWidth,
     'outputHeight': outputHeight,
     'safeInset': safeInset,
+    'cornerRadius': cornerRadius,
   };
 }
 
@@ -189,6 +554,9 @@ final class ShareLayerConfig {
     this.binding,
     this.defaultValue,
     this.visible = true,
+    this.semanticRole = ShareSemanticRole.unassigned,
+    this.emphasis = ShareLayerEmphasis.tertiary,
+    this.runtimePermissions = const ShareLayerRuntimePermissions(),
     Map<String, Object?> style = const {},
     List<ShareControlConfig> controls = const [],
     this.access = const ShareAccessPolicy(),
@@ -205,6 +573,21 @@ final class ShareLayerConfig {
         binding: json['binding'] as String?,
         defaultValue: json['defaultValue'],
         visible: json['visible'] as bool? ?? true,
+        semanticRole: _enumValue(
+          ShareSemanticRole.values,
+          json['semanticRole'],
+          'semantic role',
+          fallback: ShareSemanticRole.unassigned,
+        ),
+        emphasis: _enumValue(
+          ShareLayerEmphasis.values,
+          json['emphasis'],
+          'layer emphasis',
+          fallback: ShareLayerEmphasis.tertiary,
+        ),
+        runtimePermissions: ShareLayerRuntimePermissions.fromJson(
+          _mapOrNull(json['runtimePermissions']),
+        ),
         style: Map<String, Object?>.from(_mapOrEmpty(json['style'])),
         controls:
             _list(
@@ -221,6 +604,9 @@ final class ShareLayerConfig {
   final String? binding;
   final Object? defaultValue;
   final bool visible;
+  final ShareSemanticRole semanticRole;
+  final ShareLayerEmphasis emphasis;
+  final ShareLayerRuntimePermissions runtimePermissions;
   final Map<String, Object?> style;
   final List<ShareControlConfig> controls;
   final ShareAccessPolicy access;
@@ -242,6 +628,9 @@ final class ShareLayerConfig {
     bool clearBinding = false,
     Object? defaultValue,
     bool? visible,
+    ShareSemanticRole? semanticRole,
+    ShareLayerEmphasis? emphasis,
+    ShareLayerRuntimePermissions? runtimePermissions,
     Map<String, Object?>? style,
     List<ShareControlConfig>? controls,
     ShareAccessPolicy? access,
@@ -254,6 +643,9 @@ final class ShareLayerConfig {
     binding: clearBinding ? null : binding ?? this.binding,
     defaultValue: defaultValue ?? this.defaultValue,
     visible: visible ?? this.visible,
+    semanticRole: semanticRole ?? this.semanticRole,
+    emphasis: emphasis ?? this.emphasis,
+    runtimePermissions: runtimePermissions ?? this.runtimePermissions,
     style: style ?? this.style,
     controls: controls ?? this.controls,
     access: access ?? this.access,
@@ -268,6 +660,9 @@ final class ShareLayerConfig {
     if (binding != null) 'binding': binding,
     if (defaultValue != null) 'defaultValue': defaultValue,
     'visible': visible,
+    'semanticRole': semanticRole.name,
+    'emphasis': emphasis.name,
+    'runtimePermissions': runtimePermissions.toJson(),
     'style': style,
     'controls': controls.map((item) => item.toJson()).toList(),
     'access': access.toJson(),
@@ -402,6 +797,8 @@ final class ShareLookConfig {
     this.backgroundId,
     Map<String, Map<String, Object?>> layerOverrides = const {},
     List<ShareStickerValue> defaultStickers = const [],
+    this.backgroundTreatment = const ShareBackgroundEdit(),
+    this.editorVisible = true,
     this.access = const ShareAccessPolicy(),
   }) : layerOverrides = Map<String, Map<String, Object?>>.unmodifiable({
          for (final entry in layerOverrides.entries)
@@ -424,6 +821,13 @@ final class ShareLookConfig {
             _list(
               json['defaultStickers'],
             ).map(_object).map(ShareStickerValue.fromJson).toList(),
+        backgroundTreatment:
+            json['backgroundTreatment'] == null
+                ? const ShareBackgroundEdit()
+                : ShareBackgroundEdit.fromJson(
+                  Map<String, dynamic>.from(json['backgroundTreatment'] as Map),
+                ),
+        editorVisible: json['editorVisible'] as bool? ?? true,
         access: ShareAccessPolicy.fromJson(_mapOrNull(json['access'])),
       );
 
@@ -432,6 +836,8 @@ final class ShareLookConfig {
   final String? backgroundId;
   final Map<String, Map<String, Object?>> layerOverrides;
   final List<ShareStickerValue> defaultStickers;
+  final ShareBackgroundEdit backgroundTreatment;
+  final bool editorVisible;
   final ShareAccessPolicy access;
 
   Map<String, dynamic> toJson() => {
@@ -440,6 +846,8 @@ final class ShareLookConfig {
     if (backgroundId != null) 'backgroundId': backgroundId,
     'layerOverrides': layerOverrides,
     'defaultStickers': defaultStickers.map((item) => item.toJson()).toList(),
+    'backgroundTreatment': backgroundTreatment.toJson(),
+    'editorVisible': editorVisible,
     'access': access.toJson(),
   };
 }
@@ -488,67 +896,83 @@ final class ShareThemeConfig {
     required List<ShareBackgroundConfig> backgrounds,
     required List<ShareStickerConfig> stickers,
     required List<ShareLookConfig> looks,
+    required List<ShareTemplateConfig> templates,
     required List<ShareToolbarGroupConfig> toolbar,
     required this.defaultLookId,
+    required this.defaultTemplateId,
     required this.defaultBackgroundId,
     required this.maximumStickerCount,
     required this.defaultToolbarGroupId,
+    required this.designSystemVersion,
+    int? maximumDecorationCount,
     this.premiumIcon = 'workspace_premium',
     this.sampleContent = const {},
-  }) : assets = List.unmodifiable(assets),
+  }) : maximumDecorationCount = maximumDecorationCount ?? maximumStickerCount,
+       assets = List.unmodifiable(assets),
        layers = List.unmodifiable(
          <ShareLayerConfig>[...layers]..sort(_layerOrder),
        ),
        backgrounds = List.unmodifiable(backgrounds),
        stickers = List.unmodifiable(stickers),
        looks = List.unmodifiable(looks),
+       templates = List.unmodifiable(templates),
        toolbar = List.unmodifiable(
          <ShareToolbarGroupConfig>[...toolbar]..sort(_toolbarOrder),
        ) {
     validate();
   }
 
-  factory ShareThemeConfig.fromJson(Map<String, dynamic> json) =>
-      ShareThemeConfig(
-        schemaVersion: _int(json, 'schemaVersion'),
-        id: _string(json, 'id'),
-        name: _string(json, 'name'),
-        canvas: ShareCanvasConfig.fromJson(_map(json, 'canvas')),
-        assets:
-            _list(
-              json['assets'],
-            ).map(_object).map(ShareAssetConfig.fromJson).toList(),
-        layers:
-            _list(
-              json['layers'],
-            ).map(_object).map(ShareLayerConfig.fromJson).toList(),
-        backgrounds:
-            _list(
-              json['backgrounds'],
-            ).map(_object).map(ShareBackgroundConfig.fromJson).toList(),
-        stickers:
-            _list(
-              json['stickers'],
-            ).map(_object).map(ShareStickerConfig.fromJson).toList(),
-        looks:
-            _list(
-              json['looks'],
-            ).map(_object).map(ShareLookConfig.fromJson).toList(),
-        toolbar:
-            _list(
-              json['toolbar'],
-            ).map(_object).map(ShareToolbarGroupConfig.fromJson).toList(),
-        defaultLookId: _string(json, 'defaultLookId'),
-        defaultBackgroundId: _string(json, 'defaultBackgroundId'),
-        maximumStickerCount: _int(json, 'maximumStickerCount'),
-        defaultToolbarGroupId: _string(json, 'defaultToolbarGroupId'),
-        premiumIcon: json['premiumIcon'] as String? ?? 'workspace_premium',
-        sampleContent: Map<String, Object?>.from(
-          _mapOrEmpty(json['sampleContent']),
-        ),
-      );
+  factory ShareThemeConfig.fromJson(Map<String, dynamic> json) {
+    final source = _migrateThemeJson(json);
+    return ShareThemeConfig(
+      schemaVersion: _int(source, 'schemaVersion'),
+      id: _string(source, 'id'),
+      name: _string(source, 'name'),
+      canvas: ShareCanvasConfig.fromJson(_map(source, 'canvas')),
+      assets:
+          _list(
+            source['assets'],
+          ).map(_object).map(ShareAssetConfig.fromJson).toList(),
+      layers:
+          _list(
+            source['layers'],
+          ).map(_object).map(ShareLayerConfig.fromJson).toList(),
+      backgrounds:
+          _list(
+            source['backgrounds'],
+          ).map(_object).map(ShareBackgroundConfig.fromJson).toList(),
+      stickers:
+          _list(
+            source['stickers'],
+          ).map(_object).map(ShareStickerConfig.fromJson).toList(),
+      looks:
+          _list(
+            source['looks'],
+          ).map(_object).map(ShareLookConfig.fromJson).toList(),
+      templates:
+          _list(
+            source['templates'],
+          ).map(_object).map(ShareTemplateConfig.fromJson).toList(),
+      toolbar:
+          _list(
+            source['toolbar'],
+          ).map(_object).map(ShareToolbarGroupConfig.fromJson).toList(),
+      defaultLookId: _string(source, 'defaultLookId'),
+      defaultTemplateId: _string(source, 'defaultTemplateId'),
+      defaultBackgroundId: _string(source, 'defaultBackgroundId'),
+      maximumStickerCount: _int(source, 'maximumStickerCount'),
+      maximumDecorationCount:
+          (source['maximumDecorationCount'] as num?)?.toInt(),
+      defaultToolbarGroupId: _string(source, 'defaultToolbarGroupId'),
+      designSystemVersion: _string(source, 'designSystemVersion'),
+      premiumIcon: source['premiumIcon'] as String? ?? 'workspace_premium',
+      sampleContent: Map<String, Object?>.from(
+        _mapOrEmpty(source['sampleContent']),
+      ),
+    );
+  }
 
-  static const currentSchemaVersion = 1;
+  static const currentSchemaVersion = 2;
   static const supportedLayerTypes = {
     'background',
     'text',
@@ -567,11 +991,15 @@ final class ShareThemeConfig {
   final List<ShareBackgroundConfig> backgrounds;
   final List<ShareStickerConfig> stickers;
   final List<ShareLookConfig> looks;
+  final List<ShareTemplateConfig> templates;
   final List<ShareToolbarGroupConfig> toolbar;
   final String defaultLookId;
+  final String defaultTemplateId;
   final String defaultBackgroundId;
   final int maximumStickerCount;
+  final int maximumDecorationCount;
   final String defaultToolbarGroupId;
+  final String designSystemVersion;
   final String premiumIcon;
   final Map<String, Object?> sampleContent;
 
@@ -600,6 +1028,11 @@ final class ShareThemeConfig {
     orElse: () => throw ArgumentError.value(id, 'id', 'Unknown look'),
   );
 
+  ShareTemplateConfig template(String id) => templates.firstWhere(
+    (item) => item.id == id,
+    orElse: () => throw ArgumentError.value(id, 'id', 'Unknown template'),
+  );
+
   void validate() {
     if (schemaVersion != currentSchemaVersion) {
       throw FormatException('Unsupported share theme schema: $schemaVersion');
@@ -625,25 +1058,43 @@ final class ShareThemeConfig {
         canvas.safeInset * 2 >= canvas.height) {
       throw const FormatException('Canvas safeInset is outside the canvas');
     }
+    if (canvas.cornerRadius < 0 ||
+        canvas.cornerRadius > canvas.width / 2 ||
+        canvas.cornerRadius > canvas.height / 2) {
+      throw const FormatException('Canvas cornerRadius is outside the canvas');
+    }
     if (premiumIcon.trim().isEmpty) {
       throw const FormatException('premiumIcon cannot be empty');
+    }
+    if (designSystemVersion.trim().isEmpty) {
+      throw const FormatException('designSystemVersion cannot be empty');
     }
     _unique(assets.map((item) => item.id), 'asset');
     _unique(layers.map((item) => item.id), 'layer');
     _unique(backgrounds.map((item) => item.id), 'background');
     _unique(stickers.map((item) => item.id), 'sticker');
     _unique(looks.map((item) => item.id), 'look');
+    _unique(templates.map((item) => item.id), 'template');
     _unique(toolbar.map((item) => item.id), 'toolbar group');
     _unique(toolbar.map((item) => item.order.toString()), 'toolbar order');
-    if (layers.isEmpty || looks.isEmpty || backgrounds.isEmpty) {
+    if (layers.isEmpty ||
+        looks.isEmpty ||
+        templates.isEmpty ||
+        backgrounds.isEmpty) {
       throw const FormatException(
-        'A theme requires layers, looks, and backgrounds',
+        'A theme requires layers, looks, templates, and backgrounds',
       );
     }
     look(defaultLookId);
+    template(defaultTemplateId);
     background(defaultBackgroundId);
     if (maximumStickerCount < 0) {
       throw const FormatException('maximumStickerCount cannot be negative');
+    }
+    if (maximumDecorationCount < maximumStickerCount) {
+      throw const FormatException(
+        'maximumDecorationCount cannot be smaller than maximumStickerCount',
+      );
     }
     if (!toolbar.any((item) => item.id == defaultToolbarGroupId)) {
       throw FormatException(
@@ -779,6 +1230,7 @@ final class ShareThemeConfig {
     final backgroundIds = backgrounds.map((item) => item.id).toSet();
     final stickerIds = stickers.map((item) => item.id).toSet();
     for (final item in looks) {
+      _validateBackgroundEdit(item.backgroundTreatment, 'Look ${item.id}');
       if (item.backgroundId != null &&
           !backgroundIds.contains(item.backgroundId)) {
         throw FormatException(
@@ -837,6 +1289,55 @@ final class ShareThemeConfig {
         }
       }
     }
+    for (final item in templates) {
+      if (item.variant.trim().isEmpty || item.narrativeIntent.trim().isEmpty) {
+        throw FormatException(
+          'Template ${item.id} requires variant and narrative intent',
+        );
+      }
+      if (item.templateVersion < 1 || item.supportedMediaCount < 0) {
+        throw FormatException('Template ${item.id} has invalid version/media');
+      }
+      if (item.designSystemVersion != designSystemVersion) {
+        throw FormatException(
+          'Template ${item.id} targets ${item.designSystemVersion}, expected $designSystemVersion',
+        );
+      }
+      if (item.requiredContentRoles
+          .intersection(item.optionalContentRoles)
+          .isNotEmpty) {
+        throw FormatException(
+          'Template ${item.id} has roles that are both required and optional',
+        );
+      }
+      if (item.supportedJourneyStates.isNotEmpty &&
+          !item.supportedJourneyStates.contains(item.primaryJourneyState)) {
+        throw FormatException(
+          'Template ${item.id} primary journey state is not supported',
+        );
+      }
+      for (final layerId in item.layerOverrides.keys) {
+        if (!layerIds.contains(layerId)) {
+          throw FormatException(
+            'Template ${item.id} overrides missing layer $layerId',
+          );
+        }
+        final transform = item.layerOverrides[layerId]!['transform'];
+        if (transform != null) {
+          if (transform is! Map<String, dynamic>) {
+            throw FormatException(
+              'Template ${item.id} layer $layerId has an invalid transform',
+            );
+          }
+          final rect = ShareLayerTransform.fromJson(transform);
+          _validateRect(rect, canvas, 'Template ${item.id} layer $layerId');
+        }
+      }
+      _unique(item.safeZones.map((zone) => zone.id), 'safe zone in ${item.id}');
+      for (final zone in item.safeZones) {
+        _validateRect(zone.rect, canvas, 'Safe zone ${zone.id}');
+      }
+    }
   }
 
   Map<String, dynamic> toJson() => {
@@ -849,11 +1350,15 @@ final class ShareThemeConfig {
     'backgrounds': backgrounds.map((item) => item.toJson()).toList(),
     'stickers': stickers.map((item) => item.toJson()).toList(),
     'looks': looks.map((item) => item.toJson()).toList(),
+    'templates': templates.map((item) => item.toJson()).toList(),
     'toolbar': toolbar.map((item) => item.toJson()).toList(),
     'defaultLookId': defaultLookId,
+    'defaultTemplateId': defaultTemplateId,
     'defaultBackgroundId': defaultBackgroundId,
     'maximumStickerCount': maximumStickerCount,
+    'maximumDecorationCount': maximumDecorationCount,
     'defaultToolbarGroupId': defaultToolbarGroupId,
+    'designSystemVersion': designSystemVersion,
     'premiumIcon': premiumIcon,
     'sampleContent': sampleContent,
   };
@@ -990,7 +1495,141 @@ void _validateBackground(
   }
 }
 
+void _validateBackgroundEdit(ShareBackgroundEdit edit, String label) {
+  bool within(double value, double minimum, double maximum) =>
+      value.isFinite && value >= minimum && value <= maximum;
+  if (!within(edit.alignmentX, -1, 1) ||
+      !within(edit.alignmentY, -1, 1) ||
+      !within(edit.zoom, 1, 4) ||
+      !within(edit.imageOpacity, 0.2, 1) ||
+      !within(edit.blur, 0, 30) ||
+      !within(edit.brightness, -1, 1) ||
+      !within(edit.contrast, 0.5, 2) ||
+      !within(edit.saturation, 0, 2) ||
+      !within(edit.tintOpacity, 0, 1) ||
+      !within(edit.overlayOpacity, 0, 1) ||
+      !within(edit.textureIntensity, 0, 1) ||
+      !within(edit.textureScale, 0.5, 4)) {
+    throw FormatException('$label has an invalid background treatment');
+  }
+  for (final color in [
+    edit.tintColor,
+    edit.overlayColor,
+    edit.textureColor,
+    edit.textureSecondaryColor,
+  ]) {
+    if (!_isColor(color)) {
+      throw FormatException('$label has an invalid background color');
+    }
+  }
+}
+
 double? _numberOrNull(Object? value) => value is num ? value.toDouble() : null;
+
+Map<String, dynamic> _migrateThemeJson(Map<String, dynamic> json) {
+  final version = json['schemaVersion'];
+  if (version == ShareThemeConfig.currentSchemaVersion) return json;
+  if (version != 1) {
+    throw FormatException('Unsupported share theme schema: $version');
+  }
+
+  final migrated = jsonDecode(jsonEncode(json)) as Map<String, dynamic>;
+  const designSystemVersion = 'ptw_ds_v1';
+  migrated['schemaVersion'] = ShareThemeConfig.currentSchemaVersion;
+  migrated['designSystemVersion'] = designSystemVersion;
+
+  final legacyPermissions =
+      const ShareLayerRuntimePermissions(
+        canEditContent: true,
+        canReplaceMedia: true,
+        canCropMedia: true,
+        canMove: true,
+        canResize: true,
+        canRotate: true,
+        canStyle: true,
+        canHide: true,
+      ).toJson();
+  for (final rawLayer in _list(migrated['layers'])) {
+    final layer = _object(rawLayer);
+    layer['semanticRole'] ??= ShareSemanticRole.unassigned.name;
+    layer['emphasis'] ??= ShareLayerEmphasis.tertiary.name;
+    layer['runtimePermissions'] ??= legacyPermissions;
+  }
+
+  const legacyTemplateId = 'legacy_default';
+  migrated['templates'] = [
+    {
+      'id': legacyTemplateId,
+      'label': 'Legacy template',
+      'family': ShareTemplateFamily.unassigned.name,
+      'variant': 'legacy',
+      'narrativeIntent': 'Preserve an imported schema v1 composition.',
+      'primaryJourneyState': ShareJourneyState.unassigned.name,
+      'supportedJourneyStates': [ShareJourneyState.unassigned.name],
+      'requiredContentRoles': <String>[],
+      'optionalContentRoles': <String>[],
+      'runtimePermissions':
+          const ShareTemplateRuntimePermissions(
+            userCanReplaceMedia: true,
+            userCanCropMedia: true,
+            userCanEditHeadline: true,
+            userCanEditProofValue: true,
+            userCanChooseAlternateTemplate: true,
+            userCanHideOptionalNote: true,
+            userCanEditDecorations: true,
+          ).toJson(),
+      'primaryAnchor': ShareSemanticRole.unassigned.name,
+      'supportedMediaCount': 1,
+      'supportsComparison': false,
+      'supportsProof': false,
+      'safeZones': <Object?>[],
+      'designSystemVersion': designSystemVersion,
+      'templateVersion': 1,
+      'status': ShareTemplateStatus.experimental.name,
+      'layerOverrides': <String, Object?>{},
+    },
+  ];
+  migrated['defaultTemplateId'] = legacyTemplateId;
+  return migrated;
+}
+
+T _enumValue<T extends Enum>(
+  List<T> values,
+  Object? raw,
+  String label, {
+  T? fallback,
+}) {
+  if (raw == null && fallback != null) return fallback;
+  if (raw is String) {
+    for (final value in values) {
+      if (value.name == raw) return value;
+    }
+  }
+  throw FormatException('Unknown $label: $raw');
+}
+
+Set<T> _enumSet<T extends Enum>(List<T> values, Object? raw, String label) {
+  final result = <T>{};
+  for (final item in _list(raw)) {
+    result.add(_enumValue(values, item, label));
+  }
+  return result;
+}
+
+void _validateRect(
+  ShareLayerTransform rect,
+  ShareCanvasConfig canvas,
+  String label,
+) {
+  if (rect.width <= 0 ||
+      rect.height <= 0 ||
+      rect.x < 0 ||
+      rect.y < 0 ||
+      rect.x + rect.width > canvas.width + 0.001 ||
+      rect.y + rect.height > canvas.height + 0.001) {
+    throw FormatException('$label is outside the canvas');
+  }
+}
 
 bool _isColor(Object? value) {
   if (value is int) return value >= 0 && value <= 0xffffffff;

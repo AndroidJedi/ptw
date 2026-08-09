@@ -68,8 +68,12 @@ abstract final class ComponentIds {
   static const storyReset = 'story_reset';
   static const storyBuilderCanvas = 'story_builder_canvas';
   static const storyContinue = 'story_continue';
+  static const storyToolText = 'story_tool_text';
   static const storyToolLooks = 'story_tool_looks';
-  static const storyToolStickers = 'story_tool_stickers';
+  static const storyToolPhoto = 'story_tool_photo';
+  static const storyToolEffects = 'story_tool_effects';
+  static const storyToolDecor = 'story_tool_decor';
+  static const storyToolStickers = storyToolDecor;
   static const storyStickerTray = 'story_sticker_tray';
   static const storyTransformHandle = 'story_transform_handle';
   static const storyEditorDone = 'story_editor_done';

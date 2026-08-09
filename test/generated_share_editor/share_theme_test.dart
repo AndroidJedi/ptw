@@ -12,10 +12,116 @@ void main() {
     expect(theme.id, 'ptw_story_v1');
     expect(theme.looks, hasLength(6));
     expect(theme.canvas.outputWidth, 1080);
+    expect(theme.canvas.outputHeight, 1920);
+    expect(theme.maximumDecorationCount, 6);
+    expect(theme.toolbar.map((item) => item.id), [
+      'templates',
+      'text',
+      'looks',
+      'photo',
+      'effects',
+      'decor',
+    ]);
+    expect(
+      theme.looks.where((item) => item.editorVisible).map((item) => item.label),
+      ['Soft Focus', 'Pixel Pop', 'Static Note', 'Holo Crush', 'Peach Collage'],
+    );
+    expect(
+      theme.assets
+          .where((item) => item.kind == 'font')
+          .map((item) => item.fontFamily),
+      containsAll(['PtwPressStart2P', 'PtwRubikDirt']),
+    );
     final decoded = ShareThemeConfig.fromJson(
       jsonDecode(ShareThemeBundle.toJsonString(theme)) as Map<String, dynamic>,
     );
     expect(decoded.toJson(), theme.toJson());
+  });
+
+  test('missing photo-first fields retain defaults', () async {
+    final source =
+        jsonDecode(await rootBundle.loadString(ShareThemeBundle.defaultAsset))
+            as Map<String, dynamic>;
+    source.remove('maximumDecorationCount');
+    for (final look in (source['looks'] as List<dynamic>).cast<Map>()) {
+      look.remove('backgroundTreatment');
+      look.remove('editorVisible');
+    }
+
+    final legacy = ShareThemeConfig.fromJson(source);
+
+    expect(legacy.schemaVersion, ShareThemeConfig.currentSchemaVersion);
+    expect(legacy.maximumDecorationCount, legacy.maximumStickerCount);
+    expect(legacy.looks.every((item) => item.editorVisible), isTrue);
+    expect(
+      legacy.looks.every(
+        (item) =>
+            item.backgroundTreatment.texture == ShareBackgroundTexture.none,
+      ),
+      isTrue,
+    );
+  });
+
+  test('schema v1 themes migrate to an open legacy template', () async {
+    final source =
+        jsonDecode(await rootBundle.loadString(ShareThemeBundle.defaultAsset))
+            as Map<String, dynamic>;
+    source['schemaVersion'] = 1;
+    source.remove('templates');
+    source.remove('defaultTemplateId');
+    source.remove('designSystemVersion');
+    for (final layer in (source['layers'] as List<dynamic>).cast<Map>()) {
+      layer.remove('semanticRole');
+      layer.remove('emphasis');
+      layer.remove('runtimePermissions');
+    }
+
+    final migrated = ShareThemeConfig.fromJson(source);
+
+    expect(migrated.schemaVersion, ShareThemeConfig.currentSchemaVersion);
+    expect(migrated.defaultTemplateId, 'legacy_default');
+    expect(migrated.templates.single.family, ShareTemplateFamily.unassigned);
+    expect(
+      migrated.layers.every((layer) => layer.runtimePermissions.canMove),
+      isTrue,
+    );
+  });
+
+  test('look background treatment ranges are validated', () async {
+    final source =
+        jsonDecode(await rootBundle.loadString(ShareThemeBundle.defaultAsset))
+            as Map<String, dynamic>;
+    final look =
+        (source['looks'] as List<dynamic>).first as Map<String, dynamic>;
+    (look['backgroundTreatment'] as Map<String, dynamic>)['imageOpacity'] = 0.1;
+
+    expect(() => ShareThemeConfig.fromJson(source), throwsFormatException);
+  });
+
+  test('canvas corner radius round-trips and validates its bounds', () async {
+    final source =
+        jsonDecode(await rootBundle.loadString(ShareThemeBundle.defaultAsset))
+            as Map<String, dynamic>;
+    final canvas = Map<String, dynamic>.from(source['canvas'] as Map)
+      ..['cornerRadius'] = 24;
+    final rounded = ShareThemeConfig.fromJson({...source, 'canvas': canvas});
+    expect(rounded.canvas.cornerRadius, 24);
+    expect(
+      (rounded.toJson()['canvas'] as Map<String, dynamic>)['cornerRadius'],
+      24,
+    );
+
+    canvas['cornerRadius'] = 181;
+    expect(
+      () => ShareThemeConfig.fromJson({...source, 'canvas': canvas}),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('cornerRadius'),
+        ),
+      ),
+    );
   });
 
   test('unknown versions and duplicate IDs are rejected', () async {

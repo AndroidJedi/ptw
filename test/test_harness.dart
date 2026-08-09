@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,6 +29,7 @@ final class FakePtwMediaService implements PtwMediaService {
   PtwImageRef? recoveredResult;
   Object? pickError;
   int pickCount = 0;
+  PtwShareImagePurpose? lastSharePurpose;
 
   @override
   Future<void> initialize() async {}
@@ -39,10 +42,19 @@ final class FakePtwMediaService implements PtwMediaService {
   }
 
   @override
+  Future<PtwImageRef?> pickShareImage(PtwShareImagePurpose purpose) {
+    lastSharePurpose = purpose;
+    return pickProjectImage();
+  }
+
+  @override
   Future<PtwImageRef?> recoverLostProjectImage() async => recoveredResult;
 
   @override
-  String resolveFilePath(PtwImageRef image) => image.path;
+  String resolveFilePath(PtwImageRef image) =>
+      image.source == PtwImageSource.file
+          ? '${Directory.current.path}/assets/images/backgrounds/startup.jpg'
+          : image.path;
 }
 
 final class FakePtwShareService implements PtwShareService {
@@ -189,9 +201,19 @@ Future<void> _loadTestFonts() {
         ..addFont(rootBundle.load('assets/fonts/Roboto-Bold.ttf'));
   final stickerFonts = FontLoader('PtwLilitaOne')
     ..addFont(rootBundle.load('assets/fonts/LilitaOne-Regular.ttf'));
+  final pixelFont = FontLoader('PtwPressStart2P')
+    ..addFont(rootBundle.load('assets/fonts/PressStart2P-Regular.ttf'));
+  final distressedFont = FontLoader('PtwRubikDirt')
+    ..addFont(rootBundle.load('assets/fonts/RubikDirt-Regular.ttf'));
   final iconFonts = FontLoader('MaterialIcons')
     ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
-  return Future.wait([textFonts.load(), stickerFonts.load(), iconFonts.load()]);
+  return Future.wait([
+    textFonts.load(),
+    stickerFonts.load(),
+    pixelFont.load(),
+    distressedFont.load(),
+    iconFonts.load(),
+  ]);
 }
 
 Future<PtwPrototypeSnapshot> _activatedSeedSnapshot() async {

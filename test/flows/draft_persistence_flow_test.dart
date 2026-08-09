@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ptw/core/constants/component_ids.dart';
+import 'package:ptw/core/data/ptw_media_service.dart';
+import 'package:ptw/models/ptw_image_ref.dart';
 import 'package:ptw/state/ptw_app_state.dart';
 
 import '../test_harness.dart';
@@ -48,6 +50,14 @@ void main() {
       find.byKey(const ValueKey(ComponentIds.createProjectContinue)),
     );
     await tester.pumpAndSettle();
+    environment.media.pickResult = const PtwImageRef.file(
+      'ptw_media/share_draft_photo.webp',
+    );
+    await tester.tap(find.byKey(const ValueKey(ComponentIds.storyToolPhoto)));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('story_replace_background')));
+    await tester.pumpAndSettle();
+    expect(environment.media.lastSharePurpose, PtwShareImagePurpose.background);
     await tester.tap(find.byKey(const ValueKey('story_canvas_headline')));
     await tester.pump();
     await tester.enterText(
@@ -67,6 +77,13 @@ void main() {
       'This headline exists only in my Story',
     );
     expect(saved.draft!.storyComposition!.dare, 'Would you bet against me?');
+    expect(saved.draft!.image.path, 'assets/images/backgrounds/startup.jpg');
+    expect(
+      (((saved.draft!.storyComposition!.editorValue!['backgroundEdit']
+              as Map)['image']
+          as Map)['path']),
+      'ptw_media/share_draft_photo.webp',
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
@@ -79,5 +96,11 @@ void main() {
     );
     expect(find.text('This headline exists only in my Story'), findsOneWidget);
     expect(find.text('Would you bet against me?'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey(ComponentIds.storyToolPhoto)));
+    await tester.pump();
+    final projectPhoto = tester.widget<FilterChip>(
+      find.byKey(const ValueKey('story_use_project_photo')),
+    );
+    expect(projectPhoto.selected, isFalse);
   });
 }

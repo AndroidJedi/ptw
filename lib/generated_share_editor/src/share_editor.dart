@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -7,11 +8,18 @@ import 'share_renderer.dart';
 import 'share_theme.dart';
 import 'share_value.dart';
 
+enum ShareImagePurpose { layer, background, decoration }
+
 final class ShareImageRequest {
-  const ShareImageRequest({required this.layerId, required this.label});
+  const ShareImageRequest({
+    required this.layerId,
+    required this.label,
+    this.purpose = ShareImagePurpose.layer,
+  });
 
   final String layerId;
   final String label;
+  final ShareImagePurpose purpose;
 }
 
 typedef ShareImagePicker =
@@ -87,7 +95,13 @@ final class _GeneratedShareEditorState extends State<GeneratedShareEditor> {
     if (selectedLayerId != null) {
       final layer = _controller.theme.layer(selectedLayerId);
       if (layer.type == 'text') _selectedTool = 'text';
-      if (layer.type == 'image') _selectedTool = 'images';
+      if (layer.type == 'image') {
+        _selectedTool = _hasTool('photo') ? 'photo' : 'images';
+      }
+    }
+    if (_controller.selectedStickerId != null ||
+        _controller.selectedOverlayId != null) {
+      _selectedTool = _hasTool('decor') ? 'decor' : 'stickers';
     }
     widget.onChanged?.call(_controller.value);
     if (mounted) setState(() {});
@@ -139,6 +153,7 @@ final class _GeneratedShareEditorState extends State<GeneratedShareEditor> {
                           value: _controller.value,
                           controller: _controller,
                           imageResolver: widget.imageResolver,
+                          editBackground: _selectedTool == 'photo',
                         ),
                       ),
                     );
@@ -149,7 +164,7 @@ final class _GeneratedShareEditorState extends State<GeneratedShareEditor> {
             _ToolBar(
               controller: _controller,
               selected: _selectedTool,
-              onSelected: (id) => setState(() => _selectedTool = id),
+              onSelected: _selectTool,
               onLocked: widget.onLockedFeatureTap,
             ),
             SizedBox(
@@ -194,6 +209,7 @@ final class _GeneratedShareEditorState extends State<GeneratedShareEditor> {
   }
 
   Widget _toolPanel() => switch (_selectedTool) {
+    'templates' => _TemplatesPanel(controller: _controller),
     'text' => _TextPanel(
       controller: _controller,
       textControllers: _textControllers,
@@ -220,11 +236,31 @@ final class _GeneratedShareEditorState extends State<GeneratedShareEditor> {
       onPick: _pickImage,
       onLocked: widget.onLockedFeatureTap,
     ),
+    'photo' => _PhotoPanel(
+      controller: _controller,
+      busy: _pickingImage,
+      onPickBackground: _pickBackground,
+      onPickLayer: _pickImage,
+      onLocked: widget.onLockedFeatureTap,
+    ),
+    'effects' => _EffectsPanel(controller: _controller),
+    'decor' => _StickerPanel(
+      controller: _controller,
+      imageResolver: widget.imageResolver,
+      onLocked: widget.onLockedFeatureTap,
+      busy: _pickingImage,
+      onUpload: _pickDecoration,
+    ),
     _ => _PropertiesPanel(
       controller: _controller,
       onLocked: widget.onLockedFeatureTap,
     ),
   };
+
+  void _selectTool(String id) {
+    _controller.selectLayer(null);
+    setState(() => _selectedTool = id);
+  }
 
   Future<void> _pickImage(ShareLayerConfig layer) async {
     final picker = widget.imagePicker;
@@ -235,6 +271,44 @@ final class _GeneratedShareEditorState extends State<GeneratedShareEditor> {
         ShareImageRequest(layerId: layer.id, label: layer.label),
       );
       if (image != null) _controller.updateLayerValue(layer.id, image);
+    } finally {
+      if (mounted) setState(() => _pickingImage = false);
+    }
+  }
+
+  Future<void> _pickBackground() async {
+    final picker = widget.imagePicker;
+    if (picker == null || _pickingImage) return;
+    setState(() => _pickingImage = true);
+    try {
+      final image = await picker(
+        const ShareImageRequest(
+          layerId: 'background',
+          label: 'Background photo',
+          purpose: ShareImagePurpose.background,
+        ),
+      );
+      if (image != null) _controller.replaceBackgroundImage(image);
+    } finally {
+      if (mounted) setState(() => _pickingImage = false);
+    }
+  }
+
+  Future<void> _pickDecoration() async {
+    final picker = widget.imagePicker;
+    if (picker == null || _pickingImage || !_controller.canAddDecoration) {
+      return;
+    }
+    setState(() => _pickingImage = true);
+    try {
+      final image = await picker(
+        const ShareImageRequest(
+          layerId: 'decorations',
+          label: 'Decoration',
+          purpose: ShareImagePurpose.decoration,
+        ),
+      );
+      if (image != null) _controller.addOverlay(image);
     } finally {
       if (mounted) setState(() => _pickingImage = false);
     }
@@ -251,16 +325,20 @@ final class _GeneratedShareEditorState extends State<GeneratedShareEditor> {
     final preferred = widget.theme.toolbar.firstWhere(
       (item) => item.id == widget.theme.defaultToolbarGroupId,
     );
-    if (_controller.accessState(preferred.access) != ShareAccessState.hidden) {
+    if (_controller.accessState(preferred.access) != ShareAccessState.hidden &&
+        _runtimeToolAvailable(_controller, preferred.id)) {
       return preferred.id;
     }
     for (final group in widget.theme.toolbar) {
-      if (_controller.accessState(group.access) != ShareAccessState.hidden) {
+      if (_controller.accessState(group.access) != ShareAccessState.hidden &&
+          _runtimeToolAvailable(_controller, group.id)) {
         return group.id;
       }
     }
     return 'text';
   }
+
+  bool _hasTool(String id) => widget.theme.toolbar.any((item) => item.id == id);
 }
 
 final class _TopBar extends StatelessWidget {
@@ -339,7 +417,9 @@ final class _ToolBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final groups = controller.theme.toolbar.where(
-      (item) => controller.accessState(item.access) != ShareAccessState.hidden,
+      (item) =>
+          controller.accessState(item.access) != ShareAccessState.hidden &&
+          _runtimeToolAvailable(controller, item.id),
     );
     return Container(
       height: 52,
@@ -375,6 +455,39 @@ final class _ToolBar extends StatelessWidget {
   }
 }
 
+final class _TemplatesPanel extends StatelessWidget {
+  const _TemplatesPanel({required this.controller});
+
+  final ShareEditorController controller;
+
+  @override
+  Widget build(BuildContext context) => ListView.separated(
+    key: const ValueKey('story_template_tray'),
+    scrollDirection: Axis.horizontal,
+    padding: const EdgeInsets.all(12),
+    itemCount: controller.theme.templates.length,
+    separatorBuilder: (_, __) => const SizedBox(width: 9),
+    itemBuilder: (context, index) {
+      final template = controller.theme.templates[index];
+      final selected = template.id == controller.activeTemplate.id;
+      return SizedBox(
+        width: 142,
+        child: ChoiceChip(
+          key: ValueKey('story_template_${template.id}'),
+          selected: selected,
+          onSelected: (_) => controller.selectTemplate(template.id),
+          avatar: Icon(switch (template.family) {
+            ShareTemplateFamily.comparison => Icons.compare_rounded,
+            ShareTemplateFamily.progress => Icons.trending_up_rounded,
+            _ => Icons.crop_portrait_rounded,
+          }, size: 18),
+          label: Text(template.label, overflow: TextOverflow.ellipsis),
+        ),
+      );
+    },
+  );
+}
+
 final class _TextPanel extends StatelessWidget {
   const _TextPanel({
     required this.controller,
@@ -388,73 +501,384 @@ final class _TextPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final layers = controller.theme.layers.where((item) => item.type == 'text');
+    final layers = controller.theme.layers
+        .where(
+          (item) =>
+              item.type == 'text' &&
+              item.control('edit') != null &&
+              (controller.mode == ShareEditorMode.authoring ||
+                  (controller.effectiveLayer(item.id).visible &&
+                      controller.controlAccess(item.id, 'edit') !=
+                          ShareAccessState.hidden)),
+        )
+        .toList(growable: false);
+    final selected = layers.firstWhere(
+      (item) => item.id == controller.selectedLayerId,
+      orElse: () => layers.first,
+    );
     return Column(
       children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: TextButton.icon(
-              key: const ValueKey('story_editor_done'),
-              onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
-              icon: const Icon(Icons.check_rounded),
-              label: const Text('Done'),
-            ),
+        SizedBox(
+          height: 34,
+          child: Row(
+            children: [
+              const SizedBox(width: 12),
+              Text(
+                'STYLE: ${selected.label.toUpperCase()}',
+                style: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                key: const ValueKey('story_editor_done'),
+                onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
+                icon: const Icon(Icons.check_rounded),
+                label: const Text('Done'),
+              ),
+              const SizedBox(width: 4),
+            ],
           ),
         ),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            children: [
-              for (final layer in layers)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _LockedControl(
-                    controller: controller,
-                    layer: layer,
-                    controlId: 'edit',
-                    onLocked: onLocked,
-                    child: TextField(
-                      key: ValueKey(
-                        layer.binding == 'headline'
-                            ? 'story_headline_field'
-                            : layer.binding == 'secondaryText'
-                            ? 'story_dare_field'
-                            : 'generated_text_${layer.id}',
-                      ),
-                      controller: textControllers.putIfAbsent(
-                        layer.id,
-                        () => TextEditingController(
-                          text: '${controller.layerValue(layer.id) ?? ''}',
+        SizedBox(
+          height: 58,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 5),
+            child: Row(
+              children: [
+                for (var index = 0; index < layers.length; index++) ...[
+                  if (index > 0) const SizedBox(width: 7),
+                  Expanded(
+                    child: _LockedControl(
+                      controller: controller,
+                      layer: layers[index],
+                      controlId: 'edit',
+                      onLocked: onLocked,
+                      child: TextField(
+                        key: ValueKey(
+                          layers[index].binding == 'headline'
+                              ? 'story_headline_field'
+                              : layers[index].binding == 'secondaryText'
+                              ? 'story_dare_field'
+                              : 'generated_text_${layers[index].id}',
                         ),
-                      ),
-                      maxLength: _integer(layer.style['maxLength'], 200),
-                      onTap: () => controller.selectLayer(layer.id),
-                      onChanged:
-                          (value) =>
-                              controller.updateLayerValue(layer.id, value),
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: layer.label,
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        counterStyle: const TextStyle(color: Colors.white54),
-                        enabledBorder: const OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white24),
+                        controller: textControllers.putIfAbsent(
+                          layers[index].id,
+                          () => TextEditingController(
+                            text:
+                                '${controller.layerValue(layers[index].id) ?? ''}',
+                          ),
                         ),
-                        focusedBorder: const OutlineInputBorder(
-                          borderSide: BorderSide(color: Color(0xFFFFE557)),
+                        maxLength: _integer(
+                          layers[index].style['maxLength'],
+                          200,
+                        ),
+                        maxLines: 1,
+                        onTap: () => controller.selectLayer(layers[index].id),
+                        onChanged:
+                            (value) => controller.updateLayerValue(
+                              layers[index].id,
+                              value,
+                            ),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: layers[index].label,
+                          counterText: '',
+                          isDense: true,
+                          labelStyle: const TextStyle(color: Colors.white70),
+                          enabledBorder: const OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white24),
+                          ),
+                          focusedBorder: const OutlineInputBorder(
+                            borderSide: BorderSide(color: Color(0xFFFFE557)),
+                          ),
                         ),
                       ),
                     ),
                   ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        if (controller.mode == ShareEditorMode.authoring)
+          Expanded(
+            child: _TextStyleBar(controller: controller, layer: selected),
+          ),
+      ],
+    );
+  }
+}
+
+final class _TextStyleBar extends StatelessWidget {
+  const _TextStyleBar({required this.controller, required this.layer});
+
+  final ShareEditorController controller;
+  final ShareLayerConfig layer;
+
+  static const _fonts = <(String, String, int)>[
+    ('Clean', 'PtwRoboto', 700),
+    ('Display', 'PtwLilitaOne', 400),
+    ('Pixel', 'PtwPressStart2P', 400),
+    ('Distressed', 'PtwRubikDirt', 400),
+  ];
+  static const _colors = <String>[
+    '#FFFFFFFF',
+    '#FF111827',
+    '#FFF4066E',
+    '#FFFFE557',
+    '#FF4038B8',
+    '#FFBFF7FF',
+    '#FFFFB38A',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final style = controller.effectiveStyle(layer.id);
+    final size = _number(style['fontSize'], 32).clamp(12, 72).toDouble();
+    return ListView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(10, 3, 10, 7),
+      children: [
+        ActionChip(
+          key: const ValueKey('story_text_font'),
+          avatar: const Icon(Icons.font_download_outlined, size: 17),
+          label: const Text('Font'),
+          onPressed: () => _showFonts(context),
+        ),
+        const SizedBox(width: 6),
+        ActionChip(
+          key: const ValueKey('story_text_color'),
+          avatar: Icon(
+            Icons.circle,
+            size: 17,
+            color: shareColor(style['color']),
+          ),
+          label: const Text('Color'),
+          onPressed: () => _showColors(context, effect: false),
+        ),
+        const SizedBox(width: 6),
+        ActionChip(
+          key: const ValueKey('story_text_effect'),
+          avatar: const Icon(Icons.auto_fix_high_rounded, size: 17),
+          label: const Text('Effect'),
+          onPressed: () => _showEffects(context),
+        ),
+        const SizedBox(width: 6),
+        ActionChip(
+          key: const ValueKey('story_text_effect_color'),
+          avatar: Icon(
+            Icons.circle_outlined,
+            size: 17,
+            color: shareColor(
+              style['shadowColor'] ?? style['strokeColor'],
+              fallback: Colors.black,
+            ),
+          ),
+          label: const Text('FX color'),
+          onPressed: () => _showColors(context, effect: true),
+        ),
+        const SizedBox(width: 6),
+        FilterChip(
+          key: const ValueKey('story_text_italic'),
+          label: const Text('Italic'),
+          selected: style['italic'] == true,
+          onSelected:
+              (value) =>
+                  controller.updateLayerProperty(layer.id, 'italic', value),
+        ),
+        const SizedBox(width: 6),
+        IconButton.filledTonal(
+          key: const ValueKey('story_text_align'),
+          tooltip: 'Text alignment',
+          onPressed: () {
+            final current = style['textAlign'] as String? ?? 'center';
+            final next = switch (current) {
+              'left' => 'center',
+              'center' => 'right',
+              _ => 'left',
+            };
+            controller.updateLayerProperties(layer.id, {
+              'textAlign': next,
+              'alignment': switch (next) {
+                'left' => 'centerLeft',
+                'right' => 'centerRight',
+                _ => 'center',
+              },
+            });
+          },
+          icon: Icon(switch (style['textAlign']) {
+            'left' => Icons.format_align_left_rounded,
+            'right' => Icons.format_align_right_rounded,
+            _ => Icons.format_align_center_rounded,
+          }),
+        ),
+        const SizedBox(width: 4),
+        SizedBox(
+          width: 170,
+          child: Row(
+            children: [
+              const Text('Size', style: TextStyle(color: Colors.white60)),
+              Expanded(
+                child: Slider(
+                  key: const ValueKey('story_text_size'),
+                  value: size,
+                  min: layer.id == 'secondary' ? 12 : 18,
+                  max: layer.id == 'secondary' ? 40 : 72,
+                  onChanged:
+                      (value) => controller.updateLayerProperty(
+                        layer.id,
+                        'fontSize',
+                        value,
+                      ),
                 ),
+              ),
             ],
           ),
         ),
       ],
     );
   }
+
+  Future<void> _showFonts(BuildContext context) => showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF171F36),
+    builder:
+        (_) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final font in _fonts)
+                ListTile(
+                  key: ValueKey('story_font_${font.$2}'),
+                  title: Text(
+                    font.$1,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontFamily: font.$2,
+                      fontSize: 21,
+                    ),
+                  ),
+                  subtitle: Text(
+                    font.$2.replaceFirst('Ptw', ''),
+                    style: const TextStyle(color: Colors.white54),
+                  ),
+                  onTap: () {
+                    controller.updateLayerProperties(layer.id, {
+                      'fontFamily': font.$2,
+                      'fontWeight': font.$3,
+                    });
+                    Navigator.pop(context);
+                  },
+                ),
+            ],
+          ),
+        ),
+  );
+
+  Future<void> _showColors(BuildContext context, {required bool effect}) =>
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: const Color(0xFF171F36),
+        builder:
+            (_) => SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Wrap(
+                  spacing: 14,
+                  runSpacing: 14,
+                  children: [
+                    for (final color in _colors)
+                      InkWell(
+                        key: ValueKey(
+                          'story_${effect ? 'effect' : 'fill'}_color_$color',
+                        ),
+                        customBorder: const CircleBorder(),
+                        onTap: () {
+                          if (effect) {
+                            controller.updateLayerProperties(layer.id, {
+                              'shadowColor': color,
+                              'strokeColor': color,
+                            });
+                          } else {
+                            controller.updateLayerProperty(
+                              layer.id,
+                              'color',
+                              color,
+                            );
+                          }
+                          Navigator.pop(context);
+                        },
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: shareColor(color),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white70, width: 2),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+      );
+
+  Future<void> _showEffects(BuildContext context) => showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF171F36),
+    builder:
+        (_) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              _effectTile(context, 'None', {
+                'shadowBlur': 0.0,
+                'shadowX': 0.0,
+                'shadowY': 0.0,
+                'strokeWidth': 0.0,
+              }),
+              _effectTile(context, 'Soft shadow', {
+                'shadowBlur': 8.0,
+                'shadowX': 0.0,
+                'shadowY': 4.0,
+                'strokeWidth': 0.0,
+              }),
+              _effectTile(context, 'Hard offset', {
+                'shadowBlur': 0.0,
+                'shadowX': 3.0,
+                'shadowY': 4.0,
+                'strokeWidth': 0.0,
+              }),
+              _effectTile(context, 'Outline', {
+                'shadowBlur': 0.0,
+                'shadowX': 0.0,
+                'shadowY': 0.0,
+                'strokeWidth': 2.0,
+              }),
+            ],
+          ),
+        ),
+  );
+
+  Widget _effectTile(
+    BuildContext context,
+    String label,
+    Map<String, Object?> values,
+  ) => ListTile(
+    title: Text(label, style: const TextStyle(color: Colors.white)),
+    onTap: () {
+      controller.updateLayerProperties(layer.id, values);
+      Navigator.pop(context);
+    },
+  );
 }
 
 final class _LooksPanel extends StatelessWidget {
@@ -469,52 +893,78 @@ final class _LooksPanel extends StatelessWidget {
   final ValueChanged<ShareLockedFeature>? onLocked;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      SizedBox(
-        height: 70,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(12, 7, 12, 5),
-          itemCount: controller.theme.looks.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 7),
-          itemBuilder: (context, index) {
-            final look = controller.theme.looks[index];
-            final state = controller.accessState(look.access);
-            if (state == ShareAccessState.hidden) {
-              return const SizedBox.shrink();
-            }
-            return _AccessCard(
-              key: ValueKey('story_look_${look.id}'),
-              label: look.label,
-              premiumIcon: _icon(controller.theme.premiumIcon),
-              selected: controller.value.lookId == look.id,
-              state: state,
-              compact: true,
-              onTap: () => controller.selectLook(look.id),
-              onLocked:
-                  onLocked == null
-                      ? null
-                      : () => onLocked!(
-                        controller.lockedFeature(
-                          id: look.id,
-                          label: look.label,
-                          access: look.access,
-                        ),
-                      ),
-            );
-          },
+  Widget build(BuildContext context) {
+    final looks = controller.theme.looks
+        .where((item) => item.editorVisible)
+        .toList(growable: false);
+    return ListView.separated(
+      key: const ValueKey('story_look_tray'),
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 9),
+      itemCount: looks.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 9),
+      itemBuilder: (context, index) {
+        final look = looks[index];
+        final state = controller.accessState(look.access);
+        if (state == ShareAccessState.hidden) return const SizedBox.shrink();
+        return _AccessCard(
+          key: ValueKey('story_look_${look.id}'),
+          label: look.label,
+          premiumIcon: _icon(controller.theme.premiumIcon),
+          selected: controller.value.lookId == look.id,
+          state: state,
+          preview: _LookSwatch(look: look),
+          onTap: () => controller.selectLook(look.id),
+          onLocked:
+              onLocked == null
+                  ? null
+                  : () => onLocked!(
+                    controller.lockedFeature(
+                      id: look.id,
+                      label: look.label,
+                      access: look.access,
+                    ),
+                  ),
+        );
+      },
+    );
+  }
+}
+
+final class _LookSwatch extends StatelessWidget {
+  const _LookSwatch({required this.look});
+
+  final ShareLookConfig look;
+
+  @override
+  Widget build(BuildContext context) {
+    final edit = look.backgroundTreatment;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ColoredBox(
+          color: shareColor(
+            edit.tintColor,
+            fallback: const Color(0xFF27324D),
+          ).withValues(alpha: math.max(0.35, edit.tintOpacity)),
         ),
-      ),
-      Expanded(
-        child: _BackgroundPanel(
-          controller: controller,
-          imageResolver: imageResolver,
-          onLocked: onLocked,
-        ),
-      ),
-    ],
-  );
+        if (edit.texture != ShareBackgroundTexture.none)
+          Center(
+            child: Icon(
+              switch (edit.texture) {
+                ShareBackgroundTexture.grain => Icons.grain_rounded,
+                ShareBackgroundTexture.stripes => Icons.horizontal_rule,
+                ShareBackgroundTexture.blobs => Icons.gesture_rounded,
+                ShareBackgroundTexture.iridescent => Icons.auto_awesome_rounded,
+                ShareBackgroundTexture.none => Icons.image_outlined,
+              },
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 final class _BackgroundPanel extends StatelessWidget {
@@ -569,11 +1019,15 @@ final class _StickerPanel extends StatefulWidget {
     required this.controller,
     required this.imageResolver,
     required this.onLocked,
+    this.busy = false,
+    this.onUpload,
   });
 
   final ShareEditorController controller;
   final ShareImageProviderResolver imageResolver;
   final ValueChanged<ShareLockedFeature>? onLocked;
+  final bool busy;
+  final VoidCallback? onUpload;
 
   @override
   State<_StickerPanel> createState() => _StickerPanelState();
@@ -601,9 +1055,9 @@ final class _StickerPanelState extends State<_StickerPanel> {
           child: Row(
             children: [
               Text(
-                widget.controller.canAddSticker
-                    ? '${widget.controller.value.stickers.length}/${widget.controller.theme.maximumStickerCount}'
-                    : '${widget.controller.value.stickers.length}/${widget.controller.theme.maximumStickerCount} · Delete one to add',
+                widget.controller.canAddDecoration
+                    ? '${widget.controller.decorationCount}/${widget.controller.theme.maximumDecorationCount} layers'
+                    : '${widget.controller.decorationCount}/${widget.controller.theme.maximumDecorationCount} · Delete one to add',
                 key: ValueKey(
                   widget.controller.canAddSticker
                       ? 'generated_sticker_count'
@@ -612,6 +1066,25 @@ final class _StickerPanelState extends State<_StickerPanel> {
                 style: const TextStyle(color: Colors.white60, fontSize: 11),
               ),
               const SizedBox(width: 8),
+              if (widget.onUpload != null) ...[
+                IconButton.filledTonal(
+                  key: const ValueKey('story_upload_decoration'),
+                  tooltip: 'Upload decoration',
+                  visualDensity: VisualDensity.compact,
+                  onPressed:
+                      widget.busy || !widget.controller.canAddDecoration
+                          ? null
+                          : widget.onUpload,
+                  icon:
+                      widget.busy
+                          ? const SizedBox.square(
+                            dimension: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Icon(Icons.add_photo_alternate_outlined),
+                ),
+                const SizedBox(width: 5),
+              ],
               Expanded(
                 child: SizedBox(
                   height: 28,
@@ -703,7 +1176,10 @@ final class _ImagePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final layers = controller.theme.layers.where(
-      (item) => item.type == 'image',
+      (item) =>
+          item.type == 'image' &&
+          controller.effectiveLayer(item.id).visible &&
+          controller.controlAccess(item.id, 'edit') != ShareAccessState.hidden,
     );
     return ListView(
       scrollDirection: Axis.horizontal,
@@ -727,6 +1203,343 @@ final class _ImagePanel extends StatelessWidget {
       ],
     );
   }
+}
+
+final class _PhotoPanel extends StatelessWidget {
+  const _PhotoPanel({
+    required this.controller,
+    required this.busy,
+    required this.onPickBackground,
+    required this.onPickLayer,
+    required this.onLocked,
+  });
+
+  final ShareEditorController controller;
+  final bool busy;
+  final VoidCallback onPickBackground;
+  final ValueChanged<ShareLayerConfig> onPickLayer;
+  final ValueChanged<ShareLockedFeature>? onLocked;
+
+  @override
+  Widget build(BuildContext context) {
+    final editableImages = controller.theme.layers
+        .where(
+          (item) =>
+              item.type == 'image' &&
+              controller.effectiveLayer(item.id).visible &&
+              controller.controlAccess(item.id, 'edit') !=
+                  ShareAccessState.hidden,
+        )
+        .toList(growable: false);
+    final edit = controller.value.backgroundEdit;
+    return Column(
+      children: [
+        SizedBox(
+          height: 52,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(10, 7, 10, 4),
+            children: [
+              FilterChip(
+                key: const ValueKey('story_use_project_photo'),
+                avatar: const Icon(Icons.image_outlined, size: 17),
+                label: const Text('Project photo'),
+                selected: edit.image == null,
+                onSelected: (_) => controller.useProjectBackground(),
+              ),
+              const SizedBox(width: 7),
+              ActionChip(
+                key: const ValueKey('story_replace_background'),
+                avatar:
+                    busy
+                        ? const SizedBox.square(
+                          dimension: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Icon(Icons.photo_library_outlined, size: 17),
+                label: Text(busy ? 'Opening…' : 'Choose photo'),
+                onPressed: busy ? null : onPickBackground,
+              ),
+              const SizedBox(width: 7),
+              for (final imageLayer in editableImages) ...[
+                _LockedControl(
+                  controller: controller,
+                  layer: imageLayer,
+                  controlId: 'edit',
+                  onLocked: onLocked,
+                  child: ActionChip(
+                    key: ValueKey('story_replace_${imageLayer.id}'),
+                    avatar: const Icon(
+                      Icons.add_photo_alternate_outlined,
+                      size: 17,
+                    ),
+                    label: Text(imageLayer.label),
+                    onPressed: busy ? null : () => onPickLayer(imageLayer),
+                  ),
+                ),
+                const SizedBox(width: 7),
+              ],
+              ActionChip(
+                key: const ValueKey('story_reset_crop'),
+                avatar: const Icon(Icons.center_focus_strong, size: 17),
+                label: const Text('Reset crop'),
+                onPressed:
+                    () => controller.updateBackgroundCrop(
+                      alignmentX: 0,
+                      alignmentY: 0,
+                      zoom: 1,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 7),
+            child: Row(
+              children: [
+                const Icon(Icons.zoom_in_rounded, color: Colors.white60),
+                Expanded(
+                  child: Slider(
+                    key: const ValueKey('story_background_zoom'),
+                    value: edit.zoom,
+                    min: 1,
+                    max: 4,
+                    divisions: 30,
+                    onChanged:
+                        (value) => controller.updateBackgroundCrop(zoom: value),
+                  ),
+                ),
+                Text(
+                  '${edit.zoom.toStringAsFixed(1)}×',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(width: 10),
+                const Flexible(
+                  child: Text(
+                    'Drag or pinch the photo on the canvas',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.white54, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+final class _EffectsPanel extends StatelessWidget {
+  const _EffectsPanel({required this.controller});
+
+  final ShareEditorController controller;
+
+  static const _filters = <(String, double, double, double, String, double)>[
+    ('Natural', 0, 1, 1, '#FFFFFFFF', 0),
+    ('B&W', 0.04, 1.08, 0, '#FFFFFFFF', 0),
+    ('Punch', 0.02, 1.35, 1.35, '#FFFFFFFF', 0),
+    ('Warm', 0.06, 1.08, 0.85, '#FFFF8A5B', 0.22),
+    ('Pastel', 0.16, 0.82, 0.62, '#FFFFB7E8', 0.3),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final edit = controller.value.backgroundEdit;
+    return Column(
+      children: [
+        SizedBox(
+          height: 50,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
+            itemCount: _filters.length + 1,
+            separatorBuilder: (_, __) => const SizedBox(width: 6),
+            itemBuilder: (context, index) {
+              if (index == _filters.length) {
+                return ActionChip(
+                  key: const ValueKey('story_effect_adjust'),
+                  avatar: const Icon(Icons.tune_rounded, size: 17),
+                  label: const Text('Adjust'),
+                  onPressed: () => _showAdjustments(context),
+                );
+              }
+              final filter = _filters[index];
+              return ActionChip(
+                key: ValueKey('story_filter_${filter.$1.toLowerCase()}'),
+                label: Text(filter.$1),
+                onPressed:
+                    () => controller.updateBackground(
+                      edit.copyWith(
+                        brightness: filter.$2,
+                        contrast: filter.$3,
+                        saturation: filter.$4,
+                        tintColor: filter.$5,
+                        tintOpacity: filter.$6,
+                      ),
+                    ),
+              );
+            },
+          ),
+        ),
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(10, 4, 6, 7),
+                  itemCount: ShareBackgroundTexture.values.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 6),
+                  itemBuilder: (context, index) {
+                    final texture = ShareBackgroundTexture.values[index];
+                    return ChoiceChip(
+                      key: ValueKey('story_texture_${texture.name}'),
+                      label: Text(_textureLabel(texture)),
+                      selected: edit.texture == texture,
+                      onSelected:
+                          (_) => controller.updateBackground(
+                            edit.copyWith(
+                              texture: texture,
+                              textureIntensity:
+                                  texture == ShareBackgroundTexture.none
+                                      ? 0
+                                      : math.max(edit.textureIntensity, 0.28),
+                            ),
+                          ),
+                    );
+                  },
+                ),
+              ),
+              if (edit.texture != ShareBackgroundTexture.none)
+                SizedBox(
+                  width: 128,
+                  child: Slider(
+                    key: const ValueKey('story_texture_intensity'),
+                    value: edit.textureIntensity,
+                    min: 0,
+                    max: 1,
+                    onChanged:
+                        (value) => controller.updateBackground(
+                          edit.copyWith(textureIntensity: value),
+                        ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showAdjustments(BuildContext context) => showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF171F36),
+    isScrollControlled: true,
+    builder:
+        (_) => SafeArea(
+          child: AnimatedBuilder(
+            animation: controller,
+            builder: (context, __) {
+              final edit = controller.value.backgroundEdit;
+              return ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+                children: [
+                  const Text(
+                    'PHOTO ADJUSTMENTS',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  _SliderRow(
+                    label: 'Blur',
+                    value: edit.blur,
+                    minimum: 0,
+                    maximum: 30,
+                    onChanged:
+                        (value) => controller.updateBackground(
+                          edit.copyWith(blur: value),
+                        ),
+                  ),
+                  _SliderRow(
+                    label: 'Brightness',
+                    value: edit.brightness,
+                    minimum: -1,
+                    maximum: 1,
+                    onChanged:
+                        (value) => controller.updateBackground(
+                          edit.copyWith(brightness: value),
+                        ),
+                  ),
+                  _SliderRow(
+                    label: 'Contrast',
+                    value: edit.contrast,
+                    minimum: 0.5,
+                    maximum: 2,
+                    onChanged:
+                        (value) => controller.updateBackground(
+                          edit.copyWith(contrast: value),
+                        ),
+                  ),
+                  _SliderRow(
+                    label: 'Saturation',
+                    value: edit.saturation,
+                    minimum: 0,
+                    maximum: 2,
+                    onChanged:
+                        (value) => controller.updateBackground(
+                          edit.copyWith(saturation: value),
+                        ),
+                  ),
+                  _SliderRow(
+                    label: 'Dim',
+                    value: edit.overlayOpacity,
+                    minimum: 0,
+                    maximum: 1,
+                    onChanged:
+                        (value) => controller.updateBackground(
+                          edit.copyWith(overlayOpacity: value),
+                        ),
+                  ),
+                  _SliderRow(
+                    label: 'Photo visibility',
+                    value: edit.imageOpacity,
+                    minimum: 0.2,
+                    maximum: 1,
+                    onChanged:
+                        (value) => controller.updateBackground(
+                          edit.copyWith(imageOpacity: value),
+                        ),
+                  ),
+                  _SliderRow(
+                    label: 'Texture scale',
+                    value: edit.textureScale,
+                    minimum: 0.5,
+                    maximum: 4,
+                    onChanged:
+                        (value) => controller.updateBackground(
+                          edit.copyWith(textureScale: value),
+                        ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+  );
+
+  static String _textureLabel(ShareBackgroundTexture value) => switch (value) {
+    ShareBackgroundTexture.none => 'None',
+    ShareBackgroundTexture.grain => 'Grain',
+    ShareBackgroundTexture.stripes => 'Stripes',
+    ShareBackgroundTexture.blobs => 'Blobs',
+    ShareBackgroundTexture.iridescent => 'Holo',
+  };
 }
 
 final class _PropertiesPanel extends StatelessWidget {
@@ -1000,7 +1813,6 @@ final class _AccessCard extends StatelessWidget {
     super.key,
     this.selected = false,
     this.preview,
-    this.compact = false,
   });
 
   final String label;
@@ -1010,14 +1822,13 @@ final class _AccessCard extends StatelessWidget {
   final VoidCallback? onLocked;
   final bool selected;
   final Widget? preview;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: state == ShareAccessState.locked ? onLocked : onTap,
     borderRadius: BorderRadius.circular(12),
     child: Container(
-      width: compact ? 112 : 92,
+      width: 92,
       padding: const EdgeInsets.all(7),
       decoration: BoxDecoration(
         color: selected ? const Color(0xFF334068) : const Color(0xFF222C49),
@@ -1029,34 +1840,33 @@ final class _AccessCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          if (!compact)
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  preview ??
-                      Center(
-                        child: Text(
-                          label.characters.first,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 26,
-                          ),
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                preview ??
+                    Center(
+                      child: Text(
+                        label.characters.first,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 26,
                         ),
                       ),
-                  if (state == ShareAccessState.locked)
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: Icon(
-                        premiumIcon,
-                        color: Color(0xFFFFE557),
-                        size: 18,
-                      ),
                     ),
-                ],
-              ),
+                if (state == ShareAccessState.locked)
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Icon(
+                      premiumIcon,
+                      color: Color(0xFFFFE557),
+                      size: 18,
+                    ),
+                  ),
+              ],
             ),
-          if (!compact) const SizedBox(height: 4),
+          ),
+          const SizedBox(height: 4),
           Text(
             label,
             maxLines: 1,
@@ -1139,6 +1949,7 @@ final class _SliderRow extends StatelessWidget {
 }
 
 IconData _icon(String value) => switch (value) {
+  'templates' => Icons.dashboard_customize_outlined,
   'palette' => Icons.palette_outlined,
   'image' => Icons.photo_outlined,
   'sticker' => Icons.emoji_emotions_outlined,
@@ -1150,6 +1961,25 @@ IconData _icon(String value) => switch (value) {
   'star' => Icons.star_rounded,
   _ => Icons.text_fields_rounded,
 };
+
+bool _runtimeToolAvailable(ShareEditorController controller, String id) {
+  if (controller.mode == ShareEditorMode.authoring) return true;
+  final permissions = controller.activeTemplate.runtimePermissions;
+  return switch (id) {
+    'templates' =>
+      controller.theme.templates.length > 1 &&
+          permissions.userCanChooseAlternateTemplate,
+    'text' => controller.theme.layers.any(
+      (layer) =>
+          layer.type == 'text' &&
+          controller.effectiveLayer(layer.id).visible &&
+          controller.controlAccess(layer.id, 'edit') != ShareAccessState.hidden,
+    ),
+    'photo' ||
+    'images' => permissions.userCanReplaceMedia || permissions.userCanCropMedia,
+    _ => false,
+  };
+}
 
 double _number(Object? value, double fallback) =>
     value is num ? value.toDouble() : fallback;

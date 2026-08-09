@@ -168,6 +168,7 @@ final controller = ShareEditorController(
   theme: theme,
   content: content,
   initialValue: savedValue,
+  mode: ShareEditorMode.runtime,
   entitlements: (key) => currentUserEntitlements.contains(key),
 );
 
@@ -181,8 +182,11 @@ GeneratedShareEditor(
 ```
 
 The host app owns navigation, persistence, image picking, subscriptions,
-copy-link behavior, and native sharing. Use `GeneratedShareRenderer` for a
-read-only preview and `SharePngExporter` for the exact PNG.
+copy-link behavior, and native sharing. Templates own structure and runtime
+permissions; looks own visual treatment. Persist `ShareEditorValue.templateId`
+with the rest of the value. Use `GeneratedShareRenderer` for a read-only
+preview and `SharePngExporter` for the exact PNG. Safe-zone guides are
+authoring-only and are omitted unless `showAuthoringGuides` is explicitly set.
 ''';
 
   String _pubspecSnippet(List<Map<String, dynamic>> runtimeAssets) {

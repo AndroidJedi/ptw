@@ -66,7 +66,11 @@ flutter:
     - assets/images/users/
     - assets/images/backgrounds/
     - assets/images/stickers/
+    - assets/images/decorations/
     - assets/fonts/LilitaOne-OFL.txt
+    - assets/fonts/PressStart2P-OFL.txt
+    - assets/fonts/RubikDirt-OFL.txt
+    - assets/fonts/ATTRIBUTION.md
     - lib/generated_share_editor/generated_share_editor.dart
     - lib/generated_share_editor/src/
     - lib/generated_share_editor/config/
@@ -83,6 +87,12 @@ flutter:
     - family: PtwLilitaOne
       fonts:
         - asset: assets/fonts/LilitaOne-Regular.ttf
+    - family: PtwPressStart2P
+      fonts:
+        - asset: assets/fonts/PressStart2P-Regular.ttf
+    - family: PtwRubikDirt
+      fonts:
+        - asset: assets/fonts/RubikDirt-Regular.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

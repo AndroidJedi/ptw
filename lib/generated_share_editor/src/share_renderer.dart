@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'share_controller.dart';
@@ -162,6 +163,15 @@ final class GeneratedShareRenderer extends StatefulWidget {
     this.registry,
     this.imageResolver = defaultShareImageResolver,
     this.showSelection = true,
+    this.editBackground = false,
+    this.showAuthoringGuides = false,
+    this.interactionEnabled = true,
+    this.liveLayerId,
+    this.liveLayerDraft,
+    this.liveStickerDraft,
+    this.liveBackgroundTreatmentDraft,
+    this.liveBackgroundDraft,
+    this.isolateRepaints = false,
   });
 
   final ShareThemeConfig theme;
@@ -171,6 +181,15 @@ final class GeneratedShareRenderer extends StatefulWidget {
   final ShareComponentRegistry? registry;
   final ShareImageProviderResolver imageResolver;
   final bool showSelection;
+  final bool editBackground;
+  final bool showAuthoringGuides;
+  final bool interactionEnabled;
+  final String? liveLayerId;
+  final ValueListenable<ShareLayerConfig?>? liveLayerDraft;
+  final ValueListenable<ShareStickerValue?>? liveStickerDraft;
+  final ValueListenable<ShareBackgroundEdit?>? liveBackgroundTreatmentDraft;
+  final ValueListenable<ShareBackgroundConfig?>? liveBackgroundDraft;
+  final bool isolateRepaints;
 
   @override
   State<GeneratedShareRenderer> createState() => _GeneratedShareRendererState();
@@ -225,7 +244,11 @@ final class _GeneratedShareRendererState extends State<GeneratedShareRenderer> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final scale = constraints.maxWidth / widget.theme.canvas.width;
-          return ClipRect(
+          return ClipRRect(
+            key: const ValueKey('generated_share_canvas_clip'),
+            borderRadius: BorderRadius.circular(
+              widget.theme.canvas.cornerRadius * scale,
+            ),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -244,8 +267,41 @@ final class _GeneratedShareRendererState extends State<GeneratedShareRenderer> {
                     scale: scale,
                     registry: widget.registry ?? ShareComponentRegistry(),
                     imageResolver: widget.imageResolver,
-                    editable: widget.controller != null,
+                    editable:
+                        widget.controller != null && widget.interactionEnabled,
                     showSelection: widget.showSelection,
+                    editBackground: widget.editBackground,
+                    liveLayerDraft:
+                        layer.id == widget.liveLayerId
+                            ? widget.liveLayerDraft
+                            : null,
+                    liveStickerDraft:
+                        layer.type == 'stickerWorkspace'
+                            ? widget.liveStickerDraft
+                            : null,
+                    liveBackgroundTreatmentDraft:
+                        layer.type == 'background'
+                            ? widget.liveBackgroundTreatmentDraft
+                            : null,
+                    liveBackgroundDraft:
+                        layer.type == 'background'
+                            ? widget.liveBackgroundDraft
+                            : null,
+                    isolateRepaints: widget.isolateRepaints,
+                  ),
+                if (widget.showAuthoringGuides)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          key: const ValueKey('share_safe_zone_overlay'),
+                          painter: _SafeZonePainter(
+                            canvas: widget.theme.canvas,
+                            zones: effectiveController.activeTemplate.safeZones,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -260,6 +316,65 @@ final class _GeneratedShareRendererState extends State<GeneratedShareRenderer> {
           builder: (_, __) => buildBody(),
         );
   }
+}
+
+final class _SafeZonePainter extends CustomPainter {
+  const _SafeZonePainter({required this.canvas, required this.zones});
+
+  final ShareCanvasConfig canvas;
+  final List<ShareSafeZoneConfig> zones;
+
+  @override
+  void paint(Canvas target, Size size) {
+    final scaleX = size.width / canvas.width;
+    final scaleY = size.height / canvas.height;
+    for (final zone in zones) {
+      final color = switch (zone.kind) {
+        ShareSafeZoneKind.instagramTopDanger ||
+        ShareSafeZoneKind.instagramBottomDanger => const Color(0xFFFF5D73),
+        ShareSafeZoneKind.recommendedLink => const Color(0xFF61DAFB),
+        ShareSafeZoneKind.protectedSubject => const Color(0xFFFFD84A),
+        ShareSafeZoneKind.brandSafe => const Color(0xFF66E3A4),
+      };
+      final rect = Rect.fromLTWH(
+        zone.rect.x * scaleX,
+        zone.rect.y * scaleY,
+        zone.rect.width * scaleX,
+        zone.rect.height * scaleY,
+      );
+      target.drawRect(
+        rect,
+        Paint()
+          ..color = color.withValues(alpha: 0.08)
+          ..style = PaintingStyle.fill,
+      );
+      target.drawRect(
+        rect,
+        Paint()
+          ..color = color.withValues(alpha: 0.9)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2,
+      );
+      final label = TextPainter(
+        text: TextSpan(
+          text: zone.label,
+          style: TextStyle(
+            color: color,
+            fontSize: math.max(8, 9 * scaleX),
+            fontWeight: FontWeight.w700,
+            backgroundColor: const Color(0xCC111827),
+          ),
+        ),
+        maxLines: 1,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: math.max(1, rect.width - 6));
+      label.paint(target, Offset(rect.left + 3, rect.top + 2));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SafeZonePainter oldDelegate) =>
+      oldDelegate.canvas != canvas || oldDelegate.zones != zones;
 }
 
 ImageProvider<Object>? defaultShareImageResolver(ShareImageValue image) =>
@@ -280,6 +395,12 @@ final class _ConfiguredLayer extends StatelessWidget {
     required this.editable,
     required this.showSelection,
     required this.interactionKey,
+    required this.editBackground,
+    this.liveLayerDraft,
+    this.liveStickerDraft,
+    this.liveBackgroundTreatmentDraft,
+    this.liveBackgroundDraft,
+    this.isolateRepaints = false,
     super.key,
   });
 
@@ -291,143 +412,217 @@ final class _ConfiguredLayer extends StatelessWidget {
   final bool editable;
   final bool showSelection;
   final Key interactionKey;
+  final bool editBackground;
+  final ValueListenable<ShareLayerConfig?>? liveLayerDraft;
+  final ValueListenable<ShareStickerValue?>? liveStickerDraft;
+  final ValueListenable<ShareBackgroundEdit?>? liveBackgroundTreatmentDraft;
+  final ValueListenable<ShareBackgroundConfig?>? liveBackgroundDraft;
+  final bool isolateRepaints;
 
   @override
   Widget build(BuildContext context) {
-    final layer = controller.effectiveLayer(layerId);
-    final access = controller.accessState(layer.access);
-    if (!layer.visible || access == ShareAccessState.hidden) {
-      return const SizedBox.shrink();
-    }
-    final transform = controller.effectiveTransform(layerId);
-    final style = controller.effectiveStyle(layerId);
-    final selected = controller.selectedLayerId == layerId;
-    final child = switch (layer.type) {
-      'background' => _ShareBackground(
-        controller: controller,
-        imageResolver: imageResolver,
-      ),
-      'stickerWorkspace' => _StickerWorkspace(
-        controller: controller,
-        layer: layer,
-        imageResolver: imageResolver,
-        editable: editable,
-      ),
-      _ => registry.build(
-        ShareComponentContext(
-          context: context,
-          theme: controller.theme,
-          layer: layer,
-          value: controller.layerValue(layerId),
-          style: style,
-          scale: scale,
+    Widget buildLayer(
+      ShareLayerConfig? liveLayer,
+      ShareStickerValue? liveSticker,
+      ShareBackgroundEdit? liveBackgroundTreatment,
+      ShareBackgroundConfig? liveBackground,
+    ) {
+      final effectiveLayer = controller.effectiveLayer(layerId);
+      final layer = liveLayer?.id == layerId ? liveLayer! : effectiveLayer;
+      final access = controller.accessState(layer.access);
+      if (!layer.visible || access == ShareAccessState.hidden) {
+        return const SizedBox.shrink();
+      }
+      final transform =
+          liveLayer?.id == layerId
+              ? liveLayer!.transform
+              : controller.effectiveTransform(layerId);
+      final style =
+          liveLayer?.id == layerId
+              ? liveLayer!.style
+              : controller.effectiveStyle(layerId);
+      final selected = controller.selectedLayerId == layerId;
+      Widget isolate(Widget child) =>
+          isolateRepaints ? RepaintBoundary(child: child) : child;
+      final child = switch (layer.type) {
+        'background' => _ShareBackground(
+          controller: controller,
           imageResolver: imageResolver,
+          editable: editable && editBackground,
+          backgroundOverride: liveBackground,
+          editOverride: liveBackgroundTreatment,
         ),
-      ),
-    };
-    if (layer.type == 'stickerWorkspace') {
+        'stickerWorkspace' => _StickerWorkspace(
+          controller: controller,
+          layer: layer,
+          imageResolver: imageResolver,
+          editable: editable,
+          liveSticker: liveSticker,
+        ),
+        _ => registry.build(
+          ShareComponentContext(
+            context: context,
+            theme: controller.theme,
+            layer: layer,
+            value: controller.layerValue(layerId),
+            style: style,
+            scale: scale,
+            imageResolver: imageResolver,
+          ),
+        ),
+      };
+      if (layer.type == 'stickerWorkspace') {
+        return Positioned(
+          left: transform.x * scale,
+          top: transform.y * scale,
+          width: transform.width * scale,
+          height: transform.height * scale,
+          child: isolate(child),
+        );
+      }
       return Positioned(
         left: transform.x * scale,
         top: transform.y * scale,
         width: transform.width * scale,
         height: transform.height * scale,
-        child: child,
-      );
-    }
-    return Positioned(
-      left: transform.x * scale,
-      top: transform.y * scale,
-      width: transform.width * scale,
-      height: transform.height * scale,
-      child: Transform.rotate(
-        angle: transform.rotation,
-        child: GestureDetector(
-          key: interactionKey,
-          behavior:
-              layer.type == 'stickerWorkspace'
-                  ? HitTestBehavior.deferToChild
-                  : HitTestBehavior.translucent,
-          onTap:
-              editable &&
-                      layer.type != 'stickerWorkspace' &&
-                      registry.allowsInteraction(layer.type, 'select')
-                  ? () => controller.selectLayer(layerId)
-                  : null,
-          onPanUpdate:
-              editable &&
-                      layer.type != 'stickerWorkspace' &&
-                      registry.allowsInteraction(layer.type, 'move') &&
-                      controller.controlAccess(layerId, 'move') ==
-                          ShareAccessState.available
-                  ? (details) => controller.updateLayerTransform(
-                    layerId,
-                    x: transform.x + details.delta.dx / scale,
-                    y: transform.y + details.delta.dy / scale,
-                  )
-                  : null,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    border:
-                        editable && showSelection && selected
-                            ? Border.all(
-                              color: const Color(0xFFFFD84A),
-                              width: 2,
-                            )
-                            : null,
+        child: isolate(
+          Transform.rotate(
+            angle: transform.rotation,
+            child: GestureDetector(
+              key: interactionKey,
+              behavior:
+                  layer.type == 'stickerWorkspace'
+                      ? HitTestBehavior.deferToChild
+                      : HitTestBehavior.translucent,
+              onTap:
+                  editable &&
+                          layer.type != 'stickerWorkspace' &&
+                          registry.allowsInteraction(layer.type, 'select')
+                      ? () => controller.selectLayer(layerId)
+                      : null,
+              onPanUpdate:
+                  editable &&
+                          layer.type != 'stickerWorkspace' &&
+                          registry.allowsInteraction(layer.type, 'move') &&
+                          controller.controlAccess(layerId, 'move') ==
+                              ShareAccessState.available
+                      ? (details) => controller.updateLayerTransform(
+                        layerId,
+                        x: transform.x + details.delta.dx / scale,
+                        y: transform.y + details.delta.dy / scale,
+                      )
+                      : null,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        border:
+                            editable && showSelection && selected
+                                ? Border.all(
+                                  color: const Color(0xFFFFD84A),
+                                  width: 2,
+                                )
+                                : null,
+                      ),
+                      child: child,
+                    ),
                   ),
-                  child: child,
-                ),
+                  if (editable &&
+                      showSelection &&
+                      selected &&
+                      registry.allowsInteraction(layer.type, 'resize') &&
+                      controller.controlAccess(layerId, 'resize') ==
+                          ShareAccessState.available)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: GestureDetector(
+                        key: ValueKey('share_resize_$layerId'),
+                        behavior: HitTestBehavior.opaque,
+                        onPanUpdate:
+                            (details) => controller.updateLayerTransform(
+                              layerId,
+                              width: transform.width + details.delta.dx / scale,
+                              height:
+                                  transform.height + details.delta.dy / scale,
+                            ),
+                        child: const _LayerHandle(
+                          icon: Icons.open_in_full_rounded,
+                        ),
+                      ),
+                    ),
+                  if (editable &&
+                      showSelection &&
+                      selected &&
+                      registry.allowsInteraction(layer.type, 'rotate') &&
+                      controller.controlAccess(layerId, 'rotate') ==
+                          ShareAccessState.available)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: GestureDetector(
+                        key: ValueKey('share_rotate_$layerId'),
+                        behavior: HitTestBehavior.opaque,
+                        onPanUpdate:
+                            (details) => controller.updateLayerTransform(
+                              layerId,
+                              rotation:
+                                  transform.rotation + details.delta.dx * 0.012,
+                            ),
+                        child: const _LayerHandle(
+                          icon: Icons.rotate_right_rounded,
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              if (editable &&
-                  showSelection &&
-                  selected &&
-                  registry.allowsInteraction(layer.type, 'resize') &&
-                  controller.controlAccess(layerId, 'resize') ==
-                      ShareAccessState.available)
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: GestureDetector(
-                    key: ValueKey('share_resize_$layerId'),
-                    behavior: HitTestBehavior.opaque,
-                    onPanUpdate:
-                        (details) => controller.updateLayerTransform(
-                          layerId,
-                          width: transform.width + details.delta.dx / scale,
-                          height: transform.height + details.delta.dy / scale,
-                        ),
-                    child: const _LayerHandle(icon: Icons.open_in_full_rounded),
-                  ),
-                ),
-              if (editable &&
-                  showSelection &&
-                  selected &&
-                  registry.allowsInteraction(layer.type, 'rotate') &&
-                  controller.controlAccess(layerId, 'rotate') ==
-                      ShareAccessState.available)
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: GestureDetector(
-                    key: ValueKey('share_rotate_$layerId'),
-                    behavior: HitTestBehavior.opaque,
-                    onPanUpdate:
-                        (details) => controller.updateLayerTransform(
-                          layerId,
-                          rotation:
-                              transform.rotation + details.delta.dx * 0.012,
-                        ),
-                    child: const _LayerHandle(icon: Icons.rotate_right_rounded),
-                  ),
-                ),
-            ],
+            ),
           ),
         ),
-      ),
+      );
+    }
+
+    Widget withBackground(
+      ShareLayerConfig? liveLayer,
+      ShareStickerValue? liveSticker,
+    ) {
+      Widget withConfig(ShareBackgroundEdit? treatment) {
+        final backgroundListenable = liveBackgroundDraft;
+        if (backgroundListenable == null) {
+          return buildLayer(liveLayer, liveSticker, treatment, null);
+        }
+        return ValueListenableBuilder<ShareBackgroundConfig?>(
+          valueListenable: backgroundListenable,
+          builder:
+              (_, background, __) =>
+                  buildLayer(liveLayer, liveSticker, treatment, background),
+        );
+      }
+
+      final treatmentListenable = liveBackgroundTreatmentDraft;
+      if (treatmentListenable == null) return withConfig(null);
+      return ValueListenableBuilder<ShareBackgroundEdit?>(
+        valueListenable: treatmentListenable,
+        builder: (_, treatment, __) => withConfig(treatment),
+      );
+    }
+
+    Widget withSticker(ShareLayerConfig? liveLayer) {
+      final listenable = liveStickerDraft;
+      if (listenable == null) return withBackground(liveLayer, null);
+      return ValueListenableBuilder<ShareStickerValue?>(
+        valueListenable: listenable,
+        builder: (_, liveSticker, __) => withBackground(liveLayer, liveSticker),
+      );
+    }
+
+    final listenable = liveLayerDraft;
+    if (listenable == null) return withSticker(null);
+    return ValueListenableBuilder<ShareLayerConfig?>(
+      valueListenable: listenable,
+      builder: (_, liveLayer, __) => withSticker(liveLayer),
     );
   }
 }
@@ -700,41 +895,62 @@ Widget _buildShape(ShareComponentContext data) {
   );
 }
 
-final class _ShareBackground extends StatelessWidget {
+final class _ShareBackground extends StatefulWidget {
   const _ShareBackground({
     required this.controller,
     required this.imageResolver,
+    required this.editable,
+    this.backgroundOverride,
+    this.editOverride,
   });
 
   final ShareEditorController controller;
   final ShareImageProviderResolver imageResolver;
+  final bool editable;
+  final ShareBackgroundConfig? backgroundOverride;
+  final ShareBackgroundEdit? editOverride;
+
+  @override
+  State<_ShareBackground> createState() => _ShareBackgroundState();
+}
+
+final class _ShareBackgroundState extends State<_ShareBackground> {
+  late ShareBackgroundEdit _gestureStart;
 
   @override
   Widget build(BuildContext context) {
     final id =
-        controller.value.backgroundId ?? controller.theme.defaultBackgroundId;
-    final background = controller.theme.background(id);
+        widget.controller.value.backgroundId ??
+        widget.controller.theme.defaultBackgroundId;
+    final background =
+        widget.backgroundOverride?.id == id
+            ? widget.backgroundOverride!
+            : widget.controller.theme.background(id);
     final properties = background.properties;
+    final edit = widget.editOverride ?? widget.controller.value.backgroundEdit;
+    Widget result;
     if (background.kind == 'image') {
-      ShareImageValue? image;
+      ShareImageValue? image = edit.image;
       if (properties['binding'] is String) {
-        final resolved = controller.content.resolve(
+        final resolved = widget.controller.content.resolve(
           properties['binding'] as String,
         );
-        if (resolved is ShareImageValue) image = resolved;
+        if (image == null && resolved is ShareImageValue) image = resolved;
       }
       final assetId = properties['assetId'] as String?;
       if (image == null && assetId != null) {
-        image = _assetImageValue(controller.theme.asset(assetId));
+        image = _assetImageValue(widget.controller.theme.asset(assetId));
       }
-      final provider = image == null ? null : imageResolver(image);
+      final provider = image == null ? null : widget.imageResolver(image);
       final fallbackAssetId = properties['fallbackAssetId'] as String?;
       final fallbackValue =
           fallbackAssetId == null
               ? null
-              : _assetImageValue(controller.theme.asset(fallbackAssetId));
+              : _assetImageValue(
+                widget.controller.theme.asset(fallbackAssetId),
+              );
       final fallbackProvider =
-          fallbackValue == null ? null : imageResolver(fallbackValue);
+          fallbackValue == null ? null : widget.imageResolver(fallbackValue);
       Widget fallback() =>
           fallbackProvider == null
               ? const ColoredBox(color: Color(0xFF141827))
@@ -743,16 +959,24 @@ final class _ShareBackground extends StatelessWidget {
                 fit: shareBoxFit(properties['fit']),
                 alignment: shareAlignment(properties['alignment']),
               );
-      Widget result =
+      result =
           provider == null
               ? fallback()
-              : Image(
-                image: provider,
-                fit: shareBoxFit(properties['fit']),
-                alignment: shareAlignment(properties['alignment']),
-                errorBuilder: (_, __, ___) => fallback(),
+              : Transform.scale(
+                scale: edit.zoom,
+                child: Image(
+                  image: provider,
+                  fit: shareBoxFit(properties['fit']),
+                  alignment: Alignment(edit.alignmentX, edit.alignmentY),
+                  opacity: AlwaysStoppedAnimation(edit.imageOpacity),
+                  errorBuilder: (_, __, ___) => fallback(),
+                ),
               );
-      final blur = _number(properties['blur'], 0);
+      result = ColorFiltered(
+        colorFilter: ColorFilter.matrix(_photoColorMatrix(edit)),
+        child: result,
+      );
+      final blur = _number(properties['blur'], 0) + edit.blur;
       if (blur > 0) {
         result = ImageFiltered(
           imageFilter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
@@ -766,22 +990,216 @@ final class _ShareBackground extends StatelessWidget {
           children: [result, ColoredBox(color: shareColor(overlay))],
         );
       }
-      return result;
-    }
-    if (background.kind == 'solid') {
-      return ColoredBox(
+    } else if (background.kind == 'solid') {
+      result = ColoredBox(
         color: shareColor(
           properties['color'],
           fallback: const Color(0xFF141827),
         ),
       );
+    } else {
+      result = DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: _gradientFromProperties(properties, kind: background.kind),
+        ),
+      );
     }
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: _gradientFromProperties(properties, kind: background.kind),
-      ),
+
+    result = Stack(
+      fit: StackFit.expand,
+      children: [
+        result,
+        if (edit.tintOpacity > 0)
+          ColoredBox(
+            color: shareColor(
+              edit.tintColor,
+            ).withValues(alpha: edit.tintOpacity),
+          ),
+        if (edit.overlayOpacity > 0)
+          ColoredBox(
+            color: shareColor(
+              edit.overlayColor,
+            ).withValues(alpha: edit.overlayOpacity),
+          ),
+        if (edit.texture != ShareBackgroundTexture.none &&
+            edit.textureIntensity > 0)
+          CustomPaint(
+            key: const ValueKey('share_background_texture'),
+            painter: _BackgroundTexturePainter(edit),
+          ),
+      ],
+    );
+    if (!widget.editable) return result;
+    return LayoutBuilder(
+      builder:
+          (context, constraints) => GestureDetector(
+            key: const ValueKey('share_background_crop_surface'),
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              widget.controller.selectLayer(null);
+              widget.controller.selectSticker(null);
+            },
+            onDoubleTap:
+                () => widget.controller.updateBackgroundCrop(
+                  alignmentX: 0,
+                  alignmentY: 0,
+                  zoom: 1,
+                ),
+            onScaleStart:
+                (_) => _gestureStart = widget.controller.value.backgroundEdit,
+            onScaleUpdate: (details) {
+              final width = math.max(1, constraints.maxWidth);
+              final height = math.max(1, constraints.maxHeight);
+              final current = widget.controller.value.backgroundEdit;
+              widget.controller.updateBackgroundCrop(
+                alignmentX:
+                    current.alignmentX + details.focalPointDelta.dx * 2 / width,
+                alignmentY:
+                    current.alignmentY +
+                    details.focalPointDelta.dy * 2 / height,
+                zoom: _gestureStart.zoom * details.scale,
+              );
+            },
+            child: result,
+          ),
     );
   }
+}
+
+List<double> _photoColorMatrix(ShareBackgroundEdit edit) {
+  final saturation = edit.saturation;
+  final contrast = edit.contrast;
+  final inverseSaturation = 1 - saturation;
+  const red = 0.2126;
+  const green = 0.7152;
+  const blue = 0.0722;
+  final offset = edit.brightness * 255 + 128 * (1 - contrast);
+  return [
+    (inverseSaturation * red + saturation) * contrast,
+    inverseSaturation * green * contrast,
+    inverseSaturation * blue * contrast,
+    0,
+    offset,
+    inverseSaturation * red * contrast,
+    (inverseSaturation * green + saturation) * contrast,
+    inverseSaturation * blue * contrast,
+    0,
+    offset,
+    inverseSaturation * red * contrast,
+    inverseSaturation * green * contrast,
+    (inverseSaturation * blue + saturation) * contrast,
+    0,
+    offset,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ];
+}
+
+final class _BackgroundTexturePainter extends CustomPainter {
+  const _BackgroundTexturePainter(this.edit);
+
+  final ShareBackgroundEdit edit;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final primary = shareColor(
+      edit.textureColor,
+    ).withValues(alpha: edit.textureIntensity);
+    final secondary = shareColor(
+      edit.textureSecondaryColor,
+    ).withValues(alpha: edit.textureIntensity);
+    switch (edit.texture) {
+      case ShareBackgroundTexture.none:
+        return;
+      case ShareBackgroundTexture.grain:
+        final random = math.Random(7319);
+        final count =
+            (size.width * size.height / (34 * edit.textureScale)).round();
+        final paint = Paint();
+        for (var index = 0; index < count; index++) {
+          paint.color = (index.isEven ? primary : secondary).withValues(
+            alpha: edit.textureIntensity * (0.18 + random.nextDouble() * 0.5),
+          );
+          canvas.drawCircle(
+            Offset(
+              random.nextDouble() * size.width,
+              random.nextDouble() * size.height,
+            ),
+            0.35 + random.nextDouble() * 0.9,
+            paint,
+          );
+        }
+        break;
+      case ShareBackgroundTexture.stripes:
+        final paint =
+            Paint()
+              ..color = primary
+              ..strokeWidth = math.max(1, 1.4 * edit.textureScale);
+        final gap = 7 * edit.textureScale;
+        for (var y = 0.0; y <= size.height; y += gap) {
+          canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+        }
+        break;
+      case ShareBackgroundTexture.blobs:
+        final paint = Paint()..color = primary;
+        final path =
+            Path()
+              ..moveTo(-size.width * 0.1, size.height * 0.14)
+              ..quadraticBezierTo(
+                size.width * 0.3,
+                -size.height * 0.06,
+                size.width * 0.74,
+                size.height * 0.16,
+              )
+              ..quadraticBezierTo(
+                size.width * 0.95,
+                size.height * 0.27,
+                size.width * 1.1,
+                size.height * 0.09,
+              )
+              ..lineTo(size.width * 1.1, -20)
+              ..lineTo(-20, -20)
+              ..close();
+        canvas.drawPath(path, paint);
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: Offset(size.width * 0.02, size.height * 0.82),
+            width: size.width * 0.78,
+            height: size.height * 0.3,
+          ),
+          Paint()..color = secondary,
+        );
+        break;
+      case ShareBackgroundTexture.iridescent:
+        final rect = Offset.zero & size;
+        canvas.drawRect(
+          rect,
+          Paint()
+            ..shader = LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                primary,
+                secondary,
+                const Color(
+                  0xFFFF8BC2,
+                ).withValues(alpha: edit.textureIntensity),
+                const Color(
+                  0xFFBFF7FF,
+                ).withValues(alpha: edit.textureIntensity),
+              ],
+            ).createShader(rect),
+        );
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BackgroundTexturePainter oldDelegate) =>
+      oldDelegate.edit.toJson().toString() != edit.toJson().toString();
 }
 
 final class _StickerWorkspace extends StatelessWidget {
@@ -790,12 +1208,14 @@ final class _StickerWorkspace extends StatelessWidget {
     required this.layer,
     required this.imageResolver,
     required this.editable,
+    this.liveSticker,
   });
 
   final ShareEditorController controller;
   final ShareLayerConfig layer;
   final ShareImageProviderResolver imageResolver;
   final bool editable;
+  final ShareStickerValue? liveSticker;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -806,7 +1226,18 @@ final class _StickerWorkspace extends StatelessWidget {
             for (final sticker in controller.value.stickers)
               _StickerLayer(
                 controller: controller,
-                sticker: sticker,
+                sticker:
+                    liveSticker?.instanceId == sticker.instanceId
+                        ? liveSticker!
+                        : sticker,
+                workspaceSize: constraints.biggest,
+                imageResolver: imageResolver,
+                editable: editable,
+              ),
+            for (final overlay in controller.value.overlays)
+              _OverlayLayer(
+                controller: controller,
+                overlay: overlay,
                 workspaceSize: constraints.biggest,
                 imageResolver: imageResolver,
                 editable: editable,
@@ -955,6 +1386,158 @@ final class _StickerLayerState extends State<_StickerLayer> {
                             details.delta.dx / widget.workspaceSize.width,
                         rotation:
                             widget.sticker.rotation + details.delta.dy * 0.012,
+                      ),
+                  child: const Material(
+                    color: Colors.white,
+                    shape: CircleBorder(),
+                    child: Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.sync_rounded,
+                        size: 16,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _OverlayLayer extends StatefulWidget {
+  const _OverlayLayer({
+    required this.controller,
+    required this.overlay,
+    required this.workspaceSize,
+    required this.imageResolver,
+    required this.editable,
+  });
+
+  final ShareEditorController controller;
+  final SharePlacedOverlayValue overlay;
+  final Size workspaceSize;
+  final ShareImageProviderResolver imageResolver;
+  final bool editable;
+
+  @override
+  State<_OverlayLayer> createState() => _OverlayLayerState();
+}
+
+final class _OverlayLayerState extends State<_OverlayLayer> {
+  late SharePlacedOverlayValue _start;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = widget.imageResolver(widget.overlay.image);
+    final side = widget.workspaceSize.width * widget.overlay.scale;
+    final selected =
+        widget.controller.selectedOverlayId == widget.overlay.instanceId;
+    return Positioned(
+      left: widget.workspaceSize.width * widget.overlay.centerX - side / 2,
+      top: widget.workspaceSize.height * widget.overlay.centerY - side / 2,
+      width: side,
+      height: side,
+      child: Transform.rotate(
+        angle: widget.overlay.rotation,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                key: ValueKey(
+                  'story_canvas_overlay_${widget.overlay.instanceId}',
+                ),
+                behavior: HitTestBehavior.opaque,
+                onTap:
+                    widget.editable
+                        ? () => widget.controller.selectOverlay(
+                          widget.overlay.instanceId,
+                        )
+                        : null,
+                onScaleStart:
+                    widget.editable
+                        ? (_) {
+                          _start = widget.overlay;
+                          widget.controller.selectOverlay(
+                            widget.overlay.instanceId,
+                          );
+                        }
+                        : null,
+                onScaleUpdate:
+                    widget.editable
+                        ? (details) => widget.controller.updateOverlay(
+                          widget.overlay.instanceId,
+                          centerX:
+                              widget.overlay.centerX +
+                              details.focalPointDelta.dx /
+                                  widget.workspaceSize.width,
+                          centerY:
+                              widget.overlay.centerY +
+                              details.focalPointDelta.dy /
+                                  widget.workspaceSize.height,
+                          scale: _start.scale * details.scale,
+                          rotation: _start.rotation + details.rotation,
+                        )
+                        : null,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border:
+                        widget.editable && selected
+                            ? Border.all(color: Colors.white, width: 2)
+                            : null,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child:
+                      provider == null
+                          ? const Icon(Icons.broken_image_outlined)
+                          : Image(image: provider, fit: BoxFit.contain),
+                ),
+              ),
+            ),
+            if (widget.editable && selected)
+              Positioned(
+                left: 0,
+                top: 0,
+                child: Material(
+                  color: Colors.white,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    key: const ValueKey('story_delete_overlay'),
+                    customBorder: const CircleBorder(),
+                    onTap:
+                        () => widget.controller.removeOverlay(
+                          widget.overlay.instanceId,
+                        ),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (widget.editable && selected)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: GestureDetector(
+                  key: const ValueKey('story_overlay_transform_handle'),
+                  behavior: HitTestBehavior.opaque,
+                  onPanUpdate:
+                      (details) => widget.controller.updateOverlay(
+                        widget.overlay.instanceId,
+                        scale:
+                            widget.overlay.scale +
+                            details.delta.dx / widget.workspaceSize.width,
+                        rotation:
+                            widget.overlay.rotation + details.delta.dy * 0.012,
                       ),
                   child: const Material(
                     color: Colors.white,

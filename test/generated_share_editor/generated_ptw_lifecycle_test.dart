@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ptw/core/constants/component_ids.dart';
 
 import '../test_harness.dart';
 
@@ -10,17 +9,11 @@ void main() {
   ) async {
     const route = '/projects/challenge_red_friday/share?event=challengeCreated';
     await pumpPtw(tester, initialLocation: route);
-    expect(
-      find.byKey(const ValueKey(ComponentIds.storyToolLooks)),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('story_tool_templates')), findsOneWidget);
 
     await pumpPtw(tester, initialLocation: route);
     expect(tester.takeException(), isNull);
-    expect(
-      find.byKey(const ValueKey(ComponentIds.storyToolLooks)),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('story_tool_templates')), findsOneWidget);
   });
 
   testWidgets('generated editor is available in a following test case', (
@@ -37,9 +30,6 @@ void main() {
     );
     expect(find.text('Local data unavailable'), findsNothing);
     expect(find.text('BUILD YOUR STORY'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey(ComponentIds.storyToolLooks)),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('story_tool_templates')), findsOneWidget);
   });
 }

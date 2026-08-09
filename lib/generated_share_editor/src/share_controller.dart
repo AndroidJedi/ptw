@@ -9,6 +9,10 @@ typedef ShareEntitlementResolver = bool Function(String entitlementKey);
 
 enum ShareAccessState { available, locked, hidden }
 
+/// Authoring exposes the complete theme surface. Runtime only exposes the
+/// choices explicitly granted by the active template and layer.
+enum ShareEditorMode { authoring, runtime }
+
 final class ShareLockedFeature {
   const ShareLockedFeature({
     required this.id,
@@ -27,6 +31,7 @@ final class ShareEditorController extends ChangeNotifier {
     required ShareEditorContent content,
     ShareEditorValue? initialValue,
     ShareEntitlementResolver? entitlements,
+    ShareEditorMode mode = ShareEditorMode.authoring,
   }) {
     final validated = _validatedInitial(theme, content, initialValue);
     return ShareEditorController._(
@@ -34,6 +39,7 @@ final class ShareEditorController extends ChangeNotifier {
       content: content,
       initial: validated,
       entitlements: entitlements ?? _denyEntitlements,
+      mode: mode,
     );
   }
 
@@ -42,33 +48,57 @@ final class ShareEditorController extends ChangeNotifier {
     required this.content,
     required ShareEditorValue initial,
     required ShareEntitlementResolver entitlements,
+    required this.mode,
   }) : _entitlements = entitlements,
        _initial = initial,
        _value = initial {
-    _nextSticker = 1;
+    _nextSticker = initial.stickers.length + 1;
+    _nextOverlay = initial.overlays.length + 1;
   }
 
   final ShareThemeConfig theme;
   final ShareEditorContent content;
   final ShareEntitlementResolver _entitlements;
+  final ShareEditorMode mode;
   final ShareEditorValue _initial;
   ShareEditorValue _value;
   int _nextSticker = 1;
+  int _nextOverlay = 1;
   String? _selectedLayerId;
   String? _selectedStickerId;
+  String? _selectedOverlayId;
   bool _hasChanges = false;
 
   ShareEditorValue get value => _value;
   bool get hasChanges => _hasChanges;
   String? get selectedLayerId => _selectedLayerId;
   String? get selectedStickerId => _selectedStickerId;
-  bool get canAddSticker => _value.stickers.length < theme.maximumStickerCount;
+  String? get selectedOverlayId => _selectedOverlayId;
+  int get decorationCount => _value.stickers.length + _value.overlays.length;
+  bool get canAddDecoration => decorationCount < theme.maximumDecorationCount;
+  bool get canAddSticker =>
+      canAddDecoration && _value.stickers.length < theme.maximumStickerCount;
+
+  static const minimumOverlayScale = 0.08;
+  static const maximumOverlayScale = 0.65;
 
   ShareLookConfig get activeLook => theme.look(_value.lookId);
+  ShareTemplateConfig get activeTemplate =>
+      theme.template(_value.templateId ?? theme.defaultTemplateId);
 
   ShareLayerConfig effectiveLayer(String layerId) {
     final base = theme.layer(layerId);
-    final override = activeLook.layerOverrides[layerId];
+    final structured = _mergeLayerOverride(
+      base,
+      activeTemplate.layerOverrides[layerId],
+    );
+    return _mergeLayerOverride(structured, activeLook.layerOverrides[layerId]);
+  }
+
+  ShareLayerConfig _mergeLayerOverride(
+    ShareLayerConfig base,
+    Map<String, Object?>? override,
+  ) {
     if (override == null) return base;
     final styleOverride = override['style'];
     final mergedStyle = <String, Object?>{
@@ -118,10 +148,15 @@ final class ShareEditorController extends ChangeNotifier {
 
   ShareAccessState controlAccess(String layerId, String controlId) {
     final control = theme.layer(layerId).control(controlId);
-    return control == null
-        ? ShareAccessState.hidden
-        : accessState(control.access);
+    if (control == null ||
+        !_runtimeAllows(theme.layer(layerId), control.capability)) {
+      return ShareAccessState.hidden;
+    }
+    return accessState(control.access);
   }
+
+  bool canUseControl(String layerId, String capability) =>
+      _allowed(theme.layer(layerId), capability);
 
   ShareLockedFeature lockedFeature({
     required String id,
@@ -137,6 +172,7 @@ final class ShareEditorController extends ChangeNotifier {
     if (layerId != null) theme.layer(layerId);
     _selectedLayerId = layerId;
     _selectedStickerId = null;
+    _selectedOverlayId = null;
     notifyListeners();
   }
 
@@ -146,6 +182,18 @@ final class ShareEditorController extends ChangeNotifier {
       return;
     }
     _selectedStickerId = instanceId;
+    _selectedLayerId = null;
+    _selectedOverlayId = null;
+    notifyListeners();
+  }
+
+  void selectOverlay(String? instanceId) {
+    if (instanceId != null &&
+        !_value.overlays.any((item) => item.instanceId == instanceId)) {
+      return;
+    }
+    _selectedOverlayId = instanceId;
+    _selectedStickerId = null;
     _selectedLayerId = null;
     notifyListeners();
   }
@@ -161,22 +209,34 @@ final class ShareEditorController extends ChangeNotifier {
   }
 
   bool updateLayerProperty(String layerId, String property, Object? value) {
+    return updateLayerProperties(layerId, {property: value});
+  }
+
+  bool updateLayerProperties(String layerId, Map<String, Object?> properties) {
     final layer = theme.layer(layerId);
-    final control = layer.control(property);
-    if (control == null || !canAccess(control.access)) return false;
-    Object? safe = value;
-    if (value is num) {
-      safe = value.toDouble().clamp(
-        control.minimum ?? -double.maxFinite,
-        control.maximum ?? double.maxFinite,
-      );
-    }
-    if (control.options.isNotEmpty && !control.options.contains('$safe')) {
-      return false;
+    final safeProperties = <String, Object?>{};
+    for (final entry in properties.entries) {
+      final control = layer.control(entry.key);
+      if (control == null ||
+          !canAccess(control.access) ||
+          !_runtimeAllows(layer, control.capability)) {
+        return false;
+      }
+      Object? safe = entry.value;
+      if (safe is num) {
+        safe = safe.toDouble().clamp(
+          control.minimum ?? -double.maxFinite,
+          control.maximum ?? double.maxFinite,
+        );
+      }
+      if (control.options.isNotEmpty && !control.options.contains('$safe')) {
+        return false;
+      }
+      safeProperties[entry.key] = safe;
     }
     final overrides = <String, Map<String, Object?>>{
       ..._value.propertyOverrides,
-      layerId: {...?_value.propertyOverrides[layerId], property: safe},
+      layerId: {...?_value.propertyOverrides[layerId], ...safeProperties},
     };
     _value = _value.copyWith(propertyOverrides: overrides);
     _changed();
@@ -216,6 +276,7 @@ final class ShareEditorController extends ChangeNotifier {
   }
 
   bool selectBackground(String backgroundId) {
+    if (mode == ShareEditorMode.runtime) return false;
     final background = theme.background(backgroundId);
     if (!canAccess(background.access)) return false;
     _value = _value.copyWith(backgroundId: backgroundId);
@@ -223,28 +284,107 @@ final class ShareEditorController extends ChangeNotifier {
     return true;
   }
 
+  bool updateBackground(ShareBackgroundEdit value) {
+    if (mode == ShareEditorMode.runtime) return false;
+    final safe = _validatedBackgroundEdit(value);
+    _value = _value.copyWith(backgroundEdit: safe);
+    _changed();
+    return true;
+  }
+
+  bool replaceBackgroundImage(ShareImageValue image) {
+    if (mode == ShareEditorMode.runtime &&
+        !activeTemplate.runtimePermissions.userCanReplaceMedia) {
+      return false;
+    }
+    final safe = _validatedBackgroundEdit(
+      _value.backgroundEdit.copyWith(
+        image: image,
+        alignmentX: 0,
+        alignmentY: 0,
+        zoom: 1,
+      ),
+    );
+    _value = _value.copyWith(backgroundEdit: safe);
+    _changed();
+    return true;
+  }
+
+  bool useProjectBackground() {
+    if (mode == ShareEditorMode.runtime &&
+        !activeTemplate.runtimePermissions.userCanReplaceMedia) {
+      return false;
+    }
+    final safe = _validatedBackgroundEdit(
+      _value.backgroundEdit.copyWith(
+        clearImage: true,
+        alignmentX: 0,
+        alignmentY: 0,
+        zoom: 1,
+      ),
+    );
+    _value = _value.copyWith(backgroundEdit: safe);
+    _changed();
+    return true;
+  }
+
+  bool updateBackgroundCrop({
+    double? alignmentX,
+    double? alignmentY,
+    double? zoom,
+  }) {
+    if (mode == ShareEditorMode.runtime &&
+        !activeTemplate.runtimePermissions.userCanCropMedia) {
+      return false;
+    }
+    final safe = _validatedBackgroundEdit(
+      _value.backgroundEdit.copyWith(
+        alignmentX: alignmentX,
+        alignmentY: alignmentY,
+        zoom: zoom,
+      ),
+    );
+    _value = _value.copyWith(backgroundEdit: safe);
+    _changed();
+    return true;
+  }
+
   bool selectLook(String lookId) {
+    if (mode == ShareEditorMode.runtime) return false;
     final look = theme.look(lookId);
     if (!canAccess(look.access)) return false;
+    final currentBackground = _value.backgroundEdit;
+    final treatment = look.backgroundTreatment.copyWith(
+      image: currentBackground.image,
+      clearImage: currentBackground.image == null,
+      alignmentX: currentBackground.alignmentX,
+      alignmentY: currentBackground.alignmentY,
+      zoom: currentBackground.zoom,
+    );
     _value = _value.copyWith(
       lookId: look.id,
-      backgroundId: look.backgroundId ?? theme.defaultBackgroundId,
+      backgroundId: look.backgroundId ?? _value.backgroundId,
+      backgroundEdit: treatment,
       stickers: look.defaultStickers,
       transforms: const {},
       propertyOverrides: const {},
     );
     _selectedLayerId = null;
     _selectedStickerId = null;
+    _selectedOverlayId = null;
     _nextSticker = 1;
     _changed();
     return true;
   }
 
   bool cycleLook() {
+    if (mode == ShareEditorMode.runtime) return false;
     final visible =
         theme.looks
             .where(
-              (item) => accessState(item.access) != ShareAccessState.hidden,
+              (item) =>
+                  item.editorVisible &&
+                  accessState(item.access) != ShareAccessState.hidden,
             )
             .toList();
     if (visible.isEmpty) return false;
@@ -257,7 +397,44 @@ final class ShareEditorController extends ChangeNotifier {
     return false;
   }
 
+  bool selectTemplate(String templateId) {
+    final template = theme.template(templateId);
+    if (mode == ShareEditorMode.runtime &&
+        !activeTemplate.runtimePermissions.userCanChooseAlternateTemplate) {
+      return false;
+    }
+    if (template.id == activeTemplate.id) return true;
+    _value = _value.copyWith(
+      templateId: template.id,
+      transforms: const {},
+      propertyOverrides: const {},
+    );
+    _selectedLayerId = null;
+    _selectedStickerId = null;
+    _selectedOverlayId = null;
+    _changed();
+    return true;
+  }
+
+  bool cycleTemplate() {
+    if (theme.templates.isEmpty) return false;
+    final current = theme.templates.indexWhere(
+      (item) => item.id == activeTemplate.id,
+    );
+    for (var offset = 1; offset <= theme.templates.length; offset++) {
+      final candidate =
+          theme.templates[(math.max(0, current) + offset) %
+              theme.templates.length];
+      if (selectTemplate(candidate.id)) return true;
+    }
+    return false;
+  }
+
   bool addSticker(String stickerId) {
+    if (mode == ShareEditorMode.runtime &&
+        !activeTemplate.runtimePermissions.userCanEditDecorations) {
+      return false;
+    }
     if (!canAddSticker) return false;
     final sticker = theme.sticker(stickerId);
     if (!canAccess(sticker.access)) return false;
@@ -277,6 +454,79 @@ final class ShareEditorController extends ChangeNotifier {
     _value = _value.copyWith(stickers: [..._value.stickers, value]);
     _selectedLayerId = null;
     _selectedStickerId = value.instanceId;
+    _selectedOverlayId = null;
+    _changed();
+    return true;
+  }
+
+  bool addOverlay(ShareImageValue image) {
+    if (mode == ShareEditorMode.runtime &&
+        !activeTemplate.runtimePermissions.userCanEditDecorations) {
+      return false;
+    }
+    if (!canAddDecoration) return false;
+    final index = decorationCount;
+    const anchors = [(0.78, 0.26), (0.22, 0.72), (0.78, 0.74)];
+    final anchor = anchors[index % anchors.length];
+    final value = SharePlacedOverlayValue(
+      instanceId: 'upload_${_nextOverlay++}',
+      image: image,
+      centerX: anchor.$1,
+      centerY: anchor.$2,
+      scale: 0.24,
+      rotation: 0,
+    );
+    _value = _value.copyWith(overlays: [..._value.overlays, value]);
+    _selectedLayerId = null;
+    _selectedStickerId = null;
+    _selectedOverlayId = value.instanceId;
+    _changed();
+    return true;
+  }
+
+  bool updateOverlay(
+    String instanceId, {
+    double? centerX,
+    double? centerY,
+    double? scale,
+    double? rotation,
+  }) {
+    if (mode == ShareEditorMode.runtime &&
+        !activeTemplate.runtimePermissions.userCanEditDecorations) {
+      return false;
+    }
+    final index = _value.overlays.indexWhere(
+      (item) => item.instanceId == instanceId,
+    );
+    if (index < 0) return false;
+    final current = _value.overlays[index];
+    final updated = current.copyWith(
+      centerX: centerX?.clamp(0.02, 0.98),
+      centerY: centerY?.clamp(0.02, 0.98),
+      scale: scale?.clamp(minimumOverlayScale, maximumOverlayScale),
+      rotation: rotation == null ? null : _normalize(rotation),
+    );
+    final overlays = [..._value.overlays]..[index] = updated;
+    _value = _value.copyWith(overlays: overlays);
+    _changed();
+    return true;
+  }
+
+  bool removeOverlay(String instanceId) {
+    if (mode == ShareEditorMode.runtime &&
+        !activeTemplate.runtimePermissions.userCanEditDecorations) {
+      return false;
+    }
+    if (!_value.overlays.any((item) => item.instanceId == instanceId)) {
+      return false;
+    }
+    _value = _value.copyWith(
+      overlays:
+          _value.overlays
+              .where((item) => item.instanceId != instanceId)
+              .toList(),
+    );
+    if (_selectedOverlayId == instanceId) _selectedOverlayId = null;
     _changed();
     return true;
   }
@@ -288,6 +538,10 @@ final class ShareEditorController extends ChangeNotifier {
     double? scale,
     double? rotation,
   }) {
+    if (mode == ShareEditorMode.runtime &&
+        !activeTemplate.runtimePermissions.userCanEditDecorations) {
+      return false;
+    }
     final index = _value.stickers.indexWhere(
       (item) => item.instanceId == instanceId,
     );
@@ -323,6 +577,10 @@ final class ShareEditorController extends ChangeNotifier {
   }
 
   bool removeSticker(String instanceId) {
+    if (mode == ShareEditorMode.runtime &&
+        !activeTemplate.runtimePermissions.userCanEditDecorations) {
+      return false;
+    }
     final current = _value.stickers.where(
       (item) => item.instanceId == instanceId,
     );
@@ -348,6 +606,9 @@ final class ShareEditorController extends ChangeNotifier {
     _value = _initial;
     _selectedLayerId = null;
     _selectedStickerId = null;
+    _selectedOverlayId = null;
+    _nextSticker = 1;
+    _nextOverlay = 1;
     _hasChanges = false;
     notifyListeners();
   }
@@ -370,7 +631,40 @@ final class ShareEditorController extends ChangeNotifier {
         }
       }
     }
-    return control != null && canAccess(control.access);
+    return control != null &&
+        canAccess(control.access) &&
+        _runtimeAllows(layer, control.capability);
+  }
+
+  bool _runtimeAllows(ShareLayerConfig layer, String capability) {
+    if (mode == ShareEditorMode.authoring) return true;
+    final layerPermissions = layer.runtimePermissions;
+    return switch (capability) {
+      'edit' =>
+        layerPermissions.canEditContent &&
+            switch (layer.semanticRole) {
+              ShareSemanticRole.headline =>
+                activeTemplate.runtimePermissions.userCanEditHeadline,
+              ShareSemanticRole.proof ||
+              ShareSemanticRole.metric ||
+              ShareSemanticRole.progress =>
+                activeTemplate.runtimePermissions.userCanEditProofValue,
+              _ => true,
+            },
+      'replace' =>
+        layerPermissions.canReplaceMedia &&
+            activeTemplate.runtimePermissions.userCanReplaceMedia,
+      'crop' =>
+        layerPermissions.canCropMedia &&
+            activeTemplate.runtimePermissions.userCanCropMedia,
+      'move' => layerPermissions.canMove,
+      'resize' => layerPermissions.canResize,
+      'rotate' => layerPermissions.canRotate,
+      'hide' =>
+        layerPermissions.canHide &&
+            activeTemplate.runtimePermissions.userCanHideOptionalNote,
+      _ => layerPermissions.canStyle,
+    };
   }
 
   void _changed() {
@@ -392,6 +686,8 @@ final class ShareEditorController extends ChangeNotifier {
   ) {
     if (candidate != null) {
       theme.look(candidate.lookId);
+      final templateId = candidate.templateId ?? theme.defaultTemplateId;
+      theme.template(templateId);
       if (candidate.backgroundId != null) {
         theme.background(candidate.backgroundId!);
       }
@@ -415,6 +711,12 @@ final class ShareEditorController extends ChangeNotifier {
       if (candidate.stickers.length > theme.maximumStickerCount) {
         throw const FormatException('Saved composition has too many stickers');
       }
+      if (candidate.stickers.length + candidate.overlays.length >
+          theme.maximumDecorationCount) {
+        throw const FormatException(
+          'Saved composition has too many decoration layers',
+        );
+      }
       final instanceIds = <String>{};
       for (final item in candidate.stickers) {
         final config = theme.sticker(item.stickerId);
@@ -434,6 +736,27 @@ final class ShareEditorController extends ChangeNotifier {
           );
         }
       }
+      for (final item in candidate.overlays) {
+        if (!instanceIds.add(item.instanceId)) {
+          throw FormatException(
+            'Saved composition has duplicate overlay ${item.instanceId}',
+          );
+        }
+        if (item.centerX < 0 ||
+            item.centerX > 1 ||
+            item.centerY < 0 ||
+            item.centerY > 1 ||
+            item.scale < minimumOverlayScale ||
+            item.scale > maximumOverlayScale) {
+          throw FormatException(
+            'Saved overlay ${item.instanceId} is outside its constraints',
+          );
+        }
+      }
+      _validatedBackgroundEdit(
+        candidate.backgroundEdit,
+        rejectOutOfRange: true,
+      );
       for (final entry in candidate.propertyOverrides.entries) {
         final layer = theme.layer(entry.key);
         for (final property in entry.value.entries) {
@@ -459,11 +782,14 @@ final class ShareEditorController extends ChangeNotifier {
           }
         }
       }
-      return candidate;
+      return candidate.templateId == null
+          ? candidate.copyWith(templateId: templateId)
+          : candidate;
     }
     final look = theme.look(theme.defaultLookId);
     return ShareEditorValue(
       lookId: look.id,
+      templateId: theme.defaultTemplateId,
       backgroundId: look.backgroundId ?? theme.defaultBackgroundId,
       layerValues: {
         for (final layer in theme.layers)
@@ -476,6 +802,60 @@ final class ShareEditorController extends ChangeNotifier {
       },
       transforms: const {},
       stickers: look.defaultStickers,
+      backgroundEdit: look.backgroundTreatment,
+    );
+  }
+
+  static ShareBackgroundEdit _validatedBackgroundEdit(
+    ShareBackgroundEdit value, {
+    bool rejectOutOfRange = false,
+  }) {
+    double number(
+      String name,
+      double candidate,
+      double minimum,
+      double maximum,
+    ) {
+      if (!candidate.isFinite ||
+          (rejectOutOfRange && (candidate < minimum || candidate > maximum))) {
+        throw FormatException(
+          'Background treatment $name is outside its range',
+        );
+      }
+      return candidate.clamp(minimum, maximum);
+    }
+
+    String color(String candidate) {
+      if (!RegExp(
+        r'^#?(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$',
+      ).hasMatch(candidate)) {
+        throw const FormatException('Background treatment has invalid color');
+      }
+      return candidate.startsWith('#') ? candidate : '#$candidate';
+    }
+
+    return value.copyWith(
+      alignmentX: number('alignmentX', value.alignmentX, -1, 1),
+      alignmentY: number('alignmentY', value.alignmentY, -1, 1),
+      zoom: number('zoom', value.zoom, 1, 4),
+      imageOpacity: number('imageOpacity', value.imageOpacity, 0.2, 1),
+      blur: number('blur', value.blur, 0, 30),
+      brightness: number('brightness', value.brightness, -1, 1),
+      contrast: number('contrast', value.contrast, 0.5, 2),
+      saturation: number('saturation', value.saturation, 0, 2),
+      tintColor: color(value.tintColor),
+      tintOpacity: number('tintOpacity', value.tintOpacity, 0, 1),
+      overlayColor: color(value.overlayColor),
+      overlayOpacity: number('overlayOpacity', value.overlayOpacity, 0, 1),
+      textureColor: color(value.textureColor),
+      textureSecondaryColor: color(value.textureSecondaryColor),
+      textureIntensity: number(
+        'textureIntensity',
+        value.textureIntensity,
+        0,
+        1,
+      ),
+      textureScale: number('textureScale', value.textureScale, 0.5, 4),
     );
   }
 

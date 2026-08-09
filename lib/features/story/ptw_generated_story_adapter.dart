@@ -13,12 +13,14 @@ final class PtwGeneratedStoryAdapter {
     required ShareEvent event,
     required DateTime now,
     String? momentId,
-  }) => const PtwStoryComposer().create(
-    project: project,
-    event: event,
-    momentId: momentId,
-    now: now,
-  );
+  }) => const PtwStoryComposer()
+      .create(project: project, event: event, momentId: momentId, now: now)
+      .copyWith(
+        clearBackgroundId: true,
+        lookId: 'project_focus',
+        textTreatment: PtwStoryTextTreatment.clean,
+        stickers: const [],
+      );
 
   ShareEditorContent content({
     required PtwProject project,
@@ -33,6 +35,17 @@ final class PtwGeneratedStoryAdapter {
     cover: _image(composition.projectBackground),
     caption: composition.caption,
     publicLink: composition.publicLink,
+    previousMedia: _image(composition.projectBackground),
+    currentMedia: _image(composition.projectBackground),
+    progressValue:
+        project.status == PtwProjectStatus.completed ? '100%' : 'IN PROGRESS',
+    metricValue:
+        project.status == PtwProjectStatus.completed
+            ? 'GOAL COMPLETED'
+            : 'STILL SHOWING UP',
+    previousTimeLabel: 'BEFORE',
+    currentTimeLabel: 'NOW',
+    proofLabel: composition.eventName,
     custom: {
       'eventName': composition.eventName,
       'momentId': composition.momentId,
@@ -49,16 +62,18 @@ final class PtwGeneratedStoryAdapter {
     final encoded = composition.editorValue;
     if (encoded != null &&
         composition.themeId == theme.id &&
-        composition.themeSchemaVersion == theme.schemaVersion) {
+        composition.themeSchemaVersion <= theme.schemaVersion) {
       try {
         final restored = ShareEditorValue.fromJson(encoded);
-        ShareEditorController(
+        final validator = ShareEditorController(
           theme: theme,
           content: content,
           initialValue: restored,
           entitlements: (_) => true,
-        ).dispose();
-        return restored;
+        );
+        final migrated = validator.value;
+        validator.dispose();
+        return migrated;
       } on Object {
         // Fall through to the legacy fixed-layout migration.
       }
@@ -71,6 +86,7 @@ final class PtwGeneratedStoryAdapter {
     final knownStickerIds = theme.stickers.map((item) => item.id).toSet();
     return ShareEditorValue(
       lookId: look.id,
+      templateId: theme.defaultTemplateId,
       backgroundId:
           composition.backgroundId == null
               ? 'project_cover'
@@ -87,6 +103,7 @@ final class PtwGeneratedStoryAdapter {
         'tagline': 'PROVE THEM WRONG',
       },
       transforms: const {},
+      backgroundEdit: look.backgroundTreatment,
       stickers: [
         for (final item in composition.stickers)
           if (knownStickerIds.contains(item.stickerId))

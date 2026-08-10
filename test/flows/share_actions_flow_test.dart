@@ -29,15 +29,32 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('story_editor_done')));
     await tester.pumpAndSettle();
     expect(find.text('Watch me prove this.'), findsWidgets);
+    final initialCandidate =
+        (await environment.repository.load())!.shareGenerationEvents
+            .firstWhere(
+              (event) =>
+                  event.type == ShareGenerationEventType.candidateSelected,
+            )
+            .candidateId;
 
     await tester.tap(
       find.byKey(const ValueKey(ComponentIds.shareGenerateAnother)),
     );
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('share_candidate_list')), findsOneWidget);
-    expect(find.text('Use this'), findsAtLeastNWidgets(1));
-    await tester.tap(find.text('Use this').first);
-    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('share_candidate_list')), findsNothing);
+    expect(
+      find.byKey(const ValueKey(ComponentIds.storyContinue)),
+      findsOneWidget,
+    );
+    expect(find.text('Watch me prove this.'), findsWidgets);
+    final regeneratedCandidate =
+        (await environment.repository.load())!.shareGenerationEvents
+            .firstWhere(
+              (event) =>
+                  event.type == ShareGenerationEventType.candidateSelected,
+            )
+            .candidateId;
+    expect(regeneratedCandidate, isNot(initialCandidate));
 
     await openStoryGuideAtFinalStep(tester);
     await submitFinalStoryShare(tester);
@@ -65,8 +82,8 @@ void main() {
       events.map((item) => item.type),
       containsAllInOrder([
         ShareGenerationEventType.generationStarted,
-        ShareGenerationEventType.stateConfirmed,
         ShareGenerationEventType.candidatesShown,
+        ShareGenerationEventType.candidateSelected,
         ShareGenerationEventType.optionsRegenerated,
         ShareGenerationEventType.exportCompleted,
         ShareGenerationEventType.shareInvoked,

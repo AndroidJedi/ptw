@@ -39,4 +39,6 @@ if [[ "${1:-}" == "--emulator-only" ]]; then
 fi
 
 cd "$ptw_workspace"
+flutter pub get
+dart run tool/ptw_template_mcp/sync.dart
 exec flutter run --debug -d "$ptw_device_id"

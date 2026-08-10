@@ -36,12 +36,5 @@ void main() {
 }
 
 Future<void> reachSharePreview(WidgetTester tester) async {
-  await tester.enterText(
-    find.byKey(const ValueKey(ComponentIds.createProjectGoal)),
-    'Build something people say cannot work',
-  );
-  await tester.tap(
-    find.byKey(const ValueKey(ComponentIds.createProjectContinue)),
-  );
-  await tester.pumpAndSettle();
+  await editStoryHeadline(tester, 'Build something people say cannot work');
 }

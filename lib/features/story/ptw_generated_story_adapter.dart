@@ -162,6 +162,7 @@ final class PtwGeneratedStoryAdapter {
   }) {
     final headline = '${value.layerValues['headline'] ?? base.headline}'.trim();
     final dare = '${value.layerValues['secondary'] ?? base.dare}'.trim();
+    final templateId = value.templateId ?? base.templateId;
     return PtwStoryComposition(
       projectId: base.projectId,
       eventName: base.eventName,
@@ -193,8 +194,11 @@ final class PtwGeneratedStoryAdapter {
       updatedAt: updatedAt,
       journeyState: base.journeyState,
       candidateId: base.candidateId,
-      familyId: base.familyId,
-      templateId: value.templateId ?? base.templateId,
+      familyId:
+          templateId == null
+              ? base.familyId
+              : theme.template(templateId).family.name,
+      templateId: templateId,
       regenerationIndex: base.regenerationIndex,
       progressFraction: base.progressFraction,
     );
@@ -228,10 +232,10 @@ final class PtwGeneratedStoryAdapter {
             ? theme.defaultTemplateId
             : value.templateId!;
     final lookId =
-        knownLooks.contains(value.lookId)
-            ? value.lookId
-            : candidate != null && knownLooks.contains(candidate.lookId)
+        candidate != null && knownLooks.contains(candidate.lookId)
             ? candidate.lookId
+            : knownLooks.contains(value.lookId)
+            ? value.lookId
             : theme.defaultLookId;
     final backgroundId =
         value.backgroundId != null &&

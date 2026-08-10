@@ -80,7 +80,8 @@ final class _GeneratedShareEditorState extends State<GeneratedShareEditor> {
           initialValue: widget.initialValue,
           entitlements: widget.entitlements,
         );
-    _selectedTool = _firstVisibleTool();
+    _selectedTool =
+        _controller.mode == ShareEditorMode.runtime ? '' : _firstVisibleTool();
     _controller.addListener(_changed);
   }
 
@@ -175,16 +176,17 @@ final class _GeneratedShareEditorState extends State<GeneratedShareEditor> {
               onSelected: _selectTool,
               onLocked: widget.onLockedFeatureTap,
             ),
-            SizedBox(
-              height: keyboardOpen ? 150 : 174,
-              child: DecoratedBox(
-                decoration: const BoxDecoration(
-                  color: Color(0xFF171F36),
-                  border: Border(top: BorderSide(color: Color(0xFF2B3552))),
+            if (_selectedTool.isNotEmpty)
+              SizedBox(
+                height: keyboardOpen ? 150 : 174,
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF171F36),
+                    border: Border(top: BorderSide(color: Color(0xFF2B3552))),
+                  ),
+                  child: _toolPanel(),
                 ),
-                child: _toolPanel(),
               ),
-            ),
             if (widget.onContinue != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
@@ -222,6 +224,7 @@ final class _GeneratedShareEditorState extends State<GeneratedShareEditor> {
       controller: _controller,
       textControllers: _textControllers,
       onLocked: widget.onLockedFeatureTap,
+      onDone: _closeTool,
     ),
     'looks' => _LooksPanel(
       controller: _controller,
@@ -268,6 +271,12 @@ final class _GeneratedShareEditorState extends State<GeneratedShareEditor> {
   void _selectTool(String id) {
     _controller.selectLayer(null);
     setState(() => _selectedTool = id);
+  }
+
+  void _closeTool() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _controller.selectLayer(null);
+    setState(() => _selectedTool = '');
   }
 
   Future<void> _pickImage(ShareLayerConfig layer) async {
@@ -371,12 +380,15 @@ final class _TopBar extends StatelessWidget {
     height: 52,
     child: Row(
       children: [
-        IconButton(
-          key: const ValueKey('share_back'),
-          onPressed: onClose,
-          color: Colors.white,
-          icon: const Icon(Icons.close_rounded, size: 28),
-        ),
+        if (onClose == null)
+          const SizedBox(width: 48)
+        else
+          IconButton(
+            key: const ValueKey('share_back'),
+            onPressed: onClose,
+            color: Colors.white,
+            icon: const Icon(Icons.close_rounded, size: 28),
+          ),
         Expanded(
           child: Text(
             title,
@@ -446,7 +458,7 @@ final class _ToolBar extends StatelessWidget {
             Expanded(
               child: _AccessButton(
                 key: ValueKey('story_tool_${group.id}'),
-                label: group.label,
+                label: group.id == 'templates' ? 'Template' : group.label,
                 icon: _icon(group.icon),
                 premiumIcon: _icon(controller.theme.premiumIcon),
                 selected: selected == group.id,
@@ -508,11 +520,13 @@ final class _TextPanel extends StatelessWidget {
     required this.controller,
     required this.textControllers,
     required this.onLocked,
+    required this.onDone,
   });
 
   final ShareEditorController controller;
   final Map<String, TextEditingController> textControllers;
   final ValueChanged<ShareLockedFeature>? onLocked;
+  final VoidCallback onDone;
 
   @override
   Widget build(BuildContext context) {
@@ -550,7 +564,7 @@ final class _TextPanel extends StatelessWidget {
               const Spacer(),
               TextButton.icon(
                 key: const ValueKey('story_editor_done'),
-                onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
+                onPressed: onDone,
                 icon: const Icon(Icons.check_rounded),
                 label: const Text('Done'),
               ),
@@ -599,14 +613,14 @@ final class _TextPanel extends StatelessWidget {
                               value,
                             ),
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: Color(0xFF10182A),
                           fontSize: 13,
                         ),
                         decoration: InputDecoration(
                           labelText: layers[index].label,
                           counterText: '',
                           isDense: true,
-                          labelStyle: const TextStyle(color: Colors.white70),
+                          labelStyle: const TextStyle(color: Color(0xFF3D4963)),
                           enabledBorder: const OutlineInputBorder(
                             borderSide: BorderSide(color: Colors.white24),
                           ),
@@ -1983,7 +1997,8 @@ bool _runtimeToolAvailable(ShareEditorController controller, String id) {
   return switch (id) {
     'templates' =>
       controller.theme.templates.length > 1 &&
-          permissions.userCanChooseAlternateTemplate,
+          (controller.allowRuntimeTemplateSelection ||
+              permissions.userCanChooseAlternateTemplate),
     'text' => controller.theme.layers.any(
       (layer) =>
           layer.type == 'text' &&

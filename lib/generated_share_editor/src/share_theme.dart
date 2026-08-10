@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'share_theme_asset_loader_stub.dart'
     if (dart.library.ui) 'share_theme_asset_loader_flutter.dart'

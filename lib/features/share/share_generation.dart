@@ -113,6 +113,27 @@ final class ShareCandidate {
   final double progressFraction;
   final int regenerationIndex;
   final bool stickersAllowed;
+
+  ShareCandidate copyWith({String? lookId, String? label}) => ShareCandidate(
+    id: id,
+    templateId: templateId,
+    lookId: lookId ?? this.lookId,
+    family: family,
+    journeyState: journeyState,
+    label: label ?? this.label,
+    headline: headline,
+    secondaryText: secondaryText,
+    progressValue: progressValue,
+    metricValue: metricValue,
+    proofLabel: proofLabel,
+    previousTimeLabel: previousTimeLabel,
+    currentTimeLabel: currentTimeLabel,
+    previousMedia: previousMedia,
+    currentMedia: currentMedia,
+    progressFraction: progressFraction,
+    regenerationIndex: regenerationIndex,
+    stickersAllowed: stickersAllowed,
+  );
 }
 
 final class PtwJourneyRecommender {
@@ -160,6 +181,24 @@ final class PtwJourneyRecommender {
 
 final class PtwShareCandidateGenerator {
   const PtwShareCandidateGenerator();
+
+  /// Returns the preferred candidate for a one-step share entry.
+  ///
+  /// Generation still produces the complete three-option set so regeneration
+  /// retains the same diversity guarantees. The first pass selects the
+  /// highest-ranked candidate; later passes rotate through the ranked set.
+  ShareCandidate generatePreferred(ShareGenerationContext context) {
+    final candidates = generate(context);
+    final preferred = candidates[context.regenerationIndex % candidates.length];
+    if (context.regenerationIndex == 0 &&
+        context.theme.looks.any((look) => look.id == 'static_note_1')) {
+      return preferred.copyWith(
+        lookId: 'static_note_1',
+        label: '${preferred.label.split(' · ').first} · Static Note 1',
+      );
+    }
+    return preferred;
+  }
 
   List<ShareCandidate> generate(ShareGenerationContext context) {
     final templates = context.theme.templates

@@ -38,6 +38,10 @@ void main() {
       reason: 'the seeded project should still resolve',
     );
     expect(find.text('Local data unavailable'), findsNothing);
-    expect(find.byKey(const ValueKey('confirm_journey')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey(ComponentIds.storyContinue)),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('confirm_journey')), findsNothing);
   });
 }

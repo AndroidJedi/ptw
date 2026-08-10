@@ -57,7 +57,6 @@ final class _ShareStoryPreviewScreenState
   final _adapter = const PtwGeneratedStoryAdapter();
   final _candidateGenerator = const PtwShareCandidateGenerator();
   final _journeyRecommender = const PtwJourneyRecommender();
-  final _categorySuggester = const PtwProjectCategorySuggester();
   final _faceSafety = createShareFaceSafetyService();
   ShareEditorController? _controller;
   ShareEditorValue? _lastObservedValue;
@@ -77,12 +76,10 @@ final class _ShareStoryPreviewScreenState
   ShareEvent _generationEvent = ShareEvent.manual;
   String? _generationMomentId;
   ShareJourneyState _journeyState = ShareJourneyState.beginning;
-  PtwProjectCategory _category = PtwProjectCategory.other;
   int _regenerationIndex = 0;
-  List<ShareCandidate> _candidates = const [];
   ShareCandidate? _selectedCandidate;
   bool _stickersAllowed = false;
-  _ShareBuilderStep _step = _ShareBuilderStep.confirmJourney;
+  _ShareBuilderStep _step = _ShareBuilderStep.edit;
 
   @override
   void didChangeDependencies() {
@@ -109,7 +106,6 @@ final class _ShareStoryPreviewScreenState
     _generationStartedAt = state.now;
     _generationSessionId =
         'generation_${project.id}_${_generationStartedAt.microsecondsSinceEpoch}';
-    _category = project.category ?? _categorySuggester.suggest(project.goal);
     _journeyState = _journeyRecommender.recommend(
       project: project,
       evidence: state.evidenceFor(project.id),
@@ -127,22 +123,41 @@ final class _ShareStoryPreviewScreenState
       );
       _baseComposition = saved;
       _content = _adapter.content(project: project, composition: saved!);
+      final value = _adapter.value(
+        theme: state.shareEditorTheme,
+        content: _content!,
+        composition: saved,
+        project: project,
+      );
       _controller = ShareEditorController(
         theme: state.shareEditorTheme,
         content: _content!,
         mode: ShareEditorMode.runtime,
-        initialValue: _adapter.value(
-          theme: state.shareEditorTheme,
-          content: _content!,
-          composition: saved,
-          project: project,
-        ),
+        allowRuntimeTemplateSelection: true,
+        initialValue: value,
       )..addListener(_onCompositionChanged);
+      _lastObservedValue = value;
       _step = _ShareBuilderStep.edit;
+      unawaited(
+        _recordGenerationEvent(ShareGenerationEventType.generationStarted),
+      );
+    } else {
+      final candidate = _candidateGenerator.generatePreferred(
+        _generationContext(),
+      );
+      _activateCandidate(candidate, notify: false);
+      unawaited(_recordInitialCandidate(candidate));
     }
-    unawaited(
-      _recordGenerationEvent(ShareGenerationEventType.generationStarted),
+  }
+
+  Future<void> _recordInitialCandidate(ShareCandidate candidate) async {
+    await _recordGenerationEvent(ShareGenerationEventType.generationStarted);
+    await _recordGenerationEvent(ShareGenerationEventType.candidatesShown);
+    await _recordGenerationEvent(
+      ShareGenerationEventType.candidateSelected,
+      candidateId: candidate.id,
     );
+    await _persistDraftNow();
   }
 
   PtwProject? _storyProject(PtwAppState state) {
@@ -168,113 +183,74 @@ final class _ShareStoryPreviewScreenState
     );
   }
 
-  Future<void> _confirmJourneyAndGenerate() async {
-    final state = _appState;
-    var project = _subject;
-    if (state == null || project == null || _busy) return;
-    setState(() => _busy = true);
-    try {
-      if (widget.isDraft) {
-        final draft = state.draft;
-        if (draft != null) {
-          await state.saveDraft(
-            goal: draft.goal,
-            doubt: draft.doubt ?? '',
-            deadline: draft.deadline,
-            image: draft.image,
-            primaryColor: draft.primaryColor,
-            category: _category,
-            categoryConfirmed: true,
-            progressMetric: draft.progressMetric,
-          );
-          project = project.copyWith(
-            category: _category,
-            categoryConfirmed: true,
-          );
-        }
-      } else if (!project.categoryConfirmed || project.category != _category) {
-        project =
-            await state.updateProjectMetadata(
-              projectId: project.id,
-              category: _category,
-              categoryConfirmed: true,
-            ) ??
-            project;
-      }
-      _subject = project;
-      await _recordGenerationEvent(ShareGenerationEventType.stateConfirmed);
-      final evidence = state.evidenceFor(project.id);
-      final currentMedia =
-          evidence
-              .map((item) => item.media)
-              .whereType<PtwImageRef>()
-              .firstOrNull ??
-          project.image;
-      _stickersAllowed = await _faceSafety.canUseSemanticStickers(
-        currentMedia,
-        resolveFilePath: state.mediaService.resolveFilePath,
-      );
-      _generateCandidates();
-      await _recordGenerationEvent(ShareGenerationEventType.candidatesShown);
-      if (mounted) {
-        setState(() {
-          _step = _ShareBuilderStep.candidates;
-          _busy = false;
-        });
-      }
-    } on Object {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      _message('Could not generate those options. Try again.');
-    }
-  }
-
-  void _generateCandidates() {
+  ShareGenerationContext _generationContext() {
     final state = _appState!;
     final project = _subject!;
-    _candidates = _candidateGenerator.generate(
-      ShareGenerationContext(
-        theme: state.shareEditorTheme,
-        project: project,
-        evidence: state.evidenceFor(project.id),
-        responses: state.responsesFor(project.id),
-        previousShares: state.shareRecordsFor(project.id),
-        event: _generationEvent,
-        momentId: _generationMomentId,
-        journeyState: _journeyState,
-        now: state.now,
-        regenerationIndex: _regenerationIndex,
-        stickersAllowed: _stickersAllowed,
-      ),
+    return ShareGenerationContext(
+      theme: state.shareEditorTheme,
+      project: project,
+      evidence: state.evidenceFor(project.id),
+      responses: state.responsesFor(project.id),
+      previousShares: state.shareRecordsFor(project.id),
+      event: _generationEvent,
+      momentId: _generationMomentId,
+      journeyState: _journeyState,
+      now: state.now,
+      regenerationIndex: _regenerationIndex,
+      stickersAllowed: _stickersAllowed,
     );
   }
 
   Future<void> _regenerateCandidates() async {
     if (_busy) return;
-    final controller = _controller;
-    controller?.removeListener(_onCompositionChanged);
-    controller?.dispose();
-    _controller = null;
-    _content = null;
-    _baseComposition = null;
-    _selectedCandidate = null;
-    _regenerationIndex++;
-    _generateCandidates();
-    setState(() => _step = _ShareBuilderStep.candidates);
-    await _recordGenerationEvent(ShareGenerationEventType.optionsRegenerated);
-    await _recordGenerationEvent(ShareGenerationEventType.candidatesShown);
+    setState(() => _busy = true);
+    try {
+      final previous = _currentComposition;
+      await _persistDraftNow();
+      if (previous != null) {
+        _subject = _subject!.copyWith(goal: previous.headline);
+      }
+      _regenerationIndex++;
+      final candidate = _candidateGenerator.generatePreferred(
+        _generationContext(),
+      );
+      _activateCandidate(candidate, previous: previous);
+      await _recordGenerationEvent(ShareGenerationEventType.optionsRegenerated);
+      await _recordGenerationEvent(ShareGenerationEventType.candidatesShown);
+      await _recordGenerationEvent(
+        ShareGenerationEventType.candidateSelected,
+        candidateId: candidate.id,
+      );
+      await _persistDraftNow();
+    } on Object {
+      if (mounted) _message('Could not generate another Story. Try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
-  void _selectCandidate(ShareCandidate candidate) {
+  void _activateCandidate(
+    ShareCandidate candidate, {
+    PtwStoryComposition? previous,
+    bool notify = true,
+  }) {
     final state = _appState!;
     final project = _subject!;
-    final base = _adapter.createBase(
+    var base = _adapter.createBase(
       project: project,
       event: _generationEvent,
       momentId: _generationMomentId,
       now: state.now,
       candidate: candidate,
     );
+    if (previous != null) {
+      base = base.copyWith(
+        headline: previous.headline,
+        dare: previous.dare,
+        caption: previous.caption,
+        editorValue: previous.editorValue,
+      );
+    }
     final content = _adapter.content(
       project: project,
       composition: base,
@@ -297,59 +273,14 @@ final class _ShareStoryPreviewScreenState
       theme: state.shareEditorTheme,
       content: content,
       mode: ShareEditorMode.runtime,
+      allowRuntimeTemplateSelection: true,
       initialValue: value,
     )..addListener(_onCompositionChanged);
     _lastObservedValue = value;
     _headlineEventRecorded = false;
     _photoEventRecorded = false;
-    setState(() => _step = _ShareBuilderStep.edit);
-    unawaited(
-      _recordGenerationEvent(
-        ShareGenerationEventType.candidateSelected,
-        candidateId: candidate.id,
-      ),
-    );
-    if (widget.isDraft) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final current = _currentComposition;
-        if (mounted && current != null) {
-          unawaited(state.saveDraftStory(current));
-        }
-      });
-    }
-  }
-
-  ({
-    PtwStoryComposition composition,
-    ShareEditorContent content,
-    ShareEditorValue value,
-  })
-  _previewFor(ShareCandidate candidate) {
-    final state = _appState!;
-    final project = _subject!;
-    final composition = _adapter.createBase(
-      project: project,
-      event: _generationEvent,
-      momentId: _generationMomentId,
-      now: state.now,
-      candidate: candidate,
-    );
-    final content = _adapter.content(
-      project: project,
-      composition: composition,
-      candidate: candidate,
-    );
-    return (
-      composition: composition,
-      content: content,
-      value: _adapter.value(
-        theme: state.shareEditorTheme,
-        content: content,
-        composition: composition,
-        project: project,
-        candidate: candidate,
-      ),
-    );
+    _step = _ShareBuilderStep.edit;
+    if (notify && mounted) setState(() {});
   }
 
   Future<void> _recordGenerationEvent(
@@ -415,7 +346,11 @@ final class _ShareStoryPreviewScreenState
       final state = _appState;
       if (controller != null && state?.draft != null) {
         final composition = _currentComposition;
-        if (composition != null) unawaited(state!.saveDraftStory(composition));
+        if (composition != null) {
+          unawaited(
+            state!.saveDraftStory(composition, syncHeadlineToGoal: true),
+          );
+        }
       }
     });
   }
@@ -426,7 +361,9 @@ final class _ShareStoryPreviewScreenState
     final state = _appState;
     if (widget.isDraft && controller != null && state?.draft != null) {
       final composition = _currentComposition;
-      if (composition != null) await state!.saveDraftStory(composition);
+      if (composition != null) {
+        await state!.saveDraftStory(composition, syncHeadlineToGoal: true);
+      }
     }
   }
 
@@ -742,17 +679,17 @@ final class _ShareStoryPreviewScreenState
         body: Center(child: Text('This Story is no longer available.')),
       );
     }
+    final rootOnboarding =
+        widget.isDraft &&
+        widget.source == PtwShareSource.onboarding &&
+        !state.isActivated;
     return PopScope(
-      canPop: false,
+      canPop: rootOnboarding && _step == _ShareBuilderStep.edit,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         if (_step == _ShareBuilderStep.share) {
           _backToBuilder();
-        } else if (_step == _ShareBuilderStep.edit) {
-          setState(() => _step = _ShareBuilderStep.candidates);
-        } else if (_step == _ShareBuilderStep.candidates) {
-          setState(() => _step = _ShareBuilderStep.confirmJourney);
-        } else {
+        } else if (!rootOnboarding) {
           unawaited(_close());
         }
       },
@@ -761,38 +698,15 @@ final class _ShareStoryPreviewScreenState
         backgroundColor: const Color(0xFF0E1423),
         body: SafeArea(
           child: switch (_step) {
-            _ShareBuilderStep.confirmJourney => _JourneyConfirmation(
-              selectedJourney: _journeyState,
-              selectedCategory: _category,
-              categoryConfirmed: _subject!.categoryConfirmed,
-              busy: _busy,
-              onJourneyChanged:
-                  (value) => setState(() => _journeyState = value),
-              onCategoryChanged: (value) => setState(() => _category = value),
-              onClose: () => unawaited(_close()),
-              onContinue: () => unawaited(_confirmJourneyAndGenerate()),
-            ),
-            _ShareBuilderStep.candidates => _CandidateSelection(
-              candidates: _candidates,
-              theme: state.shareEditorTheme,
-              previewFor: _previewFor,
-              imageResolver: _resolveImage,
-              onBack:
-                  () =>
-                      setState(() => _step = _ShareBuilderStep.confirmJourney),
-              onSelect: _selectCandidate,
-              onRegenerate: () => unawaited(_regenerateCandidates()),
-            ),
             _ShareBuilderStep.edit => GeneratedShareEditor(
               theme: state.shareEditorTheme,
               content: _content!,
               controller: _controller!,
               imagePicker: _pickEditorImage,
               imageResolver: _resolveImage,
-              title: _journeyState.label.toUpperCase(),
+              title: 'YOUR STORY',
               onGenerateAnother: () => unawaited(_regenerateCandidates()),
-              onClose:
-                  () => setState(() => _step = _ShareBuilderStep.candidates),
+              onClose: rootOnboarding ? null : () => unawaited(_close()),
               onContinue: () => unawaited(_openShareStep()),
               onLockedFeatureTap:
                   (feature) =>
@@ -817,15 +731,10 @@ final class _ShareStoryPreviewScreenState
   }
 }
 
-extension _FirstImageOrNull<T> on Iterable<T> {
-  T? get firstOrNull {
-    final iterator = this.iterator;
-    return iterator.moveNext() ? iterator.current : null;
-  }
-}
+enum _ShareBuilderStep { edit, share }
 
-enum _ShareBuilderStep { confirmJourney, candidates, edit, share }
-
+// Kept only to decode older widget-test fixtures; it is not routed at runtime.
+// ignore: unused_element
 final class _JourneyConfirmation extends StatelessWidget {
   const _JourneyConfirmation({
     required this.selectedJourney,
@@ -981,6 +890,8 @@ final class _JourneyConfirmation extends StatelessWidget {
   );
 }
 
+// Kept only to decode older widget-test fixtures; it is not routed at runtime.
+// ignore: unused_element
 final class _CandidateSelection extends StatelessWidget {
   const _CandidateSelection({
     required this.candidates,

@@ -1,4 +1,5 @@
 import '../../generated_share_editor/src/share_theme.dart';
+import '../../generated_share_editor/src/share_value.dart';
 
 enum PtwValidationSeverity { error, warning, note }
 

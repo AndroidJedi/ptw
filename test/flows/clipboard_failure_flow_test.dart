@@ -11,14 +11,7 @@ void main() {
     tester,
   ) async {
     final environment = await pumpPtw(tester, activated: false);
-    await tester.enterText(
-      find.byKey(const ValueKey(ComponentIds.createProjectGoal)),
-      'Build something people say cannot work',
-    );
-    await tester.tap(
-      find.byKey(const ValueKey(ComponentIds.createProjectContinue)),
-    );
-    await tester.pumpAndSettle();
+    await editStoryHeadline(tester, 'Build something people say cannot work');
     var clipboardCalls = 0;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,

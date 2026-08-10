@@ -224,6 +224,34 @@ void main() {
     });
 
     test(
+      'preferred generation starts ranked first and rotates deterministically',
+      () async {
+        final theme = await ShareThemeBundle.loadAsset();
+        ShareGenerationContext context(int index) => ShareGenerationContext(
+          theme: theme,
+          project: _project(),
+          evidence: const [],
+          responses: const [],
+          previousShares: const [],
+          event: ShareEvent.manual,
+          journeyState: ShareJourneyState.beginning,
+          now: _now,
+          regenerationIndex: index,
+        );
+        const generator = PtwShareCandidateGenerator();
+        final first = generator.generatePreferred(context(0));
+        final firstRanked = generator.generate(context(0)).first;
+        final next = generator.generatePreferred(context(1));
+
+        expect(first.id, firstRanked.id);
+        expect(first.lookId, 'static_note_1');
+        expect(next.id, generator.generatePreferred(context(1)).id);
+        expect(next.id, isNot(first.id));
+        expect(next.family, isNot(first.family));
+      },
+    );
+
+    test(
       'recommendation event participates in ranking and stable IDs',
       () async {
         final theme = await ShareThemeBundle.loadAsset();

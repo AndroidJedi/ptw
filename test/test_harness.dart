@@ -290,25 +290,24 @@ Future<void> openStoryGuideAtFinalStep(WidgetTester tester) async {
 }
 
 Future<void> openStoryBuilder(WidgetTester tester) async {
-  final confirm = find.byKey(const ValueKey('confirm_journey'));
-  if (confirm.evaluate().isNotEmpty) {
-    await tester.ensureVisible(confirm);
-    await tester.tap(confirm);
-    await tester.pumpAndSettle();
-  }
-  final candidates = find.byKey(const ValueKey('share_candidate_list'));
-  if (candidates.evaluate().isNotEmpty) {
-    final list = tester.widget<ListView>(candidates);
-    // ListView.separated exposes item + separator children: 3 + 2.
-    expect(list.childrenDelegate.estimatedChildCount, 5);
-    expect(find.text('Use this'), findsAtLeastNWidgets(1));
-    await tester.tap(find.text('Use this').first);
-    await tester.pumpAndSettle();
-  }
   expect(
     find.byKey(const ValueKey(ComponentIds.storyContinue)),
     findsOneWidget,
   );
+  expect(find.byKey(const ValueKey('confirm_journey')), findsNothing);
+  expect(find.byKey(const ValueKey('share_candidate_list')), findsNothing);
+}
+
+Future<void> editStoryHeadline(WidgetTester tester, String headline) async {
+  await openStoryBuilder(tester);
+  await tester.tap(find.byKey(const ValueKey('story_canvas_headline')));
+  await tester.pump();
+  await tester.enterText(
+    find.byKey(const ValueKey('story_headline_field')),
+    headline,
+  );
+  await tester.tap(find.byKey(const ValueKey('story_editor_done')));
+  await tester.pump(const Duration(milliseconds: 400));
 }
 
 Future<void> openStoryShareStep(WidgetTester tester) async {

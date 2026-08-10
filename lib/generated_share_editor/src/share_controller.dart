@@ -32,6 +32,7 @@ final class ShareEditorController extends ChangeNotifier {
     ShareEditorValue? initialValue,
     ShareEntitlementResolver? entitlements,
     ShareEditorMode mode = ShareEditorMode.authoring,
+    bool allowRuntimeTemplateSelection = false,
   }) {
     final validated = _validatedInitial(theme, content, initialValue);
     return ShareEditorController._(
@@ -40,6 +41,7 @@ final class ShareEditorController extends ChangeNotifier {
       initial: validated,
       entitlements: entitlements ?? _denyEntitlements,
       mode: mode,
+      allowRuntimeTemplateSelection: allowRuntimeTemplateSelection,
     );
   }
 
@@ -49,6 +51,7 @@ final class ShareEditorController extends ChangeNotifier {
     required ShareEditorValue initial,
     required ShareEntitlementResolver entitlements,
     required this.mode,
+    required this.allowRuntimeTemplateSelection,
   }) : _entitlements = entitlements,
        _initial = initial,
        _value = initial {
@@ -60,6 +63,7 @@ final class ShareEditorController extends ChangeNotifier {
   final ShareEditorContent content;
   final ShareEntitlementResolver _entitlements;
   final ShareEditorMode mode;
+  final bool allowRuntimeTemplateSelection;
   final ShareEditorValue _initial;
   ShareEditorValue _value;
   int _nextSticker = 1;
@@ -408,6 +412,7 @@ final class ShareEditorController extends ChangeNotifier {
   bool selectTemplate(String templateId) {
     final template = theme.template(templateId);
     if (mode == ShareEditorMode.runtime &&
+        !allowRuntimeTemplateSelection &&
         !activeTemplate.runtimePermissions.userCanChooseAlternateTemplate) {
       return false;
     }

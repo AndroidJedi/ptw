@@ -140,11 +140,7 @@ final class PtwTemplateCatalog {
     'style',
   };
 
-  static const allowedLayerStyleKeys = {
-    'fontSize',
-    'minFontSize',
-    'maxLines',
-  };
+  static const allowedLayerStyleKeys = {'fontSize', 'minFontSize', 'maxLines'};
 
   Future<PtwTemplateCatalogSnapshot> load() async {
     if (!await catalogFile.exists()) {
@@ -185,24 +181,25 @@ final class PtwTemplateCatalog {
       'themeId': theme.id,
       'catalogRevision': snapshot.revision,
       'canvas': theme.canvas.toJson(),
-      'families': ShareTemplateFamily.values
-          .where((item) => item != ShareTemplateFamily.unassigned)
-          .map((item) => item.name)
-          .toList(),
-      'journeyStates': ShareJourneyState.values
-          .where((item) => item != ShareJourneyState.unassigned)
-          .map((item) => item.name)
-          .toList(),
-      'semanticRoles': ShareSemanticRole.values
-          .where((item) => item != ShareSemanticRole.unassigned)
-          .map((item) => item.name)
-          .toList(),
-      'layerEmphasisValues': ShareLayerEmphasis.values
-          .map((item) => item.name)
-          .toList(),
-      'animationPresets': ShareAnimationPreset.values
-          .map((item) => item.name)
-          .toList(),
+      'families':
+          ShareTemplateFamily.values
+              .where((item) => item != ShareTemplateFamily.unassigned)
+              .map((item) => item.name)
+              .toList(),
+      'journeyStates':
+          ShareJourneyState.values
+              .where((item) => item != ShareJourneyState.unassigned)
+              .map((item) => item.name)
+              .toList(),
+      'semanticRoles':
+          ShareSemanticRole.values
+              .where((item) => item != ShareSemanticRole.unassigned)
+              .map((item) => item.name)
+              .toList(),
+      'layerEmphasisValues':
+          ShareLayerEmphasis.values.map((item) => item.name).toList(),
+      'animationPresets':
+          ShareAnimationPreset.values.map((item) => item.name).toList(),
       'constraints': {
         'templateStatus': ShareTemplateStatus.production.name,
         'newTemplateVersion': 1,
@@ -210,9 +207,8 @@ final class PtwTemplateCatalog {
         'allowedTemplateKeys': allowedTemplateKeys.toList()..sort(),
         'allowedLayerOverrideKeys': allowedLayerOverrideKeys.toList()..sort(),
         'allowedLayerStyleKeys': allowedLayerStyleKeys.toList()..sort(),
-        'requiredSafeZoneKinds': ShareSafeZoneKind.values
-            .map((item) => item.name)
-            .toList(),
+        'requiredSafeZoneKinds':
+            ShareSafeZoneKind.values.map((item) => item.name).toList(),
         'externalAssetsAllowed': false,
         'dartCodeAllowed': false,
       },
@@ -261,12 +257,10 @@ final class PtwTemplateCatalog {
 
     try {
       normalizedTemplate = ShareTemplateConfig.fromJson(rawTemplate);
-      issues.addAll(
-        _validateVersion(snapshot.theme, normalizedTemplate),
-      );
+      issues.addAll(_validateVersion(snapshot.theme, normalizedTemplate));
       final source = _deepCopy(snapshot.theme.toJson());
-      final templates = (source['templates'] as List<dynamic>)
-          .cast<Map<String, dynamic>>();
+      final templates =
+          (source['templates'] as List<dynamic>).cast<Map<String, dynamic>>();
       final index = templates.indexWhere(
         (template) => template['id'] == normalizedTemplate!.id,
       );
@@ -299,7 +293,8 @@ final class PtwTemplateCatalog {
           code: 'schema',
           message: error.toString(),
           severity: PtwValidationSeverity.error,
-          templateId: rawTemplate['id'] as String?,
+          templateId:
+              rawTemplate['id'] is String ? rawTemplate['id'] as String : null,
         ),
       );
     }
@@ -337,17 +332,14 @@ final class PtwTemplateCatalog {
 
     final validation = validateTemplateAgainst(snapshot, rawTemplate);
     if (!validation.isValid) {
-      return {
-        ...validation.toJson(),
-        'applied': false,
-        'idempotent': false,
-      };
+      return {...validation.toJson(), 'applied': false, 'idempotent': false};
     }
 
     final template = validation.normalizedTemplate!;
-    final existing = snapshot.theme.templates
-        .where((item) => item.id == template.id)
-        .firstOrNull;
+    final existing =
+        snapshot.theme.templates
+            .where((item) => item.id == template.id)
+            .firstOrNull;
     if (existing != null &&
         _canonicalJson(existing.toJson()) ==
             _canonicalJson(template.toJson())) {
@@ -385,17 +377,17 @@ final class PtwTemplateCatalog {
             templateId: validation.template.id,
           ),
     ];
-    final errors = issues
-        .where((issue) => issue.severity == PtwValidationSeverity.error)
-        .toList();
+    final errors =
+        issues
+            .where((issue) => issue.severity == PtwValidationSeverity.error)
+            .toList();
     if (errors.isNotEmpty) {
       return {
         'protocolVersion': ptwTemplateGeneratorProtocolVersion,
         'valid': false,
         'catalogRevision': snapshot.revision,
-        'issues': _deduplicateIssues(issues)
-            .map((issue) => issue.toJson())
-            .toList(),
+        'issues':
+            _deduplicateIssues(issues).map((issue) => issue.toJson()).toList(),
       };
     }
     return {
@@ -405,10 +397,11 @@ final class PtwTemplateCatalog {
       'schemaVersion': snapshot.theme.schemaVersion,
       'designSystemVersion': snapshot.theme.designSystemVersion,
       'theme': snapshot.theme.toJson(),
-      'issues': _deduplicateIssues(issues)
-          .where((issue) => issue.severity != PtwValidationSeverity.note)
-          .map((issue) => issue.toJson())
-          .toList(),
+      'issues':
+          _deduplicateIssues(issues)
+              .where((issue) => issue.severity != PtwValidationSeverity.note)
+              .map((issue) => issue.toJson())
+              .toList(),
     };
   }
 
@@ -417,7 +410,8 @@ final class PtwTemplateCatalog {
     Map<String, dynamic> rawTemplate,
   ) {
     final issues = <PtwCatalogIssue>[];
-    final templateId = rawTemplate['id'] as String?;
+    final templateId =
+        rawTemplate['id'] is String ? rawTemplate['id'] as String : null;
     void error(String code, String message) => issues.add(
       PtwCatalogIssue(
         code: code,
@@ -438,10 +432,7 @@ final class PtwTemplateCatalog {
     }
     if (templateId == null ||
         !RegExp(r'^[a-z][a-z0-9_]{2,63}$').hasMatch(templateId)) {
-      error(
-        'template_id',
-        'Template id must match ^[a-z][a-z0-9_]{2,63}\$.',
-      );
+      error('template_id', 'Template id must match ^[a-z][a-z0-9_]{2,63}\$.');
     }
     if (rawTemplate['status'] != ShareTemplateStatus.production.name) {
       error('template_status', 'Installed templates must be production.');
@@ -509,7 +500,10 @@ final class PtwTemplateCatalog {
           for (final key in const ['fontSize', 'minFontSize']) {
             final value = style[key];
             if (value != null && (value is! num || value <= 0)) {
-              error('layer_style_value', '$layerId.style.$key must be positive.');
+              error(
+                'layer_style_value',
+                '$layerId.style.$key must be positive.',
+              );
             }
           }
           final maxLines = style['maxLines'];
@@ -530,13 +524,11 @@ final class PtwTemplateCatalog {
     ShareThemeConfig theme,
     ShareTemplateConfig template,
   ) {
-    final existing = theme.templates
-        .where((item) => item.id == template.id)
-        .firstOrNull;
+    final existing =
+        theme.templates.where((item) => item.id == template.id).firstOrNull;
     final identical =
         existing != null &&
-        _canonicalJson(existing.toJson()) ==
-            _canonicalJson(template.toJson());
+        _canonicalJson(existing.toJson()) == _canonicalJson(template.toJson());
     final expected = existing == null ? 1 : existing.templateVersion + 1;
     if (!identical && template.templateVersion != expected) {
       return [
@@ -589,7 +581,7 @@ final class PtwTemplateCatalog {
 
   static Future<void> _writeAtomically(File target, String content) async {
     await target.parent.create(recursive: true);
-    final temporary = File('${target.path}.${pid}.tmp');
+    final temporary = File('${target.path}.$pid.tmp');
     try {
       await temporary.writeAsString(content, flush: true);
       await temporary.rename(target.path);

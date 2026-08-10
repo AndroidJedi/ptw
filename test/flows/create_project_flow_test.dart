@@ -10,23 +10,11 @@ void main() {
   ) async {
     final environment = await pumpPtw(tester, activated: false);
     expect(
-      find.byKey(const ValueKey(ComponentIds.createProjectContinue)),
+      find.byKey(const ValueKey(ComponentIds.storyContinue)),
       findsOneWidget,
     );
     const goal = 'Ship the boldest local launch of the year';
-    const doubt = 'I have never launched to a real audience.';
-    await tester.enterText(
-      find.byKey(const ValueKey(ComponentIds.createProjectGoal)),
-      goal,
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey(ComponentIds.createProjectDoubt)),
-      doubt,
-    );
-    await tester.tap(
-      find.byKey(const ValueKey(ComponentIds.createProjectContinue)),
-    );
-    await tester.pumpAndSettle();
+    await editStoryHeadline(tester, goal);
 
     expect(
       find.byKey(const ValueKey(ComponentIds.shareScreen)),
@@ -55,7 +43,7 @@ void main() {
     expect(find.text('Your challenge is live.'), findsOneWidget);
     final stored = await environment.repository.load();
     final project = stored!.projects.firstWhere((item) => item.goal == goal);
-    expect(project.doubt, doubt);
+    expect(project.doubt, 'Think I won’t?');
     expect(stored.currentProjectByOwner['user_alex'], project.id);
     expect(stored.draft, isNull);
     expect(stored.shareRecords, hasLength(2));
@@ -78,14 +66,10 @@ void main() {
     tester,
   ) async {
     final environment = await pumpPtw(tester, activated: false);
-    await tester.enterText(
-      find.byKey(const ValueKey(ComponentIds.createProjectGoal)),
+    await editStoryHeadline(
+      tester,
       'Turn one copied link into a real challenge',
     );
-    await tester.tap(
-      find.byKey(const ValueKey(ComponentIds.createProjectContinue)),
-    );
-    await tester.pumpAndSettle();
     await openStoryShareStep(tester);
     await tester.tap(find.byKey(const ValueKey(ComponentIds.shareCopyLink)));
     await tester.pump(const Duration(milliseconds: 500));

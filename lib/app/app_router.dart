@@ -9,7 +9,6 @@ import '../features/participant/participant_home_screen.dart';
 import '../features/story/guest_story_screen.dart';
 import '../features/story/share_story_preview_screen.dart';
 import '../features/share/share_models.dart';
-import '../models/ptw_project_draft.dart';
 import '../models/ptw_share_record.dart';
 import '../state/ptw_app_state.dart';
 import 'app_routes.dart';
@@ -51,10 +50,7 @@ abstract final class AppRouter {
       GoRoute(
         path: '/onboarding',
         name: AppRoutes.onboarding,
-        builder:
-            (_, __) => const CreatePostScreen(
-              intent: PtwProjectDraftIntent.firstProject,
-            ),
+        builder: (_, __) => const CreatorEntryScreen(),
       ),
       GoRoute(
         path: '/share/draft',

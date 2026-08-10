@@ -106,7 +106,11 @@ void main() {
         find.byKey(const ValueKey(ComponentIds.shareScreen)),
         findsOneWidget,
       );
-      expect(find.byKey(const ValueKey('confirm_journey')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey(ComponentIds.storyContinue)),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('confirm_journey')), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();

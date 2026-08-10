@@ -8,19 +8,11 @@ import 'package:ptw/state/ptw_app_state.dart';
 import '../test_harness.dart';
 
 void main() {
-  testWidgets('draft autosaves and restores into a fresh app state', (
+  testWidgets('ready Story headline autosaves and restores into fresh state', (
     tester,
   ) async {
     final environment = await pumpPtw(tester, activated: false);
-    await tester.enterText(
-      find.byKey(const ValueKey(ComponentIds.createProjectGoal)),
-      'Resume this unfinished challenge',
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey(ComponentIds.createProjectDoubt)),
-      'The deadline is intimidating.',
-    );
-    await tester.pump(const Duration(milliseconds: 350));
+    await editStoryHeadline(tester, 'Resume this unfinished challenge');
     expect(
       (await environment.repository.load())!.draft!.goal,
       'Resume this unfinished challenge',
@@ -34,7 +26,11 @@ void main() {
     );
     await restoredState.load();
     expect(restoredState.draft!.goal, 'Resume this unfinished challenge');
-    expect(restoredState.draft!.doubt, 'The deadline is intimidating.');
+    expect(restoredState.draft!.doubt, 'Think I won’t?');
+    expect(
+      restoredState.draft!.storyComposition!.headline,
+      'Resume this unfinished challenge',
+    );
     restoredState.dispose();
   });
 
@@ -42,14 +38,10 @@ void main() {
     tester,
   ) async {
     final environment = await pumpPtw(tester, activated: false);
-    await tester.enterText(
-      find.byKey(const ValueKey(ComponentIds.createProjectGoal)),
+    await editStoryHeadline(
+      tester,
       'Make this challenge impossible to scroll past',
     );
-    await tester.tap(
-      find.byKey(const ValueKey(ComponentIds.createProjectContinue)),
-    );
-    await tester.pumpAndSettle();
     await openStoryBuilder(tester);
     environment.media.pickResult = const PtwImageRef.file(
       'ptw_media/share_draft_photo.webp',
@@ -73,6 +65,7 @@ void main() {
       saved!.draft!.storyComposition!.headline,
       'This headline exists only in my Story',
     );
+    expect(saved.draft!.goal, 'This headline exists only in my Story');
     expect(saved.draft!.storyComposition!.dare, isNotEmpty);
     expect(saved.draft!.image.path, 'assets/images/backgrounds/startup.jpg');
     expect(

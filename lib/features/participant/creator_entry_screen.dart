@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../models/ptw_project_draft.dart';
 import '../../models/ptw_share_record.dart';
 import '../../state/ptw_app_state.dart';
 import '../story/share_story_preview_screen.dart';
-import 'create_post_screen.dart';
 
 final class CreatorEntryScreen extends StatelessWidget {
   const CreatorEntryScreen({super.key});
@@ -19,11 +17,13 @@ final class CreatorEntryScreen extends StatelessWidget {
       );
     }
     final draft = state.draft;
-    if (draft?.hasPreview == true) {
+    if (draft?.hasValidGoal == true) {
       return const ShareStoryPreviewScreen.draft(
         source: PtwShareSource.onboarding,
       );
     }
-    return const CreatePostScreen(intent: PtwProjectDraftIntent.firstProject);
+    return const Scaffold(
+      body: Center(child: Text('Preparing your first Story…')),
+    );
   }
 }

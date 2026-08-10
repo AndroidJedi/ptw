@@ -2,22 +2,27 @@
 
 Bold, offline Flutter prototype built around one share-first viral loop:
 
-**Write a challenge → construct one playful Story → copy its link → share it →
+**Open a ready Story → edit its headline or photo → copy its link → share it →
 receive anonymous Believe/Doubt responses.**
 
-Every creator share entry opens the same Story-only constructor. Magic cycles
-six deterministic PTW looks; the editor changes share-only text, a curated
-background, and up to three draggable stickers. The exact visible composition
-is exported as a 1080×1920 PNG. Copy activates a draft without closing the
-constructor, while Share Story walks through an original four-step Instagram
-link guide before opening the native operating-system share sheet.
+Every creator share entry opens one automatically selected Story from the
+synchronized schema-v3 catalog. A clean install is immediately usable with
+sample content and the startup image. The runtime editor exposes only headline,
+template, headline, photo/crop, **Generate Another**, and **Continue**. The
+first Story uses the catalog's grainy `static_note_1` stone treatment. The
+Template control changes authored layouts in place, while Generate Another rotates
+deterministically through the internal three-candidate set without opening a
+gallery. The exact visible composition is exported as a 1080×1920 PNG. Copy
+activates a draft without closing the editor, while Share Story walks through
+the Instagram link guide before opening the native operating-system share
+sheet.
 
-Every project receives a publishable default image and color while deadline,
-custom image, and doubt context remain optional. The shared page is intentionally
-short: visitors see the goal, choose a
-side, write one anonymous message, and send. The creator's current project is a
-dedicated full-bleed page with its latest proof, recent private responses, and
-a derived social activity feed.
+Later challenge creation asks for one required goal. Category and journey are
+inferred metadata; doubt, metric, deadline, and candidate selection are not
+part of the primary flow. The shared page is intentionally short: visitors see
+the goal, choose a side, write one anonymous message, and send. The creator's
+current project is a dedicated full-bleed page with its latest proof, recent
+private responses, and a derived social activity feed.
 
 ## Local prototype data
 
@@ -51,6 +56,29 @@ Creator routes:
 
 Product design decisions are captured in [DESIGN_RULES.md](DESIGN_RULES.md).
 
+## Build-time template generation
+
+PTW templates can be authored by Codex through the repository-local STDIO MCP
+server. The canonical catalog lives at
+`tool/ptw_template_mcp/catalog/share_theme.json`; a pre-run MCP client validates
+and synchronizes it into the bundled Flutter theme. Codex is the creative
+author, while the MCP server enforces schema-v3, versioning, safe-zone, existing
+asset/layer, and readiness constraints. No AI, MCP, HTTP, or network dependency
+is present in the running app.
+
+After opening a fresh Codex session so `.codex/config.toml` is discovered,
+author through the `author_ptw_template` prompt or the context → validate →
+upsert tool sequence. Synchronize or check the deterministic output with:
+
+```sh
+dart run tool/ptw_template_mcp/sync.dart
+dart run tool/ptw_template_mcp/sync.dart --check
+```
+
+The architecture, complete authoring instructions, tool/resource contract, CI
+workflow, and troubleshooting guide are in
+[docs/PTW_TEMPLATE_MCP.md](docs/PTW_TEMPLATE_MCP.md).
+
 ## Share theme builder
 
 The customer Story editor is schema-driven from
@@ -75,6 +103,7 @@ assets, runtime config, portable source JSON, integration README, and a
 
 ```sh
 flutter pub get
+dart run tool/ptw_template_mcp/sync.dart --check
 flutter run
 flutter analyze
 flutter test

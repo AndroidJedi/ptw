@@ -31,19 +31,12 @@ void main() {
       find.byKey(const ValueKey(ComponentIds.shareScreen)),
       findsOneWidget,
     );
-    expect(find.byKey(const ValueKey('confirm_journey')), findsOneWidget);
-    final smallWin = tester.widget<ChoiceChip>(
-      find.byKey(const ValueKey('journey_smallWin')),
+    expect(
+      find.byKey(const ValueKey(ComponentIds.storyContinue)),
+      findsOneWidget,
     );
-    expect(smallWin.selected, isTrue);
-    await tester.tap(find.byKey(const ValueKey('confirm_journey')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('share_candidate_list')), findsOneWidget);
-    final list = tester.widget<ListView>(
-      find.byKey(const ValueKey('share_candidate_list')),
-    );
-    expect(list.childrenDelegate.estimatedChildCount, 5);
     final stored = await environment.repository.load();
     expect(stored!.evidence.first.title, 'Interviewed 20 potential users');
+    expect(stored.shareGenerationEvents.first.journeyState, 'smallWin');
   });
 }

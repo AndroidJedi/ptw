@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ptw/core/constants/component_ids.dart';
 import 'package:ptw/features/share/share_service.dart';
 import 'package:ptw/models/ptw_share_record.dart';
 
@@ -25,14 +24,7 @@ void main() {
       result: const PtwShareResult(status: PtwShareResultStatus.unavailable),
     );
     final environment = await pumpPtw(tester, activated: false, share: share);
-    await tester.enterText(
-      find.byKey(const ValueKey(ComponentIds.createProjectGoal)),
-      'Build something people say cannot work',
-    );
-    await tester.tap(
-      find.byKey(const ValueKey(ComponentIds.createProjectContinue)),
-    );
-    await tester.pumpAndSettle();
+    await editStoryHeadline(tester, 'Build something people say cannot work');
     await openStoryGuideAtFinalStep(tester);
     await submitFinalStoryShare(tester);
     expect(

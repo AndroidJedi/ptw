@@ -280,6 +280,7 @@ final class PtwProject {
   final PtwProgressMetric? progressMetric;
 
   PtwProject copyWith({
+    String? goal,
     PtwProjectCategory? category,
     bool? categoryConfirmed,
     PtwProgressMetric? progressMetric,
@@ -291,7 +292,7 @@ final class PtwProject {
     ownerName: ownerName,
     ownerHandle: ownerHandle,
     ownerAvatarAsset: ownerAvatarAsset,
-    goal: goal,
+    goal: goal ?? this.goal,
     doubt: doubt,
     deadline: deadline,
     image: image,

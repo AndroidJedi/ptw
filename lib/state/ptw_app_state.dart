@@ -83,7 +83,9 @@ final class PtwAppState extends ChangeNotifier
       final withChronologicalActivity = _withChronologicalPrototypeActivity(
         initial,
       );
-      _snapshot = _withDistinctPrototypeProofMedia(withChronologicalActivity);
+      _snapshot = _withReadyFirstDraft(
+        _withDistinctPrototypeProofMedia(withChronologicalActivity),
+      );
       await repository.save(_snapshot);
       recoveredProjectImage = await mediaService.recoverLostProjectImage();
       isReady = true;
@@ -100,14 +102,69 @@ final class PtwAppState extends ChangeNotifier
     currentUser = seed.currentUser;
     curatedImages = seed.curatedImages;
     stickerCatalog = seed.stickerCatalog;
-    _snapshot = _withDistinctPrototypeProofMedia(
-      _withChronologicalPrototypeActivity(seed.snapshot),
+    _snapshot = _withReadyFirstDraft(
+      _withDistinctPrototypeProofMedia(
+        _withChronologicalPrototypeActivity(seed.snapshot),
+      ),
     );
     await repository.save(_snapshot);
     recoveredProjectImage = null;
     errorMessage = null;
     isReady = true;
     if (!_isDisposed) notifyListeners();
+  }
+
+  PtwPrototypeSnapshot _withReadyFirstDraft(PtwPrototypeSnapshot snapshot) {
+    if (snapshot.activatedAt != null ||
+        snapshot.currentProjectByOwner.containsKey(currentUser.id)) {
+      return snapshot;
+    }
+    final existing = snapshot.draft;
+    if (existing != null &&
+        (existing.goal.trim().isNotEmpty ||
+            existing.storyComposition != null)) {
+      return snapshot;
+    }
+    return snapshot.copyWith(draft: _readyFirstDraft(_now(), existing));
+  }
+
+  PtwProjectDraft _readyFirstDraft(
+    DateTime timestamp, [
+    PtwProjectDraft? existing,
+  ]) {
+    final sample = shareEditorTheme.sampleContent;
+    final headline = _sampleText(
+      sample['headline'],
+      fallback: 'Ship the idea everyone says is too ambitious',
+    );
+    final secondaryText = _sampleText(
+      sample['secondaryText'],
+      fallback: 'Think I won’t?',
+    );
+    return PtwProjectDraft(
+      id: existing?.id ?? 'project_${timestamp.microsecondsSinceEpoch}',
+      intent: PtwProjectDraftIntent.firstProject,
+      goal: headline,
+      doubt: existing?.doubt ?? secondaryText,
+      deadline: existing?.deadline,
+      image:
+          existing?.image ??
+          const PtwImageRef.asset('assets/images/backgrounds/startup.jpg'),
+      primaryColor: existing?.primaryColor ?? 0xFFF4066E,
+      createdAt: existing?.createdAt ?? timestamp,
+      updatedAt: timestamp,
+      previewGeneratedAt: existing?.previewGeneratedAt ?? timestamp,
+      category:
+          existing?.category ??
+          const PtwProjectCategorySuggester().suggest(headline),
+      categoryConfirmed: existing?.categoryConfirmed ?? false,
+      progressMetric: existing?.progressMetric,
+    );
+  }
+
+  String _sampleText(Object? value, {required String fallback}) {
+    final text = value is String ? value.trim() : '';
+    return text.isEmpty ? fallback : text;
   }
 
   PtwProject get currentProject {
@@ -221,15 +278,20 @@ final class PtwAppState extends ChangeNotifier
     final existing = _snapshot.draft;
     if (existing != null && existing.intent == intent) return existing;
     final timestamp = _now();
-    final draft = PtwProjectDraft(
-      id: 'project_${timestamp.microsecondsSinceEpoch}',
-      intent: intent,
-      goal: '',
-      image: const PtwImageRef.asset('assets/images/backgrounds/startup.jpg'),
-      primaryColor: 0xFFF4066E,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    );
+    final draft =
+        intent == PtwProjectDraftIntent.firstProject
+            ? _readyFirstDraft(timestamp)
+            : PtwProjectDraft(
+              id: 'project_${timestamp.microsecondsSinceEpoch}',
+              intent: intent,
+              goal: '',
+              image: const PtwImageRef.asset(
+                'assets/images/backgrounds/startup.jpg',
+              ),
+              primaryColor: 0xFFF4066E,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            );
     await _commit(_snapshot.copyWith(draft: draft));
     return draft;
   }
@@ -277,12 +339,16 @@ final class PtwAppState extends ChangeNotifier
     return next;
   }
 
-  Future<void> saveDraftStory(PtwStoryComposition composition) async {
+  Future<void> saveDraftStory(
+    PtwStoryComposition composition, {
+    bool syncHeadlineToGoal = false,
+  }) async {
     final existing = _snapshot.draft;
     if (existing == null || existing.id != composition.projectId) return;
     await _commit(
       _snapshot.copyWith(
         draft: existing.copyWith(
+          goal: syncHeadlineToGoal ? composition.headline.trim() : null,
           storyComposition: composition,
           updatedAt: _now(),
         ),

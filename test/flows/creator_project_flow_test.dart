@@ -91,7 +91,7 @@ void main() {
         find.byKey(const ValueKey(ComponentIds.shareScreen)),
         findsOneWidget,
       );
-      await tester.tap(find.byKey(const ValueKey('journey_close')));
+      await tester.tap(find.byKey(const ValueKey(ComponentIds.shareBack)));
       await tester.pumpAndSettle();
 
       await tester.tap(

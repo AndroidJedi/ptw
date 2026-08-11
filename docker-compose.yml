@@ -1,0 +1,108 @@
+name: ptw-agent-platform
+
+x-app-environment: &app-environment
+  PTW_ENV: ${PTW_ENV:-production}
+  PTW_LOG_LEVEL: ${PTW_LOG_LEVEL:-INFO}
+  POSTGRES_DB: ${POSTGRES_DB:-ptw}
+  POSTGRES_USER: ${POSTGRES_USER:-ptw}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ptw}
+      POSTGRES_USER: ${POSTGRES_USER:-ptw}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - /opt/ptw/persistent-data/postgres:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 256m
+    security_opt:
+      - no-new-privileges:true
+    networks: [backend]
+
+  commander-api:
+    build:
+      context: .
+      dockerfile: commander/Dockerfile
+    restart: unless-stopped
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    mem_limit: 128m
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    networks: [backend]
+
+  commander-worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+      WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-10}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "worker.healthcheck"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    mem_limit: 96m
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    networks: [backend]
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      commander-api:
+        condition: service_healthy
+    ports:
+      - "${PTW_HTTP_BIND:-127.0.0.1}:${PTW_HTTP_PORT:-8080}:8080"
+    volumes:
+      - ./infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/ptw/persistent-data/caddy/data:/data
+      - /opt/ptw/persistent-data/caddy/config:/config
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    mem_limit: 64m
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /config/caddy:size=8m
+    security_opt:
+      - no-new-privileges:true
+    networks: [backend, edge]
+
+networks:
+  backend:
+    internal: true
+  edge:

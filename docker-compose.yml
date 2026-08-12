@@ -8,6 +8,8 @@ x-app-environment: &app-environment
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
   POSTGRES_HOST: postgres
   POSTGRES_PORT: "5432"
+  TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+  TELEGRAM_ALLOWED_USER_IDS: ${TELEGRAM_ALLOWED_USER_IDS:-}
 
 services:
   postgres:
@@ -50,7 +52,7 @@ services:
       - /tmp:size=16m,mode=1777
     security_opt:
       - no-new-privileges:true
-    networks: [backend]
+    networks: [backend, edge]
 
   commander-worker:
     build:
@@ -59,9 +61,11 @@ services:
     restart: unless-stopped
     environment:
       <<: *app-environment
-      WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-10}
+      WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-2}
     depends_on:
       postgres:
+        condition: service_healthy
+      commander-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-m", "worker.healthcheck"]
@@ -74,7 +78,7 @@ services:
       - /tmp:size=16m,mode=1777
     security_opt:
       - no-new-privileges:true
-    networks: [backend]
+    networks: [backend, edge]
 
   caddy:
     image: caddy:2.10-alpine

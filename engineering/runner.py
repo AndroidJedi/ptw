@@ -92,6 +92,8 @@ def validation_commands(checkout: Path, risk: str) -> list[list[str]]:
 def validate(checkout: Path, risk: str) -> list[ValidationResult]:
     results = []
     for command in validation_commands(checkout, risk):
+        if shutil.which(command[0]) is None:
+            raise StageFailure("VALIDATION", f"Required validation tool is unavailable: {command[0]}")
         start = time.monotonic(); completed = run(command, cwd=checkout)
         result = ValidationResult(" ".join(command), completed.returncode == 0, round(time.monotonic()-start, 3), completed.stdout[-2000:])
         results.append(result)

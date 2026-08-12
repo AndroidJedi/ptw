@@ -39,4 +39,6 @@ def apply_migrations(directory: str = "/app/migrations") -> None:
                 )
                 connection.commit()
         finally:
+            if connection.info.transaction_status != 0:
+                connection.rollback()
             connection.execute("SELECT pg_advisory_unlock(781045221)")

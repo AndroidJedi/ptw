@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS project_memory (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS project_memory_search_idx ON project_memory
-USING GIN (to_tsvector('english', title || ' ' || content || ' ' || array_to_string(tags, ' ')));
+USING GIN (to_tsvector('english'::regconfig, title || ' ' || content));
 
 CREATE TABLE IF NOT EXISTS engineering_artifacts (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -44,4 +44,3 @@ CREATE TABLE IF NOT EXISTS engineering_runs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-

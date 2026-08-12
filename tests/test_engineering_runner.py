@@ -44,7 +44,7 @@ def test_codex_receives_spec_and_image_not_conversation(tmp_path: Path) -> None:
 
 
 def test_validation_failure_stops_stages(tmp_path: Path) -> None:
-    with patch("engineering.runner.run") as run:
+    with patch("engineering.runner.shutil.which", return_value="/tool"), patch("engineering.runner.run") as run:
         run.return_value.returncode = 1; run.return_value.stdout = "error excerpt"
         with pytest.raises(StageFailure, match="error excerpt") as failure: validate(tmp_path, "LOW")
     assert failure.value.stage == "VALIDATION" and run.call_count == 1

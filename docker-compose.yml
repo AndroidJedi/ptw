@@ -128,7 +128,7 @@ services:
   git-watcher:
     build:
       context: .
-      dockerfile: worker/Dockerfile
+      dockerfile: watcher/Dockerfile
     command: ["python", "-m", "watcher.main"]
     restart: unless-stopped
     environment: *app-environment

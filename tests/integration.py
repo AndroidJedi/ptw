@@ -40,7 +40,7 @@ def main() -> None:
         with psycopg.connect(database_url()) as connection:
             check(process_one(connection) is True, "job claimed")
             sender.assert_called_once_with(
-                {"chat_id": allowed, "reply_to_message_id": marker}, "pong"
+                {"chat_id": allowed, "reply_to_message_id": marker, "repo": "ptw", "task": ""}, "pong"
             )
             job = connection.execute(
                 "SELECT id, session_id, status FROM jobs WHERE parameters->>'reply_to_message_id' = %s",

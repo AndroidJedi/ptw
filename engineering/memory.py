@@ -21,7 +21,7 @@ def retrieve(connection: Any, repository_id: str, request: str, *, limit: int = 
     query = " ".join(re.findall(r"[A-Za-z0-9_]{3,}", request)[:20])
     rows = connection.execute(
         """SELECT category,title,content,source_reference,
-                  ts_rank(to_tsvector('english', title || ' ' || content || ' ' || array_to_string(tags,' ')), plainto_tsquery('english', %s)) score
+                  ts_rank(to_tsvector('english', title || ' ' || content), plainto_tsquery('english', %s)) score
            FROM project_memory WHERE repository_id=%s AND status='accepted' AND category=ANY(%s)
            ORDER BY score DESC, updated_at DESC LIMIT %s""", (query, repository_id, categories, limit)
     ).fetchall()

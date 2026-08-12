@@ -8,10 +8,11 @@ PostgreSQL. It does not use an LLM, embeddings, or a knowledge graph.
 - `commander-api`: FastAPI health endpoints and Telegram long polling
 - `commander-worker`: PostgreSQL-backed job executor and Telegram responder
 - `postgres`: private PostgreSQL 16 event/job store
-- `caddy`: loopback-only reverse proxy with baseline security headers
+- `caddy`: HTTPS edge for the Commander hostname; only `/health` is public
 
-PostgreSQL data persists at `/opt/ptw/persistent-data/postgres`. PostgreSQL has
-no host-published port; Caddy remains bound to `127.0.0.1:8080` by default.
+PostgreSQL data persists at `/opt/ptw/persistent-data/postgres` and has no
+host-published port. Caddy publishes 80/443 for automatic HTTPS and retains a
+diagnostic listener at `127.0.0.1:8080`.
 
 ## Telegram commands
 
@@ -39,6 +40,9 @@ docker compose down
 
 Do not commit `.env`. The bot token should be rotated if it is ever pasted into
 a ticket, chat, shell history, or log.
+
+Detailed design and runbooks are in `docs/architecture.md`,
+`docs/bootstrap-report.md`, `docs/operations.md`, and `docs/security-model.md`.
 
 ## Database and job flow
 

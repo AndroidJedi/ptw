@@ -14,6 +14,7 @@ from common.database import database_url
 from common.events import append_event
 from common.secrets import EnvironmentSecretStore
 from common.telegram import send_telegram as send_telegram_message
+from engineering.service import execute_engineering_job
 
 logging.basicConfig(
     level=os.getenv("PTW_LOG_LEVEL", "INFO"),
@@ -90,7 +91,7 @@ def status_response(connection: psycopg.Connection) -> str:
     return "\n".join(lines)
 
 
-def execute_job(connection: psycopg.Connection, job_type: str) -> str:
+def execute_job(connection: psycopg.Connection, job_type: str, job_id: int | None = None, parameters: dict | None = None) -> str:
     if job_type == "ping":
         return "pong"
     if job_type == "version":
@@ -99,6 +100,8 @@ def execute_job(connection: psycopg.Connection, job_type: str) -> str:
         return "PTW Commander v0.1\n/ping - test job execution\n/status - dependency status\n/version - show version\n/help - show commands"
     if job_type == "status":
         return status_response(connection)
+    if job_type == "engineer" and job_id is not None and parameters is not None:
+        return execute_engineering_job(connection, job_id, parameters)
     raise ValueError(f"Unsupported job type: {job_type}")
 
 
@@ -129,7 +132,7 @@ def process_one(connection: psycopg.Connection) -> bool:
     )
     connection.commit()
     try:
-        text = execute_job(connection, job_type)
+        text = execute_job(connection, job_type, job_id, parameters)
         send_telegram(parameters, text)
         connection.execute(
             "UPDATE jobs SET status = 'completed', result = %s, finished_at = now() WHERE id = %s",

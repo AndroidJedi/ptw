@@ -20,7 +20,7 @@ logger = logging.getLogger("ptw.commander")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 secrets = EnvironmentSecretStore()
-SUPPORTED_COMMANDS = {"/ping", "/status", "/version", "/help"}
+SUPPORTED_COMMANDS = {"/ping", "/status", "/version", "/help", "/engineer"}
 
 
 def allowed_user_ids() -> set[int]:
@@ -101,7 +101,8 @@ def persist_update(message: dict) -> bool:
                 session_id,
                 command.removeprefix("/"),
                 user_id,
-                Jsonb({"chat_id": chat_id, "reply_to_message_id": message_id}),
+                Jsonb({"chat_id": chat_id, "reply_to_message_id": message_id,
+                       "repo": "ptw", "task": text.split(maxsplit=1)[1].replace("repo=ptw", "", 1).strip() if command == "/engineer" and len(text.split(maxsplit=1)) > 1 else ""}),
             ),
         ).fetchone()[0]
         append_event(

@@ -11,8 +11,33 @@ x-app-environment: &app-environment
   TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
   TELEGRAM_ALLOWED_USER_IDS: ${TELEGRAM_ALLOWED_USER_IDS:-}
   CODEX_METADATA_FILE: /run/ptw-host/codex-version
+  SSH_AUTH_SOCK: /run/ptw-git-agent/agent.sock
+  GIT_SSH_COMMAND: ssh -F /etc/ptw-git/ssh_config
+  GIT_MAIN_WATCH_INTERVAL_SECONDS: ${GIT_MAIN_WATCH_INTERVAL_SECONDS:-300}
+  GIT_MAIN_WATCH_MAX_COMMITS: ${GIT_MAIN_WATCH_MAX_COMMITS:-5}
 
 services:
+  git-credential-agent:
+    build:
+      context: .
+      dockerfile: infrastructure/git-agent/Dockerfile
+    restart: unless-stopped
+    volumes:
+      - /root/.ssh/id_ed25519:/run/ptw-deploy-key/id_ed25519:ro
+      - git-agent-socket:/run/ptw-git-agent
+      - ./infrastructure/git-client/known_hosts:/run/ptw-known-hosts/known_hosts:ro
+    healthcheck:
+      test: ["CMD-SHELL", "SSH_AUTH_SOCK=/run/ptw-git-agent/agent.sock ssh-add -l >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    read_only: true
+    tmpfs:
+      - /tmp:size=4m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    networks: [backend]
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -68,6 +93,8 @@ services:
         condition: service_healthy
       commander-api:
         condition: service_healthy
+      git-credential-agent:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-m", "worker.healthcheck"]
       interval: 20s
@@ -79,6 +106,33 @@ services:
       - /tmp:size=16m,mode=1777
     volumes:
       - /opt/ptw/persistent-data/runtime:/run/ptw-host:ro
+      - git-agent-socket:/run/ptw-git-agent
+      - ./infrastructure/git-client:/etc/ptw-git:ro
+    security_opt:
+      - no-new-privileges:true
+    networks: [backend, edge]
+
+  git-watcher:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    command: ["python", "-m", "watcher.main"]
+    restart: unless-stopped
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      commander-api:
+        condition: service_healthy
+      git-credential-agent:
+        condition: service_healthy
+    mem_limit: 96m
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - git-agent-socket:/run/ptw-git-agent
+      - ./infrastructure/git-client:/etc/ptw-git:ro
     security_opt:
       - no-new-privileges:true
     networks: [backend, edge]
@@ -118,3 +172,6 @@ networks:
   backend:
     internal: true
   edge:
+
+volumes:
+  git-agent-socket:

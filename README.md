@@ -7,6 +7,8 @@ PostgreSQL. It does not use an LLM, embeddings, or a knowledge graph.
 
 - `commander-api`: FastAPI health endpoints and Telegram long polling
 - `commander-worker`: PostgreSQL-backed job executor and Telegram responder
+- `git-watcher`: zero-model-token polling and durable Telegram notification outbox
+- `git-credential-agent`: isolated in-memory access to the PTW deploy key
 - `postgres`: private PostgreSQL 16 event/job store
 - `caddy`: HTTPS edge for the Commander hostname; only `/health` is public
 
@@ -67,3 +69,18 @@ implements `get` and `exists`; `put` deliberately rejects writes because process
 environment is immutable. A later backend can implement the same interface with
 Vault, a cloud secret manager, or an encrypted local store without changing
 Commander or worker call sites.
+
+## Repository registry and main watcher
+
+`repositories` is the engineering allowlist. The registered application is
+`repo=ptw` (`Proof Them Wrong`, `git@github.com:AndroidJedi/ptw.git`, `main`,
+Flutter/Dart `^3.7.0`, no FVM detected). Arbitrary Git URLs are not accepted.
+
+`git-watcher` polls `ptw/main` with `git ls-remote` every
+`GIT_MAIN_WATCH_INTERVAL_SECONDS` (default 300). Initial discovery stores the
+SHA silently. A change atomically advances `watched_branches`, adds one durable
+outbox row per configured authorized Telegram ID, and records
+`GIT_BRANCH_UPDATED`. Delivery retries five times with bounded exponential
+backoff and records `GIT_NOTIFICATION_SENT` or `GIT_NOTIFICATION_FAILED`.
+Commit subjects and Git metadata produce a bounded summary; Codex, OpenAI, and
+all LLMs are absent from this path.

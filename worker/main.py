@@ -13,6 +13,7 @@ from psycopg.types.json import Jsonb
 from common.database import database_url
 from common.events import append_event
 from common.secrets import EnvironmentSecretStore
+from common.telegram import send_telegram as send_telegram_message
 
 logging.basicConfig(
     level=os.getenv("PTW_LOG_LEVEL", "INFO"),
@@ -102,14 +103,8 @@ def execute_job(connection: psycopg.Connection, job_type: str) -> str:
 
 
 def send_telegram(parameters: dict, text: str) -> None:
-    token = secrets.get("TELEGRAM_BOT_TOKEN")
-    payload = {"chat_id": parameters["chat_id"], "text": text}
-    if parameters.get("reply_to_message_id"):
-        payload["reply_parameters"] = {"message_id": parameters["reply_to_message_id"]}
-    response = httpx.post(
-        f"https://api.telegram.org/bot{token}/sendMessage", json=payload, timeout=10
-    )
-    response.raise_for_status()
+    send_telegram_message(parameters["chat_id"], text,
+                          reply_to_message_id=parameters.get("reply_to_message_id"))
 
 
 def process_one(connection: psycopg.Connection) -> bool:

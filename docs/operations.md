@@ -50,3 +50,28 @@ smoke test. A raw copy of live PostgreSQL files is not a safe logical backup.
 
 Caddy certificates persist below `/opt/ptw/persistent-data/caddy`. PostgreSQL
 survives `docker compose down` because its bind mount is outside the repository.
+
+## GitHub and main watcher
+
+Authenticate the host CLI using device/browser flow:
+
+```bash
+gh auth login --hostname github.com --git-protocol ssh --web
+gh auth status
+```
+
+The write-enabled `PTW Commander VPS` deploy key is scoped by GitHub to
+`AndroidJedi/ptw`. Compose mounts the single key read-only only into
+`git-credential-agent`; consumers mount its named socket volume and use
+`ssh -F /etc/ptw-git/ssh_config`. Never mount `/root/.ssh` into jobs.
+
+```bash
+docker compose exec -T postgres psql -U ptw -d ptw -c 'TABLE watched_branches;'
+docker compose exec -T postgres psql -U ptw -d ptw -c 'SELECT id,repository_id,branch,status,attempts FROM git_notifications ORDER BY id DESC LIMIT 20;'
+docker compose logs --tail=100 git-watcher
+```
+
+`GIT_MAIN_WATCH_INTERVAL_SECONDS` defaults to 300 and
+`GIT_MAIN_WATCH_MAX_COMMITS` to 5. Initial and unchanged observations are
+silent. A future webhook should call the same processor/outbox and replace only
+the polling detector.

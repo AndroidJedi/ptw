@@ -10,6 +10,11 @@
   command types, and sends Telegram replies.
 - **PostgreSQL 16** stores users, sessions, jobs, heartbeats, and append-oriented
   events. It has no host-published port.
+- **Git watcher** separates deterministic remote-SHA detection, change
+  processing, and Telegram outbox delivery. A future webhook can replace only
+  the polling detector.
+- **Git credential agent** alone mounts the read-only deploy-key file. Watcher
+  and runner containers receive only its Unix socket and GitHub-only SSH config.
 - **Host execution layer** detects the installed Codex CLI and publishes only
   version metadata read-only to the worker. Phase A cannot invoke Codex remotely.
 
@@ -20,6 +25,7 @@ Telegram API -> Commander API -> PostgreSQL <- Commander worker -> Telegram API
 Internet -> Caddy /health -> Commander API
 Host Codex check -> read-only metadata -> Commander worker /status
 Future job -> per-job /opt/ptw/workspaces/jobs/<job-id> -> tests/commit/PR -> cleanup
+GitHub main -> ls-remote -> PostgreSQL state/outbox -> authorized Telegram users
 ```
 
 The Internet-to-Caddy boundary exposes no administration. Telegram identity is

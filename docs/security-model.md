@@ -14,6 +14,14 @@
   diagnostic listener binds host loopback.
 - Containers are unprivileged, read-only where practical, memory-limited, and
   configured with `no-new-privileges` and restart policies.
+- `/root/.ssh` is never mounted into watcher or runner containers. The private
+  PTW deploy key is read-only in `git-credential-agent`; clients receive only a
+  signing socket. SSH enables that agent only for `github.com`, pins its host
+  key, disables interactive authentication, and disables the agent for other
+  hosts. The agent also applies an OpenSSH `github.com` destination constraint
+  to the loaded key. GitHub constrains the deploy key to `AndroidJedi/ptw`. A process with
+  the socket can act as that repository key, so repository allowlisting remains
+  mandatory.
 
 ## Trust assumptions
 

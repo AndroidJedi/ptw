@@ -13,6 +13,10 @@ x-app-environment: &app-environment
   CODEX_METADATA_FILE: /run/ptw-host/codex-version
   SSH_AUTH_SOCK: /run/ptw-git-agent/agent.sock
   GIT_SSH_COMMAND: ssh -F /etc/ptw-git/ssh_config
+  GH_CONFIG_DIR: /run/ptw-gh
+  CODEX_HOME: /run/ptw-codex
+  CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
+  CODEX_MAX_RETRIES: ${CODEX_MAX_RETRIES:-2}
   GIT_MAIN_WATCH_INTERVAL_SECONDS: ${GIT_MAIN_WATCH_INTERVAL_SECONDS:-300}
   GIT_MAIN_WATCH_MAX_COMMITS: ${GIT_MAIN_WATCH_MAX_COMMITS:-5}
 
@@ -106,8 +110,13 @@ services:
       - /tmp:size=16m,mode=1777
     volumes:
       - /opt/ptw/persistent-data/runtime:/run/ptw-host:ro
+      - /opt/ptw/workspaces/jobs:/opt/ptw/workspaces/jobs
       - git-agent-socket:/run/ptw-git-agent
       - ./infrastructure/git-client:/etc/ptw-git:ro
+      - /usr/bin/gh:/usr/local/bin/gh:ro
+      - /root/.config/gh:/run/ptw-gh:ro
+      - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
+      - /root/.codex/auth.json:/run/ptw-codex/auth.json:ro
     security_opt:
       - no-new-privileges:true
     networks: [backend, edge]

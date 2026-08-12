@@ -7,7 +7,8 @@ from psycopg.types.json import Jsonb
 
 from common.events import append_event
 from common.repositories import RepositoryRegistry
-from engineering.brain import classify, decompose, render_spec
+from engineering.brain import acceptance_criteria, classify, decompose, render_spec
+from engineering.github import create_or_get_pr, pull_request_body, push_agent_branch
 from engineering.memory import retrieve
 from engineering.runner import (EngineeringResult, StageFailure, commit_changes,
                                 copy_attachments, create_workspace, invoke_codex,
@@ -63,4 +64,10 @@ def execute_engineering_job(connection: Any, job_id: int, parameters: dict) -> s
     connection.execute("INSERT INTO engineering_artifacts(job_id,kind,path) VALUES(%s,'result',%s) ON CONFLICT DO NOTHING", (job_id, str(result_path)))
     connection.execute("UPDATE engineering_runs SET commit_sha=%s,status='validated',updated_at=now() WHERE job_id=%s", (sha, job_id))
     connection.execute("UPDATE jobs SET metrics=%s WHERE id=%s", (Jsonb({"codex_executions":executions,"retries":executions-1}), job_id))
-    return f"Engineering job #{job_id} validated\nBranch: {branch}\nFiles changed: {len(files)}\nCommit: {sha[:7]}"
+    push_agent_branch(checkout, branch)
+    event(connection, "GIT_BRANCH_PUSHED", job_id, "completed", {"branch":branch, "commit_sha":sha})
+    body = pull_request_body(job_id, request, acceptance_criteria(request), files, validations)
+    pr_number, pr_url, created = create_or_get_pr(repository, branch, f"Job {job_id}: {request}", body)
+    if created: event(connection, "GITHUB_PR_CREATED", job_id, "completed", {"branch":branch, "pr_number":pr_number, "url":pr_url})
+    connection.execute("UPDATE engineering_runs SET pull_request_number=%s,pull_request_url=%s,status='pr_created',updated_at=now() WHERE job_id=%s", (pr_number,pr_url,job_id))
+    return f"Engineering job #{job_id} ready\nPR: #{pr_number} {pr_url}\nBranch: {branch}\nValidation: ✅\nFiles changed: {len(files)}\nRemote main unchanged."

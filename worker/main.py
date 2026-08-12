@@ -15,6 +15,7 @@ from common.events import append_event
 from common.secrets import EnvironmentSecretStore
 from common.telegram import send_telegram as send_telegram_message
 from engineering.service import execute_engineering_job
+from engineering.runner import StageFailure
 
 logging.basicConfig(
     level=os.getenv("PTW_LOG_LEVEL", "INFO"),
@@ -164,6 +165,11 @@ def process_one(connection: psycopg.Connection) -> bool:
             session_id=session_id, job_id=job_id,
             payload={"error_type": type(exc).__name__},
         )
+        if isinstance(exc, StageFailure):
+            connection.execute(
+                "UPDATE engineering_runs SET status='failed',failure_stage=%s,updated_at=now() WHERE job_id=%s",
+                (exc.stage, job_id),
+            )
         connection.execute(
             "UPDATE sessions SET status = 'failed', updated_at = now() WHERE id = %s",
             (session_id,),

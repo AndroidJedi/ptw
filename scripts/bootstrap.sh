@@ -8,6 +8,6 @@ if [[ ! -f "$platform_dir/.env" ]]; then
 fi
 
 docker compose --project-directory "$platform_dir" config --quiet
+"$platform_dir/scripts/refresh-codex-metadata.sh"
 docker compose --project-directory "$platform_dir" up -d --build
 docker compose --project-directory "$platform_dir" ps
-

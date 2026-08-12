@@ -53,6 +53,17 @@ def command_available(command: str) -> bool:
         return False
 
 
+def codex_available() -> bool:
+    """Detect Codex directly or via host-generated, read-only metadata."""
+    if command_available("codex"):
+        return True
+    metadata = Path(os.getenv("CODEX_METADATA_FILE", "/run/ptw-host/codex-version"))
+    try:
+        return metadata.is_file() and metadata.read_text(encoding="utf-8").startswith("codex-cli ")
+    except OSError:
+        return False
+
+
 def status_response(connection: psycopg.Connection) -> str:
     checks: dict[str, bool] = {}
     try:
@@ -67,7 +78,7 @@ def status_response(connection: psycopg.Connection) -> str:
     except psycopg.Error:
         checks["PostgreSQL"] = False
     checks["Git"] = command_available("git")
-    checks["Codex"] = command_available("codex")
+    checks["Codex"] = codex_available()
     usage = shutil.disk_usage(Path("/"))
     checks["Disk"] = usage.free >= 512 * 1024 * 1024
     queued = connection.execute("SELECT count(*) FROM jobs WHERE status = 'queued'").fetchone()[0]

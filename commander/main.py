@@ -180,6 +180,12 @@ def live() -> dict[str, str]:
     return {"status": "ok", "service": "commander-api"}
 
 
+@app.get("/health")
+def public_health() -> dict[str, str]:
+    """Minimal public health response; dependency detail remains internal."""
+    return {"status": "ok"}
+
+
 @app.get("/health/ready")
 def ready() -> dict[str, str]:
     try:

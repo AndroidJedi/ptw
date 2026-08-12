@@ -37,6 +37,19 @@ Future engineering jobs must receive a unique workspace, cloned repository or
 Git worktree, bounded credentials, and explicit cleanup. They must not modify the
 Commander source checkout as a shared working tree.
 
+## Engineering pipeline
+
+`/engineer repo=ptw <task>` creates a PostgreSQL job. The Brain classifies risk,
+retrieves only relevant accepted memory, and writes bounded `spec.md`. Runner v2
+uses an isolated `agent/job-*` checkout, invokes Codex non-interactively with
+linked images, performs staged Flutter validation, writes `result.md`, pushes
+only its task branch, and creates or reuses a deterministic PR. Stage events and
+durations support recovery; unavailable token counts remain unset.
+
+Stable rules live in `docs/project-memory`; lifecycle records and source
+references live in PostgreSQL. Category filtering, full-text rank, item limits,
+and a character budget prevent sending the full memory base.
+
 ## Firebase boundary
 
 This VPS is a control and future agent-execution environment, not the PTW product

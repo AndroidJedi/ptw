@@ -51,6 +51,17 @@ smoke test. A raw copy of live PostgreSQL files is not a safe logical backup.
 Caddy certificates persist below `/opt/ptw/persistent-data/caddy`. PostgreSQL
 survives `docker compose down` because its bind mount is outside the repository.
 
+## Engineering jobs
+
+Use `/engineer repo=ptw <bounded task>`. Each isolated job stores `spec.md`,
+controlled `attachments/`, and `result.md`. `CODEX_MAX_RETRIES` defaults to 2.
+Inspect `engineering_runs.failure_stage` and audit events before resuming; PR
+creation safely reuses an existing open PR for the same branch.
+
+GitHub currently reports `main` as unprotected. Recommended repository rules are
+PR-required changes, blocked force-push/deletion, and required Flutter/preview CI.
+The runner already rejects direct `main` pushes in code.
+
 ## GitHub and main watcher
 
 Authenticate the host CLI using device/browser flow:

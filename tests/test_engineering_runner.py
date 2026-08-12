@@ -24,7 +24,7 @@ def test_isolated_workspace(tmp_path: Path) -> None:
         run.return_value.returncode = 0; run.return_value.stdout = ""
         checkout, branch = create_workspace(9, REPO, "Fix it", tmp_path)
     assert checkout == tmp_path / "9/repo" and branch.startswith("agent/job-9-")
-    assert str(tmp_path / "9") in run.call_args_list[0].args[0]
+    assert str(checkout) in run.call_args_list[0].args[0]
 
 
 def test_screenshot_attachment_is_copied_to_job_storage(tmp_path: Path) -> None:
@@ -55,7 +55,7 @@ def test_retry_exhaustion_is_bounded() -> None:
 
 
 def test_successful_local_commit_and_result(tmp_path: Path) -> None:
-    outputs = iter([" M lib/a.dart\n", "", "abc123\n", "lib/a.dart\n"])
+    outputs = iter([" M lib/a.dart\n", "", "", "abc123\n", "lib/a.dart\n"])
     with patch("engineering.runner.run") as run:
         run.side_effect = lambda *a, **k: type("R", (), {"returncode":0, "stdout":next(outputs)})()
         sha, files = commit_changes(tmp_path, 1, "Fix")

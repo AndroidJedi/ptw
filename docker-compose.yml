@@ -17,6 +17,7 @@ x-app-environment: &app-environment
   CODEX_HOME: /run/ptw-codex
   CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
   CODEX_MAX_RETRIES: ${CODEX_MAX_RETRIES:-2}
+  ATTACHMENT_INBOX_ROOT: /opt/ptw/workspaces/incoming
   GIT_MAIN_WATCH_INTERVAL_SECONDS: ${GIT_MAIN_WATCH_INTERVAL_SECONDS:-300}
   GIT_MAIN_WATCH_MAX_COMMITS: ${GIT_MAIN_WATCH_MAX_COMMITS:-5}
 
@@ -80,6 +81,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
+    volumes:
+      - /opt/ptw/workspaces/incoming:/opt/ptw/workspaces/incoming
     security_opt:
       - no-new-privileges:true
     networks: [backend, edge]
@@ -104,13 +107,14 @@ services:
       interval: 20s
       timeout: 5s
       retries: 5
-    mem_limit: 96m
+    mem_limit: 768m
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
     volumes:
       - /opt/ptw/persistent-data/runtime:/run/ptw-host:ro
       - /opt/ptw/workspaces/jobs:/opt/ptw/workspaces/jobs
+      - /opt/ptw/workspaces/incoming:/opt/ptw/workspaces/incoming:ro
       - git-agent-socket:/run/ptw-git-agent
       - ./infrastructure/git-client:/etc/ptw-git:ro
       - /usr/bin/gh:/usr/local/bin/gh:ro

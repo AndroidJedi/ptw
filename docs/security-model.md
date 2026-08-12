@@ -23,6 +23,11 @@
   the socket can act as that repository key, so repository allowlisting remains
   mandatory.
 
+The worker receives only the PTW SSH-agent socket, scoped GitHub CLI config,
+Codex executable/authentication, and job-workspace mount. Codex uses ephemeral
+workspace-write execution. Credentials never enter prompts or artifacts. Code
+rejects every push ref outside `agent/*` and verifies the current branch first.
+
 ## Trust assumptions
 
 The VPS root operator, Docker daemon, Telegram Bot API, DNS/provider control

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from pathlib import Path
 from contextlib import asynccontextmanager
 
 import httpx
@@ -92,6 +93,12 @@ def persist_update(message: dict) -> bool:
             session_id=session_id,
             payload={"command": command, "message_id": message_id},
         )
+        attachments = []
+        if command == "/engineer":
+            attachments = [row[0] for row in connection.execute(
+                """SELECT local_path FROM telegram_attachments WHERE telegram_user_id=%s
+                   AND status='pending' AND expires_at>now() AND local_path IS NOT NULL
+                   ORDER BY created_at DESC LIMIT 3""", (telegram_user_id,)).fetchall()]
         job_id = connection.execute(
             """
             INSERT INTO jobs (session_id, type, status, requested_by, parameters)
@@ -105,6 +112,9 @@ def persist_update(message: dict) -> bool:
                        "repo": "ptw", "task": text.split(maxsplit=1)[1].replace("repo=ptw", "", 1).strip() if command == "/engineer" and len(text.split(maxsplit=1)) > 1 else ""}),
             ),
         ).fetchone()[0]
+        if attachments:
+            connection.execute("UPDATE jobs SET parameters=parameters || %s WHERE id=%s", (Jsonb({"attachments":attachments}), job_id))
+            connection.execute("UPDATE telegram_attachments SET status='linked',job_id=%s WHERE telegram_user_id=%s AND status='pending' AND local_path=ANY(%s)", (job_id,telegram_user_id,attachments))
         append_event(
             connection,
             "JOB_CREATED",
@@ -145,6 +155,11 @@ async def telegram_loop() -> None:
                     message = update.get("message")
                     if not message:
                         continue
+                    if message.get("photo"):
+                        await persist_photo(client, message)
+                        if not message.get("caption", "").lstrip().startswith("/engineer"):
+                            continue
+                        message["text"] = message.get("caption", "")
                     accepted = await asyncio.to_thread(persist_update, message)
                     if not accepted or normalized_command(message.get("text") or "") not in SUPPORTED_COMMANDS:
                         await send_rejection(client, message, accepted)
@@ -153,6 +168,24 @@ async def telegram_loop() -> None:
             except Exception as exc:
                 logger.warning("Telegram polling failed: %s", type(exc).__name__)
                 await asyncio.sleep(5)
+
+
+async def persist_photo(client: httpx.AsyncClient, message: dict) -> None:
+    sender_id = (message.get("from") or {}).get("id")
+    chat_id = (message.get("chat") or {}).get("id")
+    if sender_id not in allowed_user_ids() or not chat_id:
+        return
+    photo = message["photo"][-1]
+    response = await client.get("getFile", params={"file_id": photo["file_id"]}); response.raise_for_status()
+    remote_path = response.json()["result"]["file_path"]
+    suffix = Path(remote_path).suffix if Path(remote_path).suffix in {".jpg", ".jpeg", ".png", ".webp"} else ".jpg"
+    directory = Path(os.getenv("ATTACHMENT_INBOX_ROOT", "/opt/ptw/workspaces/incoming")); directory.mkdir(parents=True, exist_ok=True)
+    local = directory / f"{sender_id}-{message['message_id']}{suffix}"
+    download = await client.get(f"https://api.telegram.org/file/bot{secrets.get('TELEGRAM_BOT_TOKEN')}/{remote_path}"); download.raise_for_status()
+    local.write_bytes(download.content); local.chmod(0o600)
+    with psycopg.connect(database_url(secrets)) as connection:
+        connection.execute("""INSERT INTO telegram_attachments(telegram_user_id,chat_id,telegram_file_id,file_type,caption,local_path)
+                              VALUES(%s,%s,%s,'image',%s,%s)""", (sender_id,chat_id,photo["file_id"],message.get("caption"),str(local)))
 
 
 @asynccontextmanager

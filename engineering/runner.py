@@ -65,7 +65,7 @@ def create_workspace(job_id: int, repository: Repository, request: str,
 
 
 def copy_attachments(paths: list[Path], job_root: Path) -> list[Path]:
-    target = job_root / "attachments"; target.mkdir(mode=0o700, exist_ok=True)
+    target = job_root / "attachments"; target.mkdir(mode=0o700, parents=True, exist_ok=True)
     copied = []
     for index, source in enumerate(paths):
         if not source.is_file(): continue

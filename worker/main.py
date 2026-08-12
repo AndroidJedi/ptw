@@ -98,7 +98,7 @@ def execute_job(connection: psycopg.Connection, job_type: str, job_id: int | Non
     if job_type == "version":
         return "PTW Commander v0.1"
     if job_type == "help":
-        return "PTW Commander v0.1\n/ping - test job execution\n/status - dependency status\n/version - show version\n/help - show commands"
+        return "PTW Commander v0.2\n/engineer repo=ptw <task> - create validated PR\n/ping - test job execution\n/status - dependency status\n/version - show version\n/help - show commands"
     if job_type == "status":
         return status_response(connection)
     if job_type == "engineer" and job_id is not None and parameters is not None:

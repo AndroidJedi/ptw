@@ -95,7 +95,7 @@ services:
       - "443:443/udp"
       - "127.0.0.1:${PTW_HTTP_PORT:-8080}:8080"
     environment:
-      COMMANDER_PUBLIC_HOST: ${COMMANDER_PUBLIC_HOST:-commander.prove-them-wrong.com}
+      COMMANDER_PUBLIC_HOST: ${COMMANDER_PUBLIC_HOST:-commander.proove-them-wrong.com}
     volumes:
       - ./infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - /opt/ptw/persistent-data/caddy/data:/data

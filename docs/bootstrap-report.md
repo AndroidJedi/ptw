@@ -4,8 +4,8 @@
 
 The Docker-based Phase A skeleton and points 7–12 were already committed. Docker,
 Compose, PostgreSQL 16, Caddy 2.10, Python containers, Git, and host Codex CLI
-`0.147.0` were present. No DNS answer currently exists for
-`commander.prove-them-wrong.com`.
+`0.147.0` were present. At bootstrap, no DNS answer existed for the Commander
+hostname. `commander.proove-them-wrong.com` now resolves to the VPS.
 
 ## Changes made for points 13–24
 
@@ -32,7 +32,7 @@ Flutter, user-account, or disk-layout configuration was changed.
 
 ## Assumptions and unresolved items
 
-DNS must point the Commander hostname to this VPS before Caddy can obtain a
-public certificate. Ports 80 and 443 must be permitted by the provider firewall,
-if one exists. Telegram end-to-end completion requires the allowed user to press
+DNS points the Commander hostname to this VPS, and Caddy has obtained a public
+certificate. Ports 80 and 443 must remain permitted by the provider firewall, if
+one exists. Telegram end-to-end completion requires the allowed user to press
 Start in the bot chat. The previously shared bot token must be rotated.

@@ -3,7 +3,7 @@
 ## Components and responsibilities
 
 - **Caddy** is the only public application edge. It obtains certificates for
-  `commander.prove-them-wrong.com` and publishes only `GET /health`.
+  `commander.proove-them-wrong.com` and publishes only `GET /health`.
 - **Commander API** owns Telegram long polling, deterministic authorization and
   routing, migrations, and internal health endpoints.
 - **Commander worker** atomically claims PostgreSQL jobs, runs the four bounded

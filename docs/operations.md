@@ -21,7 +21,7 @@ docker compose ps
 ./scripts/healthcheck.sh
 ./scripts/smoke-test.sh
 curl -fsS http://127.0.0.1:8080/health/ready
-curl -fsS https://commander.prove-them-wrong.com/health
+curl -fsS https://commander.proove-them-wrong.com/health
 ```
 
 ## Migrations

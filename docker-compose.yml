@@ -14,7 +14,7 @@ x-app-environment: &app-environment
   SSH_AUTH_SOCK: /run/ptw-git-agent/agent.sock
   GIT_SSH_COMMAND: ssh -F /etc/ptw-git/ssh_config
   GH_CONFIG_DIR: /run/ptw-gh
-  CODEX_HOME: /run/ptw-codex
+  CODEX_HOME: /tmp/ptw-codex
   CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
   CODEX_MAX_RETRIES: ${CODEX_MAX_RETRIES:-2}
   ATTACHMENT_INBOX_ROOT: /opt/ptw/workspaces/incoming
@@ -121,7 +121,7 @@ services:
       - /usr/bin/gh:/usr/local/bin/gh:ro
       - /root/.config/gh:/run/ptw-gh:ro
       - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
-      - /root/.codex/auth.json:/run/ptw-codex/auth.json:ro
+      - /root/.codex/auth.json:/run/ptw-codex-auth/auth.json:ro
     security_opt:
       - no-new-privileges:true
     networks: [backend, edge]

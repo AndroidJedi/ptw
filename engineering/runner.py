@@ -14,6 +14,10 @@ class StageFailure(RuntimeError):
         super().__init__(message); self.stage = stage
 
 
+class JobCancelled(RuntimeError):
+    pass
+
+
 @dataclass
 class ValidationResult:
     command: str
@@ -74,13 +78,44 @@ def copy_attachments(paths: list[Path], job_root: Path) -> list[Path]:
     return copied
 
 
-def invoke_codex(checkout: Path, spec: Path, attachments: list[Path], output: Path) -> subprocess.CompletedProcess:
+def invoke_codex(checkout: Path, spec: Path, attachments: list[Path], output: Path,
+                 cancel_requested=None) -> subprocess.CompletedProcess:
+    codex_home = Path(os.environ.get("CODEX_HOME", "/tmp/ptw-codex"))
+    codex_home.mkdir(mode=0o700, parents=True, exist_ok=True)
+    mounted_auth = Path("/run/ptw-codex-auth/auth.json")
+    runtime_auth = codex_home / "auth.json"
+    if mounted_auth.is_file() and not runtime_auth.exists():
+        shutil.copyfile(mounted_auth, runtime_auth)
+        runtime_auth.chmod(0o600)
     prompt = "Execute the bounded engineering specification in spec.md. Inspect only relevant files. Do not push, merge, or deploy. Finish with the working tree containing the requested changes."
+    # The worker container is the security boundary: it exposes only the task
+    # workspace and narrowly scoped credentials. Nested Linux namespaces are
+    # unavailable under Docker's no-new-privileges policy.
     command = [os.getenv("CODEX_EXECUTABLE", "codex"), "exec", "--ephemeral", "--ignore-user-config",
-               "--sandbox", "workspace-write", "--cd", str(checkout), "--output-last-message", str(output)]
+               "--dangerously-bypass-approvals-and-sandbox", "--cd", str(checkout),
+               "--output-last-message", str(output)]
     for attachment in attachments: command.extend(("--image", str(attachment)))
     command.append(prompt + "\n\n" + spec.read_text(encoding="utf-8"))
-    return run(command, cwd=checkout, timeout=int(os.getenv("CODEX_TIMEOUT_SECONDS", "1800")))
+    environment = os.environ.copy()
+    environment.update({"GIT_TERMINAL_PROMPT":"0", "GIT_SSH_COMMAND":"ssh -F /etc/ptw-git/ssh_config"})
+    log_path = output.with_suffix(".log")
+    with log_path.open("w+", encoding="utf-8") as execution_log:
+        process = subprocess.Popen(command, cwd=checkout, env=environment, text=True,
+                                   stdout=execution_log, stderr=subprocess.STDOUT)
+        deadline = time.monotonic() + int(os.getenv("CODEX_TIMEOUT_SECONDS", "1800"))
+        while process.poll() is None:
+            if cancel_requested and cancel_requested():
+                process.terminate()
+                try: process.wait(timeout=5)
+                except subprocess.TimeoutExpired: process.kill()
+                raise JobCancelled("Job cancelled while Codex was running")
+            if time.monotonic() >= deadline:
+                process.kill()
+                raise subprocess.TimeoutExpired(command, int(os.getenv("CODEX_TIMEOUT_SECONDS", "1800")))
+            time.sleep(0.5)
+        execution_log.seek(0)
+        stdout = execution_log.read()
+    return subprocess.CompletedProcess(command, process.returncode, stdout)
 
 
 def validation_commands(checkout: Path, risk: str) -> list[list[str]]:

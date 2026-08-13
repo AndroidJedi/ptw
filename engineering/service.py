@@ -46,7 +46,9 @@ def execute_engineering_job(connection: Any, job_id: int, parameters: dict) -> s
     for attempt in range(maximum + 1):
         executions += 1; started = time.monotonic()
         event(connection, "CODEX_STARTED", job_id, "running", {"attempt":attempt + 1})
-        completed = invoke_codex(checkout, spec_path, attachment_paths, output)
+        def cancelled() -> bool:
+            return connection.execute("SELECT status='cancel_requested' FROM jobs WHERE id=%s", (job_id,)).fetchone()[0]
+        completed = invoke_codex(checkout, spec_path, attachment_paths, output, cancelled)
         duration = round(time.monotonic() - started, 3)
         if completed.returncode == 0:
             event(connection, "CODEX_COMPLETED", job_id, "completed", {"attempt":attempt + 1, "duration_seconds":duration})

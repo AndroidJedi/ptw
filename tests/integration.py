@@ -34,7 +34,7 @@ def main() -> None:
     unauthorized = {"message_id": marker, "from": {"id": -marker}, "chat": {"id": -marker}, "text": "/ping"}
     check(persist_update(unauthorized) is False, "unauthorized command rejection")
     authorized = {"message_id": marker, "from": {"id": allowed}, "chat": {"id": allowed}, "text": "/ping"}
-    check(persist_update(authorized) is True, "authorized command handling")
+    check(isinstance(persist_update(authorized), int), "authorized command handling")
 
     with patch("worker.main.send_telegram") as sender:
         with psycopg.connect(database_url()) as connection:

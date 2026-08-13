@@ -21,7 +21,7 @@ logger = logging.getLogger("ptw.commander")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 secrets = EnvironmentSecretStore()
-SUPPORTED_COMMANDS = {"/ping", "/status", "/version", "/help", "/engineer", "/task"}
+SUPPORTED_COMMANDS = {"/ping", "/status", "/version", "/help", "/engineer", "/task", "/cancel"}
 
 
 def allowed_user_ids() -> set[int]:
@@ -47,7 +47,7 @@ def engineering_task(text: str) -> str:
     return task
 
 
-def persist_update(message: dict) -> bool:
+def persist_update(message: dict) -> bool | int:
     sender = message.get("from") or {}
     telegram_user_id = sender.get("id")
     chat_id = (message.get("chat") or {}).get("id")
@@ -82,6 +82,32 @@ def persist_update(message: dict) -> bool:
                 payload={"message_id": message_id, "command": command or None},
             )
             return True
+
+        if command == "/cancel":
+            requested = engineering_task(text)
+            if requested and not requested.isdigit():
+                return True
+            target_clause = "AND j.id = %s" if requested else ""
+            target_params = (int(requested),) if requested else ()
+            row = connection.execute(
+                f"""SELECT j.id, j.session_id, j.status FROM jobs j
+                    JOIN users u ON u.id = j.requested_by
+                    WHERE u.telegram_user_id = %s AND j.type = 'engineer'
+                      AND j.status IN ('queued','running','cancel_requested') {target_clause}
+                    ORDER BY j.id DESC LIMIT 1 FOR UPDATE""",
+                (telegram_user_id, *target_params),
+            ).fetchone()
+            if row is None:
+                return True
+            job_id, session_id, status = row
+            new_status = "cancelled" if status == "queued" else "cancel_requested"
+            connection.execute(
+                "UPDATE jobs SET status=%s, finished_at=CASE WHEN %s='cancelled' THEN now() ELSE finished_at END WHERE id=%s",
+                (new_status, new_status, job_id),
+            )
+            append_event(connection, "JOB_CANCEL_REQUESTED", actor, status=new_status,
+                         session_id=session_id, job_id=job_id)
+            return -job_id
 
         user_id = connection.execute(
             """
@@ -134,7 +160,7 @@ def persist_update(message: dict) -> bool:
             job_id=job_id,
             payload={"job_type": command.removeprefix("/")},
         )
-    return True
+    return job_id
 
 
 async def send_rejection(client: httpx.AsyncClient, message: dict, authorized: bool) -> None:
@@ -190,6 +216,15 @@ async def telegram_loop() -> None:
                                     headers={"X-PTW-Bridge-Token": token},
                                 )
                                 response.raise_for_status()
+                        except httpx.HTTPStatusError as exc:
+                            logger.warning("Creative service rejected request: HTTP %s", exc.response.status_code)
+                            detail = ""
+                            try:
+                                detail = str(exc.response.json().get("detail", ""))
+                            except (ValueError, AttributeError):
+                                pass
+                            text = detail if 400 <= exc.response.status_code < 500 and detail else "Creative service is temporarily unavailable."
+                            await client.post("sendMessage", json={"chat_id": message["chat"]["id"], "text": text})
                         except httpx.HTTPError as exc:
                             logger.warning("Creative service forwarding failed: %s", type(exc).__name__)
                             await client.post(
@@ -200,6 +235,17 @@ async def telegram_loop() -> None:
                     accepted = await asyncio.to_thread(persist_update, message)
                     if not accepted or normalized_command(message.get("text") or "") not in SUPPORTED_COMMANDS:
                         await send_rejection(client, message, accepted)
+                    elif isinstance(accepted, int) and accepted < 0:
+                        await client.post("sendMessage", json={"chat_id": message["chat"]["id"],
+                            "text": f"Cancellation requested for job #{-accepted}."})
+                    elif normalized_command(message.get("text") or "") == "/cancel":
+                        await client.post("sendMessage", json={"chat_id": message["chat"]["id"],
+                            "text": "No matching queued or running engineering job was found."})
+                    elif normalized_command(message.get("text") or "") in {"/task", "/engineer"}:
+                        understood = engineering_task(message.get("text") or "")
+                        await client.post("sendMessage", json={"chat_id": message["chat"]["id"],
+                            "reply_parameters": {"message_id": message["message_id"]},
+                            "text": f"Accepted job #{accepted}. I understood the task as:\n{understood}\n\nWork is queued and will start automatically. Cancel with /cancel {accepted}."})
             except asyncio.CancelledError:
                 raise
             except Exception as exc:

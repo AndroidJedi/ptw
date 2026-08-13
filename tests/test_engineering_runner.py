@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from common.repositories import Repository
-from engineering.runner import (EngineeringResult, StageFailure, ValidationResult,
+from engineering.runner import (EngineeringResult, JobCancelled, StageFailure, ValidationResult,
                                 branch_name, commit_changes, copy_attachments,
                                 create_workspace, enforce_push_branch, invoke_codex,
                                 render_result, validate)
@@ -33,14 +33,30 @@ def test_screenshot_attachment_is_copied_to_job_storage(tmp_path: Path) -> None:
     assert copied[0].read_bytes() == b"png" and copied[0].stat().st_mode & 0o777 == 0o600
 
 
-def test_codex_receives_spec_and_image_not_conversation(tmp_path: Path) -> None:
+def test_codex_receives_spec_and_image_not_conversation(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
     checkout = tmp_path / "repo"; checkout.mkdir()
     spec = tmp_path / "spec.md"; spec.write_text("Goal: fix")
     image = tmp_path / "image.png"; image.write_bytes(b"x")
-    with patch("engineering.runner.run") as run:
+    with patch("engineering.runner.subprocess.Popen") as popen:
+        process = popen.return_value
+        process.poll.return_value = 0
+        process.returncode = 0
         invoke_codex(checkout, spec, [image], tmp_path / "out")
-    command = run.call_args.args[0]
+    command = popen.call_args.args[0]
     assert "--image" in command and "Goal: fix" in command[-1]
+
+
+def test_codex_process_can_be_cancelled(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
+    checkout = tmp_path / "repo"; checkout.mkdir()
+    spec = tmp_path / "spec.md"; spec.write_text("Goal: stop")
+    with patch("engineering.runner.subprocess.Popen") as popen:
+        process = popen.return_value
+        process.poll.return_value = None
+        with pytest.raises(JobCancelled):
+            invoke_codex(checkout, spec, [], tmp_path / "out", lambda: True)
+        process.terminate.assert_called_once()
 
 
 def test_validation_failure_stops_stages(tmp_path: Path) -> None:

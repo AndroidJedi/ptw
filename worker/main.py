@@ -15,7 +15,7 @@ from common.events import append_event
 from common.secrets import EnvironmentSecretStore
 from common.telegram import send_telegram as send_telegram_message
 from engineering.service import execute_engineering_job
-from engineering.runner import StageFailure
+from engineering.runner import JobCancelled, StageFailure
 
 logging.basicConfig(
     level=os.getenv("PTW_LOG_LEVEL", "INFO"),
@@ -98,7 +98,7 @@ def execute_job(connection: psycopg.Connection, job_type: str, job_id: int | Non
     if job_type == "version":
         return "PTW Commander v0.1"
     if job_type == "help":
-        return "PTW Commander v0.4\n/task <request> - freely describe a fix, implementation, or change\n/research creative <topic> - research sourced ideas into the creative agent graph\n/graph hypotheses - inspect hypotheses and source IDs\n/graph weights - inspect learned component weights\n/creative from <hypothesis-id> - generate from graph research\n/creative <hook> | <caption> | <CTA> - generate an Instagram Story directly\n/feedback <creative-id> <1-5> [comment] - rate a creative (or reply to its image)\n/engineer repo=ptw <task> - compatibility alias for engineering tasks\n/ping - test job execution\n/status - dependency status\n/version - show version\n/help - show commands"
+        return "PTW Commander v0.5\n/task <request> - freely describe a fix, implementation, or change\n/cancel [job-id] - interrupt your latest queued or running task\n/research creative <topic> - research sourced ideas into the creative agent graph\n/graph hypotheses - inspect hypotheses and source IDs\n/graph weights - inspect learned component weights\n/creative from <hypothesis-id> - generate from graph research\n/creative <hook> | <caption> | <CTA> - generate an Instagram Story directly\n/feedback <creative-id> <1-5> [comment] - rate a creative (or reply to its image)\n/engineer repo=ptw <task> - compatibility alias for engineering tasks\n/ping - test job execution\n/status - dependency status\n/version - show version\n/help - show commands"
     if job_type == "status":
         return status_response(connection)
     if job_type == "engineer" and job_id is not None and parameters is not None:
@@ -151,6 +151,12 @@ def process_one(connection: psycopg.Connection) -> bool:
             "UPDATE sessions SET status = 'completed', updated_at = now() WHERE id = %s",
             (session_id,),
         )
+    except JobCancelled:
+        connection.execute("UPDATE jobs SET status='cancelled', finished_at=now() WHERE id=%s", (job_id,))
+        append_event(connection, "JOB_CANCELLED", "commander-worker", status="cancelled",
+                     session_id=session_id, job_id=job_id)
+        connection.execute("UPDATE sessions SET status='cancelled', updated_at=now() WHERE id=%s", (session_id,))
+        send_telegram(parameters, f"Engineering job #{job_id} cancelled.")
     except Exception as exc:
         logger.warning("Job %s failed: %s", job_id, type(exc).__name__)
         connection.execute(

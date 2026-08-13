@@ -21,3 +21,4 @@ def test_help_lists_research_graph_and_graph_based_creative_commands() -> None:
     assert "/research creative <topic>" in help_text
     assert "/graph hypotheses" in help_text
     assert "/creative from <hypothesis-id>" in help_text
+    assert "/cancel [job-id]" in help_text

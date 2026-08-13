@@ -33,8 +33,17 @@ class InstagramCreativeAdapter:
         )
         components: list[Entity] = []
         for component_kind, value in zip(self.component_kinds, values, strict=True):
+            existing = next(
+                (
+                    item for item in self.commander.store.entities(EntityKind.CREATIVE_COMPONENT)
+                    if item.attributes.get("vertical") == "instagram"
+                    and item.attributes.get("component_kind") == component_kind
+                    and item.attributes.get("value") == value
+                ),
+                None,
+            )
             components.append(
-                self.commander.create_entity(
+                existing or self.commander.create_entity(
                     EntityKind.CREATIVE_COMPONENT,
                     {"component_kind": component_kind, "value": value, "vertical": "instagram"},
                     reasoning_summary=f"Created reusable Instagram {component_kind} component.",
@@ -48,6 +57,9 @@ class InstagramCreativeAdapter:
                 "format": "story_1080x1920",
                 "status": "generated",
                 "generator_adapter": "instagram_demo_v1",
+                "component_weight_mean": sum(
+                    self.commander.component_weight(item) for item in components
+                ) / len(components),
             },
             reasoning_summary="Composed independently identifiable components for the experiment.",
             evidence_ids=(hypothesis.id, *(component.id for component in components)),

@@ -19,7 +19,7 @@ Decision -> KnowledgeAssertion -> Next Task.
 
 The PostgreSQL adapter in `commander/postgres_store.py` persists the generic
 entity/edge model, maintains typed projections, and writes an outbox message in
-the same transaction. Migrations 001 through 004 apply cleanly to PostgreSQL 16.
+the same transaction. Migrations 001 through 006 apply cleanly to PostgreSQL 16.
 
 The Telegram adapter in `commander/telegram.py` authenticates
 both user and chat allowlists and supports status, queue, policy inspection,
@@ -34,7 +34,7 @@ does not exist; generated images are returned for review.
 From the repository root:
 
 ```text
-python3 -m unittest discover -s tests/commander -v  # 15 passed; 4 runtime tests skip without optional dependencies
+python3 -m unittest discover -s tests/commander -v  # 16 passed; 5 runtime tests skip without optional dependencies
 python3 -m commander.demo --output-dir .local/commander-demo  # passed
 python3 -m compileall -q commander tests/commander  # passed
 git diff --check  # passed
@@ -53,7 +53,7 @@ persisted 41 entities, 62 pending outbox messages, and the ordered experiment
 states `running`, `completed`, and `evaluated`. No deployed PTW database was
 accessed.
 
-The complete dependency image runs all 19 tests. The actual local HTTP webhook
+The complete dependency image runs all 21 tests. The actual local HTTP webhook
 -> PostgreSQL -> renderer -> outbox path was exercised: it persisted 18
 entities, queued one Telegram photo delivery, and produced a verified 1080x1920
 PNG. Synthetic state was removed afterward.
@@ -88,6 +88,20 @@ restored successfully into disposable PostgreSQL 16. The current running graph
 is structurally complete but contains zero entities until real research or
 creative activity is recorded. Offsite backup copying remains an owner/provider
 dependency.
+
+Creative feedback is now an append-only learning flow. Every returned Telegram
+image asks the owner to reply `/feedback <1-5> [comment]`. Telegram delivery IDs
+resolve internally to Creative UUIDs; feedback evaluates the Creative UUID and
+versioned WeightUpdate UUIDs adjust each contained Component UUID. Identical
+components are reused by ID, making weights cumulative and available for
+deterministic future ranking. The existing poller forwards feedback in local
+deployment commit `78f4dcd`.
+
+Telegram graph inspection is implemented: `/graph` shows counts and recent
+IDs, `/graph hypotheses` shows Hypothesis-to-Source UUID lineage, `/graph
+weights` shows current component-weight projections, and `/graph creative
+<uuid>` reconstructs components, feedback, and weight-update IDs. The existing
+poller forwards graph requests in local deployment commit `d28b7d1`.
 
 ## Next milestone
 

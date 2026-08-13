@@ -35,6 +35,8 @@ class EntityKind(StrEnum):
     CONTROL_STATE = "control_state"
     APPROVAL_REQUEST = "approval_request"
     APPROVAL_STATE = "approval_state"
+    HUMAN_FEEDBACK = "human_feedback"
+    WEIGHT_UPDATE = "weight_update"
 
 
 class RelationType(StrEnum):
@@ -50,6 +52,8 @@ class RelationType(StrEnum):
     GENERATED = "generated"
     SCHEDULED_BY = "scheduled_by"
     STATE_OF = "state_of"
+    EVALUATES = "evaluates"
+    ADJUSTS = "adjusts"
 
 
 @dataclass(frozen=True, slots=True)

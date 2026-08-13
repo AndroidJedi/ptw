@@ -119,4 +119,52 @@ class TelegramControlPlane:
             if entity.kind not in {EntityKind.DECISION, EntityKind.AUDIT_EVENT}:
                 return "Reasoning summaries are available for decisions and audit events."
             return str(entity.attributes.get("reasoning_summary", "No reasoning summary recorded."))
-        return "Commands: /status /queue /policy /approve <id> /reject <id> /reasoning <id> /stop /resume"
+        if command == "/feedback":
+            parts = argument.split(maxsplit=2)
+            if len(parts) < 2:
+                raise ValueError("usage: /feedback <creative-uuid> <1-5> [comment]")
+            creative = self.commander.store.get_entity(parts[0])
+            feedback, updates = self.commander.record_creative_feedback(
+                creative=creative,
+                rating=int(parts[1]),
+                comment=parts[2] if len(parts) > 2 else "",
+                actor=actor,
+            )
+            return (
+                f"Feedback {feedback.id} recorded. "
+                f"Updated {len(updates)} component weights with full ID lineage."
+            )
+        if command == "/graph":
+            parts = argument.split(maxsplit=1)
+            view = parts[0].lower() if parts else "summary"
+            entity_id = parts[1] if len(parts) > 1 else None
+            return self._format_graph(self.commander.graph_snapshot(view, entity_id))
+        return "Commands: /status /queue /graph [hypotheses|weights|creative <id>] /policy /approve <id> /reject <id> /feedback <creative-id> <1-5> [comment] /reasoning <id> /stop /resume"
+
+    @staticmethod
+    def _format_graph(snapshot: Mapping[str, Any]) -> str:
+        view = snapshot["view"]
+        if view == "summary":
+            counts = ", ".join(
+                f"{kind}={count}" for kind, count in snapshot["entity_counts"].items()
+            ) or "empty"
+            recent = "\n".join(f"{kind} {entity_id}" for entity_id, kind in snapshot["recent"])
+            return f"Graph: {counts}\nEdges: {snapshot['relationship_count']}\nRecent:\n{recent or 'none'}"
+        if view == "hypotheses":
+            lines = []
+            for item in snapshot["hypotheses"]:
+                sources = ",".join(item["source_ids"]) or "none"
+                lines.append(f"{item['id']} [{item['status']}] {item['claim'][:100]}\n  sources: {sources}")
+            return "Hypotheses:\n" + ("\n".join(lines) or "none")
+        if view == "weights":
+            lines = [
+                f"{item['weight']:.2f} {item['kind']} {item['id']} {item['value']}"
+                for item in snapshot["components"]
+            ]
+            return "Component weights:\n" + ("\n".join(lines) or "none")
+        return (
+            f"Creative {snapshot['creative_id']}\n"
+            f"Components: {', '.join(snapshot['component_ids']) or 'none'}\n"
+            f"Feedback: {', '.join(snapshot['feedback_ids']) or 'none'}\n"
+            f"Weight updates: {', '.join(snapshot['weight_update_ids']) or 'none'}"
+        )

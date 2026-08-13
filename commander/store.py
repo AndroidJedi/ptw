@@ -26,6 +26,7 @@ class MemoryKnowledgeStore:
         self._entities: dict[str, Entity] = {}
         self._relationships: dict[str, Relationship] = {}
         self.outbox: list[dict[str, object]] = []
+        self.telegram_deliveries: dict[tuple[int, int], str] = {}
 
     def add_entity(self, entity: Entity) -> None:
         if entity.id in self._entities:
@@ -79,6 +80,13 @@ class MemoryKnowledgeStore:
             {"id": message_id, "topic": topic, "aggregate_id": aggregate_id, "payload": payload}
         )
         return message_id
+
+    def record_telegram_delivery(self, chat_id: int, message_id: int, entity_id: str) -> None:
+        self.get_entity(entity_id)
+        self.telegram_deliveries[(chat_id, message_id)] = entity_id
+
+    def telegram_delivery_entity(self, chat_id: int, message_id: int) -> str | None:
+        return self.telegram_deliveries.get((chat_id, message_id))
 
 
 class JsonlKnowledgeStore(MemoryKnowledgeStore):

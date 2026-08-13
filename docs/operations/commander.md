@@ -26,6 +26,8 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/001_commander_foundatio
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/002_commander_control_plane.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/003_telegram_runtime.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/004_outbox_retry.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/005_feedback_weights.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/006_telegram_delivery_links.sql
 ```
 
 Construct the database repository with `connect_postgres(DATABASE_URL)`. Domain

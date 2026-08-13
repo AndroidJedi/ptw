@@ -70,6 +70,7 @@ def create_app(
 
     def _process_update(update: Mapping[str, Any]) -> dict[str, object]:
         try:
+            update = _expand_feedback_reply(update, store)
             update_id = int(update["update_id"])
             with store.transaction():
                 if not store.record_inbox_once(update_id):
@@ -94,7 +95,11 @@ def create_app(
                         {
                             "chat_id": chat_id,
                             "path": str(path),
-                            "caption": f"Creative {creative.id}\nReady for review; not published.",
+                            "caption": (
+                                f"Creative {creative.id}\nReady for review; not published.\n\n"
+                                "Reply to this image with:\n/feedback 1-5 optional comment"
+                            ),
+                            "creative_id": creative.id,
                         },
                     )
                 else:
@@ -148,3 +153,30 @@ def _creative_request(update: Mapping[str, Any]) -> tuple[int, int, str, str | N
         str(message.get("caption") or message.get("text") or ""),
         file_id,
     )
+
+
+def _expand_feedback_reply(
+    update: Mapping[str, Any], store: PostgresKnowledgeStore
+) -> Mapping[str, Any]:
+    message = update.get("message")
+    if not isinstance(message, Mapping):
+        return update
+    text = str(message.get("text") or "").strip()
+    parts = text.split(maxsplit=2)
+    if not parts or parts[0].split("@", 1)[0].lower() != "/feedback":
+        return update
+    if len(parts) >= 2 and parts[1].isdigit():
+        reply = message.get("reply_to_message")
+        if not isinstance(reply, Mapping):
+            raise ValueError("reply to a generated creative, or include its UUID")
+        chat_id = int(message["chat"]["id"])
+        entity_id = store.telegram_delivery_entity(chat_id, int(reply["message_id"]))
+        if entity_id is None:
+            raise ValueError("the replied message is not a known generated creative")
+        expanded = dict(update)
+        expanded_message = dict(message)
+        comment = f" {parts[2]}" if len(parts) > 2 else ""
+        expanded_message["text"] = f"/feedback {entity_id} {parts[1]}{comment}"
+        expanded["message"] = expanded_message
+        return expanded
+    return update

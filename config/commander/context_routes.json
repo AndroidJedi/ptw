@@ -19,6 +19,8 @@
         "db/migrations/002_commander_control_plane.sql",
         "db/migrations/003_telegram_runtime.sql",
         "db/migrations/004_outbox_retry.sql",
+        "db/migrations/005_feedback_weights.sql",
+        "db/migrations/006_telegram_delivery_links.sql",
         "config/commander/policies.json"
       ]
     },

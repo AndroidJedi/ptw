@@ -20,27 +20,33 @@ def deliver_once(
     with store.transaction():
         for message in store.claim_outbox(topics=TOPICS, limit=limit):
             try:
-                _deliver(client, message)
+                result = _deliver(client, message)
             except Exception as error:
                 store.mark_outbox_failed(message.id, f"{type(error).__name__}: {error}")
             else:
+                if message.topic == "telegram.send_photo" and message.payload.get("creative_id"):
+                    store.record_telegram_delivery(
+                        int(message.payload["chat_id"]),
+                        int(result["message_id"]),
+                        str(message.payload["creative_id"]),
+                    )
                 store.mark_outbox_published(message.id)
                 delivered += 1
     return delivered
 
 
-def _deliver(client: TelegramBotClient, message: OutboxMessage) -> None:
+def _deliver(client: TelegramBotClient, message: OutboxMessage):
     payload = message.payload
     if message.topic == "telegram.send_message":
-        client.send_message(int(payload["chat_id"]), str(payload["text"]))
+        return client.send_message(int(payload["chat_id"]), str(payload["text"]))
     elif message.topic == "telegram.send_photo":
         from pathlib import Path
 
-        client.send_photo(
+        return client.send_photo(
             int(payload["chat_id"]), Path(str(payload["path"])), str(payload.get("caption", ""))
         )
     elif message.topic == "telegram.answer_callback":
-        client.answer_callback_query(str(payload["callback_query_id"]))
+        return client.answer_callback_query(str(payload["callback_query_id"]))
     else:
         raise ValueError(f"unsupported delivery topic: {message.topic}")
 

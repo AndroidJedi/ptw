@@ -39,3 +39,6 @@ PostgreSQL is the graph store:
 A dedicated graph database is unnecessary until measured query patterns exceed
 recursive SQL/typed-edge capabilities. PostgreSQL remains the authoritative
 store even if vector or graph projections are added later.
+
+After ingestion, `/graph hypotheses` shows proposed hypotheses and the exact
+Source UUIDs from which each was derived.

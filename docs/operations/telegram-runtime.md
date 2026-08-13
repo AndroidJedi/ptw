@@ -21,11 +21,29 @@ optional. You may attach a photo and put the same command in its caption; the
 photo becomes the full-bleed hero background. Commander returns a 1080x1920 PNG
 marked ready for review. It does not publish or spend money.
 
+After receiving the image, reply directly to that image:
+
+```text
+/feedback 4 Strong hook, CTA needs work
+```
+
+The reply link lets Commander resolve the Creative UUID automatically. You do
+not need to copy the ID shown in the caption. Feedback and component-weight
+updates are persisted as separate UUID entities with typed graph edges.
+
+Use `/graph` whenever you want to see what Commander currently knows. Views are
+bounded for Telegram but show permanent IDs; PostgreSQL retains the full entity
+and relationship history.
+
 Existing control commands remain available:
 
 ```text
 /status
 /queue
+/graph
+/graph hypotheses
+/graph weights
+/graph creative <creative-uuid>
 /policy
 /approve <approval-uuid>
 /reject <approval-uuid>
@@ -85,7 +103,8 @@ docker compose up -d --build commander-api
 ```
 
 Its installed forwarding change is local commit `0db9522`, and the free-form
-`/task` command is local commit `c21febf`. That deployment repository has no
+`/task` command is local commit `c21febf`. Feedback forwarding is `78f4dcd` and
+graph inspection forwarding is `d28b7d1`. That deployment repository has no
 configured upstream for this history. Do not reset it when updating the
 independent GitHub repository.
 

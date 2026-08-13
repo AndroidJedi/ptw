@@ -223,6 +223,172 @@ class Commander:
             if self._approval_status(entity) == "pending"
         )
 
+    def record_creative_feedback(
+        self,
+        *,
+        creative: Entity,
+        rating: int,
+        comment: str,
+        actor: str,
+    ) -> tuple[Entity, tuple[Entity, ...]]:
+        self._require_kind(creative, EntityKind.CREATIVE)
+        if rating not in range(1, 6):
+            raise ValueError("feedback rating must be an integer from 1 to 5")
+        duplicate = any(
+            item.attributes.get("creative_id") == creative.id
+            and item.attributes.get("actor") == actor
+            for item in self.store.entities(EntityKind.HUMAN_FEEDBACK)
+        )
+        if duplicate:
+            raise ValueError("feedback from this actor already exists for the creative")
+        with self.store.transaction():
+            feedback = self.create_entity(
+                EntityKind.HUMAN_FEEDBACK,
+                {
+                    "creative_id": creative.id,
+                    "rating": rating,
+                    "comment": comment.strip()[:1000],
+                    "actor": actor,
+                    "feedback_type": "owner_review",
+                },
+                actor=actor,
+                reasoning_summary="Recorded explicit owner feedback without treating it as an observation.",
+                evidence_ids=(creative.id,),
+            )
+            self.relate(feedback, RelationType.EVALUATES, creative)
+            components = tuple(
+                self.store.get_entity(edge.target_id)
+                for edge in self.store.relationships()
+                if edge.source_id == creative.id and edge.relation == RelationType.CONTAINS
+            )
+            updates: list[Entity] = []
+            delta = (rating - 3) * 0.05
+            for component in components:
+                previous = self.component_weight(component)
+                current = max(0.0, min(1.0, previous + delta))
+                update = self.create_entity(
+                    EntityKind.WEIGHT_UPDATE,
+                    {
+                        "component_id": component.id,
+                        "previous_weight": previous,
+                        "delta": delta,
+                        "new_weight": current,
+                        "algorithm": "owner_rating_linear_v1",
+                        "rating": rating,
+                    },
+                    actor=actor,
+                    reasoning_summary="Applied the versioned owner-feedback weighting policy.",
+                    evidence_ids=(feedback.id, component.id),
+                )
+                self.relate(update, RelationType.DERIVED_FROM, feedback)
+                self.relate(update, RelationType.ADJUSTS, component)
+                updates.append(update)
+        return feedback, tuple(updates)
+
+    def component_weight(self, component: Entity) -> float:
+        self._require_kind(component, EntityKind.CREATIVE_COMPONENT)
+        updates = [
+            self.store.get_entity(edge.source_id)
+            for edge in self.store.relationships()
+            if edge.target_id == component.id and edge.relation == RelationType.ADJUSTS
+        ]
+        if not updates:
+            return 0.5
+        latest = max(updates, key=lambda item: item.created_at)
+        return float(latest.attributes["new_weight"])
+
+    def rank_creative_components(self, components: Iterable[Entity]) -> tuple[Entity, ...]:
+        values = tuple(components)
+        return tuple(sorted(values, key=lambda item: (-self.component_weight(item), item.id)))
+
+    def graph_snapshot(self, view: str = "summary", entity_id: str | None = None) -> Mapping[str, Any]:
+        if view == "summary":
+            counts = {
+                kind.value: len(self.store.entities(kind))
+                for kind in EntityKind
+                if self.store.entities(kind)
+            }
+            recent = sorted(self.store.entities(), key=lambda item: item.created_at, reverse=True)[:10]
+            return {
+                "view": view,
+                "entity_counts": counts,
+                "relationship_count": len(self.store.relationships()),
+                "recent": tuple((item.id, item.kind.value) for item in recent),
+            }
+        if view == "hypotheses":
+            values = []
+            for hypothesis in sorted(
+                self.store.entities(EntityKind.HYPOTHESIS),
+                key=lambda item: item.created_at,
+                reverse=True,
+            )[:10]:
+                source_ids = tuple(
+                    edge.target_id
+                    for edge in self.store.relationships()
+                    if edge.source_id == hypothesis.id
+                    and edge.relation == RelationType.DERIVED_FROM
+                    and self.store.get_entity(edge.target_id).kind == EntityKind.SOURCE
+                )
+                values.append(
+                    {
+                        "id": hypothesis.id,
+                        "claim": str(hypothesis.attributes.get("claim", "")),
+                        "status": str(hypothesis.attributes.get("status", "unknown")),
+                        "source_ids": source_ids,
+                    }
+                )
+            return {"view": view, "hypotheses": tuple(values)}
+        if view == "weights":
+            components = self.rank_creative_components(
+                self.store.entities(EntityKind.CREATIVE_COMPONENT)
+            )[:10]
+            return {
+                "view": view,
+                "components": tuple(
+                    {
+                        "id": item.id,
+                        "kind": item.attributes.get("component_kind"),
+                        "value": str(item.attributes.get("value", ""))[:60],
+                        "weight": self.component_weight(item),
+                    }
+                    for item in components
+                ),
+            }
+        if view == "creative":
+            if not entity_id:
+                raise ValueError("usage: /graph creative <creative-uuid>")
+            creative = self.store.get_entity(entity_id)
+            self._require_kind(creative, EntityKind.CREATIVE)
+            edges = self.store.relationships()
+            component_ids = tuple(
+                edge.target_id
+                for edge in edges
+                if edge.source_id == creative.id and edge.relation == RelationType.CONTAINS
+            )
+            feedback_ids = tuple(
+                edge.source_id
+                for edge in edges
+                if edge.target_id == creative.id and edge.relation == RelationType.EVALUATES
+            )
+            weight_update_ids = tuple(
+                update.id
+                for update in self.store.entities(EntityKind.WEIGHT_UPDATE)
+                if any(
+                    edge.source_id == update.id
+                    and edge.relation == RelationType.ADJUSTS
+                    and edge.target_id in component_ids
+                    for edge in edges
+                )
+            )
+            return {
+                "view": view,
+                "creative_id": creative.id,
+                "component_ids": component_ids,
+                "feedback_ids": feedback_ids,
+                "weight_update_ids": weight_update_ids,
+            }
+        raise ValueError("graph view must be summary, hypotheses, weights, or creative")
+
     def transition_experiment(
         self, experiment: Entity, status: str, *, actor: str = "commander"
     ) -> Entity:

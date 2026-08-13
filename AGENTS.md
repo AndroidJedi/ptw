@@ -55,3 +55,13 @@ Commander recovery uses `scripts/backup_commander.sh`,
 archive and recorded Git revision. Research must enter through
 `ResearchKnowledgeService` so every initial hypothesis retains `derived_from`
 edges to permanent research-source IDs.
+
+After each Telegram creative, request feedback by reply. Never ask the owner to
+manually manage IDs: resolve the Telegram delivery to its Creative UUID, then
+persist HumanFeedback and WeightUpdate UUID entities connected through
+`evaluates`, `contains`, `derived_from`, and `adjusts` edges. Weight history is
+append-only; do not silently update a component row.
+
+The owner inspects state through `/graph`, `/graph hypotheses`, `/graph weights`,
+and `/graph creative <uuid>`. Keep output bounded and ID-explicit; PostgreSQL
+entities and relationship edges remain the complete authority.

@@ -143,6 +143,8 @@ class ResearchKnowledgeTests(unittest.TestCase):
         }
         self.assertEqual(evidence_edges, {first.id, second.id})
         self.assertEqual(hypothesis.attributes["status"], "proposed")
+        snapshot = commander.graph_snapshot("hypotheses")
+        self.assertEqual(set(snapshot["hypotheses"][0]["source_ids"]), {first.id, second.id})
 
     def test_research_requires_provenance_and_valid_credibility(self) -> None:
         with self.assertRaises(ValueError):
@@ -246,6 +248,54 @@ class TelegramControlPlaneTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.telegram.handle_update(self.update(f"/approve {request.id}"))
 
+    def test_feedback_updates_reusable_components_through_ids(self) -> None:
+        from commander.instagram import InstagramCreativeAdapter, InstagramCreativeSpec
+
+        source = self.commander.create_entity(
+            EntityKind.SOURCE, {}, reasoning_summary="source"
+        )
+        hypothesis = self.commander.create_hypothesis(
+            claim="claim", success_metric="ctr", threshold=0.1, scope="test", source=source
+        )
+        creative = InstagramCreativeAdapter(self.commander).generate(
+            hypothesis=hypothesis,
+            spec=InstagramCreativeSpec("Hook", "hero", "support", "Caption", "CTA"),
+        )
+        reply = self.telegram.handle_update(
+            self.update(f"/feedback {creative.id} 5 Strong hook, weak CTA")
+        )
+        self.assertIn("Updated 5 component weights", reply.text)
+        feedback = self.store.entities(EntityKind.HUMAN_FEEDBACK)[0]
+        updates = self.store.entities(EntityKind.WEIGHT_UPDATE)
+        self.assertEqual(len(updates), 5)
+        self.assertTrue(all(item.attributes["new_weight"] == 0.6 for item in updates))
+        edges = self.store.relationships()
+        self.assertTrue(any(
+            edge.source_id == feedback.id
+            and edge.relation == RelationType.EVALUATES
+            and edge.target_id == creative.id
+            for edge in edges
+        ))
+        adjusted_ids = {
+            edge.target_id for edge in edges if edge.relation == RelationType.ADJUSTS
+        }
+        component_ids = {
+            edge.target_id for edge in edges
+            if edge.source_id == creative.id and edge.relation == RelationType.CONTAINS
+        }
+        self.assertEqual(adjusted_ids, component_ids)
+        with self.assertRaises(ValueError):
+            self.telegram.handle_update(self.update(f"/feedback {creative.id} 4 duplicate"))
+        summary = self.telegram.handle_update(self.update("/graph"))
+        self.assertIn("human_feedback=1", summary.text)
+        self.assertIn("Edges:", summary.text)
+        weights = self.telegram.handle_update(self.update("/graph weights"))
+        self.assertIn("0.60", weights.text)
+        self.assertIn(next(iter(component_ids)), weights.text)
+        lineage = self.telegram.handle_update(self.update(f"/graph creative {creative.id}"))
+        self.assertIn(feedback.id, lineage.text)
+        self.assertIn(creative.id, lineage.text)
+
 
 class _FakeCursor:
     def __init__(self, connection: "_FakeConnection") -> None:
@@ -308,6 +358,31 @@ class PostgresStoreTests(unittest.TestCase):
 
 
 class RuntimeImageTests(unittest.TestCase):
+    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is not installed")
+    def test_reply_feedback_resolves_telegram_message_to_creative_uuid(self) -> None:
+        from commander.api import _expand_feedback_reply
+
+        store = MemoryKnowledgeStore()
+        creative = Entity(EntityKind.CREATIVE, {"status": "generated"})
+        store.add_entity(creative)
+        store.record_telegram_delivery(11, 700, creative.id)
+        expanded = _expand_feedback_reply(
+            {
+                "update_id": 8,
+                "message": {
+                    "from": {"id": 7},
+                    "chat": {"id": 11},
+                    "text": "/feedback 4 CTA needs work",
+                    "reply_to_message": {"message_id": 700},
+                },
+            },
+            store,
+        )
+        self.assertEqual(
+            expanded["message"]["text"],
+            f"/feedback {creative.id} 4 CTA needs work",
+        )
+
     @unittest.skipUnless(importlib.util.find_spec("PIL"), "Pillow is not installed")
     def test_renderer_creates_exact_story_png(self) -> None:
         from PIL import Image

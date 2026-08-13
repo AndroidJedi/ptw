@@ -160,6 +160,29 @@ class PostgresKnowledgeStore:
             )
             return cursor.fetchone() is not None
 
+    def record_telegram_delivery(self, chat_id: int, message_id: int, entity_id: str) -> None:
+        def operation(cursor: Cursor) -> None:
+            cursor.execute(
+                """INSERT INTO commander_telegram_deliveries
+                   (chat_id, message_id, entity_id)
+                   VALUES (%s, %s, %s)
+                   ON CONFLICT (chat_id, message_id) DO UPDATE
+                   SET entity_id = EXCLUDED.entity_id""",
+                (chat_id, message_id, entity_id),
+            )
+
+        self._write(operation)
+
+    def telegram_delivery_entity(self, chat_id: int, message_id: int) -> str | None:
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT entity_id FROM commander_telegram_deliveries
+                   WHERE chat_id = %s AND message_id = %s""",
+                (chat_id, message_id),
+            )
+            row = cursor.fetchone()
+        return None if row is None else str(row[0])
+
     def claim_outbox(
         self, *, topics: tuple[str, ...] = (), limit: int = 50
     ) -> tuple[OutboxMessage, ...]:

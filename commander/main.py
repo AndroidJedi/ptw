@@ -21,7 +21,7 @@ logger = logging.getLogger("ptw.commander")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 secrets = EnvironmentSecretStore()
-SUPPORTED_COMMANDS = {"/ping", "/status", "/version", "/help", "/engineer"}
+SUPPORTED_COMMANDS = {"/ping", "/status", "/version", "/help", "/engineer", "/task"}
 
 
 def allowed_user_ids() -> set[int]:
@@ -35,6 +35,16 @@ def allowed_user_ids() -> set[int]:
 def normalized_command(text: str) -> str:
     first = text.strip().split(maxsplit=1)[0].lower() if text.strip() else ""
     return first.split("@", maxsplit=1)[0]
+
+
+def engineering_task(text: str) -> str:
+    parts = text.strip().split(maxsplit=1)
+    if len(parts) < 2:
+        return ""
+    task = parts[1].strip()
+    if task.startswith("repo=ptw"):
+        task = task.removeprefix("repo=ptw").strip()
+    return task
 
 
 def persist_update(message: dict) -> bool:
@@ -94,7 +104,7 @@ def persist_update(message: dict) -> bool:
             payload={"command": command, "message_id": message_id},
         )
         attachments = []
-        if command == "/engineer":
+        if command in {"/engineer", "/task"}:
             attachments = [row[0] for row in connection.execute(
                 """SELECT local_path FROM telegram_attachments WHERE telegram_user_id=%s
                    AND status='pending' AND expires_at>now() AND local_path IS NOT NULL
@@ -106,10 +116,10 @@ def persist_update(message: dict) -> bool:
             """,
             (
                 session_id,
-                command.removeprefix("/"),
+                "engineer" if command == "/task" else command.removeprefix("/"),
                 user_id,
                 Jsonb({"chat_id": chat_id, "reply_to_message_id": message_id,
-                       "repo": "ptw", "task": text.split(maxsplit=1)[1].replace("repo=ptw", "", 1).strip() if command == "/engineer" and len(text.split(maxsplit=1)) > 1 else ""}),
+                       "repo": "ptw", "task": engineering_task(text) if command in {"/engineer", "/task"} else ""}),
             ),
         ).fetchone()[0]
         if attachments:
@@ -161,7 +171,7 @@ async def telegram_loop() -> None:
                             message["text"] = message.get("caption", "")
                         else:
                             await persist_photo(client, message)
-                        if caption_command not in {"/engineer", "/creative"}:
+                        if caption_command not in {"/engineer", "/task", "/creative"}:
                             continue
                         message["text"] = message.get("caption", "")
                     if normalized_command(message.get("text") or "") == "/creative":

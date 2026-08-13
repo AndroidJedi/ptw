@@ -23,6 +23,12 @@ interpretation. Only numeric IDs in `TELEGRAM_ALLOWED_USER_IDS` are accepted.
 Every received message, authorization decision, job transition, response, and
 health check is append-logged in PostgreSQL without message bodies or secrets.
 
+Use `/task <free-form request>` as the primary owner interface for fixes,
+features, reviews, and changes. The command queues the existing specification-
+driven engineering workflow; `/engineer repo=ptw <task>` remains compatible.
+Attach screenshots or reference images and put `/task ...` in the caption to
+make the pending attachments available to the job.
+
 `/status` reports Commander, worker, PostgreSQL, Git, Codex CLI, disk space, and
 queued/failed job counts. A missing optional command such as `codex` is shown as
 unavailable; it does not crash the job.

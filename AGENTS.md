@@ -33,7 +33,11 @@ Update `docs/architecture/commander-current-state.md` whenever a Commander
 milestone changes. It is a concise resume point, not a replacement for decision
 history or the architecture review.
 
-Never inspect or reuse credentials from `/opt/ptw/platform`. The GitHub working
-tree and that deployed checkout have unrelated histories. Use disposable
-databases for Commander migration tests unless the user explicitly authorizes a
-target database.
+The GitHub working tree and `/opt/ptw/platform` have unrelated histories; do not
+merge them or reuse unrelated deployment credentials. The one explicit
+operational integration is the existing `@ptw_commander_bot`: the creative
+stack reads its environment file at runtime and the established long poller
+forwards `/creative` over the shared internal network. Never print, copy into
+Git, rotate, or replace that token without owner authorization. Use disposable
+databases for migration tests unless the user explicitly authorizes a target
+database.

@@ -34,12 +34,18 @@ services:
     depends_on:
       commander-migrate:
         condition: service_completed_successfully
-    env_file: .env.commander
+    env_file:
+      - .env.commander
+      - /opt/ptw/platform/.env
     environment:
       DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
       COMMANDER_ASSET_DIR: /var/lib/ptw/assets
     volumes:
       - commander-assets:/var/lib/ptw/assets
+    networks:
+      default:
+      existing-ptw-backend:
+        aliases: [ptw-creative-api]
     ports:
       - "127.0.0.1:${COMMANDER_HTTP_PORT:-8091}:8080"
     healthcheck:
@@ -56,7 +62,9 @@ services:
     depends_on:
       commander-migrate:
         condition: service_completed_successfully
-    env_file: .env.commander
+    env_file:
+      - .env.commander
+      - /opt/ptw/platform/.env
     environment:
       DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
       COMMANDER_ASSET_DIR: /var/lib/ptw/assets
@@ -67,3 +75,8 @@ services:
 volumes:
   commander-db-data:
   commander-assets:
+
+networks:
+  existing-ptw-backend:
+    external: true
+    name: ptw-agent-platform_backend

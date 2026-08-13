@@ -344,6 +344,50 @@ class RuntimeImageTests(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 403)
 
+    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is not installed")
+    def test_existing_poller_bridge_requires_shared_bot_token(self) -> None:
+        from fastapi.testclient import TestClient
+        from commander.api import create_app
+        from commander.settings import Settings
+
+        class Store(MemoryKnowledgeStore):
+            connection = _FakeConnection()
+            updates: set[int] = set()
+
+            def record_inbox_once(self, update_id: int) -> bool:
+                if update_id in self.updates:
+                    return False
+                self.updates.add(update_id)
+                return True
+
+        class TelegramClient:
+            pass
+
+        with tempfile.TemporaryDirectory() as directory:
+            settings = Settings(
+                "unused", "existing-bot-token", "x" * 32,
+                frozenset({7}), frozenset({11}), Path(directory),
+                ROOT / "config/commander/policies.json"
+            )
+            client = TestClient(create_app(settings, Store(), TelegramClient()))
+            update = {
+                "update_id": 99,
+                "message": {
+                    "from": {"id": 7}, "chat": {"id": 11},
+                    "text": "/creative Existing bot | Same transport | CREATE",
+                },
+            }
+            denied = client.post(
+                "/internal/telegram/update", json=update,
+                headers={"X-PTW-Bridge-Token": "wrong"},
+            )
+            self.assertEqual(denied.status_code, 403)
+            accepted = client.post(
+                "/internal/telegram/update", json=update,
+                headers={"X-PTW-Bridge-Token": "existing-bot-token"},
+            )
+            self.assertEqual(accepted.status_code, 200, accepted.text)
+
     def test_worker_records_delivery_failure_without_crashing(self) -> None:
         from contextlib import contextmanager
         from commander.worker import deliver_once

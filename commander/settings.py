@@ -15,6 +15,13 @@ def _ids(name: str) -> frozenset[int]:
     return values
 
 
+def _optional_ids(name: str, fallback: frozenset[int]) -> frozenset[int]:
+    raw = os.environ.get(name, "")
+    if not raw.strip():
+        return fallback
+    return frozenset(int(value.strip()) for value in raw.split(",") if value.strip())
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     database_url: str
@@ -37,12 +44,13 @@ class Settings:
         secret = required["TELEGRAM_WEBHOOK_SECRET"]
         if len(secret) < 32:
             raise RuntimeError("TELEGRAM_WEBHOOK_SECRET must be at least 32 characters")
+        allowed_users = _ids("TELEGRAM_ALLOWED_USER_IDS")
         return cls(
             database_url=required["DATABASE_URL"],
             telegram_bot_token=required["TELEGRAM_BOT_TOKEN"],
             telegram_webhook_secret=secret,
-            allowed_user_ids=_ids("TELEGRAM_ALLOWED_USER_IDS"),
-            allowed_chat_ids=_ids("TELEGRAM_ALLOWED_CHAT_IDS"),
+            allowed_user_ids=allowed_users,
+            allowed_chat_ids=_optional_ids("TELEGRAM_ALLOWED_CHAT_IDS", allowed_users),
             asset_directory=Path(os.environ.get("COMMANDER_ASSET_DIR", "/var/lib/ptw/assets")),
             policy_path=Path(os.environ.get("COMMANDER_POLICY_PATH", "config/commander/policies.json")),
         )

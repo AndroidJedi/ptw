@@ -1,7 +1,12 @@
 # Telegram creative runtime
 
-Status: installed locally; external activation requires owner credentials and
-DNS.
+Status: active through the existing `@ptw_commander_bot` long-polling transport.
+
+PTW already had an operational Telegram bot. Commander reuses bot ID
+`7930450559` (`@ptw_commander_bot`); do not create or register another bot. The
+existing `/opt/ptw/platform` API remains the sole `getUpdates` consumer and
+forwards only `/creative` updates over the internal Docker network. The new
+worker uses the same bot identity to return generated images.
 
 ## Available command
 
@@ -29,76 +34,21 @@ Existing control commands remain available:
 /resume
 ```
 
-## Owner activation steps
+## Transport ownership
 
-### 1. Create the bot
+Never call `setWebhook` for this bot while the established platform uses
+`getUpdates`; Telegram permits only one update-consumption mode and a webhook
+would break the existing `/engineer`, `/status`, and notification workflows.
 
-In Telegram, open the verified `@BotFather` account:
+The creative Compose services read the existing root-owned environment file at
+`/opt/ptw/platform/.env` at runtime. The token is not copied into Git or written
+to documentation. `TELEGRAM_ALLOWED_CHAT_IDS` may be configured separately;
+for private owner chats it defaults to the existing allowed user IDs.
 
-1. Send `/newbot`.
-2. Choose its display name and username.
-3. Copy the bot token once. Do not paste it into chat, issues, or Git.
-4. Send `/start` to the new bot from the Telegram account that will control PTW.
-
-### 2. Discover your numeric IDs
-
-On the VPS, edit the ignored local file `/root/ptw/.env.commander` and replace
-only `TELEGRAM_BOT_TOKEN` with the real token. Then run:
-
-```sh
-cd /root/ptw
-docker compose --env-file .env.commander -f docker-compose.commander.yml \
-  run --rm commander-api python -m commander.telegram_identity
-```
-
-Copy the reported `user_id` and `chat_id` into
-`TELEGRAM_ALLOWED_USER_IDS` and `TELEGRAM_ALLOWED_CHAT_IDS`. Multiple IDs use
-commas. Authorization requires both lists to match.
-
-### 3. Provide public HTTPS
-
-Create a DNS A/AAAA record such as `commander.your-domain.example` pointing to
-this VPS. Configure the existing HTTPS reverse proxy to send that hostname to:
-
-```text
-http://127.0.0.1:8091
-```
-
-Set `COMMANDER_PUBLIC_BASE_URL` to the resulting `https://` URL. Telegram will
-not accept a plain HTTP webhook.
-
-### 4. Finish secrets and restart
-
-Set a new database password and webhook secret in `.env.commander`. Generate
-safe values locally:
-
-```sh
-openssl rand -hex 32
-openssl rand -hex 32
-chmod 600 /root/ptw/.env.commander
-```
-
-Use hexadecimal output for `COMMANDER_DB_PASSWORD` to avoid URL escaping. Then:
-
-```sh
-cd /root/ptw
-docker compose --env-file .env.commander -f docker-compose.commander.yml \
-  up -d --build --force-recreate
-curl -fsS http://127.0.0.1:8091/healthz
-curl -fsS http://127.0.0.1:8091/readyz
-```
-
-### 5. Register the webhook
-
-Only after the public HTTPS route works:
-
-```sh
-docker compose --env-file .env.commander -f docker-compose.commander.yml \
-  run --rm commander-api python -m commander.register_webhook
-```
-
-The service validates Telegram's secret-token header, numeric user ID, and chat
-ID. Replayed update IDs are ignored.
+The bridge endpoint is not public. Both stacks share the internal
+`ptw-agent-platform_backend` Docker network, and the established poller
+authenticates using the already-shared bot credential. The creative service
+still rechecks both Telegram user and chat authorization.
 
 ## Operations
 
@@ -107,6 +57,18 @@ docker compose --env-file .env.commander -f docker-compose.commander.yml ps
 docker compose --env-file .env.commander -f docker-compose.commander.yml logs -f commander-api commander-worker
 docker compose --env-file .env.commander -f docker-compose.commander.yml restart commander-api commander-worker
 ```
+
+The forwarding poller lives in `/opt/ptw/platform`. After changing its source,
+rebuild only its API with:
+
+```sh
+cd /opt/ptw/platform
+docker compose up -d --build commander-api
+```
+
+Its installed forwarding change is local commit `0db9522`; that deployment
+repository has no configured remote. Do not reset it when updating the
+independent GitHub repository.
 
 Database and generated assets live in Docker named volumes. Back up both before
 upgrading a live installation. Outbox delivery is at-least-once; a process crash

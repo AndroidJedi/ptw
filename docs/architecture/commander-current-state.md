@@ -34,7 +34,7 @@ does not exist; generated images are returned for review.
 From the repository root:
 
 ```text
-python3 -m unittest discover -s tests/commander -v  # 13 passed; 3 runtime tests skip without optional dependencies
+python3 -m unittest discover -s tests/commander -v  # 13 passed; 4 runtime tests skip without optional dependencies
 python3 -m commander.demo --output-dir .local/commander-demo  # passed
 python3 -m compileall -q commander tests/commander  # passed
 git diff --check  # passed
@@ -53,21 +53,27 @@ persisted 41 entities, 62 pending outbox messages, and the ordered experiment
 states `running`, `completed`, and `evaluated`. No deployed PTW database was
 accessed.
 
-The complete dependency image runs all 16 tests. The actual local HTTP webhook
+The complete dependency image runs all 17 tests. The actual local HTTP webhook
 -> PostgreSQL -> renderer -> outbox path was exercised: it persisted 18
 entities, queued one Telegram photo delivery, and produced a verified 1080x1920
 PNG. Synthetic state was removed afterward.
 
-An isolated Compose stack is installed and healthy on `127.0.0.1:8091` using
-non-live placeholder Telegram settings. No webhook has been registered. Owner
-activation steps are in `docs/operations/telegram-runtime.md`.
+An isolated Compose stack is installed and healthy on `127.0.0.1:8091`. It
+reuses the established `@ptw_commander_bot` credential and allowlist from the
+root-owned `/opt/ptw/platform/.env`; no token is copied into Git. The existing
+long poller remains the only update consumer and forwards `/creative` over the
+shared internal Docker network. No webhook is registered or required.
+
+The forwarding change is committed in the unrelated deployment checkout as
+local commit `0db9522`. That checkout has no configured remote, so the durable
+integration contract is also documented here and in
+`docs/operations/telegram-runtime.md`.
 
 ## Next milestone
 
-After the owner supplies a BotFather token, allowlisted Telegram IDs, and a DNS
-hostname, configure the HTTPS reverse proxy and register the webhook. Then run
-a private end-to-end Telegram smoke test before adding Instagram publishing,
-automated experiments, or spend.
+Run a private `/creative` Telegram smoke test with the owner, then improve
+creative quality and connect real experiment metric ingestion before adding
+Instagram publishing, automated experiments, or spend.
 
 ## Operational warning
 

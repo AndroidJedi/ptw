@@ -56,6 +56,19 @@ def create_app(
             x_telegram_bot_api_secret_token, settings.telegram_webhook_secret
         ):
             raise HTTPException(status_code=403, detail="invalid webhook secret")
+        return _process_update(update)
+
+    @app.post("/internal/telegram/update")
+    def internal_telegram_update(
+        update: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, object]:
+        # The established PTW poller already owns getUpdates for this bot. It
+        # authenticates to this internal-only route with the shared bot token.
+        if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
+            raise HTTPException(status_code=403, detail="invalid bridge token")
+        return _process_update(update)
+
+    def _process_update(update: Mapping[str, Any]) -> dict[str, object]:
         try:
             update_id = int(update["update_id"])
             with store.transaction():
@@ -87,14 +100,12 @@ def create_app(
                 else:
                     reply = control.handle_update(update)
                     store.enqueue_outbox(
-                        "telegram.send_message",
-                        None,
+                        "telegram.send_message", None,
                         {"chat_id": reply.chat_id, "text": reply.text},
                     )
                     if reply.callback_query_id:
                         store.enqueue_outbox(
-                            "telegram.answer_callback",
-                            None,
+                            "telegram.answer_callback", None,
                             {"callback_query_id": reply.callback_query_id},
                         )
         except TelegramUnauthorized as error:

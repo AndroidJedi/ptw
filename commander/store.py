@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterable, Protocol
 
@@ -16,6 +17,7 @@ class KnowledgeStore(Protocol):
     def get_entity(self, entity_id: str) -> Entity: ...
     def entities(self, kind: EntityKind | None = None) -> tuple[Entity, ...]: ...
     def relationships(self) -> tuple[Relationship, ...]: ...
+    def transaction(self): ...
 
 
 class MemoryKnowledgeStore:
@@ -59,6 +61,11 @@ class MemoryKnowledgeStore:
 
     def relationships(self) -> tuple[Relationship, ...]:
         return tuple(self._relationships.values())
+
+    @contextmanager
+    def transaction(self):
+        # The in-memory adapter is only for deterministic single-process tests.
+        yield self
 
 
 class JsonlKnowledgeStore(MemoryKnowledgeStore):

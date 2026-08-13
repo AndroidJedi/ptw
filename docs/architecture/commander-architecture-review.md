@@ -259,7 +259,10 @@ deployment modes before workload boundaries are known.
 ## Intentionally deferred
 
 Real Telegram and Instagram APIs, automated spend, statistical engines,
-PostgreSQL runtime wiring, object storage, embeddings, distributed scheduling,
-deployment automation, and cleanup of legacy Flutter generators are deferred.
+an executable PostgreSQL/Telegram service composition, object storage,
+embeddings, distributed scheduling, deployment automation, and cleanup of
+legacy Flutter generators are deferred. The PostgreSQL repository and
+transport-neutral authenticated Telegram command adapter now exist, but no
+network listener or external delivery is enabled.
 They are not needed to prove the first append-only learning loop, and adding
 them now would obscure whether the core model is sound.

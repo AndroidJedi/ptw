@@ -32,6 +32,9 @@ class EntityKind(StrEnum):
     ARTIFACT = "artifact"
     AUDIT_EVENT = "audit_event"
     POLICY_EVALUATION = "policy_evaluation"
+    CONTROL_STATE = "control_state"
+    APPROVAL_REQUEST = "approval_request"
+    APPROVAL_STATE = "approval_state"
 
 
 class RelationType(StrEnum):

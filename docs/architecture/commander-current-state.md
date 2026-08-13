@@ -17,16 +17,22 @@ adapter.
 Hypothesis -> Creative -> Experiment -> MetricSet -> Observation -> Insight ->
 Decision -> KnowledgeAssertion -> Next Task.
 
-The PostgreSQL target schema begins at
-`db/migrations/001_commander_foundation.sql`. It is not wired to the Python
-repository yet. Telegram and Instagram network integrations do not exist.
+The PostgreSQL adapter in `commander/postgres_store.py` persists the generic
+entity/edge model, maintains typed projections, and writes an outbox message in
+the same transaction. Migrations 001 and 002 apply cleanly to PostgreSQL 16.
+
+The transport-neutral Telegram adapter in `commander/telegram.py` authenticates
+both user and chat allowlists and supports status, queue, policy inspection,
+one-time experiment approval/rejection, reasoning summaries, emergency stop,
+and resume. A webhook/polling process and outbound Telegram HTTP client do not
+exist yet. Instagram network integration does not exist.
 
 ## Last verification
 
 From the repository root:
 
 ```text
-python3 -m unittest discover -s tests/commander -v  # 8 passed
+python3 -m unittest discover -s tests/commander -v  # 12 passed
 python3 -m commander.demo --output-dir .local/commander-demo  # passed
 python3 -m compileall -q commander tests/commander  # passed
 git diff --check  # passed
@@ -34,12 +40,24 @@ git diff --check  # passed
 
 Dart and Flutter were unavailable on the VPS, so Flutter tests were not run.
 
+The PostgreSQL migrations were also applied to a disposable `postgres:16-alpine`
+container with `ON_ERROR_STOP=1`; all 10 tables and 20 entity enum values were
+verified. The adapter transaction tests inject outbox failure and verify the
+domain insert rolls back.
+
+A real psycopg 3.2.9 integration run against a separate disposable PostgreSQL
+16 container also completed the approval-driven experiment lifecycle. It
+persisted 41 entities, 62 pending outbox messages, and the ordered experiment
+states `running`, `completed`, and `evaluated`. No deployed PTW database was
+accessed.
+
 ## Next milestone
 
-Implement a PostgreSQL `KnowledgeStore` adapter and transactional outbox, then
-add a minimal authenticated Telegram adapter for status, experiment approval,
-policy inspection, and emergency stop. Keep the transport thin and make all
-authorization and policy decisions inside the application boundary.
+Add an executable Commander API/worker composition: environment-based secret
+loading, a small Telegram webhook endpoint, idempotent update receipt, an
+outbox dispatcher, health/readiness endpoints, and integration tests against a
+disposable PostgreSQL database. Do not enable a real Telegram webhook until the
+owner supplies credentials and an HTTPS deployment target.
 
 ## Operational warning
 

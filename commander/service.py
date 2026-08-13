@@ -23,7 +23,7 @@ class Commander:
         reasoning_summary: str,
         evidence_ids: Iterable[str] = (),
     ) -> Entity:
-        self.policy.require_active()
+        self._require_active()
         entity = Entity(kind=kind, attributes=dict(attributes))
         self.store.add_entity(entity)
         self._audit(
@@ -90,6 +90,7 @@ class Commander:
         self._require_kind(hypothesis, EntityKind.HYPOTHESIS)
         self._require_kind(creative, EntityKind.CREATIVE)
         self._require_kind(audience, EntityKind.AUDIENCE)
+        self._require_active()
         running = sum(
             self._experiment_status(entity) == "running"
             for entity in self.store.entities(EntityKind.EXPERIMENT)
@@ -123,6 +124,97 @@ class Commander:
         self.relate(experiment, RelationType.TESTED_IN, audience)
         self.transition_experiment(experiment, "running", actor=approved_by or "commander")
         return experiment
+
+    def request_experiment_approval(
+        self,
+        *,
+        hypothesis: Entity,
+        creative: Entity,
+        audience: Entity,
+        budget_minor: int,
+        requested_by: str,
+    ) -> Entity:
+        self._require_active()
+        request = self.create_entity(
+            EntityKind.APPROVAL_REQUEST,
+            {
+                "command": "start_experiment",
+                "hypothesis_id": hypothesis.id,
+                "creative_id": creative.id,
+                "audience_id": audience.id,
+                "budget_minor": budget_minor,
+                "requested_by": requested_by,
+            },
+            actor=requested_by,
+            reasoning_summary="Queued an experiment command for explicit owner approval.",
+            evidence_ids=(hypothesis.id, creative.id, audience.id),
+        )
+        self._append_approval_state(request, "pending", requested_by)
+        return request
+
+    def approve_experiment(self, request: Entity, *, approved_by: str) -> Entity:
+        self._require_kind(request, EntityKind.APPROVAL_REQUEST)
+        if self._approval_status(request) != "pending":
+            raise ValueError("approval request is not pending")
+        attributes = request.attributes
+        with self.store.transaction():
+            experiment = self.create_experiment(
+                hypothesis=self.store.get_entity(str(attributes["hypothesis_id"])),
+                creative=self.store.get_entity(str(attributes["creative_id"])),
+                audience=self.store.get_entity(str(attributes["audience_id"])),
+                budget_minor=int(attributes["budget_minor"]),
+                approved_by=approved_by,
+            )
+            self._append_approval_state(request, "approved", approved_by)
+            self.relate(experiment, RelationType.DERIVED_FROM, request)
+        return experiment
+
+    def reject_approval(self, request: Entity, *, rejected_by: str) -> Entity:
+        self._require_kind(request, EntityKind.APPROVAL_REQUEST)
+        if self._approval_status(request) != "pending":
+            raise ValueError("approval request is not pending")
+        return self._append_approval_state(request, "rejected", rejected_by)
+
+    def set_emergency_stop(self, active: bool, *, actor: str) -> Entity:
+        state = Entity(
+            kind=EntityKind.CONTROL_STATE,
+            attributes={"emergency_stop": active, "actor": actor},
+        )
+        self.store.add_entity(state)
+        self._audit(
+            action="set_emergency_stop",
+            actor=actor,
+            reasoning_summary=f"Runtime emergency stop set to {active}.",
+            evidence_ids=(),
+            result_ids=(state.id,),
+        )
+        return state
+
+    def status(self) -> Mapping[str, Any]:
+        return {
+            "emergency_stop": self._emergency_stop_active(),
+            "running_experiments": sum(
+                self._experiment_status(entity) == "running"
+                for entity in self.store.entities(EntityKind.EXPERIMENT)
+            ),
+            "pending_approvals": sum(
+                self._approval_status(entity) == "pending"
+                for entity in self.store.entities(EntityKind.APPROVAL_REQUEST)
+            ),
+            "queued_tasks": sum(
+                entity.attributes.get("status") == "queued"
+                for entity in self.store.entities(EntityKind.TASK)
+            ),
+            "policy_version": self.policy.version,
+            "policy_digest": self.policy.digest,
+        }
+
+    def pending_approval_requests(self) -> tuple[Entity, ...]:
+        return tuple(
+            entity
+            for entity in self.store.entities(EntityKind.APPROVAL_REQUEST)
+            if self._approval_status(entity) == "pending"
+        )
 
     def transition_experiment(
         self, experiment: Entity, status: str, *, actor: str = "commander"
@@ -316,3 +408,35 @@ class Commander:
         if not states:
             return None
         return max(states, key=lambda item: item.created_at).attributes["status"]
+
+    def _append_approval_state(
+        self, request: Entity, status: str, actor: str
+    ) -> Entity:
+        state = self.create_entity(
+            EntityKind.APPROVAL_STATE,
+            {"status": status, "actor": actor},
+            actor=actor,
+            reasoning_summary=f"Recorded append-only approval state: {status}.",
+            evidence_ids=(request.id,),
+        )
+        self.relate(state, RelationType.STATE_OF, request)
+        return state
+
+    def _approval_status(self, request: Entity) -> str | None:
+        states = [
+            self.store.get_entity(edge.source_id)
+            for edge in self.store.relationships()
+            if edge.relation == RelationType.STATE_OF and edge.target_id == request.id
+        ]
+        states = [state for state in states if state.kind == EntityKind.APPROVAL_STATE]
+        return max(states, key=lambda item: item.created_at).attributes["status"] if states else None
+
+    def _emergency_stop_active(self) -> bool:
+        states = self.store.entities(EntityKind.CONTROL_STATE)
+        if states:
+            return bool(max(states, key=lambda item: item.created_at).attributes["emergency_stop"])
+        return self.policy.emergency_stop
+
+    def _require_active(self) -> None:
+        if self._emergency_stop_active():
+            raise PolicyDenied("Commander emergency stop is active")

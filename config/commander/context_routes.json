@@ -16,6 +16,7 @@
       ],
       "optional": [
         "db/migrations/001_commander_foundation.sql",
+        "db/migrations/002_commander_control_plane.sql",
         "config/commander/policies.json"
       ]
     },

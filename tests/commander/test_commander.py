@@ -11,8 +11,10 @@ from commander.context import ContextBroker
 from commander.ids import new_uuid7
 from commander.model import Entity, EntityKind, RelationType, Relationship
 from commander.policy import CommanderPolicy, PolicyDenied
+from commander.postgres_store import PostgresKnowledgeStore
 from commander.service import Commander
 from commander.store import JsonlKnowledgeStore, MemoryKnowledgeStore
+from commander.telegram import TelegramControlPlane, TelegramUnauthorized
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -131,6 +133,124 @@ class VerticalLoopTests(unittest.TestCase):
             if entity["kind"] == "experiment_state"
         ]
         self.assertEqual(state_values, ["running", "completed", "evaluated"])
+
+
+class TelegramControlPlaneTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.store = MemoryKnowledgeStore()
+        self.commander = Commander(
+            self.store, CommanderPolicy.load(ROOT / "config/commander/policies.json")
+        )
+        self.telegram = TelegramControlPlane(
+            self.commander, allowed_user_ids={7}, allowed_chat_ids={11}
+        )
+
+    def update(self, text: str, *, user_id: int = 7) -> dict[str, object]:
+        return {
+            "message": {
+                "from": {"id": user_id},
+                "chat": {"id": 11},
+                "text": text,
+            }
+        }
+
+    def test_status_and_emergency_stop_are_authenticated(self) -> None:
+        stopped = self.telegram.handle_update(self.update("/stop"))
+        self.assertIn("enabled", stopped.text)
+        self.assertIn("STOPPED", self.telegram.handle_update(self.update("/status")).text)
+        self.telegram.handle_update(self.update("/resume"))
+        self.assertIn("active", self.telegram.handle_update(self.update("/status")).text)
+        with self.assertRaises(TelegramUnauthorized):
+            self.telegram.handle_update(self.update("/status", user_id=999))
+
+    def test_pending_experiment_can_be_approved_once(self) -> None:
+        source = self.commander.create_entity(
+            EntityKind.SOURCE, {}, reasoning_summary="source"
+        )
+        hypothesis = self.commander.create_hypothesis(
+            claim="claim",
+            success_metric="ctr",
+            threshold=0.1,
+            scope="test",
+            source=source,
+        )
+        creative = self.commander.create_entity(
+            EntityKind.CREATIVE, {}, reasoning_summary="creative"
+        )
+        audience = self.commander.create_entity(
+            EntityKind.AUDIENCE, {}, reasoning_summary="audience"
+        )
+        request = self.commander.request_experiment_approval(
+            hypothesis=hypothesis,
+            creative=creative,
+            audience=audience,
+            budget_minor=100,
+            requested_by="test",
+        )
+        reply = self.telegram.handle_update(self.update(f"/approve {request.id}"))
+        self.assertIn("is running", reply.text)
+        with self.assertRaises(ValueError):
+            self.telegram.handle_update(self.update(f"/approve {request.id}"))
+
+
+class _FakeCursor:
+    def __init__(self, connection: "_FakeConnection") -> None:
+        self.connection = connection
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def execute(self, query: str, params: tuple[object, ...] = ()) -> None:
+        normalized = " ".join(query.split())
+        self.connection.statements.append((normalized, params))
+        if self.connection.fail_on and self.connection.fail_on in normalized:
+            raise RuntimeError("injected database failure")
+
+    def fetchone(self):
+        return None
+
+    def fetchall(self):
+        return []
+
+
+class _FakeConnection:
+    def __init__(self, *, fail_on: str | None = None) -> None:
+        self.fail_on = fail_on
+        self.statements: list[tuple[str, tuple[object, ...]]] = []
+        self.commits = 0
+        self.rollbacks = 0
+
+    def cursor(self) -> _FakeCursor:
+        return _FakeCursor(self)
+
+    def commit(self) -> None:
+        self.commits += 1
+
+    def rollback(self) -> None:
+        self.rollbacks += 1
+
+
+class PostgresStoreTests(unittest.TestCase):
+    def test_entity_and_outbox_commit_together(self) -> None:
+        connection = _FakeConnection()
+        store = PostgresKnowledgeStore(connection)
+        store.add_entity(Entity(EntityKind.SOURCE, {"name": "source"}))
+        self.assertEqual(connection.commits, 1)
+        self.assertEqual(connection.rollbacks, 0)
+        sql = "\n".join(statement for statement, _ in connection.statements)
+        self.assertIn("INSERT INTO commander_entities", sql)
+        self.assertIn("INSERT INTO commander_outbox", sql)
+
+    def test_outbox_failure_rolls_back_entity(self) -> None:
+        connection = _FakeConnection(fail_on="INSERT INTO commander_outbox")
+        store = PostgresKnowledgeStore(connection)
+        with self.assertRaises(RuntimeError):
+            store.add_entity(Entity(EntityKind.SOURCE, {"name": "source"}))
+        self.assertEqual(connection.commits, 0)
+        self.assertEqual(connection.rollbacks, 1)
 
 
 if __name__ == "__main__":

@@ -24,3 +24,8 @@ git diff --check
 Update `docs/architecture/commander-current-state.md` whenever a Commander
 milestone changes. It is a concise resume point, not a replacement for decision
 history or the architecture review.
+
+Never inspect or reuse credentials from `/opt/ptw/platform`. The GitHub working
+tree and that deployed checkout have unrelated histories. Use disposable
+databases for Commander migration tests unless the user explicitly authorizes a
+target database.

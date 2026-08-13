@@ -144,7 +144,10 @@ class TelegramControlPlane:
             return self._format_graph(self.commander.graph_snapshot(view, entity_id))
         if command == "/research":
             if self.research_service is None:
-                raise ValueError("creative research is not configured; set OPENAI_API_KEY")
+                return (
+                    "Creative research is installed but its provider is not configured. "
+                    "Add OPENAI_API_KEY to the VPS runtime environment, then restart Commander."
+                )
             sources, hypotheses = self.research_service.run(argument, actor=actor)
             lines = [f"{item.id} {item.attributes['claim'][:110]}" for item in hypotheses]
             return (

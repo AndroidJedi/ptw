@@ -1,0 +1,69 @@
+services:
+  commander-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ptw_commander
+      POSTGRES_USER: ptw_commander
+      POSTGRES_PASSWORD: ${COMMANDER_DB_PASSWORD:?set COMMANDER_DB_PASSWORD}
+    volumes:
+      - commander-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ptw_commander -d ptw_commander"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  commander-migrate:
+    image: postgres:16-alpine
+    depends_on:
+      commander-db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${COMMANDER_DB_PASSWORD:?set COMMANDER_DB_PASSWORD}
+    volumes:
+      - ./db/migrations:/migrations:ro
+      - ./scripts/migrate_commander.sh:/scripts/migrate_commander.sh:ro
+    command: ["sh", "/scripts/migrate_commander.sh"]
+
+  commander-api:
+    build:
+      context: .
+      dockerfile: commander/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      commander-migrate:
+        condition: service_completed_successfully
+    env_file: .env.commander
+    environment:
+      DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
+      COMMANDER_ASSET_DIR: /var/lib/ptw/assets
+    volumes:
+      - commander-assets:/var/lib/ptw/assets
+    ports:
+      - "127.0.0.1:${COMMANDER_HTTP_PORT:-8091}:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  commander-worker:
+    build:
+      context: .
+      dockerfile: commander/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      commander-migrate:
+        condition: service_completed_successfully
+    env_file: .env.commander
+    environment:
+      DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
+      COMMANDER_ASSET_DIR: /var/lib/ptw/assets
+    volumes:
+      - commander-assets:/var/lib/ptw/assets
+    command: ["python", "-m", "commander.worker"]
+
+volumes:
+  commander-db-data:
+  commander-assets:

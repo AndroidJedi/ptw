@@ -133,21 +133,58 @@ class PostgresKnowledgeStore:
 
         self._write(operation)
 
-    def claim_outbox(self, *, limit: int = 50) -> tuple[OutboxMessage, ...]:
+    def enqueue_outbox(
+        self, topic: str, aggregate_id: str | None, payload: dict[str, object]
+    ) -> str:
+        message_id = new_uuid7()
+
+        def operation(cursor: Cursor) -> None:
+            cursor.execute(
+                """INSERT INTO commander_outbox (id, topic, aggregate_id, payload)
+                   VALUES (%s, %s, %s, %s::jsonb)""",
+                (message_id, topic, aggregate_id, json.dumps(payload, sort_keys=True)),
+            )
+
+        self._write(operation)
+        return message_id
+
+    def record_inbox_once(self, update_id: int) -> bool:
+        if self._transaction_depth == 0:
+            raise RuntimeError("record_inbox_once must run inside store.transaction()")
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """INSERT INTO commander_telegram_inbox (update_id)
+                   VALUES (%s) ON CONFLICT (update_id) DO NOTHING
+                   RETURNING update_id""",
+                (update_id,),
+            )
+            return cursor.fetchone() is not None
+
+    def claim_outbox(
+        self, *, topics: tuple[str, ...] = (), limit: int = 50
+    ) -> tuple[OutboxMessage, ...]:
         """Lock and return pending messages inside the caller's transaction."""
 
         if self._transaction_depth == 0:
             raise RuntimeError("claim_outbox must run inside store.transaction()")
         with self.connection.cursor() as cursor:
-            cursor.execute(
-                """SELECT id, topic, aggregate_id, payload, attempts
-                   FROM commander_outbox
-                   WHERE published_at IS NULL
-                   ORDER BY created_at
-                   FOR UPDATE SKIP LOCKED
-                   LIMIT %s""",
-                (limit,),
-            )
+            if topics:
+                cursor.execute(
+                    """SELECT id, topic, aggregate_id, payload, attempts
+                       FROM commander_outbox
+                       WHERE published_at IS NULL AND available_at <= clock_timestamp()
+                         AND topic = ANY(%s)
+                       ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT %s""",
+                    (list(topics), limit),
+                )
+            else:
+                cursor.execute(
+                    """SELECT id, topic, aggregate_id, payload, attempts
+                       FROM commander_outbox
+                       WHERE published_at IS NULL AND available_at <= clock_timestamp()
+                       ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT %s""",
+                    (limit,),
+                )
             rows = cursor.fetchall()
         return tuple(
             OutboxMessage(
@@ -167,6 +204,20 @@ class PostgresKnowledgeStore:
                    SET published_at = clock_timestamp(), attempts = attempts + 1
                    WHERE id = %s AND published_at IS NULL""",
                 (message_id,),
+            )
+
+        self._write(operation)
+
+    def mark_outbox_failed(self, message_id: str, error_summary: str) -> None:
+        def operation(cursor: Cursor) -> None:
+            cursor.execute(
+                """UPDATE commander_outbox
+                   SET attempts = attempts + 1,
+                       last_error = %s,
+                       available_at = clock_timestamp()
+                         + make_interval(secs => LEAST(300, power(2, LEAST(attempts, 8))::int))
+                   WHERE id = %s AND published_at IS NULL""",
+                (error_summary[:500], message_id),
             )
 
         self._write(operation)

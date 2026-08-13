@@ -210,7 +210,8 @@ relationship store.
 
 ## Deployment review
 
-This GitHub tree has no service deployment. The VPS contains a separate,
+This GitHub tree now includes an isolated Commander Compose deployment. The VPS
+also contains a separate,
 unrelated-history Commander-style Python deployment and a `/root/ptw-stage`
 copy. Treat both as operational evidence, not code to absorb implicitly.
 
@@ -258,11 +259,8 @@ deployment modes before workload boundaries are known.
 
 ## Intentionally deferred
 
-Real Telegram and Instagram APIs, automated spend, statistical engines,
-an executable PostgreSQL/Telegram service composition, object storage,
-embeddings, distributed scheduling, deployment automation, and cleanup of
-legacy Flutter generators are deferred. The PostgreSQL repository and
-transport-neutral authenticated Telegram command adapter now exist, but no
-network listener or external delivery is enabled.
-They are not needed to prove the first append-only learning loop, and adding
-them now would obscure whether the core model is sound.
+Instagram publishing, automated spend, statistical engines, cloud object
+storage, embeddings, distributed scheduling, production backup automation,
+and cleanup of legacy Flutter generators remain deferred. Telegram webhook and
+delivery adapters now exist, but public activation remains owner-controlled and
+requires private credentials plus a DNS-backed HTTPS endpoint.

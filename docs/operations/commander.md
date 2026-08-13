@@ -17,13 +17,15 @@ python3 -m unittest discover -s tests/commander -v
 ```
 
 The output directory is disposable demonstration state and is ignored by Git.
-For a service deployment, install the optional database driver and apply both
+For a service deployment, install the optional dependencies and apply all
 migrations in order:
 
 ```sh
 python3 -m pip install -r requirements-commander.txt
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/001_commander_foundation.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/002_commander_control_plane.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/003_telegram_runtime.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/004_outbox_retry.sql
 ```
 
 Construct the database repository with `connect_postgres(DATABASE_URL)`. Domain
@@ -41,3 +43,7 @@ it must not bypass those gates.
 non-empty allowlists for both Telegram user IDs and chat IDs. Its caller must
 deliver returned messages through the Bot API, acknowledge callback query IDs,
 deduplicate Telegram update IDs, and keep the bot token out of Git.
+
+The executable composition is in `docker-compose.commander.yml`. See
+[`telegram-runtime.md`](telegram-runtime.md) for credentials, HTTPS activation,
+operations, and the `/creative` command.

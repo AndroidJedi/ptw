@@ -61,6 +61,9 @@ class TelegramControlPlane:
         text = self._handle_command(str(message.get("text", "")), user_id)
         return TelegramReply(chat_id, text)
 
+    def authorize(self, user_id: int, chat_id: int) -> None:
+        self._authorize(user_id, chat_id)
+
     def _authorize(self, user_id: int, chat_id: int) -> None:
         if user_id not in self.allowed_user_ids or chat_id not in self.allowed_chat_ids:
             raise TelegramUnauthorized("Telegram user or chat is not authorized")

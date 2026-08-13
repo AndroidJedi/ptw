@@ -21,6 +21,14 @@ python3 -m commander.demo --output-dir .local/commander-demo
 git diff --check
 ```
 
+Runtime tests requiring FastAPI and Pillow run in the built image:
+
+```sh
+docker run --rm -v "$PWD:/workspace:ro" -w /workspace \
+  --entrypoint python ptw-commander-api:latest \
+  -m unittest discover -s tests/commander -v
+```
+
 Update `docs/architecture/commander-current-state.md` whenever a Commander
 milestone changes. It is a concise resume point, not a replacement for decision
 history or the architecture review.

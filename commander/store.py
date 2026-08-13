@@ -18,12 +18,14 @@ class KnowledgeStore(Protocol):
     def entities(self, kind: EntityKind | None = None) -> tuple[Entity, ...]: ...
     def relationships(self) -> tuple[Relationship, ...]: ...
     def transaction(self): ...
+    def enqueue_outbox(self, topic: str, aggregate_id: str | None, payload: dict[str, object]) -> str: ...
 
 
 class MemoryKnowledgeStore:
     def __init__(self) -> None:
         self._entities: dict[str, Entity] = {}
         self._relationships: dict[str, Relationship] = {}
+        self.outbox: list[dict[str, object]] = []
 
     def add_entity(self, entity: Entity) -> None:
         if entity.id in self._entities:
@@ -66,6 +68,17 @@ class MemoryKnowledgeStore:
     def transaction(self):
         # The in-memory adapter is only for deterministic single-process tests.
         yield self
+
+    def enqueue_outbox(
+        self, topic: str, aggregate_id: str | None, payload: dict[str, object]
+    ) -> str:
+        from .ids import new_uuid7
+
+        message_id = new_uuid7()
+        self.outbox.append(
+            {"id": message_id, "topic": topic, "aggregate_id": aggregate_id, "payload": payload}
+        )
+        return message_id
 
 
 class JsonlKnowledgeStore(MemoryKnowledgeStore):

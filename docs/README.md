@@ -16,7 +16,7 @@ read `docs/`.
 | Instagram creative adapter | [`verticals/instagram/README.md`](verticals/instagram/README.md) | [`PTW_TEMPLATE_MCP.md`](PTW_TEMPLATE_MCP.md), then the implementation handoff |
 | Template MCP | [`PTW_TEMPLATE_MCP.md`](PTW_TEMPLATE_MCP.md) | `tool/ptw_template_mcp/` and `lib/template_generator/` |
 | Flutter application | [`../README.md`](../README.md) | [`../DESIGN_RULES.md`](../DESIGN_RULES.md) and feature-specific source |
-| Operations/deployment | [`operations/commander.md`](operations/commander.md) | `commander/postgres_store.py`, `commander/telegram.py`, and deployment files once a service runtime is selected |
+| Operations/deployment | [`operations/commander.md`](operations/commander.md) | [`operations/telegram-runtime.md`](operations/telegram-runtime.md), `commander/postgres_store.py`, and deployment files |
 
 The concise cross-session resume point is
 [`architecture/commander-current-state.md`](architecture/commander-current-state.md).

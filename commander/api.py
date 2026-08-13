@@ -1,0 +1,139 @@
+"""Executable FastAPI composition for Telegram Commander."""
+
+from __future__ import annotations
+
+import hmac
+from pathlib import Path
+from typing import Any, Mapping
+
+from fastapi import FastAPI, Header, HTTPException
+
+from .creative_service import CreativeProductionService
+from .policy import CommanderPolicy
+from .postgres_store import PostgresKnowledgeStore, connect_postgres
+from .renderer import InstagramStoryRenderer
+from .service import Commander
+from .settings import Settings
+from .telegram import TelegramControlPlane, TelegramUnauthorized
+from .telegram_api import TelegramBotClient
+
+
+def create_app(
+    settings: Settings,
+    store: PostgresKnowledgeStore,
+    telegram_client: TelegramBotClient,
+) -> FastAPI:
+    commander = Commander(store, CommanderPolicy.load(settings.policy_path))
+    control = TelegramControlPlane(
+        commander,
+        allowed_user_ids=set(settings.allowed_user_ids),
+        allowed_chat_ids=set(settings.allowed_chat_ids),
+    )
+    renderer = InstagramStoryRenderer(settings.asset_directory / "generated")
+    production = CreativeProductionService(commander, renderer)
+    app = FastAPI(title="PTW Commander", version="0.1.0")
+
+    @app.get("/healthz")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/readyz")
+    def ready() -> dict[str, str]:
+        try:
+            with store.connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+        except Exception as error:
+            raise HTTPException(status_code=503, detail="database unavailable") from error
+        return {"status": "ready"}
+
+    @app.post("/telegram/webhook")
+    def telegram_webhook(
+        update: Mapping[str, Any],
+        x_telegram_bot_api_secret_token: str = Header(default=""),
+    ) -> dict[str, object]:
+        if not hmac.compare_digest(
+            x_telegram_bot_api_secret_token, settings.telegram_webhook_secret
+        ):
+            raise HTTPException(status_code=403, detail="invalid webhook secret")
+        try:
+            update_id = int(update["update_id"])
+            with store.transaction():
+                if not store.record_inbox_once(update_id):
+                    return {"ok": True, "duplicate": True}
+                if _is_creative(update):
+                    chat_id, user_id, text, file_id = _creative_request(update)
+                    control.authorize(user_id, chat_id)
+                    hero = None
+                    if file_id:
+                        hero = telegram_client.download_photo(
+                            file_id,
+                            settings.asset_directory / "incoming" / f"telegram-{update_id}.jpg",
+                        )
+                    creative, artifact, path = production.create_instagram_story(
+                        request_text=text,
+                        requested_by=f"telegram:{user_id}",
+                        hero_image=hero,
+                    )
+                    store.enqueue_outbox(
+                        "telegram.send_photo",
+                        artifact.id,
+                        {
+                            "chat_id": chat_id,
+                            "path": str(path),
+                            "caption": f"Creative {creative.id}\nReady for review; not published.",
+                        },
+                    )
+                else:
+                    reply = control.handle_update(update)
+                    store.enqueue_outbox(
+                        "telegram.send_message",
+                        None,
+                        {"chat_id": reply.chat_id, "text": reply.text},
+                    )
+                    if reply.callback_query_id:
+                        store.enqueue_outbox(
+                            "telegram.answer_callback",
+                            None,
+                            {"callback_query_id": reply.callback_query_id},
+                        )
+        except TelegramUnauthorized as error:
+            raise HTTPException(status_code=403, detail="unauthorized Telegram identity") from error
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        return {"ok": True, "duplicate": False}
+
+    return app
+
+
+def create_app_from_env() -> FastAPI:
+    settings = Settings.from_environment()
+    store = connect_postgres(settings.database_url)
+    return create_app(settings, store, TelegramBotClient(settings.telegram_bot_token))
+
+
+def _message(update: Mapping[str, Any]) -> Mapping[str, Any]:
+    message = update.get("message")
+    if not isinstance(message, Mapping):
+        raise ValueError("creative command requires a Telegram message")
+    return message
+
+
+def _is_creative(update: Mapping[str, Any]) -> bool:
+    message = update.get("message")
+    if not isinstance(message, Mapping):
+        return False
+    value = str(message.get("caption") or message.get("text") or "")
+    return value.strip().lower().startswith("/creative")
+
+
+def _creative_request(update: Mapping[str, Any]) -> tuple[int, int, str, str | None]:
+    message = _message(update)
+    photos = message.get("photo") or []
+    file_id = str(photos[-1]["file_id"]) if photos else None
+    return (
+        int(message["chat"]["id"]),
+        int(message["from"]["id"]),
+        str(message.get("caption") or message.get("text") or ""),
+        file_id,
+    )

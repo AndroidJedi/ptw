@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import tempfile
 import unittest
 import uuid
@@ -11,7 +12,7 @@ from commander.context import ContextBroker
 from commander.ids import new_uuid7
 from commander.model import Entity, EntityKind, RelationType, Relationship
 from commander.policy import CommanderPolicy, PolicyDenied
-from commander.postgres_store import PostgresKnowledgeStore
+from commander.postgres_store import OutboxMessage, PostgresKnowledgeStore
 from commander.service import Commander
 from commander.store import JsonlKnowledgeStore, MemoryKnowledgeStore
 from commander.telegram import TelegramControlPlane, TelegramUnauthorized
@@ -251,6 +252,131 @@ class PostgresStoreTests(unittest.TestCase):
             store.add_entity(Entity(EntityKind.SOURCE, {"name": "source"}))
         self.assertEqual(connection.commits, 0)
         self.assertEqual(connection.rollbacks, 1)
+
+
+class RuntimeImageTests(unittest.TestCase):
+    @unittest.skipUnless(importlib.util.find_spec("PIL"), "Pillow is not installed")
+    def test_renderer_creates_exact_story_png(self) -> None:
+        from PIL import Image
+        from commander.renderer import InstagramStoryRenderer
+
+        with tempfile.TemporaryDirectory() as directory:
+            path, digest = InstagramStoryRenderer(Path(directory)).render(
+                creative_id=new_uuid7(),
+                hook="They said I would quit.",
+                caption="Day one starts now.",
+                cta="FOLLOW THE JOURNEY",
+            )
+            with Image.open(path) as image:
+                self.assertEqual(image.size, (1080, 1920))
+                self.assertEqual(image.format, "PNG")
+            self.assertEqual(len(digest), 64)
+
+    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is not installed")
+    def test_webhook_creates_image_and_deduplicates_update(self) -> None:
+        from fastapi.testclient import TestClient
+        from commander.api import create_app
+        from commander.settings import Settings
+
+        class InboxStore(MemoryKnowledgeStore):
+            def __init__(self) -> None:
+                super().__init__()
+                self.updates: set[int] = set()
+                self.connection = _FakeConnection()
+
+            def record_inbox_once(self, update_id: int) -> bool:
+                if update_id in self.updates:
+                    return False
+                self.updates.add(update_id)
+                return True
+
+        class TelegramClient:
+            def download_photo(self, file_id: str, destination: Path) -> Path:
+                raise AssertionError("no photo should be downloaded")
+
+        with tempfile.TemporaryDirectory() as directory:
+            settings = Settings(
+                database_url="unused",
+                telegram_bot_token="unused",
+                telegram_webhook_secret="s" * 32,
+                allowed_user_ids=frozenset({7}),
+                allowed_chat_ids=frozenset({11}),
+                asset_directory=Path(directory),
+                policy_path=ROOT / "config/commander/policies.json",
+            )
+            store = InboxStore()
+            client = TestClient(create_app(settings, store, TelegramClient()))
+            update = {
+                "update_id": 42,
+                "message": {
+                    "from": {"id": 7},
+                    "chat": {"id": 11},
+                    "text": "/creative They doubted me | Day one | WATCH ME",
+                },
+            }
+            headers = {"X-Telegram-Bot-Api-Secret-Token": "s" * 32}
+            response = client.post("/telegram/webhook", json=update, headers=headers)
+            self.assertEqual(response.status_code, 200, response.text)
+            delivery = [item for item in store.outbox if item["topic"] == "telegram.send_photo"]
+            self.assertEqual(len(delivery), 1)
+            self.assertTrue(Path(str(delivery[0]["payload"]["path"])).is_file())
+            duplicate = client.post("/telegram/webhook", json=update, headers=headers)
+            self.assertEqual(duplicate.json(), {"ok": True, "duplicate": True})
+
+    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is not installed")
+    def test_webhook_rejects_wrong_secret(self) -> None:
+        from fastapi.testclient import TestClient
+        from commander.api import create_app
+        from commander.settings import Settings
+
+        class Store(MemoryKnowledgeStore):
+            connection = _FakeConnection()
+
+        with tempfile.TemporaryDirectory() as directory:
+            settings = Settings(
+                "unused", "unused", "x" * 32, frozenset({7}), frozenset({11}),
+                Path(directory), ROOT / "config/commander/policies.json"
+            )
+            client = TestClient(create_app(settings, Store(), object()))
+            response = client.post(
+                "/telegram/webhook", json={"update_id": 1},
+                headers={"X-Telegram-Bot-Api-Secret-Token": "wrong"},
+            )
+            self.assertEqual(response.status_code, 403)
+
+    def test_worker_records_delivery_failure_without_crashing(self) -> None:
+        from contextlib import contextmanager
+        from commander.worker import deliver_once
+
+        class Store:
+            failed: list[tuple[str, str]] = []
+
+            @contextmanager
+            def transaction(self):
+                yield self
+
+            def claim_outbox(self, **_: object):
+                return (
+                    OutboxMessage(
+                        "message-id", "telegram.send_message", None,
+                        {"chat_id": 11, "text": "hello"}, 0
+                    ),
+                )
+
+            def mark_outbox_failed(self, message_id: str, summary: str) -> None:
+                self.failed.append((message_id, summary))
+
+            def mark_outbox_published(self, message_id: str) -> None:
+                raise AssertionError(message_id)
+
+        class Client:
+            def send_message(self, chat_id: int, text: str) -> None:
+                raise RuntimeError("network down")
+
+        store = Store()
+        self.assertEqual(deliver_once(store, Client()), 0)
+        self.assertEqual(store.failed[0][0], "message-id")
+        self.assertIn("RuntimeError", store.failed[0][1])
 
 
 if __name__ == "__main__":

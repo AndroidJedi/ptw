@@ -45,3 +45,4 @@ app.*.map.json
 /android/app/release
 # Local Commander demonstration state.
 .local/commander-demo/
+.env.commander

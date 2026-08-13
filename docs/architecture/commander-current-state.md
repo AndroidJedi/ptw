@@ -19,20 +19,22 @@ Decision -> KnowledgeAssertion -> Next Task.
 
 The PostgreSQL adapter in `commander/postgres_store.py` persists the generic
 entity/edge model, maintains typed projections, and writes an outbox message in
-the same transaction. Migrations 001 and 002 apply cleanly to PostgreSQL 16.
+the same transaction. Migrations 001 through 004 apply cleanly to PostgreSQL 16.
 
-The transport-neutral Telegram adapter in `commander/telegram.py` authenticates
+The Telegram adapter in `commander/telegram.py` authenticates
 both user and chat allowlists and supports status, queue, policy inspection,
 one-time experiment approval/rejection, reasoning summaries, emergency stop,
-and resume. A webhook/polling process and outbound Telegram HTTP client do not
-exist yet. Instagram network integration does not exist.
+and resume. The FastAPI webhook, Telegram Bot API client, update deduplication,
+outbox worker, health/readiness endpoints, image attachment download, and
+deterministic 1080x1920 Story renderer are implemented. Instagram publishing
+does not exist; generated images are returned for review.
 
 ## Last verification
 
 From the repository root:
 
 ```text
-python3 -m unittest discover -s tests/commander -v  # 12 passed
+python3 -m unittest discover -s tests/commander -v  # 13 passed; 3 runtime tests skip without optional dependencies
 python3 -m commander.demo --output-dir .local/commander-demo  # passed
 python3 -m compileall -q commander tests/commander  # passed
 git diff --check  # passed
@@ -51,13 +53,21 @@ persisted 41 entities, 62 pending outbox messages, and the ordered experiment
 states `running`, `completed`, and `evaluated`. No deployed PTW database was
 accessed.
 
+The complete dependency image runs all 16 tests. The actual local HTTP webhook
+-> PostgreSQL -> renderer -> outbox path was exercised: it persisted 18
+entities, queued one Telegram photo delivery, and produced a verified 1080x1920
+PNG. Synthetic state was removed afterward.
+
+An isolated Compose stack is installed and healthy on `127.0.0.1:8091` using
+non-live placeholder Telegram settings. No webhook has been registered. Owner
+activation steps are in `docs/operations/telegram-runtime.md`.
+
 ## Next milestone
 
-Add an executable Commander API/worker composition: environment-based secret
-loading, a small Telegram webhook endpoint, idempotent update receipt, an
-outbox dispatcher, health/readiness endpoints, and integration tests against a
-disposable PostgreSQL database. Do not enable a real Telegram webhook until the
-owner supplies credentials and an HTTPS deployment target.
+After the owner supplies a BotFather token, allowlisted Telegram IDs, and a DNS
+hostname, configure the HTTPS reverse proxy and register the webhook. Then run
+a private end-to-end Telegram smoke test before adding Instagram publishing,
+automated experiments, or spend.
 
 ## Operational warning
 

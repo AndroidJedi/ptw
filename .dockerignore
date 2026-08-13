@@ -1,0 +1,8 @@
+.git
+.dart_tool
+.local
+build
+test/goldens
+test/social_post_studio/failures
+.env*
+!.env.commander.example

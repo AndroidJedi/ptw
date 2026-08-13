@@ -18,6 +18,6 @@ def test_codex_host_metadata_detection(monkeypatch, tmp_path: Path) -> None:
 
 def test_help_lists_research_graph_and_graph_based_creative_commands() -> None:
     help_text = execute_job(None, "help")
-    assert "/research <creative topic>" in help_text
+    assert "/research creative <topic>" in help_text
     assert "/graph hypotheses" in help_text
     assert "/creative from <hypothesis-id>" in help_text

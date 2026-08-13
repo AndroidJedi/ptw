@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from worker.main import codex_available, command_available
+from worker.main import codex_available, command_available, execute_job
 
 
 def test_installed_command_detection() -> None:
@@ -14,3 +14,10 @@ def test_codex_host_metadata_detection(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("CODEX_METADATA_FILE", str(metadata))
     monkeypatch.setattr("worker.main.command_available", lambda command: False)
     assert codex_available() is True
+
+
+def test_help_lists_research_graph_and_graph_based_creative_commands() -> None:
+    help_text = execute_job(None, "help")
+    assert "/research <creative topic>" in help_text
+    assert "/graph hypotheses" in help_text
+    assert "/creative from <hypothesis-id>" in help_text

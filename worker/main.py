@@ -98,7 +98,7 @@ def execute_job(connection: psycopg.Connection, job_type: str, job_id: int | Non
     if job_type == "version":
         return "PTW Commander v0.1"
     if job_type == "help":
-        return "PTW Commander v0.3\n/task <request> - freely describe a fix, implementation, or change\n/creative <hook> | <caption> | <CTA> - generate an Instagram Story\n/engineer repo=ptw <task> - compatibility alias for engineering tasks\n/ping - test job execution\n/status - dependency status\n/version - show version\n/help - show commands"
+        return "PTW Commander v0.4\n/task <request> - freely describe a fix, implementation, or change\n/research <creative topic> - research sourced creative ideas and create hypotheses\n/graph hypotheses - inspect hypotheses and source IDs\n/graph weights - inspect learned component weights\n/creative from <hypothesis-id> - generate from graph research\n/creative <hook> | <caption> | <CTA> - generate an Instagram Story directly\n/feedback <creative-id> <1-5> [comment] - rate a creative (or reply to its image)\n/engineer repo=ptw <task> - compatibility alias for engineering tasks\n/ping - test job execution\n/status - dependency status\n/version - show version\n/help - show commands"
     if job_type == "status":
         return status_response(connection)
     if job_type == "engineer" and job_id is not None and parameters is not None:

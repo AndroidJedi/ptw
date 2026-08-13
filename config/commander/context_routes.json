@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "routes": {
+    "commander": {
+      "canonical": [
+        "docs/architecture/commander-architecture-review.md"
+      ],
+      "optional": [
+        "docs/PTW_Commander_Bootstrap_Addendum.md",
+        "docs/operations/commander.md"
+      ]
+    },
+    "backend": {
+      "canonical": [
+        "docs/architecture/commander-architecture-review.md"
+      ],
+      "optional": [
+        "db/migrations/001_commander_foundation.sql",
+        "config/commander/policies.json"
+      ]
+    },
+    "instagram_creative": {
+      "canonical": [
+        "docs/verticals/instagram/README.md",
+        "docs/PTW_TEMPLATE_MCP.md"
+      ],
+      "optional": [
+        "PTW_Post_Generator_Current_State_Handoff.md",
+        "DESIGN_RULES.md"
+      ]
+    },
+    "ui": {
+      "canonical": [
+        "README.md",
+        "DESIGN_RULES.md"
+      ],
+      "optional": []
+    },
+    "product": {
+      "canonical": [
+        "Proof_Them_Wrong_Idea_and_Strengths.md"
+      ],
+      "optional": [
+        "docs/architecture/commander-architecture-review.md"
+      ]
+    }
+  }
+}

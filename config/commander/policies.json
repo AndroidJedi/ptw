@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "emergencyStop": false,
+  "approvals": {
+    "experiments": true,
+    "publishing": true,
+    "deployment": true
+  },
+  "budgets": {
+    "currency": "USD",
+    "dailyMinor": 5000,
+    "maxExperimentMinor": 1000
+  },
+  "experiments": {
+    "maxRunning": 3,
+    "maxDurationHours": 168
+  },
+  "confidence": {
+    "minimumForAutomaticDecision": 0.9
+  },
+  "rollback": {
+    "requiredForDeployment": true
+  },
+  "notifications": {
+    "approval": "telegram",
+    "failure": "telegram",
+    "completion": "telegram"
+  },
+  "deployment": {
+    "allowed": false
+  }
+}

@@ -55,6 +55,9 @@ Creator routes:
 - `/projects/:projectId/proof/new`
 
 Product design decisions are captured in [DESIGN_RULES.md](DESIGN_RULES.md).
+The selective documentation map and Commander architecture are in
+[docs/README.md](docs/README.md); agents should start there instead of loading
+the entire documentation tree.
 
 ## Build-time template generation
 

@@ -107,8 +107,8 @@ poller forwards graph requests in local deployment commit `d28b7d1`.
 `creative_ideation` research type. It persists provider findings as Source
 UUIDs and proposed hypotheses with `derived_from` edges. `/creative from
 <hypothesis-uuid>` consumes the selected graph hypothesis. The poller change is
-local deployment commit `79b864f`. Live provider execution is intentionally
-disabled until `OPENAI_API_KEY` is supplied outside Git.
+local deployment commit `79b864f`. Live provider execution uses the existing
+authenticated VPS Codex runtime; an API key is not required.
 The bot's `/help` output includes this workflow as of local deployment commit
 `175536b`.
 

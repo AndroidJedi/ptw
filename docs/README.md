@@ -18,7 +18,7 @@ read `docs/`.
 | Creative feedback and weights | [`architecture/creative-feedback-learning.md`](architecture/creative-feedback-learning.md) | Instagram vertical and Commander architecture review |
 | Template MCP | [`PTW_TEMPLATE_MCP.md`](PTW_TEMPLATE_MCP.md) | `tool/ptw_template_mcp/` and `lib/template_generator/` |
 | Flutter application | [`../README.md`](../README.md) | [`../DESIGN_RULES.md`](../DESIGN_RULES.md) and feature-specific source |
-| Operations/deployment/recovery | [`operations/commander.md`](operations/commander.md) | [`operations/telegram-runtime.md`](operations/telegram-runtime.md), [`operations/disaster-recovery.md`](operations/disaster-recovery.md), and deployment files |
+| Operations/deployment/recovery | [`operations/commander.md`](operations/commander.md) | [`operations/telegram-runtime.md`](operations/telegram-runtime.md), [`operations/disaster-recovery.md`](operations/disaster-recovery.md), [`operations/incident-log.md`](operations/incident-log.md), and deployment files |
 
 The concise cross-session resume point is
 [`architecture/commander-current-state.md`](architecture/commander-current-state.md).

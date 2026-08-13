@@ -68,3 +68,8 @@ entities and relationship edges remain the complete authority.
 
 `/research creative <topic>` is reserved for creative-ideation research and writes sourced,
 proposed hypotheses. `/creative from <hypothesis-id>` consumes that lineage.
+
+Before claiming a Telegram capability is available, verify deployed help,
+routing, authorization, provider readiness, real end-to-end execution, graph
+persistence, restart behavior, and its user-facing failure path. Read
+`docs/operations/incident-log.md` when changing Telegram or providers.

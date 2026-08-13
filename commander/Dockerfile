@@ -11,7 +11,8 @@ COPY commander ./commander
 COPY config ./config
 COPY assets/fonts ./assets/fonts
 
-RUN useradd --system --uid 10001 commander \
+RUN groupadd --system --gid 10001 commander \
+    && useradd --system --uid 10001 --gid 10001 commander \
     && mkdir -p /var/lib/ptw/assets \
     && chown -R commander:commander /var/lib/ptw
 USER commander

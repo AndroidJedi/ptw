@@ -16,7 +16,8 @@ from .service import Commander
 from .settings import Settings
 from .telegram import TelegramControlPlane, TelegramUnauthorized
 from .telegram_api import TelegramBotClient
-from .openai_research import OpenAICreativeResearchProvider
+from .openai_research import CodexCreativeResearchProvider, OpenAICreativeResearchProvider
+import os
 from .research import CreativeIdeationResearchService
 
 
@@ -26,13 +27,14 @@ def create_app(
     telegram_client: TelegramBotClient,
 ) -> FastAPI:
     commander = Commander(store, CommanderPolicy.load(settings.policy_path))
-    research_service = (
-        CreativeIdeationResearchService(
-            commander,
-            OpenAICreativeResearchProvider(settings.openai_api_key, model=settings.research_model),
-        )
-        if settings.openai_api_key else None
+    research_provider = (
+        OpenAICreativeResearchProvider(settings.openai_api_key, model=settings.research_model)
+        if settings.openai_api_key
+        else CodexCreativeResearchProvider(settings.codex_executable)
+        if os.path.isfile(settings.codex_executable)
+        else None
     )
+    research_service = CreativeIdeationResearchService(commander, research_provider) if research_provider else None
     control = TelegramControlPlane(
         commander,
         allowed_user_ids=set(settings.allowed_user_ids),

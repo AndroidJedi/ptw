@@ -68,9 +68,9 @@ returned hypothesis without copying its claim:
 
 This command is deliberately limited to creative ideas. Future market, product,
 competitor, or technical research must use distinct research types and policies.
-The runtime requires `OPENAI_API_KEY` in `/opt/ptw/platform/.env`; optionally set
-`COMMANDER_RESEARCH_MODEL` (default `gpt-5-mini`). Restart both Compose stacks
-after adding it. Never send the key through Telegram or commit it to Git.
+The deployed runtime uses the VPS's existing authenticated Codex agent for web
+research, so it does not require a second API key. `OPENAI_API_KEY` remains an
+optional provider override; never send credentials through Telegram or Git.
 
 ## Free-form engineering requests
 

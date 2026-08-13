@@ -33,6 +33,7 @@ class Settings:
     policy_path: Path
     openai_api_key: str = ""
     research_model: str = "gpt-5-mini"
+    codex_executable: str = "/opt/ptw-codex/bin/codex"
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -57,4 +58,5 @@ class Settings:
             policy_path=Path(os.environ.get("COMMANDER_POLICY_PATH", "config/commander/policies.json")),
             openai_api_key=os.environ.get("OPENAI_API_KEY", "").strip(),
             research_model=os.environ.get("COMMANDER_RESEARCH_MODEL", "gpt-5-mini").strip(),
+            codex_executable=os.environ.get("CODEX_EXECUTABLE", "/opt/ptw-codex/bin/codex"),
         )

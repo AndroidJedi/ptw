@@ -40,8 +40,12 @@ services:
     environment:
       DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
       COMMANDER_ASSET_DIR: /var/lib/ptw/assets
+      CODEX_HOME: /run/ptw-auth
+      CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
     volumes:
       - commander-assets:/var/lib/ptw/assets
+      - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
+      - /root/.codex/auth.json:/run/ptw-auth/auth.json:ro
     networks:
       default:
       existing-ptw-backend:

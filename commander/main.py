@@ -174,7 +174,7 @@ async def telegram_loop() -> None:
                         if caption_command not in {"/engineer", "/task", "/creative"}:
                             continue
                         message["text"] = message.get("caption", "")
-                    if normalized_command(message.get("text") or "") == "/creative":
+                    if normalized_command(message.get("text") or "") in {"/creative", "/feedback"}:
                         if (message.get("from") or {}).get("id") not in allowed_user_ids():
                             await send_rejection(client, message, False)
                             continue

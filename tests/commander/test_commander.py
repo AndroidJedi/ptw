@@ -5,6 +5,7 @@ import importlib.util
 import tempfile
 import unittest
 import uuid
+from datetime import date
 from pathlib import Path
 
 from commander.demo import run_demo
@@ -14,6 +15,7 @@ from commander.model import Entity, EntityKind, RelationType, Relationship
 from commander.policy import CommanderPolicy, PolicyDenied
 from commander.postgres_store import OutboxMessage, PostgresKnowledgeStore
 from commander.service import Commander
+from commander.research import ResearchFinding, ResearchKnowledgeService
 from commander.store import JsonlKnowledgeStore, MemoryKnowledgeStore
 from commander.telegram import TelegramControlPlane, TelegramUnauthorized
 
@@ -96,6 +98,57 @@ class ContextBrokerTests(unittest.TestCase):
         )
         with self.assertRaises(KeyError):
             broker.retrieve("read_everything")
+
+
+class ResearchKnowledgeTests(unittest.TestCase):
+    def test_multiple_research_findings_preserve_hypothesis_lineage(self) -> None:
+        store = MemoryKnowledgeStore()
+        commander = Commander(
+            store, CommanderPolicy.load(ROOT / "config/commander/policies.json")
+        )
+        research = ResearchKnowledgeService(commander)
+        first = research.record_finding(
+            ResearchFinding(
+                title="Accountability study",
+                source_uri="https://research.example/study-1",
+                finding_summary="Public commitment correlated with completion.",
+                publisher="Example University",
+                published_on=date(2025, 1, 2),
+                credibility=0.8,
+            ),
+            actor="researcher:test",
+        )
+        second = research.record_finding(
+            ResearchFinding(
+                title="Challenge framing experiment",
+                source_uri="https://research.example/study-2",
+                finding_summary="Challenge framing increased response in the tested cohort.",
+                publisher="Example Lab",
+                credibility=0.7,
+            ),
+            actor="researcher:test",
+        )
+        hypothesis = research.propose_hypothesis(
+            claim="Public challenge framing increases PTW activation.",
+            success_metric="activation_rate",
+            threshold=0.1,
+            scope="New PTW visitors",
+            findings=(first, second),
+            actor="researcher:test",
+        )
+        evidence_edges = {
+            edge.target_id
+            for edge in store.relationships()
+            if edge.source_id == hypothesis.id and edge.relation == RelationType.DERIVED_FROM
+        }
+        self.assertEqual(evidence_edges, {first.id, second.id})
+        self.assertEqual(hypothesis.attributes["status"], "proposed")
+
+    def test_research_requires_provenance_and_valid_credibility(self) -> None:
+        with self.assertRaises(ValueError):
+            ResearchFinding("", "https://example.com", "finding", "publisher")
+        with self.assertRaises(ValueError):
+            ResearchFinding("title", "https://example.com", "finding", "publisher", credibility=2)
 
 
 class VerticalLoopTests(unittest.TestCase):

@@ -46,6 +46,15 @@
       "optional": [
         "docs/architecture/commander-architecture-review.md"
       ]
+    },
+    "research": {
+      "canonical": [
+        "docs/architecture/research-to-hypothesis.md",
+        "docs/architecture/commander-architecture-review.md"
+      ],
+      "optional": [
+        "Proof_Them_Wrong_Idea_and_Strengths.md"
+      ]
     }
   }
 }

@@ -34,7 +34,7 @@ does not exist; generated images are returned for review.
 From the repository root:
 
 ```text
-python3 -m unittest discover -s tests/commander -v  # 13 passed; 4 runtime tests skip without optional dependencies
+python3 -m unittest discover -s tests/commander -v  # 15 passed; 4 runtime tests skip without optional dependencies
 python3 -m commander.demo --output-dir .local/commander-demo  # passed
 python3 -m compileall -q commander tests/commander  # passed
 git diff --check  # passed
@@ -53,7 +53,7 @@ persisted 41 entities, 62 pending outbox messages, and the ordered experiment
 states `running`, `completed`, and `evaluated`. No deployed PTW database was
 accessed.
 
-The complete dependency image runs all 17 tests. The actual local HTTP webhook
+The complete dependency image runs all 19 tests. The actual local HTTP webhook
 -> PostgreSQL -> renderer -> outbox path was exercised: it persisted 18
 entities, queued one Telegram photo delivery, and produced a verified 1080x1920
 PNG. Synthetic state was removed afterward.
@@ -75,11 +75,26 @@ driven engineering job type and supports screenshots/images supplied with the
 command as an attachment caption. The deployed change is local commit
 `c21febf`; `/engineer repo=ptw <task>` remains compatible.
 
+The PostgreSQL knowledge graph is implemented as UUIDv7 entities plus typed,
+foreign-key-protected relationship edges. `ResearchKnowledgeService` now records
+provenanced research findings and creates a proposed hypothesis derived from
+one or more source IDs. Research findings do not become accepted knowledge
+without experiment, observation, insight, and decision stages.
+
+Minimum-cost recovery is installed: daily logical PostgreSQL and asset backups,
+policy/Git revision capture, SHA-256 verification, 14-day local retention, and
+an explicit restore script. Backup `20260813T055504Z` was checksum-verified and
+restored successfully into disposable PostgreSQL 16. The current running graph
+is structurally complete but contains zero entities until real research or
+creative activity is recorded. Offsite backup copying remains an owner/provider
+dependency.
+
 ## Next milestone
 
-Run a private `/creative` Telegram smoke test with the owner, then improve
-creative quality and connect real experiment metric ingestion before adding
-Instagram publishing, automated experiments, or spend.
+Add a research intake command/adapter that calls the implemented provenance
+contract, then run the first real research -> hypothesis -> experiment loop.
+Also choose a low-cost offsite backup destination before production knowledge
+accumulates.
 
 ## Operational warning
 

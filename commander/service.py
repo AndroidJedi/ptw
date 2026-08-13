@@ -59,7 +59,12 @@ class Commander:
         threshold: float,
         scope: str,
         source: Entity,
+        additional_sources: Iterable[Entity] = (),
+        actor: str = "commander",
     ) -> Entity:
+        sources = (source, *tuple(additional_sources))
+        for item in sources:
+            self._require_kind(item, EntityKind.SOURCE)
         hypothesis = self.create_entity(
             EntityKind.HYPOTHESIS,
             {
@@ -72,10 +77,12 @@ class Commander:
                 "scope": scope,
                 "status": "proposed",
             },
+            actor=actor,
             reasoning_summary="Converted source evidence into a falsifiable claim.",
-            evidence_ids=(source.id,),
+            evidence_ids=tuple(item.id for item in sources),
         )
-        self.relate(hypothesis, RelationType.DERIVED_FROM, source)
+        for item in sources:
+            self.relate(hypothesis, RelationType.DERIVED_FROM, item)
         return hypothesis
 
     def create_experiment(

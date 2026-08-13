@@ -47,3 +47,11 @@ It queues the established specification-driven engineering workflow and may
 include screenshots/images when `/task ...` is used as the attachment caption.
 `/engineer` is a compatibility alias; `/creative` is reserved for Story image
 generation.
+
+Commander recovery uses `scripts/backup_commander.sh`,
+`verify_commander_backup.sh`, and the confirmation-gated
+`restore_commander.sh`. The VPS schedules daily backups in
+`/etc/cron.d/ptw-commander-backup`. Before destructive recovery, verify the
+archive and recorded Git revision. Research must enter through
+`ResearchKnowledgeService` so every initial hypothesis retains `derived_from`
+edges to permanent research-source IDs.

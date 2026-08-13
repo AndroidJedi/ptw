@@ -5,6 +5,7 @@ from .context import ContextBroker, ContextBundle
 from .model import Entity, EntityKind, Relationship
 from .policy import CommanderPolicy, PolicyDenied
 from .postgres_store import PostgresKnowledgeStore, connect_postgres
+from .research import ResearchFinding, ResearchKnowledgeService
 from .service import Commander
 from .store import JsonlKnowledgeStore, MemoryKnowledgeStore
 
@@ -20,6 +21,8 @@ __all__ = [
     "PolicyDenied",
     "PostgresKnowledgeStore",
     "Relationship",
+    "ResearchFinding",
+    "ResearchKnowledgeService",
     "new_uuid7",
     "connect_postgres",
 ]

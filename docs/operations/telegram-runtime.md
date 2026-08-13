@@ -34,6 +34,24 @@ Existing control commands remain available:
 /resume
 ```
 
+## Free-form engineering requests
+
+Use `/task` as the default way to tell Commander what to fix, implement, review,
+or change:
+
+```text
+/task Fix the login error shown in the attached screenshot, add regression tests, and report what changed.
+```
+
+The remainder of the message is free-form. Commander queues it through the
+existing specification-driven engineering workflow for the PTW repository.
+`/engineer repo=ptw <task>` remains a compatibility alias.
+
+To provide visual context, attach a screenshot or image and put `/task ...` in
+the attachment caption. The established poller stores the attachment privately
+and links it to the queued job. Do not include credentials or tokens in task
+text or screenshots.
+
 ## Transport ownership
 
 Never call `setWebhook` for this bot while the established platform uses
@@ -66,8 +84,9 @@ cd /opt/ptw/platform
 docker compose up -d --build commander-api
 ```
 
-Its installed forwarding change is local commit `0db9522`; that deployment
-repository has no configured remote. Do not reset it when updating the
+Its installed forwarding change is local commit `0db9522`, and the free-form
+`/task` command is local commit `c21febf`. That deployment repository has no
+configured upstream for this history. Do not reset it when updating the
 independent GitHub repository.
 
 Database and generated assets live in Docker named volumes. Back up both before

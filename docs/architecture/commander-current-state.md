@@ -69,6 +69,12 @@ local commit `0db9522`. That checkout has no configured remote, so the durable
 integration contract is also documented here and in
 `docs/operations/telegram-runtime.md`.
 
+The same established bot now accepts `/task <free-form request>` for fixes,
+implementation, reviews, or changes. It maps to the existing specification-
+driven engineering job type and supports screenshots/images supplied with the
+command as an attachment caption. The deployed change is local commit
+`c21febf`; `/engineer repo=ptw <task>` remains compatible.
+
 ## Next milestone
 
 Run a private `/creative` Telegram smoke test with the owner, then improve

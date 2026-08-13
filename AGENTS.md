@@ -41,3 +41,9 @@ forwards `/creative` over the shared internal network. Never print, copy into
 Git, rotate, or replace that token without owner authorization. Use disposable
 databases for migration tests unless the user explicitly authorizes a target
 database.
+
+The owner's general Telegram instruction channel is `/task <free-form request>`.
+It queues the established specification-driven engineering workflow and may
+include screenshots/images when `/task ...` is used as the attachment caption.
+`/engineer` is a compatibility alias; `/creative` is reserved for Story image
+generation.

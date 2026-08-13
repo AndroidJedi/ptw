@@ -156,10 +156,36 @@ async def telegram_loop() -> None:
                     if not message:
                         continue
                     if message.get("photo"):
-                        await persist_photo(client, message)
-                        if not message.get("caption", "").lstrip().startswith("/engineer"):
+                        caption_command = normalized_command(message.get("caption", ""))
+                        if caption_command == "/creative":
+                            message["text"] = message.get("caption", "")
+                        else:
+                            await persist_photo(client, message)
+                        if caption_command not in {"/engineer", "/creative"}:
                             continue
                         message["text"] = message.get("caption", "")
+                    if normalized_command(message.get("text") or "") == "/creative":
+                        if (message.get("from") or {}).get("id") not in allowed_user_ids():
+                            await send_rejection(client, message, False)
+                            continue
+                        try:
+                            async with httpx.AsyncClient(timeout=60) as bridge:
+                                response = await bridge.post(
+                                    os.getenv(
+                                        "CREATIVE_SERVICE_URL",
+                                        "http://ptw-creative-api:8080/internal/telegram/update",
+                                    ),
+                                    json=update,
+                                    headers={"X-PTW-Bridge-Token": token},
+                                )
+                                response.raise_for_status()
+                        except httpx.HTTPError as exc:
+                            logger.warning("Creative service forwarding failed: %s", type(exc).__name__)
+                            await client.post(
+                                "sendMessage",
+                                json={"chat_id": message["chat"]["id"], "text": "Creative service is temporarily unavailable."},
+                            )
+                        continue
                     accepted = await asyncio.to_thread(persist_update, message)
                     if not accepted or normalized_command(message.get("text") or "") not in SUPPORTED_COMMANDS:
                         await send_rejection(client, message, accepted)

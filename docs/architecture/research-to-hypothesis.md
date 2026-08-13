@@ -20,10 +20,12 @@ sources; each source has its own relationship edge. The hypothesis remains
 `proposed` and does not become accepted knowledge until tested and adopted by an
 explicit decision.
 
-This is the initial ingestion contract, not an automated web researcher. A
-future research adapter may search and summarize sources, but it must call this
-contract, preserve exact provenance, avoid storing copyrighted full text, and
-separate source claims from Commander interpretation.
+The first automated adapter is deliberately scoped to `creative_ideation` and
+is exposed as `/research <topic>`. It searches through a configured provider,
+calls this ingestion contract, preserves exact provenance, stores only concise
+findings, and separates source claims from Commander interpretation. Other
+research kinds require separate typed workflows rather than overloading this
+command.
 
 PostgreSQL is the graph store:
 
@@ -42,3 +44,7 @@ store even if vector or graph projections are added later.
 
 After ingestion, `/graph hypotheses` shows proposed hypotheses and the exact
 Source UUIDs from which each was derived.
+
+`/creative from <hypothesis-uuid>` validates that the selected hypothesis has
+`research_type=creative_ideation`, then generates a creative linked to that
+existing hypothesis. This preserves Source -> Hypothesis -> Creative lineage.

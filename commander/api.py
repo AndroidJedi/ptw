@@ -16,6 +16,8 @@ from .service import Commander
 from .settings import Settings
 from .telegram import TelegramControlPlane, TelegramUnauthorized
 from .telegram_api import TelegramBotClient
+from .openai_research import OpenAICreativeResearchProvider
+from .research import CreativeIdeationResearchService
 
 
 def create_app(
@@ -24,10 +26,18 @@ def create_app(
     telegram_client: TelegramBotClient,
 ) -> FastAPI:
     commander = Commander(store, CommanderPolicy.load(settings.policy_path))
+    research_service = (
+        CreativeIdeationResearchService(
+            commander,
+            OpenAICreativeResearchProvider(settings.openai_api_key, model=settings.research_model),
+        )
+        if settings.openai_api_key else None
+    )
     control = TelegramControlPlane(
         commander,
         allowed_user_ids=set(settings.allowed_user_ids),
         allowed_chat_ids=set(settings.allowed_chat_ids),
+        research_service=research_service,
     )
     renderer = InstagramStoryRenderer(settings.asset_directory / "generated")
     production = CreativeProductionService(commander, renderer)
@@ -88,6 +98,7 @@ def create_app(
                         request_text=text,
                         requested_by=f"telegram:{user_id}",
                         hero_image=hero,
+                        hypothesis=production.hypothesis_from_request(text),
                     )
                     store.enqueue_outbox(
                         "telegram.send_photo",

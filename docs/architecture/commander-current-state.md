@@ -34,7 +34,7 @@ does not exist; generated images are returned for review.
 From the repository root:
 
 ```text
-python3 -m unittest discover -s tests/commander -v  # 16 passed; 5 runtime tests skip without optional dependencies
+python3 -m unittest discover -s tests/commander -v  # 18 passed; 5 runtime tests skip without optional dependencies
 python3 -m commander.demo --output-dir .local/commander-demo  # passed
 python3 -m compileall -q commander tests/commander  # passed
 git diff --check  # passed
@@ -53,7 +53,7 @@ persisted 41 entities, 62 pending outbox messages, and the ordered experiment
 states `running`, `completed`, and `evaluated`. No deployed PTW database was
 accessed.
 
-The complete dependency image runs all 21 tests. The actual local HTTP webhook
+The complete dependency image runs all 23 tests. The actual local HTTP webhook
 -> PostgreSQL -> renderer -> outbox path was exercised: it persisted 18
 entities, queued one Telegram photo delivery, and produced a verified 1080x1920
 PNG. Synthetic state was removed afterward.
@@ -103,12 +103,19 @@ weights` shows current component-weight projections, and `/graph creative
 <uuid>` reconstructs components, feedback, and weight-update IDs. The existing
 poller forwards graph requests in local deployment commit `d28b7d1`.
 
+`/research <topic>` is now routed by the established poller and bounded to the
+`creative_ideation` research type. It persists provider findings as Source
+UUIDs and proposed hypotheses with `derived_from` edges. `/creative from
+<hypothesis-uuid>` consumes the selected graph hypothesis. The poller change is
+local deployment commit `79b864f`. Live provider execution is intentionally
+disabled until `OPENAI_API_KEY` is supplied outside Git.
+
 ## Next milestone
 
-Add a research intake command/adapter that calls the implemented provenance
-contract, then run the first real research -> hypothesis -> experiment loop.
-Also choose a low-cost offsite backup destination before production knowledge
-accumulates.
+Configure the research-provider credential, run the first real research ->
+hypothesis -> creative loop, then extend generation so learned component weights
+influence variant selection. Also choose a low-cost offsite backup destination
+before production knowledge accumulates.
 
 ## Operational warning
 

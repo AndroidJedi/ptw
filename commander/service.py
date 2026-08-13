@@ -61,6 +61,7 @@ class Commander:
         source: Entity,
         additional_sources: Iterable[Entity] = (),
         actor: str = "commander",
+        attributes: Mapping[str, Any] | None = None,
     ) -> Entity:
         sources = (source, *tuple(additional_sources))
         for item in sources:
@@ -76,6 +77,7 @@ class Commander:
                 },
                 "scope": scope,
                 "status": "proposed",
+                **dict(attributes or {}),
             },
             actor=actor,
             reasoning_summary="Converted source evidence into a falsifiable claim.",

@@ -21,21 +21,28 @@ class CreativeProductionService:
         request_text: str,
         requested_by: str,
         hero_image: Path | None = None,
+        hypothesis: Entity | None = None,
     ) -> tuple[Entity, Entity, Path]:
-        hook, caption, cta = self._parse(request_text)
-        source = self.commander.create_entity(
-            EntityKind.SOURCE,
-            {"source_type": "telegram_request", "request": request_text, "actor": requested_by},
-            actor=requested_by,
-            reasoning_summary="Captured the owner's creative request as provenance.",
-        )
-        hypothesis = self.commander.create_hypothesis(
-            claim=f"The requested hook can meet the configured link CTR threshold: {hook}",
-            success_metric="link_ctr",
-            threshold=0.02,
-            scope="Instagram Story requested through Telegram",
-            source=source,
-        )
+        if hypothesis is not None:
+            if hypothesis.kind != EntityKind.HYPOTHESIS:
+                raise TypeError("creative source must be a hypothesis")
+            if hypothesis.attributes.get("research_type") != "creative_ideation":
+                raise ValueError("/creative from requires a creative-ideation hypothesis")
+            direction = str(hypothesis.attributes.get("creative_direction") or hypothesis.attributes["claim"])
+            hook, caption, cta = self._parse(direction)
+        else:
+            hook, caption, cta = self._parse(request_text)
+            source = self.commander.create_entity(
+                EntityKind.SOURCE,
+                {"source_type": "telegram_request", "request": request_text, "actor": requested_by},
+                actor=requested_by,
+                reasoning_summary="Captured the owner's creative request as provenance.",
+            )
+            hypothesis = self.commander.create_hypothesis(
+                claim=f"The requested hook can meet the configured link CTR threshold: {hook}",
+                success_metric="link_ctr", threshold=0.02,
+                scope="Instagram Story requested through Telegram", source=source,
+            )
         creative = InstagramCreativeAdapter(self.commander).generate(
             hypothesis=hypothesis,
             spec=InstagramCreativeSpec(
@@ -68,6 +75,12 @@ class CreativeProductionService:
         )
         self.commander.relate(creative, RelationType.GENERATED, artifact)
         return creative, artifact, path
+
+    def hypothesis_from_request(self, request_text: str) -> Entity | None:
+        parts = request_text.strip().split()
+        if len(parts) == 3 and parts[0].split("@", 1)[0].lower() == "/creative" and parts[1].lower() == "from":
+            return self.commander.store.get_entity(parts[2])
+        return None
 
     @staticmethod
     def _parse(value: str) -> tuple[str, str, str]:

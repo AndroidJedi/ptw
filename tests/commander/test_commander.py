@@ -15,7 +15,10 @@ from commander.model import Entity, EntityKind, RelationType, Relationship
 from commander.policy import CommanderPolicy, PolicyDenied
 from commander.postgres_store import OutboxMessage, PostgresKnowledgeStore
 from commander.service import Commander
-from commander.research import ResearchFinding, ResearchKnowledgeService
+from commander.research import (
+    CreativeIdeationResearchService, CreativeResearchResult, HypothesisProposal,
+    ResearchFinding, ResearchKnowledgeService,
+)
 from commander.store import JsonlKnowledgeStore, MemoryKnowledgeStore
 from commander.telegram import TelegramControlPlane, TelegramUnauthorized
 
@@ -101,6 +104,30 @@ class ContextBrokerTests(unittest.TestCase):
 
 
 class ResearchKnowledgeTests(unittest.TestCase):
+    def test_creative_research_populates_sourced_hypotheses(self) -> None:
+        class Provider:
+            def research(self, topic: str) -> CreativeResearchResult:
+                return CreativeResearchResult(
+                    findings=(
+                        ResearchFinding("Study", "https://example.test/study", "Specific goals improve follow-through.", "Example", credibility=0.8),
+                        ResearchFinding("Report", "https://example.test/report", "Public commitments can increase action.", "Example", credibility=0.7),
+                    ),
+                    hypotheses=(HypothesisProposal(
+                        "A public commitment hook will increase link CTR.", (0, 1),
+                        "Make your goal public | Show the first proof today | START NOW",
+                    ),),
+                )
+
+        store = MemoryKnowledgeStore()
+        commander = Commander(store, CommanderPolicy.load(ROOT / "config/commander/policies.json"))
+        sources, hypotheses = CreativeIdeationResearchService(commander, Provider()).run(
+            "commitment hooks", actor="telegram:7"
+        )
+        self.assertEqual(len(sources), 2)
+        self.assertEqual(hypotheses[0].attributes["research_type"], "creative_ideation")
+        edges = [edge for edge in store.relationships() if edge.source_id == hypotheses[0].id]
+        self.assertEqual({edge.target_id for edge in edges}, {item.id for item in sources})
+
     def test_multiple_research_findings_preserve_hypothesis_lineage(self) -> None:
         store = MemoryKnowledgeStore()
         commander = Commander(
@@ -218,6 +245,22 @@ class TelegramControlPlaneTests(unittest.TestCase):
         self.assertIn("active", self.telegram.handle_update(self.update("/status")).text)
         with self.assertRaises(TelegramUnauthorized):
             self.telegram.handle_update(self.update("/status", user_id=999))
+
+    def test_research_command_returns_graph_ids(self) -> None:
+        class Provider:
+            def research(self, topic: str) -> CreativeResearchResult:
+                return CreativeResearchResult(
+                    (ResearchFinding("Source", "https://example.test", "Finding", "Publisher"),),
+                    (HypothesisProposal("Test a proof hook", (0,), "Proof beats promises | Show it | TRY IT"),),
+                )
+        telegram = TelegramControlPlane(
+            self.commander, allowed_user_ids={7}, allowed_chat_ids={11},
+            research_service=CreativeIdeationResearchService(self.commander, Provider()),
+        )
+        reply = telegram.handle_update(self.update("/research hooks for skeptical founders"))
+        hypothesis = self.store.entities(EntityKind.HYPOTHESIS)[0]
+        self.assertIn(hypothesis.id, reply.text)
+        self.assertIn("/creative from", reply.text)
 
     def test_pending_experiment_can_be_approved_once(self) -> None:
         source = self.commander.create_entity(

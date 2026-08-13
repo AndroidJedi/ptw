@@ -31,6 +31,8 @@ class Settings:
     allowed_chat_ids: frozenset[int]
     asset_directory: Path
     policy_path: Path
+    openai_api_key: str = ""
+    research_model: str = "gpt-5-mini"
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -53,4 +55,6 @@ class Settings:
             allowed_chat_ids=_optional_ids("TELEGRAM_ALLOWED_CHAT_IDS", allowed_users),
             asset_directory=Path(os.environ.get("COMMANDER_ASSET_DIR", "/var/lib/ptw/assets")),
             policy_path=Path(os.environ.get("COMMANDER_POLICY_PATH", "config/commander/policies.json")),
+            openai_api_key=os.environ.get("OPENAI_API_KEY", "").strip(),
+            research_model=os.environ.get("COMMANDER_RESEARCH_MODEL", "gpt-5-mini").strip(),
         )

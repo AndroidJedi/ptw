@@ -52,6 +52,26 @@ Existing control commands remain available:
 /resume
 ```
 
+Creative-ideation research is a separate, explicitly typed workflow:
+
+```text
+/research hooks for skeptical founders considering a public challenge
+```
+
+Commander persists bounded Source findings with canonical URLs, then creates
+only proposed hypotheses derived from those Source UUIDs. Generate from a
+returned hypothesis without copying its claim:
+
+```text
+/creative from <hypothesis-uuid>
+```
+
+This command is deliberately limited to creative ideas. Future market, product,
+competitor, or technical research must use distinct research types and policies.
+The runtime requires `OPENAI_API_KEY` in `/opt/ptw/platform/.env`; optionally set
+`COMMANDER_RESEARCH_MODEL` (default `gpt-5-mini`). Restart both Compose stacks
+after adding it. Never send the key through Telegram or commit it to Git.
+
 ## Free-form engineering requests
 
 Use `/task` as the default way to tell Commander what to fix, implement, review,

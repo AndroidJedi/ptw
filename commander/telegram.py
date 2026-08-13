@@ -8,6 +8,7 @@ from typing import Any, Mapping
 from .ids import display_ref
 from .model import EntityKind
 from .service import Commander
+from .research import CreativeIdeationResearchService
 
 
 class TelegramUnauthorized(PermissionError):
@@ -35,12 +36,14 @@ class TelegramControlPlane:
         *,
         allowed_user_ids: set[int],
         allowed_chat_ids: set[int],
+        research_service: CreativeIdeationResearchService | None = None,
     ) -> None:
         if not allowed_user_ids or not allowed_chat_ids:
             raise ValueError("Telegram allowlists must not be empty")
         self.commander = commander
         self.allowed_user_ids = frozenset(allowed_user_ids)
         self.allowed_chat_ids = frozenset(allowed_chat_ids)
+        self.research_service = research_service
 
     def handle_update(self, update: Mapping[str, Any]) -> TelegramReply:
         if "callback_query" in update:
@@ -139,7 +142,17 @@ class TelegramControlPlane:
             view = parts[0].lower() if parts else "summary"
             entity_id = parts[1] if len(parts) > 1 else None
             return self._format_graph(self.commander.graph_snapshot(view, entity_id))
-        return "Commands: /status /queue /graph [hypotheses|weights|creative <id>] /policy /approve <id> /reject <id> /feedback <creative-id> <1-5> [comment] /reasoning <id> /stop /resume"
+        if command == "/research":
+            if self.research_service is None:
+                raise ValueError("creative research is not configured; set OPENAI_API_KEY")
+            sources, hypotheses = self.research_service.run(argument, actor=actor)
+            lines = [f"{item.id} {item.attributes['claim'][:110]}" for item in hypotheses]
+            return (
+                f"Creative research stored: {len(sources)} sources, {len(hypotheses)} proposed hypotheses.\n"
+                + "\n".join(lines)
+                + "\nGenerate with: /creative from <hypothesis-id>"
+            )
+        return "Commands: /research <creative topic> /creative from <hypothesis-id> /status /queue /graph [hypotheses|weights|creative <id>] /policy /approve <id> /reject <id> /feedback <creative-id> <1-5> [comment] /reasoning <id> /stop /resume"
 
     @staticmethod
     def _format_graph(snapshot: Mapping[str, Any]) -> str:

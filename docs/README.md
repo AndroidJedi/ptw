@@ -12,6 +12,7 @@ read `docs/`.
 | Task | Read first | Read when needed |
 | --- | --- | --- |
 | Commander or learning-loop architecture | [`architecture/commander-architecture-review.md`](architecture/commander-architecture-review.md) | [`PTW_Commander_Bootstrap_Addendum.md`](PTW_Commander_Bootstrap_Addendum.md) for original constraints |
+| Component ownership and validation | [`architecture/component-boundaries.md`](architecture/component-boundaries.md) | [`../project.components.json`](../project.components.json) for the executable contract |
 | Research and initial hypotheses | [`architecture/research-to-hypothesis.md`](architecture/research-to-hypothesis.md) | Commander architecture review and source-specific research material |
 | Product direction | [`../Proof_Them_Wrong_Idea_and_Strengths.md`](../Proof_Them_Wrong_Idea_and_Strengths.md) | [`../DESIGN_RULES.md`](../DESIGN_RULES.md) for UI work |
 | Instagram creative adapter | [`verticals/instagram/README.md`](verticals/instagram/README.md) | [`PTW_TEMPLATE_MCP.md`](PTW_TEMPLATE_MCP.md), then the implementation handoff |

@@ -2,6 +2,18 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-13 — Feedback replies failed without a delivery-link row
+
+- Impact: valid `/feedback <1-5> [comment]` replies could be surfaced by the
+  forwarding poller as “creative service is temporarily unavailable”.
+- Cause: reply resolution depended only on the post-send Telegram delivery
+  mapping, although the generated message caption also carried the permanent
+  Creative UUID.
+- Correction: delivery mappings remain primary; when one is absent, Commander
+  recovers the caption UUID and verifies that it identifies a stored Creative.
+- Prevention: feedback reply tests cover mapped delivery and validated caption
+  recovery paths.
+
 ## 2026-08-13 — `/task` executor failed before work and provided no control
 
 - Impact: engineering jobs were accepted but failed when Codex initialized;

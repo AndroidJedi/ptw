@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "global_validation": [
+    ["git", "diff", "--check"]
+  ],
+  "components": [
+    {
+      "name": "repository-architecture",
+      "description": "Component ownership, validation contracts, and cross-cutting repository documentation",
+      "paths": [
+        "project.components.json",
+        "AGENTS.md",
+        "docs/README.md",
+        "docs/architecture/component-boundaries.md"
+      ],
+      "validation": [],
+      "extended_validation": []
+    },
+    {
+      "name": "creative-learning",
+      "description": "Creative generation, research, feedback lineage, component weights, Telegram runtime, and persistence",
+      "paths": [
+        "commander/**",
+        "tests/commander/**",
+        "db/**",
+        "config/commander/**",
+        "docker-compose.commander.yml",
+        "requirements-commander.txt"
+      ],
+      "validation": [
+        ["python3", "-m", "unittest", "discover", "-s", "tests/commander", "-v"],
+        ["python3", "-m", "commander.demo", "--output-dir", ".local/commander-demo"],
+        ["python3", "-m", "compileall", "-q", "commander", "tests/commander"]
+      ],
+      "extended_validation": []
+    },
+    {
+      "name": "flutter-product",
+      "description": "Flutter mobile and web product",
+      "paths": [
+        "lib/**",
+        "test/**",
+        "android/**",
+        "ios/**",
+        "web/**",
+        "assets/**",
+        "pubspec.yaml",
+        "pubspec.lock",
+        "analysis_options.yaml"
+      ],
+      "validation": [
+        ["dart", "format", "--output=none", "--set-exit-if-changed", "."],
+        ["flutter", "analyze"],
+        ["flutter", "test"]
+      ],
+      "extended_validation": [
+        ["flutter", "build", "web"]
+      ]
+    },
+    {
+      "name": "template-tooling",
+      "description": "Template authoring MCP and template generation contracts",
+      "paths": [
+        "tool/ptw_template_mcp/**",
+        "lib/template_generator/**",
+        "test/template_generator/**",
+        "docs/PTW_TEMPLATE_MCP.md"
+      ],
+      "validation": [
+        ["dart", "format", "--output=none", "--set-exit-if-changed", "."],
+        ["flutter", "test", "test/template_generator"]
+      ],
+      "extended_validation": []
+    }
+  ]
+}

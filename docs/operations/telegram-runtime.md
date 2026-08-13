@@ -55,7 +55,7 @@ Existing control commands remain available:
 Creative-ideation research is a separate, explicitly typed workflow:
 
 ```text
-/research hooks for skeptical founders considering a public challenge
+/research creative hooks for skeptical founders considering a public challenge
 ```
 
 Commander persists bounded Source findings with canonical URLs, then creates

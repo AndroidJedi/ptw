@@ -28,6 +28,8 @@ class CreativeProductionService:
                 raise TypeError("creative source must be a hypothesis")
             if hypothesis.attributes.get("research_type") != "creative_ideation":
                 raise ValueError("/creative from requires a creative-ideation hypothesis")
+            if hypothesis.attributes.get("owner_agent") != "marketing.creative.instagram":
+                raise ValueError("hypothesis does not belong to the Instagram creative agent")
             direction = str(hypothesis.attributes.get("creative_direction") or hypothesis.attributes["claim"])
             hook, caption, cta = self._parse(direction)
         else:

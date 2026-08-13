@@ -336,6 +336,7 @@ class Commander:
                         "id": hypothesis.id,
                         "claim": str(hypothesis.attributes.get("claim", "")),
                         "status": str(hypothesis.attributes.get("status", "unknown")),
+                        "owner_agent": str(hypothesis.attributes.get("owner_agent", "unassigned")),
                         "source_ids": source_ids,
                     }
                 )

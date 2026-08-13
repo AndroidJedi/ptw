@@ -103,7 +103,7 @@ weights` shows current component-weight projections, and `/graph creative
 <uuid>` reconstructs components, feedback, and weight-update IDs. The existing
 poller forwards graph requests in local deployment commit `d28b7d1`.
 
-`/research <topic>` is now routed by the established poller and bounded to the
+`/research creative <topic>` is routed by the established poller and bounded to the
 `creative_ideation` research type. It persists provider findings as Source
 UUIDs and proposed hypotheses with `derived_from` edges. `/creative from
 <hypothesis-uuid>` consumes the selected graph hypothesis. The poller change is

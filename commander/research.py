@@ -45,6 +45,8 @@ class ResearchKnowledgeService:
                 "credibility": finding.credibility,
                 "external_id": finding.external_id,
                 "research_type": finding.research_type,
+                "owner_agent": "marketing.creative.instagram",
+                "knowledge_domain": "marketing.creative",
             },
             actor=actor,
             reasoning_summary="Recorded a bounded research finding with explicit provenance.",
@@ -109,7 +111,7 @@ class CreativeIdeationResearchService:
     def run(self, topic: str, *, actor: str) -> tuple[tuple[Entity, ...], tuple[Entity, ...]]:
         topic = topic.strip()
         if not topic:
-            raise ValueError("usage: /research <product, audience, or creative question>")
+            raise ValueError("usage: /research creative <topic>")
         result = self.provider.research(topic)
         if not result.findings or not result.hypotheses:
             raise ValueError("research provider returned no sourced hypotheses")
@@ -135,6 +137,8 @@ class CreativeIdeationResearchService:
                         "research_type": "creative_ideation",
                         "research_topic": topic,
                         "creative_direction": proposal.creative_direction,
+                        "owner_agent": "marketing.creative.instagram",
+                        "knowledge_domain": "marketing.creative",
                     },
                 )
                 hypotheses.append(hypothesis)

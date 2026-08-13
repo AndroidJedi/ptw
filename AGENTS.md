@@ -66,5 +66,5 @@ The owner inspects state through `/graph`, `/graph hypotheses`, `/graph weights`
 and `/graph creative <uuid>`. Keep output bounded and ID-explicit; PostgreSQL
 entities and relationship edges remain the complete authority.
 
-`/research` is reserved for creative-ideation research and writes sourced,
+`/research creative <topic>` is reserved for creative-ideation research and writes sourced,
 proposed hypotheses. `/creative from <hypothesis-id>` consumes that lineage.

@@ -257,10 +257,17 @@ class TelegramControlPlaneTests(unittest.TestCase):
             self.commander, allowed_user_ids={7}, allowed_chat_ids={11},
             research_service=CreativeIdeationResearchService(self.commander, Provider()),
         )
-        reply = telegram.handle_update(self.update("/research hooks for skeptical founders"))
+        reply = telegram.handle_update(self.update("/research creative hooks for skeptical founders"))
         hypothesis = self.store.entities(EntityKind.HYPOTHESIS)[0]
         self.assertIn(hypothesis.id, reply.text)
         self.assertIn("/creative from", reply.text)
+        self.assertEqual(hypothesis.attributes["owner_agent"], "marketing.creative.instagram")
+        self.assertTrue(all(
+            item.attributes["knowledge_domain"] == "marketing.creative"
+            for item in self.store.entities(EntityKind.SOURCE)
+        ))
+        with self.assertRaisesRegex(ValueError, "usage"):
+            telegram.handle_update(self.update("/research coder improve tests"))
 
     def test_pending_experiment_can_be_approved_once(self) -> None:
         source = self.commander.create_entity(

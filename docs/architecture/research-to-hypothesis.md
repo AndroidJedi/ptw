@@ -21,7 +21,7 @@ sources; each source has its own relationship edge. The hypothesis remains
 explicit decision.
 
 The first automated adapter is deliberately scoped to `creative_ideation` and
-is exposed as `/research <topic>`. It searches through a configured provider,
+is exposed as `/research creative <topic>`. It searches through a configured provider,
 calls this ingestion contract, preserves exact provenance, stores only concise
 findings, and separates source claims from Commander interpretation. Other
 research kinds require separate typed workflows rather than overloading this

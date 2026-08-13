@@ -109,6 +109,8 @@ UUIDs and proposed hypotheses with `derived_from` edges. `/creative from
 <hypothesis-uuid>` consumes the selected graph hypothesis. The poller change is
 local deployment commit `79b864f`. Live provider execution is intentionally
 disabled until `OPENAI_API_KEY` is supplied outside Git.
+The bot's `/help` output includes this workflow as of local deployment commit
+`175536b`.
 
 ## Next milestone
 

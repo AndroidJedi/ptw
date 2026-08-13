@@ -159,6 +159,7 @@ def process_one(connection: psycopg.Connection) -> bool:
         send_telegram(parameters, f"Engineering job #{job_id} cancelled.")
     except Exception as exc:
         logger.warning("Job %s failed: %s", job_id, type(exc).__name__)
+        stage = exc.stage if isinstance(exc, StageFailure) else "EXECUTION"
         connection.execute(
             """
             UPDATE jobs SET status = 'failed', error_code = %s, error_message = %s,
@@ -180,6 +181,17 @@ def process_one(connection: psycopg.Connection) -> bool:
             "UPDATE sessions SET status = 'failed', updated_at = now() WHERE id = %s",
             (session_id,),
         )
+        try:
+            send_telegram(
+                parameters,
+                f"Engineering job #{job_id} failed during {stage}. No changes were deployed. Please retry or report this job ID.",
+            )
+        except Exception as notification_error:
+            logger.warning(
+                "Job %s failure notification failed: %s",
+                job_id,
+                type(notification_error).__name__,
+            )
     heartbeat(connection)
     connection.commit()
     return True

@@ -42,9 +42,17 @@ Commander source checkout as a shared working tree.
 `/engineer repo=ptw <task>` creates a PostgreSQL job. The Brain classifies risk,
 retrieves only relevant accepted memory, and writes bounded `spec.md`. Runner v2
 uses an isolated `agent/job-*` checkout, invokes Codex non-interactively with
-linked images, performs staged Flutter validation, writes `result.md`, pushes
+linked images, loads the repository's versioned component manifest, performs
+only the affected components' validation, writes `result.md`, pushes
 only its task branch, and creates or reuses a deterministic PR. Stage events and
 durations support recovery; unavailable token counts remain unset.
+
+The runner is language-agnostic. `project.components.json` in the target
+repository owns path-to-component mapping and command arrays. Missing or
+invalid manifests fail closed before Codex execution; adding a language or
+service never requires a runner code change.
+The parsed manifest is frozen before Codex starts and remains the authority for
+that run, so a task cannot inject validation commands by editing the manifest.
 
 Stable rules live in `docs/project-memory`; lifecycle records and source
 references live in PostgreSQL. Category filtering, full-text rank, item limits,

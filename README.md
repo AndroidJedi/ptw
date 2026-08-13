@@ -78,9 +78,12 @@ Commander or worker call sites.
 
 ## Repository registry and main watcher
 
-`repositories` is the engineering allowlist. The registered application is
-`repo=ptw` (`Proof Them Wrong`, `git@github.com:AndroidJedi/ptw.git`, `main`,
-Flutter/Dart `^3.7.0`, no FVM detected). Arbitrary Git URLs are not accepted.
+`repositories` is the engineering allowlist. The registered monorepo is
+`repo=ptw` (`Proof Them Wrong`, `git@github.com:AndroidJedi/ptw.git`, `main`).
+Its versioned `project.components.json` declares component paths and validation;
+the registry identifies it as a monorepo and stores the manifest filename as
+metadata. Arbitrary Git URLs
+are not accepted.
 
 `git-watcher` polls `ptw/main` with `git ls-remote` every
 `GIT_MAIN_WATCH_INTERVAL_SECONDS` (default 300). Initial discovery stores the

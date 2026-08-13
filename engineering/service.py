@@ -8,6 +8,7 @@ from psycopg.types.json import Jsonb
 from common.events import append_event
 from common.repositories import RepositoryRegistry
 from engineering.brain import acceptance_criteria, classify, decompose, render_spec
+from engineering.components import describe_manifest, load_manifest
 from engineering.github import create_or_get_pr, pull_request_body, push_agent_branch
 from engineering.memory import retrieve
 from engineering.runner import (EngineeringResult, StageFailure, commit_changes,
@@ -30,8 +31,10 @@ def execute_engineering_job(connection: Any, job_id: int, parameters: dict) -> s
     event(connection, "WORKSPACE_CREATED", job_id, "completed", {"repository":repository_id, "branch":branch})
     attachment_paths = copy_attachments([Path(path) for path in parameters.get("attachments", [])], job_root)
     spec_path = job_root / "spec.md"
+    component_manifest = load_manifest(checkout)
     spec_path.write_text(render_spec(request=request, repository_id=repository_id, classification=classification,
-                                     memory=memory, attachments=[str(path) for path in attachment_paths]), encoding="utf-8")
+                                     memory=memory, attachments=[str(path) for path in attachment_paths],
+                                     component_catalog=describe_manifest(component_manifest)), encoding="utf-8")
     event(connection, "ENGINEERING_SPEC_CREATED", job_id, "completed", {"task_class":classification.task_class, "risk":classification.risk})
     steps = decompose(request, classification)
     if steps: event(connection, "ENGINEERING_TASK_DECOMPOSED", job_id, "completed", {"child_count":len(steps)})
@@ -57,7 +60,7 @@ def execute_engineering_job(connection: Any, job_id: int, parameters: dict) -> s
             raise StageFailure("CODEX", completed.stdout[-2000:])
         connection.execute("UPDATE jobs SET retry_count=retry_count+1 WHERE id=%s", (job_id,))
     event(connection, "VALIDATION_STARTED", job_id, "running")
-    started = time.monotonic(); validations = validate(checkout, classification.risk)
+    started = time.monotonic(); validations = validate(checkout, classification.risk, component_manifest)
     event(connection, "VALIDATION_COMPLETED", job_id, "completed", {"duration_seconds":round(time.monotonic()-started,3), "checks":len(validations)})
     sha, files = commit_changes(checkout, job_id, request)
     event(connection, "GIT_COMMIT_CREATED", job_id, "completed", {"commit_sha":sha, "files_changed":len(files), "branch":branch})

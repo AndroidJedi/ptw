@@ -38,7 +38,8 @@ def acceptance_criteria(request: str) -> list[str]:
 
 
 def render_spec(*, request: str, repository_id: str, classification: Classification,
-                memory: list[dict], attachments: list[str] | None = None) -> str:
+                memory: list[dict], attachments: list[str] | None = None,
+                component_catalog: str = "- No component manifest available") -> str:
     criteria = acceptance_criteria(request)
     context = "\n".join(f"- [{item['category']}] {item['content']} (source: {item['source_reference']})" for item in memory) or "- No matching accepted project rules."
     images = "\n".join(f"- {path}" for path in attachments or []) or "- None"
@@ -49,7 +50,8 @@ def render_spec(*, request: str, repository_id: str, classification: Classificat
         "Acceptance criteria": "\n".join(f"- {item}" for item in criteria),
         "Constraints": "- Never push main\n- Never merge or deploy production\n- Keep changes scoped",
         "Likely affected areas": "- Determine with targeted rg/git inspection before editing",
-        "Required validation": "- formatting check\n- flutter analyze\n- flutter test\n- flutter build web when UI/web-affecting",
+        "Component catalog": component_catalog,
+        "Required validation": "- Determine affected components from the final diff.\n- Run each affected component's manifest validation.\n- Run global manifest validation.\n- Do not substitute checks from another language or subsystem.",
         "Risk level": classification.risk, "Screenshots/attachments": images,
         "Out of scope": "- Production merge/deploy and unrelated refactors", "Open questions": "- None",
     }
@@ -60,4 +62,3 @@ def decompose(request: str, classification: Classification) -> list[str]:
     if not classification.decompose:
         return []
     return ["Inspect domain and architecture impact", "Implement bounded code changes", "Add or update tests", "Run staged validation"]
-

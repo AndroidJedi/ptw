@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -7,9 +8,33 @@ from common.repositories import Repository
 from engineering.runner import (EngineeringResult, JobCancelled, StageFailure, ValidationResult,
                                 branch_name, commit_changes, copy_attachments,
                                 create_workspace, enforce_push_branch, invoke_codex,
-                                render_result, validate)
+                                render_result, validate, validation_commands)
+from engineering.components import load_manifest
 
 REPO = Repository("ptw", "PTW", "git@example:ptw.git", "main", True, "flutter", {})
+
+
+def write_manifest(root: Path) -> None:
+    (root / "project.components.json").write_text(json.dumps({
+        "version": 1,
+        "global_validation": [["git", "diff", "--check"]],
+        "components": [
+            {
+                "name": "creative-learning",
+                "description": "Python creative services",
+                "paths": ["commander/**", "tests/commander/**"],
+                "validation": [["python3", "-m", "unittest", "discover", "-s", "tests/commander", "-v"]],
+                "extended_validation": [],
+            },
+            {
+                "name": "flutter-product",
+                "description": "Flutter client",
+                "paths": ["lib/**", "test/**"],
+                "validation": [["dart", "format", "."], ["flutter", "analyze"], ["flutter", "test"]],
+                "extended_validation": [["flutter", "build", "web"]],
+            },
+        ],
+    }))
 
 
 def test_predictable_unique_branch_and_main_rejected() -> None:
@@ -60,10 +85,44 @@ def test_codex_process_can_be_cancelled(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_validation_failure_stops_stages(tmp_path: Path) -> None:
-    with patch("engineering.runner.shutil.which", return_value="/tool"), patch("engineering.runner.run") as run:
+    write_manifest(tmp_path)
+    with patch("engineering.runner.changed_paths", return_value=["lib/a.dart"]), \
+         patch("engineering.runner.shutil.which", return_value="/tool"), \
+         patch("engineering.runner.run") as run:
         run.return_value.returncode = 1; run.return_value.stdout = "error excerpt"
         with pytest.raises(StageFailure, match="error excerpt") as failure: validate(tmp_path, "LOW")
     assert failure.value.stage == "VALIDATION" and run.call_count == 1
+
+
+def test_commander_changes_use_python_validation_without_flutter(tmp_path: Path) -> None:
+    write_manifest(tmp_path)
+    with patch("engineering.runner.changed_paths", return_value=["commander/api.py"]):
+        commands = validation_commands(tmp_path, "LOW")
+    assert commands[1][:4] == ["python3", "-m", "unittest", "discover"]
+    assert all(command[0] not in {"dart", "flutter"} for command in commands)
+
+
+def test_flutter_changes_still_require_flutter_validation(tmp_path: Path) -> None:
+    write_manifest(tmp_path)
+    with patch("engineering.runner.changed_paths", return_value=["lib/main.dart"]):
+        commands = validation_commands(tmp_path, "LOW")
+    assert [command[0] for command in commands[1:4]] == ["dart", "flutter", "flutter"]
+
+
+def test_high_risk_adds_extended_component_validation(tmp_path: Path) -> None:
+    write_manifest(tmp_path)
+    with patch("engineering.runner.changed_paths", return_value=["lib/main.dart"]):
+        commands = validation_commands(tmp_path, "HIGH")
+    assert ["flutter", "build", "web"] in commands
+
+
+def test_validation_uses_manifest_loaded_before_agent_edits(tmp_path: Path) -> None:
+    write_manifest(tmp_path)
+    trusted = load_manifest(tmp_path)
+    (tmp_path / "project.components.json").write_text("{}")
+    with patch("engineering.runner.changed_paths", return_value=["commander/api.py"]):
+        commands = validation_commands(tmp_path, "LOW", trusted)
+    assert any(command[:3] == ["python3", "-m", "unittest"] for command in commands)
 
 
 def test_retry_exhaustion_is_bounded() -> None:

@@ -18,4 +18,4 @@ def test_spec_has_acceptance_criteria_and_bounded_context() -> None:
     for heading in ("Goal", "User request", "Repository", "Acceptance criteria", "Required validation", "Risk level", "Out of scope"):
         assert f"## {heading}" in spec
     assert "Use theme tokens" in spec
-
+    assert "Do not substitute checks from another language" in spec

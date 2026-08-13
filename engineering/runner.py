@@ -118,15 +118,35 @@ def invoke_codex(checkout: Path, spec: Path, attachments: list[Path], output: Pa
     return subprocess.CompletedProcess(command, process.returncode, stdout)
 
 
-def validation_commands(checkout: Path, risk: str) -> list[list[str]]:
-    commands = [["dart", "format", "--output=none", "--set-exit-if-changed", "."], ["flutter", "analyze"], ["flutter", "test"]]
-    if risk in {"MEDIUM", "HIGH"} or (checkout / "web").exists(): commands.append(["flutter", "build", "web"])
+def changed_paths(checkout: Path) -> list[str]:
+    completed = run(["git", "status", "--porcelain"], cwd=checkout)
+    if completed.returncode:
+        raise StageFailure("VALIDATION", completed.stdout[-2000:])
+    return [line[3:] for line in completed.stdout.splitlines() if len(line) > 3]
+
+
+def validation_commands(checkout: Path, risk: str, manifest=None) -> list[list[str]]:
+    if manifest is None:
+        from engineering.components import load_manifest
+        manifest = load_manifest(checkout)
+    components = manifest.matching(changed_paths(checkout))
+    commands: list[list[str]] = []
+    seen: set[tuple[str, ...]] = set()
+    selected = list(manifest.global_validation)
+    for component in components:
+        selected.extend(component.validation)
+        if risk in {"MEDIUM", "HIGH"}:
+            selected.extend(component.extended_validation)
+    for command in selected:
+        if command not in seen:
+            seen.add(command)
+            commands.append(list(command))
     return commands
 
 
-def validate(checkout: Path, risk: str) -> list[ValidationResult]:
+def validate(checkout: Path, risk: str, manifest=None) -> list[ValidationResult]:
     results = []
-    for command in validation_commands(checkout, risk):
+    for command in validation_commands(checkout, risk, manifest):
         if shutil.which(command[0]) is None:
             raise StageFailure("VALIDATION", f"Required validation tool is unavailable: {command[0]}")
         start = time.monotonic(); completed = run(command, cwd=checkout)

@@ -179,7 +179,8 @@ async def telegram_loop() -> None:
                             await send_rejection(client, message, False)
                             continue
                         try:
-                            async with httpx.AsyncClient(timeout=60) as bridge:
+                            # Agent-backed web research can take longer than image rendering.
+                            async with httpx.AsyncClient(timeout=240) as bridge:
                                 response = await bridge.post(
                                     os.getenv(
                                         "CREATIVE_SERVICE_URL",

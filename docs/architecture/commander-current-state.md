@@ -26,8 +26,8 @@ both user and chat allowlists and supports status, queue, policy inspection,
 one-time experiment approval/rejection, reasoning summaries, emergency stop,
 and resume. The FastAPI webhook, Telegram Bot API client, update deduplication,
 outbox worker, health/readiness endpoints, image attachment download, and
-deterministic 1080x1920 Story renderer are implemented. Instagram publishing
-does not exist; generated images are returned for review.
+deterministic 1080x1350 Instagram feed-post renderer are implemented. Instagram
+publishing does not exist; generated images are returned for review.
 
 ## Last verification
 
@@ -58,8 +58,8 @@ accessed.
 
 The complete dependency environment runs all 25 tests. The actual local HTTP webhook
 -> PostgreSQL -> renderer -> outbox path was exercised: it persisted 18
-entities, queued one Telegram photo delivery, and produced a verified 1080x1920
-PNG. Synthetic state was removed afterward.
+entities, queued one Telegram photo delivery, and produced a verified PNG.
+Synthetic state was removed afterward.
 
 An isolated Compose stack is installed and healthy on `127.0.0.1:8091`. It
 reuses the established `@ptw_commander_bot` credential and allowlist from the
@@ -163,6 +163,10 @@ the returned message asks for a `/feedback 1-5 [comment]` reply, its Telegram
 message ID resolves to the permanent Creative UUID, and the Creative contains a
 reusable hook component that receives an append-only WeightUpdate. The embedded
 Creative UUID remains a validated fallback if a delivery-link row is missed.
+
+Image creative delivery now produces a 1080x1350 Instagram feed post. Requests
+without an attached photo receive composed branded artwork rather than the old
+gradient stub; attached photos retain their fitted, darkened treatment.
 
 ## Next milestone
 

@@ -506,20 +506,21 @@ class RuntimeImageTests(unittest.TestCase):
         )
 
     @unittest.skipUnless(importlib.util.find_spec("PIL"), "Pillow is not installed")
-    def test_renderer_creates_exact_story_png(self) -> None:
+    def test_renderer_creates_exact_feed_post_png(self) -> None:
         from PIL import Image
-        from commander.renderer import InstagramStoryRenderer
+        from commander.renderer import InstagramPostRenderer
 
         with tempfile.TemporaryDirectory() as directory:
-            path, digest = InstagramStoryRenderer(Path(directory)).render(
+            path, digest = InstagramPostRenderer(Path(directory)).render(
                 creative_id=new_uuid7(),
                 hook="They said I would quit.",
                 caption="Day one starts now.",
                 cta="FOLLOW THE JOURNEY",
             )
             with Image.open(path) as image:
-                self.assertEqual(image.size, (1080, 1920))
+                self.assertEqual(image.size, (1080, 1350))
                 self.assertEqual(image.format, "PNG")
+                self.assertGreater(len(image.getcolors(maxcolors=2_000_000) or []), 100)
             self.assertEqual(len(digest), 64)
 
     @unittest.skipUnless(
@@ -573,6 +574,13 @@ class RuntimeImageTests(unittest.TestCase):
             delivery = [item for item in store.outbox if item["topic"] == "telegram.send_photo"]
             self.assertEqual(len(delivery), 1)
             self.assertTrue(Path(str(delivery[0]["payload"]["path"])).is_file())
+            creative = store.get_entity(response.json()["result"]["creative_id"])
+            artifact = store.get_entity(response.json()["result"]["artifact_id"])
+            self.assertEqual(creative.attributes["format"], "feed_post_1080x1350")
+            self.assertEqual(
+                (artifact.attributes["width"], artifact.attributes["height"]),
+                (1080, 1350),
+            )
             duplicate = client.post("/telegram/webhook", json=update, headers=headers)
             self.assertEqual(duplicate.json(), {"ok": True, "duplicate": True})
             repeated = dict(update)

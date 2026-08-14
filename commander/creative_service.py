@@ -7,18 +7,18 @@ import re
 
 from .instagram import InstagramCreativeAdapter, InstagramCreativeSpec
 from .model import Entity, EntityKind, RelationType
-from .renderer import InstagramStoryRenderer
+from .renderer import InstagramPostRenderer
 from .service import Commander
 
 
 class CreativeProductionService:
     DEFAULT_HOOK = "They said you couldn't. Prove them wrong."
 
-    def __init__(self, commander: Commander, renderer: InstagramStoryRenderer) -> None:
+    def __init__(self, commander: Commander, renderer: InstagramPostRenderer) -> None:
         self.commander = commander
         self.renderer = renderer
 
-    def create_instagram_story(
+    def create_instagram_post(
         self,
         *,
         request_text: str,
@@ -54,13 +54,13 @@ class CreativeProductionService:
             hypothesis = self.commander.create_hypothesis(
                 claim=f"The requested hook can meet the configured link CTR threshold: {hook}",
                 success_metric="link_ctr", threshold=0.02,
-                scope="Instagram Story requested through Telegram", source=source,
+                scope="Instagram feed post requested through Telegram", source=source,
             )
         creative = InstagramCreativeAdapter(self.commander).generate(
             hypothesis=hypothesis,
             spec=InstagramCreativeSpec(
                 hook=hook,
-                hero_image_uri=str(hero_image) if hero_image else "generated://ptw-gradient",
+                hero_image_uri=str(hero_image) if hero_image else "generated://ptw-post-artwork",
                 supporting_visual_uri="generated://none",
                 caption=caption,
                 cta=cta,
@@ -77,17 +77,23 @@ class CreativeProductionService:
             EntityKind.ARTIFACT,
             {
                 "media_type": "image/png",
-                "width": 1080,
-                "height": 1920,
+                "width": self.renderer.width,
+                "height": self.renderer.height,
                 "sha256": digest,
                 "storage_uri": str(path),
             },
             actor=requested_by,
-            reasoning_summary="Rendered the creative through the deterministic Instagram adapter.",
+            reasoning_summary=(
+                "Rendered a complete Instagram feed-post image through the "
+                "deterministic adapter."
+            ),
             evidence_ids=(creative.id,),
         )
         self.commander.relate(creative, RelationType.GENERATED, artifact)
         return creative, artifact, path
+
+    # Compatibility for callers that predate feed-post generation.
+    create_instagram_story = create_instagram_post
 
     def hypothesis_from_request(self, request_text: str) -> Entity | None:
         parts = request_text.strip().split()

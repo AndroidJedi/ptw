@@ -54,9 +54,9 @@ class InstagramCreativeAdapter:
             EntityKind.CREATIVE,
             {
                 "vertical": "instagram",
-                "format": "story_1080x1920",
+                "format": "feed_post_1080x1350",
                 "status": "generated",
-                "generator_adapter": "instagram_demo_v1",
+                "generator_adapter": "instagram_post_v1",
                 "component_weight_mean": sum(
                     self.commander.component_weight(item) for item in components
                 ) / len(components),

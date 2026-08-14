@@ -9,11 +9,13 @@ from typing import Any, Mapping
 from fastapi import FastAPI, Header, HTTPException
 
 from .creative_service import CreativeProductionService
+from .model import EntityKind
 from .policy import CommanderPolicy
 from .postgres_store import PostgresKnowledgeStore, connect_postgres
 from .renderer import InstagramStoryRenderer
 from .service import Commander
 from .settings import Settings
+from .store import KnowledgeStore
 from .telegram import TelegramControlPlane, TelegramUnauthorized
 from .telegram_api import TelegramBotClient
 from .openai_research import CodexCreativeResearchProvider, OpenAICreativeResearchProvider
@@ -169,7 +171,7 @@ def _creative_request(update: Mapping[str, Any]) -> tuple[int, int, str, str | N
 
 
 def _expand_feedback_reply(
-    update: Mapping[str, Any], store: PostgresKnowledgeStore
+    update: Mapping[str, Any], store: KnowledgeStore
 ) -> Mapping[str, Any]:
     message = update.get("message")
     if not isinstance(message, Mapping):
@@ -185,6 +187,8 @@ def _expand_feedback_reply(
         chat_id = int(message["chat"]["id"])
         entity_id = store.telegram_delivery_entity(chat_id, int(reply["message_id"]))
         if entity_id is None:
+            entity_id = _creative_id_from_reply(reply, store)
+        if entity_id is None:
             raise ValueError("the replied message is not a known generated creative")
         expanded = dict(update)
         expanded_message = dict(message)
@@ -193,3 +197,19 @@ def _expand_feedback_reply(
         expanded["message"] = expanded_message
         return expanded
     return update
+
+
+def _creative_id_from_reply(
+    reply: Mapping[str, Any], store: KnowledgeStore
+) -> str | None:
+    """Recover delivery lineage from the caption on older generated photos."""
+
+    first_line = str(reply.get("caption") or "").partition("\n")[0]
+    prefix = "Creative "
+    if not first_line.startswith(prefix):
+        return None
+    try:
+        creative = store.get_entity(first_line.removeprefix(prefix))
+    except KeyError:
+        return None
+    return creative.id if creative.kind == EntityKind.CREATIVE else None

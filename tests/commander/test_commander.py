@@ -433,6 +433,36 @@ class RuntimeImageTests(unittest.TestCase):
             f"/feedback {creative.id} 4 CTA needs work",
         )
 
+    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is not installed")
+    def test_reply_feedback_recovers_creative_from_generated_caption(self) -> None:
+        from commander.api import _expand_feedback_reply
+
+        store = MemoryKnowledgeStore()
+        creative = Entity(EntityKind.CREATIVE, {"status": "generated"})
+        store.add_entity(creative)
+        expanded = _expand_feedback_reply(
+            {
+                "update_id": 9,
+                "message": {
+                    "from": {"id": 7},
+                    "chat": {"id": 11},
+                    "text": "/feedback 5 Strong creative",
+                    "reply_to_message": {
+                        "message_id": 701,
+                        "caption": (
+                            f"Creative {creative.id}\n"
+                            "Ready for review; not published."
+                        ),
+                    },
+                },
+            },
+            store,
+        )
+        self.assertEqual(
+            expanded["message"]["text"],
+            f"/feedback {creative.id} 5 Strong creative",
+        )
+
     @unittest.skipUnless(importlib.util.find_spec("PIL"), "Pillow is not installed")
     def test_renderer_creates_exact_story_png(self) -> None:
         from PIL import Image

@@ -2,6 +2,35 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-13 — Feedback replies failed without a delivery-link row
+
+- Impact: valid `/feedback <1-5> [comment]` replies could be surfaced by the
+  forwarding poller as “creative service is temporarily unavailable”.
+- Cause: reply resolution depended only on the post-send Telegram delivery
+  mapping, although the generated message caption also carried the permanent
+  Creative UUID.
+- Correction: delivery mappings remain primary; when one is absent, Commander
+  recovers the caption UUID and verifies that it identifies a stored Creative.
+- Prevention: feedback reply tests cover mapped delivery and validated caption
+  recovery paths.
+
+## 2026-08-13 — `/task` executor failed before work and provided no control
+
+- Impact: engineering jobs were accepted but failed when Codex initialized;
+  the owner received neither immediate confirmation nor an interruption control.
+  Creative validation failures were also flattened to “Creative service is
+  temporarily unavailable,” including feedback requests.
+- Cause: Codex's runtime home was mounted read-only, nested sandboxing was
+  configured inside an already isolated container that disallows user
+  namespaces, and Telegram queued jobs without an acknowledgement. The creative
+  bridge treated every non-2xx response as provider unavailability.
+- Correction: use a writable ephemeral Codex home with read-only source auth,
+  rely on the constrained worker container as the execution boundary, send an
+  immediate interpretation/job-ID acknowledgement, support `/cancel [job-id]`,
+  and forward safe creative 4xx validation details.
+- Prevention: release-test a real executor shell call, acceptance reply,
+  queued/running cancellation, and user-facing downstream validation errors.
+
 ## 2026-08-13 — `/research` exposed without an executable provider
 
 - Impact: Telegram advertised and routed creative research, but execution
@@ -15,4 +44,3 @@ Canonical record of deployment gaps and prevention rules. Do not store secrets.
 - Prevention: a Telegram capability is not available until deployed help,
   routing, authorization, provider readiness, real execution, graph persistence,
   restart behavior, and the failure message have all been verified.
-

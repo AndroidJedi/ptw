@@ -97,6 +97,10 @@ components are reused by ID, making weights cumulative and available for
 deterministic future ranking. The existing poller forwards feedback in local
 deployment commit `78f4dcd`.
 
+Reply feedback also recovers and validates the Creative UUID from Commander's
+generated photo caption when an older or missed Telegram delivery-link row is
+absent. The delivery table remains the primary lookup.
+
 Telegram graph inspection is implemented: `/graph` shows counts and recent
 IDs, `/graph hypotheses` shows Hypothesis-to-Source UUID lineage, `/graph
 weights` shows current component-weight projections, and `/graph creative
@@ -111,6 +115,17 @@ local deployment commit `79b864f`. Live provider execution uses the existing
 authenticated VPS Codex runtime; an API key is not required.
 The bot's `/help` output includes this workflow as of local deployment commit
 `175536b`.
+
+The owner-facing `/task` pipeline now acknowledges each accepted request
+immediately with the exact interpreted task, job ID, execution state, and
+`/cancel <job-id>` instruction. Cancellation removes queued jobs or terminates
+an active Codex child process. The worker's Codex runtime home is writable and
+its authenticated executor was verified with a real shell call; this corrects
+the earlier read-only runtime failure that caused every engineering task to
+fail before execution. Creative bridge HTTP 4xx responses now preserve their
+actionable validation message, so malformed `/feedback` input is no longer
+misreported as creative-service unavailability. These changes are deployed in
+the unrelated platform checkout as local commit `6365dce`.
 
 ## Next milestone
 

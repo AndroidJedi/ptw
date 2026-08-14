@@ -126,9 +126,23 @@ def create_app(
                     )
                     if text_hook_result is not None:
                         text_hook, text_creative = text_hook_result
+                        task_line = (
+                            f"TASK-{update['_ptw_task_id']} completed.\n"
+                            if update.get("_ptw_task_id") is not None
+                            else ""
+                        )
                         store.enqueue_outbox(
                             "telegram.send_message", None,
-                            {"chat_id": chat_id, "text": text_hook},
+                            {
+                                "chat_id": chat_id,
+                                "text": (
+                                    f"Creative {text_creative.id}\n"
+                                    f"{task_line}{text_hook}\n\n"
+                                    "Reply to this message with:\n"
+                                    "/feedback 1-5 optional comment"
+                                ),
+                                "creative_id": text_creative.id,
+                            },
                         )
                         result = {"hook": text_hook, "creative_id": text_creative.id}
                         return {"ok": True, "duplicate": False, "result": result}
@@ -251,9 +265,9 @@ def _expand_feedback_reply(
 def _creative_id_from_reply(
     reply: Mapping[str, Any], store: KnowledgeStore
 ) -> str | None:
-    """Recover delivery lineage from the caption on older generated photos."""
+    """Recover delivery lineage from a generated photo caption or text message."""
 
-    first_line = str(reply.get("caption") or "").partition("\n")[0]
+    first_line = str(reply.get("caption") or reply.get("text") or "").partition("\n")[0]
     prefix = "Creative "
     if not first_line.startswith(prefix):
         return None

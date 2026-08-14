@@ -24,7 +24,10 @@ def deliver_once(
             except Exception as error:
                 store.mark_outbox_failed(message.id, f"{type(error).__name__}: {error}")
             else:
-                if message.topic == "telegram.send_photo" and message.payload.get("creative_id"):
+                if (
+                    message.topic in {"telegram.send_message", "telegram.send_photo"}
+                    and message.payload.get("creative_id")
+                ):
                     store.record_telegram_delivery(
                         int(message.payload["chat_id"]),
                         int(result["message_id"]),

@@ -2,6 +2,20 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-14 — Text hooks had no convenient feedback path
+
+- Impact: `/creative hook [brief]` returned bare text. Reply-based `/feedback`
+  could not resolve that message to its Creative UUID, and text-hook creatives
+  had no contained component to receive a learning weight update.
+- Cause: text-only delivery was added after the image feedback flow and did not
+  carry forward its prompt, Telegram delivery link, or component lineage.
+- Correction: text hooks now include a reply instruction and permanent Creative
+  ID, record their delivered Telegram message ID, and contain a reusable hook
+  component.
+- Prevention: end-to-end tests reply to a returned text hook and assert both
+  HumanFeedback and WeightUpdate entities; worker coverage verifies delivery
+  linking for text creatives.
+
 ## 2026-08-14 — Task 48 merged but hook behavior was not deployed
 
 - Impact: `/creative hook <brief>` still returned an image after Telegram said

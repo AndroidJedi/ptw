@@ -1,4 +1,6 @@
-from commander.main import SUPPORTED_COMMANDS, engineering_task, normalized_command, public_health
+from commander.main import (SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
+                            engineering_task, normalized_command, public_health,
+                            safe_bridge_error)
 
 
 def test_command_routing_is_deterministic() -> None:
@@ -25,3 +27,12 @@ def test_tasks_can_be_cancelled() -> None:
 def test_issue_and_task_inspection_is_routed() -> None:
     assert "/inspect" in SUPPORTED_COMMANDS
     assert engineering_task("/inspect ISSUE-7") == "ISSUE-7"
+
+
+def test_long_running_creative_commands_require_task_lifecycle() -> None:
+    assert TRACKED_BRIDGE_COMMANDS == frozenset({"/creative", "/research"})
+    assert "/feedback" not in TRACKED_BRIDGE_COMMANDS
+
+
+def test_bridge_errors_are_secret_scrubbed() -> None:
+    assert safe_bridge_error(RuntimeError("token=hidden")) == "RuntimeError: token=[REDACTED]"

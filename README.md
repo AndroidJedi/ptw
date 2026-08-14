@@ -29,6 +29,12 @@ driven engineering workflow; `/engineer repo=ptw <task>` remains compatible.
 Attach screenshots or reference images and put `/task ...` in the caption to
 make the pending attachments available to the job.
 
+`/research creative ...` and `/creative ...` are also durable tasks. The poller
+acknowledges `TASK-<id>` before forwarding, propagates that ID to the creative
+service, stores the bridge result, and prefixes the final Telegram result with
+the same ID. Transient bridge failures create `ISSUE-<id>`, report a bounded
+retry, and remain available through `/inspect`.
+
 `/status` reports Commander, worker, PostgreSQL, Git, Codex CLI, disk space, and
 queued/failed job counts. A missing optional command such as `codex` is shown as
 unavailable; it does not crash the job.

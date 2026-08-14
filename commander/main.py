@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -22,6 +23,15 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 secrets = EnvironmentSecretStore()
 SUPPORTED_COMMANDS = {"/ping", "/status", "/version", "/help", "/engineer", "/task", "/cancel", "/inspect"}
+TRACKED_BRIDGE_COMMANDS = frozenset({"/creative", "/research"})
+
+
+def safe_bridge_error(error: Exception) -> str:
+    value = f"{type(error).__name__}: {str(error)[-2000:]}"
+    return re.sub(
+        r"(?i)(token|password|secret|api[_-]?key|authorization)(\s*[:=]\s*)(\S+)",
+        r"\1\2[REDACTED]", value,
+    )
 
 
 def allowed_user_ids() -> set[int]:
@@ -163,6 +173,148 @@ def persist_update(message: dict) -> bool | int:
     return job_id
 
 
+def persist_bridge_task(message: dict, command: str) -> int:
+    """Create a durable task before forwarding a long creative command."""
+    sender = message.get("from") or {}
+    telegram_user_id = int(sender["id"])
+    chat_id = int((message.get("chat") or {})["id"])
+    text = str(message.get("text") or message.get("caption") or "")
+    with psycopg.connect(database_url(secrets)) as connection:
+        user_id = connection.execute(
+            """INSERT INTO users(telegram_user_id,role) VALUES(%s,'operator')
+               ON CONFLICT(telegram_user_id) DO UPDATE SET role=users.role RETURNING id""",
+            (telegram_user_id,),
+        ).fetchone()[0]
+        session_id = connection.execute(
+            """INSERT INTO sessions(user_id,status,summary)
+               VALUES(%s,'active',%s) RETURNING id""",
+            (user_id, f"Telegram command {command}"),
+        ).fetchone()[0]
+        job_id = connection.execute(
+            """INSERT INTO jobs(session_id,type,status,requested_by,parameters,stage,started_at)
+               VALUES(%s,%s,'running',%s,%s,'BRIDGE',now()) RETURNING id""",
+            (session_id, command.removeprefix("/"), user_id,
+             Jsonb({"chat_id": chat_id, "reply_to_message_id": message.get("message_id"),
+                    "task": text})),
+        ).fetchone()[0]
+        append_event(connection, "JOB_CREATED", f"telegram:{telegram_user_id}", status="queued",
+                     session_id=session_id, job_id=job_id, payload={"job_type": command.removeprefix("/")})
+        append_event(connection, "JOB_STARTED", "commander-api", status="running",
+                     session_id=session_id, job_id=job_id, payload={"stage": "BRIDGE"})
+    return job_id
+
+
+def complete_bridge_task(job_id: int, result: dict) -> None:
+    with psycopg.connect(database_url(secrets)) as connection:
+        session_id = connection.execute(
+            """UPDATE jobs SET status='completed',stage='RESULT_RECORDED',result=%s,finished_at=now()
+               WHERE id=%s RETURNING session_id""",
+            (Jsonb(result), job_id),
+        ).fetchone()[0]
+        append_event(connection, "JOB_COMPLETED", "commander-api", status="completed",
+                     session_id=session_id, job_id=job_id,
+                     payload={"result_keys": sorted(result)})
+        connection.execute("UPDATE sessions SET status='completed',updated_at=now() WHERE id=%s", (session_id,))
+
+
+def fail_bridge_task(job_id: int, stage: str, error: Exception) -> int:
+    """Persist an unresolved bridge issue without placing secrets in task errors."""
+    summary = safe_bridge_error(error)
+    with psycopg.connect(database_url(secrets)) as connection:
+        issue_id = connection.execute(
+            """INSERT INTO engineering_issues(job_id,stage,status,error_type,summary,resolution_summary,resolved_at)
+               VALUES(%s,%s,'unresolved',%s,%s,%s,now()) RETURNING id""",
+            (job_id, stage, type(error).__name__, summary,
+             "Bridge retry was exhausted; the research task requires inspection"),
+        ).fetchone()[0]
+        connection.execute(
+            """INSERT INTO engineering_issue_logs(issue_id,level,message,metadata)
+               VALUES(%s,'error',%s,'{}'::jsonb)""", (issue_id, summary),
+        )
+        session_id = connection.execute(
+            """UPDATE jobs SET status='failed',stage=%s,error_code=%s,error_message=%s,finished_at=now()
+               WHERE id=%s RETURNING session_id""",
+            (stage, type(error).__name__, f"ISSUE-{issue_id}: inspect sanitized issue log", job_id),
+        ).fetchone()[0]
+        append_event(connection, "ISSUE_CREATED", "commander-api", status="unresolved",
+                     session_id=session_id, job_id=job_id,
+                     payload={"issue_id": issue_id, "stage": stage, "error_type": type(error).__name__})
+        append_event(connection, "JOB_FAILED", "commander-api", status="failed",
+                     session_id=session_id, job_id=job_id, payload={"issue_id": issue_id})
+        connection.execute("UPDATE sessions SET status='failed',updated_at=now() WHERE id=%s", (session_id,))
+    return issue_id
+
+
+def open_bridge_issue(job_id: int, stage: str, error: Exception) -> int:
+    summary = safe_bridge_error(error)
+    with psycopg.connect(database_url(secrets)) as connection:
+        issue_id = connection.execute(
+            """INSERT INTO engineering_issues(job_id,stage,status,error_type,summary,attempt_count)
+               VALUES(%s,%s,'resolving',%s,%s,1) RETURNING id""",
+            (job_id, stage, type(error).__name__, summary),
+        ).fetchone()[0]
+        connection.execute(
+            """INSERT INTO engineering_issue_logs(issue_id,level,message,metadata)
+               VALUES(%s,'warning',%s,'{"attempt":1}'::jsonb)""", (issue_id, summary),
+        )
+        session_id = connection.execute(
+            "UPDATE jobs SET status='blocked',stage=%s WHERE id=%s RETURNING session_id",
+            (stage, job_id),
+        ).fetchone()[0]
+        append_event(connection, "ISSUE_CREATED", "commander-api", status="resolving",
+                     session_id=session_id, job_id=job_id,
+                     payload={"issue_id": issue_id, "stage": stage, "error_type": type(error).__name__})
+        append_event(connection, "TASK_BLOCKED", "commander-api", status="blocked",
+                     session_id=session_id, job_id=job_id, payload={"issue_id": issue_id})
+    return issue_id
+
+
+def resolve_bridge_issue(job_id: int, issue_id: int) -> None:
+    with psycopg.connect(database_url(secrets)) as connection:
+        connection.execute(
+            """UPDATE engineering_issues SET status='resolved',resolution_summary=%s,
+                      resolved_at=now(),updated_at=now() WHERE id=%s""",
+            ("Bridge retry completed successfully", issue_id),
+        )
+        connection.execute(
+            """INSERT INTO engineering_issue_logs(issue_id,level,message,metadata)
+               VALUES(%s,'info','Bridge retry completed successfully','{"attempt":2}'::jsonb)""",
+            (issue_id,),
+        )
+        session_id = connection.execute(
+            "UPDATE jobs SET status='running',stage='BRIDGE_RETRY' WHERE id=%s RETURNING session_id",
+            (job_id,),
+        ).fetchone()[0]
+        append_event(connection, "ISSUE_RESOLVED", "commander-api", status="resolved",
+                     session_id=session_id, job_id=job_id, payload={"issue_id": issue_id})
+        append_event(connection, "TASK_RESUMED", "commander-api", status="running",
+                     session_id=session_id, job_id=job_id, payload={"issue_id": issue_id})
+
+
+def exhaust_bridge_issue(job_id: int, issue_id: int, error: Exception) -> None:
+    with psycopg.connect(database_url(secrets)) as connection:
+        connection.execute(
+            """UPDATE engineering_issues SET status='unresolved',resolution_summary=%s,
+                      resolved_at=now(),updated_at=now() WHERE id=%s""",
+            ("Bridge retry was exhausted; manual inspection is required", issue_id),
+        )
+        connection.execute(
+            """INSERT INTO engineering_issue_logs(issue_id,level,message,metadata)
+               VALUES(%s,'error',%s,'{"attempt":2}'::jsonb)""",
+            (issue_id, safe_bridge_error(error)),
+        )
+        session_id = connection.execute(
+            """UPDATE jobs SET status='failed',error_code=%s,error_message=%s,finished_at=now()
+               WHERE id=%s RETURNING session_id""",
+            (type(error).__name__, f"ISSUE-{issue_id}: inspect sanitized issue log", job_id),
+        ).fetchone()[0]
+        append_event(connection, "ISSUE_UNRESOLVED", "commander-api", status="unresolved",
+                     session_id=session_id, job_id=job_id, payload={"issue_id": issue_id})
+        append_event(connection, "JOB_FAILED", "commander-api", status="failed",
+                     session_id=session_id, job_id=job_id, payload={"issue_id": issue_id})
+        connection.execute("UPDATE sessions SET status='failed',updated_at=now() WHERE id=%s", (session_id,))
+
+
 async def send_rejection(client: httpx.AsyncClient, message: dict, authorized: bool) -> None:
     chat_id = (message.get("chat") or {}).get("id")
     if not chat_id:
@@ -200,22 +352,75 @@ async def telegram_loop() -> None:
                         if caption_command not in {"/engineer", "/task", "/creative"}:
                             continue
                         message["text"] = message.get("caption", "")
-                    if normalized_command(message.get("text") or "") in {"/creative", "/feedback", "/graph", "/research"}:
+                    bridge_command = normalized_command(message.get("text") or "")
+                    if bridge_command in {"/creative", "/feedback", "/graph", "/research"}:
                         if (message.get("from") or {}).get("id") not in allowed_user_ids():
                             await send_rejection(client, message, False)
                             continue
+                        tracked_task_id = None
+                        bridge_issue_id = None
+                        if bridge_command in TRACKED_BRIDGE_COMMANDS:
+                            tracked_task_id = await asyncio.to_thread(
+                                persist_bridge_task, message, bridge_command
+                            )
+                            update = dict(update)
+                            update["_ptw_task_id"] = tracked_task_id
+                            await client.post("sendMessage", json={
+                                "chat_id": message["chat"]["id"],
+                                "reply_parameters": {"message_id": message["message_id"]},
+                                "text": (
+                                    f"Accepted TASK-{tracked_task_id}. {bridge_command.removeprefix('/').title()} "
+                                    f"started. Use /inspect TASK-{tracked_task_id} or /cancel {tracked_task_id}."
+                                ),
+                            })
                         try:
                             # Agent-backed web research can take longer than image rendering.
-                            async with httpx.AsyncClient(timeout=240) as bridge:
-                                response = await bridge.post(
-                                    os.getenv(
-                                        "CREATIVE_SERVICE_URL",
-                                        "http://ptw-creative-api:8080/internal/telegram/update",
+                            attempts = 2 if tracked_task_id else 1
+                            for attempt in range(1, attempts + 1):
+                                try:
+                                    async with httpx.AsyncClient(timeout=240) as bridge:
+                                        response = await bridge.post(
+                                            os.getenv(
+                                                "CREATIVE_SERVICE_URL",
+                                                "http://ptw-creative-api:8080/internal/telegram/update",
+                                            ),
+                                            json=update,
+                                            headers={"X-PTW-Bridge-Token": token},
+                                        )
+                                        response.raise_for_status()
+                                    if bridge_issue_id is not None:
+                                        await asyncio.to_thread(
+                                            resolve_bridge_issue, tracked_task_id, bridge_issue_id
+                                        )
+                                        await client.post("sendMessage", json={
+                                            "chat_id": message["chat"]["id"],
+                                            "text": f"ISSUE-{bridge_issue_id} resolved. TASK-{tracked_task_id} resumed.",
+                                        })
+                                    if tracked_task_id is not None:
+                                        await asyncio.to_thread(
+                                            complete_bridge_task, tracked_task_id, response.json()
+                                        )
+                                    break
+                                except httpx.HTTPStatusError as exc:
+                                    if 400 <= exc.response.status_code < 500 or attempt == attempts:
+                                        raise
+                                    bridge_issue_id = await asyncio.to_thread(
+                                        open_bridge_issue, tracked_task_id, "CREATIVE_BRIDGE", exc
+                                    )
+                                except httpx.HTTPError as exc:
+                                    if attempt == attempts:
+                                        raise
+                                    bridge_issue_id = await asyncio.to_thread(
+                                        open_bridge_issue, tracked_task_id, "CREATIVE_BRIDGE", exc
+                                    )
+                                await client.post("sendMessage", json={
+                                    "chat_id": message["chat"]["id"],
+                                    "text": (
+                                        f"TASK-{tracked_task_id} blocked by ISSUE-{bridge_issue_id}. "
+                                        "Automatic bridge retry started. "
+                                        f"Inspect with /inspect ISSUE-{bridge_issue_id}."
                                     ),
-                                    json=update,
-                                    headers={"X-PTW-Bridge-Token": token},
-                                )
-                                response.raise_for_status()
+                                })
                         except httpx.HTTPStatusError as exc:
                             logger.warning("Creative service rejected request: HTTP %s", exc.response.status_code)
                             detail = ""
@@ -223,13 +428,37 @@ async def telegram_loop() -> None:
                                 detail = str(exc.response.json().get("detail", ""))
                             except (ValueError, AttributeError):
                                 pass
-                            text = detail if 400 <= exc.response.status_code < 500 and detail else "Creative service is temporarily unavailable."
+                            if tracked_task_id is not None:
+                                if bridge_issue_id is not None:
+                                    await asyncio.to_thread(
+                                        exhaust_bridge_issue, tracked_task_id, bridge_issue_id, exc
+                                    )
+                                    issue_id = bridge_issue_id
+                                else:
+                                    issue_id = await asyncio.to_thread(
+                                        fail_bridge_task, tracked_task_id, "CREATIVE_BRIDGE", exc
+                                    )
+                                text = f"TASK-{tracked_task_id} failed as ISSUE-{issue_id}. /inspect ISSUE-{issue_id}"
+                            else:
+                                text = detail if 400 <= exc.response.status_code < 500 and detail else "Creative service is temporarily unavailable."
                             await client.post("sendMessage", json={"chat_id": message["chat"]["id"], "text": text})
                         except httpx.HTTPError as exc:
                             logger.warning("Creative service forwarding failed: %s", type(exc).__name__)
+                            if tracked_task_id is not None:
+                                if bridge_issue_id is not None:
+                                    await asyncio.to_thread(
+                                        exhaust_bridge_issue, tracked_task_id, bridge_issue_id, exc
+                                    )
+                                    issue_id = bridge_issue_id
+                                else:
+                                    issue_id = await asyncio.to_thread(
+                                        fail_bridge_task, tracked_task_id, "CREATIVE_BRIDGE", exc
+                                    )
+                                failure_text = f"TASK-{tracked_task_id} failed as ISSUE-{issue_id}. /inspect ISSUE-{issue_id}"
+                            else:
+                                failure_text = "Creative service is temporarily unavailable."
                             await client.post(
-                                "sendMessage",
-                                json={"chat_id": message["chat"]["id"], "text": "Creative service is temporarily unavailable."},
+                                "sendMessage", json={"chat_id": message["chat"]["id"], "text": failure_text},
                             )
                         continue
                     accepted = await asyncio.to_thread(persist_update, message)

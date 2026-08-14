@@ -412,6 +412,46 @@ class PostgresStoreTests(unittest.TestCase):
         self.assertEqual(connection.commits, 0)
         self.assertEqual(connection.rollbacks, 1)
 
+    def test_workspace_task_registration_and_ack_are_transactional(self) -> None:
+        connection = _FakeConnection()
+        store = PostgresKnowledgeStore(connection)
+        record = store.register_workspace_task(
+            task_id="TASK-59",
+            interpreted_scope="Repair the restart-safe acknowledgement bridge.",
+            workspace_session_id="workspace-job-59",
+            chat_id=11,
+        )
+        self.assertEqual(record.status, "pending")
+        self.assertEqual(connection.commits, 1)
+        sql = "\n".join(statement for statement, _ in connection.statements)
+        self.assertIn("INSERT INTO commander_entities", sql)
+        self.assertIn("INSERT INTO commander_outbox", sql)
+        self.assertIn("INSERT INTO commander_tasks", sql)
+        self.assertLess(
+            sql.index("INSERT INTO commander_outbox"),
+            sql.index("INSERT INTO commander_tasks"),
+        )
+        payload = next(
+            params[2]
+            for statement, params in connection.statements
+            if "INSERT INTO commander_outbox" in statement
+        )
+        self.assertIn("TASK-59 accepted", str(payload))
+        self.assertIn("Repair the restart-safe acknowledgement bridge", str(payload))
+
+    def test_workspace_registration_rolls_back_if_ack_cannot_be_queued(self) -> None:
+        connection = _FakeConnection(fail_on="INSERT INTO commander_outbox")
+        store = PostgresKnowledgeStore(connection)
+        with self.assertRaises(RuntimeError):
+            store.register_workspace_task(
+                task_id="TASK-59",
+                interpreted_scope="scope",
+                workspace_session_id="session",
+                chat_id=11,
+            )
+        self.assertEqual(connection.commits, 0)
+        self.assertEqual(connection.rollbacks, 1)
+
 
 class RuntimeImageTests(unittest.TestCase):
     @unittest.skipUnless(
@@ -846,6 +886,49 @@ class RuntimeImageTests(unittest.TestCase):
         self.assertEqual(deliver_once(store, Client()), 0)
         self.assertEqual(store.failed[0][0], "message-id")
         self.assertIn("RuntimeError", store.failed[0][1])
+
+    def test_worker_records_workspace_ack_only_after_telegram_delivery(self) -> None:
+        from contextlib import contextmanager
+        from commander.worker import deliver_once
+
+        class Store:
+            acknowledged: tuple[str, int] | None = None
+            published: str | None = None
+
+            @contextmanager
+            def transaction(self):
+                yield self
+
+            def claim_outbox(self, **_: object):
+                return (
+                    OutboxMessage(
+                        "outbox-id", "telegram.send_message", new_uuid7(),
+                        {
+                            "chat_id": 11,
+                            "text": "TASK-59 accepted.\nInterpreted scope: repair bridge",
+                            "workspace_task_id": "TASK-59",
+                        },
+                        0,
+                    ),
+                )
+
+            def mark_workspace_task_acknowledged(self, task_id: str, message_id: int) -> None:
+                self.acknowledged = (task_id, message_id)
+
+            def mark_outbox_published(self, message_id: str) -> None:
+                self.published = message_id
+
+            def mark_outbox_failed(self, message_id: str, summary: str) -> None:
+                raise AssertionError((message_id, summary))
+
+        class Client:
+            def send_message(self, chat_id: int, text: str):
+                return {"message_id": 700}
+
+        store = Store()
+        self.assertEqual(deliver_once(store, Client()), 1)
+        self.assertEqual(store.acknowledged, ("TASK-59", 700))
+        self.assertEqual(store.published, "outbox-id")
 
     def test_worker_links_delivered_text_creative_for_reply_feedback(self) -> None:
         from contextlib import contextmanager

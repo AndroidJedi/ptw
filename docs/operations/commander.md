@@ -28,12 +28,20 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/003_telegram_runtime.sq
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/004_outbox_retry.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/005_feedback_weights.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/006_telegram_delivery_links.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/007_workspace_task_acknowledgements.sql
 ```
 
 Construct the database repository with `connect_postgres(DATABASE_URL)`. Domain
 entity/relationship changes and their outbox records commit or roll back
 together. An outbox worker must claim records inside `store.transaction()` and
 mark them published only after the external delivery succeeds.
+
+Codex workspace intake uses `POST /internal/workspace/tasks`. Registration of
+the `TASK-<number>`, interpreted scope, workspace session, and Telegram outbox
+message is one database transaction. The caller must poll
+`GET /internal/workspace/tasks/<TASK-ID>/acknowledgement` and must not begin
+implementation until `may_start` is true. Repeated registration with identical
+details is idempotent; reusing an ID with different details is rejected.
 
 Do not run the demo JSONL store concurrently from multiple processes.
 

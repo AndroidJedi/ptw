@@ -168,6 +168,15 @@ Image creative delivery now produces a 1080x1350 Instagram feed post. Requests
 without an attached photo receive composed branded artwork rather than the old
 gradient stub; attached photos retain their fitted, darkened treatment.
 
+Codex workspace task acceptance now has a repository-owned durable boundary.
+Commander atomically persists the external `TASK-<number>`, interpreted scope,
+workspace session and Telegram outbox item. Execution is gated on a status
+response backed by Telegram's returned message ID, and a post-restart probe is
+provided. Migration 007 adds the durable projection. Live post-restart delivery
+is not yet verified in this isolated workspace because the deployment checkout,
+runtime database, and established bot environment are unavailable; the reboot
+regression therefore remains operationally open.
+
 ## Next milestone
 
 Configure the research-provider credential, run the first real research ->

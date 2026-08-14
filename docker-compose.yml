@@ -10,6 +10,8 @@ x-app-environment: &app-environment
   POSTGRES_PORT: "5432"
   TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
   TELEGRAM_ALLOWED_USER_IDS: ${TELEGRAM_ALLOWED_USER_IDS:-}
+  WORKSPACE_TELEGRAM_USER_ID: ${WORKSPACE_TELEGRAM_USER_ID:-}
+  WORKSPACE_TELEGRAM_CHAT_ID: ${WORKSPACE_TELEGRAM_CHAT_ID:-}
   CODEX_METADATA_FILE: /run/ptw-host/codex-version
   SSH_AUTH_SOCK: /run/ptw-git-agent/agent.sock
   GIT_SSH_COMMAND: ssh -F /etc/ptw-git/ssh_config

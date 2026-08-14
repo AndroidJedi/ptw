@@ -123,6 +123,27 @@ def send_telegram(parameters: dict, text: str) -> None:
 
 
 def process_one(connection: psycopg.Connection) -> bool:
+    awaiting = connection.execute(
+        """SELECT id,session_id,parameters FROM jobs
+           WHERE status='awaiting_ack' ORDER BY created_at,id
+           FOR UPDATE SKIP LOCKED LIMIT 1"""
+    ).fetchone()
+    if awaiting:
+        job_id, session_id, parameters = awaiting
+        scope = str(parameters.get("task", ""))
+        send_telegram(
+            parameters,
+            f"Accepted job #{job_id}. I understood the task as:\n{scope}\n\n"
+            f"Work is queued and will start automatically. Cancel with /cancel {job_id}.",
+        )
+        connection.execute("UPDATE jobs SET status='queued' WHERE id=%s", (job_id,))
+        append_event(
+            connection, "ACKNOWLEDGEMENT_SENT", "commander-worker", status="sent",
+            session_id=session_id, job_id=job_id,
+            payload={"channel": "telegram", "source": "codex_workspace"},
+        )
+        connection.commit()
+        return True
     job = connection.execute(
         """
         SELECT id, session_id, type, parameters FROM jobs

@@ -148,6 +148,13 @@ hypotheses already stored by the successful request.
 a Telegram message and does not render or enqueue a Story image; other
 `/creative ...` requests retain the existing image-generation workflow.
 
+Creative delivery is non-repeating. Text hooks persist as Creative entities
+with the selected research Hypothesis UUID, base hook, delivered hook, and
+variant index. Selection prefers the best-matching least-used hypothesis and
+uses versioned copy transformations after the candidate pool is exhausted.
+Repeated rendered requests also advance a variant index and change the hook;
+identical Telegram update IDs remain idempotent and do not create variants.
+
 ## Next milestone
 
 Configure the research-provider credential, run the first real research ->

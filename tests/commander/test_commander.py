@@ -545,6 +545,19 @@ class RuntimeImageTests(unittest.TestCase):
             self.assertTrue(Path(str(delivery[0]["payload"]["path"])).is_file())
             duplicate = client.post("/telegram/webhook", json=update, headers=headers)
             self.assertEqual(duplicate.json(), {"ok": True, "duplicate": True})
+            repeated = dict(update)
+            repeated["update_id"] = 45
+            second = client.post("/telegram/webhook", json=repeated, headers=headers)
+            self.assertEqual(second.status_code, 200, second.text)
+            deliveries = [item for item in store.outbox if item["topic"] == "telegram.send_photo"]
+            self.assertEqual(len(deliveries), 2)
+            hooks = [
+                str(item.attributes.get("value"))
+                for item in store.entities(EntityKind.CREATIVE_COMPONENT)
+                if item.attributes.get("component_kind") == "hook"
+            ]
+            self.assertEqual(len(hooks), 2)
+            self.assertNotEqual(hooks[0], hooks[1])
 
     @unittest.skipUnless(
         importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
@@ -600,9 +613,10 @@ class RuntimeImageTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(
-                response.json()["result"],
-                {"hook": "They called it a phase. Keep the receipts."},
+                response.json()["result"]["hook"],
+                "They called it a phase. Keep the receipts.",
             )
+            self.assertTrue(response.json()["result"]["creative_id"])
             messages = [
                 item for item in store.outbox
                 if item["topic"] == "telegram.send_message"
@@ -614,6 +628,30 @@ class RuntimeImageTests(unittest.TestCase):
             )
             self.assertEqual(photos, [])
             self.assertEqual(list(Path(directory).rglob("*.png")), [])
+            second = client.post(
+                "/telegram/webhook",
+                json={
+                    "update_id": 44,
+                    "_ptw_task_id": 52,
+                    "message": {
+                        "from": {"id": 7}, "chat": {"id": 11},
+                        "text": "/creative hook for skeptical founders",
+                    },
+                },
+                headers={"X-Telegram-Bot-Api-Secret-Token": "s" * 32},
+            )
+            self.assertEqual(second.status_code, 200, second.text)
+            self.assertNotEqual(
+                second.json()["result"]["hook"], response.json()["result"]["hook"]
+            )
+            text_creatives = [
+                item for item in store.entities(EntityKind.CREATIVE)
+                if item.attributes.get("delivery_mode") == "text_hook"
+            ]
+            self.assertEqual(len(text_creatives), 2)
+            self.assertNotEqual(
+                text_creatives[0].attributes["hook"], text_creatives[1].attributes["hook"]
+            )
 
     @unittest.skipUnless(
         importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),

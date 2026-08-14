@@ -121,13 +121,16 @@ def create_app(
                 if _is_creative(update):
                     chat_id, user_id, text, file_id = _creative_request(update)
                     control.authorize(user_id, chat_id)
-                    text_hook = production.text_hook_from_request(text)
-                    if text_hook is not None:
+                    text_hook_result = production.text_hook_from_request(
+                        text, requested_by=f"telegram:{user_id}"
+                    )
+                    if text_hook_result is not None:
+                        text_hook, text_creative = text_hook_result
                         store.enqueue_outbox(
                             "telegram.send_message", None,
                             {"chat_id": chat_id, "text": text_hook},
                         )
-                        result = {"hook": text_hook}
+                        result = {"hook": text_hook, "creative_id": text_creative.id}
                         return {"ok": True, "duplicate": False, "result": result}
                     hero = None
                     if file_id:

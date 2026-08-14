@@ -23,6 +23,7 @@ from .openai_research import CodexCreativeResearchProvider, OpenAICreativeResear
 import os
 import re
 from .research import CreativeIdeationResearchService
+from .checkpoint import checkpoint_response, startup_checkpoint_canary
 
 
 def create_app(
@@ -48,20 +49,30 @@ def create_app(
     renderer = InstagramPostRenderer(settings.asset_directory / "generated")
     production = CreativeProductionService(commander, renderer)
     app = FastAPI(title="PTW Commander", version="0.1.0")
+    app.state.checkpoint_canary = startup_checkpoint_canary(
+        store, settings.checkpoint_max_age_seconds
+    )
+    app.state.restored_checkpoint = app.state.checkpoint_canary.get("checkpoint")
 
     @app.get("/healthz")
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
     @app.get("/readyz")
-    def ready() -> dict[str, str]:
+    def ready() -> dict[str, object]:
         try:
             with store.connection.cursor() as cursor:
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
         except Exception as error:
             raise HTTPException(status_code=503, detail="database unavailable") from error
-        return {"status": "ready"}
+        canary = app.state.checkpoint_canary
+        if settings.checkpoint_required and canary["status"] != "fresh":
+            raise HTTPException(
+                status_code=503,
+                detail=f"checkpoint startup canary: {canary['status']}",
+            )
+        return {"status": "ready", "checkpoint_canary": canary["status"]}
 
     @app.post("/telegram/webhook")
     def telegram_webhook(
@@ -127,6 +138,37 @@ def create_app(
         except KeyError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         return _workspace_ack_response(record)
+
+    @app.put("/internal/workspace/checkpoint")
+    def save_workspace_checkpoint(
+        request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, object]:
+        if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
+            raise HTTPException(status_code=403, detail="invalid bridge token")
+        try:
+            checkpoint = store.save_session_checkpoint(request)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        app.state.checkpoint_canary = checkpoint_response(
+            checkpoint, settings.checkpoint_max_age_seconds
+        )
+        app.state.restored_checkpoint = checkpoint
+        return app.state.checkpoint_canary
+
+    @app.get("/internal/workspace/checkpoint")
+    def restore_workspace_checkpoint(
+        scope: str = "commander", x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, object]:
+        if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
+            raise HTTPException(status_code=403, detail="invalid bridge token")
+        try:
+            checkpoint = store.latest_session_checkpoint(scope)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        result = checkpoint_response(checkpoint, settings.checkpoint_max_age_seconds)
+        if result["status"] == "corrupt":
+            raise HTTPException(status_code=409, detail="checkpoint integrity check failed")
+        return result
 
     @app.get("/internal/research/context/{hypothesis_id}")
     def research_context(hypothesis_id: str, x_ptw_bridge_token: str = Header(default="")) -> dict[str, object]:

@@ -10,6 +10,7 @@ from typing import Any, Callable, Iterator, Mapping, Protocol
 
 from .ids import new_uuid7
 from .model import Entity, EntityKind, Relationship
+from .checkpoint import SessionCheckpoint, checkpoint_checksum, normalize_checkpoint
 
 
 class Cursor(Protocol):
@@ -293,6 +294,74 @@ class PostgresKnowledgeStore:
             )
 
         self._write(operation)
+
+    def save_session_checkpoint(self, request: Mapping[str, object]) -> SessionCheckpoint:
+        """Append a bounded resume point; previous checkpoints remain evidence."""
+
+        payload = normalize_checkpoint(request)
+        checkpoint_id = new_uuid7()
+        checksum = checkpoint_checksum(payload)
+
+        def operation(cursor: Cursor) -> None:
+            cursor.execute(
+                """INSERT INTO commander_session_checkpoints
+                   (id, scope, workspace_session_id, version, payload, checksum)
+                   VALUES (%s, %s, %s, %s, %s::jsonb, %s)
+                   RETURNING created_at""",
+                (
+                    checkpoint_id,
+                    payload["scope"],
+                    payload["workspace_session_id"],
+                    payload["version"],
+                    json.dumps(payload, sort_keys=True),
+                    checksum,
+                ),
+            )
+
+        self._write(operation)
+        return self.session_checkpoint(checkpoint_id)
+
+    def session_checkpoint(self, checkpoint_id: str) -> SessionCheckpoint:
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT id, payload, checksum, created_at
+                   FROM commander_session_checkpoints WHERE id = %s""",
+                (checkpoint_id,),
+            )
+            row = cursor.fetchone()
+        if row is None:
+            raise KeyError(f"unknown session checkpoint: {checkpoint_id}")
+        return self._checkpoint_from_row(row)
+
+    def latest_session_checkpoint(self, scope: str = "commander") -> SessionCheckpoint:
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT id, payload, checksum, created_at
+                   FROM commander_session_checkpoints
+                   WHERE scope = %s ORDER BY created_at DESC, id DESC LIMIT 1""",
+                (scope,),
+            )
+            row = cursor.fetchone()
+        if row is None:
+            raise KeyError(f"no session checkpoint for scope: {scope}")
+        return self._checkpoint_from_row(row)
+
+    def _checkpoint_from_row(self, row: tuple[object, ...]) -> SessionCheckpoint:
+        payload = self._json(row[1])
+        return SessionCheckpoint(
+            checkpoint_id=str(row[0]),
+            scope=str(payload["scope"]),
+            workspace_session_id=str(payload["workspace_session_id"]),
+            agreed_decisions=tuple(payload["agreed_decisions"]),
+            active_tasks=tuple(payload["active_tasks"]),
+            active_issues=tuple(payload["active_issues"]),
+            deployment_state=dict(payload["deployment_state"]),
+            verification_evidence=tuple(payload["verification_evidence"]),
+            next_action=str(payload["next_action"]),
+            created_at=row[3],
+            checksum=str(row[2]),
+            version=int(payload["version"]),
+        )
 
     def record_inbox_once(self, update_id: int) -> bool:
         if self._transaction_depth == 0:

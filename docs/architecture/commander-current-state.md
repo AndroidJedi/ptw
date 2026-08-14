@@ -34,11 +34,19 @@ publishing does not exist; generated images are returned for review.
 From the repository root:
 
 ```text
-python3 -m unittest discover -s tests/commander -v  # 19 passed, 8 runtime dependency skips
+python3 -m unittest discover -s tests/commander -v  # 35 passed, 8 runtime dependency skips
 python3 -m commander.demo --output-dir .local/commander-demo  # passed
 python3 -m compileall -q commander tests/commander  # passed
 git diff --check  # passed
 ```
+
+Checkpoint coverage verifies bounded serialization, checksum corruption,
+freshness expiry, append/restore SQL behavior, and startup restoration in a new
+store instance. The standalone fresh-process verifier is implemented, but a
+live PostgreSQL invocation could not run in this isolated workspace because
+neither Docker nor PostgreSQL client/server binaries are installed. That
+post-reboot database canary remains deployment verification, not repository
+test evidence.
 
 Docker was unavailable in the isolated job workspace, and a disposable runtime
 dependency install was blocked by host disk exhaustion, so the FastAPI/Pillow
@@ -176,6 +184,15 @@ provided. Migration 007 adds the durable projection. Live post-restart delivery
 is not yet verified in this isolated workspace because the deployment checkout,
 runtime database, and established bot environment are unavailable; the reboot
 regression therefore remains operationally open.
+
+Commander/Codex sessions now have an append-only minimal-context checkpoint.
+It stores agreed decisions, active task/issue references, deployment state,
+verification evidence, and the next action without transcript replay. Migration
+008 adds the durable stream; API startup automatically restores and checks the
+latest checkpoint for SHA-256 integrity and freshness, readiness exposes the
+canary, and an authenticated workspace endpoint initializes new sessions. A
+separate-process verification command is provided. Checkpoint writes do not
+change Telegram acknowledgement or production-completion gates.
 
 ## Next milestone
 

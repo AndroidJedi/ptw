@@ -34,6 +34,8 @@ class Settings:
     openai_api_key: str = ""
     research_model: str = "gpt-5-mini"
     codex_executable: str = "/opt/ptw-codex/bin/codex"
+    checkpoint_max_age_seconds: int = 86400
+    checkpoint_required: bool = False
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -48,6 +50,9 @@ class Settings:
         if len(secret) < 32:
             raise RuntimeError("TELEGRAM_WEBHOOK_SECRET must be at least 32 characters")
         allowed_users = _ids("TELEGRAM_ALLOWED_USER_IDS")
+        checkpoint_max_age = int(os.environ.get("COMMANDER_CHECKPOINT_MAX_AGE_SECONDS", "86400"))
+        if checkpoint_max_age < 1:
+            raise RuntimeError("COMMANDER_CHECKPOINT_MAX_AGE_SECONDS must be positive")
         return cls(
             database_url=required["DATABASE_URL"],
             telegram_bot_token=required["TELEGRAM_BOT_TOKEN"],
@@ -59,4 +64,7 @@ class Settings:
             openai_api_key=os.environ.get("OPENAI_API_KEY", "").strip(),
             research_model=os.environ.get("COMMANDER_RESEARCH_MODEL", "gpt-5-mini").strip(),
             codex_executable=os.environ.get("CODEX_EXECUTABLE", "/opt/ptw-codex/bin/codex"),
+            checkpoint_max_age_seconds=checkpoint_max_age,
+            checkpoint_required=os.environ.get("COMMANDER_CHECKPOINT_REQUIRED", "false").lower()
+            in {"1", "true", "yes"},
         )

@@ -13,6 +13,7 @@ read `docs/`.
 | --- | --- | --- |
 | Commander or learning-loop architecture | [`architecture/commander-architecture-review.md`](architecture/commander-architecture-review.md) | [`PTW_Commander_Bootstrap_Addendum.md`](PTW_Commander_Bootstrap_Addendum.md) for original constraints |
 | Autonomous tasks, issues, logs, and state export | [`architecture/task-issue-cycle.md`](architecture/task-issue-cycle.md) | [`operations/telegram-runtime.md`](operations/telegram-runtime.md) for owner controls |
+| Commander/Codex session checkpoint and restore | [`architecture/session-checkpoints.md`](architecture/session-checkpoints.md) | [`operations/commander.md`](operations/commander.md) for startup verification |
 | Component ownership and validation | [`architecture/component-boundaries.md`](architecture/component-boundaries.md) | [`../project.components.json`](../project.components.json) for the executable contract |
 | Research and initial hypotheses | [`architecture/research-to-hypothesis.md`](architecture/research-to-hypothesis.md) | Commander architecture review and source-specific research material |
 | Product direction | [`../Proof_Them_Wrong_Idea_and_Strengths.md`](../Proof_Them_Wrong_Idea_and_Strengths.md) | [`../DESIGN_RULES.md`](../DESIGN_RULES.md) for UI work |

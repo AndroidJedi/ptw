@@ -35,11 +35,19 @@ class CreativeProductionService:
                 raise ValueError("hypothesis does not belong to the Instagram creative agent")
             direction = str(hypothesis.attributes.get("creative_direction") or hypothesis.attributes["claim"])
             hook, caption, cta = self._parse(direction)
+            hook = self._hook_variant(hook, self._hypothesis_usage_count(hypothesis.id))
         else:
             hook, caption, cta = self._parse(request_text)
+            variant_index = sum(
+                item.attributes.get("source_type") == "telegram_request"
+                and item.attributes.get("request") == request_text
+                for item in self.commander.store.entities(EntityKind.SOURCE)
+            )
+            hook = self._hook_variant(hook, variant_index)
             source = self.commander.create_entity(
                 EntityKind.SOURCE,
-                {"source_type": "telegram_request", "request": request_text, "actor": requested_by},
+                {"source_type": "telegram_request", "request": request_text,
+                 "actor": requested_by, "variant_index": variant_index},
                 actor=requested_by,
                 reasoning_summary="Captured the owner's creative request as provenance.",
             )
@@ -87,7 +95,9 @@ class CreativeProductionService:
             return self.commander.store.get_entity(parts[2])
         return None
 
-    def text_hook_from_request(self, request_text: str) -> str | None:
+    def text_hook_from_request(
+        self, request_text: str, *, requested_by: str = "commander"
+    ) -> tuple[str, Entity] | None:
         """Return researched text for `/creative hook [brief]`; never render it."""
 
         if "|" in request_text:
@@ -102,18 +112,67 @@ class CreativeProductionService:
             if item.attributes.get("research_type") == "creative_ideation"
             and item.attributes.get("owner_agent") == "marketing.creative.instagram"
         ]
+        selected: Entity | None = None
         if candidates:
-            def score(item: Entity) -> tuple[int, object]:
+            def score(item: Entity) -> tuple[int, int, object]:
                 searchable = " ".join(str(item.attributes.get(key, "")) for key in (
                     "research_topic", "claim", "creative_direction"
                 )).lower()
-                return sum(term in searchable for term in brief_terms), item.created_at
+                return (
+                    sum(term in searchable for term in brief_terms),
+                    -self._hypothesis_usage_count(item.id),
+                    item.created_at,
+                )
             selected = max(candidates, key=score)
             direction = str(selected.attributes.get("creative_direction") or "")
-            researched_hook = direction.partition("|")[0].strip()
-            if researched_hook:
-                return researched_hook[:180]
-        return self.DEFAULT_HOOK
+            base_hook = direction.partition("|")[0].strip() or self.DEFAULT_HOOK
+        else:
+            base_hook = self.DEFAULT_HOOK
+        variant_index = self._hook_usage_count(base_hook)
+        hook = self._hook_variant(base_hook, variant_index)
+        creative = self.commander.create_entity(
+            EntityKind.CREATIVE,
+            {
+                "delivery_mode": "text_hook",
+                "base_hook": base_hook,
+                "hook": hook,
+                "variant_index": variant_index,
+                "hypothesis_id": selected.id if selected else None,
+                "request": request_text[:500],
+            },
+            actor=requested_by,
+            reasoning_summary="Selected a non-repeating researched text-hook variant.",
+            evidence_ids=(selected.id,) if selected else (),
+        )
+        if selected:
+            self.commander.relate(creative, RelationType.GENERATED, selected)
+        return hook, creative
+
+    def _hypothesis_usage_count(self, hypothesis_id: str) -> int:
+        return sum(
+            edge.relation == RelationType.GENERATED and edge.target_id == hypothesis_id
+            for edge in self.commander.store.relationships()
+        )
+
+    def _hook_usage_count(self, base_hook: str) -> int:
+        return sum(
+            item.attributes.get("base_hook") == base_hook
+            for item in self.commander.store.entities(EntityKind.CREATIVE)
+        )
+
+    @staticmethod
+    def _hook_variant(base_hook: str, index: int) -> str:
+        if index == 0:
+            return base_hook[:180]
+        formats = (
+            "POV: {hook}",
+            "Receipt #{number}: {hook}",
+            "They doubted it. {hook}",
+            "Plot twist: {hook}",
+        )
+        return formats[(index - 1) % len(formats)].format(
+            hook=base_hook, number=index + 1
+        )[:180]
 
     @staticmethod
     def _parse(value: str) -> tuple[str, str, str]:

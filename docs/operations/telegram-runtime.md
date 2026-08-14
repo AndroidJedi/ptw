@@ -20,6 +20,12 @@ Commander replies with only hook text. A brief-bearing request remains
 text-only and selects the best matching stored creative-research hypothesis;
 it never falls through to Story rendering or image feedback.
 
+Each new creative task produces a different delivered variant. Repeating the
+same hook brief rotates through matching research hypotheses, then versioned
+copy variants; repeating a Story request changes its hook variant. Every
+selection is persisted for audit. Telegram retries with the same update ID are
+deduplicated and return no second creative.
+
 Send a text message:
 
 ```text

@@ -83,6 +83,7 @@ def create_app(
         return _process_update(update)
 
     def _process_update(update: Mapping[str, Any]) -> dict[str, object]:
+        result: dict[str, object] = {}
         try:
             update = _expand_feedback_reply(update, store)
             update_id = int(update["update_id"])
@@ -111,18 +112,27 @@ def create_app(
                             "chat_id": chat_id,
                             "path": str(path),
                             "caption": (
-                                f"Creative {creative.id}\nReady for review; not published.\n\n"
+                                f"Creative {creative.id}\n"
+                                + (f"TASK-{update['_ptw_task_id']} completed.\n" if update.get("_ptw_task_id") is not None else "")
+                                + "Ready for review; not published.\n\n"
                                 "Reply to this image with:\n/feedback 1-5 optional comment"
                             ),
                             "creative_id": creative.id,
                         },
                     )
+                    result = {"creative_id": creative.id, "artifact_id": artifact.id}
                 else:
                     reply = control.handle_update(update)
+                    task_id = update.get("_ptw_task_id")
+                    reply_text = (
+                        f"TASK-{task_id} completed.\n{reply.text}"
+                        if task_id is not None else reply.text
+                    )
                     store.enqueue_outbox(
                         "telegram.send_message", None,
-                        {"chat_id": reply.chat_id, "text": reply.text},
+                        {"chat_id": reply.chat_id, "text": reply_text},
                     )
+                    result = {"response": reply.text}
                     if reply.callback_query_id:
                         store.enqueue_outbox(
                             "telegram.answer_callback", None,
@@ -132,7 +142,7 @@ def create_app(
             raise HTTPException(status_code=403, detail="unauthorized Telegram identity") from error
         except (KeyError, TypeError, ValueError) as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
-        return {"ok": True, "duplicate": False}
+        return {"ok": True, "duplicate": False, "result": result}
 
     return app
 

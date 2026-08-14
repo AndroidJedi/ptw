@@ -577,7 +577,8 @@ class RuntimeImageTests(unittest.TestCase):
                 frozenset({7}), frozenset({11}), Path(directory),
                 ROOT / "config/commander/policies.json"
             )
-            client = TestClient(create_app(settings, Store(), TelegramClient()))
+            store = Store()
+            client = TestClient(create_app(settings, store, TelegramClient()))
             update = {
                 "update_id": 99,
                 "message": {
@@ -595,6 +596,19 @@ class RuntimeImageTests(unittest.TestCase):
                 headers={"X-PTW-Bridge-Token": "existing-bot-token"},
             )
             self.assertEqual(accepted.status_code, 200, accepted.text)
+            tracked = client.post(
+                "/internal/telegram/update",
+                json={
+                    "update_id": 100,
+                    "_ptw_task_id": 43,
+                    "message": {"from": {"id": 7}, "chat": {"id": 11}, "text": "/status"},
+                },
+                headers={"X-PTW-Bridge-Token": "existing-bot-token"},
+            )
+            self.assertEqual(tracked.status_code, 200, tracked.text)
+            messages = [item for item in store.outbox if item["topic"] == "telegram.send_message"]
+            self.assertTrue(messages[-1]["payload"]["text"].startswith("TASK-43 completed.\n"))
+            self.assertIn("response", tracked.json()["result"])
 
     def test_worker_records_delivery_failure_without_crashing(self) -> None:
         from contextlib import contextmanager

@@ -135,6 +135,15 @@ and a host-side JSON exporter can dump full or ID-scoped state for another
 agent. Policy v2 authorizes validated pull-request merges to `main`, records the
 rollback and resulting revisions, and leaves direct main pushes forbidden.
 
+Creative research and generation now enter that task contract at the existing
+poller boundary. They acknowledge a numeric `TASK-<id>` before provider work,
+propagate it through the internal creative bridge, prefix the final Telegram
+result with the same ID, and retain the structured bridge result. Transient
+bridge failures create an issue, report it, retry once, and record either resume
+or unresolved failure. This corrects the lifecycle bypass recorded as
+`TASK-43` / `ISSUE-2` without duplicating the six research sources or five
+hypotheses already stored by the successful request.
+
 ## Next milestone
 
 Configure the research-provider credential, run the first real research ->

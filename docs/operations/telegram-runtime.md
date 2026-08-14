@@ -60,6 +60,11 @@ Creative-ideation research is a separate, explicitly typed workflow:
 /research creative hooks for skeptical founders considering a public challenge
 ```
 
+Research is a tracked long-running task. Telegram first returns `TASK-<id>` and
+an `/inspect` instruction; the final source/hypothesis response begins with the
+same task ID. The operational ledger stores the bridge result. A bridge failure
+creates an inspectable issue and performs one bounded retry before failing.
+
 Commander persists bounded Source findings with canonical URLs, then creates
 only proposed hypotheses derived from those Source UUIDs. Generate from a
 returned hypothesis without copying its claim:

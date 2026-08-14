@@ -2,7 +2,7 @@
 
 Human feedback is a first-class signal, not a direct overwrite of knowledge.
 After Commander sends a generated creative, the owner replies to that Telegram
-image:
+image or text hook:
 
 ```text
 /feedback 4 Strong hook, CTA needs work
@@ -37,6 +37,11 @@ The explicit administrative form remains available:
 ```
 
 Duplicate feedback from the same actor for the same Creative UUID is rejected.
+
+Text-only `/creative hook [brief]` results include the same reply instruction
+as rendered images. Their Telegram text delivery is linked to the Creative UUID,
+and each hook Creative contains a reusable hook component so the reply creates
+an append-only WeightUpdate that can influence later component ranking.
 
 Inspect learned state from Telegram with `/graph`, `/graph weights`, or
 `/graph creative <creative-uuid>`. Reply-based feedback hides UUID management

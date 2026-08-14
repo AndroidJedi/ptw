@@ -475,6 +475,36 @@ class RuntimeImageTests(unittest.TestCase):
             f"/feedback {creative.id} 5 Strong creative",
         )
 
+    @unittest.skipUnless(
+        importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
+        "FastAPI or Pillow is not installed",
+    )
+    def test_reply_feedback_recovers_creative_from_generated_text(self) -> None:
+        from commander.api import _expand_feedback_reply
+
+        store = MemoryKnowledgeStore()
+        creative = Entity(EntityKind.CREATIVE, {"delivery_mode": "text_hook"})
+        store.add_entity(creative)
+        expanded = _expand_feedback_reply(
+            {
+                "update_id": 10,
+                "message": {
+                    "from": {"id": 7},
+                    "chat": {"id": 11},
+                    "text": "/feedback 5 Strong hook",
+                    "reply_to_message": {
+                        "message_id": 702,
+                        "text": f"Creative {creative.id}\nA strong hook",
+                    },
+                },
+            },
+            store,
+        )
+        self.assertEqual(
+            expanded["message"]["text"],
+            f"/feedback {creative.id} 5 Strong hook",
+        )
+
     @unittest.skipUnless(importlib.util.find_spec("PIL"), "Pillow is not installed")
     def test_renderer_creates_exact_story_png(self) -> None:
         from PIL import Image
@@ -624,7 +654,17 @@ class RuntimeImageTests(unittest.TestCase):
             photos = [item for item in store.outbox if item["topic"] == "telegram.send_photo"]
             self.assertEqual(
                 messages[-1]["payload"]["text"],
-                "They called it a phase. Keep the receipts.",
+                (
+                    f"Creative {response.json()['result']['creative_id']}\n"
+                    "TASK-48 completed.\n"
+                    "They called it a phase. Keep the receipts.\n\n"
+                    "Reply to this message with:\n"
+                    "/feedback 1-5 optional comment"
+                ),
+            )
+            self.assertEqual(
+                messages[-1]["payload"]["creative_id"],
+                response.json()["result"]["creative_id"],
             )
             self.assertEqual(photos, [])
             self.assertEqual(list(Path(directory).rglob("*.png")), [])
@@ -652,6 +692,33 @@ class RuntimeImageTests(unittest.TestCase):
             self.assertNotEqual(
                 text_creatives[0].attributes["hook"], text_creatives[1].attributes["hook"]
             )
+            hook_components = [
+                edge.target_id
+                for edge in store.relationships()
+                if edge.source_id == text_creatives[0].id
+                and edge.relation == RelationType.CONTAINS
+            ]
+            self.assertEqual(len(hook_components), 1)
+
+            feedback = client.post(
+                "/telegram/webhook",
+                json={
+                    "update_id": 46,
+                    "message": {
+                        "from": {"id": 7},
+                        "chat": {"id": 11},
+                        "text": "/feedback 5 Strong hook",
+                        "reply_to_message": {
+                            "message_id": 900,
+                            "text": messages[-1]["payload"]["text"],
+                        },
+                    },
+                },
+                headers={"X-Telegram-Bot-Api-Secret-Token": "s" * 32},
+            )
+            self.assertEqual(feedback.status_code, 200, feedback.text)
+            self.assertEqual(len(store.entities(EntityKind.HUMAN_FEEDBACK)), 1)
+            self.assertEqual(len(store.entities(EntityKind.WEIGHT_UPDATE)), 1)
 
     @unittest.skipUnless(
         importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
@@ -771,6 +838,46 @@ class RuntimeImageTests(unittest.TestCase):
         self.assertEqual(deliver_once(store, Client()), 0)
         self.assertEqual(store.failed[0][0], "message-id")
         self.assertIn("RuntimeError", store.failed[0][1])
+
+    def test_worker_links_delivered_text_creative_for_reply_feedback(self) -> None:
+        from contextlib import contextmanager
+        from commander.worker import deliver_once
+
+        creative_id = new_uuid7()
+
+        class Store:
+            delivery: tuple[int, int, str] | None = None
+
+            @contextmanager
+            def transaction(self):
+                yield self
+
+            def claim_outbox(self, **_: object):
+                return (
+                    OutboxMessage(
+                        "message-id",
+                        "telegram.send_message",
+                        creative_id,
+                        {"chat_id": 11, "text": "hook", "creative_id": creative_id},
+                        0,
+                    ),
+                )
+
+            def record_telegram_delivery(
+                self, chat_id: int, message_id: int, entity_id: str
+            ) -> None:
+                self.delivery = (chat_id, message_id, entity_id)
+
+            def mark_outbox_published(self, message_id: str) -> None:
+                self.published = message_id
+
+        class Client:
+            def send_message(self, chat_id: int, text: str) -> dict[str, int]:
+                return {"message_id": 901}
+
+        store = Store()
+        self.assertEqual(deliver_once(store, Client()), 1)
+        self.assertEqual(store.delivery, (11, 901, creative_id))
 
 
 if __name__ == "__main__":

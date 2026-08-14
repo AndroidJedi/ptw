@@ -144,6 +144,25 @@ class CreativeProductionService:
             reasoning_summary="Selected a non-repeating researched text-hook variant.",
             evidence_ids=(selected.id,) if selected else (),
         )
+        component = next(
+            (
+                item
+                for item in self.commander.store.entities(EntityKind.CREATIVE_COMPONENT)
+                if item.attributes.get("vertical") == "instagram"
+                and item.attributes.get("component_kind") == "hook"
+                and item.attributes.get("value") == hook
+            ),
+            None,
+        )
+        if component is None:
+            component = self.commander.create_entity(
+                EntityKind.CREATIVE_COMPONENT,
+                {"component_kind": "hook", "value": hook, "vertical": "instagram"},
+                actor=requested_by,
+                reasoning_summary="Created a reusable Instagram text-hook component.",
+                evidence_ids=(selected.id,) if selected else (creative.id,),
+            )
+        self.commander.relate(creative, RelationType.CONTAINS, component)
         if selected:
             self.commander.relate(creative, RelationType.GENERATED, selected)
         return hook, creative

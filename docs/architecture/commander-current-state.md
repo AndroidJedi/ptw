@@ -34,13 +34,16 @@ does not exist; generated images are returned for review.
 From the repository root:
 
 ```text
-python3 -m unittest discover -s tests/commander -v  # 25 passed with runtime dependencies available
+python3 -m unittest discover -s tests/commander -v  # 19 passed, 8 runtime dependency skips
 python3 -m commander.demo --output-dir .local/commander-demo  # passed
 python3 -m compileall -q commander tests/commander  # passed
 git diff --check  # passed
 ```
 
-Dart and Flutter were unavailable on the VPS, so Flutter tests were not run.
+Docker was unavailable in the isolated job workspace, and a disposable runtime
+dependency install was blocked by host disk exhaustion, so the FastAPI/Pillow
+tests could not be exercised there. Dart and Flutter were unavailable on the
+VPS, so Flutter tests were not run.
 
 The PostgreSQL migrations were also applied to a disposable `postgres:16-alpine`
 container with `ON_ERROR_STOP=1`; all 10 tables and 20 entity enum values were
@@ -154,6 +157,12 @@ variant index. Selection prefers the best-matching least-used hypothesis and
 uses versioned copy transformations after the candidate pool is exhausted.
 Repeated rendered requests also advance a variant index and change the hook;
 identical Telegram update IDs remain idempotent and do not create variants.
+
+Text-hook delivery now has the same convenient learning loop as image delivery:
+the returned message asks for a `/feedback 1-5 [comment]` reply, its Telegram
+message ID resolves to the permanent Creative UUID, and the Creative contains a
+reusable hook component that receives an append-only WeightUpdate. The embedded
+Creative UUID remains a validated fallback if a delivery-link row is missed.
 
 ## Next milestone
 

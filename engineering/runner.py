@@ -79,7 +79,7 @@ def copy_attachments(paths: list[Path], job_root: Path) -> list[Path]:
 
 
 def invoke_codex(checkout: Path, spec: Path, attachments: list[Path], output: Path,
-                 cancel_requested=None) -> subprocess.CompletedProcess:
+                 cancel_requested=None, instruction: str | None = None) -> subprocess.CompletedProcess:
     codex_home = Path(os.environ.get("CODEX_HOME", "/tmp/ptw-codex"))
     codex_home.mkdir(mode=0o700, parents=True, exist_ok=True)
     mounted_auth = Path("/run/ptw-codex-auth/auth.json")
@@ -87,7 +87,10 @@ def invoke_codex(checkout: Path, spec: Path, attachments: list[Path], output: Pa
     if mounted_auth.is_file() and not runtime_auth.exists():
         shutil.copyfile(mounted_auth, runtime_auth)
         runtime_auth.chmod(0o600)
-    prompt = "Execute the bounded engineering specification in spec.md. Inspect only relevant files. Do not push, merge, or deploy. Finish with the working tree containing the requested changes."
+    prompt = instruction or (
+        "Execute the bounded engineering specification in spec.md. Inspect only relevant files. "
+        "Do not push, merge, or deploy. Finish with the working tree containing the requested changes."
+    )
     # The worker container is the security boundary: it exposes only the task
     # workspace and narrowly scoped credentials. Nested Linux namespaces are
     # unavailable under Docker's no-new-privileges policy.

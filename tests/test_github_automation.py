@@ -5,7 +5,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from common.repositories import Repository
-from engineering.github import create_or_get_pr, pull_request_body, push_agent_branch
+from engineering.github import (create_or_get_pr, merge_pull_request,
+                                pull_request_body, push_agent_branch)
 from engineering.runner import StageFailure, ValidationResult
 
 REPO = Repository("ptw", "PTW", "git@github.com:AndroidJedi/ptw.git", "main", True, "flutter", {})
@@ -35,3 +36,14 @@ def test_pr_creation_and_deterministic_body() -> None:
     with patch("engineering.github.subprocess.run") as run:
         run.side_effect = [MagicMock(stdout="[]"), MagicMock(stdout="https://github.com/AndroidJedi/ptw/pull/43\n")]
         assert create_or_get_pr(REPO, "agent/job-1-fix", "title", body)[0] == 43
+
+
+def test_merge_records_rollback_and_resulting_main_sha() -> None:
+    with patch("engineering.github.subprocess.run") as run:
+        run.side_effect = [
+            MagicMock(stdout="a" * 40 + "\n"),
+            MagicMock(stdout=""),
+            MagicMock(stdout="b" * 40 + "\n"),
+        ]
+        assert merge_pull_request(REPO, 43) == ("a" * 40, "b" * 40)
+    assert run.call_args_list[1].args[0][0:3] == ["gh", "pr", "merge"]

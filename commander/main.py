@@ -21,7 +21,7 @@ logger = logging.getLogger("ptw.commander")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 secrets = EnvironmentSecretStore()
-SUPPORTED_COMMANDS = {"/ping", "/status", "/version", "/help", "/engineer", "/task", "/cancel"}
+SUPPORTED_COMMANDS = {"/ping", "/status", "/version", "/help", "/engineer", "/task", "/cancel", "/inspect"}
 
 
 def allowed_user_ids() -> set[int]:
@@ -93,7 +93,7 @@ def persist_update(message: dict) -> bool | int:
                 f"""SELECT j.id, j.session_id, j.status FROM jobs j
                     JOIN users u ON u.id = j.requested_by
                     WHERE u.telegram_user_id = %s AND j.type = 'engineer'
-                      AND j.status IN ('queued','running','cancel_requested') {target_clause}
+                      AND j.status IN ('queued','running','blocked','cancel_requested') {target_clause}
                     ORDER BY j.id DESC LIMIT 1 FOR UPDATE""",
                 (telegram_user_id, *target_params),
             ).fetchone()
@@ -145,7 +145,7 @@ def persist_update(message: dict) -> bool | int:
                 "engineer" if command == "/task" else command.removeprefix("/"),
                 user_id,
                 Jsonb({"chat_id": chat_id, "reply_to_message_id": message_id,
-                       "repo": "ptw", "task": engineering_task(text) if command in {"/engineer", "/task"} else ""}),
+                       "repo": "ptw", "task": engineering_task(text) if command in {"/engineer", "/task", "/inspect"} else ""}),
             ),
         ).fetchone()[0]
         if attachments:

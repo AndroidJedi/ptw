@@ -30,3 +30,23 @@ def create_or_get_pr(repository: Repository, branch: str, title: str, body: str)
     created = subprocess.run(["gh", "pr", "create", "--repo", slug, "--head", branch, "--base", repository.default_branch, "--title", title[:120], "--body", body], text=True, capture_output=True, timeout=60, check=True)
     url = created.stdout.strip()
     return int(url.rstrip("/").rsplit("/", 1)[1]), url, True
+
+
+def merge_pull_request(repository: Repository, pr_number: int) -> tuple[str, str]:
+    """Merge through GitHub and return the rollback and resulting main SHAs."""
+    slug = repository.clone_url.split(":", 1)[1].removesuffix(".git")
+    before = subprocess.run(
+        ["gh", "api", f"repos/{slug}/git/ref/heads/{repository.default_branch}", "--jq", ".object.sha"],
+        text=True, capture_output=True, timeout=30, check=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["gh", "pr", "merge", str(pr_number), "--repo", slug, "--merge", "--delete-branch"],
+        text=True, capture_output=True, timeout=120, check=True,
+    )
+    after = subprocess.run(
+        ["gh", "api", f"repos/{slug}/git/ref/heads/{repository.default_branch}", "--jq", ".object.sha"],
+        text=True, capture_output=True, timeout=30, check=True,
+    ).stdout.strip()
+    if not before or not after or before == after:
+        raise StageFailure("MAIN_MERGE", "GitHub did not report a new main revision")
+    return before, after

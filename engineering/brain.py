@@ -48,12 +48,12 @@ def render_spec(*, request: str, repository_id: str, classification: Classificat
         "Execution mode": "Specification-driven, isolated workspace, agent branch and PR only",
         "Relevant project context": context,
         "Acceptance criteria": "\n".join(f"- {item}" for item in criteria),
-        "Constraints": "- Never push main\n- Never merge or deploy production\n- Keep changes scoped",
+        "Constraints": "- Never push main directly\n- Merge only through the validated Commander policy gate\n- Keep changes scoped",
         "Likely affected areas": "- Determine with targeted rg/git inspection before editing",
         "Component catalog": component_catalog,
         "Required validation": "- Determine affected components from the final diff.\n- Run each affected component's manifest validation.\n- Run global manifest validation.\n- Do not substitute checks from another language or subsystem.",
         "Risk level": classification.risk, "Screenshots/attachments": images,
-        "Out of scope": "- Production merge/deploy and unrelated refactors", "Open questions": "- None",
+        "Out of scope": "- Unrelated refactors", "Open questions": "- None",
     }
     return "# Engineering Specification\n\n" + "\n\n".join(f"## {name}\n\n{value}" for name, value in sections.items()) + "\n"
 

@@ -20,3 +20,8 @@ def test_task_text_is_free_form_and_engineer_repo_prefix_is_optional() -> None:
 def test_tasks_can_be_cancelled() -> None:
     assert "/cancel" in SUPPORTED_COMMANDS
     assert engineering_task("/cancel 42") == "42"
+
+
+def test_issue_and_task_inspection_is_routed() -> None:
+    assert "/inspect" in SUPPORTED_COMMANDS
+    assert engineering_task("/inspect ISSUE-7") == "ISSUE-7"

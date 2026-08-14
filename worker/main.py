@@ -15,6 +15,7 @@ from common.events import append_event
 from common.secrets import EnvironmentSecretStore
 from common.telegram import send_telegram as send_telegram_message
 from engineering.service import execute_engineering_job
+from engineering.issues import create_issue, render_reference, transition_issue
 from engineering.runner import JobCancelled, StageFailure
 
 logging.basicConfig(
@@ -86,23 +87,33 @@ def status_response(connection: psycopg.Connection) -> str:
     checks["Disk"] = usage.free >= 512 * 1024 * 1024
     queued = connection.execute("SELECT count(*) FROM jobs WHERE status = 'queued'").fetchone()[0]
     failed = connection.execute("SELECT count(*) FROM jobs WHERE status = 'failed'").fetchone()[0]
+    blocked = connection.execute("SELECT count(*) FROM jobs WHERE status = 'blocked'").fetchone()[0]
+    issues = connection.execute(
+        "SELECT count(*) FROM engineering_issues WHERE status IN ('open','resolving','unresolved')"
+    ).fetchone()[0]
     lines = ["PTW Commander v0.1"]
     lines.extend(f"{name:<14}{'✅' if ok else '❌'}" for name, ok in checks.items())
-    lines.extend((f"Queued jobs: {queued}", f"Failed jobs: {failed}"))
+    lines.extend((f"Queued jobs: {queued}", f"Blocked jobs: {blocked}",
+                  f"Failed jobs: {failed}", f"Open/unresolved issues: {issues}"))
     return "\n".join(lines)
 
 
-def execute_job(connection: psycopg.Connection, job_type: str, job_id: int | None = None, parameters: dict | None = None) -> str:
+def execute_job(connection: psycopg.Connection, job_type: str, job_id: int | None = None,
+                parameters: dict | None = None, reporter=None) -> str:
     if job_type == "ping":
         return "pong"
     if job_type == "version":
         return "PTW Commander v0.1"
     if job_type == "help":
-        return "PTW Commander v0.5\n/task <request> - freely describe a fix, implementation, or change\n/cancel [job-id] - interrupt your latest queued or running task\n/research creative <topic> - research sourced ideas into the creative agent graph\n/graph hypotheses - inspect hypotheses and source IDs\n/graph weights - inspect learned component weights\n/creative from <hypothesis-id> - generate from graph research\n/creative <hook> | <caption> | <CTA> - generate an Instagram Story directly\n/feedback <creative-id> <1-5> [comment] - rate a creative (or reply to its image)\n/engineer repo=ptw <task> - compatibility alias for engineering tasks\n/ping - test job execution\n/status - dependency status\n/version - show version\n/help - show commands"
+        return "PTW Commander v0.6\n/task <request> - freely describe a fix, implementation, or change\n/inspect TASK-<id>|ISSUE-<id> - inspect task state, issue details, and logs\n/cancel [job-id] - interrupt your latest queued, running, or blocked task\n/research creative <topic> - research sourced ideas into the creative agent graph\n/graph hypotheses - inspect hypotheses and source IDs\n/graph weights - inspect learned component weights\n/creative from <hypothesis-id> - generate from graph research\n/creative <hook> | <caption> | <CTA> - generate an Instagram Story directly\n/feedback <creative-id> <1-5> [comment] - rate a creative (or reply to its image)\n/engineer repo=ptw <task> - compatibility alias for engineering tasks\n/ping - test job execution\n/status - dependency status\n/version - show version\n/help - show commands"
     if job_type == "status":
         return status_response(connection)
+    if job_type == "inspect" and parameters is not None:
+        if not parameters.get("task"):
+            raise ValueError("usage: /inspect TASK-<id> or /inspect ISSUE-<id>")
+        return render_reference(connection, parameters["task"])
     if job_type == "engineer" and job_id is not None and parameters is not None:
-        return execute_engineering_job(connection, job_id, parameters)
+        return execute_engineering_job(connection, job_id, parameters, reporter=reporter)
     raise ValueError(f"Unsupported job type: {job_type}")
 
 
@@ -133,7 +144,12 @@ def process_one(connection: psycopg.Connection) -> bool:
     )
     connection.commit()
     try:
-        text = execute_job(connection, job_type, job_id, parameters)
+        if job_type == "engineer":
+            send_telegram(parameters, f"TASK-{job_id} started. Stage and issue updates will be reported automatically. Use /inspect TASK-{job_id} at any time.")
+        text = execute_job(
+            connection, job_type, job_id, parameters,
+            reporter=lambda update: send_telegram(parameters, update),
+        )
         send_telegram(parameters, text)
         connection.execute(
             "UPDATE jobs SET status = 'completed', result = %s, finished_at = now() WHERE id = %s",
@@ -160,17 +176,30 @@ def process_one(connection: psycopg.Connection) -> bool:
     except Exception as exc:
         logger.warning("Job %s failed: %s", job_id, type(exc).__name__)
         stage = exc.stage if isinstance(exc, StageFailure) else "EXECUTION"
+        existing_issue = connection.execute(
+            """SELECT id FROM engineering_issues WHERE job_id=%s
+               AND status IN ('open','resolving','unresolved') ORDER BY id DESC LIMIT 1""",
+            (job_id,),
+        ).fetchone()
+        issue_id = existing_issue[0] if existing_issue else create_issue(
+            connection, job_id=job_id, stage=stage, error=exc
+        )
+        if not existing_issue:
+            transition_issue(
+                connection, issue_id, "unresolved",
+                summary="Failure occurred outside a safely resumable stage; manual interference is required",
+            )
         connection.execute(
             """
             UPDATE jobs SET status = 'failed', error_code = %s, error_message = %s,
                             finished_at = now() WHERE id = %s
             """,
-            (type(exc).__name__, "Job execution failed; inspect service logs", job_id),
+            (type(exc).__name__, f"ISSUE-{issue_id}: inspect the retained sanitized issue log", job_id),
         )
         append_event(
             connection, "JOB_FAILED", "commander-worker", status="failed",
             session_id=session_id, job_id=job_id,
-            payload={"error_type": type(exc).__name__},
+            payload={"error_type": type(exc).__name__, "issue_id": issue_id, "stage": stage},
         )
         if isinstance(exc, StageFailure):
             connection.execute(
@@ -184,7 +213,8 @@ def process_one(connection: psycopg.Connection) -> bool:
         try:
             send_telegram(
                 parameters,
-                f"Engineering job #{job_id} failed during {stage}. No changes were deployed. Please retry or report this job ID.",
+                f"TASK-{job_id} failed during {stage}; ISSUE-{issue_id} is retained as unresolved. "
+                f"No changes were deployed. Inspect with /inspect ISSUE-{issue_id}.",
             )
         except Exception as notification_error:
             logger.warning(

@@ -146,7 +146,13 @@ def execute_engineering_job(
     component_manifest = load_manifest(checkout)
     spec_path.write_text(render_spec(request=request, repository_id=repository_id, classification=classification,
                                      memory=memory, attachments=[str(path) for path in attachment_paths],
-                                     component_catalog=describe_manifest(component_manifest)), encoding="utf-8")
+                                     component_catalog=describe_manifest(component_manifest),
+                                     research_context=parameters.get("research_context")), encoding="utf-8")
+    if parameters.get("research_context"):
+        event(connection, "RESEARCH_CONTEXT_CONSUMED", job_id, "completed", {
+            "hypothesis_id": parameters["research_context"].get("hypothesis_id"),
+            "owner_agent": parameters["research_context"].get("owner_agent"),
+        })
     event(connection, "ENGINEERING_SPEC_CREATED", job_id, "completed", {"task_class":classification.task_class, "risk":classification.risk})
     steps = decompose(request, classification)
     if steps: event(connection, "ENGINEERING_TASK_DECOMPOSED", job_id, "completed", {"child_count":len(steps)})

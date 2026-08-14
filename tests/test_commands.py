@@ -1,6 +1,6 @@
 from commander.main import (SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
                             engineering_task, normalized_command, public_health,
-                            safe_bridge_error)
+                            safe_bridge_error, task_research_reference)
 
 
 def test_command_routing_is_deterministic() -> None:
@@ -36,3 +36,10 @@ def test_long_running_creative_commands_require_task_lifecycle() -> None:
 
 def test_bridge_errors_are_secret_scrubbed() -> None:
     assert safe_bridge_error(RuntimeError("token=hidden")) == "RuntimeError: token=[REDACTED]"
+
+
+def test_task_can_consume_an_explicit_research_hypothesis() -> None:
+    assert task_research_reference("from abc-123 implement onboarding") == (
+        "abc-123", "implement onboarding"
+    )
+    assert task_research_reference("implement onboarding") == (None, "implement onboarding")

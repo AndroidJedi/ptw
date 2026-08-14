@@ -57,6 +57,28 @@ def engineering_task(text: str) -> str:
     return task
 
 
+def task_research_reference(task: str) -> tuple[str | None, str]:
+    if not task.lower().startswith("from "):
+        return None, task
+    parts = task.split(maxsplit=2)
+    if len(parts) < 3:
+        raise ValueError("usage: /task from <hypothesis-id> <request>")
+    return parts[1], parts[2]
+
+
+def fetch_research_context(hypothesis_id: str) -> dict:
+    response = httpx.get(
+        os.getenv("CREATIVE_SERVICE_URL", "http://ptw-creative-api:8080/internal/telegram/update")
+        .replace("/telegram/update", f"/research/context/{hypothesis_id}"),
+        headers={"X-PTW-Bridge-Token": secrets.get("TELEGRAM_BOT_TOKEN")}, timeout=15,
+    )
+    response.raise_for_status()
+    context = response.json()
+    if context.get("owner_agent") == "marketing.creative.instagram":
+        raise ValueError("creative research must be consumed with /creative from <hypothesis-id>")
+    return context
+
+
 def persist_update(message: dict) -> bool | int:
     sender = message.get("from") or {}
     telegram_user_id = sender.get("id")
@@ -145,6 +167,16 @@ def persist_update(message: dict) -> bool | int:
                 """SELECT local_path FROM telegram_attachments WHERE telegram_user_id=%s
                    AND status='pending' AND expires_at>now() AND local_path IS NOT NULL
                    ORDER BY created_at DESC LIMIT 3""", (telegram_user_id,)).fetchall()]
+        task_text = engineering_task(text) if command in {"/engineer", "/task", "/inspect"} else ""
+        research_context = None
+        if command in {"/engineer", "/task"}:
+            research_id, task_text = task_research_reference(task_text)
+            if research_id:
+                research_context = fetch_research_context(research_id)
+        parameters = {"chat_id": chat_id, "reply_to_message_id": message_id,
+                      "repo": "ptw", "task": task_text}
+        if research_context:
+            parameters["research_context"] = research_context
         job_id = connection.execute(
             """
             INSERT INTO jobs (session_id, type, status, requested_by, parameters)
@@ -154,8 +186,7 @@ def persist_update(message: dict) -> bool | int:
                 session_id,
                 "engineer" if command == "/task" else command.removeprefix("/"),
                 user_id,
-                Jsonb({"chat_id": chat_id, "reply_to_message_id": message_id,
-                       "repo": "ptw", "task": engineering_task(text) if command in {"/engineer", "/task", "/inspect"} else ""}),
+                Jsonb(parameters),
             ),
         ).fetchone()[0]
         if attachments:

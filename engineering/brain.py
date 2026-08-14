@@ -39,14 +39,28 @@ def acceptance_criteria(request: str) -> list[str]:
 
 def render_spec(*, request: str, repository_id: str, classification: Classification,
                 memory: list[dict], attachments: list[str] | None = None,
-                component_catalog: str = "- No component manifest available") -> str:
+                component_catalog: str = "- No component manifest available",
+                research_context: dict | None = None) -> str:
     criteria = acceptance_criteria(request)
     context = "\n".join(f"- [{item['category']}] {item['content']} (source: {item['source_reference']})" for item in memory) or "- No matching accepted project rules."
     images = "\n".join(f"- {path}" for path in attachments or []) or "- None"
+    research = "- None"
+    if research_context:
+        sources = "\n".join(
+            f"- {item.get('title')} ({item.get('uri')}): {item.get('summary')}"
+            for item in research_context.get("sources", [])
+        )
+        research = (
+            f"- Hypothesis: {research_context.get('hypothesis_id')}\n"
+            f"- Owning agent: {research_context.get('owner_agent')}\n"
+            f"- Claim: {research_context.get('claim')}\n"
+            f"- Direction: {research_context.get('direction')}\n- Sources:\n{sources}"
+        )
     sections = {
         "Goal": request.strip(), "User request": request.strip(), "Repository": repository_id,
         "Execution mode": "Specification-driven, isolated workspace, agent branch and PR only",
         "Relevant project context": context,
+        "Assigned research evidence": research,
         "Acceptance criteria": "\n".join(f"- {item}" for item in criteria),
         "Constraints": "- Never push main directly\n- Merge only through the validated Commander policy gate\n- Keep changes scoped",
         "Likely affected areas": "- Determine with targeted rg/git inspection before editing",

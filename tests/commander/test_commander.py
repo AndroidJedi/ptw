@@ -5,7 +5,7 @@ import importlib.util
 import tempfile
 import unittest
 import uuid
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from commander.demo import run_demo
@@ -21,6 +21,9 @@ from commander.research import (
 )
 from commander.store import JsonlKnowledgeStore, MemoryKnowledgeStore
 from commander.telegram import TelegramControlPlane, TelegramUnauthorized
+from commander.checkpoint import (
+    SessionCheckpoint, checkpoint_checksum, normalize_checkpoint,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -101,6 +104,70 @@ class ContextBrokerTests(unittest.TestCase):
         )
         with self.assertRaises(KeyError):
             broker.retrieve("read_everything")
+
+
+class SessionCheckpointTests(unittest.TestCase):
+    def payload(self) -> dict[str, object]:
+        return normalize_checkpoint({
+            "scope": "commander",
+            "workspace_session_id": "job-62",
+            "agreed_decisions": [{"decision": "merge is not deployment"}],
+            "active_tasks": [{"id": "TASK-62", "status": "running"}],
+            "active_issues": [{"id": "ISSUE-4", "status": "resolved"}],
+            "deployment_state": {"main": "abc", "production": "unverified"},
+            "verification_evidence": [{"command": "unit tests", "passed": True}],
+            "next_action": "Run the fresh-process restore canary.",
+        })
+
+    def checkpoint(self, *, age_seconds: int = 0, checksum: str | None = None):
+        payload = self.payload()
+        return SessionCheckpoint(
+            checkpoint_id=new_uuid7(),
+            scope=str(payload["scope"]),
+            workspace_session_id=str(payload["workspace_session_id"]),
+            agreed_decisions=tuple(payload["agreed_decisions"]),
+            active_tasks=tuple(payload["active_tasks"]),
+            active_issues=tuple(payload["active_issues"]),
+            deployment_state=dict(payload["deployment_state"]),
+            verification_evidence=tuple(payload["verification_evidence"]),
+            next_action=str(payload["next_action"]),
+            created_at=datetime.now(timezone.utc) - timedelta(seconds=age_seconds),
+            checksum=checksum or checkpoint_checksum(payload),
+        )
+
+    def test_checkpoint_contains_only_bounded_resume_fields_and_validates_integrity(self) -> None:
+        checkpoint = self.checkpoint()
+        self.assertEqual(checkpoint.restore_status(60), "fresh")
+        self.assertNotIn("transcript", checkpoint.payload())
+        self.assertEqual(checkpoint.next_action, "Run the fresh-process restore canary.")
+
+    def test_checkpoint_reports_stale_and_corrupt_state(self) -> None:
+        self.assertEqual(self.checkpoint(age_seconds=61).restore_status(60), "stale")
+        self.assertEqual(self.checkpoint(checksum="0" * 64).restore_status(60), "corrupt")
+
+    def test_checkpoint_rejects_unbounded_or_missing_resume_state(self) -> None:
+        request = self.payload()
+        request["active_tasks"] = [{}] * 101
+        with self.assertRaisesRegex(ValueError, "at most 100"):
+            normalize_checkpoint(request)
+        request = self.payload()
+        request["next_action"] = ""
+        with self.assertRaisesRegex(ValueError, "next_action"):
+            normalize_checkpoint(request)
+
+    def test_startup_canary_restores_latest_checkpoint(self) -> None:
+        from commander.checkpoint import startup_checkpoint_canary
+
+        checkpoint = self.checkpoint()
+
+        class Store:
+            def latest_session_checkpoint(self, scope: str):
+                self.scope = scope
+                return checkpoint
+
+        result = startup_checkpoint_canary(Store(), 60)
+        self.assertEqual(result["status"], "fresh")
+        self.assertEqual(result["checkpoint"]["next_action"], checkpoint.next_action)
 
 
 class ResearchKnowledgeTests(unittest.TestCase):
@@ -370,6 +437,8 @@ class _FakeCursor:
             raise RuntimeError("injected database failure")
 
     def fetchone(self):
+        if self.connection.fetchone_results:
+            return self.connection.fetchone_results.pop(0)
         return None
 
     def fetchall(self):
@@ -377,8 +446,12 @@ class _FakeCursor:
 
 
 class _FakeConnection:
-    def __init__(self, *, fail_on: str | None = None) -> None:
+    def __init__(
+        self, *, fail_on: str | None = None,
+        fetchone_results: list[tuple[object, ...] | None] | None = None,
+    ) -> None:
         self.fail_on = fail_on
+        self.fetchone_results = list(fetchone_results or [])
         self.statements: list[tuple[str, tuple[object, ...]]] = []
         self.commits = 0
         self.rollbacks = 0
@@ -451,6 +524,31 @@ class PostgresStoreTests(unittest.TestCase):
             )
         self.assertEqual(connection.commits, 0)
         self.assertEqual(connection.rollbacks, 1)
+
+    def test_session_checkpoint_is_appended_then_restored_by_id(self) -> None:
+        payload = normalize_checkpoint({
+            "scope": "commander",
+            "workspace_session_id": "job-62",
+            "agreed_decisions": [],
+            "active_tasks": [{"id": "TASK-62"}],
+            "active_issues": [],
+            "deployment_state": {"production": "unverified"},
+            "verification_evidence": [{"tests": "passed"}],
+            "next_action": "Continue from the durable checkpoint.",
+        })
+        checkpoint_id = new_uuid7()
+        created_at = datetime.now(timezone.utc)
+        connection = _FakeConnection(fetchone_results=[(
+            checkpoint_id, json.dumps(payload), checkpoint_checksum(payload), created_at,
+        )])
+        store = PostgresKnowledgeStore(connection)
+        restored = store.save_session_checkpoint(payload)
+        self.assertEqual(restored.next_action, payload["next_action"])
+        self.assertTrue(restored.integrity_valid())
+        self.assertEqual(connection.commits, 1)
+        sql = "\n".join(statement for statement, _ in connection.statements)
+        self.assertIn("INSERT INTO commander_session_checkpoints", sql)
+        self.assertIn("FROM commander_session_checkpoints WHERE id", sql)
 
 
 class RuntimeImageTests(unittest.TestCase):

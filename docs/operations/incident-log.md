@@ -2,6 +2,23 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-14 — Session decisions and execution state were lost after reboot
+
+- Impact: a new Commander/Codex process could recover task acceptance but not
+  the compact set of decisions, open work, deployment truth, verification
+  evidence, and next action needed to resume safely. Operators had to replay
+  conversational context and could confuse a merge with a verified release.
+- Cause: durable task acknowledgement and graph state existed, but there was no
+  versioned session-level resume record or startup integrity/freshness check.
+- Correction: Commander now appends bounded PostgreSQL checkpoints with a
+  server-computed checksum, restores the latest checkpoint at startup and for
+  new sessions, exposes the startup canary in readiness, and provides a
+  fresh-process verification command.
+- Prevention: checkpoint fields remain minimal and secret-scrubbed; stale or
+  corrupt state is explicit, required-checkpoint mode can block readiness, and
+  Telegram acknowledgement plus live production verification retain their
+  separate completion gates.
+
 ## 2026-08-14 — Workspace task acknowledgements disappeared after reboot
 
 - Tracking issue: [GitHub issue #10](https://github.com/AndroidJedi/ptw/issues/10),

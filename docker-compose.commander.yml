@@ -42,6 +42,8 @@ services:
       COMMANDER_ASSET_DIR: /var/lib/ptw/assets
       CODEX_HOME: /run/ptw-auth
       CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
+      COMMANDER_CHECKPOINT_MAX_AGE_SECONDS: ${COMMANDER_CHECKPOINT_MAX_AGE_SECONDS:-86400}
+      COMMANDER_CHECKPOINT_REQUIRED: ${COMMANDER_CHECKPOINT_REQUIRED:-false}
     volumes:
       - commander-assets:/var/lib/ptw/assets
       - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro

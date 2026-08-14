@@ -414,7 +414,10 @@ class PostgresStoreTests(unittest.TestCase):
 
 
 class RuntimeImageTests(unittest.TestCase):
-    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is not installed")
+    @unittest.skipUnless(
+        importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
+        "FastAPI or Pillow is not installed",
+    )
     def test_reply_feedback_resolves_telegram_message_to_creative_uuid(self) -> None:
         from commander.api import _expand_feedback_reply
 
@@ -439,7 +442,10 @@ class RuntimeImageTests(unittest.TestCase):
             f"/feedback {creative.id} 4 CTA needs work",
         )
 
-    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is not installed")
+    @unittest.skipUnless(
+        importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
+        "FastAPI or Pillow is not installed",
+    )
     def test_reply_feedback_recovers_creative_from_generated_caption(self) -> None:
         from commander.api import _expand_feedback_reply
 
@@ -486,7 +492,10 @@ class RuntimeImageTests(unittest.TestCase):
                 self.assertEqual(image.format, "PNG")
             self.assertEqual(len(digest), 64)
 
-    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is not installed")
+    @unittest.skipUnless(
+        importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
+        "FastAPI or Pillow is not installed",
+    )
     def test_webhook_creates_image_and_deduplicates_update(self) -> None:
         from fastapi.testclient import TestClient
         from commander.api import create_app
@@ -537,7 +546,72 @@ class RuntimeImageTests(unittest.TestCase):
             duplicate = client.post("/telegram/webhook", json=update, headers=headers)
             self.assertEqual(duplicate.json(), {"ok": True, "duplicate": True})
 
-    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is not installed")
+    @unittest.skipUnless(
+        importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
+        "FastAPI or Pillow is not installed",
+    )
+    def test_creative_hook_returns_text_without_rendering_image(self) -> None:
+        from fastapi.testclient import TestClient
+        from commander.api import create_app
+        from commander.settings import Settings
+
+        class InboxStore(MemoryKnowledgeStore):
+            connection = _FakeConnection()
+
+            def record_inbox_once(self, update_id: int) -> bool:
+                return True
+
+        class TelegramClient:
+            def download_photo(self, file_id: str, destination: Path) -> Path:
+                raise AssertionError("text-only hooks must not download a photo")
+
+        with tempfile.TemporaryDirectory() as directory:
+            settings = Settings(
+                database_url="unused",
+                telegram_bot_token="unused",
+                telegram_webhook_secret="s" * 32,
+                allowed_user_ids=frozenset({7}),
+                allowed_chat_ids=frozenset({11}),
+                asset_directory=Path(directory),
+                policy_path=ROOT / "config/commander/policies.json",
+            )
+            store = InboxStore()
+            client = TestClient(create_app(settings, store, TelegramClient()))
+            response = client.post(
+                "/telegram/webhook",
+                json={
+                    "update_id": 43,
+                    "_ptw_task_id": 48,
+                    "message": {
+                        "from": {"id": 7},
+                        "chat": {"id": 11},
+                        "text": "/creative@ptw_commander_bot hook",
+                    },
+                },
+                headers={"X-Telegram-Bot-Api-Secret-Token": "s" * 32},
+            )
+
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(
+                response.json()["result"],
+                {"hook": "They said you couldn't. Prove them wrong."},
+            )
+            messages = [
+                item for item in store.outbox
+                if item["topic"] == "telegram.send_message"
+            ]
+            photos = [item for item in store.outbox if item["topic"] == "telegram.send_photo"]
+            self.assertEqual(
+                messages[-1]["payload"]["text"],
+                "They said you couldn't. Prove them wrong.",
+            )
+            self.assertEqual(photos, [])
+            self.assertEqual(list(Path(directory).rglob("*.png")), [])
+
+    @unittest.skipUnless(
+        importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
+        "FastAPI or Pillow is not installed",
+    )
     def test_webhook_rejects_wrong_secret(self) -> None:
         from fastapi.testclient import TestClient
         from commander.api import create_app
@@ -558,7 +632,10 @@ class RuntimeImageTests(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 403)
 
-    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is not installed")
+    @unittest.skipUnless(
+        importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
+        "FastAPI or Pillow is not installed",
+    )
     def test_existing_poller_bridge_requires_shared_bot_token(self) -> None:
         from fastapi.testclient import TestClient
         from commander.api import create_app

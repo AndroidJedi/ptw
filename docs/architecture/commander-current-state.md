@@ -34,7 +34,7 @@ does not exist; generated images are returned for review.
 From the repository root:
 
 ```text
-python3 -m unittest discover -s tests/commander -v  # 18 passed; 5 runtime tests skip without optional dependencies
+python3 -m unittest discover -s tests/commander -v  # 25 passed with runtime dependencies available
 python3 -m commander.demo --output-dir .local/commander-demo  # passed
 python3 -m compileall -q commander tests/commander  # passed
 git diff --check  # passed
@@ -53,7 +53,7 @@ persisted 41 entities, 62 pending outbox messages, and the ordered experiment
 states `running`, `completed`, and `evaluated`. No deployed PTW database was
 accessed.
 
-The complete dependency image runs all 23 tests. The actual local HTTP webhook
+The complete dependency environment runs all 25 tests. The actual local HTTP webhook
 -> PostgreSQL -> renderer -> outbox path was exercised: it persisted 18
 entities, queued one Telegram photo delivery, and produced a verified 1080x1920
 PNG. Synthetic state was removed afterward.
@@ -143,6 +143,10 @@ bridge failures create an issue, report it, retry once, and record either resume
 or unresolved failure. This corrects the lifecycle bypass recorded as
 `TASK-43` / `ISSUE-2` without duplicating the six research sources or five
 hypotheses already stored by the successful request.
+
+`/creative hook` is an explicit text-only mode. It returns a challenge hook as
+a Telegram message and does not render or enqueue a Story image; other
+`/creative ...` requests retain the existing image-generation workflow.
 
 ## Next milestone
 

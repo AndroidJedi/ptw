@@ -10,6 +10,15 @@ worker uses the same bot identity to return generated images.
 
 ## Available command
 
+Request one hook as a Telegram text message, without generating an image:
+
+```text
+/creative hook
+```
+
+Commander replies with only the hook text. This mode does not create a Story
+image or request image feedback.
+
 Send a text message:
 
 ```text

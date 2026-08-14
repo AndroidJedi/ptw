@@ -2,6 +2,22 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-14 — Task 48 merged but hook behavior was not deployed
+
+- Impact: `/creative hook <brief>` still returned an image after Telegram said
+  Task 48 was resolved.
+- Cause: the implementation matched only the exact two-token command
+  `/creative hook`; useful brief-bearing requests fell through to Story
+  rendering. The runner also treated a GitHub main merge as proof that the
+  unrelated production checkout had rebuilt, although no deploy pipeline ran.
+- Correction: all `/creative hook [brief]` requests are text-only and select a
+  matching stored research hook. Production was explicitly rebuilt and live
+  behavior verified. The platform policy now marks main-only releases as
+  deployment-unverified instead of claiming production completion.
+- Prevention: regression coverage includes a brief-bearing hook request and
+  asserts no photo outbox or PNG. Completion requires deployed behavior
+  evidence, not only a merge SHA.
+
 ## 2026-08-13 — Feedback replies failed without a delivery-link row
 
 - Impact: valid `/feedback <1-5> [comment]` replies could be surfaced by the

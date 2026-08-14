@@ -576,6 +576,13 @@ class RuntimeImageTests(unittest.TestCase):
                 policy_path=ROOT / "config/commander/policies.json",
             )
             store = InboxStore()
+            store.add_entity(Entity(EntityKind.HYPOTHESIS, {
+                "research_type": "creative_ideation",
+                "owner_agent": "marketing.creative.instagram",
+                "research_topic": "successful accountability apps skeptical founders",
+                "claim": "Specific antagonist quotes increase retention",
+                "creative_direction": "They called it a phase. Keep the receipts. | Proof screen | START",
+            }))
             client = TestClient(create_app(settings, store, TelegramClient()))
             response = client.post(
                 "/telegram/webhook",
@@ -585,7 +592,7 @@ class RuntimeImageTests(unittest.TestCase):
                     "message": {
                         "from": {"id": 7},
                         "chat": {"id": 11},
-                        "text": "/creative@ptw_commander_bot hook",
+                        "text": "/creative@ptw_commander_bot hook for skeptical founders",
                     },
                 },
                 headers={"X-Telegram-Bot-Api-Secret-Token": "s" * 32},
@@ -594,7 +601,7 @@ class RuntimeImageTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(
                 response.json()["result"],
-                {"hook": "They said you couldn't. Prove them wrong."},
+                {"hook": "They called it a phase. Keep the receipts."},
             )
             messages = [
                 item for item in store.outbox
@@ -603,7 +610,7 @@ class RuntimeImageTests(unittest.TestCase):
             photos = [item for item in store.outbox if item["topic"] == "telegram.send_photo"]
             self.assertEqual(
                 messages[-1]["payload"]["text"],
-                "They said you couldn't. Prove them wrong.",
+                "They called it a phase. Keep the receipts.",
             )
             self.assertEqual(photos, [])
             self.assertEqual(list(Path(directory).rglob("*.png")), [])

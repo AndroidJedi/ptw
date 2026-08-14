@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 
 from .research import CreativeResearchResult, HypothesisProposal, ResearchFinding
+from .research_agents import RESEARCH_AGENTS, ResearchAgent
 
 
 class OpenAICreativeResearchProvider:
@@ -22,7 +23,7 @@ class OpenAICreativeResearchProvider:
         self.model = model
         self.timeout_seconds = timeout_seconds
 
-    def research(self, topic: str) -> CreativeResearchResult:
+    def research(self, topic: str, *, agent: ResearchAgent = RESEARCH_AGENTS["creative"]) -> CreativeResearchResult:
         schema = {
             "type": "object",
             "properties": {
@@ -42,7 +43,7 @@ class OpenAICreativeResearchProvider:
             "model": self.model,
             "tools": [{"type": "web_search"}],
             "input": (
-                "Research this topic only for Instagram creative ideation: " + topic +
+                f"Act as {agent.owner_agent}. Research this topic for {agent.scope}: " + topic +
                 ". Find reliable, directly relevant web sources. Produce concise findings and falsifiable "
                 "creative hypotheses. Every hypothesis must reference zero-based indexes in findings; never "
                 "present interpretation as fact. Use canonical source URLs, not search-result URLs."
@@ -77,7 +78,7 @@ class CodexCreativeResearchProvider:
         self.executable = executable
         self.timeout_seconds = timeout_seconds
 
-    def research(self, topic: str) -> CreativeResearchResult:
+    def research(self, topic: str, *, agent: ResearchAgent = RESEARCH_AGENTS["creative"]) -> CreativeResearchResult:
         schema = {
             "type": "object", "additionalProperties": False,
             "properties": {
@@ -93,10 +94,10 @@ class CodexCreativeResearchProvider:
             }, "required": ["findings", "hypotheses"],
         }
         prompt = (
-            "Act only as the PTW Instagram creative research agent. Browse the web and research: " + topic +
-            ". Identify viral hook patterns and corresponding image concepts relevant to Proof Them Wrong. "
-            "Return 2-6 concise sourced findings and 1-5 falsifiable creative hypotheses. In each "
-            "creative_direction use exactly: hook | image concept and caption | CTA. Cite canonical source "
+            f"Act only as PTW research agent {agent.owner_agent}. Research {agent.scope}: " + topic +
+            ". Return 2-6 concise sourced findings and 1-5 falsifiable hypotheses for the owning agent to consume. "
+            "For creative research, creative_direction uses: hook | image concept and caption | CTA. For other "
+            "agents it contains a concrete evidence-based task direction. Cite canonical source "
             "URLs in source_uri. Do not write code, inspect repositories, or make engineering recommendations."
         )
         with tempfile.TemporaryDirectory(prefix="ptw-research-") as directory:

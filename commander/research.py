@@ -8,6 +8,7 @@ from typing import Iterable, Protocol
 
 from .model import Entity, EntityKind
 from .service import Commander
+from .research_agents import RESEARCH_AGENTS, ResearchAgent
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +33,8 @@ class ResearchKnowledgeService:
     def __init__(self, commander: Commander) -> None:
         self.commander = commander
 
-    def record_finding(self, finding: ResearchFinding, *, actor: str) -> Entity:
+    def record_finding(self, finding: ResearchFinding, *, actor: str,
+                       agent: ResearchAgent = RESEARCH_AGENTS["creative"]) -> Entity:
         return self.commander.create_entity(
             EntityKind.SOURCE,
             {
@@ -45,8 +47,8 @@ class ResearchKnowledgeService:
                 "credibility": finding.credibility,
                 "external_id": finding.external_id,
                 "research_type": finding.research_type,
-                "owner_agent": "marketing.creative.instagram",
-                "knowledge_domain": "marketing.creative",
+                "owner_agent": agent.owner_agent,
+                "knowledge_domain": agent.knowledge_domain,
             },
             actor=actor,
             reasoning_summary="Recorded a bounded research finding with explicit provenance.",
@@ -108,16 +110,20 @@ class CreativeIdeationResearchService:
         self.commander = commander
         self.provider = provider
 
-    def run(self, topic: str, *, actor: str) -> tuple[tuple[Entity, ...], tuple[Entity, ...]]:
+    def run(self, topic: str, *, actor: str,
+            agent: ResearchAgent = RESEARCH_AGENTS["creative"]) -> tuple[tuple[Entity, ...], tuple[Entity, ...]]:
         topic = topic.strip()
         if not topic:
             raise ValueError("usage: /research creative <topic>")
-        result = self.provider.research(topic)
+        try:
+            result = self.provider.research(topic, agent=agent)  # type: ignore[call-arg]
+        except TypeError:
+            result = self.provider.research(topic)
         if not result.findings or not result.hypotheses:
             raise ValueError("research provider returned no sourced hypotheses")
         with self.commander.store.transaction():
             sources = tuple(
-                ResearchKnowledgeService(self.commander).record_finding(item, actor=actor)
+                ResearchKnowledgeService(self.commander).record_finding(item, actor=actor, agent=agent)
                 for item in result.findings
             )
             hypotheses = []
@@ -130,15 +136,15 @@ class CreativeIdeationResearchService:
                     claim=proposal.claim,
                     success_metric=proposal.success_metric,
                     threshold=proposal.threshold,
-                    scope=f"creative_ideation:instagram:{topic[:160]}",
+                    scope=f"{agent.research_type}:{agent.command}:{topic[:160]}",
                     findings=evidence,
                     actor=actor,
                     attributes={
-                        "research_type": "creative_ideation",
+                        "research_type": agent.research_type,
                         "research_topic": topic,
                         "creative_direction": proposal.creative_direction,
-                        "owner_agent": "marketing.creative.instagram",
-                        "knowledge_domain": "marketing.creative",
+                        "owner_agent": agent.owner_agent,
+                        "knowledge_domain": agent.knowledge_domain,
                     },
                 )
                 hypotheses.append(hypothesis)

@@ -266,7 +266,13 @@ class TelegramControlPlaneTests(unittest.TestCase):
             item.attributes["knowledge_domain"] == "marketing.creative"
             for item in self.store.entities(EntityKind.SOURCE)
         ))
-        with self.assertRaisesRegex(ValueError, "usage"):
+        product = telegram.handle_update(self.update("/research product retention evidence"))
+        self.assertIn("product.strategy research stored", product.text)
+        product_hypothesis = self.store.entities(EntityKind.HYPOTHESIS)[-1]
+        self.assertEqual(product_hypothesis.attributes["owner_agent"], "product.strategy")
+        self.assertEqual(product_hypothesis.attributes["research_type"], "product_discovery")
+        self.assertIn("/task from", product.text)
+        with self.assertRaisesRegex(ValueError, "research agent"):
             telegram.handle_update(self.update("/research coder improve tests"))
 
     def test_pending_experiment_can_be_approved_once(self) -> None:

@@ -20,12 +20,11 @@ sources; each source has its own relationship edge. The hypothesis remains
 `proposed` and does not become accepted knowledge until tested and adopted by an
 explicit decision.
 
-The first automated adapter is deliberately scoped to `creative_ideation` and
-is exposed as `/research creative <topic>`. It searches through a configured provider,
-calls this ingestion contract, preserves exact provenance, stores only concise
-findings, and separates source claims from Commander interpretation. Other
-research kinds require separate typed workflows rather than overloading this
-command.
+Automated research is owned by explicit agents: `/research creative`,
+`/research product`, `/research design`, and `/research engineering`. Each
+records its `owner_agent`, `knowledge_domain`, and `research_type`, calls the
+same provenance contract, stores concise findings, and separates source claims
+from Commander interpretation.
 
 PostgreSQL is the graph store:
 
@@ -48,3 +47,10 @@ Source UUIDs from which each was derived.
 `/creative from <hypothesis-uuid>` validates that the selected hypothesis has
 `research_type=creative_ideation`, then generates a creative linked to that
 existing hypothesis. This preserves Source -> Hypothesis -> Creative lineage.
+
+Product, design, and engineering hypotheses are consumed with
+`/task from <hypothesis-uuid> <request>`. The platform retrieves the hypothesis
+and permanent sources through the authenticated bridge, injects the bounded
+evidence into the task specification, and appends a
+`RESEARCH_CONTEXT_CONSUMED` event. Creative-owned hypotheses fail closed on
+this path and must use `/creative from`.

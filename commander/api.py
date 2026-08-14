@@ -13,7 +13,7 @@ from .model import EntityKind
 from .model import RelationType
 from .policy import CommanderPolicy
 from .postgres_store import PostgresKnowledgeStore, connect_postgres
-from .renderer import InstagramStoryRenderer
+from .renderer import InstagramPostRenderer
 from .service import Commander
 from .settings import Settings
 from .store import KnowledgeStore
@@ -44,7 +44,7 @@ def create_app(
         allowed_chat_ids=set(settings.allowed_chat_ids),
         research_service=research_service,
     )
-    renderer = InstagramStoryRenderer(settings.asset_directory / "generated")
+    renderer = InstagramPostRenderer(settings.asset_directory / "generated")
     production = CreativeProductionService(commander, renderer)
     app = FastAPI(title="PTW Commander", version="0.1.0")
 
@@ -152,7 +152,7 @@ def create_app(
                             file_id,
                             settings.asset_directory / "incoming" / f"telegram-{update_id}.jpg",
                         )
-                    creative, artifact, path = production.create_instagram_story(
+                    creative, artifact, path = production.create_instagram_post(
                         request_text=text,
                         requested_by=f"telegram:{user_id}",
                         hero_image=hero,

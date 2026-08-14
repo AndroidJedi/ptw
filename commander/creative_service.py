@@ -11,6 +11,8 @@ from .service import Commander
 
 
 class CreativeProductionService:
+    DEFAULT_HOOK = "They said you couldn't. Prove them wrong."
+
     def __init__(self, commander: Commander, renderer: InstagramStoryRenderer) -> None:
         self.commander = commander
         self.renderer = renderer
@@ -84,13 +86,26 @@ class CreativeProductionService:
             return self.commander.store.get_entity(parts[2])
         return None
 
+    @classmethod
+    def text_hook_from_request(cls, request_text: str) -> str | None:
+        """Return a hook for the explicit text-only creative mode."""
+
+        parts = request_text.strip().split()
+        if (
+            len(parts) == 2
+            and parts[0].split("@", 1)[0].lower() == "/creative"
+            and parts[1].lower() == "hook"
+        ):
+            return cls.DEFAULT_HOOK
+        return None
+
     @staticmethod
     def _parse(value: str) -> tuple[str, str, str]:
         body = value.strip()
         if body.lower().startswith("/creative"):
             body = body[len("/creative") :].strip()
         parts = [part.strip() for part in body.split("|")]
-        hook = parts[0] if parts and parts[0] else "They said you couldn't. Prove them wrong."
+        hook = parts[0] if parts and parts[0] else CreativeProductionService.DEFAULT_HOOK
         caption = parts[1] if len(parts) > 1 and parts[1] else "Make the goal public. Show the work."
         cta = parts[2] if len(parts) > 2 and parts[2] else "START YOUR CHALLENGE"
         return hook[:180], caption[:240], cta[:60]

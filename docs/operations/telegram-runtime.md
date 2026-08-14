@@ -40,6 +40,8 @@ Existing control commands remain available:
 ```text
 /status
 /queue
+/inspect TASK-<id>
+/inspect ISSUE-<id>
 /graph
 /graph hypotheses
 /graph weights
@@ -89,6 +91,17 @@ To provide visual context, attach a screenshot or image and put `/task ...` in
 the attachment caption. The established poller stores the attachment privately
 and links it to the queued job. Do not include credentials or tokens in task
 text or screenshots.
+
+Each task is acknowledged and then reports its start, completion, and result.
+If execution is blocked, Commander creates and reports an `ISSUE-<id>`, logs
+bounded diagnostic and resolution attempts, resolves it autonomously when
+possible, and resumes the original `TASK-<id>`. Inspect either ID at any time
+with `/inspect`; `/cancel <numeric-task-id>` also interrupts issue resolution.
+
+A privileged host operator can produce a secret-scrubbed handoff for another
+agent with `python -m engineering.state_export`, optionally scoped to a task or
+issue ID. The exporter belongs to the established platform checkout and does
+not copy its unrelated source history into this repository.
 
 ## Transport ownership
 

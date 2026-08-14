@@ -1,7 +1,7 @@
 # Commander current state
 
 Status: active implementation handoff  
-Updated: 2026-08-13  
+Updated: 2026-08-14
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
 ## Completed milestone
@@ -126,6 +126,14 @@ fail before execution. Creative bridge HTTP 4xx responses now preserve their
 actionable validation message, so malformed `/feedback` input is no longer
 misreported as creative-service unavailability. These changes are deployed in
 the unrelated platform checkout as local commit `6365dce`.
+
+The engineering control plane now has a durable task/issue recovery contract.
+Blocking failures receive `ISSUE-<id>` records and append-only sanitized logs;
+Telegram reports the block, automatic resolution, parent-task resume, or final
+unresolved state. `/inspect TASK-<id>|ISSUE-<id>` retrieves bounded state by ID,
+and a host-side JSON exporter can dump full or ID-scoped state for another
+agent. Policy v2 authorizes validated pull-request merges to `main`, records the
+rollback and resulting revisions, and leaves direct main pushes forbidden.
 
 ## Next milestone
 

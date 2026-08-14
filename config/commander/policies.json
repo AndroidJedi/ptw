@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "emergencyStop": false,
   "approvals": {
     "experiments": true,
@@ -27,6 +27,11 @@
     "completion": "telegram"
   },
   "deployment": {
-    "allowed": false
+    "allowed": true,
+    "productionBranch": "main",
+    "mergeMethod": "pull_request",
+    "directPush": false,
+    "autonomousMerge": true,
+    "recordRollbackRevision": true
   }
 }

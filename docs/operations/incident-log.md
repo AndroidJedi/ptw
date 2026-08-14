@@ -2,6 +2,24 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-14 — Workspace task acknowledgements disappeared after reboot
+
+- Tracking issue: [GitHub issue #10](https://github.com/AndroidJedi/ptw/issues/10),
+  kept open until the live post-restart delivery gate passes.
+- Impact: PTW implementation tasks accepted in Codex workspace sessions could
+  begin without a durable `TASK-<number>` registration and Telegram message
+  containing the interpreted scope; reboot removed the volatile bridge state.
+- Cause: workspace acceptance depended on the deployment runner's in-process
+  path. Commander had durable Telegram outbox delivery for creative traffic but
+  no repository-owned, transactional workspace acceptance boundary.
+- Correction: Commander now atomically stores workspace task acceptance and a
+  Telegram outbox item, exposes delivery status as a mandatory start gate, and
+  records Telegram's returned message ID when the worker publishes the item.
+- Prevention: after every reboot/startup, a fresh real task probe must pass via
+  `commander.verify_workspace_ack`; process health or a simulated send is not
+  sufficient. The incident remains operationally open until that probe is run
+  against the established bot after restart.
+
 ## 2026-08-14 — Text hooks had no convenient feedback path
 
 - Impact: `/creative hook [brief]` returned bare text. Reply-based `/feedback`

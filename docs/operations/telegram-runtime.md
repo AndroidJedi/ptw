@@ -132,6 +132,35 @@ agent with `python -m engineering.state_export`, optionally scoped to a task or
 issue ID. The exporter belongs to the established platform checkout and does
 not copy its unrelated source history into this repository.
 
+### Codex workspace acceptance gate
+
+A workspace session registers an accepted implementation task at Commander's
+authenticated `POST /internal/workspace/tasks` route before changing files.
+Commander commits the `TASK-<number>`, interpreted scope, session ID, target
+chat, and Telegram outbox message atomically. The workspace then polls the
+acknowledgement route and may start only after Telegram has returned a real
+message ID. A restart cannot erase pending delivery because both the task and
+outbox item are PostgreSQL records.
+
+After a host reboot or Commander restart, perform a real delivery probe before
+declaring the bridge operational. Use a fresh task ID reserved for the probe;
+the command exits nonzero unless the worker delivers the message and records
+Telegram's message ID:
+
+```sh
+set -a
+. /opt/ptw/platform/.env
+set +a
+python3 -m commander.verify_workspace_ack \
+  --task-id TASK-<fresh-number> \
+  --scope "Post-restart acknowledgement bridge verification; no implementation" \
+  --session-id "startup-verification-<timestamp>" \
+  --chat-id <allowed-owner-chat-id>
+```
+
+Do not place the token in the command line or logs. A health check, a pending
+outbox row, or a mocked Bot API response is not completion evidence.
+
 ## Transport ownership
 
 Never call `setWebhook` for this bot while the established platform uses

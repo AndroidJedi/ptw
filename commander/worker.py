@@ -33,6 +33,11 @@ def deliver_once(
                         int(result["message_id"]),
                         str(message.payload["creative_id"]),
                     )
+                if message.payload.get("workspace_task_id"):
+                    store.mark_workspace_task_acknowledged(
+                        str(message.payload["workspace_task_id"]),
+                        int(result["message_id"]),
+                    )
                 store.mark_outbox_published(message.id)
                 delivered += 1
     return delivered

@@ -35,6 +35,17 @@ class OutboxMessage:
     attempts: int
 
 
+@dataclass(frozen=True, slots=True)
+class WorkspaceTaskAcknowledgement:
+    entity_id: str
+    task_id: str
+    interpreted_scope: str
+    workspace_session_id: str
+    chat_id: int
+    status: str
+    telegram_message_id: int | None = None
+
+
 def connect_postgres(connection_string: str) -> "PostgresKnowledgeStore":
     """Create the production adapter while keeping psycopg an optional import."""
 
@@ -147,6 +158,141 @@ class PostgresKnowledgeStore:
 
         self._write(operation)
         return message_id
+
+    def register_workspace_task(
+        self,
+        *,
+        task_id: str,
+        interpreted_scope: str,
+        workspace_session_id: str,
+        chat_id: int,
+    ) -> WorkspaceTaskAcknowledgement:
+        """Durably register acceptance and its Telegram acknowledgement together."""
+
+        entity_id = new_uuid7()
+        outbox_id = new_uuid7()
+        attributes = {
+            "status": "queued",
+            "external_task_id": task_id,
+            "interpreted_scope": interpreted_scope,
+            "workspace_session_id": workspace_session_id,
+            "source": "codex_workspace",
+        }
+        acknowledgement = (
+            f"{task_id} accepted.\n"
+            f"Interpreted scope: {interpreted_scope}\n"
+            "Execution is waiting for this acknowledgement to be delivered."
+        )
+        with self.transaction():
+            with self.connection.cursor() as cursor:
+                cursor.execute(
+                    """SELECT entity_id, interpreted_scope, workspace_session_id,
+                              telegram_chat_id, acknowledgement_status,
+                              telegram_message_id
+                       FROM commander_tasks WHERE external_task_id = %s FOR UPDATE""",
+                    (task_id,),
+                )
+                existing = cursor.fetchone()
+                if existing is not None:
+                    if (
+                        str(existing[1]) != interpreted_scope
+                        or str(existing[2]) != workspace_session_id
+                        or int(existing[3]) != chat_id
+                    ):
+                        raise ValueError(f"{task_id} is already registered with different details")
+                    return WorkspaceTaskAcknowledgement(
+                        entity_id=str(existing[0]),
+                        task_id=task_id,
+                        interpreted_scope=interpreted_scope,
+                        workspace_session_id=workspace_session_id,
+                        chat_id=chat_id,
+                        status=str(existing[4]),
+                        telegram_message_id=(
+                            None if existing[5] is None else int(existing[5])
+                        ),
+                    )
+                cursor.execute(
+                    """INSERT INTO commander_entities (id, kind, attributes)
+                       VALUES (%s, 'task', %s::jsonb)""",
+                    (entity_id, json.dumps(attributes, sort_keys=True)),
+                )
+                cursor.execute(
+                    """INSERT INTO commander_outbox
+                       (id, topic, aggregate_id, payload)
+                       VALUES (%s, 'telegram.send_message', %s, %s::jsonb)""",
+                    (
+                        outbox_id,
+                        entity_id,
+                        json.dumps(
+                            {
+                                "chat_id": chat_id,
+                                "text": acknowledgement,
+                                "workspace_task_id": task_id,
+                            },
+                            sort_keys=True,
+                        ),
+                    ),
+                )
+                cursor.execute(
+                    """INSERT INTO commander_tasks
+                       (entity_id, status, idempotency_key, external_task_id,
+                        interpreted_scope, workspace_session_id, telegram_chat_id,
+                        acknowledgement_status, acknowledgement_outbox_id)
+                       VALUES (%s, 'queued', %s, %s, %s, %s, %s, 'pending', %s)""",
+                    (
+                        entity_id,
+                        f"codex-workspace:{task_id}",
+                        task_id,
+                        interpreted_scope,
+                        workspace_session_id,
+                        chat_id,
+                        outbox_id,
+                    ),
+                )
+        return WorkspaceTaskAcknowledgement(
+            entity_id=entity_id,
+            task_id=task_id,
+            interpreted_scope=interpreted_scope,
+            workspace_session_id=workspace_session_id,
+            chat_id=chat_id,
+            status="pending",
+        )
+
+    def workspace_task_acknowledgement(self, task_id: str) -> WorkspaceTaskAcknowledgement:
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT entity_id, interpreted_scope, workspace_session_id,
+                          telegram_chat_id, acknowledgement_status,
+                          telegram_message_id
+                   FROM commander_tasks WHERE external_task_id = %s""",
+                (task_id,),
+            )
+            row = cursor.fetchone()
+        if row is None:
+            raise KeyError(f"unknown workspace task: {task_id}")
+        return WorkspaceTaskAcknowledgement(
+            entity_id=str(row[0]),
+            task_id=task_id,
+            interpreted_scope=str(row[1]),
+            workspace_session_id=str(row[2]),
+            chat_id=int(row[3]),
+            status=str(row[4]),
+            telegram_message_id=None if row[5] is None else int(row[5]),
+        )
+
+    def mark_workspace_task_acknowledged(self, task_id: str, message_id: int) -> None:
+        def operation(cursor: Cursor) -> None:
+            cursor.execute(
+                """UPDATE commander_tasks
+                   SET acknowledgement_status = 'acknowledged',
+                       acknowledged_at = clock_timestamp(),
+                       telegram_message_id = %s
+                   WHERE external_task_id = %s
+                     AND acknowledgement_status = 'pending'""",
+                (message_id, task_id),
+            )
+
+        self._write(operation)
 
     def record_inbox_once(self, update_id: int) -> bool:
         if self._transaction_depth == 0:

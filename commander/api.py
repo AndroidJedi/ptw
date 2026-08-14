@@ -21,6 +21,7 @@ from .telegram import TelegramControlPlane, TelegramUnauthorized
 from .telegram_api import TelegramBotClient
 from .openai_research import CodexCreativeResearchProvider, OpenAICreativeResearchProvider
 import os
+import re
 from .research import CreativeIdeationResearchService
 
 
@@ -82,6 +83,50 @@ def create_app(
         if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
             raise HTTPException(status_code=403, detail="invalid bridge token")
         return _process_update(update)
+
+    @app.post("/internal/workspace/tasks")
+    def register_workspace_task(
+        request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, object]:
+        if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
+            raise HTTPException(status_code=403, detail="invalid bridge token")
+        task_id = str(request.get("task_id", "")).strip()
+        scope = str(request.get("interpreted_scope", "")).strip()
+        session_id = str(request.get("workspace_session_id", "")).strip()
+        try:
+            chat_id = int(request.get("chat_id"))
+        except (TypeError, ValueError) as error:
+            raise HTTPException(status_code=400, detail="chat_id must be numeric") from error
+        if not re.fullmatch(r"TASK-[0-9]+", task_id):
+            raise HTTPException(status_code=400, detail="task_id must match TASK-<number>")
+        if not scope or len(scope) > 2000:
+            raise HTTPException(status_code=400, detail="interpreted_scope must be 1-2000 characters")
+        if not session_id or len(session_id) > 200:
+            raise HTTPException(status_code=400, detail="workspace_session_id must be 1-200 characters")
+        if chat_id not in settings.allowed_chat_ids:
+            raise HTTPException(status_code=403, detail="unauthorized Telegram chat")
+        try:
+            record = store.register_workspace_task(
+                task_id=task_id,
+                interpreted_scope=scope,
+                workspace_session_id=session_id,
+                chat_id=chat_id,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return _workspace_ack_response(record)
+
+    @app.get("/internal/workspace/tasks/{task_id}/acknowledgement")
+    def workspace_task_acknowledgement(
+        task_id: str, x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, object]:
+        if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
+            raise HTTPException(status_code=403, detail="invalid bridge token")
+        try:
+            record = store.workspace_task_acknowledgement(task_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return _workspace_ack_response(record)
 
     @app.get("/internal/research/context/{hypothesis_id}")
     def research_context(hypothesis_id: str, x_ptw_bridge_token: str = Header(default="")) -> dict[str, object]:
@@ -198,6 +243,17 @@ def create_app(
         return {"ok": True, "duplicate": False, "result": result}
 
     return app
+
+
+def _workspace_ack_response(record: Any) -> dict[str, object]:
+    return {
+        "task_id": record.task_id,
+        "interpreted_scope": record.interpreted_scope,
+        "workspace_session_id": record.workspace_session_id,
+        "acknowledgement_status": record.status,
+        "telegram_message_id": record.telegram_message_id,
+        "may_start": record.status == "acknowledged",
+    }
 
 
 def create_app_from_env() -> FastAPI:

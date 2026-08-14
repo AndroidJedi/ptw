@@ -254,9 +254,15 @@ def execute_engineering_job(
         connection.execute(
             "UPDATE engineering_runs SET status='merged',updated_at=now() WHERE job_id=%s", (job_id,)
         )
+        production_via_main = bool(repository.metadata.get("production_via_main"))
+        release_status = (
+            "Production pipeline triggered by main."
+            if production_via_main else
+            "Production deployment is UNVERIFIED and requires a separate release check."
+        )
         return (
             f"TASK-{job_id} completed and merged to main\nPR: #{pr_number} {pr_url}\n"
             f"Main: {main_sha}\nRollback: {rollback_sha}\nValidation: ✅\n"
-            f"Files changed: {len(files)}\nProduction pipeline triggered by main."
+            f"Files changed: {len(files)}\n{release_status}"
         )
     return f"TASK-{job_id} completed\nPR: #{pr_number} {pr_url}\nBranch: {branch}\nValidation: ✅\nFiles changed: {len(files)}\nMain merge disabled by repository policy."

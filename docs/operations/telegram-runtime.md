@@ -13,11 +13,12 @@ worker uses the same bot identity to return generated images.
 Request one hook as a Telegram text message, without generating an image:
 
 ```text
-/creative hook
+/creative hook [optional brief]
 ```
 
-Commander replies with only the hook text. This mode does not create a Story
-image or request image feedback.
+Commander replies with only hook text. A brief-bearing request remains
+text-only and selects the best matching stored creative-research hypothesis;
+it never falls through to Story rendering or image feedback.
 
 Send a text message:
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from .instagram import InstagramCreativeAdapter, InstagramCreativeSpec
 from .model import Entity, EntityKind, RelationType
@@ -86,18 +87,33 @@ class CreativeProductionService:
             return self.commander.store.get_entity(parts[2])
         return None
 
-    @classmethod
-    def text_hook_from_request(cls, request_text: str) -> str | None:
-        """Return a hook for the explicit text-only creative mode."""
+    def text_hook_from_request(self, request_text: str) -> str | None:
+        """Return researched text for `/creative hook [brief]`; never render it."""
 
-        parts = request_text.strip().split()
-        if (
-            len(parts) == 2
-            and parts[0].split("@", 1)[0].lower() == "/creative"
-            and parts[1].lower() == "hook"
-        ):
-            return cls.DEFAULT_HOOK
-        return None
+        if "|" in request_text:
+            return None
+        parts = request_text.strip().split(maxsplit=2)
+        if (len(parts) < 2 or parts[0].split("@", 1)[0].lower() != "/creative"
+                or parts[1].lower() not in {"hook", "hooks"}):
+            return None
+        brief_terms = set(re.findall(r"[a-z0-9]{3,}", parts[2].lower())) if len(parts) > 2 else set()
+        candidates = [
+            item for item in self.commander.store.entities(EntityKind.HYPOTHESIS)
+            if item.attributes.get("research_type") == "creative_ideation"
+            and item.attributes.get("owner_agent") == "marketing.creative.instagram"
+        ]
+        if candidates:
+            def score(item: Entity) -> tuple[int, object]:
+                searchable = " ".join(str(item.attributes.get(key, "")) for key in (
+                    "research_topic", "claim", "creative_direction"
+                )).lower()
+                return sum(term in searchable for term in brief_terms), item.created_at
+            selected = max(candidates, key=score)
+            direction = str(selected.attributes.get("creative_direction") or "")
+            researched_hook = direction.partition("|")[0].strip()
+            if researched_hook:
+                return researched_hook[:180]
+        return self.DEFAULT_HOOK
 
     @staticmethod
     def _parse(value: str) -> tuple[str, str, str]:

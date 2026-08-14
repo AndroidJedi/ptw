@@ -9,6 +9,7 @@ from .ids import display_ref
 from .model import EntityKind
 from .service import Commander
 from .research import CreativeIdeationResearchService
+from .research_agents import RESEARCH_AGENTS, research_agent
 
 
 class TelegramUnauthorized(PermissionError):
@@ -143,22 +144,23 @@ class TelegramControlPlane:
             entity_id = parts[1] if len(parts) > 1 else None
             return self._format_graph(self.commander.graph_snapshot(view, entity_id))
         if command == "/research":
-            research_agent, _, topic = argument.strip().partition(" ")
-            if research_agent.lower() != "creative" or not topic.strip():
-                raise ValueError("usage: /research creative <topic>")
+            agent_command, _, topic = argument.strip().partition(" ")
+            if not topic.strip():
+                raise ValueError("usage: /research <creative|product|design|engineering> <topic>")
+            agent = research_agent(agent_command)
             if self.research_service is None:
                 return (
                     "Creative research is installed but its provider is not configured. "
                     "Add OPENAI_API_KEY to the VPS runtime environment, then restart Commander."
                 )
-            sources, hypotheses = self.research_service.run(topic, actor=actor)
+            sources, hypotheses = self.research_service.run(topic, actor=actor, agent=agent)
             lines = [f"{item.id} {item.attributes['claim'][:110]}" for item in hypotheses]
             return (
-                f"Creative research stored: {len(sources)} sources, {len(hypotheses)} proposed hypotheses.\n"
+                f"{agent.owner_agent} research stored: {len(sources)} sources, {len(hypotheses)} proposed hypotheses.\n"
                 + "\n".join(lines)
-                + "\nGenerate with: /creative from <hypothesis-id>"
+                + f"\nConsume with: {agent.downstream}"
             )
-        return "Commands: /research creative <topic> /creative from <hypothesis-id> /status /queue /graph [hypotheses|weights|creative <id>] /policy /approve <id> /reject <id> /feedback <creative-id> <1-5> [comment] /reasoning <id> /stop /resume"
+        return "Commands: /research <creative|product|design|engineering> <topic> /creative from <hypothesis-id> /status /queue /graph [hypotheses|weights|creative <id>] /policy /approve <id> /reject <id> /feedback <creative-id> <1-5> [comment] /reasoning <id> /stop /resume"
 
     @staticmethod
     def _format_graph(snapshot: Mapping[str, Any]) -> str:

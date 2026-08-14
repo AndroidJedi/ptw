@@ -58,12 +58,20 @@ Creative-ideation research is a separate, explicitly typed workflow:
 
 ```text
 /research creative hooks for skeptical founders considering a public challenge
+/research product retention mechanics for public accountability apps
+/research design evidence for progress visualization and social proof
+/research engineering primary-source guidance for offline-first sync
 ```
 
 Research is a tracked long-running task. Telegram first returns `TASK-<id>` and
 an `/inspect` instruction; the final source/hypothesis response begins with the
 same task ID. The operational ledger stores the bridge result. A bridge failure
 creates an inspectable issue and performs one bounded retry before failing.
+
+Consume creative research with `/creative from <hypothesis-id>`. Consume
+product, design, or engineering research with
+`/task from <hypothesis-id> <request>`; the task specification includes the
+sourced claim, direction, owner, and source summaries and logs consumption.
 
 Commander persists bounded Source findings with canonical URLs, then creates
 only proposed hypotheses derived from those Source UUIDs. Generate from a
@@ -73,8 +81,8 @@ returned hypothesis without copying its claim:
 /creative from <hypothesis-uuid>
 ```
 
-This command is deliberately limited to creative ideas. Future market, product,
-competitor, or technical research must use distinct research types and policies.
+Each command has a distinct owner and research type; findings are not pooled as
+unowned generic context.
 The deployed runtime uses the VPS's existing authenticated Codex agent for web
 research, so it does not require a second API key. `OPENAI_API_KEY` remains an
 optional provider override; never send credentials through Telegram or Git.

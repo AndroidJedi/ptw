@@ -10,6 +10,7 @@ from fastapi import FastAPI, Header, HTTPException
 
 from .creative_service import CreativeProductionService
 from .model import EntityKind
+from .model import RelationType
 from .policy import CommanderPolicy
 from .postgres_store import PostgresKnowledgeStore, connect_postgres
 from .renderer import InstagramStoryRenderer
@@ -81,6 +82,33 @@ def create_app(
         if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
             raise HTTPException(status_code=403, detail="invalid bridge token")
         return _process_update(update)
+
+    @app.get("/internal/research/context/{hypothesis_id}")
+    def research_context(hypothesis_id: str, x_ptw_bridge_token: str = Header(default="")) -> dict[str, object]:
+        if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
+            raise HTTPException(status_code=403, detail="invalid bridge token")
+        try:
+            hypothesis = store.get_entity(hypothesis_id)
+            if hypothesis.kind != EntityKind.HYPOTHESIS:
+                raise ValueError("research context ID must identify a hypothesis")
+            source_ids = [edge.target_id for edge in store.relationships()
+                          if edge.source_id == hypothesis.id and edge.relation == RelationType.DERIVED_FROM
+                          and store.get_entity(edge.target_id).kind == EntityKind.SOURCE]
+            sources = [store.get_entity(source_id) for source_id in source_ids]
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {
+            "hypothesis_id": hypothesis.id,
+            "owner_agent": hypothesis.attributes.get("owner_agent"),
+            "knowledge_domain": hypothesis.attributes.get("knowledge_domain"),
+            "research_type": hypothesis.attributes.get("research_type"),
+            "claim": hypothesis.attributes.get("claim"),
+            "direction": hypothesis.attributes.get("creative_direction"),
+            "sources": [{"id": item.id, "title": item.attributes.get("title"),
+                         "uri": item.attributes.get("source_uri"),
+                         "summary": item.attributes.get("finding_summary")}
+                        for item in sources],
+        }
 
     def _process_update(update: Mapping[str, Any]) -> dict[str, object]:
         result: dict[str, object] = {}

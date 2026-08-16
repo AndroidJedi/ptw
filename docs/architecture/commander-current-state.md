@@ -1,7 +1,7 @@
 # Commander current state
 
 Status: active implementation handoff  
-Updated: 2026-08-14
+Updated: 2026-08-16
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
 ## Completed milestone
@@ -195,6 +195,23 @@ separate-process verification command is provided. Checkpoint writes do not
 change Telegram acknowledgement or production-completion gates.
 
 ## Next milestone
+
+The repository now contains an isolated `idea_generation` v1 implementation
+for the authoritative specification in `ideaGeneration/`. It adds the minimal
+PostgreSQL schema, idempotent mission/context seeds, mocked structured provider,
+GENERATE-EVALUATE-EVOLVE engine, immutable evaluations/reports/context revisions,
+owner injection, bounded two-attempt recovery, and a single long-poll Telegram
+process. This workspace task intentionally did not access credentials, back up
+or clear the live database, stop the old runtime, deploy, send Telegram, or run
+Generation 1. Those are release operations and remain unverified.
+
+Before release, an authorized operator must inventory the isolated application
+database and poller, run `scripts/backup_idea_generation.sh` to an outside-Git
+directory, verify its checksum, stop the old poller, migrate/seed/reset runtime
+data, and start exactly the one Compose poller. Keep the mock provider and
+autopilot off until the zero-generation handoff is verified.
+
+## Prior next milestone
 
 Configure the research-provider credential, run the first real research ->
 hypothesis -> creative loop, then extend generation so learned component weights

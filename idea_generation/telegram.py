@@ -6,7 +6,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from typing import Any
+from typing import Any, Callable, Mapping
 
 from .engine import EvolutionEngine
 from .store import PostgresStore
@@ -14,6 +14,7 @@ from .store import PostgresStore
 HELP = """Idea Evolution v1
 /status /run [N] /stop /continue /pause /resume /autopilot on|off|24h
 /ranking /generation N /idea ID /top [N] /history [N] /lineage ID
+/ads from IDEA_ID
 /report [G7] /reports [N]
 /idea_add TEXT /idea_done /idea_abort /idea_queue /idea_cancel ID
 /guidance TEXT /guidance_list /guidance_clear ID /feedback IDEA_ID TEXT /keep IDEA_ID [TEXT] /reject IDEA_ID [REASON]
@@ -24,12 +25,19 @@ HELP = """Idea Evolution v1
 class TelegramController:
     LONG_IDEA_THRESHOLD = 3500
 
-    def __init__(self, store: PostgresStore, engine: EvolutionEngine, allowed_chat_ids: frozenset[int]) -> None:
+    def __init__(
+        self,
+        store: PostgresStore,
+        engine: EvolutionEngine,
+        allowed_chat_ids: frozenset[int],
+        ad_batch_submitter: Callable[[int, Mapping[str, Any], str], Mapping[str, Any]] | None = None,
+    ) -> None:
         self.store, self.engine, self.allowed = store, engine, allowed_chat_ids
+        self.ad_batch_submitter = ad_batch_submitter
         self._runner_guard = threading.Lock()
         self._runner: threading.Thread | None = None
 
-    def handle(self, chat_id: int, text: str) -> str:
+    def handle(self, chat_id: int, text: str, *, idempotency_key: str | None = None) -> str:
         if chat_id not in self.allowed: return "Unauthorized."
         text = text.strip()
         if text and not text.startswith("/") and self._draft(chat_id):
@@ -38,13 +46,22 @@ class TelegramController:
         self._event(chat_id, "in", "command", text)
         command, _, tail = text.partition(" ")
         try:
-            result = self._dispatch(chat_id, command.lower(), tail.strip())
+            result = self._dispatch(
+                chat_id, command.lower(), tail.strip(), idempotency_key=idempotency_key
+            )
         except Exception as error:
             result = f"Error: {error}"
         self._event(chat_id, "out", "response", result)
         return result
 
-    def _dispatch(self, chat_id: int, command: str, arg: str) -> str:
+    def _dispatch(
+        self,
+        chat_id: int,
+        command: str,
+        arg: str,
+        *,
+        idempotency_key: str | None = None,
+    ) -> str:
         mission = self.store.mission()
         if command == "/help": return HELP
         if command == "/task": return mission["task_text"]
@@ -109,6 +126,25 @@ class TelegramController:
                 FROM generations g JOIN idea_scores s ON s.generation_id=g.id WHERE g.status='completed' GROUP BY g.number ORDER BY g.number DESC LIMIT %s""", (limit,))
             return "\n".join(f"G{r['number']} {r['best']} / {r['average']} / {r['worst']}" for r in reversed(rows)) or "No history."
         if command == "/idea": return self._idea(int(arg))
+        if command == "/ads":
+            action, _, value = arg.partition(" ")
+            if action != "from" or not value:
+                raise ValueError("usage: /ads from <idea-id>")
+            if self.ad_batch_submitter is None:
+                raise ValueError(
+                    "ad bridge is not configured; set AD_BATCH_BRIDGE_URL and restart Idea Evolution"
+                )
+            idea_id = int(value)
+            snapshot = self._idea_snapshot(idea_id)
+            result = self.ad_batch_submitter(
+                chat_id,
+                snapshot,
+                idempotency_key or f"idea:{idea_id}:chat:{chat_id}",
+            )
+            return (
+                f"Ad batch {result['batch_id']} queued from idea #{idea_id}. "
+                "All 10 images will be saved before the first review image is sent."
+            )
         if command == "/lineage": return self._lineage(int(arg))
         if command in {"/report", "/reports"}:
             if command == "/reports":
@@ -280,7 +316,35 @@ class TelegramController:
         if not row:return "Idea not found."
         evaluations=self.store.fetchall("SELECT score,strengths,critique,fatal_flaw FROM idea_evaluations WHERE idea_id=%s ORDER BY score",(idea_id,))
         scores=[float(r['score']) for r in evaluations]
-        return f"#{idea_id} G{row['number']} {row['title']}\n{row['one_liner']}\nMode: {row['mode']}; score: {row['aggregate_score']}; range: {min(scores) if scores else '-'}..{max(scores) if scores else '-'}\nParents: {row['parent_ids']}\n{json.dumps(row['details'],ensure_ascii=False,default=str)}"
+        return f"#{idea_id} G{row['number']} {row['title']}\n{row['one_liner']}\nMode: {row['mode']}; score: {row['aggregate_score']}; range: {min(scores) if scores else '-'}..{max(scores) if scores else '-'}\nParents: {row['parent_ids']}\n{json.dumps(row['details'],ensure_ascii=False,default=str)}\n\nGenerate 10 ads: /ads from {idea_id}"
+
+    def _idea_snapshot(self, idea_id: int) -> dict[str, Any]:
+        row = self.store.fetchone(
+            """SELECT i.id,i.title,i.one_liner,i.details,i.mode,i.parent_ids,
+                      i.created_at,g.number generation_number,s.aggregate_score
+               FROM ideas i JOIN generations g ON g.id=i.generation_id
+               LEFT JOIN idea_scores s ON s.idea_id=i.id WHERE i.id=%s""",
+            (idea_id,),
+        )
+        if row is None:
+            raise ValueError("idea not found")
+        return {
+            "id": row["id"],
+            "title": row["title"],
+            "one_liner": row["one_liner"],
+            "details": row["details"],
+            "mode": row["mode"],
+            "parent_ids": row["parent_ids"],
+            "created_at": (
+                row["created_at"].isoformat()
+                if hasattr(row["created_at"], "isoformat")
+                else str(row["created_at"])
+            ),
+            "generation_number": row["generation_number"],
+            "aggregate_score": (
+                None if row["aggregate_score"] is None else float(row["aggregate_score"])
+            ),
+        }
     def _lineage(self,idea_id:int)->str:
         lines=[];seen=set()
         def visit(current:int,depth:int)->None:

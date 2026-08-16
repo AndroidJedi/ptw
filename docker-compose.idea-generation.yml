@@ -14,6 +14,7 @@ services:
       LLM_PROVIDER: ${LLM_PROVIDER:-bridge}
       LLM_MODEL: ${LLM_MODEL:-gpt-5}
       LLM_BRIDGE_URL: ${LLM_BRIDGE_URL:-http://ptw-agent-platform-commander-api-1:8000/internal/llm/structured}
+      AD_BATCH_BRIDGE_URL: ${AD_BATCH_BRIDGE_URL:-http://ptw-commander-api:8080/internal/ad-batches}
       TZ: Europe/Kyiv
     command: ["uvicorn", "idea_generation.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]
     networks:

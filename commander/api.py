@@ -24,14 +24,19 @@ import os
 import re
 from .research import CreativeIdeationResearchService
 from .checkpoint import checkpoint_response, startup_checkpoint_canary
+from .ad_generation import AdGenerationEngine
+from .ad_runtime import create_ad_engine
 
 
 def create_app(
     settings: Settings,
     store: PostgresKnowledgeStore,
     telegram_client: TelegramBotClient,
+    ad_engine: AdGenerationEngine | None = None,
 ) -> FastAPI:
     commander = Commander(store, CommanderPolicy.load(settings.policy_path))
+    if ad_engine is None and isinstance(store, PostgresKnowledgeStore):
+        ad_engine = create_ad_engine(settings, store, commander)
     research_provider = (
         OpenAICreativeResearchProvider(settings.openai_api_key, model=settings.research_model)
         if settings.openai_api_key
@@ -45,6 +50,7 @@ def create_app(
         allowed_user_ids=set(settings.allowed_user_ids),
         allowed_chat_ids=set(settings.allowed_chat_ids),
         research_service=research_service,
+        ad_engine=ad_engine,
     )
     renderer = InstagramPostRenderer(settings.asset_directory / "generated")
     production = CreativeProductionService(commander, renderer)
@@ -94,6 +100,51 @@ def create_app(
         if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
             raise HTTPException(status_code=403, detail="invalid bridge token")
         return _process_update(update)
+
+    @app.post("/internal/ad-batches")
+    def create_ad_batch(
+        request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, object]:
+        if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
+            raise HTTPException(status_code=403, detail="invalid bridge token")
+        if ad_engine is None:
+            raise HTTPException(status_code=503, detail="ad generation is not configured")
+        try:
+            chat_id = int(request.get("chat_id"))
+            if chat_id not in settings.allowed_chat_ids:
+                raise HTTPException(status_code=403, detail="unauthorized Telegram chat")
+            batch = ad_engine.enqueue_batch(
+                idea_snapshot=dict(request["idea"]),
+                chat_id=chat_id,
+                requested_by=str(request.get("requested_by") or "idea-evolution"),
+                idempotency_key=str(request["idempotency_key"]),
+            )
+        except HTTPException:
+            raise
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        return {"batch_id": batch.campaign_id, "status": batch.status}
+
+    @app.post("/internal/ad-batches/{batch_id}/metrics")
+    def import_ad_metrics(
+        batch_id: str,
+        request: Mapping[str, Any],
+        x_ptw_bridge_token: str = Header(default=""),
+    ) -> Mapping[str, Any]:
+        if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
+            raise HTTPException(status_code=403, detail="invalid bridge token")
+        if ad_engine is None:
+            raise HTTPException(status_code=503, detail="ad generation is not configured")
+        try:
+            return ad_engine.import_metrics(
+                batch_id=batch_id,
+                payload=request,
+                actor=str(request.get("imported_by") or "analytics-bridge"),
+            )
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (TypeError, ValueError) as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
 
     @app.post("/internal/workspace/tasks")
     def register_workspace_task(
@@ -200,7 +251,7 @@ def create_app(
     def _process_update(update: Mapping[str, Any]) -> dict[str, object]:
         result: dict[str, object] = {}
         try:
-            update = _expand_feedback_reply(update, store)
+            update = _expand_estimate_reply(_expand_feedback_reply(update, store), store)
             update_id = int(update["update_id"])
             with store.transaction():
                 if not store.record_inbox_once(update_id):
@@ -365,12 +416,50 @@ def _creative_id_from_reply(
 ) -> str | None:
     """Recover delivery lineage from a generated photo caption or text message."""
 
-    first_line = str(reply.get("caption") or reply.get("text") or "").partition("\n")[0]
+    lines = str(reply.get("caption") or reply.get("text") or "").splitlines()
     prefix = "Creative "
-    if not first_line.startswith(prefix):
+    creative_line = next((line for line in lines if line.startswith(prefix)), None)
+    if creative_line is None:
         return None
     try:
-        creative = store.get_entity(first_line.removeprefix(prefix))
+        creative = store.get_entity(creative_line.removeprefix(prefix))
     except KeyError:
         return None
     return creative.id if creative.kind == EntityKind.CREATIVE else None
+
+
+def _expand_estimate_reply(
+    update: Mapping[str, Any], store: KnowledgeStore
+) -> Mapping[str, Any]:
+    message = update.get("message")
+    if not isinstance(message, Mapping):
+        return update
+    text = str(message.get("text") or "").strip()
+    parts = text.split(maxsplit=3)
+    if not parts or parts[0].split("@", 1)[0].lower() != "/estimate":
+        return update
+    # Reply form starts with a numeric CTR. Expanded form starts with a Creative UUID.
+    if len(parts) < 3:
+        return update
+    try:
+        float(parts[1].removesuffix("%"))
+        int(parts[2])
+    except ValueError:
+        return update
+    reply = message.get("reply_to_message")
+    if not isinstance(reply, Mapping):
+        raise ValueError("reply to the active ad image, or include its Creative UUID")
+    chat_id = int(message["chat"]["id"])
+    entity_id = store.telegram_delivery_entity(chat_id, int(reply["message_id"]))
+    if entity_id is None:
+        entity_id = _creative_id_from_reply(reply, store)
+    if entity_id is None:
+        raise ValueError("the replied message is not a known generated ad Creative")
+    expanded = dict(update)
+    expanded_message = dict(message)
+    comment = f" {parts[3]}" if len(parts) > 3 else ""
+    expanded_message["text"] = (
+        f"/estimate {entity_id} {parts[1]} {parts[2]}{comment}"
+    )
+    expanded["message"] = expanded_message
+    return expanded

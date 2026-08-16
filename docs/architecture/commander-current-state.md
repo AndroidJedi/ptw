@@ -6,6 +6,14 @@ Architecture authority: [`commander-architecture-review.md`](commander-architect
 
 ## Completed milestone
 
+Owner idea injection now uses append-only replacement generations. Each queued
+owner idea replaces the lowest-scored candidate from the latest completed batch
+in the next generation; the surviving candidates are retained with explicit
+parent lineage and the completed source batch is never rewritten. Telegram
+supports durable multi-part owner-idea drafts through `/idea_done`, and `/run`
+received during active work extends the persisted run series instead of being
+silently discarded.
+
 The first generic learning-loop foundation is implemented in `commander/`.
 It includes UUIDv7 IDs, append-only entities and relationships, explicit
 experiment-state events, versioned policy gates, audit summaries, a selective
@@ -34,24 +42,34 @@ publishing does not exist; generated images are returned for review.
 From the repository root:
 
 ```text
-python3 -m unittest discover -s tests/commander -v  # 35 passed, 8 runtime dependency skips
+python3 -m unittest discover -s tests/commander -v  # 49 passed, 13 dependency/database skips
 python3 -m commander.demo --output-dir .local/commander-demo  # passed
 python3 -m compileall -q commander tests/commander  # passed
 git diff --check  # passed
 ```
 
-Checkpoint coverage verifies bounded serialization, checksum corruption,
-freshness expiry, append/restore SQL behavior, and startup restoration in a new
-store instance. The standalone fresh-process verifier is implemented, but a
-live PostgreSQL invocation could not run in this isolated workspace because
-neither Docker nor PostgreSQL client/server binaries are installed. That
-post-reboot database canary remains deployment verification, not repository
-test evidence.
+The complete idea-generation image also ran the repository suite with 49 tests
+passing and 13 expected skips. A disposable PostgreSQL 16 integration run
+passed all 14 database-backed idea-generation tests, including owner
+replacement, draft joining, active-run extension, context persistence, API
+authentication, and Telegram-update deduplication. The unrelated deployment
+platform ran all 57 of its tests in its built worker image.
 
-Docker was unavailable in the isolated job workspace, and a disposable runtime
-dependency install was blocked by host disk exhaustion, so the FastAPI/Pillow
-tests could not be exercised there. Dart and Flutter were unavailable on the
-VPS, so Flutter tests were not run.
+Production deployment was verified on 2026-08-16. A checksum-verified backup is
+stored at `/opt/ptw/backups/idea-generation-20260816T093300Z`. The live API was
+built from repository commit `449b4f9`, the old idea-generation poller is
+stopped, and the established Commander process remains the only Telegram
+long-poller. Its internal route returned a real owner `/status` message, invalid
+bridge authentication returned HTTP 403, and an authenticated structured-model
+probe returned a valid normalized idea. The idea API and Commander API/worker
+all passed health checks after restart.
+
+The production database retained four completed generations, 40 ideas, 400
+evaluations, 10 active contexts, no running executions, autopilot off, and a
+zero-length run queue. Owner submission #1 was safely reconstructed from the
+two Telegram events and is pending at 7,527 characters. Starting G5 will replace
+G4 idea #35, `ScamShield Network` (69.30), and retain the other nine G4 ideas as
+new lineage-linked rows; G4 itself remains immutable.
 
 The PostgreSQL migrations were also applied to a disposable `postgres:16-alpine`
 container with `ON_ERROR_STOP=1`; all 10 tables and 20 entity enum values were
@@ -72,13 +90,14 @@ Synthetic state was removed afterward.
 An isolated Compose stack is installed and healthy on `127.0.0.1:8091`. It
 reuses the established `@ptw_commander_bot` credential and allowlist from the
 root-owned `/opt/ptw/platform/.env`; no token is copied into Git. The existing
-long poller remains the only update consumer and forwards `/creative` over the
-shared internal Docker network. No webhook is registered or required.
+long poller remains the only update consumer and forwards creative and
+idea-evolution commands over the shared internal Docker network. No webhook is
+registered or required.
 
-The forwarding change is committed in the unrelated deployment checkout as
-local commit `0db9522`. That checkout has no configured remote, so the durable
-integration contract is also documented here and in
-`docs/operations/telegram-runtime.md`.
+The current forwarding and structured-model integration is committed in the
+unrelated deployment checkout as local commit `503074c`. That runtime history
+must remain separate from this GitHub repository; the durable integration
+contract is also documented here and in `docs/operations/telegram-runtime.md`.
 
 The same established bot now accepts `/task <free-form request>` for fixes,
 implementation, reviews, or changes. It maps to the existing specification-
@@ -196,20 +215,12 @@ change Telegram acknowledgement or production-completion gates.
 
 ## Next milestone
 
-The repository now contains an isolated `idea_generation` v1 implementation
-for the authoritative specification in `ideaGeneration/`. It adds the minimal
-PostgreSQL schema, idempotent mission/context seeds, mocked structured provider,
-GENERATE-EVALUATE-EVOLVE engine, immutable evaluations/reports/context revisions,
-owner injection, bounded two-attempt recovery, and a single long-poll Telegram
-process. This workspace task intentionally did not access credentials, back up
-or clear the live database, stop the old runtime, deploy, send Telegram, or run
-Generation 1. Those are release operations and remain unverified.
-
-Before release, an authorized operator must inventory the isolated application
-database and poller, run `scripts/backup_idea_generation.sh` to an outside-Git
-directory, verify its checksum, stop the old poller, migrate/seed/reset runtime
-data, and start exactly the one Compose poller. Keep the mock provider and
-autopilot off until the zero-generation handoff is verified.
+Merge the owner-replacement branch through a pull request, then let the owner
+inspect `/idea_queue` and send `/run` to start G5. Verify that submission #1 is
+recorded as replacing idea #35, G5 completes with exactly 10 ideas and 100 new
+evaluations, the human idea appears in `/ranking`, and `/report G5` names the
+replacement. Keep autopilot off until this first real replacement generation
+has been reviewed.
 
 ## Prior next milestone
 

@@ -1,20 +1,34 @@
 services:
-  idea-generation-poller:
+  idea-generation-api:
     build:
       context: .
       dockerfile: idea_generation/Dockerfile
     restart: unless-stopped
     env_file:
-      - /opt/ptw/platform/.env
+      - path: /opt/ptw/platform/.env
+        required: false
     environment:
       DATABASE_URL: ${DATABASE_URL:?reuse the isolated application database URL}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?reuse the existing bot token}
       TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:?reuse the owner allowlist}
-      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
-      LLM_MODEL: ${LLM_MODEL:-mock-v1}
+      LLM_PROVIDER: ${LLM_PROVIDER:-bridge}
+      LLM_MODEL: ${LLM_MODEL:-gpt-5}
+      LLM_BRIDGE_URL: ${LLM_BRIDGE_URL:-http://ptw-agent-platform-commander-api-1:8000/internal/llm/structured}
       TZ: Europe/Kyiv
+    command: ["uvicorn", "idea_generation.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]
+    networks:
+      default:
+      existing-ptw-backend:
+        aliases: [ptw-creative-api]
+    ports:
+      - "127.0.0.1:${IDEA_GENERATION_HTTP_PORT:-8091}:8080"
     healthcheck:
-      test: ["CMD", "python", "-c", "from idea_generation.config import Settings; Settings.from_environment()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
       interval: 30s
       timeout: 5s
       retries: 3
+
+networks:
+  existing-ptw-backend:
+    external: true
+    name: ptw-agent-platform_backend

@@ -16,9 +16,11 @@ class Settings:
     database_url: str
     telegram_token: str
     allowed_chat_ids: frozenset[int]
+    allowed_user_ids: frozenset[int]
     llm_provider: str = "mock"
     llm_model: str = "mock-v1"
     openai_api_key: str = ""
+    llm_bridge_url: str = ""
     poll_timeout: int = 30
 
     @classmethod
@@ -30,12 +32,15 @@ class Settings:
         raw_ids = os.environ.get("TELEGRAM_ALLOWED_CHAT_IDS", "") or os.environ.get(
             "TELEGRAM_ALLOWED_USER_IDS", ""
         )
+        raw_user_ids = os.environ.get("TELEGRAM_ALLOWED_USER_IDS", "") or raw_ids
         return cls(
             database_url=database_url,
             telegram_token=token,
             allowed_chat_ids=_ids(raw_ids),
+            allowed_user_ids=_ids(raw_user_ids),
             llm_provider=os.environ.get("LLM_PROVIDER", "mock").strip().lower(),
             llm_model=os.environ.get("LLM_MODEL", "mock-v1").strip(),
             openai_api_key=os.environ.get("OPENAI_API_KEY", "").strip(),
+            llm_bridge_url=os.environ.get("LLM_BRIDGE_URL", "").strip(),
             poll_timeout=max(1, int(os.environ.get("TELEGRAM_POLL_TIMEOUT", "30"))),
         )

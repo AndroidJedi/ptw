@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import time
+import urllib.request
 from typing import Any, Protocol
 
 
@@ -44,6 +46,26 @@ class MockLLMProvider:
                 })
             return {"evaluations": evaluations}
         context = input_payload["context"]["code"]
+        if mode == "normalize_human":
+            raw = str(input_payload.get("raw_text", "")).strip()
+            title = next((line.strip("# ") for line in raw.splitlines() if line.strip()), "Owner idea")[:160]
+            return {
+                "title": title,
+                "one_liner": raw[:1000],
+                "details": {
+                    "customer": "Defined by the owner submission and to be validated",
+                    "problem": raw,
+                    "product": raw,
+                    "business_model": "To be validated",
+                    "distribution": "To be validated",
+                    "automation": "To be validated",
+                    "five_year_exit_logic": "To be validated against the mission",
+                    "key_risks": ["Owner concept requires structured validation"],
+                    "first_validation_test": "Test the central assumption with five target users.",
+                },
+                "parent_ids": [],
+                "lineage_note": "Owner submission normalized without changing the concept",
+            }
         ordinal = len([call for call in self.calls if call[0] in {"generate", "evolve"}])
         parents = []
         if mode == "evolve" and input_payload.get("mode") == "exploit":
@@ -78,4 +100,55 @@ class OpenAIProvider:
         if not content: raise RuntimeError("provider returned an empty response")
         result = json.loads(content)
         if not isinstance(result, dict): raise ValueError("provider response must be a JSON object")
+        return result
+
+
+class BridgeProvider:
+    """Use the established authenticated Codex worker through its internal API."""
+
+    model_name = "codex-bridge"
+
+    def __init__(self, url: str, token: str, timeout_seconds: int = 360) -> None:
+        if not url or not token:
+            raise RuntimeError("LLM_BRIDGE_URL and TELEGRAM_BOT_TOKEN are required for bridge mode")
+        self.url = url.rstrip("/")
+        self.token = token
+        self.timeout_seconds = timeout_seconds
+
+    def generate_structured(
+        self, mode: str, system_prompt: str, input_payload: dict[str, Any], output_schema: dict[str, Any]
+    ) -> dict[str, Any]:
+        headers = {"X-PTW-Bridge-Token": self.token}
+        request = {
+            "mode": mode,
+            "system_prompt": system_prompt,
+            "input_payload": input_payload,
+            "output_schema": output_schema,
+        }
+        request_id = int(self._request(self.url, request, headers)["request_id"])
+        deadline = time.monotonic() + self.timeout_seconds
+        while time.monotonic() < deadline:
+            payload = self._request(f"{self.url}/{request_id}", None, headers)
+            if payload["status"] == "completed":
+                result = payload.get("result") or {}
+                body = result.get("response") if isinstance(result, dict) else None
+                decoded = json.loads(body) if isinstance(body, str) else body
+                if not isinstance(decoded, dict):
+                    raise ValueError("LLM bridge response must contain one JSON object")
+                return decoded
+            if payload["status"] in {"failed", "cancelled"}:
+                raise RuntimeError(f"LLM bridge job {request_id} {payload['status']}")
+            time.sleep(1)
+        raise TimeoutError(f"LLM bridge job {request_id} timed out")
+
+    @staticmethod
+    def _request(url: str, payload: dict[str, Any] | None, headers: dict[str, str]) -> dict[str, Any]:
+        body = None if payload is None else json.dumps(payload, ensure_ascii=False, default=str).encode()
+        request = urllib.request.Request(
+            url, data=body, headers={**headers, "Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            result = json.loads(response.read())
+        if not isinstance(result, dict):
+            raise ValueError("LLM bridge returned invalid JSON")
         return result

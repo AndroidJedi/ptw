@@ -36,8 +36,12 @@ class PostgresStore:
                 ("Build a company that could be sold for $450M within 5 years", mission_text))
             for order, item in enumerate(contexts, 1):
                 row = connection.execute("""INSERT INTO contexts(code,name,prompt_text,sort_order) VALUES (%s,%s,%s,%s)
-                    ON CONFLICT (code) DO UPDATE SET name=EXCLUDED.name,prompt_text=EXCLUDED.prompt_text,sort_order=EXCLUDED.sort_order
-                    RETURNING id,version""", (item["code"], item["name"], item["prompt"], order)).fetchone()
+                    ON CONFLICT (code) DO NOTHING RETURNING id,version""",
+                    (item["code"], item["name"], item["prompt"], order)).fetchone()
+                if row is None:
+                    row = connection.execute(
+                        "SELECT id,version FROM contexts WHERE code=%s", (item["code"],)
+                    ).fetchone()
                 connection.execute("""INSERT INTO context_revisions(context_id,version,name,prompt_text,changed_by,change_note)
                     VALUES (%s,%s,%s,%s,'seed','authoritative v1 seed') ON CONFLICT DO NOTHING""",
                     (row[0], row[1], item["name"], item["prompt"]))

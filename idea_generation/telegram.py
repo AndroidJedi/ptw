@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -14,34 +15,36 @@ HELP = """Idea Evolution v1
 /status /run [N] /stop /continue /pause /resume /autopilot on|off|24h
 /ranking /generation N /idea ID /top [N] /history [N] /lineage ID
 /report [G7] /reports [N]
-/idea_add TEXT /idea_queue /idea_cancel ID
+/idea_add TEXT /idea_done /idea_abort /idea_queue /idea_cancel ID
 /guidance TEXT /guidance_list /guidance_clear ID /feedback IDEA_ID TEXT /keep IDEA_ID [TEXT] /reject IDEA_ID [REASON]
 /contexts /context C03 /context_set C03 TEXT /context_name C03 NAME /context_history C03 /context_restore C03 VERSION /context_enable C03 /context_disable C03
 /executions [N] /errors [N] /cost /task /help"""
 
 
 class TelegramController:
+    LONG_IDEA_THRESHOLD = 3500
+
     def __init__(self, store: PostgresStore, engine: EvolutionEngine, allowed_chat_ids: frozenset[int]) -> None:
         self.store, self.engine, self.allowed = store, engine, allowed_chat_ids
-        self.notifications: list[str] = []
-        self.engine.notify = self.notifications.append
+        self._runner_guard = threading.Lock()
+        self._runner: threading.Thread | None = None
 
     def handle(self, chat_id: int, text: str) -> str:
         if chat_id not in self.allowed: return "Unauthorized."
-        text = self._freeform(text.strip())
-        self.notifications.clear()
+        text = text.strip()
+        if text and not text.startswith("/") and self._draft(chat_id):
+            return self._append_draft(chat_id, text)
+        text = self._freeform(text)
         self._event(chat_id, "in", "command", text)
         command, _, tail = text.partition(" ")
         try:
-            result = self._dispatch(command.lower(), tail.strip())
+            result = self._dispatch(chat_id, command.lower(), tail.strip())
         except Exception as error:
             result = f"Error: {error}"
-        if self.notifications:
-            result = "\n\n".join([*self.notifications, result])
         self._event(chat_id, "out", "response", result)
         return result
 
-    def _dispatch(self, command: str, arg: str) -> str:
+    def _dispatch(self, chat_id: int, command: str, arg: str) -> str:
         mission = self.store.mission()
         if command == "/help": return HELP
         if command == "/task": return mission["task_text"]
@@ -52,12 +55,33 @@ class TelegramController:
             if active:
                 done = self.store.fetchone("SELECT COUNT(DISTINCT evaluator_context_id) n FROM idea_evaluations e JOIN ideas i ON i.id=e.idea_id JOIN generations g ON g.id=i.generation_id WHERE g.number=%s", (active["number"],))["n"]
                 progress = f"\nRunning: YES\nGeneration: G{active['number']}\nPhase: {active['status'].upper()}\nProgress: {done}/10 evaluator contexts"
-            return (f"Mission: {mission['status'].upper()}\nAutopilot: {'ON' if mission['auto_enabled'] else 'OFF'}{progress}\n"
-                    f"Latest completed: {'none' if not latest else 'G'+str(latest['number'])}\nRun-series remaining: {mission['run_series_remaining']}")
+            totals = self.store.fetchone(
+                "SELECT (SELECT COUNT(*) FROM ideas) ideas,"
+                "(SELECT COUNT(*) FROM idea_submissions WHERE status='pending') pending"
+            )
+            error = self.store.fetchone(
+                "SELECT error_text FROM generations WHERE error_text IS NOT NULL ORDER BY id DESC LIMIT 1"
+            )
+            running = "" if active else "\nRunning: NO"
+            return (f"Mission: {mission['status'].upper()}\nAutopilot: {'ON' if mission['auto_enabled'] else 'OFF'}"
+                    f"{running}{progress}\nLatest completed: {'none' if not latest else 'G'+str(latest['number'])}\n"
+                    f"Total ideas stored: {totals['ideas']}\nPending owner ideas: {totals['pending']}\n"
+                    f"Run-series remaining: {mission['run_series_remaining']}\n"
+                    f"Last error: {error['error_text'] if error else 'none'}")
         if command == "/run":
-            count = int(arg or "1"); done = self.engine.run_series(count)
-            return f"Completed: {', '.join('G'+str(n) for n in done) or 'none'}"
-        if command == "/continue": return f"Completed: {self.engine.continue_series()}"
+            count = int(arg or "1")
+            if count > 100: raise ValueError("run count must be 1..100")
+            remaining, active = self.engine.queue_generations(count)
+            self._ensure_runner()
+            if active:
+                return (f"Queued {count} additional generation{'s' if count != 1 else ''}. "
+                        f"Run-series remaining, including the current generation: {remaining}.")
+            return f"Started {count} generation{'s' if count != 1 else ''}."
+        if command == "/continue":
+            if mission["run_series_remaining"] <= 0: return "No preserved run series."
+            self.store.update_mission(stop_after_current_cycle=False)
+            self._ensure_runner()
+            return f"Continuing {mission['run_series_remaining']} remaining generation(s)."
         if command == "/stop": self.store.update_mission(stop_after_current_cycle=True); return "Will stop at the next safe generation boundary."
         if command in {"/pause", "/resume"}:
             self.store.update_mission(status="paused" if command == "/pause" else "active", **({"auto_enabled": False} if command == "/pause" else {}))
@@ -94,12 +118,52 @@ class TelegramController:
             sql = "SELECT body_text FROM reports WHERE report_type='generation'" + (" AND generation_id=(SELECT id FROM generations WHERE number=%s)" if number else "") + " ORDER BY id DESC LIMIT 1"
             row = self.store.fetchone(sql, (number,) if number else ()); return row["body_text"] if row else "No report."
         if command == "/idea_add":
-            if not arg: raise ValueError("idea text is required")
+            if self._draft(chat_id):
+                return "An idea draft is already active. Send more text, /idea_done, or /idea_abort."
+            if not arg:
+                self._start_draft(chat_id, mission["id"], "")
+                return "Idea draft started. Send one or more text parts, then /idea_done."
+            if len(arg) >= self.LONG_IDEA_THRESHOLD:
+                self._start_draft(chat_id, mission["id"], arg)
+                return (f"Long idea draft started: part 1 saved ({len(arg)} characters). "
+                        "Send the remaining text, then /idea_done. Use /idea_abort to discard it.")
             submission = self.store.execute("INSERT INTO idea_submissions(mission_id,raw_text) VALUES (%s,%s) RETURNING id", (mission["id"],arg))
-            return f"Owner idea queued as submission #{submission}."
+            return (f"Owner idea queued as submission #{submission}. On the next generation it will replace "
+                    "the lowest-rated idea from the latest completed batch. Send /run to start, or /run while "
+                    "another generation is active to queue an additional generation.")
+        if command == "/idea_done":
+            draft = self._draft(chat_id)
+            if not draft: return "No active idea draft."
+            if not draft["raw_text"].strip(): raise ValueError("idea draft is empty")
+            with self.store.transaction() as connection:
+                submission = connection.execute(
+                    "INSERT INTO idea_submissions(mission_id,raw_text) VALUES (%s,%s) RETURNING id",
+                    (draft["mission_id"], draft["raw_text"]),
+                ).fetchone()[0]
+                connection.execute("DELETE FROM idea_submission_drafts WHERE chat_id=%s", (chat_id,))
+            return (f"Owner idea queued as submission #{submission} ({len(draft['raw_text'])} characters, "
+                    f"{draft['part_count']} parts). It will replace the latest batch's lowest-rated idea. "
+                    "Send /run to start its generation.")
+        if command == "/idea_abort":
+            changed = self.store.execute(
+                "DELETE FROM idea_submission_drafts WHERE chat_id=%s RETURNING chat_id", (chat_id,)
+            )
+            return "Idea draft discarded." if changed else "No active idea draft."
         if command == "/idea_queue":
-            rows = self.store.fetchall("SELECT id,status,raw_text FROM idea_submissions WHERE status IN ('pending','scheduled') ORDER BY id")
-            return "\n".join(f"#{r['id']} [{r['status']}] {r['raw_text']}" for r in rows) or "Queue empty."
+            rows = self.store.fetchall(
+                "SELECT id,status,target_generation_number,replaces_idea_id,length(raw_text) chars,"
+                "left(raw_text,240) preview FROM idea_submissions "
+                "WHERE status IN ('pending','scheduled') ORDER BY id"
+            )
+            draft = self._draft(chat_id)
+            lines = [
+                f"#{r['id']} [{r['status']}] target=G{r['target_generation_number'] or '-'} "
+                f"replaces=#{r['replaces_idea_id'] or '-'} chars={r['chars']} — {r['preview']}"
+                for r in rows
+            ]
+            if draft:
+                lines.append(f"draft [{draft['part_count']} parts, {len(draft['raw_text'])} chars] — finish with /idea_done")
+            return "\n".join(lines) or "Queue empty."
         if command == "/idea_cancel":
             changed = self.store.execute("UPDATE idea_submissions SET status='cancelled',updated_at=NOW() WHERE id=%s AND status='pending' RETURNING id", (int(arg),))
             return "Cancelled." if changed else "Submission is not pending."
@@ -129,6 +193,59 @@ class TelegramController:
             row=self.store.fetchone("SELECT COUNT(*) calls,COALESCE(SUM(input_tokens),0) input,COALESCE(SUM(output_tokens),0) output FROM executions")
             return f"Calls: {row['calls']}; input tokens: {row['input']}; output tokens: {row['output']}"
         raise ValueError("unsupported command; use /help")
+
+    def resume_queued_work(self) -> None:
+        mission = self.store.mission()
+        if mission["run_series_remaining"] > 0 or self.engine._in_progress():
+            self._ensure_runner()
+
+    def _ensure_runner(self) -> None:
+        with self._runner_guard:
+            if self._runner and self._runner.is_alive():
+                return
+            self._runner = threading.Thread(target=self._run_queued, name="idea-generation-runner", daemon=True)
+            self._runner.start()
+
+    def _run_queued(self) -> None:
+        try:
+            self.engine.continue_series()
+        except Exception as error:
+            self.store.update_mission(stop_after_current_cycle=True)
+            self.engine.notify(f"🔴 Run stopped safely: {type(error).__name__}. Use /status and /errors.")
+        finally:
+            with self._runner_guard:
+                self._runner = None
+            mission = self.store.mission()
+            if mission["status"] == "active" and mission["run_series_remaining"] > 0 and not mission["stop_after_current_cycle"]:
+                self._ensure_runner()
+
+    def _draft(self, chat_id: int) -> dict[str, Any] | None:
+        return self.store.fetchone("SELECT * FROM idea_submission_drafts WHERE chat_id=%s", (chat_id,))
+
+    def _start_draft(self, chat_id: int, mission_id: int, text: str) -> None:
+        self.store.execute(
+            """INSERT INTO idea_submission_drafts(chat_id,mission_id,raw_text,part_count)
+               VALUES (%s,%s,%s,%s)
+               ON CONFLICT(chat_id) DO UPDATE SET mission_id=EXCLUDED.mission_id,
+                 raw_text=EXCLUDED.raw_text,part_count=EXCLUDED.part_count,updated_at=NOW()
+               RETURNING chat_id""",
+            (chat_id, mission_id, text, 1 if text else 0),
+        )
+
+    def _append_draft(self, chat_id: int, text: str) -> str:
+        row = self.store.fetchone(
+            """UPDATE idea_submission_drafts
+               SET raw_text=CASE WHEN raw_text='' THEN %s ELSE raw_text||E'\n'||%s END,
+                   part_count=part_count+1,updated_at=NOW()
+               WHERE chat_id=%s RETURNING part_count,length(raw_text) chars""",
+            (text, text, chat_id),
+        )
+        if not row: return "No active idea draft."
+        result = (f"Idea draft part {row['part_count']} saved ({row['chars']} characters total). "
+                  "Send more text or /idea_done.")
+        self._event(chat_id, "in", "idea_draft_part", text)
+        self._event(chat_id, "out", "response", result)
+        return result
 
     def _context_command(self, command: str, arg: str) -> str:
         code, _, value = arg.partition(" "); code=code.upper()
@@ -195,11 +312,15 @@ class TelegramController:
 class TelegramPoller:
     def __init__(self,token:str,controller:TelegramController,store:PostgresStore,timeout:int=30)->None:
         self.base=f"https://api.telegram.org/bot{token}";self.controller=controller;self.store=store;self.timeout=timeout
+        self.controller.engine.notify=self._notify
     def _api(self,method:str,values:dict[str,Any])->Any:
         request=urllib.request.Request(f"{self.base}/{method}",data=urllib.parse.urlencode(values).encode())
         with urllib.request.urlopen(request,timeout=self.timeout+10) as response:payload=json.loads(response.read())
         if not payload.get("ok"):raise RuntimeError("Telegram API rejected request")
         return payload["result"]
+    def _notify(self,text:str)->None:
+        for chat_id in self.controller.allowed:
+            self._api("sendMessage",{"chat_id":chat_id,"text":text[:4096]})
     def run_forever(self)->None:
         while True:
             offset=self.store.fetchone("SELECT update_id FROM telegram_offsets WHERE bot_key='primary'")

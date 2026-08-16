@@ -2,6 +2,23 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-16 — Owner idea was queued but never entered a generation
+
+- Impact: a long owner idea remained pending after G4 and only its first
+  Telegram-sized chunk was stored. A `/run` sent during G4 returned `/status`
+  without queuing G5, which looked like successful acceptance.
+- Cause: owner submissions were sampled only at generation start; active-run
+  commands were silently discarded by the process-local lock; and no durable
+  multi-message draft joined Telegram-split text.
+- Correction: active `/run [N]` atomically extends the persisted series; long
+  submissions use draft/append/`/idea_done`; and owner injection creates an
+  append-only replacement generation that carries the latest top candidates
+  while recording the lowest candidate it replaces.
+- Prevention: runtime tests cover active run extension, multi-part submission
+  reconstruction, exact replacement lineage, restart persistence, and the
+  user-facing acknowledgement. Deployed source must come from a pushed Git
+  revision rather than image-only or dirty-checkout code.
+
 ## 2026-08-14 — Session decisions and execution state were lost after reboot
 
 - Impact: a new Commander/Codex process could recover task acceptance but not

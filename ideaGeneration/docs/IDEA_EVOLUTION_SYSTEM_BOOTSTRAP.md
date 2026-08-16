@@ -274,7 +274,13 @@ Rules:
 - do not modify an already completed generation;
 - guarantee the submission a slot in the **next generation with capacity**;
 - owner submissions fill slots oldest-first;
-- they displace model-generated candidates, not historical ideas;
+- when a completed generation exists, create an append-only replacement
+  generation: retain its highest-scored candidates, omit one lowest-scored
+  candidate per owner submission, and add the owner submissions;
+- record the omitted idea ID on each submission and retain copied candidates
+  with explicit parent lineage; never delete or rewrite the completed batch;
+- when no completed generation exists, owner submissions consume G1 slots and
+  displace model-generated candidates;
 - normalize formatting if needed, but do not change the business concept;
 - after insertion, evaluate them exactly like all other candidates;
 - no scoring advantage;
@@ -648,6 +654,10 @@ It never launches another generation by itself.
 
 Run N generations sequentially.
 
+If received while a series is active, add N to the persisted remaining count
+and acknowledge the exact new count. The currently running generation remains
+the first item in that remaining count.
+
 After each generation:
 
 1. persist generation report;
@@ -690,10 +700,13 @@ At generation start:
 2. determine next generation number;
 3. reserve pending owner submissions oldest-first;
 4. mark them `scheduled`;
-5. normalize each to the standard idea format if needed;
-6. insert them as `mode='human'`;
-7. calculate remaining slots;
-8. create model ideas for remaining slots only;
+5. if a completed generation exists, rank its batch, record the lowest idea
+   replaced by each submission, and copy the remaining highest-ranked ideas as
+   `mode='retained'` with parent IDs;
+6. normalize each owner submission to the standard idea format;
+7. insert them as `mode='human'`;
+8. only when there is no prior completed batch, create model ideas for the
+   remaining G1 slots;
 9. ensure total ideas = 10;
 10. evaluate all 10 identically;
 11. on successful completion mark submissions `inserted`;
@@ -745,6 +758,8 @@ Full reference also exists in `TELEGRAM_CONTROL.md`.
 
 ```text
 /idea_add TEXT
+/idea_done
+/idea_abort
 /idea_queue
 /idea_cancel SUBMISSION_ID
 ```
@@ -809,6 +824,14 @@ Historical leader: #42 — 91.2
 Run-series remaining: 4
 Last error: none
 ```
+
+If `/run [N]` is received while a run is active, atomically add N generations
+to `run_series_remaining` and explicitly acknowledge that they were queued.
+Never return a status response that can be mistaken for run acceptance.
+
+Long owner submissions use a durable draft. A near-Telegram-limit
+`/idea_add ...` starts the draft, subsequent non-command messages append to it,
+and `/idea_done` atomically creates one submission. `/idea_abort` discards it.
 
 ### `/ranking`
 
@@ -1317,6 +1340,8 @@ At minimum:
 - `/status` shows active phase/progress;
 - `/ranking`, `/top`, `/history`, `/lineage`;
 - `/idea_add`, queue/cancel;
+- multi-part `/idea_add` draft/done/abort without truncation;
+- `/run` during an active generation extends the persisted series;
 - `/context_set/history/restore`;
 - `/run` exactly one;
 - `/run N`;
@@ -1364,7 +1389,8 @@ Implementation is ready only when:
 10. `/run N`, `/stop`, `/continue` persist correctly;
 11. all old ideas remain historical after future generations;
 12. Hall of Fame and failures feed EVOLVE;
-13. owner idea injection guarantees next-available slot;
+13. owner idea injection guarantees the next-available slot and replaces the
+    latest completed batch's lowest-rated candidate without rewriting history;
 14. owner idea is scored identically to others;
 15. direct context editing/version restore works;
 16. `/status` exposes current execution state;

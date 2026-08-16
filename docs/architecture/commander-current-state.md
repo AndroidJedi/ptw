@@ -6,6 +6,14 @@ Architecture authority: [`commander-architecture-review.md`](commander-architect
 
 ## Completed milestone
 
+Owner idea injection now uses append-only replacement generations. Each queued
+owner idea replaces the lowest-scored candidate from the latest completed batch
+in the next generation; the surviving candidates are retained with explicit
+parent lineage and the completed source batch is never rewritten. Telegram
+supports durable multi-part owner-idea drafts through `/idea_done`, and `/run`
+received during active work extends the persisted run series instead of being
+silently discarded.
+
 The first generic learning-loop foundation is implemented in `commander/`.
 It includes UUIDv7 IDs, append-only entities and relationships, explicit
 experiment-state events, versioned policy gates, audit summaries, a selective

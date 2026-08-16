@@ -18,6 +18,37 @@ class EvolutionEngine:
         self.notify = notify or (lambda _message: None)
         self.recovery_count = 0
 
+    def queue_generations(self, count: int = 1) -> tuple[int, bool]:
+        """Persist work before returning to Telegram.
+
+        ``run_series_remaining`` includes the generation currently running.  A
+        new ``/run`` received during an active series therefore adds to the
+        remaining count instead of being silently discarded.
+        """
+        if count < 1:
+            raise ValueError("run count must be positive")
+        with self.store.transaction() as connection:
+            mission = connection.execute(
+                "SELECT id,status,run_series_remaining FROM missions "
+                "WHERE code='MISSION_450M_5Y' FOR UPDATE"
+            ).fetchone()
+            if not mission:
+                raise RuntimeError("mission is not seeded")
+            if mission[1] != "active":
+                raise RuntimeError("mission is paused")
+            in_progress = bool(connection.execute(
+                "SELECT 1 FROM generations "
+                "WHERE status IN ('creating','created','evaluating') LIMIT 1"
+            ).fetchone())
+            already_active = mission[2] > 0 or in_progress
+            remaining = mission[2] + count if already_active else count
+            connection.execute(
+                "UPDATE missions SET run_series_remaining=%s,"
+                "stop_after_current_cycle=FALSE,updated_at=NOW() WHERE id=%s",
+                (remaining, mission[0]),
+            )
+        return remaining, already_active
+
     def run_series(self, count: int = 1) -> list[int]:
         if count < 1: raise ValueError("run count must be positive")
         mission = self.store.mission()
@@ -82,19 +113,42 @@ class EvolutionEngine:
 
     def _create_missing(self, mission_id: int, generation_id: int, number: int, contexts: list[dict[str, Any]]) -> None:
         current = self.store.fetchall("SELECT * FROM ideas WHERE generation_id=%s ORDER BY id", (generation_id,))
-        pending = self.store.fetchall("SELECT * FROM idea_submissions WHERE mission_id=%s AND status IN ('pending','scheduled') ORDER BY id LIMIT %s", (mission_id, 10 - len(current)))
+        submissions = self._reserve_submissions(mission_id, generation_id, number, current)
+        if submissions and number > 1:
+            self._retain_latest_survivors(mission_id, generation_id, number, submissions)
+            current = self.store.fetchall("SELECT * FROM ideas WHERE generation_id=%s ORDER BY id", (generation_id,))
         used_submission_ids = {row["owner_submission_id"] for row in current if row["owner_submission_id"]}
-        for submission in pending:
+        for submission in submissions:
             if submission["id"] in used_submission_ids: continue
-            title = submission["title"] or submission["raw_text"].strip().splitlines()[0][:160]
-            details = {"customer": "To be validated", "problem": submission["raw_text"], "product": submission["raw_text"],
-                       "business_model": "To be validated", "distribution": "To be validated", "automation": "To be validated",
-                       "five_year_exit_logic": "To be validated against the mission", "key_risks": ["Owner concept requires validation"],
-                       "first_validation_test": "Interview and pre-sell to five target customers."}
+            payload = {
+                "task": self.store.mission()["task_text"],
+                "context": {"code": "owner", "name": "Owner submission"},
+                "raw_text": submission["raw_text"],
+                "instruction": "Normalize formatting without changing the business concept.",
+            }
+            def operation(attempt: int) -> dict[str, Any]:
+                execution_id = self._execution(
+                    mission_id, generation_id, "normalize_human", None, attempt, payload, "running"
+                )
+                try:
+                    result = self.provider.generate_structured(
+                        "normalize_human", "Preserve the owner's concept and return valid JSON only.", payload, {}
+                    )
+                    validated = validate_idea(result, set(), False)
+                    self._finish_execution(execution_id, "succeeded", result)
+                    return validated
+                except Exception as error:
+                    self._finish_execution(execution_id, "failed", error_text=type(error).__name__)
+                    raise
+            normalized = self._recover(f"G{number} / NORMALIZE_HUMAN / owner", operation)
             idea_id = self.store.execute("""INSERT INTO ideas(mission_id,generation_id,mode,title,one_liner,details,owner_submission_id)
                 VALUES (%s,%s,'human',%s,%s,%s::jsonb,%s) RETURNING id""",
-                (mission_id, generation_id, title, submission["raw_text"], self.store.json(details), submission["id"]))
-            self.store.execute("UPDATE idea_submissions SET status='scheduled',target_generation_number=%s,inserted_idea_id=%s,updated_at=NOW() WHERE id=%s RETURNING id", (number, idea_id, submission["id"]))
+                (mission_id, generation_id, normalized["title"], normalized["one_liner"],
+                 self.store.json(normalized["details"]), submission["id"]))
+            self.store.execute(
+                "UPDATE idea_submissions SET inserted_idea_id=%s,updated_at=NOW() WHERE id=%s RETURNING id",
+                (idea_id, submission["id"]),
+            )
             current.append({"id": idea_id, "mode": "human", "owner_submission_id": submission["id"]})
         remaining = 10 - len(current)
         if remaining < 0: raise RuntimeError("generation exceeds 10 slots")
@@ -124,6 +178,94 @@ class EvolutionEngine:
             current.append({"mode": mode})
         if len(current) != 10: raise RuntimeError("generation must contain exactly 10 ideas")
         self.store.execute("UPDATE generations SET status='created' WHERE id=%s RETURNING id", (generation_id,))
+
+    def _reserve_submissions(
+        self, mission_id: int, generation_id: int, number: int, current: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        scheduled = self.store.fetchall(
+            "SELECT * FROM idea_submissions WHERE mission_id=%s AND status='scheduled' "
+            "AND target_generation_number=%s ORDER BY id",
+            (mission_id, number),
+        )
+        # Once candidate creation has begun, newly arriving submissions belong
+        # to the next generation.  This keeps partial/restart reconciliation
+        # deterministic.
+        if not current:
+            slots = max(0, 10 - len(scheduled))
+            pending = self.store.fetchall(
+                "SELECT * FROM idea_submissions WHERE mission_id=%s AND status='pending' "
+                "ORDER BY created_at,id LIMIT %s",
+                (mission_id, slots),
+            )
+            for submission in pending:
+                self.store.execute(
+                    "UPDATE idea_submissions SET status='scheduled',target_generation_number=%s,"
+                    "updated_at=NOW() WHERE id=%s AND status='pending' RETURNING id",
+                    (number, submission["id"]),
+                )
+            scheduled.extend(pending)
+        if not scheduled or number == 1:
+            return scheduled
+
+        lowest = self.store.fetchall(
+            """SELECT i.id FROM ideas i
+               JOIN generations g ON g.id=i.generation_id
+               JOIN idea_scores s ON s.idea_id=i.id
+               WHERE i.mission_id=%s AND g.status='completed' AND g.number<%s
+               AND g.number=(SELECT MAX(number) FROM generations
+                             WHERE mission_id=%s AND status='completed' AND number<%s)
+               ORDER BY s.aggregate_score ASC,i.id ASC LIMIT %s""",
+            (mission_id, number, mission_id, number, len(scheduled)),
+        )
+        if len(lowest) != len(scheduled):
+            raise RuntimeError("latest completed generation is not a full replacement source")
+        for submission, dropped in zip(scheduled, lowest):
+            if submission.get("replaces_idea_id") is None:
+                self.store.execute(
+                    "UPDATE idea_submissions SET replaces_idea_id=%s,updated_at=NOW() "
+                    "WHERE id=%s RETURNING id",
+                    (dropped["id"], submission["id"]),
+                )
+                submission["replaces_idea_id"] = dropped["id"]
+        return scheduled
+
+    def _retain_latest_survivors(
+        self, mission_id: int, generation_id: int, number: int, submissions: list[dict[str, Any]]
+    ) -> None:
+        dropped = {int(row["replaces_idea_id"]) for row in submissions}
+        sources = self.store.fetchall(
+            """SELECT i.*,g.number source_generation FROM ideas i
+               JOIN generations g ON g.id=i.generation_id
+               JOIN idea_scores s ON s.idea_id=i.id
+               WHERE i.mission_id=%s AND g.status='completed' AND g.number<%s
+               AND g.number=(SELECT MAX(number) FROM generations
+                             WHERE mission_id=%s AND status='completed' AND number<%s)
+               ORDER BY s.aggregate_score DESC,i.id ASC""",
+            (mission_id, number, mission_id, number),
+        )
+        survivors = [row for row in sources if int(row["id"]) not in dropped]
+        if len(survivors) != 10 - len(submissions):
+            raise RuntimeError("owner replacement must retain the latest batch minus its lowest scores")
+        existing = {
+            int(row["parent_ids"][0])
+            for row in self.store.fetchall(
+                "SELECT parent_ids FROM ideas WHERE generation_id=%s AND mode='retained'",
+                (generation_id,),
+            )
+            if row["parent_ids"]
+        }
+        for source in survivors:
+            if int(source["id"]) in existing:
+                continue
+            self.store.execute(
+                """INSERT INTO ideas(
+                       mission_id,generation_id,creator_context_id,mode,title,one_liner,
+                       details,parent_ids,lineage_note
+                   ) VALUES (%s,%s,%s,'retained',%s,%s,%s::jsonb,%s,%s) RETURNING id""",
+                (mission_id, generation_id, source["creator_context_id"], source["title"],
+                 source["one_liner"], self.store.json(source["details"]), [source["id"]],
+                 f"Retained from G{source['source_generation']}; owner submission replaced a lower-scored candidate."),
+            )
 
     @staticmethod
     def _modes(slots: int, number: int) -> list[str]:
@@ -192,11 +334,18 @@ class EvolutionEngine:
         guidance = self.store.fetchall("SELECT id,idea_id,text FROM guidance WHERE mission_id=%s AND active ORDER BY id", (mission_id,))
         top_lineage = self.store.fetchone("SELECT parent_ids,lineage_note FROM ideas WHERE id=%s", (ranking[0]["idea_id"],))
         recoveries = self.store.fetchall("SELECT id,phase,context_id,attempt,error_text FROM executions WHERE generation_id=%s AND status='failed' ORDER BY id", (generation_id,))
+        replacements = self.store.fetchall(
+            "SELECT id submission_id,inserted_idea_id,replaces_idea_id FROM idea_submissions "
+            "WHERE mission_id=%s AND target_generation_number=%s ORDER BY id",
+            (mission_id, number),
+        )
         payload.update({"failures": failures, "evaluator_disagreement": disagreement, "active_guidance": guidance,
-                        "top_lineage": top_lineage, "recovery_incidents": recoveries})
+                        "top_lineage": top_lineage, "recovery_incidents": recoveries,
+                        "owner_replacements": replacements})
         body += ("\n\nFailures:\n" + "\n".join(f"#{row['id']} {row['aggregate_score']} — {row['reason']}" for row in failures)
                  + "\n\nEvaluator disagreement:\n" + "\n".join(f"#{row['id']} spread {row['spread']}" for row in disagreement)
-                 + f"\n\nActive guidance: {len(guidance)}; recovery incidents: {len(recoveries)}; top lineage: {top_lineage}")
+                 + f"\n\nOwner replacements: {replacements}"
+                 + f"\nActive guidance: {len(guidance)}; recovery incidents: {len(recoveries)}; top lineage: {top_lineage}")
         with self.store.transaction() as connection:
             connection.execute("UPDATE generations SET status='completed',completed_at=NOW(),error_text=NULL WHERE id=%s", (generation_id,))
             connection.execute("UPDATE idea_submissions SET status='inserted',updated_at=NOW() WHERE target_generation_number=%s AND mission_id=%s AND status='scheduled'", (number, mission_id))
@@ -216,7 +365,7 @@ class EvolutionEngine:
         self.store.execute("INSERT INTO reports(mission_id,report_type,title,body_text,payload) VALUES (%s,'run_series',%s,%s,%s::jsonb) RETURNING id",
                            (mission["id"], "Run series report", body, self.store.json(payload)))
 
-    def _execution(self, mission_id: int, generation_id: int, phase: str, context_id: int, attempt: int,
+    def _execution(self, mission_id: int, generation_id: int, phase: str, context_id: int | None, attempt: int,
                    payload: dict[str, Any], status: str) -> int:
         digest = hashlib.sha256(self.store.json(payload).encode()).hexdigest()
         result = self.store.execute("""INSERT INTO executions(mission_id,generation_id,phase,status,context_id,attempt,model_name,prompt_hash,request_json)

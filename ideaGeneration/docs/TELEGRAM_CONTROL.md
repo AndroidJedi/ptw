@@ -7,6 +7,8 @@ Telegram is the primary owner console. Routine control should require no SSH.
 - `/status` — live mission, generation, phase, progress, leaders, queue, errors, remaining run-series count.
 - `/run` — exactly one full generation, report, then stop.
 - `/run N` — N generations sequentially; report after each.
+- `/run [N]` during an active series — queue N additional generations and
+  report the new persisted remaining count.
 - `/stop` — gracefully finish current generation and stop before next; preserve remaining count.
 - `/continue` — resume a stopped/interrupted run series.
 - `/pause` — pause mission and automatic progression.
@@ -33,20 +35,30 @@ Generation report includes ranking, best/average/worst, delta vs previous genera
 ## Owner ideas
 
 - `/idea_add TEXT` — queue your own candidate.
+- `/idea_done` — finish and queue a multi-message idea draft.
+- `/idea_abort` — discard the active multi-message idea draft.
 - `/idea_queue` — pending submissions.
 - `/idea_cancel SUBMISSION_ID` — cancel before insertion.
 
 A pending owner idea is guaranteed a slot in the next generation with capacity.
+When a completed batch exists, the new generation retains its highest-rated
+candidates and replaces one lowest-rated candidate per owner idea. The prior
+generation remains immutable history, and every retained candidate keeps its
+parent lineage.
+
+If `/idea_add` reaches Telegram's practical single-message limit, it starts a
+durable draft. Send the remaining parts as ordinary messages, then `/idea_done`.
 
 Example:
 
 ```text
 2 owner ideas
-+ 8 model-generated ideas
++ latest batch's 8 highest-rated retained ideas
 = 10 candidates
 ```
 
-It displaces a model-generated candidate; it never deletes historical ideas. It receives no scoring advantage.
+The omitted lowest-rated candidates remain immutable in their completed source
+generation. Owner ideas receive no scoring advantage.
 
 ## Feedback
 

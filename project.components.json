@@ -25,7 +25,13 @@
         "db/**",
         "config/commander/**",
         "docker-compose.commander.yml",
-        "requirements-commander.txt"
+        "requirements-commander.txt",
+        "idea_generation/**",
+        "ideaGeneration/**",
+        "db/idea_generation/**",
+        "docker-compose.idea-generation.yml",
+        "requirements-idea-generation.txt",
+        "scripts/backup_idea_generation.sh"
       ],
       "validation": [
         ["python3", "-m", "unittest", "discover", "-s", "tests/commander", "-v"],

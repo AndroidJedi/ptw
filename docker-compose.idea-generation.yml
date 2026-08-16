@@ -1,0 +1,20 @@
+services:
+  idea-generation-poller:
+    build:
+      context: .
+      dockerfile: idea_generation/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - /opt/ptw/platform/.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?reuse the isolated application database URL}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?reuse the existing bot token}
+      TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:?reuse the owner allowlist}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_MODEL: ${LLM_MODEL:-mock-v1}
+      TZ: Europe/Kyiv
+    healthcheck:
+      test: ["CMD", "python", "-c", "from idea_generation.config import Settings; Settings.from_environment()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

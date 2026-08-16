@@ -2,13 +2,14 @@ import asyncio
 import logging
 import os
 import re
+import hmac
 from pathlib import Path
 from contextlib import asynccontextmanager
 
 import httpx
 import psycopg
 from psycopg.types.json import Jsonb
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 
 from common.database import apply_migrations, database_url
 from common.events import append_event
@@ -24,6 +25,14 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 secrets = EnvironmentSecretStore()
 SUPPORTED_COMMANDS = {"/ping", "/status", "/version", "/help", "/engineer", "/task", "/cancel", "/inspect"}
 TRACKED_BRIDGE_COMMANDS = frozenset({"/creative", "/research"})
+IDEA_COMMANDS = frozenset({
+    "/status", "/run", "/stop", "/continue", "/pause", "/resume", "/autopilot",
+    "/ranking", "/generation", "/idea", "/top", "/history", "/lineage", "/report",
+    "/reports", "/idea_add", "/idea_done", "/idea_abort", "/idea_queue", "/idea_cancel", "/guidance",
+    "/guidance_list", "/guidance_clear", "/feedback", "/keep", "/reject", "/contexts",
+    "/context", "/context_set", "/context_name", "/context_history", "/context_restore",
+    "/context_enable", "/context_disable", "/executions", "/errors", "/cost", "/task", "/help",
+})
 
 
 def safe_bridge_error(error: Exception) -> str:
@@ -384,7 +393,7 @@ async def telegram_loop() -> None:
                             continue
                         message["text"] = message.get("caption", "")
                     bridge_command = normalized_command(message.get("text") or "")
-                    if bridge_command in {"/creative", "/feedback", "/graph", "/research"}:
+                    if bridge_command in ({"/creative", "/graph", "/research"} | IDEA_COMMANDS) or not bridge_command.startswith("/"):
                         if (message.get("from") or {}).get("id") not in allowed_user_ids():
                             await send_rejection(client, message, False)
                             continue
@@ -550,6 +559,29 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="PTW Commander", version="0.1.0", docs_url=None, redoc_url=None, lifespan=lifespan
 )
+
+@app.post("/internal/llm/structured")
+def enqueue_structured_llm(request: dict, x_ptw_bridge_token: str = Header(default="")) -> dict:
+    if not hmac.compare_digest(x_ptw_bridge_token, secrets.get("TELEGRAM_BOT_TOKEN")):
+        raise HTTPException(status_code=403, detail="invalid bridge token")
+    allowed_modes = {"generate", "evaluate", "evolve", "normalize_human", "telegram_chat"}
+    if request.get("mode") not in allowed_modes or not isinstance(request.get("input_payload"), dict):
+        raise HTTPException(status_code=400, detail="invalid structured LLM request")
+    owner = min(allowed_user_ids())
+    with psycopg.connect(database_url(secrets)) as connection:
+        user_id = connection.execute("INSERT INTO users(telegram_user_id,role) VALUES(%s,'operator') ON CONFLICT(telegram_user_id) DO UPDATE SET role=users.role RETURNING id", (owner,)).fetchone()[0]
+        session_id = connection.execute("INSERT INTO sessions(user_id,status,summary) VALUES(%s,'active','internal structured LLM request') RETURNING id", (user_id,)).fetchone()[0]
+        job_id = connection.execute("INSERT INTO jobs(session_id,type,status,requested_by,parameters) VALUES(%s,'llm_structured','queued',%s,%s) RETURNING id", (session_id,user_id,Jsonb(request))).fetchone()[0]
+    return {"request_id": job_id, "status": "queued"}
+
+@app.get("/internal/llm/structured/{job_id}")
+def structured_llm_result(job_id: int, x_ptw_bridge_token: str = Header(default="")) -> dict:
+    if not hmac.compare_digest(x_ptw_bridge_token, secrets.get("TELEGRAM_BOT_TOKEN")):
+        raise HTTPException(status_code=403, detail="invalid bridge token")
+    with psycopg.connect(database_url(secrets)) as connection:
+        row = connection.execute("SELECT status,result,error_code FROM jobs WHERE id=%s AND type='llm_structured'", (job_id,)).fetchone()
+    if not row: raise HTTPException(status_code=404, detail="unknown request")
+    return {"status":row[0], "result":row[1], "error":row[2]}
 
 
 @app.get("/health/live")

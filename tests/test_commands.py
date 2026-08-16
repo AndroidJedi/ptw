@@ -1,4 +1,4 @@
-from commander.main import (SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
+from commander.main import (IDEA_COMMANDS, SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
                             engineering_task, normalized_command, public_health,
                             safe_bridge_error, task_research_reference)
 
@@ -32,6 +32,10 @@ def test_issue_and_task_inspection_is_routed() -> None:
 def test_long_running_creative_commands_require_task_lifecycle() -> None:
     assert TRACKED_BRIDGE_COMMANDS == frozenset({"/creative", "/research"})
     assert "/feedback" not in TRACKED_BRIDGE_COMMANDS
+
+
+def test_idea_draft_commands_are_forwarded_to_the_idea_service() -> None:
+    assert {"/idea_add", "/idea_done", "/idea_abort", "/idea_queue"} <= IDEA_COMMANDS
 
 
 def test_bridge_errors_are_secret_scrubbed() -> None:

@@ -1,10 +1,34 @@
 # Commander current state
 
-Status: active implementation handoff  
+Status: ad estimation implementation complete; production verification pending
 Updated: 2026-08-16
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
 ## Completed milestone
+
+The ten-context ad image estimation loop is implemented by reusing Commander's
+generic graph, outbox, feedback weights, artifact storage, and recovery
+structure. Idea Evolution validates `/ads from <idea-id>`, exposes a
+**Generate 10 ads** action on `/idea`, and sends an immutable idea snapshot
+through an authenticated, idempotent bridge. A01-A10 each create one
+AdCreativeSpec, high-quality image, Hypothesis, Creative, reusable components,
+and checksummed Artifact. Generation must persist all ten 1080×1350 finals
+before serialized Telegram review begins.
+
+Owner `/estimate` replies persist predicted link CTR, rating, and comment as
+HumanFeedback before the producing context makes its one multimodal conclusion.
+Only after that Insight commits does the next image enter the outbox. Completion
+requires ten images, estimates, and conclusions; the final summary ranks by
+predicted CTR and then rating. Immutable analytics imports calculate actual
+link CTR and compare it with the original estimate. Migration 009 adds the
+versioned contexts and durable batch/slot/execution/import projections. A
+dedicated `commander-ad-worker` prevents provider latency from blocking the
+existing Telegram outbox worker.
+
+The canonical workflow is
+[`ad-image-estimation-loop.md`](ad-image-estimation-loop.md).
+
+## Previous completed milestone
 
 Owner idea injection now uses append-only replacement generations. Each queued
 owner idea replaces the lowest-scored candidate from the latest completed batch
@@ -27,26 +51,34 @@ Decision -> KnowledgeAssertion -> Next Task.
 
 The PostgreSQL adapter in `commander/postgres_store.py` persists the generic
 entity/edge model, maintains typed projections, and writes an outbox message in
-the same transaction. Migrations 001 through 006 apply cleanly to PostgreSQL 16.
+the same transaction. Migrations 001 through 009 apply cleanly to PostgreSQL 16.
 
 The Telegram adapter in `commander/telegram.py` authenticates
 both user and chat allowlists and supports status, queue, policy inspection,
 one-time experiment approval/rejection, reasoning summaries, emergency stop,
 and resume. The FastAPI webhook, Telegram Bot API client, update deduplication,
 outbox worker, health/readiness endpoints, image attachment download, and
-deterministic 1080x1350 Instagram feed-post renderer are implemented. Instagram
-publishing does not exist; generated images are returned for review.
+deterministic 1080x1350 Instagram feed-post renderer are implemented.
 
 ## Last verification
 
 From the repository root:
 
 ```text
-python3 -m unittest discover -s tests/commander -v  # 49 passed, 13 dependency/database skips
+python3 -m unittest discover -s tests/commander -v  # local dependency/database skips expected
 python3 -m commander.demo --output-dir .local/commander-demo  # passed
 python3 -m compileall -q commander tests/commander  # passed
 git diff --check  # passed
 ```
+
+The built Commander image passes 55 tests with five expected Idea Evolution
+database skips, including the deterministic
+ten-image loop, strict serialized review, feedback-before-conclusion ordering,
+same-context ownership, bounded recovery, context snapshots, model/dimension
+guards, analytics idempotency, and Telegram reply resolution. Migration 009 and
+the PostgreSQL repository restart path pass against disposable PostgreSQL 16.
+The local machine has no `/opt/ptw/platform` checkout or bot credentials, so a
+real Telegram/provider cycle and production restart have not been claimed.
 
 The complete idea-generation image also ran the repository suite with 49 tests
 passing and 13 expected skips. A disposable PostgreSQL 16 integration run
@@ -215,6 +247,16 @@ change Telegram acknowledgement or production-completion gates.
 
 ## Next milestone
 
+Deploy the three Commander services and updated Idea Evolution bridge from a
+reviewed revision, update the unrelated established poller's routing, configure
+the existing runtime's OpenAI credential, and run one real owner-only batch.
+Verify help/button routing, all ten GPT Image 2 artifacts before first delivery,
+one `/estimate` reply and producing-context conclusion per image, graph IDs,
+ranking, restart continuation, and actionable provider failure before marking
+the Telegram capability active.
+
+## Prior next milestone
+
 Merge the owner-replacement branch through a pull request, then let the owner
 inspect `/idea_queue` and send `/run` to start G5. Verify that submission #1 is
 recorded as replacing idea #35, G5 completes with exactly 10 ideas and 100 new
@@ -222,7 +264,7 @@ evaluations, the human idea appears in `/ranking`, and `/report G5` names the
 replacement. Keep autopilot off until this first real replacement generation
 has been reviewed.
 
-## Prior next milestone
+## Earlier next milestone
 
 Configure the research-provider credential, run the first real research ->
 hypothesis -> creative loop, then extend generation so learned component weights

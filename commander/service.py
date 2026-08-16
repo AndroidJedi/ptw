@@ -233,6 +233,45 @@ class Commander:
         comment: str,
         actor: str,
     ) -> tuple[Entity, tuple[Entity, ...]]:
+        return self._record_creative_feedback(
+            creative=creative,
+            rating=rating,
+            comment=comment,
+            actor=actor,
+            feedback_type="owner_review",
+            extra_attributes={},
+        )
+
+    def record_ad_estimate(
+        self,
+        *,
+        creative: Entity,
+        predicted_ctr: float,
+        rating: int,
+        comment: str,
+        actor: str,
+    ) -> tuple[Entity, tuple[Entity, ...]]:
+        if not 0 <= predicted_ctr <= 100:
+            raise ValueError("predicted CTR must be between 0 and 100 percent")
+        return self._record_creative_feedback(
+            creative=creative,
+            rating=rating,
+            comment=comment,
+            actor=actor,
+            feedback_type="ad_owner_estimate",
+            extra_attributes={"predicted_link_ctr_percent": predicted_ctr},
+        )
+
+    def _record_creative_feedback(
+        self,
+        *,
+        creative: Entity,
+        rating: int,
+        comment: str,
+        actor: str,
+        feedback_type: str,
+        extra_attributes: Mapping[str, Any],
+    ) -> tuple[Entity, tuple[Entity, ...]]:
         self._require_kind(creative, EntityKind.CREATIVE)
         if rating not in range(1, 6):
             raise ValueError("feedback rating must be an integer from 1 to 5")
@@ -251,7 +290,8 @@ class Commander:
                     "rating": rating,
                     "comment": comment.strip()[:1000],
                     "actor": actor,
-                    "feedback_type": "owner_review",
+                    "feedback_type": feedback_type,
+                    **dict(extra_attributes),
                 },
                 actor=actor,
                 reasoning_summary="Recorded explicit owner feedback without treating it as an observation.",

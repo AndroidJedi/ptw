@@ -50,8 +50,9 @@ services:
       - /root/.codex/auth.json:/run/ptw-auth/auth.json:ro
     networks:
       default:
+        aliases: [ptw-commander-api]
       existing-ptw-backend:
-        aliases: [ptw-creative-api]
+        aliases: [ptw-creative-api, ptw-commander-api]
     ports:
       - "127.0.0.1:${COMMANDER_HTTP_PORT:-8091}:8080"
     healthcheck:
@@ -77,6 +78,27 @@ services:
     volumes:
       - commander-assets:/var/lib/ptw/assets
     command: ["python", "-m", "commander.worker"]
+
+  commander-ad-worker:
+    build:
+      context: .
+      dockerfile: commander/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      commander-migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env.commander
+      - /opt/ptw/platform/.env
+    environment:
+      DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
+      COMMANDER_ASSET_DIR: /var/lib/ptw/assets
+      COMMANDER_AD_IMAGE_MODEL: ${COMMANDER_AD_IMAGE_MODEL:-gpt-image-2}
+      COMMANDER_AD_SPEC_MODEL: ${COMMANDER_AD_SPEC_MODEL:-gpt-5-mini}
+      COMMANDER_AD_CONCLUSION_MODEL: ${COMMANDER_AD_CONCLUSION_MODEL:-gpt-5-mini}
+    volumes:
+      - commander-assets:/var/lib/ptw/assets
+    command: ["python", "-m", "commander.ad_worker"]
 
 volumes:
   commander-db-data:

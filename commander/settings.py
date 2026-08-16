@@ -33,6 +33,9 @@ class Settings:
     policy_path: Path
     openai_api_key: str = ""
     research_model: str = "gpt-5-mini"
+    ad_image_model: str = "gpt-image-2"
+    ad_spec_model: str = "gpt-5-mini"
+    ad_conclusion_model: str = "gpt-5-mini"
     codex_executable: str = "/opt/ptw-codex/bin/codex"
     checkpoint_max_age_seconds: int = 86400
     checkpoint_required: bool = False
@@ -63,6 +66,11 @@ class Settings:
             policy_path=Path(os.environ.get("COMMANDER_POLICY_PATH", "config/commander/policies.json")),
             openai_api_key=os.environ.get("OPENAI_API_KEY", "").strip(),
             research_model=os.environ.get("COMMANDER_RESEARCH_MODEL", "gpt-5-mini").strip(),
+            ad_image_model=os.environ.get("COMMANDER_AD_IMAGE_MODEL", "gpt-image-2").strip(),
+            ad_spec_model=os.environ.get("COMMANDER_AD_SPEC_MODEL", "gpt-5-mini").strip(),
+            ad_conclusion_model=os.environ.get(
+                "COMMANDER_AD_CONCLUSION_MODEL", "gpt-5-mini"
+            ).strip(),
             codex_executable=os.environ.get("CODEX_EXECUTABLE", "/opt/ptw-codex/bin/codex"),
             checkpoint_max_age_seconds=checkpoint_max_age,
             checkpoint_required=os.environ.get("COMMANDER_CHECKPOINT_REQUIRED", "false").lower()

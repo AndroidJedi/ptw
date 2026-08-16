@@ -82,6 +82,46 @@ class IdeaGenerationContractTests(unittest.TestCase):
         self.assertIn(raw, payload["details"]["problem"])
         self.assertEqual([], payload["parent_ids"])
 
+    def test_ads_from_validates_and_snapshots_the_selected_idea(self) -> None:
+        submitted = []
+
+        class Store:
+            def mission(self):
+                return {"id": 1, "task_text": "task"}
+
+            def execute(self, sql, params=()):
+                return 1
+
+            def fetchone(self, sql, params=()):
+                if "FROM ideas" in sql:
+                    return {
+                        "id": 77,
+                        "title": "Proof Sprint",
+                        "one_liner": "A visible proof journey.",
+                        "details": {"problem": "Goals fade"},
+                        "mode": "explore",
+                        "parent_ids": [12],
+                        "created_at": "2026-08-16T12:00:00+03:00",
+                        "generation_number": 5,
+                        "aggregate_score": 82.5,
+                    }
+                return None
+
+        def submit(chat_id, idea, key):
+            submitted.append((chat_id, idea, key))
+            return {"batch_id": "batch-uuid", "status": "queued"}
+
+        controller = TelegramController(
+            Store(), object(), frozenset({123}), ad_batch_submitter=submit
+        )
+        result = controller.handle(
+            123, "/ads from 77", idempotency_key="telegram-update:900"
+        )
+        self.assertIn("batch-uuid", result)
+        self.assertEqual(123, submitted[0][0])
+        self.assertEqual("Proof Sprint", submitted[0][1]["title"])
+        self.assertEqual("telegram-update:900", submitted[0][2])
+
 
 @unittest.skipUnless(
     os.environ.get("IDEA_GENERATION_TEST_DATABASE_URL") and importlib.util.find_spec("psycopg"),

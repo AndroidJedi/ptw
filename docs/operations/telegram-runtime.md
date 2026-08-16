@@ -10,6 +10,52 @@ worker uses the same bot identity to return generated images.
 
 ## Available command
 
+### Ten-context ad estimation
+
+Inspect an Idea Evolution idea and tap **Generate 10 ads**, or send:
+
+```text
+/ads from <idea-id>
+```
+
+Idea Evolution validates and snapshots the selected idea. Commander creates ten
+high-quality image posts and saves all ten before Telegram sends the first one.
+Review remains serialized. Reply to the active image:
+
+```text
+/estimate 1.8 4 Strong proof; simplify the lower copy
+```
+
+The estimate and feedback are saved first. Then only that image's producing
+context examines the final image and records its structured conclusion; the
+next image is queued only after that conclusion commits.
+
+```text
+/ads status [batch-id]
+/ads continue <batch-id>
+/ads ranking [batch-id]
+/ad_contexts
+/ad_context A01
+/ad_context_set A01 <prompt>
+/ad_context_name A01 <name>
+/ad_context_history A01
+/ad_context_restore A01 <version>
+/ad_context_enable A01
+/ad_context_disable A01
+```
+
+Only one batch per chat can be in owner review at once. Later batches may finish
+generation and wait in `review_ready`. Reply delivery maps resolve Creative
+UUIDs automatically; the owner never has to manage them.
+
+The established poller must route `/ads from` and the Idea button callback to
+Idea Evolution, and route `/estimate`, `/ads status|continue|ranking`, and
+`/ad_context*` to Commander. A capability is not production-ready until these
+routes, the three Commander services, provider credentials, delivery mapping,
+restart continuation, and a real reply cycle have been verified.
+
+### Existing creative command
+
 Request one hook as a Telegram text message, without generating an image:
 
 ```text
@@ -181,8 +227,8 @@ still rechecks both Telegram user and chat authorization.
 
 ```sh
 docker compose --env-file .env.commander -f docker-compose.commander.yml ps
-docker compose --env-file .env.commander -f docker-compose.commander.yml logs -f commander-api commander-worker
-docker compose --env-file .env.commander -f docker-compose.commander.yml restart commander-api commander-worker
+docker compose --env-file .env.commander -f docker-compose.commander.yml logs -f commander-api commander-worker commander-ad-worker
+docker compose --env-file .env.commander -f docker-compose.commander.yml restart commander-api commander-worker commander-ad-worker
 ```
 
 The forwarding poller lives in `/opt/ptw/platform`. After changing its source,

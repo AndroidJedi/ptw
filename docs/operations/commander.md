@@ -30,6 +30,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/005_feedback_weights.sq
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/006_telegram_delivery_links.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/007_workspace_task_acknowledgements.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/008_session_checkpoints.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/009_ad_generation.sql
 ```
 
 Construct the database repository with `connect_postgres(DATABASE_URL)`. Domain
@@ -78,3 +79,28 @@ deduplicate Telegram update IDs, and keep the bot token out of Git.
 The executable composition is in `docker-compose.commander.yml`. See
 [`telegram-runtime.md`](telegram-runtime.md) for credentials, HTTPS activation,
 operations, and the `/creative` command.
+
+## Ad image estimation runtime
+
+Configure `OPENAI_API_KEY` outside Git. The exact workflow models default to:
+
+```text
+COMMANDER_AD_IMAGE_MODEL=gpt-image-2
+COMMANDER_AD_SPEC_MODEL=gpt-5-mini
+COMMANDER_AD_CONCLUSION_MODEL=gpt-5-mini
+```
+
+The image model setting is guarded: only the current `gpt-image-2` alias is
+accepted. Missing credentials or a different model preserve the batch in a
+failed state with an actionable `/ads continue` path.
+
+`commander-ad-worker` owns spec, image, and conclusion calls. The existing
+`commander-worker` remains dedicated to transactional Telegram outbox delivery,
+so ten image calls do not block normal messages. Both mount the same asset
+volume; PostgreSQL remains the state authority.
+
+Idea Evolution calls authenticated `POST /internal/ad-batches`. Its runtime
+needs `AD_BATCH_BRIDGE_URL`, normally
+`http://ptw-commander-api:8080/internal/ad-batches` on the shared Compose
+network. Analytics import uses authenticated
+`POST /internal/ad-batches/{batch-id}/metrics`.

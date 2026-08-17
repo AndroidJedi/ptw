@@ -20,7 +20,7 @@ services:
     networks:
       default:
       existing-ptw-backend:
-        aliases: [ptw-creative-api]
+        aliases: [ptw-idea-api]
     ports:
       - "127.0.0.1:${IDEA_GENERATION_HTTP_PORT:-8091}:8080"
     healthcheck:

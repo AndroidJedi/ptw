@@ -35,39 +35,36 @@ history or the architecture review.
 
 The GitHub working tree and `/opt/ptw/platform` have unrelated histories; do not
 merge them or reuse unrelated deployment credentials. The one explicit
-operational integration is the existing `@ptw_commander_bot`: the creative
-stack reads its environment file at runtime and the established long poller
-forwards `/creative` over the shared internal network. Never print, copy into
-Git, rotate, or replace that token without owner authorization. Use disposable
-databases for migration tests unless the user explicitly authorizes a target
-database.
+operational integration is the existing `@ptw_commander_bot`: Commander reads
+its root-owned environment at runtime and the established long poller exposes
+only emergency controls. Never print, copy into Git, rotate, or replace that
+token without owner authorization. Use disposable databases for migration
+tests unless the user explicitly authorizes a target database.
 
-The owner's general Telegram instruction channel is `/task <free-form request>`.
-It queues the established specification-driven engineering workflow and may
-include screenshots/images when `/task ...` is used as the attachment caption.
-`/engineer` is a compatibility alias; `/creative` is reserved for Story image
-generation.
+The web Owner Gateway is the only normal instruction channel. Telegram is
+limited to notifications plus emergency `/help`, `/status`, and `/stop`; every
+other inbound command returns the web-console link and must not mutate state.
 
-Commander recovery uses `scripts/backup_commander.sh`,
-`verify_commander_backup.sh`, and the confirmation-gated
-`restore_commander.sh`. The VPS schedules daily backups in
-`/etc/cron.d/ptw-commander-backup`. Before destructive recovery, verify the
-archive and recorded Git revision. Research must enter through
+Unified production reset uses the confirmation-gated `scripts/reset_ptw.sh`.
+It intentionally has no backup prerequisite by owner decision, so every reset
+must keep its exact target allowlist and must be treated as irreversible.
+Research must enter through
 `ResearchKnowledgeService` so every initial hypothesis retains `derived_from`
 edges to permanent research-source IDs.
 
-After each Telegram creative, request feedback by reply. Never ask the owner to
-manually manage IDs: resolve the Telegram delivery to its Creative UUID, then
+After each web creative, request feedback in the review queue. Never ask the owner to
+manually manage IDs: resolve the selected artifact to its Creative UUID, then
 persist HumanFeedback and WeightUpdate UUID entities connected through
 `evaluates`, `contains`, `derived_from`, and `adjusts` edges. Weight history is
 append-only; do not silently update a component row.
 
-The owner inspects state through `/graph`, `/graph hypotheses`, `/graph weights`,
-and `/graph creative <uuid>`. Keep output bounded and ID-explicit; PostgreSQL
-entities and relationship edges remain the complete authority.
+The owner inspects graph state through bounded web APIs and the Docs/System UI.
+Keep output ID-explicit; PostgreSQL entities and relationship edges remain the
+complete authority.
 
-`/research creative <topic>` is reserved for creative-ideation research and writes sourced,
-proposed hypotheses. `/creative from <hypothesis-id>` consumes that lineage.
+Creative research must still enter through the typed research service and
+retain sourced lineage; web actions consume hypothesis IDs without requiring
+the owner to copy them.
 
 Before claiming a Telegram capability is available, verify deployed help,
 routing, authorization, provider readiness, real end-to-end execution, graph

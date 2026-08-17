@@ -14,7 +14,7 @@ Treat every idea as an allocation of scarce time, money, and attention. Search f
 - Distinguish uncertainty that can be cheaply tested from risk that can destroy the company.
 - A business should have a reason margins or economics improve with scale.
 - Avoid paying indefinitely for growth that creates no durable asset.
-- A $450M exit requires buyers to believe future economics or strategic value justify the price.
+- A $20M outcome within 36 months requires buyers or investors to believe the economics or strategic value justify the price.
 
 ## Generation questions
 

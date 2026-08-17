@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements-commander.txt
 
 COPY commander ./commander
 COPY config ./config
-COPY assets/fonts ./assets/fonts
+COPY commander/assets/fonts ./commander/assets/fonts
 
 RUN groupadd --system --gid 10001 commander \
     && useradd --system --uid 10001 --gid 10001 commander \

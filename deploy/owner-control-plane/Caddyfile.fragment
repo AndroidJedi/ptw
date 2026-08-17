@@ -1,0 +1,9 @@
+commander.proove-them-wrong.com {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+    }
+    reverse_proxy ptw-owner-gateway:8088
+}

@@ -18,7 +18,7 @@ from idea_generation.validation import StructuredOutputError, evaluations, idea
 class IdeaGenerationContractTests(unittest.TestCase):
     def test_authoritative_seed_is_exact(self) -> None:
         mission, contexts = load(Path("ideaGeneration"))
-        self.assertIn("MISSION_450M_5Y", mission)
+        self.assertIn("MISSION_20M_3Y", mission)
         self.assertEqual([f"C{i:02d}" for i in range(1, 11)], [item["code"] for item in contexts])
 
     def test_slot_mix(self) -> None:
@@ -78,8 +78,8 @@ class IdeaGenerationContractTests(unittest.TestCase):
         payload = MockLLMProvider().generate_structured(
             "normalize_human", "", {"context": {"code": "owner"}, "raw_text": raw}, {}
         )
-        self.assertEqual("PROVE THEM WRONG", payload["title"])
-        self.assertIn(raw, payload["details"]["problem"])
+        self.assertEqual("PROVE THEM WRONG", payload["title"]["en"])
+        self.assertIn(raw, payload["details"]["problem"]["en"])
         self.assertEqual([], payload["parent_ids"])
 
     def test_ads_from_validates_and_snapshots_the_selected_idea(self) -> None:

@@ -67,7 +67,7 @@ class InstagramPostRenderer:
     @staticmethod
     def _font(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         candidates = [
-            Path("assets/fonts/Roboto-Bold.ttf" if bold else "assets/fonts/Roboto-Regular.ttf"),
+            Path("commander/assets/fonts/Roboto-Bold.ttf" if bold else "commander/assets/fonts/Roboto-Regular.ttf"),
             Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
         ]
         for path in candidates:

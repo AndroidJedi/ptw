@@ -7,6 +7,8 @@ services:
     env_file:
       - path: /opt/ptw/platform/.env
         required: false
+      - path: .env.owner-gateway
+        required: true
     environment:
       DATABASE_URL: ${DATABASE_URL:?reuse the isolated application database URL}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?reuse the existing bot token}

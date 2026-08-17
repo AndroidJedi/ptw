@@ -14,7 +14,7 @@ Look for an important truth or market structure that most competitors overlook. 
 - Search for beliefs that are true but not yet widely acted upon.
 - A great starting wedge should allow expansion into a much larger strategic position.
 - Defensibility should become stronger as the company wins.
-- A five-year exit needs a reason a buyer cannot cheaply recreate the asset.
+- A 36-month exit path needs a reason a buyer cannot cheaply recreate the asset.
 
 ## Generation questions
 

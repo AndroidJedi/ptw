@@ -26,7 +26,7 @@ Start with a valuable customer problem and work backward. Prefer durable custome
 
 - What customer frustration is still structurally underserved?
 - What would make the product meaningfully better, simpler, faster, cheaper, or more trusted?
-- What could users still value five years from now?
+- What could users still value three years from now and beyond?
 - What repeated behavior creates compounding economics?
 - What can become self-service?
 
@@ -427,7 +427,7 @@ Treat every idea as an allocation of scarce time, money, and attention. Search f
 - Distinguish uncertainty that can be cheaply tested from risk that can destroy the company.
 - A business should have a reason margins or economics improve with scale.
 - Avoid paying indefinitely for growth that creates no durable asset.
-- A $450M exit requires buyers to believe future economics or strategic value justify the price.
+- A $20M outcome within 36 months requires buyers or investors to believe the economics or strategic value justify the price.
 
 ## Generation questions
 

@@ -14,30 +14,28 @@ append-only feedback/weight history, artifact storage, and bounded recovery.
 
 ## Exact sequence
 
-1. Idea Evolution validates `/ads from <idea-id>` and sends its immutable idea
-   snapshot to `POST /internal/ad-batches` with the Telegram update ID as the
-   idempotency key.
+1. Commander Web selects an Idea and sends its immutable snapshot through the
+   Owner Gateway with a generated idempotency key.
 2. The batch snapshots active revisions A01-A10 and moves from `queued` to
    `generating`.
 3. Each context makes one creative-spec call and one high-quality image call.
-   No Telegram photo is queued until all ten final files and graph records exist.
-4. Review state becomes `awaiting_owner`, and only image 1 is placed in the
-   existing Telegram outbox.
-5. The owner replies `/estimate <predicted-CTR%> <1-5> [feedback]`. Telegram's
-   delivery map resolves the reply to the permanent Creative UUID.
+   Review does not open until all ten final files and graph records exist.
+4. Review state becomes `awaiting_owner`, and the web queue exposes image 1.
+5. The owner submits predicted CTR, rating, overall comment, and optional image
+   annotations bound to the permanent Creative UUID and Artifact digest.
 6. HumanFeedback and append-only WeightUpdates commit before the producing
    context receives the selected idea, snapshotted context, final image, and
    owner feedback.
 7. One `ad_context_conclusion` Insight commits for that Creative. The same
-   transaction advances and queues the next photo. Position 10 instead commits
-   completion and queues the ranked summary.
+   transaction advances the web queue to the next image. Position 10 instead
+   commits completion and exposes the ranked summary.
 8. An analytics import later creates an immutable Source and one MetricSet per
    Creative, calculates actual link CTR, and records its percentage-point
    difference from the owner's estimate.
 
 Every provider phase uses an initial attempt plus at most two recoveries.
 Completed slots are not regenerated. A terminal step error preserves the batch
-for `/ads continue <batch-id>` and returns a configuration/action message.
+for explicit retry from the Jobs/Post UI and returns a bounded actionable issue.
 The successful batch contract is exactly ten creative-spec calls, ten image
 calls, and ten owner-feedback-grounded multimodal conclusion calls.
 

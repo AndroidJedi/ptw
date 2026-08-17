@@ -1,30 +1,27 @@
 # Component boundaries
 
 Status: active architecture contract  
-Updated: 2026-08-13
+Updated: 2026-08-17
 
-PTW remains a monorepo while the creative-learning boundary is evolving. Code
-organization and automated validation are component-based rather than tied to a
-single repository language.
+`project.components.json` is the machine-readable authority for path ownership
+and validation. PTW has four current boundaries:
 
-`project.components.json` is the machine-readable authority for component path
-ownership and validation. The engineering runner resolves the final changed
-paths against this manifest, runs global checks once, then runs only the checks
-declared by affected components. Overlapping components are allowed and command
-deduplication is required.
+- `creative-learning`: generic Python learning domain, idea evolution,
+  creative production, feedback lineage, PostgreSQL migrations, and workers.
+- `commander-web`: the React/TypeScript mobile-first PWA. It renders bounded
+  read models and sends owner intent; it never becomes a domain database.
+- `owner-control-plane`: authenticated HTTP/WSS gateway, Codex Plan/Execute,
+  documentation/system views, and the narrow Unix-socket root-broker boundary.
+- `repository-architecture`: cross-component policies and canonical docs.
 
-The initial boundaries are:
+Instagram is an adapter within creative learning. Product reasoning and
+feedback remain generic so another distribution surface can be added without
+changing the core graph.
 
-- `creative-learning`: Python Commander, Telegram creative transport,
-  research, feedback lineage, component weights, migrations, and runtime tests.
-- `flutter-product`: the Flutter mobile and web product.
-- `template-tooling`: template authoring MCP and its Flutter-side contracts.
+The PWA and gateway may deploy independently, but schemas and contracts change
+through versioned migrations and APIs in this monorepo. The unrelated
+`/opt/ptw/platform` Git history is integrated through HTTP/database contracts;
+it is never merged into this repository.
 
-Physical directory moves are intentionally deferred. Moving stable modules is
-mechanical; discovering a premature boundary through broken imports and
-deployment paths is expensive. A component may move to a dedicated repository
-only after it has an independent release cadence and a stable API boundary.
-
-Documentation-only changes receive global validation unless their path is
-explicitly owned by a component. Adding a new runtime or language requires a
-new manifest component, not changes to the generic engineering runner.
+Adding another runtime requires a manifest component with its own validations.
+There is no native mobile or compatibility component.

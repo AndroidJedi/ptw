@@ -27,7 +27,7 @@ def main() -> None:
         mission = store.mission(); contexts = store.active_contexts()
         generations = store.fetchone("SELECT COUNT(*) AS count FROM generations WHERE status='completed'")["count"]
         if mission["auto_enabled"] or generations or len(contexts) != 10: raise SystemExit("verification failed")
-        print("Postgres: OK; Mission: MISSION_450M_5Y; Contexts: 10/10; Autopilot: OFF; Generations: 0")
+        print(f"Postgres: OK; Mission: {mission['code']}; Contexts: 10/10; Autopilot: OFF; Generations: 0")
 
 
 if __name__ == "__main__": main()

@@ -120,6 +120,8 @@ class AdGenerationEngine:
         rating: int,
         comment: str,
         actor: str,
+        artifact_digest: str | None = None,
+        annotations: tuple[Mapping[str, Any], ...] = (),
     ) -> AdSlotRecord:
         if not 0 <= predicted_ctr <= 100:
             raise ValueError("predicted CTR must be between 0 and 100 percent")
@@ -132,6 +134,15 @@ class AdGenerationEngine:
         if slot.feedback_id is not None:
             raise ValueError("this ad image already has an owner estimate")
         creative = self.commander.store.get_entity(creative_id)
+        if artifact_digest is None:
+            artifact = next(
+                self.commander.store.get_entity(edge.target_id)
+                for edge in self.commander.store.relationships()
+                if edge.source_id == creative_id
+                and edge.relation == RelationType.GENERATED
+                and self.commander.store.get_entity(edge.target_id).kind == EntityKind.ARTIFACT
+            )
+            artifact_digest = str(artifact.attributes["sha256"])
         with self.commander.store.transaction():
             feedback, _updates = self.commander.record_ad_estimate(
                 creative=creative,
@@ -139,6 +150,8 @@ class AdGenerationEngine:
                 rating=rating,
                 comment=comment,
                 actor=actor,
+                artifact_digest=artifact_digest,
+                annotations=annotations,
             )
             result = self.repository.save_estimate(
                 creative_id,
@@ -146,6 +159,15 @@ class AdGenerationEngine:
                 rating=rating,
                 comment=comment.strip(),
                 feedback_id=feedback.id,
+            )
+            self.repository.save_review_projection(
+                feedback_id=feedback.id,
+                creative_id=creative_id,
+                artifact_digest=artifact_digest,
+                rating=rating,
+                comment=comment,
+                predicted_ctr=predicted_ctr,
+                annotations=annotations,
             )
         return result
 

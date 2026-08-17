@@ -8,15 +8,12 @@ from typing import Any, Mapping
 
 from fastapi import FastAPI, Header, HTTPException
 
-from .creative_service import CreativeProductionService
 from .model import EntityKind
 from .model import RelationType
 from .policy import CommanderPolicy
 from .postgres_store import PostgresKnowledgeStore, connect_postgres
-from .renderer import InstagramPostRenderer
 from .service import Commander
 from .settings import Settings
-from .store import KnowledgeStore
 from .telegram import TelegramControlPlane, TelegramUnauthorized
 from .telegram_api import TelegramBotClient
 from .openai_research import CodexCreativeResearchProvider, OpenAICreativeResearchProvider
@@ -52,8 +49,6 @@ def create_app(
         research_service=research_service,
         ad_engine=ad_engine,
     )
-    renderer = InstagramPostRenderer(settings.asset_directory / "generated")
-    production = CreativeProductionService(commander, renderer)
     app = FastAPI(title="PTW Commander", version="0.1.0")
     app.state.checkpoint_canary = startup_checkpoint_canary(
         store, settings.checkpoint_max_age_seconds
@@ -100,6 +95,19 @@ def create_app(
         if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
             raise HTTPException(status_code=403, detail="invalid bridge token")
         return _process_update(update)
+
+    @app.post("/internal/emergency-stop")
+    def internal_emergency_stop(
+        request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, bool]:
+        if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
+            raise HTTPException(status_code=403, detail="invalid bridge token")
+        active = request.get("active") is True
+        with store.transaction():
+            commander.set_emergency_stop(
+                active, actor=str(request.get("actor") or "owner-gateway")
+            )
+        return {"emergency_stop": active}
 
     @app.post("/internal/ad-batches")
     def create_ad_batch(
@@ -251,84 +259,21 @@ def create_app(
     def _process_update(update: Mapping[str, Any]) -> dict[str, object]:
         result: dict[str, object] = {}
         try:
-            update = _expand_estimate_reply(_expand_feedback_reply(update, store), store)
             update_id = int(update["update_id"])
             with store.transaction():
                 if not store.record_inbox_once(update_id):
                     return {"ok": True, "duplicate": True}
-                if _is_creative(update):
-                    chat_id, user_id, text, file_id = _creative_request(update)
-                    control.authorize(user_id, chat_id)
-                    text_hook_result = production.text_hook_from_request(
-                        text, requested_by=f"telegram:{user_id}"
-                    )
-                    if text_hook_result is not None:
-                        text_hook, text_creative = text_hook_result
-                        task_line = (
-                            f"TASK-{update['_ptw_task_id']} completed.\n"
-                            if update.get("_ptw_task_id") is not None
-                            else ""
-                        )
-                        store.enqueue_outbox(
-                            "telegram.send_message", None,
-                            {
-                                "chat_id": chat_id,
-                                "text": (
-                                    f"Creative {text_creative.id}\n"
-                                    f"{task_line}{text_hook}\n\n"
-                                    "Reply to this message with:\n"
-                                    "/feedback 1-5 optional comment"
-                                ),
-                                "creative_id": text_creative.id,
-                            },
-                        )
-                        result = {"hook": text_hook, "creative_id": text_creative.id}
-                        return {"ok": True, "duplicate": False, "result": result}
-                    hero = None
-                    if file_id:
-                        hero = telegram_client.download_photo(
-                            file_id,
-                            settings.asset_directory / "incoming" / f"telegram-{update_id}.jpg",
-                        )
-                    creative, artifact, path = production.create_instagram_post(
-                        request_text=text,
-                        requested_by=f"telegram:{user_id}",
-                        hero_image=hero,
-                        hypothesis=production.hypothesis_from_request(text),
-                    )
+                reply = control.handle_update(update)
+                store.enqueue_outbox(
+                    "telegram.send_message", None,
+                    {"chat_id": reply.chat_id, "text": reply.text},
+                )
+                result = {"response": reply.text}
+                if reply.callback_query_id:
                     store.enqueue_outbox(
-                        "telegram.send_photo",
-                        artifact.id,
-                        {
-                            "chat_id": chat_id,
-                            "path": str(path),
-                            "caption": (
-                                f"Creative {creative.id}\n"
-                                + (f"TASK-{update['_ptw_task_id']} completed.\n" if update.get("_ptw_task_id") is not None else "")
-                                + "Ready for review; not published.\n\n"
-                                "Reply to this image with:\n/feedback 1-5 optional comment"
-                            ),
-                            "creative_id": creative.id,
-                        },
+                        "telegram.answer_callback", None,
+                        {"callback_query_id": reply.callback_query_id},
                     )
-                    result = {"creative_id": creative.id, "artifact_id": artifact.id}
-                else:
-                    reply = control.handle_update(update)
-                    task_id = update.get("_ptw_task_id")
-                    reply_text = (
-                        f"TASK-{task_id} completed.\n{reply.text}"
-                        if task_id is not None else reply.text
-                    )
-                    store.enqueue_outbox(
-                        "telegram.send_message", None,
-                        {"chat_id": reply.chat_id, "text": reply_text},
-                    )
-                    result = {"response": reply.text}
-                    if reply.callback_query_id:
-                        store.enqueue_outbox(
-                            "telegram.answer_callback", None,
-                            {"callback_query_id": reply.callback_query_id},
-                        )
         except TelegramUnauthorized as error:
             raise HTTPException(status_code=403, detail="unauthorized Telegram identity") from error
         except (KeyError, TypeError, ValueError) as error:
@@ -353,113 +298,3 @@ def create_app_from_env() -> FastAPI:
     settings = Settings.from_environment()
     store = connect_postgres(settings.database_url)
     return create_app(settings, store, TelegramBotClient(settings.telegram_bot_token))
-
-
-def _message(update: Mapping[str, Any]) -> Mapping[str, Any]:
-    message = update.get("message")
-    if not isinstance(message, Mapping):
-        raise ValueError("creative command requires a Telegram message")
-    return message
-
-
-def _is_creative(update: Mapping[str, Any]) -> bool:
-    message = update.get("message")
-    if not isinstance(message, Mapping):
-        return False
-    value = str(message.get("caption") or message.get("text") or "")
-    return value.strip().lower().startswith("/creative")
-
-
-def _creative_request(update: Mapping[str, Any]) -> tuple[int, int, str, str | None]:
-    message = _message(update)
-    photos = message.get("photo") or []
-    file_id = str(photos[-1]["file_id"]) if photos else None
-    return (
-        int(message["chat"]["id"]),
-        int(message["from"]["id"]),
-        str(message.get("caption") or message.get("text") or ""),
-        file_id,
-    )
-
-
-def _expand_feedback_reply(
-    update: Mapping[str, Any], store: KnowledgeStore
-) -> Mapping[str, Any]:
-    message = update.get("message")
-    if not isinstance(message, Mapping):
-        return update
-    text = str(message.get("text") or "").strip()
-    parts = text.split(maxsplit=2)
-    if not parts or parts[0].split("@", 1)[0].lower() != "/feedback":
-        return update
-    if len(parts) >= 2 and parts[1].isdigit():
-        reply = message.get("reply_to_message")
-        if not isinstance(reply, Mapping):
-            raise ValueError("reply to a generated creative, or include its UUID")
-        chat_id = int(message["chat"]["id"])
-        entity_id = store.telegram_delivery_entity(chat_id, int(reply["message_id"]))
-        if entity_id is None:
-            entity_id = _creative_id_from_reply(reply, store)
-        if entity_id is None:
-            raise ValueError("the replied message is not a known generated creative")
-        expanded = dict(update)
-        expanded_message = dict(message)
-        comment = f" {parts[2]}" if len(parts) > 2 else ""
-        expanded_message["text"] = f"/feedback {entity_id} {parts[1]}{comment}"
-        expanded["message"] = expanded_message
-        return expanded
-    return update
-
-
-def _creative_id_from_reply(
-    reply: Mapping[str, Any], store: KnowledgeStore
-) -> str | None:
-    """Recover delivery lineage from a generated photo caption or text message."""
-
-    lines = str(reply.get("caption") or reply.get("text") or "").splitlines()
-    prefix = "Creative "
-    creative_line = next((line for line in lines if line.startswith(prefix)), None)
-    if creative_line is None:
-        return None
-    try:
-        creative = store.get_entity(creative_line.removeprefix(prefix))
-    except KeyError:
-        return None
-    return creative.id if creative.kind == EntityKind.CREATIVE else None
-
-
-def _expand_estimate_reply(
-    update: Mapping[str, Any], store: KnowledgeStore
-) -> Mapping[str, Any]:
-    message = update.get("message")
-    if not isinstance(message, Mapping):
-        return update
-    text = str(message.get("text") or "").strip()
-    parts = text.split(maxsplit=3)
-    if not parts or parts[0].split("@", 1)[0].lower() != "/estimate":
-        return update
-    # Reply form starts with a numeric CTR. Expanded form starts with a Creative UUID.
-    if len(parts) < 3:
-        return update
-    try:
-        float(parts[1].removesuffix("%"))
-        int(parts[2])
-    except ValueError:
-        return update
-    reply = message.get("reply_to_message")
-    if not isinstance(reply, Mapping):
-        raise ValueError("reply to the active ad image, or include its Creative UUID")
-    chat_id = int(message["chat"]["id"])
-    entity_id = store.telegram_delivery_entity(chat_id, int(reply["message_id"]))
-    if entity_id is None:
-        entity_id = _creative_id_from_reply(reply, store)
-    if entity_id is None:
-        raise ValueError("the replied message is not a known generated ad Creative")
-    expanded = dict(update)
-    expanded_message = dict(message)
-    comment = f" {parts[3]}" if len(parts) > 3 else ""
-    expanded_message["text"] = (
-        f"/estimate {entity_id} {parts[1]} {parts[2]}{comment}"
-    )
-    expanded["message"] = expanded_message
-    return expanded

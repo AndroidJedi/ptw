@@ -64,6 +64,7 @@ class AdWorkflowRepository(Protocol):
     def fail(self, batch_id: str, position: int, error: str) -> None: ...
     def activate_review(self, chat_id: int) -> AdSlotRecord | None: ...
     def save_estimate(self, creative_id: str, *, predicted_ctr: float, rating: int, comment: str, feedback_id: str) -> AdSlotRecord: ...
+    def save_review_projection(self, *, feedback_id: str, creative_id: str, artifact_digest: str, rating: int, comment: str, predicted_ctr: float | None, annotations: tuple[Mapping[str, Any], ...], supersedes_feedback_id: str | None = None) -> None: ...
     def claim_conclusion(self) -> AdSlotRecord | None: ...
     def finish_conclusion(self, creative_id: str, conclusion_id: str) -> AdSlotRecord | None: ...
     def continue_batch(self, batch_id: str) -> None: ...
@@ -397,6 +398,37 @@ class PostgresAdWorkflowRepository:
                 )
         return self.slot_by_creative(creative_id)
 
+    def save_review_projection(
+        self,
+        *,
+        feedback_id: str,
+        creative_id: str,
+        artifact_digest: str,
+        rating: int,
+        comment: str,
+        predicted_ctr: float | None,
+        annotations: tuple[Mapping[str, Any], ...],
+        supersedes_feedback_id: str | None = None,
+    ) -> None:
+        rows = self._rows(
+            """SELECT artifact.attributes->>'sha256'
+               FROM commander_relationships edge
+               JOIN commander_entities artifact ON artifact.id=edge.target_id
+               WHERE edge.source_id=%s AND edge.relation='generated'
+                 AND artifact.kind='artifact' AND artifact.attributes->>'sha256'=%s""",
+            (creative_id, artifact_digest),
+        )
+        if not rows:
+            raise ValueError("artifact digest does not belong to the Creative")
+        self._execute(
+            """INSERT INTO commander_creative_reviews(
+                   feedback_id,creative_id,artifact_digest,rating,overall_comment,
+                   predicted_ctr,annotations,supersedes_feedback_id
+               ) VALUES(%s,%s,%s,%s,%s,%s,%s::jsonb,%s)""",
+            (feedback_id, creative_id, artifact_digest, rating, comment[:1000],
+             predicted_ctr, json.dumps(list(annotations), ensure_ascii=False), supersedes_feedback_id),
+        )
+
     def claim_conclusion(self) -> AdSlotRecord | None:
         with self.store.transaction():
             with self.store.connection.cursor() as cursor:
@@ -601,6 +633,7 @@ class MemoryAdWorkflowRepository:
         self._slots: dict[tuple[str, int], AdSlotRecord] = {}
         self.executions: list[Mapping[str, Any]] = []
         self.imports: set[tuple[str, str]] = set()
+        self.reviews: list[Mapping[str, Any]] = []
 
     def active_contexts(self) -> tuple[AdContextSnapshot, ...]:
         values = [v for v in self._contexts.values() if v["active"]]
@@ -708,6 +741,9 @@ class MemoryAdWorkflowRepository:
                                      status="conclusion_pending")
         self._replace_batch(batch, status="concluding")
         return updated
+
+    def save_review_projection(self, **values: Any) -> None:
+        self.reviews.append(dict(values))
 
     def claim_conclusion(self) -> AdSlotRecord | None:
         slot = next((s for s in self._slots.values() if s.status == "conclusion_pending"), None)

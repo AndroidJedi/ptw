@@ -20,7 +20,7 @@ Start with a valuable customer problem and work backward. Prefer durable custome
 
 - What customer frustration is still structurally underserved?
 - What would make the product meaningfully better, simpler, faster, cheaper, or more trusted?
-- What could users still value five years from now?
+- What could users still value three years from now and beyond?
 - What repeated behavior creates compounding economics?
 - What can become self-service?
 

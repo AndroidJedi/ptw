@@ -31,9 +31,26 @@ class PostgresStore:
         if len(contexts) != 10 or [item["code"] for item in contexts] != [f"C{i:02d}" for i in range(1, 11)]:
             raise ValueError("seed requires exactly C01-C10")
         with self.transaction() as connection:
-            connection.execute("""INSERT INTO missions(code,name,task_text) VALUES ('MISSION_450M_5Y',%s,%s)
-                ON CONFLICT (code) DO UPDATE SET name=EXCLUDED.name, task_text=EXCLUDED.task_text""",
-                ("Build a company that could be sold for $450M within 5 years", mission_text))
+            connection.execute("UPDATE missions SET is_active=FALSE WHERE is_active")
+            connection.execute("""INSERT INTO missions(
+                    code,name,name_i18n,task_text,is_active,activated_at,deadline_at
+                ) VALUES ('MISSION_20M_3Y',%s,%s::jsonb,%s,TRUE,NOW(),NOW() + INTERVAL '36 months')
+                ON CONFLICT (code) DO UPDATE SET
+                    name=EXCLUDED.name,
+                    name_i18n=EXCLUDED.name_i18n,
+                    task_text=EXCLUDED.task_text,
+                    is_active=TRUE,
+                    activated_at=COALESCE(missions.activated_at, EXCLUDED.activated_at),
+                    deadline_at=COALESCE(missions.deadline_at, EXCLUDED.deadline_at),
+                    updated_at=NOW()""",
+                (
+                    "Build a remotely operated company worth $20M within 36 months",
+                    self.json({
+                        "en": "Build a remotely operated company worth $20M within 36 months",
+                        "uk": "Побудувати дистанційно керовану компанію вартістю $20 млн за 36 місяців",
+                    }),
+                    mission_text,
+                ))
             for order, item in enumerate(contexts, 1):
                 row = connection.execute("""INSERT INTO contexts(code,name,prompt_text,sort_order) VALUES (%s,%s,%s,%s)
                     ON CONFLICT (code) DO NOTHING RETURNING id,version""",
@@ -49,9 +66,12 @@ class PostgresStore:
     def mission(self, *, lock: bool = False) -> dict[str, Any]:
         suffix = " FOR UPDATE" if lock else ""
         with self.transaction() as connection:
-            row = connection.execute("SELECT * FROM missions WHERE code='MISSION_450M_5Y'" + suffix).fetchone()
+            cursor = connection.execute(
+                "SELECT * FROM missions WHERE is_active=TRUE ORDER BY activated_at DESC NULLS LAST LIMIT 1" + suffix
+            )
+            row = cursor.fetchone()
             if not row: raise RuntimeError("mission is not seeded")
-            return dict(zip([d.name for d in connection.execute("SELECT * FROM missions LIMIT 0").description], row))
+            return dict(zip([d.name for d in cursor.description], row))
 
     def fetchall(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
         with self.transaction() as connection:
@@ -74,7 +94,10 @@ class PostgresStore:
         allowed = {"status", "auto_enabled", "cadence_hours", "run_series_remaining", "stop_after_current_cycle"}
         if not values or not set(values).issubset(allowed): raise ValueError("invalid mission update")
         assignments = ",".join(f"{key}=%s" for key in values)
-        self.execute(f"UPDATE missions SET {assignments},updated_at=NOW() WHERE code='MISSION_450M_5Y' RETURNING id", tuple(values.values()))
+        self.execute(
+            f"UPDATE missions SET {assignments},updated_at=NOW() WHERE is_active=TRUE RETURNING id",
+            tuple(values.values()),
+        )
 
     @staticmethod
     def json(value: Any) -> str:

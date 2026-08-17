@@ -1,82 +1,64 @@
-# PTW Design Rules
+# PTW React operator-console rules
 
-PTW must feel direct, bold, human, and emotionally immediate.
+Status: canonical
+Updated: 2026-08-17
 
-## Content
+## Product language
 
-- Do not explain what navigation, layout, or context already makes obvious.
-- Show primary content directly. A bounded recent-activity preview may open a
-  larger collection, but every previewed entry stays complete and untruncated.
-- Show complete primary content without truncation.
-- Supporting copy must answer a real question or enable the next action.
-  Otherwise, delete it.
-- Empty and error states contain one useful recovery action, not explanatory
-  cards.
+- Українська is the default operator language. English source text is always
+  available behind an explicit “EN” disclosure.
+- Raw command output, logs, diffs, IDs, paths, and provider errors remain
+  verbatim.
+- Labels describe an action or state; do not add explanatory copy where the
+  interface already makes the meaning clear.
 
-## Composition
+## Mobile first
 
-- Creator screens use hot pink `#F4066E` edge to edge, including system bars.
-- User-selected colors stay meaningful inside project tiles and public project
-  experiences.
-- Saturated tiles, previews, selectors, and black controls use a thin 1 px
-  white border. Plain form fields do not.
-- Avoid generic list tiles, white cards, title/subtitle pairs, and section
-  headers unless they provide essential structure.
-- Let content create the composition through large typography, meaningful
-  color, whitespace, and minimal metadata.
-- Images and color must have a purpose. Remove them when they compete with the
-  primary content.
-- A creator's current project is a dedicated page, not a project tile. Its
-  image, identity, goal, and deadline form one full-bleed hero.
-- Use borderless editorial sections, direct response typography, image bands,
-  and thin dividers for ongoing content. Do not package updates or social
-  activity into generic cards.
-- Hero social signals expose real stored activity through compact text and
-  custom indicators. They are information, not another card or button.
-- Prototype proof imagery must be visually distinct from its project hero.
+- Design first for a 360 px viewport and one-hand use.
+- Primary navigation is Overview, Ideas, Posts, Jobs, More at the bottom on
+  mobile and a compact left rail on desktop.
+- Put the primary action inside thumb reach. Minimum interactive target is
+  44x44 CSS pixels.
+- Avoid horizontal page scrolling. Large tables become ranked cards or compact
+  lists with progressive disclosure.
 
-## Typography
+## Visual identity
 
-- Sticker typography identifies the project, a hero state, or the first
-  action-sheet choice. It is hierarchy, never decoration.
-- Use the outlined Lilita One treatment for project goals, hero facts, and the
-  first action-sheet choice only.
-- CTA labels use a centered white sticker wordmark with a crisp black contour,
-  a small hot-pink hard shadow, and no leading icon.
-- Keep supporting copy, messages, proof, metadata, selectors, fields, and
-  secondary actions in Roboto.
-- Preserve natural capitalization and complete content. Project stickers may
-  scale down to fit, but never truncate.
-- On images and saturated surfaces, sticker text is white with a hard black
-  outline and offset shadow. On black controls, it uses the current accent with
-  a thin white outline.
-- Reserve enough inset around sticker text for its outline and offset shadow;
-  the visible mark must never touch or clip against a screen edge.
+- PTW hot pink `#f4066e`, near-black `#09090b`, and white are the core palette.
+- Use pink for intent and progress, not for every surface. State colors must
+  retain WCAG AA contrast and never communicate by color alone.
+- Prefer strong type, whitespace, thin borders, and direct content over generic
+  dashboard cards nested inside cards.
+- Motion is brief and functional and respects `prefers-reduced-motion`.
 
-## Interaction
+## Operational safety
 
-- Project is the creator hub. Do not use persistent tab bars.
-- Other creators appear in an immersive full-width activity stream, not a
-  discovery grid or another navigation shell.
-- Secondary creator screens use a white Apple-style back chevron.
-- A screen has at most one prominent black capsule action. It stays pinned
-  while the content scrolls.
-- Back controls, inputs, selectors, and tappable content do not count as the
-  screen action. A screen may have no capsule when its content is the action.
-- Reserve small, minimal outlined icons for meaningful navigation and
-  metadata. Primary CTA capsules remain icon-free.
-- When secondary actions are necessary, the single capsule opens a focused
-  action sheet. The primary action appears first; no secondary buttons remain
-  on the screen.
-- Every tap must perform a real action, not merely reveal information that
-  could already be visible.
-- Important navigation destinations remain available even when their content
-  is empty.
-- Do not promote the same destination with both a navigation control and a
-  separate content preview.
-- Organize mixed activity with typography and thin separators, not cards or
-  section containers.
-- Merge proofs and reactions into one chronological stream. Do not separate
-  related activity into type-based sections when time is the useful context.
-- Navigation, status bars, and backgrounds must feel like one continuous
-  surface.
+- Plan and Execute are visibly different modes. An approved plan shows its
+  immutable digest.
+- Destructive actions show an exact preview, verified backup evidence, and a
+  typed confirmation.
+- The root terminal is always labelled **Break-glass · root**. It displays its
+  idle and maximum lifetime and never stores transcript in application state.
+- Job state, validation evidence, deployment revision, and failure recovery are
+  visible without opening raw logs.
+
+## Creative review
+
+- The image remains the largest review surface. Pin, rectangle, and freehand
+  annotations use normalized `[0,1]` coordinates and can be edited without
+  changing the immutable artifact.
+- Each region has a comment. Overall rating and comment are separate.
+- Ten-variant batches keep the sequence visible and advance only after the
+  current feedback and producing-context conclusion are persisted.
+- Never hide Creative UUID or artifact digest; show shortened values with a
+  copy action and the full value in details.
+
+## Data presentation
+
+- Collections are bounded and cursor-paginated.
+- Trends show units, time range, and empty-state meaning. A score without its
+  rubric or generation is ambiguous and must not be shown alone.
+- Empty production state is valid. Generation 1 starts only through an explicit
+  owner action.
+- PWA caching is limited to the static application shell. API responses,
+  images, terminal traffic, and sensitive state must never be cached.

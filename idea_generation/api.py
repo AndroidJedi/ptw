@@ -162,4 +162,37 @@ def create_app(
             raise HTTPException(status_code=503, detail="Telegram send failed") from error
         return {"ok": True}
 
+    @app.post("/internal/web/generations")
+    def web_generation(
+        request: Mapping[str, Any], x_ptw_owner_gateway_token: str = Header(default="")
+    ) -> dict[str, Any]:
+        if not settings.owner_gateway_token or not hmac.compare_digest(
+            x_ptw_owner_gateway_token, settings.owner_gateway_token
+        ):
+            raise HTTPException(status_code=403, detail="invalid owner gateway token")
+        try:
+            count = int(request.get("count", 1))
+            if count < 1 or count > 100:
+                raise ValueError("generation count must be 1..100")
+            remaining, active = engine.queue_generations(count)
+            controller._ensure_runner()
+        except (TypeError, ValueError, RuntimeError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return {"queued": count, "remaining": remaining, "already_active": active}
+
+    @app.post("/internal/emergency-stop")
+    def internal_emergency_stop(
+        request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, bool]:
+        if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_token):
+            raise HTTPException(status_code=403, detail="invalid bridge token")
+        active = request.get("active") is True
+        store.update_mission(
+            status="paused" if active else "active",
+            auto_enabled=False,
+            run_series_remaining=0,
+            stop_after_current_cycle=active,
+        )
+        return {"emergency_stop": active}
+
     return app

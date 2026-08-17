@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import io
 import json
 from pathlib import Path
@@ -28,6 +28,7 @@ class AdCreativeSpec:
     supporting_copy: str
     cta: str
     visual_prompt: str
+    i18n: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "AdCreativeSpec":
@@ -41,8 +42,24 @@ class AdCreativeSpec:
             "visual_prompt": 1800,
         }
         fields: dict[str, str] = {}
+        localized: dict[str, Mapping[str, str]] = {}
         for key, limit in limits.items():
-            item = str(value.get(key, "")).strip()
+            stored_i18n = value.get("i18n")
+            raw = stored_i18n.get(key) if key != "visual_prompt" and isinstance(stored_i18n, Mapping) and key in stored_i18n else value.get(key, "")
+            if key != "visual_prompt" and isinstance(raw, Mapping):
+                if set(raw) != {"en", "uk"}:
+                    raise ValueError(f"ad creative spec {key} must contain exactly en and uk")
+                en, uk = str(raw["en"]).strip(), str(raw["uk"]).strip()
+                if not en or not uk:
+                    raise ValueError(f"ad creative spec {key} translations are required")
+                if max(len(en), len(uk)) > limit:
+                    raise ValueError(f"ad creative spec {key} exceeds {limit} characters")
+                item = en
+                localized[key] = {"en": en, "uk": uk}
+            else:
+                item = str(raw).strip()
+                if key != "visual_prompt":
+                    localized[key] = {"en": item, "uk": item}
             if not item:
                 raise ValueError(f"ad creative spec is missing {key}")
             if len(item) > limit:
@@ -64,10 +81,14 @@ class AdCreativeSpec:
             for marker in ("text-free", "without text", "no text", "no written")
         ):
             raise ValueError("visual_prompt must explicitly require a text-free visual")
-        return cls(**fields)
+        return cls(**fields, i18n=localized)
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    def display(self, field_name: str, language: str = "uk") -> str:
+        values = self.i18n.get(field_name)
+        return str(values.get(language, values.get("en", ""))) if values else str(getattr(self, field_name))
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,9 +219,10 @@ class OpenAIAdProvider:
     ) -> AdCreativeSpec:
         prompt = (
             "Create one honest pre-build image-ad specification. Return one JSON object "
-            "with exactly these string fields: concept_name, audience, angle, hook, "
-            "supporting_copy, cta, visual_prompt. Use the supplied idea title as the "
-            "concept name. The visual_prompt must request a text-free visual with a clear "
+            "with concept_name, audience, angle, hook, supporting_copy, and cta as objects "
+            "containing exactly {en, uk}; visual_prompt remains an English string. English "
+            "is the source contract and Ukrainian must be a faithful translation. Use the "
+            "supplied English idea title as concept_name.en. The visual_prompt must request a text-free visual with a clear "
             "copy-safe area; do not ask the image model to draw words, logos, UI text, "
             "testimonials, usage numbers, rankings, guarantees, or unsupported proof. "
             "Use an honest LEARN MORE or JOIN THE WAITLIST CTA.\n\n"

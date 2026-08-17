@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def load(root: Path) -> tuple[str, list[dict[str, str]]]:
-    mission = (root / "docs/TASK_450M_5Y.md").read_text()
+    mission = (root / "docs/TASK_20M_3Y.md").read_text()
     contexts = []
     for path in sorted((root / "docs/contexts").glob("C*.md")):
         prompt = path.read_text()

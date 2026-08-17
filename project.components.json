@@ -1,80 +1,39 @@
 {
-  "version": 1,
-  "global_validation": [
-    ["git", "diff", "--check"]
-  ],
+  "version": 2,
+  "global_validation": [["git", "diff", "--check"]],
   "components": [
     {
       "name": "repository-architecture",
-      "description": "Component ownership, validation contracts, and cross-cutting repository documentation",
-      "paths": [
-        "project.components.json",
-        "AGENTS.md",
-        "docs/README.md",
-        "docs/architecture/component-boundaries.md"
-      ],
+      "description": "Component ownership, policy, and canonical documentation",
+      "paths": ["project.components.json", "AGENTS.md", "README.md", "DESIGN_RULES.md", "docs/**"],
       "validation": [],
       "extended_validation": []
     },
     {
       "name": "creative-learning",
-      "description": "Creative generation, research, feedback lineage, component weights, Telegram runtime, and persistence",
-      "paths": [
-        "commander/**",
-        "tests/commander/**",
-        "db/**",
-        "config/commander/**",
-        "docker-compose.commander.yml",
-        "requirements-commander.txt",
-        "idea_generation/**",
-        "ideaGeneration/**",
-        "db/idea_generation/**",
-        "docker-compose.idea-generation.yml",
-        "requirements-idea-generation.txt",
-        "scripts/backup_idea_generation.sh"
-      ],
+      "description": "Idea evolution, creative generation, feedback lineage, persistence, and workers",
+      "paths": ["commander/**", "idea_generation/**", "ideaGeneration/**", "tests/commander/**", "db/**", "config/commander/**", "docker-compose*.yml", "requirements*.txt"],
       "validation": [
         ["python3", "-m", "unittest", "discover", "-s", "tests/commander", "-v"],
         ["python3", "-m", "commander.demo", "--output-dir", ".local/commander-demo"],
-        ["python3", "-m", "compileall", "-q", "commander", "tests/commander"]
+        ["python3", "-m", "compileall", "-q", "commander", "idea_generation", "tests/commander"]
       ],
       "extended_validation": []
     },
     {
-      "name": "flutter-product",
-      "description": "Flutter mobile and web product",
-      "paths": [
-        "lib/**",
-        "test/**",
-        "android/**",
-        "ios/**",
-        "web/**",
-        "assets/**",
-        "pubspec.yaml",
-        "pubspec.lock",
-        "analysis_options.yaml"
-      ],
-      "validation": [
-        ["dart", "format", "--output=none", "--set-exit-if-changed", "."],
-        ["flutter", "analyze"],
-        ["flutter", "test"]
-      ],
-      "extended_validation": [
-        ["flutter", "build", "web"]
-      ]
+      "name": "commander-web",
+      "description": "Mobile-first React PWA owner interface",
+      "paths": ["apps/commander-web/**", "firebase.json", ".firebaserc"],
+      "validation": [["npm", "--prefix", "apps/commander-web", "run", "check"]],
+      "extended_validation": [["npm", "--prefix", "apps/commander-web", "run", "test:e2e"]]
     },
     {
-      "name": "template-tooling",
-      "description": "Template authoring MCP and template generation contracts",
-      "paths": [
-        "tool/ptw_template_mcp/**",
-        "lib/template_generator/**",
-        "test/template_generator/**",
-        "docs/PTW_TEMPLATE_MCP.md"
-      ],
+      "name": "owner-control-plane",
+      "description": "Firebase-authenticated owner API, job execution, system operations, and root broker",
+      "paths": ["owner_gateway/**", "root_broker/**", "tests/owner_gateway/**", "deploy/owner-control-plane/**", "scripts/reset_ptw.sh"],
       "validation": [
-        ["dart", "format", "--output=none", "--set-exit-if-changed", "."],
-        ["flutter", "test", "test/template_generator"]
+        ["python3", "-m", "unittest", "discover", "-s", "tests/owner_gateway", "-v"],
+        ["python3", "-m", "compileall", "-q", "owner_gateway", "root_broker", "tests/owner_gateway"]
       ],
       "extended_validation": []
     }

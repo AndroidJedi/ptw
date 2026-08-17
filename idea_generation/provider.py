@@ -38,9 +38,9 @@ class MockLLMProvider:
                 score = 55 + ((int(idea["id"]) * 3 + bias) % 35)
                 evaluations.append({
                     "idea_id": idea["id"], "score": score,
-                    "criteria": {"exit_potential": score * .25, "founder_independence": score * .20,
+                    "criteria": {"three_year_exit_potential": score * .25, "remote_operability_autonomy": score * .25,
                                  "distribution": score * .15, "scalability_economics": score * .15,
-                                 "defensibility": score * .15, "speed_capital_efficiency": score * .10},
+                                 "defensibility": score * .10, "speed_capital_efficiency": score * .10},
                     "strengths": "Clear leverage and validation path.",
                     "critique": "Distribution assumptions need direct testing.", "fatal_flaw": None,
                 })
@@ -50,18 +50,18 @@ class MockLLMProvider:
             raw = str(input_payload.get("raw_text", "")).strip()
             title = next((line.strip("# ") for line in raw.splitlines() if line.strip()), "Owner idea")[:160]
             return {
-                "title": title,
-                "one_liner": raw[:1000],
+                "title": {"en": title, "uk": title},
+                "one_liner": {"en": raw[:1000], "uk": raw[:1000]},
                 "details": {
-                    "customer": "Defined by the owner submission and to be validated",
-                    "problem": raw,
-                    "product": raw,
-                    "business_model": "To be validated",
-                    "distribution": "To be validated",
-                    "automation": "To be validated",
-                    "five_year_exit_logic": "To be validated against the mission",
-                    "key_risks": ["Owner concept requires structured validation"],
-                    "first_validation_test": "Test the central assumption with five target users.",
+                    "customer": {"en": "Defined by the owner submission and to be validated", "uk": "Визначено заявкою власника; потребує перевірки"},
+                    "problem": {"en": raw, "uk": raw},
+                    "product": {"en": raw, "uk": raw},
+                    "business_model": {"en": "To be validated", "uk": "Потребує перевірки"},
+                    "distribution": {"en": "To be validated", "uk": "Потребує перевірки"},
+                    "automation": {"en": "To be validated", "uk": "Потребує перевірки"},
+                    "three_year_exit_logic": {"en": "To be validated against the mission", "uk": "Потребує перевірки відносно місії"},
+                    "key_risks": {"en": ["Owner concept requires structured validation"], "uk": ["Концепція власника потребує структурованої перевірки"]},
+                    "first_validation_test": {"en": "Test the central assumption with five target users.", "uk": "Перевірити центральне припущення з п’ятьма цільовими користувачами."},
                 },
                 "parent_ids": [],
                 "lineage_note": "Owner submission normalized without changing the concept",
@@ -70,12 +70,18 @@ class MockLLMProvider:
         parents = []
         if mode == "evolve" and input_payload.get("mode") == "exploit":
             parents = [input_payload["current_generation"][ordinal % len(input_payload["current_generation"])]["id"]]
-        return {"title": f"{context} Candidate {ordinal}", "one_liner": "Automated software for a costly recurring workflow.",
-                "details": {"customer": "Global operating teams", "problem": "A costly recurring manual workflow",
-                    "product": "A self-serve automation platform", "business_model": "Recurring subscription and usage fees",
-                    "distribution": "Embedded integrations and partner channels", "automation": "Software delivery and support automation",
-                    "five_year_exit_logic": "Recurring revenue, workflow data, and distribution make a strategic acquisition plausible.",
-                    "key_risks": ["Adoption", "Incumbent response"], "first_validation_test": "Pre-sell a narrow workflow to five teams."},
+        return {"title": {"en": f"{context} Candidate {ordinal}", "uk": f"{context} Кандидат {ordinal}"},
+                "one_liner": {"en": "Automated software for a costly recurring workflow.", "uk": "Автоматизоване ПЗ для дорогого повторюваного процесу."},
+                "details": {
+                    "customer": {"en": "Global operating teams", "uk": "Операційні команди в усьому світі"},
+                    "problem": {"en": "A costly recurring manual workflow", "uk": "Дорогий повторюваний ручний процес"},
+                    "product": {"en": "A self-serve automation platform", "uk": "Self-service платформа автоматизації"},
+                    "business_model": {"en": "Recurring subscription and usage fees", "uk": "Підписка та оплата за використання"},
+                    "distribution": {"en": "Embedded integrations and partner channels", "uk": "Вбудовані інтеграції та партнерські канали"},
+                    "automation": {"en": "Software delivery and support automation", "uk": "Програмна доставка та автоматизація підтримки"},
+                    "three_year_exit_logic": {"en": "Recurring revenue, workflow data, and distribution can support a strategic acquisition within 36 months.", "uk": "Повторювана виручка, workflow-дані та дистрибуція можуть обґрунтувати стратегічне придбання за 36 місяців."},
+                    "key_risks": {"en": ["Adoption", "Incumbent response"], "uk": ["Прийняття ринком", "Відповідь чинних гравців"]},
+                    "first_validation_test": {"en": "Pre-sell a narrow workflow to five teams.", "uk": "Попередньо продати вузький workflow п’ятьом командам."}},
                 "parent_ids": parents, "lineage_note": "Mocked deterministic candidate"}
 
 

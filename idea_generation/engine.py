@@ -11,6 +11,10 @@ from .validation import evaluations as validate_evaluations
 from .validation import idea as validate_idea
 
 
+def _english(value: dict[str, Any]) -> str:
+    return str(value["en"])
+
+
 class EvolutionEngine:
     def __init__(self, store: PostgresStore, provider: StructuredProvider,
                  notify: Callable[[str], None] | None = None) -> None:
@@ -30,7 +34,7 @@ class EvolutionEngine:
         with self.store.transaction() as connection:
             mission = connection.execute(
                 "SELECT id,status,run_series_remaining FROM missions "
-                "WHERE code='MISSION_450M_5Y' FOR UPDATE"
+                "WHERE is_active=TRUE FOR UPDATE"
             ).fetchone()
             if not mission:
                 raise RuntimeError("mission is not seeded")
@@ -81,19 +85,28 @@ class EvolutionEngine:
 
     def run_generation(self) -> int:
         import psycopg
+        mission_code = str(self.store.mission()["code"])
         with psycopg.connect(self.store.database_url, autocommit=True) as lock_connection:
-            locked = lock_connection.execute("SELECT pg_try_advisory_lock(hashtext('MISSION_450M_5Y'))").fetchone()[0]
+            locked = lock_connection.execute(
+                "SELECT pg_try_advisory_lock(hashtext(%s))", (mission_code,)
+            ).fetchone()[0]
             if not locked: raise RuntimeError("mission cycle is already locked")
             try:
                 return self._run_generation_locked()
             finally:
-                lock_connection.execute("SELECT pg_advisory_unlock(hashtext('MISSION_450M_5Y'))")
+                lock_connection.execute(
+                    "SELECT pg_advisory_unlock(hashtext(%s))", (mission_code,)
+                )
 
     def _run_generation_locked(self) -> int:
         contexts = self.store.active_contexts()
         if len(contexts) != 10: raise RuntimeError("exactly 10 active contexts are required")
         with self.store.transaction() as connection:
-            mission = connection.execute("SELECT * FROM missions WHERE code='MISSION_450M_5Y' FOR UPDATE").fetchone()
+            mission = connection.execute(
+                "SELECT * FROM missions WHERE is_active=TRUE FOR UPDATE"
+            ).fetchone()
+            if not mission:
+                raise RuntimeError("mission is not seeded")
             mission_id = mission[0]
             existing = connection.execute("SELECT id,number,status FROM generations WHERE mission_id=%s AND status IN ('creating','created','evaluating') ORDER BY number LIMIT 1", (mission_id,)).fetchone()
             if existing:
@@ -141,10 +154,14 @@ class EvolutionEngine:
                     self._finish_execution(execution_id, "failed", error_text=type(error).__name__)
                     raise
             normalized = self._recover(f"G{number} / NORMALIZE_HUMAN / owner", operation)
-            idea_id = self.store.execute("""INSERT INTO ideas(mission_id,generation_id,mode,title,one_liner,details,owner_submission_id)
-                VALUES (%s,%s,'human',%s,%s,%s::jsonb,%s) RETURNING id""",
-                (mission_id, generation_id, normalized["title"], normalized["one_liner"],
-                 self.store.json(normalized["details"]), submission["id"]))
+            idea_id = self.store.execute("""INSERT INTO ideas(
+                    mission_id,generation_id,mode,title,one_liner,title_i18n,one_liner_i18n,
+                    details,owner_submission_id
+                ) VALUES (%s,%s,'human',%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s) RETURNING id""",
+                (mission_id, generation_id, _english(normalized["title"]),
+                 _english(normalized["one_liner"]), self.store.json(normalized["title"]),
+                 self.store.json(normalized["one_liner"]), self.store.json(normalized["details"]),
+                 submission["id"]))
             self.store.execute(
                 "UPDATE idea_submissions SET inserted_idea_id=%s,updated_at=NOW() WHERE id=%s RETURNING id",
                 (idea_id, submission["id"]),
@@ -172,9 +189,15 @@ class EvolutionEngine:
                     self._finish_execution(execution_id, "failed", error_text=type(error).__name__)
                     raise
             result = self._recover(f"G{number} / {provider_mode.upper()} / {context['code']}", operation)
-            self.store.execute("""INSERT INTO ideas(mission_id,generation_id,creator_context_id,mode,title,one_liner,details,parent_ids,lineage_note)
-                VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s) RETURNING id""", (mission_id, generation_id, context["id"], mode,
-                result["title"], result["one_liner"], self.store.json(result["details"]), result.get("parent_ids", []), result.get("lineage_note")))
+            self.store.execute("""INSERT INTO ideas(
+                    mission_id,generation_id,creator_context_id,mode,title,one_liner,
+                    title_i18n,one_liner_i18n,details,parent_ids,lineage_note
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s,%s) RETURNING id""",
+                (mission_id, generation_id, context["id"], mode,
+                 _english(result["title"]), _english(result["one_liner"]),
+                 self.store.json(result["title"]), self.store.json(result["one_liner"]),
+                 self.store.json(result["details"]), result.get("parent_ids", []),
+                 result.get("lineage_note")))
             current.append({"mode": mode})
         if len(current) != 10: raise RuntimeError("generation must contain exactly 10 ideas")
         self.store.execute("UPDATE generations SET status='created' WHERE id=%s RETURNING id", (generation_id,))
@@ -260,10 +283,11 @@ class EvolutionEngine:
             self.store.execute(
                 """INSERT INTO ideas(
                        mission_id,generation_id,creator_context_id,mode,title,one_liner,
-                       details,parent_ids,lineage_note
-                   ) VALUES (%s,%s,%s,'retained',%s,%s,%s::jsonb,%s,%s) RETURNING id""",
+                       title_i18n,one_liner_i18n,details,parent_ids,lineage_note
+                   ) VALUES (%s,%s,%s,'retained',%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s,%s) RETURNING id""",
                 (mission_id, generation_id, source["creator_context_id"], source["title"],
-                 source["one_liner"], self.store.json(source["details"]), [source["id"]],
+                 source["one_liner"], self.store.json(source["title_i18n"]),
+                 self.store.json(source["one_liner_i18n"]), self.store.json(source["details"]), [source["id"]],
                  f"Retained from G{source['source_generation']}; owner submission replaced a lower-scored candidate."),
             )
 
@@ -289,7 +313,10 @@ class EvolutionEngine:
 
     def _evaluate_missing(self, mission_id: int, generation_id: int, number: int, contexts: list[dict[str, Any]]) -> None:
         self.store.execute("UPDATE generations SET status='evaluating' WHERE id=%s RETURNING id", (generation_id,))
-        ideas = self.store.fetchall("SELECT id,title,one_liner,details,mode,parent_ids FROM ideas WHERE generation_id=%s ORDER BY id", (generation_id,))
+        ideas = self.store.fetchall(
+            "SELECT id,title,one_liner,title_i18n,one_liner_i18n,details,mode,parent_ids "
+            "FROM ideas WHERE generation_id=%s ORDER BY id", (generation_id,)
+        )
         if len(ideas) != 10: raise RuntimeError("cannot evaluate incomplete generation")
         ids = [row["id"] for row in ideas]
         existing = {row["evaluator_context_id"] for row in self.store.fetchall("SELECT DISTINCT evaluator_context_id FROM idea_evaluations WHERE idea_id=ANY(%s)", (ids,))}

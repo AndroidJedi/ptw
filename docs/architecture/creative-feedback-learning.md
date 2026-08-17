@@ -1,48 +1,36 @@
 # Creative feedback learning
 
-Human feedback is a first-class signal, not a direct overwrite of knowledge.
-After Commander sends a generated creative, the owner replies to that Telegram
-image or text hook:
+Status: web review contract
+Updated: 2026-08-17
 
-```text
-/feedback 4 Strong hook, CTA needs work
+Human feedback is an append-only signal, not an overwrite of knowledge. The
+owner selects a generated Creative in Commander Web and submits:
+
+- rating 1–5 and an overall comment;
+- optional predicted CTR for a ten-variant review;
+- zero or more pin, rectangle, or freehand regions;
+- a comment for each region.
+
+All coordinates are normalized to `[0,1]`, so annotations remain aligned across
+phone and desktop rendering. The request must include the selected Creative
+UUID and its immutable Artifact SHA-256 digest; the gateway rejects mismatches.
+
+```mermaid
+flowchart LR
+  F[HumanFeedback UUID] -->|evaluates| C[Creative UUID]
+  C -->|generated| A[Artifact digest]
+  C -->|contains| P[Creative Component]
+  W[WeightUpdate UUID] -->|derived_from| F
+  W -->|adjusts| P
+  R[Corrected feedback] -->|supersedes| F
 ```
 
-Commander resolves the replied Telegram `(chat_id, message_id)` through
-`commander_telegram_deliveries` to the permanent Creative UUID. The graph then
-records:
+Each accepted submission appends `HumanFeedback`, a normalized annotation
+projection, one or more `WeightUpdate` entities, and graph edges in the same
+transaction. Current component weight is a projection of immutable history.
+Corrections append a new feedback revision; they never update the previous row.
 
-```text
-HumanFeedback UUID ──evaluates──> Creative UUID
-Creative UUID ──contains────────> CreativeComponent UUID
-WeightUpdate UUID ──derived_from─> HumanFeedback UUID
-WeightUpdate UUID ──adjusts──────> CreativeComponent UUID
-```
-
-Every WeightUpdate stores previous weight, delta, new weight, rating, and
-algorithm version. Nothing overwrites prior updates. Current weight is a
-projection of the latest update; components begin at 0.50. Version 1 owner
-ratings apply a bounded delta from -0.10 (rating 1) to +0.10 (rating 5).
-
-Components with identical vertical, kind, and value are reused by ID, allowing
-feedback to accumulate across creatives. `rank_creative_components` provides a
-deterministic weight-first ordering for later generation workflows. Owner
-feedback informs ranking but remains separate from platform metrics,
-observations, insights, hypotheses, and decisions.
-
-The explicit administrative form remains available:
-
-```text
-/feedback <creative-uuid> <1-5> optional comment
-```
-
-Duplicate feedback from the same actor for the same Creative UUID is rejected.
-
-Text-only `/creative hook [brief]` results include the same reply instruction
-as rendered images. Their Telegram text delivery is linked to the Creative UUID,
-and each hook Creative contains a reusable hook component so the reply creates
-an append-only WeightUpdate that can influence later component ranking.
-
-Inspect learned state from Telegram with `/graph`, `/graph weights`, or
-`/graph creative <creative-uuid>`. Reply-based feedback hides UUID management
-from the owner, while graph inspection displays permanent IDs for auditability.
+For a ten-variant batch, feedback commits before the producing A01–A10 context
+creates its conclusion. Only after that conclusion commits may the next image
+enter review. A single post uses rating/comment without batch advancement.
+Review history is bounded in the API but the PostgreSQL graph remains complete.

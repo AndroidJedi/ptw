@@ -27,10 +27,10 @@
     "instagram_creative": {
       "canonical": [
         "docs/verticals/instagram/README.md",
-        "docs/PTW_TEMPLATE_MCP.md"
+        "docs/architecture/creative-feedback-learning.md"
       ],
       "optional": [
-        "PTW_Post_Generator_Current_State_Handoff.md",
+        "docs/architecture/ad-image-estimation-loop.md",
         "DESIGN_RULES.md"
       ]
     },

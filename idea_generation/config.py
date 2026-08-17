@@ -22,6 +22,7 @@ class Settings:
     openai_api_key: str = ""
     llm_bridge_url: str = ""
     ad_batch_bridge_url: str = ""
+    owner_gateway_token: str = ""
     poll_timeout: int = 30
 
     @classmethod
@@ -44,5 +45,6 @@ class Settings:
             openai_api_key=os.environ.get("OPENAI_API_KEY", "").strip(),
             llm_bridge_url=os.environ.get("LLM_BRIDGE_URL", "").strip(),
             ad_batch_bridge_url=os.environ.get("AD_BATCH_BRIDGE_URL", "").strip(),
+            owner_gateway_token=os.environ.get("OWNER_GATEWAY_BRIDGE_TOKEN", "").strip(),
             poll_timeout=max(1, int(os.environ.get("TELEGRAM_POLL_TIMEOUT", "30"))),
         )

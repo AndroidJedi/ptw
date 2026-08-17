@@ -250,6 +250,9 @@ class Commander:
         rating: int,
         comment: str,
         actor: str,
+        artifact_digest: str | None = None,
+        annotations: tuple[Mapping[str, Any], ...] = (),
+        supersedes_feedback_id: str | None = None,
     ) -> tuple[Entity, tuple[Entity, ...]]:
         if not 0 <= predicted_ctr <= 100:
             raise ValueError("predicted CTR must be between 0 and 100 percent")
@@ -259,7 +262,33 @@ class Commander:
             comment=comment,
             actor=actor,
             feedback_type="ad_owner_estimate",
-            extra_attributes={"predicted_link_ctr_percent": predicted_ctr},
+            extra_attributes={
+                "predicted_link_ctr_percent": predicted_ctr,
+                **({"artifact_digest": artifact_digest} if artifact_digest else {}),
+                **({"annotations": list(annotations)} if annotations else {}),
+            },
+            supersedes_feedback_id=supersedes_feedback_id,
+        )
+
+    def record_annotated_feedback(
+        self,
+        *,
+        creative: Entity,
+        artifact_digest: str,
+        rating: int,
+        comment: str,
+        annotations: tuple[Mapping[str, Any], ...],
+        actor: str,
+        supersedes_feedback_id: str | None = None,
+    ) -> tuple[Entity, tuple[Entity, ...]]:
+        return self._record_creative_feedback(
+            creative=creative,
+            rating=rating,
+            comment=comment,
+            actor=actor,
+            feedback_type="owner_annotated_review",
+            extra_attributes={"artifact_digest": artifact_digest, "annotations": list(annotations)},
+            supersedes_feedback_id=supersedes_feedback_id,
         )
 
     def _record_creative_feedback(
@@ -271,17 +300,22 @@ class Commander:
         actor: str,
         feedback_type: str,
         extra_attributes: Mapping[str, Any],
+        supersedes_feedback_id: str | None = None,
     ) -> tuple[Entity, tuple[Entity, ...]]:
         self._require_kind(creative, EntityKind.CREATIVE)
         if rating not in range(1, 6):
             raise ValueError("feedback rating must be an integer from 1 to 5")
-        duplicate = any(
-            item.attributes.get("creative_id") == creative.id
-            and item.attributes.get("actor") == actor
+        previous = tuple(
+            item
             for item in self.store.entities(EntityKind.HUMAN_FEEDBACK)
+            if item.attributes.get("creative_id") == creative.id
+            and item.attributes.get("actor") == actor
         )
-        if duplicate:
+        duplicate = bool(previous)
+        if duplicate and not supersedes_feedback_id:
             raise ValueError("feedback from this actor already exists for the creative")
+        if supersedes_feedback_id and supersedes_feedback_id not in {item.id for item in previous}:
+            raise ValueError("superseded feedback must be an earlier owner review of this creative")
         with self.store.transaction():
             feedback = self.create_entity(
                 EntityKind.HUMAN_FEEDBACK,
@@ -298,6 +332,12 @@ class Commander:
                 evidence_ids=(creative.id,),
             )
             self.relate(feedback, RelationType.EVALUATES, creative)
+            if supersedes_feedback_id:
+                self.relate(
+                    feedback,
+                    RelationType.SUPERSEDES,
+                    self.store.get_entity(supersedes_feedback_id),
+                )
             components = tuple(
                 self.store.get_entity(edge.target_id)
                 for edge in self.store.relationships()

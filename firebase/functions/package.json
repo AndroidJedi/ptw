@@ -1,0 +1,18 @@
+{
+  "name": "ptw-firebase-auth-guard",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "engines": { "node": "22" },
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "deploy": "firebase deploy --only functions:auth-guard"
+  },
+  "dependencies": {
+    "firebase-functions": "^6.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}

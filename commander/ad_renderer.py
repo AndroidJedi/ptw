@@ -39,29 +39,30 @@ class InstagramAdRenderer:
 
         accent = (244, 6, 110)
         self._fitted(
-            draw, spec.concept_name.upper(), (70, 78, 990, 140),
+            draw, spec.display("concept_name", "uk").upper(), (70, 78, 990, 140),
             maximum_size=34, minimum_size=18, bold=True, fill=accent,
         )
         self._fitted(
-            draw, spec.hook, (70, 150, 990, 605),
+            draw, spec.display("hook", "uk"), (70, 150, 990, 605),
             maximum_size=82, minimum_size=38, bold=True,
         )
         self._fitted(
             draw,
-            spec.supporting_copy,
+            spec.display("supporting_copy", "uk"),
             (92, 974, 988, 1135),
             maximum_size=39,
             minimum_size=22,
         )
-        cta_font = self._single_line_font(draw, spec.cta.upper(), 760, 38, 22)
-        cta_box = draw.textbbox((0, 0), spec.cta.upper(), font=cta_font)
+        localized_cta = spec.display("cta", "uk").upper()
+        cta_font = self._single_line_font(draw, localized_cta, 760, 38, 22)
+        cta_box = draw.textbbox((0, 0), localized_cta, font=cta_font)
         cta_width = cta_box[2] - cta_box[0]
         x1 = max(90, (self.width - cta_width) // 2 - 42)
         x2 = min(990, (self.width + cta_width) // 2 + 42)
         draw.rounded_rectangle((x1, 1155, x2, 1228), radius=32, fill=accent)
         draw.text(
             ((self.width - cta_width) / 2, 1168),
-            spec.cta.upper(),
+            localized_cta,
             font=cta_font,
             fill="white",
         )
@@ -79,7 +80,7 @@ class InstagramAdRenderer:
     @staticmethod
     def _font(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         candidates = (
-            Path("assets/fonts/Roboto-Bold.ttf" if bold else "assets/fonts/Roboto-Regular.ttf"),
+            Path("commander/assets/fonts/Roboto-Bold.ttf" if bold else "commander/assets/fonts/Roboto-Regular.ttf"),
             Path(
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
                 if bold

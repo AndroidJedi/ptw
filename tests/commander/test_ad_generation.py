@@ -282,30 +282,6 @@ class AdGenerationEngineTests(unittest.TestCase):
         self.assertEqual("1536x1920", calls[0]["size"])
         self.assertEqual("gpt-image-2-2026-04-21", result.resolved_model)
 
-    def test_reply_estimate_resolves_delivery_without_manual_uuid(self) -> None:
-        from commander.api import _expand_estimate_reply
-        from commander.model import Entity, EntityKind
-
-        creative = Entity(EntityKind.CREATIVE, {"creative_type": "ad_image_post"})
-        self.store.add_entity(creative)
-        self.store.record_telegram_delivery(123, 700, creative.id)
-        expanded = _expand_estimate_reply(
-            {
-                "update_id": 7,
-                "message": {
-                    "from": {"id": 456},
-                    "chat": {"id": 123},
-                    "text": "/estimate 1.8% 4 Strong proof",
-                    "reply_to_message": {"message_id": 700},
-                },
-            },
-            self.store,
-        )
-        self.assertEqual(
-            f"/estimate {creative.id} 1.8% 4 Strong proof",
-            expanded["message"]["text"],
-        )
-
     def test_older_image_model_is_rejected_instead_of_falling_back(self) -> None:
         from commander.ad_generation import AdGenerationEngine
         from commander.ad_provider import GeneratedAdImage

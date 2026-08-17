@@ -1,64 +1,39 @@
-# Commander disaster recovery
+# PTW reset and recovery boundary
 
-Status: implemented minimum-cost recovery baseline.
+Status: confirmation-gated, intentionally no backup
+Updated: 2026-08-17
 
-Commander state is recoverable from three inexpensive sources:
+By explicit owner decision, PTW does not create or require a backup before a
+production reset. A reset is therefore irreversible. It still requires the
+exact confirmation `RESET PTW PRODUCTION` and can run only through the
+root-owned broker.
 
-1. GitHub: code, migrations, policies, and canonical Markdown.
-2. A PostgreSQL custom-format logical dump: entities, relationship graph,
-   decisions, tasks, inbox, and outbox.
-3. A compressed asset archive: uploaded and generated creative files.
+## Clean reset
 
-Runtime secrets are deliberately excluded. Restore them from the root-owned VPS
-environment, never from a backup committed to Git.
+The allowlist is deliberately narrow. Reset recreates only the `public` schema
+in the Commander and platform PostgreSQL databases, clears only the Commander
+asset volume, and clears these exact live directories:
 
-## Create and verify a backup
+- `/opt/ptw/workspaces/incoming`
+- `/opt/ptw/workspaces/jobs`
+- `/opt/ptw/persistent-data/runtime`
 
-```sh
-cd /root/ptw
-chmod 700 /opt/ptw/commander-backups
-scripts/backup_commander.sh /opt/ptw/commander-backups
-scripts/verify_commander_backup.sh /opt/ptw/commander-backups/<timestamp>
-```
-
-Each timestamped directory is mode 700 and contains `database.dump`,
-`assets.tar.gz`, the Git revision, policy snapshot, and SHA-256 manifest.
-
-The VPS installs `/etc/cron.d/ptw-commander-backup`, which creates a backup at
-03:17 UTC and prunes local daily recovery points older than 14 days. Copy
-backups off this VPS. A backup
-on the same disk does not protect against disk or provider loss. Example cron:
-
-```cron
-17 3 * * * cd /root/ptw && scripts/backup_commander.sh /opt/ptw/commander-backups >>/var/log/ptw-commander-backup.log 2>&1
-```
-
-Retain at least seven daily and four weekly offsite copies initially. Storage cost is dominated
-by media; PostgreSQL logical dumps should remain small during validation.
-
-## Restore
-
-Restore replaces the current Commander database and asset volume. Confirm the
-backup path carefully:
+PostgreSQL volumes and roles, Git, SSH, Caddy, environment files, Firebase
+credentials, and the reset-independent Owner Gateway control store remain.
 
 ```sh
 cd /root/ptw
-scripts/restore_commander.sh /absolute/path/to/backup --confirm-replace-current-state
-curl -fsS http://127.0.0.1:8091/healthz
-curl -fsS http://127.0.0.1:8091/readyz
+scripts/reset_ptw.sh --confirm 'RESET PTW PRODUCTION'
 ```
 
-The restore script verifies checksums and archive readability before stopping
-the API/worker. It then recreates the Commander database, restores assets, and
-restarts services. Git code must be checked out at the recorded revision or a
-compatible later migration revision.
+The postcondition is one active `MISSION_20M_3Y`, C01–C10 plus ten revisions,
+A01–A10 plus ten revisions, one platform owner configuration, and zero ideas,
+generations, reports, submissions, creatives, feedback, jobs, sessions, issues,
+or executions. Generation 1 is never started by reset.
 
-## Recovery limitations
+## Verification
 
-- There is no offsite destination configured yet.
-- There is no point-in-time WAL archive; recovery granularity is the latest
-  successful logical backup.
-- The unrelated `/opt/ptw/platform` database and workspace need their own
-  backup policy; this procedure covers the new learning/knowledge service.
-- A restore drill should run after schema or asset-storage changes and at least
-  quarterly.
+The reset procedure was rehearsed against two disposable PostgreSQL 16
+instances, including exact schema recreation and clean reseeding. Production
+acceptance checks database counts immediately after the reset. There is no
+restore promise after an owner-confirmed production reset.

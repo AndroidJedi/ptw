@@ -308,116 +308,19 @@ class TelegramControlPlaneTests(unittest.TestCase):
         stopped = self.telegram.handle_update(self.update("/stop"))
         self.assertIn("enabled", stopped.text)
         self.assertIn("STOPPED", self.telegram.handle_update(self.update("/status")).text)
-        self.telegram.handle_update(self.update("/resume"))
-        self.assertIn("active", self.telegram.handle_update(self.update("/status")).text)
+        self.assertIn("web Commander", self.telegram.handle_update(self.update("/resume")).text)
+        self.assertIn("STOPPED", self.telegram.handle_update(self.update("/status")).text)
         with self.assertRaises(TelegramUnauthorized):
             self.telegram.handle_update(self.update("/status", user_id=999))
 
-    def test_research_command_returns_graph_ids(self) -> None:
-        class Provider:
-            def research(self, topic: str) -> CreativeResearchResult:
-                return CreativeResearchResult(
-                    (ResearchFinding("Source", "https://example.test", "Finding", "Publisher"),),
-                    (HypothesisProposal("Test a proof hook", (0,), "Proof beats promises | Show it | TRY IT"),),
-                )
-        telegram = TelegramControlPlane(
-            self.commander, allowed_user_ids={7}, allowed_chat_ids={11},
-            research_service=CreativeIdeationResearchService(self.commander, Provider()),
-        )
-        reply = telegram.handle_update(self.update("/research creative hooks for skeptical founders"))
-        hypothesis = self.store.entities(EntityKind.HYPOTHESIS)[0]
-        self.assertIn(hypothesis.id, reply.text)
-        self.assertIn("/creative from", reply.text)
-        self.assertEqual(hypothesis.attributes["owner_agent"], "marketing.creative.instagram")
-        self.assertTrue(all(
-            item.attributes["knowledge_domain"] == "marketing.creative"
-            for item in self.store.entities(EntityKind.SOURCE)
-        ))
-        product = telegram.handle_update(self.update("/research product retention evidence"))
-        self.assertIn("product.strategy research stored", product.text)
-        product_hypothesis = self.store.entities(EntityKind.HYPOTHESIS)[-1]
-        self.assertEqual(product_hypothesis.attributes["owner_agent"], "product.strategy")
-        self.assertEqual(product_hypothesis.attributes["research_type"], "product_discovery")
-        self.assertIn("/task from", product.text)
-        with self.assertRaisesRegex(ValueError, "research agent"):
-            telegram.handle_update(self.update("/research coder improve tests"))
-
-    def test_pending_experiment_can_be_approved_once(self) -> None:
-        source = self.commander.create_entity(
-            EntityKind.SOURCE, {}, reasoning_summary="source"
-        )
-        hypothesis = self.commander.create_hypothesis(
-            claim="claim",
-            success_metric="ctr",
-            threshold=0.1,
-            scope="test",
-            source=source,
-        )
-        creative = self.commander.create_entity(
-            EntityKind.CREATIVE, {}, reasoning_summary="creative"
-        )
-        audience = self.commander.create_entity(
-            EntityKind.AUDIENCE, {}, reasoning_summary="audience"
-        )
-        request = self.commander.request_experiment_approval(
-            hypothesis=hypothesis,
-            creative=creative,
-            audience=audience,
-            budget_minor=100,
-            requested_by="test",
-        )
-        reply = self.telegram.handle_update(self.update(f"/approve {request.id}"))
-        self.assertIn("is running", reply.text)
-        with self.assertRaises(ValueError):
-            self.telegram.handle_update(self.update(f"/approve {request.id}"))
-
-    def test_feedback_updates_reusable_components_through_ids(self) -> None:
-        from commander.instagram import InstagramCreativeAdapter, InstagramCreativeSpec
-
-        source = self.commander.create_entity(
-            EntityKind.SOURCE, {}, reasoning_summary="source"
-        )
-        hypothesis = self.commander.create_hypothesis(
-            claim="claim", success_metric="ctr", threshold=0.1, scope="test", source=source
-        )
-        creative = InstagramCreativeAdapter(self.commander).generate(
-            hypothesis=hypothesis,
-            spec=InstagramCreativeSpec("Hook", "hero", "support", "Caption", "CTA"),
-        )
-        reply = self.telegram.handle_update(
-            self.update(f"/feedback {creative.id} 5 Strong hook, weak CTA")
-        )
-        self.assertIn("Updated 5 component weights", reply.text)
-        feedback = self.store.entities(EntityKind.HUMAN_FEEDBACK)[0]
-        updates = self.store.entities(EntityKind.WEIGHT_UPDATE)
-        self.assertEqual(len(updates), 5)
-        self.assertTrue(all(item.attributes["new_weight"] == 0.6 for item in updates))
-        edges = self.store.relationships()
-        self.assertTrue(any(
-            edge.source_id == feedback.id
-            and edge.relation == RelationType.EVALUATES
-            and edge.target_id == creative.id
-            for edge in edges
-        ))
-        adjusted_ids = {
-            edge.target_id for edge in edges if edge.relation == RelationType.ADJUSTS
-        }
-        component_ids = {
-            edge.target_id for edge in edges
-            if edge.source_id == creative.id and edge.relation == RelationType.CONTAINS
-        }
-        self.assertEqual(adjusted_ids, component_ids)
-        with self.assertRaises(ValueError):
-            self.telegram.handle_update(self.update(f"/feedback {creative.id} 4 duplicate"))
-        summary = self.telegram.handle_update(self.update("/graph"))
-        self.assertIn("human_feedback=1", summary.text)
-        self.assertIn("Edges:", summary.text)
-        weights = self.telegram.handle_update(self.update("/graph weights"))
-        self.assertIn("0.60", weights.text)
-        self.assertIn(next(iter(component_ids)), weights.text)
-        lineage = self.telegram.handle_update(self.update(f"/graph creative {creative.id}"))
-        self.assertIn(feedback.id, lineage.text)
-        self.assertIn(creative.id, lineage.text)
+    def test_help_and_all_non_emergency_commands_point_to_web(self) -> None:
+        help_reply = self.telegram.handle_update(self.update("/help"))
+        self.assertIn("/help, /status, /stop", help_reply.text)
+        for command in ("/creative test", "/feedback x 5", "/research topic", "/approve x"):
+            with self.subTest(command=command):
+                reply = self.telegram.handle_update(self.update(command))
+                self.assertIn("https://provethemwrong-86123.web.app", reply.text)
+        self.assertEqual((), self.store.entities(EntityKind.HUMAN_FEEDBACK))
 
 
 class _FakeCursor:
@@ -556,6 +459,7 @@ class RuntimeImageTests(unittest.TestCase):
         importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
         "FastAPI or Pillow is not installed",
     )
+    @unittest.skip("Telegram feedback moved to the web review API")
     def test_reply_feedback_resolves_telegram_message_to_creative_uuid(self) -> None:
         from commander.api import _expand_feedback_reply
 
@@ -584,6 +488,7 @@ class RuntimeImageTests(unittest.TestCase):
         importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
         "FastAPI or Pillow is not installed",
     )
+    @unittest.skip("Telegram feedback moved to the web review API")
     def test_reply_feedback_recovers_creative_from_generated_caption(self) -> None:
         from commander.api import _expand_feedback_reply
 
@@ -617,6 +522,7 @@ class RuntimeImageTests(unittest.TestCase):
         importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
         "FastAPI or Pillow is not installed",
     )
+    @unittest.skip("Telegram feedback moved to the web review API")
     def test_reply_feedback_recovers_creative_from_generated_text(self) -> None:
         from commander.api import _expand_feedback_reply
 
@@ -665,6 +571,7 @@ class RuntimeImageTests(unittest.TestCase):
         importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
         "FastAPI or Pillow is not installed",
     )
+    @unittest.skip("Telegram creative generation moved to the web API")
     def test_webhook_creates_image_and_deduplicates_update(self) -> None:
         from fastapi.testclient import TestClient
         from commander.api import create_app
@@ -739,6 +646,7 @@ class RuntimeImageTests(unittest.TestCase):
         importlib.util.find_spec("fastapi") and importlib.util.find_spec("PIL"),
         "FastAPI or Pillow is not installed",
     )
+    @unittest.skip("Telegram creative generation moved to the web API")
     def test_creative_hook_returns_text_without_rendering_image(self) -> None:
         from fastapi.testclient import TestClient
         from commander.api import create_app
@@ -948,7 +856,7 @@ class RuntimeImageTests(unittest.TestCase):
             )
             self.assertEqual(tracked.status_code, 200, tracked.text)
             messages = [item for item in store.outbox if item["topic"] == "telegram.send_message"]
-            self.assertTrue(messages[-1]["payload"]["text"].startswith("TASK-43 completed.\n"))
+            self.assertIn("https://provethemwrong-86123.web.app", messages[-1]["payload"]["text"])
             self.assertIn("response", tracked.json()["result"])
 
     def test_worker_records_delivery_failure_without_crashing(self) -> None:

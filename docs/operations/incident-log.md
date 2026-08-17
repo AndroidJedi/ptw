@@ -2,6 +2,21 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-17 — Telegram control surface retired in favor of owner web UI
+
+- Impact: the growing Telegram command set was inconvenient for analysis,
+  image-region feedback, documentation, live job output, and multi-step safety
+  confirmation.
+- Cause: notifications, emergency control, reviews, engineering execution, and
+  system administration shared one text transport.
+- Correction: Firebase-authenticated React PWA and Owner Gateway become the
+  only normal control plane. The existing poller retains notifications plus
+  `/help`, `/status`, and `/stop`; every other inbound command redirects to the
+  web UI.
+- Prevention: acceptance tests cover the exact three-command allowlist,
+  unsupported-command non-mutation, deep links, owner-only web authentication,
+  App Check, and emergency-stop persistence across restart.
+
 ## 2026-08-16 — Owner idea was queued but never entered a generation
 
 - Impact: a long owner idea remained pending after G4 and only its first

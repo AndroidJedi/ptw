@@ -1,6 +1,6 @@
 from commander.main import (IDEA_COMMANDS, SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
-                            engineering_task, normalized_command, public_health,
-                            safe_bridge_error, task_research_reference)
+                            bridge_target, engineering_task, normalized_command,
+                            public_health, safe_bridge_error, task_research_reference)
 
 
 def test_command_routing_is_deterministic() -> None:
@@ -36,6 +36,14 @@ def test_long_running_creative_commands_require_task_lifecycle() -> None:
 
 def test_idea_draft_commands_are_forwarded_to_the_idea_service() -> None:
     assert {"/idea_add", "/idea_done", "/idea_abort", "/idea_queue"} <= IDEA_COMMANDS
+
+
+def test_ad_commands_route_to_their_owning_service() -> None:
+    assert bridge_target("/ads", "/ads from 42") == "idea"
+    assert bridge_target("/ads", "/ads status") == "commander"
+    assert bridge_target("/estimate", "/estimate 1.8 4 Strong proof") == "commander"
+    assert bridge_target("/ad_context", "/ad_context A01") == "commander"
+    assert bridge_target("/idea", "/idea 42") == "idea"
 
 
 def test_bridge_errors_are_secret_scrubbed() -> None:

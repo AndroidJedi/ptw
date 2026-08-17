@@ -25,6 +25,9 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 secrets = EnvironmentSecretStore()
 SUPPORTED_COMMANDS = {"/ping", "/status", "/version", "/help", "/engineer", "/task", "/cancel", "/inspect"}
 TRACKED_BRIDGE_COMMANDS = frozenset({"/creative", "/research"})
+COMMANDER_BRIDGE_COMMANDS = frozenset({
+    "/creative", "/graph", "/research", "/estimate", "/ad_contexts",
+})
 IDEA_COMMANDS = frozenset({
     "/status", "/run", "/stop", "/continue", "/pause", "/resume", "/autopilot",
     "/ranking", "/generation", "/idea", "/top", "/history", "/lineage", "/report",
@@ -33,6 +36,30 @@ IDEA_COMMANDS = frozenset({
     "/context", "/context_set", "/context_name", "/context_history", "/context_restore",
     "/context_enable", "/context_disable", "/executions", "/errors", "/cost", "/task", "/help",
 })
+
+
+def bridge_target(command: str, text: str) -> str | None:
+    """Select the internal owner for a Telegram command without another poller."""
+    if command == "/ads":
+        argument = text.strip().split(maxsplit=2)
+        return "idea" if len(argument) > 1 and argument[1].lower() == "from" else "commander"
+    if command in COMMANDER_BRIDGE_COMMANDS or command.startswith("/ad_context"):
+        return "commander"
+    if command in IDEA_COMMANDS or not command.startswith("/"):
+        return "idea"
+    return None
+
+
+def bridge_service_url(target: str) -> str:
+    if target == "commander":
+        return os.getenv(
+            "CREATIVE_SERVICE_URL",
+            "http://ptw-commander-api:8080/internal/telegram/update",
+        )
+    return os.getenv(
+        "IDEA_SERVICE_URL",
+        "http://ptw-idea-api:8080/internal/telegram/update",
+    )
 
 
 def safe_bridge_error(error: Exception) -> str:
@@ -375,12 +402,25 @@ async def telegram_loop() -> None:
         while True:
             try:
                 response = await client.get(
-                    "getUpdates", params={"timeout": 25, "offset": offset, "allowed_updates": '["message"]'}
+                    "getUpdates",
+                    params={
+                        "timeout": 25,
+                        "offset": offset,
+                        "allowed_updates": '["message","callback_query"]',
+                    },
                 )
                 response.raise_for_status()
                 for update in response.json().get("result", []):
                     offset = int(update["update_id"]) + 1
                     message = update.get("message")
+                    callback = update.get("callback_query") or {}
+                    if not message and callback:
+                        callback_message = callback.get("message") or {}
+                        if not callback_message:
+                            continue
+                        message = dict(callback_message)
+                        message["from"] = callback.get("from") or {}
+                        message["text"] = callback.get("data") or ""
                     if not message:
                         continue
                     if message.get("photo"):
@@ -393,7 +433,8 @@ async def telegram_loop() -> None:
                             continue
                         message["text"] = message.get("caption", "")
                     bridge_command = normalized_command(message.get("text") or "")
-                    if bridge_command in ({"/creative", "/graph", "/research"} | IDEA_COMMANDS) or not bridge_command.startswith("/"):
+                    target = bridge_target(bridge_command, message.get("text") or "")
+                    if target is not None:
                         if (message.get("from") or {}).get("id") not in allowed_user_ids():
                             await send_rejection(client, message, False)
                             continue
@@ -420,10 +461,7 @@ async def telegram_loop() -> None:
                                 try:
                                     async with httpx.AsyncClient(timeout=240) as bridge:
                                         response = await bridge.post(
-                                            os.getenv(
-                                                "CREATIVE_SERVICE_URL",
-                                                "http://ptw-creative-api:8080/internal/telegram/update",
-                                            ),
+                                            bridge_service_url(target),
                                             json=update,
                                             headers={"X-PTW-Bridge-Token": token},
                                         )

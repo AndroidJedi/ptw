@@ -15,6 +15,9 @@ HELP = """Idea Evolution v1
 /status /run [N] /stop /continue /pause /resume /autopilot on|off|24h
 /ranking /generation N /idea ID /top [N] /history [N] /lineage ID
 /ads from IDEA_ID
+/ads status [BATCH_ID] /ads continue BATCH_ID /ads ranking [BATCH_ID]
+/estimate CTR% 1-5 [feedback] (reply to the current ad image)
+/ad_contexts /ad_context A01 and matching set/name/history/restore/enable/disable controls
 /report [G7] /reports [N]
 /idea_add TEXT /idea_done /idea_abort /idea_queue /idea_cancel ID
 /guidance TEXT /guidance_list /guidance_clear ID /feedback IDEA_ID TEXT /keep IDEA_ID [TEXT] /reject IDEA_ID [REASON]

@@ -73,6 +73,27 @@ export interface LavalStatus {
   run: LavalRun
   stages: LavalStage[]
   cost: { items: Array<Record<string, unknown>>; total_usd: number; provider_projected_usd?: number; provider_reserved_usd?: number; provider_actual_usd?: number; max_spend_usd?: number }
+  recovery?: {
+    available: boolean
+    stage?: string | null
+    stage_status?: LavalStageStatus | null
+    attempt: number
+    failed_at?: string | null
+    failure?: { type?: string; message?: string } | null
+    provider_tasks: {
+      total: number; reserved: number; submitted: number; completed: number; failed: number
+      persisted_remote_ids: number; cost_recorded: number; actual_cost_usd: number
+    }
+    resume_behavior: {
+      reuses_persisted_remote_ids: boolean
+      reposts_submitted_tasks: boolean
+      duplicates_recorded_cost: boolean
+    }
+    history: Array<{
+      action: string; stage?: string; actor: string; previous_status?: string; outcome: string
+      details: Record<string, unknown>; created_at: string
+    }>
+  }
   runner_active?: boolean
 }
 

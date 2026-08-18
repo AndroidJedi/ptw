@@ -128,6 +128,17 @@ is ready, resume the same run so the persisted ID is fetched and its cost is
 recorded exactly once. Keep the production poll window at 3600 seconds because
 normal-priority outliers can exceed the earlier 900-second window.
 
+Do not leave a production recovery as an invisible agent-only action. Normal
+recovery must be available through the Ideas view's **Resume saved work**
+control. If emergency diagnosis requires an authenticated internal resume,
+append the real actor and bounded reason to `laval_run_actions`; never label it
+as an owner action. Verify the status API exposes the original failure,
+provider-task counts, recorded cost, no-repost semantics, and recovery history.
+Confirm the Telegram projection contains the same run state and S00-S15
+statuses, and that its outbox row is published, without printing chat IDs or
+tokens. Keep deliberate stage rerun separate because it invalidates downstream
+artifacts while resume preserves provider task IDs and cached work.
+
 ## Capture reusable incident knowledge
 
 After every production incident, update the narrowest canonical repository

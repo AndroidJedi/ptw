@@ -204,6 +204,22 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .laval-actions button { min-height: 44px; padding: 0 11px; font-size: 11px; }
 .laval-actions svg { width: 15px; }
+.laval-recovery { margin-top: 12px; padding: 15px; border: 1px solid #a53c3c; border-radius: 16px; color: #ffd0d0; background: #250d0d; }
+.laval-recovery > small { color: #ff8383; font-size: 9px; font-weight: 900; letter-spacing: .12em; }
+.laval-recovery h4 { margin: 6px 0 10px; color: #fff; font-size: 17px; }
+.laval-recovery p { margin: 7px 0; color: #ffd0d0; font-size: 11px; line-height: 1.45; }
+.laval-recovery dl { margin: 12px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.laval-recovery dl > div { padding: 9px; border: 1px solid #713131; border-radius: 10px; background: #160909; }
+.laval-recovery dt { color: #d49c9c; font-size: 8px; text-transform: uppercase; }
+.laval-recovery dd { margin: 3px 0 0; color: #fff; font: 11px ui-monospace, monospace; }
+.laval-recovery .laval-recovery-safe { color: #bfffd9; }
+.laval-recovery button { min-height: 48px; margin-top: 7px; }
+.laval-recovery-history { margin-top: 12px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); background: var(--panel); font-size: 10px; }
+.laval-recovery-history summary { min-height: 46px; display: flex; align-items: center; cursor: pointer; color: #ff9bc6; font-weight: 800; }
+.laval-recovery-history > p { margin: 0 0 8px; color: #ffd0d0; line-height: 1.45; }
+.laval-recovery-history ol { margin: 0 0 12px; padding-left: 20px; }
+.laval-recovery-history li { margin: 8px 0; }
+.laval-recovery-history li small { display: block; margin-top: 2px; color: var(--muted); }
 .laval-stages { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .laval-stages button { min-height: 84px; padding: 10px; display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; text-align: left; border: 1px solid var(--line); border-radius: 12px; color: #fff; background: var(--panel); }
 .laval-stages button > span { grid-row: span 2; color: var(--pink); font: 11px ui-monospace, monospace; }

@@ -79,4 +79,45 @@ describe('LavalEngine', () => {
     expect(await screen.findByText(/Не вдалося завантажити артефакт: API offline/)).toBeInTheDocument()
     expect(screen.queryByText('Артефакт ще не створено.')).not.toBeInTheDocument()
   })
+
+  it('explains safe recovery and can send the authoritative stage status to Telegram', async () => {
+    const run = {
+      id: '01234567-89ab-7def-8123-456789abcdef', owner_idea_id: '11234567-89ab-7def-8123-456789abcdef',
+      status: 'failed', current_stage: 'SERP_DISCOVERY', approval_mode: 'manual', approval_gates: ['COMPETITOR_SELECTION'],
+      owner_preview: 'Live idea', completed_stages: 3, variant_count: 0, config: {},
+      evidence_mode: 'live_search_pending_trends', provider_snapshot: { search: 'dataforseo', trends: 'unavailable' },
+      max_spend_usd: .05, reserved_spend_usd: .04, error_text: 'one queued task is still pending', created_at: '', updated_at: '',
+    }
+    const stages = Array.from({ length: 16 }, (_, ordinal) => ({
+      stage: ordinal === 3 ? 'SERP_DISCOVERY' : `STAGE_${ordinal}`, ordinal,
+      status: ordinal < 3 ? 'completed' : ordinal === 3 ? 'failed' : 'pending', attempt: ordinal === 3 ? 1 : 0, metrics: {},
+    }))
+    const status = {
+      run, stages, cost: { items: [], total_usd: .0186, provider_actual_usd: .0192, max_spend_usd: .05 },
+      recovery: {
+        available: true, stage: 'SERP_DISCOVERY', stage_status: 'failed', attempt: 1, failed_at: '2026-08-18T15:00:00Z',
+        failure: { type: 'TimeoutError', message: 'one queued task is still pending' },
+        provider_tasks: { total: 32, reserved: 0, submitted: 1, completed: 31, failed: 0, persisted_remote_ids: 32, cost_recorded: 31, actual_cost_usd: .0192 },
+        resume_behavior: { reuses_persisted_remote_ids: true, reposts_submitted_tasks: false, duplicates_recorded_cost: false },
+        history: [],
+      },
+    }
+    const post = vi.fn((path: string) => Promise.resolve(path.endsWith('/notify') ? { queued: 1 } : { started: true }))
+    const api = {
+      get: vi.fn((path: string) => {
+        if (path.includes('/providers')) return Promise.resolve({ ...readiness, search_live_ready: true, search_provider: 'dataforseo' })
+        if (path.includes(run.id)) return Promise.resolve(status)
+        return Promise.resolve({ items: [run] })
+      }),
+      post, blob: vi.fn(),
+    } as unknown as ApiClient
+    render(<LavalEngine api={api} language="uk" />)
+
+    expect(await screen.findByText('ЗВІТ ПРО ПОМИЛКУ ТА ВІДНОВЛЕННЯ')).toBeInTheDocument()
+    expect(screen.getByText(/Submitted-задачі не публікуються і не оплачуються повторно/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Відновити збережену роботу/ }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/laval/runs/${run.id}/resume`, {}))
+    fireEvent.click(screen.getByRole('button', { name: /Статус у Telegram/ }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/laval/runs/${run.id}/notify`, {}))
+  })
 })

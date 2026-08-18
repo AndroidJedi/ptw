@@ -20,6 +20,7 @@ from idea_generation.laval_domain import (
     trend_score,
 )
 from idea_generation.laval_pipeline import LavalPipeline
+from idea_generation.laval_notifications import LavalTelegramNotifier, format_laval_status_message
 from idea_generation.laval_providers import (
     DataForSEOSearchProvider,
     FixtureSearchProvider,
@@ -119,6 +120,44 @@ class LavalDomainTests(unittest.TestCase):
         self.assertEqual(1, post.call_args.kwargs["json"][0]["priority"])
         self.assertIn("task_get/advanced/remote-task", get.call_args.args[0])
 
+    def test_telegram_status_projection_contains_error_cost_and_every_stage(self) -> None:
+        stages = [
+            {"stage": f"STAGE_{index}", "ordinal": index, "status": "failed" if index == 3 else "completed" if index < 3 else "pending", "attempt": 1}
+            for index in range(16)
+        ]
+        message = format_laval_status_message({
+            "run": {
+                "id": "01234567-89ab-7def-8123-456789abcdef", "status": "failed",
+                "current_stage": "STAGE_3", "evidence_mode": "live_search_pending_trends",
+                "error_text": "provider queue timeout", "approval_gates": [],
+            },
+            "stages": stages,
+            "cost": {"provider_actual_usd": .0192, "provider_reserved_usd": .0192, "max_spend_usd": .05},
+            "recovery": {"provider_tasks": {"total": 32, "completed": 31, "submitted": 1, "persisted_remote_ids": 32}},
+        }, "failed")
+        self.assertIn("provider queue timeout", message)
+        self.assertIn("31/32 completed", message)
+        self.assertIn("does not repost or rebill", message)
+        self.assertIn("S00 STAGE_0 — completed", message)
+        self.assertIn("S15 STAGE_15 — pending", message)
+
+    def test_runner_automatically_notifies_terminal_run_state(self) -> None:
+        class Repository:
+            def run(self, _run_id): return {"status": "failed"}
+
+        class Pipeline:
+            repository = Repository()
+            def run(self, **_kwargs): raise RuntimeError("already persisted")
+
+        class Notifier:
+            calls = []
+            def enqueue(self, run_id, event): self.calls.append((run_id, event))
+
+        notifier = Notifier()
+        runner = LavalRunner(Pipeline(), notifier)
+        runner._execute(run_id="run-1")
+        self.assertEqual([("run-1", "failed")], notifier.calls)
+
     def test_context_compiler_enforces_synthesis_limits(self) -> None:
         config = LavalConfig.from_mapping({"synthesis": {"max_opportunities": 2, "max_trend_scores": 1, "max_trend_discoveries": 1}})
         packet = ContextCompiler(config).build_synthesis_context(
@@ -145,10 +184,20 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         cls.store = PostgresStore(os.environ["IDEA_GENERATION_TEST_DATABASE_URL"])
         cls.store.migrate(Path("db/idea_generation"))
         cls.store.seed_laval_mission()
+        with cls.store.transaction() as connection:
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS commander_outbox(
+                       id UUID PRIMARY KEY, topic TEXT NOT NULL, aggregate_id UUID, payload JSONB NOT NULL,
+                       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), published_at TIMESTAMPTZ,
+                       attempts INTEGER NOT NULL DEFAULT 0, available_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                       last_error TEXT
+                   )"""
+            )
 
     def setUp(self) -> None:
         with self.store.transaction() as connection:
             connection.execute("TRUNCATE laval_runs RESTART IDENTITY CASCADE")
+            connection.execute("DELETE FROM commander_outbox WHERE payload->>'source'='idea-laval'")
         self.repository = LavalRepository(self.store)
         self.pipeline = LavalPipeline(
             self.repository,
@@ -325,6 +374,56 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
             (created["run_id"],),
         )["n"])
 
+    def test_failed_stage_exposes_recovery_report_and_owner_resume_audit(self) -> None:
+        created = self.repository.create_run("Recover paid search visibly.", self._config(), actor="test")
+        run_id = created["run_id"]
+        self.repository.start_stage(run_id, "SERP_DISCOVERY", "digest", provider="dataforseo")
+        for key in ("one", "two"):
+            request = {"key": key, "query": key, "country": "US", "language": "en", "depth": 10, "operation": "localized_serp"}
+            task = self.repository.reserve_provider_task(run_id, "SERP_DISCOVERY", key, "dataforseo", request, .0006)
+            self.repository.submit_provider_task(str(task["id"]), f"remote-{key}", .0006)
+            if key == "one":
+                self.repository.complete_provider_task(str(task["id"]), {"results": []})
+                self.repository.record_provider_cost_once(str(task["id"]), "localized_serp")
+        self.repository.fail_stage(run_id, "SERP_DISCOVERY", TimeoutError("one queued task is still pending"))
+        recovery = self.repository.status(run_id)["recovery"]
+        self.assertTrue(recovery["available"])
+        self.assertEqual("TimeoutError", recovery["failure"]["type"])
+        self.assertEqual(2, recovery["provider_tasks"]["persisted_remote_ids"])
+        self.assertEqual(1, recovery["provider_tasks"]["completed"])
+        self.assertEqual(1, recovery["provider_tasks"]["submitted"])
+
+        class RecordingRunner:
+            def start(self, _run_id, **_kwargs): return True
+
+        service = LavalService(self.repository, RecordingRunner())
+        resumed = service.resume(run_id, actor="firebase:owner")
+        self.assertTrue(resumed["started"])
+        self.assertFalse(resumed["resume_behavior"]["reposts_submitted_tasks"])
+        recovered_report = self.repository.status(run_id)["recovery"]
+        self.assertEqual("SERP_DISCOVERY", recovered_report["stage"])
+        self.assertEqual(2, recovered_report["provider_tasks"]["persisted_remote_ids"])
+        action = self.store.fetchone(
+            "SELECT * FROM laval_run_actions WHERE run_id=%s AND action='resume_requested'",
+            (run_id,),
+        )
+        self.assertEqual("firebase:owner", action["actor"])
+        self.assertEqual("started", action["outcome"])
+
+    def test_owner_can_queue_telegram_snapshot_with_all_stage_statuses(self) -> None:
+        created = self.repository.create_run("Send visible status.", self._config(), actor="test")
+        run_id = created["run_id"]
+        notifier = LavalTelegramNotifier(self.repository, (123,))
+        service = LavalService(self.repository, LavalRunner(self.pipeline), notifier=notifier)
+        result = service.notify(run_id, actor="firebase:owner")
+        self.assertEqual(1, result["queued"])
+        row = self.store.fetchone(
+            "SELECT payload FROM commander_outbox WHERE payload->>'source'='idea-laval' ORDER BY created_at DESC LIMIT 1"
+        )
+        self.assertEqual(123, row["payload"]["chat_id"])
+        self.assertIn("S00 OWNER_CAPTURE — completed", row["payload"]["text"])
+        self.assertIn("S15 FINAL_SHORTLIST — pending", row["payload"]["text"])
+
     def test_country_rerun_marks_every_downstream_stage_stale(self) -> None:
         created = self.repository.create_run("Visible progress proof.", self._config(), actor="test")
         self.pipeline.run(created["run_id"], through_stage="COMPETITOR_SELECTION")
@@ -442,6 +541,9 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
             run_id = created.json()["run_id"]
             status = client.get(f"/internal/web/laval/runs/{run_id}", headers=headers)
             self.assertEqual("pending", status.json()["run"]["status"])
+            notified = client.post(f"/internal/web/laval/runs/{run_id}/notify", headers=headers, json={"actor": "firebase:owner"})
+            self.assertEqual(200, notified.status_code)
+            self.assertEqual(1, notified.json()["queued"])
             exported = client.get(f"/internal/web/laval/runs/{run_id}/export?stage=OWNER_CAPTURE&format=json", headers=headers)
             self.assertEqual(200, exported.status_code)
             self.assertIn("raw_text", exported.text)

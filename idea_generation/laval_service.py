@@ -13,8 +13,9 @@ from .laval_repository import LavalRepository
 
 
 class LavalRunner:
-    def __init__(self, pipeline: LavalPipeline) -> None:
+    def __init__(self, pipeline: LavalPipeline, notifier: Any | None = None) -> None:
         self.pipeline = pipeline
+        self.notifier = notifier
         self._guard = threading.Lock()
         self._threads: dict[str, threading.Thread] = {}
 
@@ -49,6 +50,14 @@ class LavalRunner:
             # The pipeline has already persisted a bounded failure record.
             pass
         finally:
+            if self.notifier is not None:
+                try:
+                    state = self.pipeline.repository.run(run_id)["status"]
+                    if state in {"failed", "paused", "completed"}:
+                        self.notifier.enqueue(run_id, str(state))
+                except Exception:
+                    # Notification delivery is durable but must never corrupt run state.
+                    pass
             with self._guard:
                 self._threads.pop(run_id, None)
 
@@ -66,11 +75,12 @@ class LavalRunner:
 
 
 class LavalService:
-    def __init__(self, repository: LavalRepository, runner: LavalRunner, *, readiness: Mapping[str, Any] | None = None) -> None:
+    def __init__(self, repository: LavalRepository, runner: LavalRunner, *, readiness: Mapping[str, Any] | None = None, notifier: Any | None = None) -> None:
         self.repository = repository
         self.runner = runner
         self.store = repository.store
         self.readiness = dict(readiness or {})
+        self.notifier = notifier
 
     def create(self, text: str, config: Mapping[str, Any] | None, *, actor: str, requested_mode: str = "demo") -> dict[str, Any]:
         parsed = LavalConfig.from_mapping(config)
@@ -111,7 +121,7 @@ class LavalService:
         self.repository.pause(run_id)
         return {"run_id": run_id, "status": "paused"}
 
-    def resume(self, run_id: str) -> dict[str, Any]:
+    def resume(self, run_id: str, *, actor: str = "system") -> dict[str, Any]:
         run = self.repository.run(run_id)
         if run["status"] == "completed":
             raise ValueError("completed Laval run does not need resume")
@@ -119,9 +129,46 @@ class LavalService:
             if not self.readiness.get("trends_live_ready"):
                 raise RuntimeError("Google Trends provider is not ready; synthesis and shortlist remain blocked")
             self.repository.enable_live_trends(run_id, str(self.readiness.get("trend_provider") or "google_trends"))
+        recovery = self.repository.recovery(run_id)
+        action_id = self.repository.record_action(
+            run_id,
+            "resume_requested",
+            stage=str(run.get("current_stage") or "") or None,
+            actor=actor,
+            previous_status=str(run.get("status") or ""),
+            outcome="requested",
+            details={
+                "attempt": recovery["attempt"],
+                "failure": recovery.get("failure"),
+                "provider_tasks": recovery["provider_tasks"],
+                "reuses_persisted_remote_ids": True,
+                "reposts_submitted_tasks": False,
+                "duplicates_recorded_cost": False,
+            },
+        )
         self.repository.ready(run_id)
         started = self.runner.start(run_id)
-        return {"run_id": run_id, "started": started, "status": "pending"}
+        self.store.execute(
+            "UPDATE laval_run_actions SET outcome=%s WHERE id=%s RETURNING 1",
+            ("started" if started else "already_running", action_id),
+        )
+        return {
+            "run_id": run_id,
+            "started": started,
+            "status": "pending",
+            "recovery_action_id": action_id,
+            "resume_behavior": recovery["resume_behavior"],
+            "provider_tasks": recovery["provider_tasks"],
+        }
+
+    def notify(self, run_id: str, *, actor: str) -> dict[str, Any]:
+        self.repository.run(run_id)
+        if self.notifier is None:
+            raise RuntimeError("Telegram status notifications are not configured")
+        queued = int(self.notifier.enqueue(run_id, "owner_status", force=True, actor=actor))
+        if queued < 1:
+            raise RuntimeError("Telegram status notification could not be queued")
+        return {"run_id": run_id, "queued": queued, "status": self.repository.run(run_id)["status"]}
 
     def approve(self, run_id: str, stage: str, *, actor: str) -> dict[str, Any]:
         result = self.repository.approve(run_id, stage.upper(), actor=actor)

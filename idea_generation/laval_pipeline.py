@@ -146,7 +146,14 @@ class LavalPipeline:
                 )
             tasks[key] = task
 
-        to_submit = [dict(task["request"]) for task in tasks.values() if not task.get("remote_task_id") and task["status"] == "reserved"]
+        # A failed submission without a remote ID was never accepted or billed by
+        # DataForSEO, so it may be submitted again. Any persisted remote ID is
+        # always fetched instead and is never reposted.
+        to_submit = [
+            dict(task["request"])
+            for task in tasks.values()
+            if not task.get("remote_task_id") and task["status"] in {"reserved", "failed"}
+        ]
         if to_submit:
             submitted = provider.submit_many(to_submit)  # type: ignore[attr-defined]
             submission_errors = []

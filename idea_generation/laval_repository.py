@@ -136,7 +136,106 @@ class LavalRepository:
         run = self.run(run_id)
         stages = self.stages(run_id)
         costs = self.cost(run_id)
-        return {"run": run, "stages": stages, "cost": costs}
+        return {"run": run, "stages": stages, "cost": costs, "recovery": self.recovery(run_id)}
+
+    def record_action(
+        self,
+        run_id: str,
+        action: str,
+        *,
+        stage: str | None,
+        actor: str,
+        previous_status: str | None = None,
+        outcome: str = "recorded",
+        details: Mapping[str, Any] | None = None,
+        dedupe_key: str | None = None,
+    ) -> str:
+        action_id = new_uuid7()
+        self.store.execute(
+            """INSERT INTO laval_run_actions(
+                   id,run_id,action,stage,actor,previous_status,outcome,details,dedupe_key
+               ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s)
+               ON CONFLICT(dedupe_key) DO NOTHING RETURNING 1""",
+            (
+                action_id,
+                run_id,
+                action,
+                stage,
+                actor,
+                previous_status,
+                outcome,
+                self.store.json(details or {}),
+                dedupe_key,
+            ),
+        )
+        return action_id
+
+    def provider_task_summary(self, run_id: str, stage: str | None = None) -> dict[str, Any]:
+        where = "run_id=%s"
+        params: tuple[Any, ...] = (run_id,)
+        if stage:
+            where += " AND stage=%s"
+            params += (stage,)
+        row = self.store.fetchone(
+            f"""SELECT count(*) total,
+                       count(*) FILTER (WHERE status='reserved') reserved,
+                       count(*) FILTER (WHERE status='submitted') submitted,
+                       count(*) FILTER (WHERE status='completed') completed,
+                       count(*) FILTER (WHERE status='failed') failed,
+                       count(*) FILTER (WHERE remote_task_id IS NOT NULL) persisted_remote_ids,
+                       count(*) FILTER (WHERE cost_recorded) cost_recorded,
+                       COALESCE(sum(actual_cost_usd),0)::float actual_cost_usd
+                FROM laval_provider_tasks WHERE {where}""",
+            params,
+        ) or {}
+        return {
+            "total": int(row.get("total") or 0),
+            "reserved": int(row.get("reserved") or 0),
+            "submitted": int(row.get("submitted") or 0),
+            "completed": int(row.get("completed") or 0),
+            "failed": int(row.get("failed") or 0),
+            "persisted_remote_ids": int(row.get("persisted_remote_ids") or 0),
+            "cost_recorded": int(row.get("cost_recorded") or 0),
+            "actual_cost_usd": round(float(row.get("actual_cost_usd") or 0), 6),
+        }
+
+    def recovery(self, run_id: str) -> dict[str, Any]:
+        run = self.run(run_id)
+        current_stage = str(run.get("current_stage") or "") or None
+        history = json_safe(self.store.fetchall(
+            """SELECT action,stage,actor,previous_status,outcome,details,created_at
+               FROM laval_run_actions
+               WHERE run_id=%s AND action IN ('stage_failed','resume_requested','stage_retry_completed')
+               ORDER BY created_at DESC LIMIT 20""",
+            (run_id,),
+        ))
+        failure_action = next((item for item in history if item["action"] == "stage_failed"), None)
+        stage_name = current_stage if run.get("status") == "failed" else (
+            str((failure_action or {}).get("stage") or "") or current_stage
+        )
+        stage = self.stage(run_id, stage_name) if stage_name else None
+        failure = (stage or {}).get("error")
+        if not failure:
+            failure = (failure_action or {}).get("details", {}).get("error")
+        return {
+            "available": run.get("status") == "failed",
+            "stage": stage_name,
+            "stage_status": (stage or {}).get("status"),
+            "attempt": int((failure_action or {}).get("details", {}).get("attempt") or (stage or {}).get("attempt") or 0),
+            "failed_at": (
+                (stage or {}).get("completed_at")
+                if (stage or {}).get("status") == "failed"
+                else (failure_action or {}).get("created_at")
+            ),
+            "failure": failure,
+            "provider_tasks": self.provider_task_summary(run_id, stage_name),
+            "resume_behavior": {
+                "reuses_persisted_remote_ids": True,
+                "reposts_submitted_tasks": False,
+                "duplicates_recorded_cost": False,
+            },
+            "history": history,
+        }
 
     def start_stage(
         self, run_id: str, stage: str, digest: str, *, provider: str = "", model: str = ""
@@ -185,6 +284,22 @@ class LavalRepository:
                WHERE run_id=%s AND stage=%s RETURNING 1""",
             ("partial" if partial else "completed", self.store.json(payload), self.store.json(json_safe(stage_cost)), self.store.json(metrics or {}), run_id, stage),
         )
+        finished = self.stage(run_id, stage)
+        prior_failure = self.store.fetchone(
+            "SELECT 1 ok FROM laval_run_actions WHERE run_id=%s AND stage=%s AND action='stage_failed' LIMIT 1",
+            (run_id, stage),
+        )
+        if int(finished.get("attempt") or 0) > 1 and prior_failure:
+            self.record_action(
+                run_id,
+                "stage_retry_completed",
+                stage=stage,
+                actor="system",
+                previous_status="failed",
+                outcome=finished["status"],
+                details={"attempt": finished["attempt"], "provider": finished.get("provider")},
+                dedupe_key=f"stage-retry-completed:{run_id}:{stage}:{finished['attempt']}",
+            )
 
     def fail_stage(self, run_id: str, stage: str, error: Exception) -> None:
         payload = {"type": type(error).__name__, "message": str(error)[:4000]}
@@ -195,6 +310,22 @@ class LavalRepository:
         self.store.execute(
             "UPDATE laval_runs SET status='failed',current_stage=%s,error_text=%s,updated_at=NOW() WHERE id=%s RETURNING 1",
             (stage, payload["message"], run_id),
+        )
+        failed = self.stage(run_id, stage)
+        self.record_action(
+            run_id,
+            "stage_failed",
+            stage=stage,
+            actor="system",
+            previous_status="running",
+            outcome="failed",
+            details={
+                "attempt": failed["attempt"],
+                "provider": failed.get("provider"),
+                "error": payload,
+                "provider_tasks": self.provider_task_summary(run_id, stage),
+            },
+            dedupe_key=f"stage-failed:{run_id}:{stage}:{failed['attempt']}",
         )
 
     def pause(self, run_id: str) -> None:

@@ -185,5 +185,11 @@ Canonical record of deployment gaps and prevention rules. Do not store secrets.
 - Correction: free Advanced retrieval confirmed the existing task was ready,
   the same run resumed without reposting or rebilling, and the default polling
   window was raised to 3600 seconds with an owner-actionable fallback message.
+  The initial recovery was performed by Codex through the authenticated
+  internal owner boundary; this exposed that the generic Retry label did not
+  make the actor or no-repost behavior visible.
 - Prevention: audit persisted provider task state before retrying, never infer
   a need to repost from a queue timeout, and retain exactly-once cost recording.
+  Append failure/resume/recovery actors to `laval_run_actions`, expose the
+  task/cost recovery report and explicit Resume saved work control, and project
+  the same S00-S15 state through the Commander Telegram outbox.

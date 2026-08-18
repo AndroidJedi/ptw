@@ -1,4 +1,4 @@
-import { Check, CirclePause, Download, Eye, FlaskConical, Play, Plus, RefreshCcw, RotateCcw, X } from 'lucide-react'
+import { Check, CirclePause, Download, Eye, FlaskConical, Play, Plus, RefreshCcw, RotateCcw, Send, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { local, type Language } from '../i18n'
@@ -38,6 +38,7 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
   const [automatic, setAutomatic] = useState(false)
   const [requestedMode, setRequestedMode] = useState<'demo' | 'live'>('demo')
   const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [stageLoading, setStageLoading] = useState(false)
@@ -78,13 +79,15 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
 
   const act = async (action: string, body: Record<string, unknown> = {}) => {
     if (!selected) return
-    setBusy(true); setError('')
+    setBusy(true); setBusyAction(action); setError(''); setNotice(action === 'resume' ? 'Відновлення збереженої роботи…' : action === 'notify' ? 'Надсилання статусу в Telegram…' : '')
     try {
-      await api.post(`/api/v1/laval/runs/${selected}/${action}`, body)
+      const result = await api.post<{ started?: boolean; queued?: number }>(`/api/v1/laval/runs/${selected}/${action}`, body)
       await loadStatus(selected); await loadRuns()
-      setNotice('Дію виконано.')
+      if (action === 'resume') setNotice(result.started === false ? 'Запуск уже виконується.' : 'Відновлення запущено: збережені remote task IDs повторно не надсилаються і повторно не оплачуються.')
+      else if (action === 'notify') setNotice(`Статус і всі 16 етапів поставлено в чергу Telegram (${result.queued ?? 0}).`)
+      else setNotice('Дію виконано.')
     } catch (cause) { setError((cause as Error).message) }
-    finally { setBusy(false) }
+    finally { setBusy(false); setBusyAction('') }
   }
   const create = async () => {
     setBusy(true); setError('')
@@ -192,16 +195,37 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
           <header className="laval-run-head">
             <div><small>RUN {short(status.run.id)} · OWNER {short(status.run.owner_idea_id)}</small><em className={`evidence-badge ${status.run.evidence_mode}`}>{evidenceLabel(status.run.evidence_mode)}</em><h3>{status.run.current_stage ? humanStage(status.run.current_stage) : 'CREATED'}</h3><p><StatusDot status={status.run.status} />{status.run.status} · {status.stages.filter((item) => ['completed', 'partial'].includes(item.status)).length}/16</p><p className="laval-cost">projected ${(status.cost.provider_projected_usd ?? 0).toFixed(4)} · reserved ${(status.cost.provider_reserved_usd ?? 0).toFixed(4)} · actual ${(status.cost.provider_actual_usd ?? status.cost.total_usd).toFixed(4)} · max ${(status.cost.max_spend_usd ?? .05).toFixed(2)}</p>{status.run.awaiting_reason && <p className="laval-waiting">Google Trends access required before synthesis and shortlist.</p>}</div>
             <div className="laval-actions">
-              {['pending', 'failed'].includes(status.run.status) && <button className="primary" disabled={busy} onClick={() => act(status.run.status === 'failed' ? 'resume' : 'run')}><Play />{status.run.status === 'failed' ? 'Повторити' : 'Запустити'}</button>}
+              {status.run.status === 'pending' && <button className="primary" disabled={busy} onClick={() => act('run')}><Play />{busyAction === 'run' ? 'Запуск…' : 'Запустити'}</button>}
               {status.run.status === 'running' && <button className="secondary" disabled={busy} onClick={() => act('pause')}><CirclePause />Пауза</button>}
               {status.run.status === 'paused' && !approval && !status.run.awaiting_reason && <button className="primary" disabled={busy} onClick={() => act('resume')}><Play />Продовжити</button>}
               {status.run.awaiting_reason && <button className="secondary" disabled><CirclePause />Очікує Google Trends</button>}
               {approval && current && <button className="primary" disabled={busy} onClick={() => act('approve', { stage: current.stage })}><Check />Схвалити й продовжити</button>}
+              <button className="secondary" disabled={busy} onClick={() => act('notify')}><Send />{busyAction === 'notify' ? 'Надсилання…' : 'Статус у Telegram'}</button>
               <button className="secondary" disabled={busy} onClick={() => download('json')}><Download />JSON</button>
               <button className="secondary" disabled={busy} onClick={() => download('md')}>MD</button>
             </div>
           </header>
-          {status.run.error_text && <p className="laval-failure">{status.run.error_text}</p>}
+          {status.run.status === 'failed' && status.recovery && <section className="laval-recovery" role="alert">
+            <small>ЗВІТ ПРО ПОМИЛКУ ТА ВІДНОВЛЕННЯ</small>
+            <h4>{humanStage(status.recovery.stage || status.run.current_stage || 'UNKNOWN')} · спроба #{status.recovery.attempt}</h4>
+            <p><strong>{status.recovery.failure?.type || 'StageError'}:</strong> {status.recovery.failure?.message || status.run.error_text || 'Невідома помилка'}</p>
+            {status.recovery.failed_at && <p>Час помилки: {new Date(status.recovery.failed_at).toLocaleString()}</p>}
+            <dl>
+              <div><dt>Provider tasks</dt><dd>{status.recovery.provider_tasks.total}</dd></div>
+              <div><dt>Завершено</dt><dd>{status.recovery.provider_tasks.completed}</dd></div>
+              <div><dt>Ще в черзі</dt><dd>{status.recovery.provider_tasks.submitted}</dd></div>
+              <div><dt>Remote IDs збережено</dt><dd>{status.recovery.provider_tasks.persisted_remote_ids}</dd></div>
+              <div><dt>Вартість записано</dt><dd>{status.recovery.provider_tasks.cost_recorded} · ${status.recovery.provider_tasks.actual_cost_usd.toFixed(4)}</dd></div>
+            </dl>
+            <p className="laval-recovery-safe">Відновлення використовує вже збережені remote task IDs. Submitted-задачі не публікуються і не оплачуються повторно.</p>
+            <button className="primary" disabled={busy} onClick={() => act('resume')}><Play />{busyAction === 'resume' ? 'Відновлення…' : 'Відновити збережену роботу'}</button>
+          </section>}
+          {status.run.status === 'failed' && !status.recovery && status.run.error_text && <p className="laval-failure">{status.run.error_text}</p>}
+          {status.recovery?.history && status.recovery.history.length > 0 && <details className="laval-recovery-history">
+            <summary>Історія помилок і відновлень ({status.recovery.history.length})</summary>
+            {status.recovery.failure && <p>Останній збій: {humanStage(status.recovery.stage || 'UNKNOWN')} · {status.recovery.failure.type || 'StageError'} · provider tasks {status.recovery.provider_tasks.completed}/{status.recovery.provider_tasks.total} · ${status.recovery.provider_tasks.actual_cost_usd.toFixed(4)}</p>}
+            <ol>{status.recovery.history.map((item, index) => <li key={`${item.created_at}-${index}`}><strong>{humanStage(item.action)}</strong> · {item.stage ? humanStage(item.stage) : 'RUN'} · {item.outcome}<small>{new Date(item.created_at).toLocaleString()} · {item.actor}</small></li>)}</ol>
+          </details>}
           <div className="laval-stages">
             {status.stages.map((stage) => <button key={stage.stage} className={`${stage.status} ${stageName === stage.stage ? 'selected' : ''}`} onClick={() => inspect(stage)}>
               <span>S{String(stage.ordinal).padStart(2, '0')}</span><strong>{humanStage(stage.stage)}</strong><small>{stage.status} · #{stage.attempt}{stage.provider ? ` · ${stage.provider}` : ''}</small>

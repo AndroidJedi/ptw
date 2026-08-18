@@ -11,6 +11,7 @@ from fastapi import FastAPI, Header, HTTPException, Query, Response
 from .config import Settings
 from .manage import ROOT
 from .laval_pipeline import LavalPipeline
+from .laval_notifications import LavalTelegramNotifier
 from .laval_providers import providers_from_settings
 from .laval_repository import LavalRepository
 from .laval_service import LavalRunner, LavalService
@@ -39,7 +40,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     laval_pipeline = LavalPipeline(
         laval_repository, providers_from_settings(settings, llm)
     )
-    laval_runner = LavalRunner(laval_pipeline)
+    laval_notifier = LavalTelegramNotifier(laval_repository, tuple(settings.allowed_chat_ids))
+    laval_runner = LavalRunner(laval_pipeline, laval_notifier)
     readiness = {
         "llm_provider": settings.llm_provider,
         "search_provider": settings.search_provider,
@@ -50,7 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "max_spend_usd": settings.max_spend_usd,
         "reserved_spend_usd": settings.reserved_spend_usd,
     }
-    laval = LavalService(laval_repository, laval_runner, readiness=readiness)
+    laval = LavalService(laval_repository, laval_runner, readiness=readiness, notifier=laval_notifier)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -183,13 +185,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if action == "pause":
                 return laval.pause(run_id)
             if action == "resume":
-                return laval.resume(run_id)
+                return laval.resume(run_id, actor=str(request.get("actor") or "owner-gateway"))
             if action == "approve":
                 return laval.approve(run_id, str(request.get("stage") or ""), actor=str(request.get("actor") or "owner-gateway"))
             if action == "rerun":
                 return laval.rerun(run_id, str(request.get("stage") or ""), country=str(request.get("country") or "") or None, force=request.get("force") is True, actor=str(request.get("actor") or "owner-gateway"))
             if action == "override":
                 return laval.override(run_id, request, actor=str(request.get("actor") or "owner-gateway"))
+            if action == "notify":
+                return laval.notify(run_id, actor=str(request.get("actor") or "owner-gateway"))
             raise HTTPException(status_code=404, detail="unknown Laval action")
         except KeyError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error

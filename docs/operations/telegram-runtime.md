@@ -30,3 +30,11 @@ redirection, restart persistence, and a real notification deep link.
 
 Telegram output is a notification projection only. PostgreSQL and the web
 Owner Gateway remain authoritative.
+
+Idea Laval terminal notifications are projected from the same database-backed
+status response used by the Ideas view. Failure, manual-gate pause,
+provider-wait pause, and completion messages include the exact run/current
+stage, evidence mode, cost, bounded error or required action, and S00-S15 with
+their status and attempt. The owner may resend this snapshot from the web UI;
+Telegram never exposes a resume callback. Notification enqueueing uses the
+existing Commander transactional outbox and outbound worker.

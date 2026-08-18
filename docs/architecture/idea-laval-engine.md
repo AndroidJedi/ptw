@@ -56,6 +56,14 @@ runs; a failed run remains visible until the owner resumes it. Reusing the same
 input hash skips paid calls. Reruns mark every downstream stage stale before
 new work begins.
 
+Resume and rerun are deliberately different owner actions. Resume appends a
+`laval_run_actions` audit row with the Firebase actor and continues from saved
+stage/provider state. A submitted DataForSEO remote task is fetched by its
+persisted ID and is never reposted or billed twice. Rerun invalidates the chosen
+stage and its downstream artifacts for deliberate reconstruction. The status
+API exposes the bounded error, attempt, failed time, provider-task counts,
+recorded cost, exact resume semantics, and recent recovery history.
+
 Manual mode pauses after competitor selection, the Opportunity Matrix, and the
 final shortlist. Automatic mode skips those gates. Both modes can be paused at
 safe item/stage boundaries. Platform emergency stop also pauses active Laval
@@ -114,6 +122,13 @@ shows all 16 stages, filters SERP/selection output by country, separates Trend
 Scores from Trend Discoveries, approves gates, reruns stages/countries, writes
 audited overrides, and exports JSON or Markdown. All calls pass Firebase Auth,
 App Check, exact-owner verification, and the Owner Gateway bridge.
+
+Failed runs show an in-page recovery report and a distinct **Resume saved
+work** action. The owner can also enqueue the current authoritative status to
+Telegram. Automatic failure, approval-pause, provider-pause, and completion
+notifications contain the run state, cost, recovery facts, and all 16 stage
+statuses. Telegram remains a notification projection; it cannot resume or
+rerun Laval.
 
 The same services are available through the `lav` CLI inside the Idea service:
 

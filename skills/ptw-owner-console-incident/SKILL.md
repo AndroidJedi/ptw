@@ -75,6 +75,17 @@ not prove PostgreSQL lacks the artifact. Confirm the `/show` response and the
 `laval_stage_runs.artifact` presence separately; browser request failures must
 be rendered as failures, not as an empty artifact.
 
+For a failed Laval run, the owner must not need SSH or an agent to recover it.
+Verify the visible error report includes the exact stage/attempt, bounded error,
+failure time, provider-task counts, persisted remote-ID count, recorded cost,
+and an explicit **Resume saved work** action. Resume must append the authenticated
+Firebase actor to `laval_run_actions` and preserve submitted provider IDs;
+deliberate rerun is a different action that invalidates downstream artifacts.
+Verify both the automatic terminal Telegram notification and the web-triggered
+status notification are projected from the same status response, contain all
+16 stage statuses, and use the existing Commander outbox. Telegram remains
+notification-only and must not gain a resume callback.
+
 Treat “Firebase ID token and App Check are required” as an incomplete request,
 not a reason to relax authentication. The gateway uses one message when either
 value is empty, so determine which browser header is missing. In the first

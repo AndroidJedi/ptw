@@ -65,6 +65,11 @@ class LavalGatewayProxyTests(unittest.TestCase):
             created = client.post("/api/v1/laval/runs", headers=headers, json={"text": "Owner idea", "config": {}})
             listed = client.get("/api/v1/laval/runs", headers=headers)
             providers = client.get("/api/v1/laval/providers", headers=headers)
+            notified = client.post(
+                "/api/v1/laval/runs/01234567-89ab-7def-8123-456789abcdef/notify",
+                headers=headers,
+                json={},
+            )
             for method, path in (
                 ("get", "/api/v1/ideas"),
                 ("post", "/api/v1/generations"),
@@ -75,10 +80,13 @@ class LavalGatewayProxyTests(unittest.TestCase):
         self.assertEqual(200, created.status_code)
         self.assertEqual({"items": [], "next_cursor": None}, listed.json())
         self.assertFalse(providers.json()["search_live_ready"])
+        self.assertEqual(200, notified.status_code)
         self.assertEqual("demo", calls[0][2]["json"]["mode"])
         self.assertEqual("firebase:owner", calls[0][2]["json"]["actor"])
         self.assertEqual("bridge-token", calls[0][2]["headers"]["X-PTW-Owner-Gateway-Token"])
         self.assertTrue(calls[0][1].endswith("/internal/web/laval/runs"))
+        notify_call = next(item for item in calls if item[1].endswith("/notify"))
+        self.assertEqual("firebase:owner", notify_call[2]["json"]["actor"])
 
 
 if __name__ == "__main__":

@@ -48,6 +48,7 @@ services:
       - commander-assets:/var/lib/ptw/assets
       - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
       - /root/.codex/auth.json:/run/ptw-auth/auth.json:ro
+      - /root/.codex/skills/ptw-vps-operations:/run/ptw-auth/skills/ptw-vps-operations:ro
     networks:
       default:
         aliases: [ptw-commander-api]
@@ -133,6 +134,7 @@ services:
       - /opt/ptw/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
       - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
       - /root/.codex/auth.json:/run/ptw-auth/auth.json:ro
+      - /root/.codex/skills/ptw-vps-operations:/run/ptw-auth/skills/ptw-vps-operations:ro
       - /root/.config/gh:/run/ptw-gh:ro
       - /usr/bin/gh:/usr/local/bin/gh:ro
     networks:

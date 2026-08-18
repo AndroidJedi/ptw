@@ -14,7 +14,13 @@ Configuration:
 - Production builds default to
   `VITE_COMMANDER_API_URL=https://commander.proove-them-wrong.com`; an explicit
   value can override it for a different deployment.
-- `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY=<public site key>`
+- The production reCAPTCHA Enterprise site key is public browser configuration
+  and is committed with the Firebase app config. An explicit
+  `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` can override it for another environment.
+
+`npm run build` verifies that the production API origin, App Check header, and
+site key survived compilation. Firebase Hosting also runs this build as a
+predeploy check, so an incomplete or stale `dist` directory cannot be deployed.
 
 The service worker caches document/script/style/font shell resources only. It
 does not handle API routes, images, WebSockets, or terminal traffic.

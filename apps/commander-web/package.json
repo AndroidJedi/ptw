@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/verify-build.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "check": "tsc -b && vitest run && vite build"
+    "check": "vitest run && npm run build"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",

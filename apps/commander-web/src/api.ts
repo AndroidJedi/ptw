@@ -25,7 +25,7 @@ export class ApiClient {
     const token = await this.user.getIdToken()
     const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
     if (json) headers['Content-Type'] = 'application/json'
-    if (appCheck) headers['X-Firebase-AppCheck'] = (await getToken(appCheck, false)).token
+    headers['X-Firebase-AppCheck'] = (await getToken(appCheck, false)).token
     return headers
   }
 

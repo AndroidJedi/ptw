@@ -8,6 +8,7 @@
   "hosting": {
     "site": "provethemwrong-86123",
     "public": "apps/commander-web/dist",
+    "predeploy": ["npm --prefix apps/commander-web run build"],
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "headers": [
       {

@@ -88,6 +88,12 @@ npm --prefix apps/commander-web run build
 firebase deploy --only hosting
 ```
 
+The web build has no secret dependency for App Check: the public production
+reCAPTCHA Enterprise site key lives beside the Firebase browser config. The
+build fails unless its output contains the Commander API origin, App Check
+header, and site key, and the Hosting predeploy hook always rebuilds before
+uploading.
+
 The Idea API binds to loopback port `8093` by default, avoiding Commander's
 `8091`; normal browser traffic still travels through the authenticated Owner
 Gateway over the shared backend network. The Idea API applies numbered

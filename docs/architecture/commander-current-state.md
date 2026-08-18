@@ -25,6 +25,13 @@ silently rewrite API requests to the application shell. Successful API calls
 also require a JSON content type, and Hosting uses popup-compatible COOP for the
 desktop Google sign-in flow.
 
+The public reCAPTCHA Enterprise site key now ships with the Firebase browser
+configuration instead of depending on an operator shell variable. Production
+build verification checks the compiled bundle for the API origin, App Check
+header, and site key, while the Hosting predeploy hook always rebuilds before
+upload. This closes the regression where a valid Firebase session reached
+Overview without an App Check header.
+
 The Ideas view now exposes only the Idea Laval evidence engine. Legacy C01-C10
 generation controls, seeded rankings, contexts, API routes, runtime engine,
 Telegram mutation controller, and source/docs are removed. An empty run list is

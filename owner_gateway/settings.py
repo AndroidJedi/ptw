@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +45,9 @@ class Settings:
         missing = [name for name, value in required.items() if not value]
         if missing:
             raise RuntimeError(f"missing owner gateway settings: {', '.join(missing)}")
+        platform_database = urlsplit(required["PLATFORM_DATABASE_URL"])
+        if platform_database.scheme.startswith("postgres") and not platform_database.password:
+            raise RuntimeError("PLATFORM_DATABASE_URL must include a database password")
         credential = os.environ.get("FIREBASE_SERVICE_ACCOUNT_PATH", "").strip()
         return cls(
             firebase_project_id=os.environ.get("FIREBASE_PROJECT_ID", "provethemwrong-86123"),

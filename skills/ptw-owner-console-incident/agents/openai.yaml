@@ -1,0 +1,4 @@
+interface:
+  display_name: "PTW Owner Console Incident"
+  short_description: "Diagnose and prevent owner-console regressions"
+  default_prompt: "Use $ptw-owner-console-incident to diagnose and safely resolve this PTW owner-console incident."

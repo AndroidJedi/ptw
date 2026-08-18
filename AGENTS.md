@@ -33,6 +33,13 @@ Update `docs/architecture/commander-current-state.md` whenever a Commander
 milestone changes. It is a concise resume point, not a replacement for decision
 history or the architecture review.
 
+PTW-specific Codex skills are canonical under `skills/`. Desktop skill paths
+must symlink to those folders, and Commander/Owner Gateway containers mount the
+same tree at `$CODEX_HOME/skills`. After every production incident, update the
+narrowest applicable skill with reusable diagnostics and guardrails in the same
+commit, then run `python3 scripts/verify_ptw_skills.py`. Never put secrets or
+ephemeral release hashes in skills.
+
 The GitHub working tree and `/opt/ptw/platform` have unrelated histories; do not
 merge them or reuse unrelated deployment credentials. The one explicit
 operational integration is the existing `@ptw_commander_bot`: Commander reads

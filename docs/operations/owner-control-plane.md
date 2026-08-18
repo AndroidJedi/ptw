@@ -81,7 +81,7 @@ Build and restart the three server-side boundaries, then build Hosting:
 cd /root/ptw
 docker compose --env-file /opt/ptw/platform/.env --env-file .env.commander \
   -f docker-compose.commander.yml \
-  up -d --build commander-api owner-gateway
+  up -d --build --wait commander-api owner-gateway
 docker compose --env-file /opt/ptw/platform/.env --env-file .env.owner-gateway \
   -f docker-compose.idea-generation.yml up -d --build idea-generation-api
 npm --prefix apps/commander-web run build
@@ -93,6 +93,21 @@ reCAPTCHA Enterprise site key lives beside the Firebase browser config. The
 build fails unless its output contains the Commander API origin, App Check
 header, and site key, and the Hosting predeploy hook always rebuilds before
 uploading.
+
+Never omit `/opt/ptw/platform/.env` when rendering or recreating the Owner
+Gateway. Compose now rejects an empty platform PostgreSQL password, and gateway
+settings independently reject a passwordless `PLATFORM_DATABASE_URL`. After a
+recreation, verify password presence without printing the URL and execute
+`PlatformRepository.summary()` inside the container; shallow health alone does
+not prove Overview's database dependency.
+
+PTW skills live canonically under `skills/`. Desktop Codex uses symlinks and the
+CLI agents mount that same tree, so incident knowledge is updated once and read
+identically on the next run. Verify this with:
+
+```sh
+python3 scripts/verify_ptw_skills.py
+```
 
 The Idea API binds to loopback port `8093` by default, avoiding Commander's
 `8091`; normal browser traffic still travels through the authenticated Owner

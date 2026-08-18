@@ -32,6 +32,11 @@ header, and site key, while the Hosting predeploy hook always rebuilds before
 upload. This closes the regression where a valid Firebase session reached
 Overview without an App Check header.
 
+PTW-specific Codex skills are now canonical repository content shared by the
+desktop agent and mounted into both CLI-agent services. Incident fixes must
+update the applicable skill in the same commit; a verifier prevents desktop
+links or container mounts from drifting.
+
 The Ideas view now exposes only the Idea Laval evidence engine. Legacy C01-C10
 generation controls, seeded rankings, contexts, API routes, runtime engine,
 Telegram mutation controller, and source/docs are removed. An empty run list is
@@ -108,16 +113,21 @@ verified Google Firebase user.
   Identity Platform triggers resolve to their matching `run.app` services; this
   removes the audience-validation failure that surfaced as an Identity Toolkit
   HTTP 503 during Google sign-in.
-- Firebase Hosting serves service-worker cache `ptw-shell-v7`. A fresh live
-  browser profile installed and controlled the worker, deleted and repopulated
-  its document and asset cache, and reported no consumed-body `Response.clone()`
-  errors. Live desktop and iPhone-emulated checks both reached the Google account
-  chooser at `accounts.google.com`.
+- Firebase Hosting previously verified service-worker cache `ptw-shell-v7`. A
+  fresh live browser profile installed and controlled the worker, deleted and
+  repopulated its document and asset cache, and reported no consumed-body
+  `Response.clone()` errors. Live desktop and iPhone-emulated checks both
+  reached the Google account chooser at `accounts.google.com`.
 - The App Check regression is repaired in Hosting release
   `ee49e1047722d5bf`: live assets `index-CeGcYnjt.js` and `App-COBAGTGW.js`
   contain the Commander gateway origin, App Check header, and production site
   key, while `ptw-shell-v8` is live. Missing credentials still fail closed with
   HTTP 401 and the production-origin CORS preflight succeeds.
+- A later authenticated Overview HTTP 500 was traced to an Owner Gateway
+  recreation that omitted `/opt/ptw/platform/.env`, producing a passwordless
+  platform PostgreSQL URL. Production was recreated with the correct environment
+  and `PlatformRepository.summary()` succeeds. Compose interpolation and gateway
+  settings now fail fast on this condition.
 - Commander/Laval suite in the Commander image against disposable PostgreSQL
   16: 57 tests pass; seven intentionally retired Telegram tests skip.
 - Focused Laval PostgreSQL suite: 14 tests pass, including the 16-stage fixture,

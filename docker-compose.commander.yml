@@ -48,7 +48,7 @@ services:
       - commander-assets:/var/lib/ptw/assets
       - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
       - /root/.codex/auth.json:/run/ptw-auth/auth.json:ro
-      - /root/.codex/skills/ptw-vps-operations:/run/ptw-auth/skills/ptw-vps-operations:ro
+      - ./skills:/run/ptw-auth/skills:ro
     networks:
       default:
         aliases: [ptw-commander-api]
@@ -116,7 +116,7 @@ services:
     environment:
       IDEA_DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
       COMMANDER_DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
-      PLATFORM_DATABASE_URL: postgresql://${POSTGRES_USER:-ptw}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ptw}
+      PLATFORM_DATABASE_URL: postgresql://${POSTGRES_USER:-ptw}:${POSTGRES_PASSWORD:?set platform POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ptw}
       PTW_REPOSITORY_PATH: /workspace
       COMMANDER_POLICY_PATH: /workspace/config/commander/policies.json
       COMMANDER_ASSET_DIR: /var/lib/ptw/assets
@@ -136,7 +136,7 @@ services:
       - /opt/ptw/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
       - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
       - /root/.codex/auth.json:/run/ptw-auth/auth.json:ro
-      - /root/.codex/skills/ptw-vps-operations:/run/ptw-auth/skills/ptw-vps-operations:ro
+      - ./skills:/run/ptw-auth/skills
       - /root/.config/gh:/run/ptw-gh:ro
       - /usr/bin/gh:/usr/local/bin/gh:ro
     networks:

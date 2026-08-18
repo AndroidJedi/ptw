@@ -37,6 +37,12 @@ desktop agent and mounted into both CLI-agent services. Incident fixes must
 update the applicable skill in the same commit; a verifier prevents desktop
 links or container mounts from drifting.
 
+Idea Laval now owns an explicit Compose project separate from Commander. This
+closes the production failure where the Idea container was absent, shared-network
+DNS had no `ptw-idea-api` target, and the authenticated Ideas tab received HTTP
+503. A bundled incident audit verifies both containers, loopback health, and the
+token-protected gateway-to-Idea run-list call.
+
 The Ideas view now exposes only the Idea Laval evidence engine. Legacy C01-C10
 generation controls, seeded rankings, contexts, API routes, runtime engine,
 Telegram mutation controller, and source/docs are removed. An empty run list is
@@ -134,10 +140,13 @@ verified Google Firebase user.
   exact 21-variant provenance, partial country failure, retry/cache behavior,
   manual approval, country rerun/staleness, overrides, authenticated API, and
   export.
-- Owner Gateway built-image suite: 11 tests pass, including exact-owner Laval
-  proxying, post-review filter SQL, and confirmation-only reset/root-operation
-  gates.
-- Production Owner Gateway built-image suite: 11/11 tests pass on the VPS.
+- Owner Gateway built-image suite: 14 tests pass, including exact-owner Laval
+  proxying, isolated Idea Compose ownership, post-review filter SQL, credential
+  fail-fast behavior, and confirmation-only reset/root-operation gates.
+- Production Owner Gateway built-image suite: 14/14 tests pass on the VPS.
+- After restoring the absent Idea container, its database-backed health reports
+  the active mission and zero runs, and the Owner Gateway's protected internal
+  Laval run-list call returns HTTP 200.
 - Fresh Idea, Commander, and Owner Gateway images build and import their runtime
   entrypoints; the Idea image exposes the `lav` CLI.
 - Commander deterministic demo and `git diff --check` pass.

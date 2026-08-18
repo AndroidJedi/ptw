@@ -83,7 +83,7 @@ docker compose --env-file /opt/ptw/platform/.env --env-file .env.commander \
   -f docker-compose.commander.yml \
   up -d --build --wait commander-api owner-gateway
 docker compose --env-file /opt/ptw/platform/.env --env-file .env.owner-gateway \
-  -f docker-compose.idea-generation.yml up -d --build idea-generation-api
+  -f docker-compose.idea-generation.yml up -d --build --wait idea-generation-api
 npm --prefix apps/commander-web run build
 firebase deploy --only hosting
 ```
@@ -117,6 +117,15 @@ Gateway over the shared backend network. The Idea API applies numbered
 migrations at startup. Migration `005_retire_idea_evolution.sql` irreversibly
 removes retired C01-C10 runtime rows while preserving Laval runs and the active
 mission.
+
+The Idea Compose file owns the explicit `ptw-idea-generation` project. Do not
+override it to Commander's `ptw` project: operating separate Compose files in
+one project makes each service appear orphaned to the other and permits orphan
+cleanup to remove a live dependency. After deploying either boundary, run:
+
+```sh
+skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh
+```
 
 Before declaring the feature live, complete the manual and automatic runs,
 five-country/rerun inspection, override, restart, graph-persistence, export,

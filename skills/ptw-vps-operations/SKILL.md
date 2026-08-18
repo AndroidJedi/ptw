@@ -77,11 +77,15 @@ Use repository runbooks as authority.
 4. Use `docker compose up -d --wait` for recreated services. Confirm parsed DSN
    password presence without printing the URL, then exercise the exact
    database-backed path rather than trusting shallow health alone.
-5. Apply numbered migrations explicitly, then start services in dependency
+5. Keep Idea Laval in its explicit `ptw-idea-generation` Compose project.
+   Commander and Idea must not share a project namespace because orphan cleanup
+   from one Compose file can delete services owned by the other. After either
+   deployment, run the owner-incident skill's VPS dependency audit.
+6. Apply numbered migrations explicitly, then start services in dependency
    order: Commander API, Idea API, Owner Gateway, web Hosting.
-6. Validate loopback/public health, exact-owner auth, App Check, API calls,
+7. Validate loopback/public health, exact-owner auth, App Check, API calls,
    persistence, restart behavior, and user-facing errors.
-7. For Commander changes, run the repository-mandated tests, demo, and
+8. For Commander changes, run the repository-mandated tests, demo, and
    `git diff --check`.
 
 ## Firebase Hosting and owner authentication

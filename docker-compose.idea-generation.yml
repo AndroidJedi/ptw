@@ -1,3 +1,5 @@
+name: ptw-idea-generation
+
 services:
   idea-generation-api:
     build:

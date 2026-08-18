@@ -1,6 +1,6 @@
 ---
 name: ptw-owner-console-incident
-description: Diagnose, fix, deploy, and prevent PTW Owner Console incidents across Firebase Auth, App Check, Hosting/PWA caching, Commander gateway routing, database readiness, and authenticated web APIs. Use when login succeeds but a tab fails, the UI reports missing Firebase ID token or App Check, Overview returns a load or HTTP 500 failure, a production page serves the app shell instead of JSON, a stale service worker is suspected, or a previously verified owner-web capability regresses.
+description: Diagnose, fix, deploy, and prevent PTW Owner Console incidents across Firebase Auth, App Check, Hosting/PWA caching, Commander gateway routing, database and service readiness, and authenticated web APIs. Use when login succeeds but a tab fails, the UI reports missing Firebase ID token or App Check, Overview returns a load or HTTP 500 failure, Ideas reports that Idea Laval is unavailable, a production page serves the app shell instead of JSON, a stale service worker is suspected, or a previously verified owner-web capability regresses.
 ---
 
 # PTW Owner Console Incident
@@ -57,6 +57,12 @@ Then inspect every applicable boundary:
 7. **Deployment state:** compare Git HEAD, VPS HEAD, build hashes, Compose
    interpolation inputs, and live assets. A healthy shallow endpoint or clean
    source tree does not prove dependencies are usable.
+8. **Service bridges:** when Ideas says “Idea Laval service is unavailable,”
+   authentication already passed and the gateway caught an HTTP transport
+   failure. Run `scripts/audit_vps_owner_dependencies.sh` on the VPS. Check the
+   Idea container, loopback health, shared-network DNS, then the token-protected
+   run-list call from inside Owner Gateway. “Bridge is not configured” and an
+   upstream 403 are different failures; do not rotate tokens blindly.
 
 Treat “Firebase ID token and App Check are required” as an incomplete request,
 not a reason to relax authentication. The gateway uses one message when either
@@ -77,6 +83,10 @@ PostgreSQL password and returned HTTP 500.
 - Always pass `/opt/ptw/platform/.env` when rendering or recreating Commander
   Compose services. Use `docker compose up -d --wait` and verify the specific
   database-backed read path after recreation.
+- Keep `docker-compose.idea-generation.yml` in the explicit
+  `ptw-idea-generation` project. Never let Commander and Idea share one Compose
+  project namespace: orphan cleanup from either file can delete the other
+  service. Start Idea with `--wait`, then audit the gateway-to-Idea run list.
 - Add coverage at the failed layer. Source mocks and shallow health alone do
   not catch tree-shaken config, stale output, or missing runtime credentials.
 - Bump the shell cache when behavior must reach already-controlled clients.

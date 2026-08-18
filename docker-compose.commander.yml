@@ -21,15 +21,15 @@ services:
         condition: service_healthy
     environment:
       PGPASSWORD: ${COMMANDER_DB_PASSWORD:?set COMMANDER_DB_PASSWORD}
+      DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
     volumes:
-      - ./db/migrations:/migrations:ro
-      - ./scripts/migrate_commander.sh:/scripts/migrate_commander.sh:ro
-    command: ["sh", "/scripts/migrate_commander.sh"]
+      - ./ideaGeneration:/app/ideaGeneration:ro
+    command: ["sh", "/app/ideaGeneration/migrate.sh"]
 
   commander-api:
     build:
       context: .
-      dockerfile: commander/Dockerfile
+      dockerfile: ideaGeneration/Dockerfile
     restart: unless-stopped
     depends_on:
       commander-migrate:
@@ -39,15 +39,10 @@ services:
       - /opt/ptw/platform/.env
     environment:
       DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
-      COMMANDER_ASSET_DIR: /var/lib/ptw/assets
-      CODEX_HOME: /run/ptw-auth
-      CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
-      COMMANDER_CHECKPOINT_MAX_AGE_SECONDS: ${COMMANDER_CHECKPOINT_MAX_AGE_SECONDS:-86400}
-      COMMANDER_CHECKPOINT_REQUIRED: ${COMMANDER_CHECKPOINT_REQUIRED:-false}
-    volumes:
-      - commander-assets:/var/lib/ptw/assets
-      - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
-      - /root/.codex/auth.json:/run/ptw-auth/auth.json:ro
+      SPEC_ROOT: /app/ideaGeneration/docs
+      LLM_PROVIDER: ${LLM_PROVIDER:-bridge}
+      LLM_BRIDGE_URL: http://ptw-agent-platform-commander-api-1:8000/internal/llm/structured
+      AUTOPILOT_DEFAULT_ENABLED: "false"
     networks:
       default:
       existing-ptw-backend:
@@ -60,27 +55,8 @@ services:
       timeout: 3s
       retries: 10
 
-  commander-worker:
-    build:
-      context: .
-      dockerfile: commander/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      commander-migrate:
-        condition: service_completed_successfully
-    env_file:
-      - .env.commander
-      - /opt/ptw/platform/.env
-    environment:
-      DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
-      COMMANDER_ASSET_DIR: /var/lib/ptw/assets
-    volumes:
-      - commander-assets:/var/lib/ptw/assets
-    command: ["python", "-m", "commander.worker"]
-
 volumes:
   commander-db-data:
-  commander-assets:
 
 networks:
   existing-ptw-backend:

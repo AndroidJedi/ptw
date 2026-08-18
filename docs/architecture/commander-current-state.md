@@ -1,7 +1,7 @@
 # Commander current state
 
-Status: web-only cutover implemented locally; production cutover pending
-Updated: 2026-08-17
+Status: web-only Commander and Idea Laval implemented locally; production cutover pending
+Updated: 2026-08-18
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
 ## Completed milestone
@@ -18,6 +18,22 @@ a plausible path to a USD 20M sale or valuation within 36 months. Runtime logic
 resolves the active mission instead of using a hard-coded mission constant. LLM
 contracts are English-first and owner-facing generated idea fields contain
 `{en, uk}`; the UI shows Ukrainian by default and can reveal the source.
+
+The Ideas view now includes the Idea Laval evidence engine alongside Idea
+Evolution. Laval persists 16 inspectable/restartable stages from Owner Capture
+through Final Shortlist, localized search work for configurable countries,
+global competitor deduplication, evidence and complaint clusters, Opportunity
+Matrix rows, separate Trend Scores and Trend Discoveries, bounded synthesis,
+21 operator-driven variants, clustering, independent evaluation, overrides,
+costs, and provenance. The Owner Gateway is the only normal web instruction
+channel; its bounded proxy never gives the browser direct database access.
+
+Laval's live research path is pluggable. DataForSEO implements localized organic
+SERPs, website collection uses public HTTP pages, and the restricted Google
+Trends API is represented by an owner-configured bridge. Deterministic fixture
+providers remain the safe default and are visibly marked. Live evidence passes
+through `ResearchKnowledgeService`; finalists become proposed Hypotheses with
+`derived_from` edges to permanent Source UUIDs.
 
 Creative review supports pin, rectangle, and freehand annotations in normalized
 coordinates, an area comment per annotation, overall rating/comment, and
@@ -43,14 +59,21 @@ client subsystem in the repository.
 
 ## Verification
 
-- React TypeScript, Vitest accessibility test, and production Vite build pass.
+- React TypeScript, three Vitest tests, the production Vite build, and two
+  mobile/desktop Playwright checks pass.
 - Firebase blocking-functions TypeScript check passes.
-- Commander built-image suite: 57 tests pass; five intentionally retired
-  Telegram-flow tests are skipped.
-- PostgreSQL-backed Commander/idea suite: 52 pass and five retired Telegram
-  tests skip against disposable PostgreSQL 16.
-- Owner Gateway built-image suite passes exact-owner negative/positive
-  authentication tests and confirmation-only reset/root-operation gates.
+- Commander/Idea/Laval suite in the Commander image against disposable
+  PostgreSQL 16: 72 tests pass; seven intentionally unavailable/retired tests
+  skip.
+- Focused Laval PostgreSQL suite: 14 tests pass, including the 16-stage fixture,
+  exact 21-variant provenance, partial country failure, retry/cache behavior,
+  manual approval, country rerun/staleness, overrides, authenticated API, and
+  export.
+- Owner Gateway built-image suite: 10 tests pass, including exact-owner Laval
+  proxying and confirmation-only reset/root-operation gates.
+- Fresh Idea, Commander, and Owner Gateway images build and import their runtime
+  entrypoints; the Idea image exposes the `lav` CLI.
+- Commander deterministic demo and `git diff --check` pass.
 - Independent platform checkout: 51/51 tests pass.
 - Two-database reset rehearsal passes with the required clean checkpoint:
   one mission, ten idea contexts/revisions, ten post contexts/revisions, and no
@@ -58,12 +81,15 @@ client subsystem in the repository.
 
 ## Production work remaining
 
-1. Enable billing/Identity Platform, Google Sign-In, blocking functions, and
+1. Add the live Laval provider credentials/access (or explicitly accept fixture
+   mode), rebuild the Idea API, Commander API, Owner Gateway, and web image, and
+   run the Laval production acceptance checklist.
+2. Enable billing/Identity Platform, Google Sign-In, blocking functions, and
    reCAPTCHA Enterprise App Check in the existing Firebase project; pin the
    created owner UID and deploy Hosting.
-2. Deploy the reviewed control plane and the independent platform change,
+3. Deploy the reviewed control plane and the independent platform change,
    install the root broker service, and perform the confirmation-gated reset.
-3. Run owner login, Plan/Execute, root `id`/`pwd`, manual Generation 1, single
+4. Run owner login, Plan/Execute, root `id`/`pwd`, manual Generation 1, single
    and ten-variant review, Telegram emergency controls, restart persistence,
    and reset acceptance checks.
 

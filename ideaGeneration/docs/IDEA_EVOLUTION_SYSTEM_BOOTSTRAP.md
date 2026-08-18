@@ -40,6 +40,12 @@ ideas; exploit slots preserve valid parent lineage. An evaluator returns one
 entry for every supplied idea ID and no other IDs. Bounded provider recovery is
 allowed, but completed generations and historical scores are immutable.
 
+Owner Ideas may also enter the Idea Laval Engine before or alongside C01–C10
+evolution. Laval does not replace generations: it expands persisted market
+evidence, compresses it into opportunities, gates those through trend scores
+and discoveries, then produces evidence-linked variants. The shared Owner
+Gateway and Ideas screen are the normal control surface for both workflows.
+
 LLM instructions and structured source values are English. Every owner-facing
 generated field has the exact shape `{ "en": ..., "uk": ... }`; list values use
 parallel arrays. Commander Web shows Ukrainian and lets the owner reveal the

@@ -16,3 +16,8 @@ Configuration:
 
 The service worker caches document/script/style/font shell resources only. It
 does not handle API routes, images, WebSockets, or terminal traffic.
+
+The Ideas view contains both C01–C10 evolution and the Idea Laval Engine. Laval
+runs are created and operated through the authenticated gateway; the browser
+can inspect every stage, approve checkpoints, pause/resume, rerun a stage or
+country, apply audited overrides, and download JSON/Markdown exports.

@@ -12,6 +12,7 @@ and must identify their source revision.
 | React operator UI | [`../DESIGN_RULES.md`](../DESIGN_RULES.md) | `apps/commander-web/README.md` |
 | Autonomous jobs, issues, and execution | [`architecture/task-issue-cycle.md`](architecture/task-issue-cycle.md) | [`architecture/session-checkpoints.md`](architecture/session-checkpoints.md) |
 | Idea evolution | [`../ideaGeneration/docs/IDEA_EVOLUTION_SYSTEM_BOOTSTRAP.md`](../ideaGeneration/docs/IDEA_EVOLUTION_SYSTEM_BOOTSTRAP.md) | [`../ideaGeneration/docs/TASK_20M_3Y.md`](../ideaGeneration/docs/TASK_20M_3Y.md), then `ideaGeneration/docs/contexts/` |
+| Idea Laval market-evidence engine | [`architecture/idea-laval-engine.md`](architecture/idea-laval-engine.md) | Idea evolution route, [`architecture/research-to-hypothesis.md`](architecture/research-to-hypothesis.md), [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
 | Creative feedback and weights | [`architecture/creative-feedback-learning.md`](architecture/creative-feedback-learning.md) | [`architecture/ad-image-estimation-loop.md`](architecture/ad-image-estimation-loop.md) |
 | Instagram adapter | [`verticals/instagram/README.md`](verticals/instagram/README.md) | Creative feedback route |
 | Firebase authentication and deployment | [`operations/owner-control-plane.md`](operations/owner-control-plane.md) | [`operations/commander.md`](operations/commander.md) |

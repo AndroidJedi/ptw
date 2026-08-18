@@ -15,7 +15,7 @@ digest.
 React PWA
     |
 Owner Gateway (HTTPS/WSS; Firebase Auth + App Check)
-    |-- Idea and post APIs -> PostgreSQL
+    |-- Idea Evolution + Idea Laval + post APIs -> PostgreSQL
     |-- Plan / Execute -> Codex
     `-- Unix socket -> root broker -> root PTY
 
@@ -30,6 +30,12 @@ Commander and idea-generation checks:
 python3 -m unittest discover -s tests/commander -v
 python3 -m commander.demo --output-dir .local/commander-demo
 ```
+
+Idea Laval is available in the Ideas web view and through `lav` inside the Idea
+Evolution image. Its default fixture providers exercise the complete persisted
+pipeline without paid calls; live localized SERPs and Trends require explicit
+provider configuration. See
+[`docs/architecture/idea-laval-engine.md`](docs/architecture/idea-laval-engine.md).
 
 Web console:
 

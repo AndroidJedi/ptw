@@ -24,6 +24,13 @@ class Settings:
     ad_batch_bridge_url: str = ""
     owner_gateway_token: str = ""
     poll_timeout: int = 30
+    search_provider: str = "fixture"
+    dataforseo_login: str = ""
+    dataforseo_password: str = ""
+    trend_provider: str = "fixture"
+    trend_bridge_url: str = ""
+    trend_bridge_token: str = ""
+    research_bridge_url: str = ""
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -47,4 +54,18 @@ class Settings:
             ad_batch_bridge_url=os.environ.get("AD_BATCH_BRIDGE_URL", "").strip(),
             owner_gateway_token=os.environ.get("OWNER_GATEWAY_BRIDGE_TOKEN", "").strip(),
             poll_timeout=max(1, int(os.environ.get("TELEGRAM_POLL_TIMEOUT", "30"))),
+            search_provider=os.environ.get(
+                "LAVAL_SEARCH_PROVIDER", os.environ.get("SEARCH_PROVIDER", "fixture")
+            ).strip().lower(),
+            dataforseo_login=os.environ.get("DATAFORSEO_LOGIN", "").strip(),
+            dataforseo_password=os.environ.get("DATAFORSEO_PASSWORD", "").strip(),
+            trend_provider=os.environ.get(
+                "LAVAL_TREND_PROVIDER", os.environ.get("TREND_PROVIDER", "fixture")
+            ).strip().lower(),
+            trend_bridge_url=os.environ.get("GOOGLE_TRENDS_BRIDGE_URL", "").strip(),
+            trend_bridge_token=os.environ.get("GOOGLE_TRENDS_BRIDGE_TOKEN", "").strip(),
+            research_bridge_url=os.environ.get(
+                "LAVAL_RESEARCH_BRIDGE_URL",
+                "http://ptw-commander-api:8080/internal/research/laval",
+            ).strip(),
         )

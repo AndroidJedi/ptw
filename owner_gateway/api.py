@@ -11,7 +11,7 @@ from typing import Any, Mapping
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from .app_server import AppServerPlanner
 from .annotations import region
@@ -57,6 +57,34 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
                 status_code=423,
                 detail="PTW emergency stop is active; resume it from Docs / System",
             )
+
+    def require_laval_id(run_id: str) -> None:
+        if not re.fullmatch(r"[0-9a-fA-F-]{36}", run_id):
+            raise HTTPException(status_code=400, detail="invalid Laval run UUID")
+
+    async def laval_bridge(
+        method: str, path: str, *, body: Mapping[str, Any] | None = None, params: Mapping[str, Any] | None = None
+    ) -> httpx.Response:
+        if not settings.idea_service_token:
+            raise HTTPException(status_code=503, detail="Idea Laval bridge is not configured")
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                response = await client.request(
+                    method,
+                    f"{settings.idea_service_url}{path}",
+                    headers={"X-PTW-Owner-Gateway-Token": settings.idea_service_token},
+                    json=dict(body) if body is not None else None,
+                    params=dict(params or {}),
+                )
+        except httpx.HTTPError as error:
+            raise HTTPException(status_code=503, detail="Idea Laval service is unavailable") from error
+        if response.status_code >= 400:
+            try:
+                detail = response.json().get("detail")
+            except (ValueError, AttributeError):
+                detail = None
+            raise HTTPException(status_code=response.status_code, detail=detail or "Idea Laval request failed")
+        return response
 
     async def propagate_emergency_stop(active: bool, actor: str) -> list[str]:
         if not settings.telegram_bot_token:
@@ -119,6 +147,82 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         if response.status_code >= 400:
             raise HTTPException(status_code=response.status_code, detail=response.json().get("detail", "generation failed"))
         return response.json()
+
+    @app.get("/api/v1/laval/runs")
+    async def laval_runs(
+        limit: int = Query(default=30, ge=1, le=100),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await laval_bridge("GET", "/internal/web/laval/runs", params={"limit": limit})).json()
+
+    @app.post("/api/v1/laval/runs")
+    async def create_laval_run(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_running()
+        payload = {"text": request.get("text"), "config": request.get("config") or {}, "actor": f"firebase:{identity.uid}"}
+        return (await laval_bridge("POST", "/internal/web/laval/runs", body=payload)).json()
+
+    @app.get("/api/v1/laval/runs/{run_id}")
+    async def laval_run_status(
+        run_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        return (await laval_bridge("GET", f"/internal/web/laval/runs/{run_id}")).json()
+
+    @app.get("/api/v1/laval/runs/{run_id}/stages")
+    async def laval_run_stages(
+        run_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        return (await laval_bridge("GET", f"/internal/web/laval/runs/{run_id}/stages")).json()
+
+    @app.get("/api/v1/laval/runs/{run_id}/show")
+    async def laval_stage_output(
+        run_id: str,
+        stage: str,
+        view: str | None = None,
+        country: str | None = None,
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        return (await laval_bridge(
+            "GET", f"/internal/web/laval/runs/{run_id}/show",
+            params={key: value for key, value in {"stage": stage, "view": view, "country": country}.items() if value},
+        )).json()
+
+    @app.get("/api/v1/laval/runs/{run_id}/export")
+    async def export_laval_run(
+        run_id: str,
+        stage: str | None = None,
+        format: str = Query(default="json", pattern="^(json|md)$"),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> Response:
+        require_laval_id(run_id)
+        response = await laval_bridge(
+            "GET", f"/internal/web/laval/runs/{run_id}/export",
+            params={key: value for key, value in {"stage": stage, "format": format}.items() if value},
+        )
+        return Response(
+            response.content,
+            media_type=response.headers.get("content-type", "application/octet-stream"),
+            headers={"Content-Disposition": response.headers.get("content-disposition", "attachment"), "Cache-Control": "no-store, private"},
+        )
+
+    @app.post("/api/v1/laval/runs/{run_id}/{action}")
+    async def control_laval_run(
+        run_id: str,
+        action: str,
+        request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        if action not in {"run", "pause", "resume", "approve", "rerun", "override"}:
+            raise HTTPException(status_code=404, detail="unknown Laval action")
+        if action != "pause":
+            require_running()
+        payload = {**dict(request), "actor": f"firebase:{identity.uid}"}
+        return (await laval_bridge("POST", f"/internal/web/laval/runs/{run_id}/{action}", body=payload)).json()
 
     @app.get("/api/v1/contexts")
     def contexts(kind: str = Query(default="idea", pattern="^(idea|post)$"), _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:

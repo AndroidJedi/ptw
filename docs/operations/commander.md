@@ -15,6 +15,16 @@ The executable production composition is `docker-compose.commander.yml`. It
 contains the Commander database/migrator, domain API, outbox worker, ad worker,
 Owner Gateway, and reset-independent control storage. Idea Evolution runs from
 `docker-compose.idea-generation.yml` on the shared platform backend network.
+The Idea API's default loopback port is `8093`; its browser-facing Laval routes
+are exposed only through the authenticated Owner Gateway.
+
+Idea Laval runs inside the Idea Evolution API and is operated through the
+authenticated Ideas web view. `LAVAL_SEARCH_PROVIDER=fixture` and
+`LAVAL_TREND_PROVIDER=fixture` are safe deterministic defaults. Live localized
+search uses `dataforseo` plus `DATAFORSEO_LOGIN`/`DATAFORSEO_PASSWORD`; live
+Trends uses `google_trends` plus the owner-provided alpha/API bridge URL and
+token. Provider credentials stay in VPS environment files, never Git or the
+browser. The `lav` CLI inside the image calls the same PostgreSQL services.
 
 PostgreSQL owns domain entities, relationship edges, feedback, jobs, and
 projections. Git owns migrations, policies, prompts, and canonical docs.

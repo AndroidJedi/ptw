@@ -57,6 +57,17 @@
       "optional": [
         "Proof_Them_Wrong_Idea_and_Strengths.md"
       ]
+    },
+    "idea_laval": {
+      "canonical": [
+        "docs/architecture/idea-laval-engine.md",
+        "ideaGeneration/docs/IDEA_EVOLUTION_SYSTEM_BOOTSTRAP.md",
+        "docs/architecture/research-to-hypothesis.md"
+      ],
+      "optional": [
+        "DESIGN_RULES.md",
+        "docs/operations/commander.md"
+      ]
     }
   }
 }

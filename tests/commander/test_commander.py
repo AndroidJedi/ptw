@@ -246,6 +246,64 @@ class ResearchKnowledgeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ResearchFinding("title", "https://example.com", "finding", "publisher", credibility=2)
 
+    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is required")
+    def test_laval_bridge_records_sources_and_proposed_hypothesis_via_typed_service(self) -> None:
+        from fastapi.testclient import TestClient
+
+        from commander.api import create_app
+        from commander.settings import Settings
+
+        class TelegramClient:
+            pass
+
+        with tempfile.TemporaryDirectory() as directory:
+            settings = Settings(
+                database_url="unused",
+                telegram_bot_token="bridge-token",
+                telegram_webhook_secret="s" * 32,
+                allowed_user_ids=frozenset({7}),
+                allowed_chat_ids=frozenset({11}),
+                asset_directory=Path(directory),
+                policy_path=ROOT / "config/commander/policies.json",
+            )
+            store = MemoryKnowledgeStore()
+            client = TestClient(create_app(settings, store, TelegramClient()))
+            payload = {
+                "findings": [{
+                    "external_id": "018f0000-0000-7000-8000-000000000001",
+                    "title": "Market evidence",
+                    "source_uri": "https://example.test/evidence",
+                    "finding_summary": "Users repeatedly report a portable-proof gap.",
+                    "publisher": "Example",
+                    "credibility": .8,
+                }],
+                "hypotheses": [{
+                    "external_id": "018f0000-0000-7000-8000-000000000002",
+                    "claim": "Portable proof history increases activation.",
+                    "success_metric": "activation_rate",
+                    "threshold": .1,
+                    "scope": "idea_laval:test",
+                    "evidence_external_ids": ["018f0000-0000-7000-8000-000000000001"],
+                    "attributes": {"idea_laval_run_id": "run"},
+                }],
+            }
+            self.assertEqual(403, client.post("/internal/research/laval", json=payload).status_code)
+            response = client.post(
+                "/internal/research/laval",
+                json=payload,
+                headers={"X-PTW-Bridge-Token": "bridge-token"},
+            )
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual(1, len(store.entities(EntityKind.SOURCE)))
+        hypotheses = store.entities(EntityKind.HYPOTHESIS)
+        self.assertEqual(1, len(hypotheses))
+        self.assertEqual("proposed", hypotheses[0].attributes["status"])
+        self.assertEqual("product_discovery", hypotheses[0].attributes["research_type"])
+        self.assertEqual(1, len([
+            edge for edge in store.relationships()
+            if edge.source_id == hypotheses[0].id and edge.relation == RelationType.DERIVED_FROM
+        ]))
+
 
 class VerticalLoopTests(unittest.TestCase):
     def test_complete_loop_is_persisted_with_separate_epistemic_entities(self) -> None:

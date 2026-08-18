@@ -138,7 +138,7 @@ class IdeaGenerationPostgresTests(unittest.TestCase):
     def setUp(self) -> None:
         with self.store.transaction() as connection:
             connection.execute(
-                "TRUNCATE telegram_inbox,telegram_events,reports,executions,idea_evaluations,ideas,"
+                "TRUNCATE laval_runs,telegram_inbox,telegram_events,reports,executions,idea_evaluations,ideas,"
                 "idea_submission_drafts,idea_submissions,generations,guidance RESTART IDENTITY CASCADE"
             )
             connection.execute(

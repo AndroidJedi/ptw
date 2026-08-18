@@ -77,7 +77,7 @@ class ControlStore:
     @staticmethod
     def destructive_text(value: str) -> bool:
         lowered = value.lower()
-        return any(token in lowered for token in (
+        return ("recreate" in lowered and "schema" in lowered) or any(token in lowered for token in (
             "drop ", "truncate ", "delete all", "reset database", "reset production",
             "rm -", "restore ", "destroy", "recreate schema", "wipe ",
         ))

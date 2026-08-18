@@ -27,6 +27,46 @@ export interface Idea {
   details: Record<string, I18n<string | string[]>>
 }
 
+export type LavalStageStatus = 'pending' | 'running' | 'partial' | 'completed' | 'failed' | 'paused' | 'stale'
+
+export interface LavalRun {
+  id: string
+  owner_idea_id: string
+  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
+  current_stage?: string
+  through_stage?: string
+  approval_mode: 'manual' | 'automatic'
+  approval_gates: string[]
+  owner_preview?: string
+  completed_stages?: number
+  variant_count?: number
+  error_text?: string
+  created_at: string
+  updated_at: string
+  config: Record<string, unknown>
+}
+
+export interface LavalStage {
+  stage: string
+  ordinal: number
+  status: LavalStageStatus
+  started_at?: string
+  completed_at?: string
+  input_hash?: string
+  attempt: number
+  provider?: string
+  model?: string
+  metrics: Record<string, unknown>
+  error?: { type?: string; message?: string }
+}
+
+export interface LavalStatus {
+  run: LavalRun
+  stages: LavalStage[]
+  cost: { items: Array<Record<string, unknown>>; total_usd: number }
+  runner_active?: boolean
+}
+
 export interface Creative {
   uuid: string
   artifact_digest: string

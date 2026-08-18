@@ -60,6 +60,38 @@ npm --prefix firebase/functions run check
 git diff --check
 ```
 
+## Idea Laval VPS cutover
+
+The Idea service reads Laval provider settings from the same explicitly passed
+VPS environment files as the existing Idea Evolution runtime. The fixture
+providers are safe for orchestration acceptance but do not constitute live
+market evidence. For live operation set `LAVAL_SEARCH_PROVIDER=dataforseo` with
+its two credentials and set `LAVAL_TREND_PROVIDER=google_trends` with the
+owner-controlled Trends bridge URL/token. Do not put these values in Git or the
+web application.
+
+Build and restart the three server-side boundaries, then build Hosting:
+
+```sh
+cd /root/ptw
+docker compose --env-file .env.commander -f docker-compose.commander.yml \
+  up -d --build commander-api owner-gateway
+docker compose --env-file /opt/ptw/platform/.env --env-file .env.owner-gateway \
+  -f docker-compose.idea-generation.yml up -d --build idea-generation-api
+npm --prefix apps/commander-web run build
+firebase deploy --only hosting
+```
+
+The Idea API binds to loopback port `8093` by default, avoiding Commander's
+`8091`; normal browser traffic still travels through the authenticated Owner
+Gateway over the shared backend network. The Idea API applies migration
+`004_idea_laval_engine.sql` at startup.
+
+Before declaring the feature live, complete the manual and automatic runs,
+five-country/rerun inspection, override, restart, graph-persistence, export,
+failure-path, and emergency stop/resume checks in
+[`idea-laval-engine.md`](../architecture/idea-laval-engine.md).
+
 After deploy, verify exact-owner login, negative auth/App Check, one Plan and
 one approved Execute, cancellation, root `id`/`pwd`, emergency stop/resume,
 restart persistence, and that the PWA service worker never caches API, image,

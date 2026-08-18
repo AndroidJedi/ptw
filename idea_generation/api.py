@@ -7,11 +7,15 @@ from contextlib import asynccontextmanager
 from typing import Any, Callable, Mapping
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Query, Response
 
 from .config import Settings
 from .engine import EvolutionEngine
 from .manage import ROOT
+from .laval_pipeline import LavalPipeline
+from .laval_providers import providers_from_settings
+from .laval_repository import LavalRepository
+from .laval_service import LavalRunner, LavalService
 from .provider import BridgeProvider, MockLLMProvider, OpenAIProvider
 from .seeds import load
 from .store import PostgresStore
@@ -79,14 +83,22 @@ def create_app(
             raise RuntimeError("Commander ad bridge returned an invalid response")
         return result
 
-    engine = EvolutionEngine(store, _provider(settings), notify)
+    llm = _provider(settings)
+    engine = EvolutionEngine(store, llm, notify)
     controller = TelegramController(
         store, engine, settings.allowed_chat_ids, ad_batch_submitter=submit_ad_batch
     )
+    laval_repository = LavalRepository(store)
+    laval_pipeline = LavalPipeline(
+        laval_repository, providers_from_settings(settings, llm)
+    )
+    laval_runner = LavalRunner(laval_pipeline)
+    laval = LavalService(laval_repository, laval_runner)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         controller.resume_queued_work()
+        laval_runner.resume_incomplete()
         yield
 
     app = FastAPI(title="PTW Idea Evolution", version="1.1.0", docs_url=None, redoc_url=None, lifespan=lifespan)
@@ -103,7 +115,16 @@ def create_app(
             "pending_owner_ideas": store.fetchone(
                 "SELECT COUNT(*) n FROM idea_submissions WHERE status='pending'"
             )["n"],
+            "laval_active_runs": store.fetchone(
+                "SELECT COUNT(*) n FROM laval_runs WHERE status IN ('pending','running')"
+            )["n"],
         }
+
+    def require_owner_gateway(token: str) -> None:
+        if not settings.owner_gateway_token or not hmac.compare_digest(
+            token, settings.owner_gateway_token
+        ):
+            raise HTTPException(status_code=403, detail="invalid owner gateway token")
 
     @app.post("/internal/telegram/update")
     def telegram_update(update: dict[str, Any], x_ptw_bridge_token: str = Header(default="")) -> dict[str, bool]:
@@ -166,10 +187,7 @@ def create_app(
     def web_generation(
         request: Mapping[str, Any], x_ptw_owner_gateway_token: str = Header(default="")
     ) -> dict[str, Any]:
-        if not settings.owner_gateway_token or not hmac.compare_digest(
-            x_ptw_owner_gateway_token, settings.owner_gateway_token
-        ):
-            raise HTTPException(status_code=403, detail="invalid owner gateway token")
+        require_owner_gateway(x_ptw_owner_gateway_token)
         try:
             count = int(request.get("count", 1))
             if count < 1 or count > 100:
@@ -180,6 +198,107 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(error)) from error
         return {"queued": count, "remaining": remaining, "already_active": active}
 
+    @app.get("/internal/web/laval/runs")
+    def list_laval_runs(
+        limit: int = Query(default=30, ge=1, le=100),
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        return laval.list(limit)
+
+    @app.post("/internal/web/laval/runs")
+    def create_laval_run(
+        request: Mapping[str, Any], x_ptw_owner_gateway_token: str = Header(default="")
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return laval.create(
+                str(request.get("text") or ""),
+                request.get("config") if isinstance(request.get("config"), Mapping) else {},
+                actor=str(request.get("actor") or "owner-gateway"),
+            )
+        except (TypeError, ValueError, RuntimeError) as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.get("/internal/web/laval/runs/{run_id}")
+    def laval_status(
+        run_id: str, x_ptw_owner_gateway_token: str = Header(default="")
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            result = laval_repository.status(run_id)
+            result["runner_active"] = laval_runner.active(run_id)
+            return result
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/internal/web/laval/runs/{run_id}/stages")
+    def laval_stages(
+        run_id: str, x_ptw_owner_gateway_token: str = Header(default="")
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return {"items": laval_repository.stages(run_id)}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/internal/web/laval/runs/{run_id}/show")
+    def laval_show(
+        run_id: str,
+        stage: str,
+        view: str | None = None,
+        country: str | None = None,
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return laval_repository.show(run_id, stage.upper(), view=view, country=country)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.get("/internal/web/laval/runs/{run_id}/export")
+    def laval_export(
+        run_id: str,
+        stage: str | None = None,
+        format: str = Query(default="json", pattern="^(json|md)$"),
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> Response:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            filename, media_type, content = laval_repository.export(run_id, stage=stage.upper() if stage else None, format=format)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return Response(content, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store, private"})
+
+    @app.post("/internal/web/laval/runs/{run_id}/{action}")
+    def control_laval_run(
+        run_id: str,
+        action: str,
+        request: Mapping[str, Any],
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            if action == "run":
+                return laval.start(run_id, through_stage=str(request.get("through_stage") or "") or None)
+            if action == "pause":
+                return laval.pause(run_id)
+            if action == "resume":
+                return laval.resume(run_id)
+            if action == "approve":
+                return laval.approve(run_id, str(request.get("stage") or ""), actor=str(request.get("actor") or "owner-gateway"))
+            if action == "rerun":
+                return laval.rerun(run_id, str(request.get("stage") or ""), country=str(request.get("country") or "") or None, force=request.get("force") is True, actor=str(request.get("actor") or "owner-gateway"))
+            if action == "override":
+                return laval.override(run_id, request, actor=str(request.get("actor") or "owner-gateway"))
+            raise HTTPException(status_code=404, detail="unknown Laval action")
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (TypeError, ValueError, RuntimeError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
     @app.post("/internal/emergency-stop")
     def internal_emergency_stop(
         request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
@@ -187,6 +306,8 @@ def create_app(
         if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_token):
             raise HTTPException(status_code=403, detail="invalid bridge token")
         active = request.get("active") is True
+        if active:
+            laval_repository.pause_all()
         store.update_mission(
             status="paused" if active else "active",
             auto_enabled=False,

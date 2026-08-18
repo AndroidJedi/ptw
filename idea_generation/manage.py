@@ -21,7 +21,7 @@ def main() -> None:
         store.seed(mission, contexts)
     elif args.command == "reset-runtime":
         with store.transaction() as connection:
-            connection.execute("TRUNCATE telegram_events,reports,executions,idea_evaluations,ideas,idea_submissions,generations,guidance RESTART IDENTITY CASCADE")
+            connection.execute("TRUNCATE laval_runs,telegram_events,reports,executions,idea_evaluations,ideas,idea_submissions,generations,guidance RESTART IDENTITY CASCADE")
             connection.execute("UPDATE missions SET status='active',auto_enabled=FALSE,run_series_remaining=0,stop_after_current_cycle=FALSE")
     else:
         mission = store.mission(); contexts = store.active_contexts()

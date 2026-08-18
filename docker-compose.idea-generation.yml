@@ -17,6 +17,13 @@ services:
       LLM_MODEL: ${LLM_MODEL:-gpt-5}
       LLM_BRIDGE_URL: ${LLM_BRIDGE_URL:-http://ptw-agent-platform-commander-api-1:8000/internal/llm/structured}
       AD_BATCH_BRIDGE_URL: ${AD_BATCH_BRIDGE_URL:-http://ptw-commander-api:8080/internal/ad-batches}
+      LAVAL_SEARCH_PROVIDER: ${LAVAL_SEARCH_PROVIDER:-fixture}
+      DATAFORSEO_LOGIN: ${DATAFORSEO_LOGIN:-}
+      DATAFORSEO_PASSWORD: ${DATAFORSEO_PASSWORD:-}
+      LAVAL_TREND_PROVIDER: ${LAVAL_TREND_PROVIDER:-fixture}
+      GOOGLE_TRENDS_BRIDGE_URL: ${GOOGLE_TRENDS_BRIDGE_URL:-}
+      GOOGLE_TRENDS_BRIDGE_TOKEN: ${GOOGLE_TRENDS_BRIDGE_TOKEN:-}
+      LAVAL_RESEARCH_BRIDGE_URL: ${LAVAL_RESEARCH_BRIDGE_URL:-http://ptw-commander-api:8080/internal/research/laval}
       TZ: Europe/Kyiv
     command: ["uvicorn", "idea_generation.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]
     networks:
@@ -24,7 +31,7 @@ services:
       existing-ptw-backend:
         aliases: [ptw-idea-api]
     ports:
-      - "127.0.0.1:${IDEA_GENERATION_HTTP_PORT:-8091}:8080"
+      - "127.0.0.1:${IDEA_GENERATION_HTTP_PORT:-8093}:8080"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
       interval: 30s

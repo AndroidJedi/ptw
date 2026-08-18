@@ -4,6 +4,7 @@ import type { ApiClient } from '../api'
 import { local, type Language } from '../i18n'
 import type { Idea } from '../types'
 import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
+import { LavalEngine } from '../components/LavalEngine'
 
 export function IdeasView({ api, language }: { api: ApiClient; language: Language }) {
   const [ideas, setIdeas] = useState<Idea[] | null>(null)
@@ -11,6 +12,7 @@ export function IdeasView({ api, language }: { api: ApiClient; language: Languag
   const [running, setRunning] = useState(false)
   const [open, setOpen] = useState<number | null>(null)
   const [showContexts, setShowContexts] = useState(false)
+  const [mode, setMode] = useState<'evolution' | 'laval'>('laval')
   const load = () => api.get<{ items: Idea[] }>('/api/v1/ideas?limit=20').then((value) => setIdeas(value.items)).catch((cause: Error) => setError(cause.message))
   useEffect(() => { void load() }, [api])
   const generate = async () => {
@@ -19,9 +21,12 @@ export function IdeasView({ api, language }: { api: ApiClient; language: Languag
     catch (cause) { setError((cause as Error).message) }
     finally { setRunning(false) }
   }
-  if (!ideas && !error) return <Loading />
+  if (!ideas && !error && mode === 'evolution') return <Loading />
   return <>
-    <PageHeader eyebrow="ЕВОЛЮЦІЯ ІДЕЙ" title="Ідеї" action={<div className="header-actions"><button className="secondary" onClick={() => setShowContexts(!showContexts)}><SlidersHorizontal />Контексти</button><button className="primary" onClick={generate} disabled={running}><Play />{running ? 'Запуск…' : 'Нове покоління'}</button></div>} />
+    <PageHeader eyebrow="ЕВОЛЮЦІЯ ІДЕЙ" title="Ідеї" action={mode === 'evolution' ? <div className="header-actions"><button className="secondary" onClick={() => setShowContexts(!showContexts)}><SlidersHorizontal />Контексти</button><button className="primary" onClick={generate} disabled={running}><Play />{running ? 'Запуск…' : 'Нове покоління'}</button></div> : undefined} />
+    <div className="mode-switch idea-mode"><button className={mode === 'laval' ? 'selected' : ''} onClick={() => setMode('laval')}>Laval Engine</button><button className={mode === 'evolution' ? 'selected' : ''} onClick={() => setMode('evolution')}>Покоління C01–C10</button></div>
+    {mode === 'laval' && <LavalEngine api={api} language={language} />}
+    {mode === 'evolution' && <>
     {error && <ErrorState message={error} retry={load} />}
     {showContexts && <ContextManager api={api} />}
     {ideas?.length === 0 && <Empty><LightbulbEmpty /><h2>Чистий старт</h2><p>У базі немає ідей. Покоління 1 запускається тільки вручну.</p><button className="primary large" onClick={generate}><Play />Запустити покоління 1</button></Empty>}
@@ -32,7 +37,7 @@ export function IdeasView({ api, language }: { api: ApiClient; language: Languag
         </button>
         {open === idea.id && <div className="idea-details">{Object.entries(idea.details).map(([key, value]) => <div key={key}><small>{detailLabel(key, language)}</small><p>{Array.isArray(local(value, language)) ? (local(value, language) as string[]).join(' · ') : String(local(value, language))}</p></div>)}</div>}
       </article>)}
-    </section>}
+    </section>}</>}
   </>
 }
 

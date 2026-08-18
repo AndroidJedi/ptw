@@ -78,6 +78,7 @@ BEGIN
       ('idea_telegram_events', (SELECT count(*) FROM telegram_events)),
       ('idea_telegram_inbox', (SELECT count(*) FROM telegram_inbox)),
       ('idea_telegram_offsets', (SELECT count(*) FROM telegram_offsets)),
+      ('laval_runs', (SELECT count(*) FROM laval_runs)),
       ('entities', (SELECT count(*) FROM commander_entities)),
       ('relationships', (SELECT count(*) FROM commander_relationships)),
       ('tasks', (SELECT count(*) FROM commander_tasks)),

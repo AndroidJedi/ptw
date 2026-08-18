@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+from datetime import date
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -19,7 +20,8 @@ from .telegram_api import TelegramBotClient
 from .openai_research import CodexCreativeResearchProvider, OpenAICreativeResearchProvider
 import os
 import re
-from .research import CreativeIdeationResearchService
+from .research import CreativeIdeationResearchService, ResearchFinding, ResearchKnowledgeService
+from .research_agents import RESEARCH_AGENTS
 from .checkpoint import checkpoint_response, startup_checkpoint_canary
 from .ad_generation import AdGenerationEngine
 from .ad_runtime import create_ad_engine
@@ -255,6 +257,102 @@ def create_app(
                          "summary": item.attributes.get("finding_summary")}
                         for item in sources],
         }
+
+    @app.post("/internal/research/laval")
+    def record_laval_research(
+        request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, object]:
+        """Route Laval evidence through the canonical typed research service."""
+        if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
+            raise HTTPException(status_code=403, detail="invalid bridge token")
+        raw_findings = request.get("findings") or []
+        raw_hypotheses = request.get("hypotheses") or []
+        if not isinstance(raw_findings, list) or len(raw_findings) > 500:
+            raise HTTPException(status_code=400, detail="findings must be a list of at most 500 items")
+        if not isinstance(raw_hypotheses, list) or len(raw_hypotheses) > 50:
+            raise HTTPException(status_code=400, detail="hypotheses must be a list of at most 50 items")
+        research = ResearchKnowledgeService(commander)
+        product_agent = RESEARCH_AGENTS["product"]
+        existing_sources = {
+            str(item.attributes.get("external_id")): item
+            for item in store.entities(EntityKind.SOURCE)
+            if item.attributes.get("external_id")
+        }
+        existing_hypotheses = {
+            str(item.attributes.get("idea_laval_variant_id")): item
+            for item in store.entities(EntityKind.HYPOTHESIS)
+            if item.attributes.get("idea_laval_variant_id")
+        }
+        sources: dict[str, Any] = {}
+        hypotheses: dict[str, Any] = {}
+        try:
+            with store.transaction():
+                for raw in raw_findings:
+                    if not isinstance(raw, Mapping):
+                        raise ValueError("each finding must be an object")
+                    external_id = str(raw.get("external_id") or "").strip()
+                    if not external_id or len(external_id) > 200:
+                        raise ValueError("finding external_id is required")
+                    source = existing_sources.get(external_id)
+                    if source is None:
+                        published = raw.get("published_on")
+                        source = research.record_finding(
+                            ResearchFinding(
+                                title=str(raw.get("title") or "")[:1000],
+                                source_uri=str(raw.get("source_uri") or "")[:4000],
+                                finding_summary=str(raw.get("finding_summary") or "")[:10_000],
+                                publisher=str(raw.get("publisher") or "")[:1000],
+                                published_on=date.fromisoformat(str(published)) if published else None,
+                                credibility=float(raw.get("credibility", .5)),
+                                external_id=external_id,
+                                research_type="product_discovery",
+                            ),
+                            actor="idea-laval",
+                            agent=product_agent,
+                        )
+                        existing_sources[external_id] = source
+                    sources[external_id] = source.id
+                for raw in raw_hypotheses:
+                    if not isinstance(raw, Mapping):
+                        raise ValueError("each hypothesis must be an object")
+                    external_id = str(raw.get("external_id") or "").strip()
+                    if not external_id:
+                        raise ValueError("hypothesis external_id is required")
+                    hypothesis = existing_hypotheses.get(external_id)
+                    if hypothesis is None:
+                        evidence = []
+                        for source_external_id in raw.get("evidence_external_ids") or []:
+                            source = existing_sources.get(str(source_external_id))
+                            if source is None:
+                                raise ValueError("hypothesis references an unknown finding external_id")
+                            evidence.append(source)
+                        for source_id in raw.get("source_ids") or []:
+                            source = store.get_entity(str(source_id))
+                            if source.kind != EntityKind.SOURCE:
+                                raise ValueError("hypothesis source_ids must identify Source entities")
+                            evidence.append(source)
+                        unique_evidence = tuple({item.id: item for item in evidence}.values())
+                        attributes = dict(raw.get("attributes") or {})
+                        attributes.update({
+                            "research_type": "product_discovery",
+                            "owner_agent": product_agent.owner_agent,
+                            "knowledge_domain": product_agent.knowledge_domain,
+                            "idea_laval_variant_id": external_id,
+                        })
+                        hypothesis = research.propose_hypothesis(
+                            claim=str(raw.get("claim") or "")[:10_000],
+                            success_metric=str(raw.get("success_metric") or "validated_demand_signal")[:500],
+                            threshold=float(raw.get("threshold", .1)),
+                            scope=str(raw.get("scope") or "idea_laval")[:2000],
+                            findings=unique_evidence,
+                            actor="idea-laval",
+                            attributes=attributes,
+                        )
+                        existing_hypotheses[external_id] = hypothesis
+                    hypotheses[external_id] = hypothesis.id
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        return {"sources": sources, "hypotheses": hypotheses}
 
     def _process_update(update: Mapping[str, Any]) -> dict[str, object]:
         result: dict[str, object] = {}

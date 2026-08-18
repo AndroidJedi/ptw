@@ -75,8 +75,10 @@ first successful Google login creates the authoritative Firebase user.
 
 ## Verification
 
-- React TypeScript, three Vitest tests, the production Vite build, and two
-  mobile/desktop Playwright checks pass.
+- React TypeScript, three Vitest tests, and the production Vite build pass.
+  Production browser checks confirm `web.app` forwards before Auth starts,
+  iPhone uses a same-tab Google flow with the first-party `firebaseapp.com`
+  callback, desktop retains the popup flow, and App Check returns HTTP 200.
 - Firebase blocking-functions TypeScript check passes.
 - Commander/Idea/Laval suite in the Commander image against disposable
   PostgreSQL 16: 72 tests pass; seven intentionally unavailable/retired tests

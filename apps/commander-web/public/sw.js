@@ -1,4 +1,4 @@
-const CACHE = 'ptw-shell-v4'
+const CACHE = 'ptw-shell-v5'
 const CACHE_PREFIX = 'ptw-shell-'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/ptw.svg']
 
@@ -19,7 +19,7 @@ self.addEventListener('activate', (event) => {
     await self.clients.claim()
     if (isUpgrade) {
       const windows = await self.clients.matchAll({ type: 'window' })
-      await Promise.all(windows.map((client) => client.navigate(client.url)))
+      windows.forEach((client) => client.navigate(client.url).catch(() => {}))
     }
   })())
 })

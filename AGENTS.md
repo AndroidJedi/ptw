@@ -38,7 +38,9 @@ must symlink to those folders, and Commander/Owner Gateway containers mount the
 same tree at `$CODEX_HOME/skills`. After every production incident, update the
 narrowest applicable skill with reusable diagnostics and guardrails in the same
 commit, then run `python3 scripts/verify_ptw_skills.py`. Never put secrets or
-ephemeral release hashes in skills.
+ephemeral release hashes in skills. Run `scripts/install_ptw_skill_sync.sh`
+once per checkout; its post-merge hook adds new skill links and repairs CLI
+write permissions after every pull.
 
 The GitHub working tree and `/opt/ptw/platform` have unrelated histories; do not
 merge them or reuse unrelated deployment credentials. The one explicit

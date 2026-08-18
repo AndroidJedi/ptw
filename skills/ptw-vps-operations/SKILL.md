@@ -20,7 +20,9 @@ Treat `/root/ptw/skills` on production and the repository `skills/` directory
 locally as canonical. Desktop Codex skill paths symlink to these folders.
 Commander and Owner Gateway mount the same folders at `$CODEX_HOME/skills`; the
 Owner Gateway mount is writable so CLI-driven fixes can update the canonical
-skill in the same Git change. Verify the mount after recreating either service.
+skill in the same Git change. Run `scripts/install_ptw_skill_sync.sh` once per
+checkout; its post-merge hook links newly added skills and repairs production
+group-write permissions after every pull. Verify after recreating either service.
 
 ## Start every operation
 

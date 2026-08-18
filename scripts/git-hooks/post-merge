@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+repository_root=$(git rev-parse --show-toplevel)
+"$repository_root/scripts/install_ptw_skill_sync.sh"

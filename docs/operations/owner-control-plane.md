@@ -103,9 +103,11 @@ not prove Overview's database dependency.
 
 PTW skills live canonically under `skills/`. Desktop Codex uses symlinks and the
 CLI agents mount that same tree, so incident knowledge is updated once and read
-identically on the next run. Verify this with:
+identically on the next run. Install the automatic post-merge synchronization
+once per checkout, then verify it:
 
 ```sh
+scripts/install_ptw_skill_sync.sh
 python3 scripts/verify_ptw_skills.py
 ```
 

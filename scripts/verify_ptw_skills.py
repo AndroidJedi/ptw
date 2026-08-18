@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,18 @@ def main() -> None:
     require(compose.count("./skills:/run/ptw-auth/skills:ro") == 1, "Commander skill mount is missing")
     require(compose.count("./skills:/run/ptw-auth/skills\n") == 1, "Owner Gateway skill mount is missing")
 
+    hook = Path(
+        subprocess.run(
+            ["git", "rev-parse", "--git-path", "hooks/post-merge"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    )
+    require(hook.is_symlink(), "post-merge skill-sync hook is missing")
+    require(hook.resolve() == (ROOT / "scripts" / "git-hooks" / "post-merge").resolve(), "wrong post-merge hook")
+
     desktop_root = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "skills"
     if desktop_root.exists():
         for name in SKILLS:
@@ -43,6 +56,11 @@ def main() -> None:
                     (desktop / "SKILL.md").read_bytes() == (canonical / "SKILL.md").read_bytes(),
                     f"CLI skill {name} differs from canonical content",
                 )
+
+    if ROOT == Path("/root/ptw"):
+        for path in canonical_root.rglob("*"):
+            require(path.stat().st_gid == 10001, f"wrong CLI skill group: {path}")
+            require(path.stat().st_mode & 0o020 != 0, f"CLI skill is not group-writable: {path}")
 
     print("Verified canonical PTW skills and desktop/CLI views.")
 

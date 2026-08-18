@@ -15,6 +15,8 @@ Treat the repository `skills/` directory as canonical. The desktop Codex skill
 path must symlink to this folder, while Commander and Owner Gateway containers
 mount the same folder at `$CODEX_HOME/skills`. Update this canonical skill in the
 same commit whenever an incident yields reusable diagnostics or guardrails.
+Run `scripts/install_ptw_skill_sync.sh` once per checkout so the installed
+post-merge hook keeps new skill links and CLI write permissions synchronized.
 
 ## Start safely
 

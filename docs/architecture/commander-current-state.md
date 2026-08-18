@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: truthful Laval evidence modes implemented locally; deployment and owner acceptance pending
+Status: truthful Laval evidence modes deployed; authenticated owner iPhone acceptance and provider credentials pending
 Updated: 2026-08-18
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -132,6 +132,9 @@ verified Google Firebase user.
   contain the Commander gateway origin, App Check header, and production site
   key, while `ptw-shell-v8` is live. Missing credentials still fail closed with
   HTTP 401 and the production-origin CORS preflight succeeds.
+- Laval truthfulness Hosting release `8210ca592d3e0651` serves
+  `index-DtKsokDI.js`, `App-BlQWs5Db.js`, and `ptw-shell-v9`. The post-deploy
+  audit passes shell/assets, gateway health, negative auth, and CORS.
 - A later authenticated Overview HTTP 500 was traced to an Owner Gateway
   recreation that omitted `/opt/ptw/platform/.env`, producing a passwordless
   platform PostgreSQL URL. Production was recreated with the correct environment
@@ -201,8 +204,12 @@ a failed `/show` request during a transient whole-VPS stall, not missing data.
 Migration 006, provider readiness, evidence-mode badges/exports, stop-before-
 Trends behavior, queued DataForSEO task persistence, the USD 0.05/0.04 spend
 boundary, mobile error/export handling, and a secret-safe provider setup script
-are implemented and locally verified in the working branch. They are not production claims until
-the image/deployment checks and authenticated owner-browser acceptance pass.
+are deployed in migration/image/Hosting release order. Post-deploy checks prove
+the preserved run is `demo_fixture`, all 16 artifacts persist, fixture evidence
+has zero Commander graph links, both internal authenticated export formats carry
+the demo warning, readiness is fail-closed, and restart persistence passes. The
+remaining acceptance boundary is a physical authenticated owner iPhone reload;
+a paid live run remains correctly unavailable until DataForSEO is configured.
 
 ## Operational warning
 

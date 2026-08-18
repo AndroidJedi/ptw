@@ -58,6 +58,11 @@ owner's latest decision it has no backup prerequisite and is explicitly marked
 irreversible. A disposable PostgreSQL 16 rehearsal verified clean reseeding and
 the exact post-reset counts.
 
+The independent platform now owns numbered migration
+`011_platform_control.sql`, which creates and seeds the single durable emergency
+stop row consumed by the Owner Gateway. Owner read models use explicit fixed SQL
+clauses for optional post-review filters instead of untyped nullable parameters.
+
 All legacy client source, platform shells, generated artifacts, manifests,
 tooling, and active documentation have been removed. Roboto is owned by
 `commander/assets/fonts` with its license. There is no compatibility or archived
@@ -104,9 +109,10 @@ verified Google Firebase user.
   exact 21-variant provenance, partial country failure, retry/cache behavior,
   manual approval, country rerun/staleness, overrides, authenticated API, and
   export.
-- Owner Gateway built-image suite: 10 tests pass, including exact-owner Laval
-  proxying and confirmation-only reset/root-operation gates.
-- Production Owner Gateway built-image suite: 10/10 tests pass on the VPS.
+- Owner Gateway built-image suite: 11 tests pass, including exact-owner Laval
+  proxying, post-review filter SQL, and confirmation-only reset/root-operation
+  gates.
+- Production Owner Gateway built-image suite: 11/11 tests pass on the VPS.
 - Fresh Idea, Commander, and Owner Gateway images build and import their runtime
   entrypoints; the Idea image exposes the `lav` CLI.
 - Commander deterministic demo and `git diff --check` pass.
@@ -125,6 +131,10 @@ verified Google Firebase user.
   user after gateway recreation and restart. The prior pin is rejected, the
   authoritative owner claim is accepted, and bounded gateway logs contain no
   restart errors.
+- Platform migration 011 passes a disposable PostgreSQL 16 rehearsal and is
+  recorded once in production with one non-stopped singleton row. Production
+  Overview and filtered/unfiltered Posts reads pass after restart, with no
+  Owner Gateway errors after deployment.
 
 ## Production work remaining
 

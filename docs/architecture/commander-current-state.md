@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: web-only Commander and Idea Laval deployed; owner UID binding and authenticated acceptance pending
+Status: web-only Commander and Idea Laval deployed; owner UID bound, authenticated functional acceptance pending
 Updated: 2026-08-18
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -76,8 +76,8 @@ migration; no production reset was run.
 Firebase Identity Platform, the Google provider, verified-owner blocking
 functions, and reCAPTCHA Enterprise App Check are enabled. The gateway service
 account is stored outside Git with owner/gateway-group read permissions. The
-owner email is allowlisted, but the UID remains deliberately unbound until the
-first successful Google login creates the authoritative Firebase user.
+owner email is allowlisted and the gateway now pins the UID of its authoritative
+verified Google Firebase user.
 
 ## Verification
 
@@ -121,12 +121,16 @@ first successful Google login creates the authoritative Firebase user.
 - Deployed Commander and Owner Gateway health checks pass; the Idea service
   reports the active mission, ten preserved generations, and no active Laval
   run. Root broker and Caddy restart checks pass.
+- Production UID binding matches the authoritative verified Google Firebase
+  user after gateway recreation and restart. The prior pin is rejected, the
+  authoritative owner claim is accepted, and bounded gateway logs contain no
+  restart errors.
 
 ## Production work remaining
 
-1. Complete the first allowlisted Google login, pin the resulting Firebase UID
-   in the VPS-only gateway environment, recreate the gateway, and run the
-   authenticated browser/API acceptance checks.
+1. Complete authenticated browser/API functional acceptance: reload the owner
+   console, create and inspect a Laval run, exercise Plan/Execute and root
+   terminal access, and verify restart persistence from the browser.
 2. Add DataForSEO credentials and restricted Google Trends bridge access when
    available, switch Laval away from visibly marked deterministic fixture mode,
    and run the live-provider production acceptance checklist. Fixture evidence

@@ -193,9 +193,14 @@ class DomainReadModels:
             })
         remaining = max(0, limit - len(items))
         if remaining:
+            single_review_clause = (
+                "AND review.feedback_id IS NULL" if review_status == "pending"
+                else "AND review.feedback_id IS NOT NULL" if review_status == "reviewed"
+                else ""
+            )
             with self._connect(self.commander_database_url) as connection:
                 singles = connection.execute(
-                    """SELECT creative.id uuid,creative.attributes creative_attributes,
+                    f"""SELECT creative.id uuid,creative.attributes creative_attributes,
                               artifact.attributes artifact_attributes,
                               hook.attributes->>'value' hook,
                               review.feedback_id latest_feedback_id,review.rating,
@@ -217,10 +222,9 @@ class DomainReadModels:
                        ) review ON TRUE
                        WHERE creative.kind='creative'
                          AND NOT (creative.attributes ? 'ad_batch_id')
-                         AND (%s IS NULL OR (%s='pending' AND review.feedback_id IS NULL)
-                              OR (%s='reviewed' AND review.feedback_id IS NOT NULL))
+                         {single_review_clause}
                        ORDER BY creative.created_at DESC LIMIT %s""",
-                    (review_status, review_status, review_status, remaining),
+                    (remaining,),
                 ).fetchall()
             for row in singles:
                 digest = str((row["artifact_attributes"] or {}).get("sha256", ""))

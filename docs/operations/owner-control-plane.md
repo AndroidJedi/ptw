@@ -79,7 +79,8 @@ Build and restart the three server-side boundaries, then build Hosting:
 
 ```sh
 cd /root/ptw
-docker compose --env-file .env.commander -f docker-compose.commander.yml \
+docker compose --env-file /opt/ptw/platform/.env --env-file .env.commander \
+  -f docker-compose.commander.yml \
   up -d --build commander-api owner-gateway
 docker compose --env-file /opt/ptw/platform/.env --env-file .env.owner-gateway \
   -f docker-compose.idea-generation.yml up -d --build idea-generation-api

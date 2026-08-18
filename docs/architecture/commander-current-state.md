@@ -202,7 +202,7 @@ artifacts were present. The mobile “artifact not created” message was caused
 a failed `/show` request during a transient whole-VPS stall, not missing data.
 
 Migration 006, provider readiness, evidence-mode badges/exports, stop-before-
-Trends behavior, queued DataForSEO task persistence, the USD 0.05/0.04 spend
+Trends behavior, queued DataForSEO task persistence, the USD 0.005/0.004 spend
 boundary, mobile error/export handling, and a secret-safe provider setup script
 are deployed in migration/image/Hosting release order. Post-deploy checks prove
 the preserved run is `demo_fixture`, all 16 artifacts persist, fixture evidence

@@ -7,7 +7,7 @@ describe('LavalEngine', () => {
   const readiness = {
     llm_provider: 'bridge', search_provider: 'fixture', trend_provider: 'fixture',
     search_live_ready: false, trends_live_ready: false, demo_available: true,
-    default_evidence_mode: 'demo_fixture', max_spend_usd: .05, reserved_spend_usd: .04,
+    default_evidence_mode: 'demo_fixture', max_spend_usd: .005, reserved_spend_usd: .004,
     missing: ['dataforseo_credentials', 'google_trends_alpha_bridge'],
   }
 
@@ -58,11 +58,11 @@ describe('LavalEngine', () => {
       status: 'completed', current_stage: 'FINAL_SHORTLIST', approval_mode: 'automatic', approval_gates: [],
       owner_preview: 'Demo idea', completed_stages: 16, variant_count: 21, config: {},
       evidence_mode: 'demo_fixture', provider_snapshot: { search: 'fixture', trends: 'fixture' },
-      max_spend_usd: .05, reserved_spend_usd: .04, created_at: '', updated_at: '',
+      max_spend_usd: .005, reserved_spend_usd: .004, created_at: '', updated_at: '',
     }
     const status = {
       run, stages: [{ stage: 'OWNER_DNA', ordinal: 1, status: 'completed', attempt: 1, provider: 'codex-bridge', metrics: {} }],
-      cost: { items: [], total_usd: 0, provider_actual_usd: 0, max_spend_usd: .05 },
+      cost: { items: [], total_usd: 0, provider_actual_usd: 0, max_spend_usd: .005 },
     }
     const api = {
       get: vi.fn((path: string) => {

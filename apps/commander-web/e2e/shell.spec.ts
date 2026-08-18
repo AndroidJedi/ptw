@@ -26,7 +26,7 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname === '/api/v1/laval/providers') return json({
       llm_provider: 'bridge', search_provider: 'fixture', trend_provider: 'fixture',
       search_live_ready: false, trends_live_ready: false, demo_available: true,
-      default_evidence_mode: 'demo_fixture', max_spend_usd: .05, reserved_spend_usd: .04,
+      default_evidence_mode: 'demo_fixture', max_spend_usd: .005, reserved_spend_usd: .004,
       missing: ['dataforseo_credentials', 'google_trends_alpha_bridge'],
     })
     if (url.pathname === '/api/v1/laval/runs' && route.request().method() === 'POST') return json({ run_id: runId })
@@ -35,17 +35,17 @@ test.beforeEach(async ({ page }) => {
       approval_mode: 'manual', approval_gates: ['COMPETITOR_SELECTION'], owner_preview: 'Auditable demo',
       completed_stages: 5, variant_count: 0, config: { countries: [{ code: 'US' }] },
       evidence_mode: 'demo_fixture', provider_snapshot: { search: 'fixture', trends: 'fixture' },
-      max_spend_usd: .05, reserved_spend_usd: .04, created_at: '', updated_at: '',
+      max_spend_usd: .005, reserved_spend_usd: .004, created_at: '', updated_at: '',
     }] })
     if (url.pathname === `/api/v1/laval/runs/${runId}`) return json({
       run: {
         id: runId, owner_idea_id: runId, status: 'paused', current_stage: 'COMPETITOR_SELECTION',
         approval_mode: 'manual', approval_gates: ['COMPETITOR_SELECTION'], config: { countries: [{ code: 'US' }] },
         evidence_mode: 'demo_fixture', provider_snapshot: { search: 'fixture', trends: 'fixture' },
-        max_spend_usd: .05, reserved_spend_usd: .04,
+        max_spend_usd: .005, reserved_spend_usd: .004,
       },
       stages: stages.map((stage, ordinal) => ({ stage, ordinal, status: ordinal < 5 ? 'completed' : 'pending', attempt: ordinal < 5 ? 1 : 0, provider: ordinal < 5 ? 'fixture' : null, metrics: {}, input_hash: ordinal < 5 ? 'hash' : null })),
-      cost: { items: [], total_usd: 0, provider_reserved_usd: 0, provider_actual_usd: 0, max_spend_usd: .05 },
+      cost: { items: [], total_usd: 0, provider_reserved_usd: 0, provider_actual_usd: 0, max_spend_usd: .005 },
     })
     if (url.pathname.endsWith('/show')) return json({ output: { proof: 'visible artifact' } })
     if (url.pathname.endsWith('/export')) return route.fulfill({ status: 200, contentType: url.searchParams.get('format') === 'md' ? 'text/markdown' : 'application/json', body: url.searchParams.get('format') === 'md' ? '# DEMO — NO LIVE RESEARCH' : '{"mode":"demo_fixture"}' })

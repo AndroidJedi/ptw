@@ -91,8 +91,8 @@ class LavalService:
         }
         result = self.repository.create_run(
             text, parsed, actor=actor, evidence_mode=evidence_mode, provider_snapshot=snapshot,
-            max_spend_usd=float(self.readiness.get("max_spend_usd", .05)),
-            reserved_spend_usd=float(self.readiness.get("reserved_spend_usd", .04)),
+            max_spend_usd=float(self.readiness.get("max_spend_usd", .005)),
+            reserved_spend_usd=float(self.readiness.get("reserved_spend_usd", .004)),
         )
         return {**result, "status": "pending", "config": parsed.to_dict()}
 

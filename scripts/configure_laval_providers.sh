@@ -59,8 +59,8 @@ awk '!/^LAVAL_SEARCH_PROVIDER=|^DATAFORSEO_LOGIN=|^DATAFORSEO_PASSWORD=|^DATAFOR
   printf 'DATAFORSEO_LOGIN=%s\n' "$dfs_login"
   printf 'DATAFORSEO_PASSWORD=%s\n' "$dfs_password"
   printf 'DATAFORSEO_VERIFIED=1\n'
-  printf 'LAVAL_MAX_SPEND_USD=0.05\n'
-  printf 'LAVAL_RESERVED_SPEND_USD=0.04\n'
+  printf 'LAVAL_MAX_SPEND_USD=0.005\n'
+  printf 'LAVAL_RESERVED_SPEND_USD=0.004\n'
 } >> "$updated_environment"
 chmod 600 "$updated_environment"
 chown root:root "$updated_environment"

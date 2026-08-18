@@ -1,6 +1,6 @@
 # Idea Laval Engine
 
-Status: evidence modes and five-cent live-search guard implemented; deployment pending
+Status: evidence modes and half-cent live-search guard implemented
 Updated: 2026-08-18
 
 ## Purpose
@@ -85,7 +85,7 @@ Commander research sink.
 - `LAVAL_SEARCH_PROVIDER=dataforseo` uses DataForSEO's Standard normal-priority
   task queue with explicit country/language/depth. Remote task IDs are persisted
   before polling so restart does not repost paid work. The internal reservation
-  ceiling is USD 0.04 and the absolute per-run display cap is USD 0.05.
+  ceiling is USD 0.004 and the absolute per-run cap is USD 0.005.
 - `LAVAL_TREND_PROVIDER=fixture` supplies deterministic recorded-style results.
 - `LAVAL_TREND_PROVIDER=google_trends` requires an owner-provided bridge URL for
   the restricted Google Trends alpha/API account. The bridge contract returns

@@ -79,7 +79,16 @@ first successful Google login creates the authoritative Firebase user.
   Production browser checks confirm `web.app` forwards before Auth starts,
   iPhone uses a same-tab Google flow with the first-party `firebaseapp.com`
   callback, desktop retains the popup flow, and App Check returns HTTP 200.
-- Firebase blocking-functions TypeScript check passes.
+- Firebase blocking-functions TypeScript check passes. The deployed Gen 2
+  functions use a runtime that accepts the configured audience, and both
+  Identity Platform triggers resolve to their matching `run.app` services; this
+  removes the audience-validation failure that surfaced as an Identity Toolkit
+  HTTP 503 during Google sign-in.
+- Firebase Hosting serves service-worker cache `ptw-shell-v7`. A fresh live
+  browser profile installed and controlled the worker, deleted and repopulated
+  its document and asset cache, and reported no consumed-body `Response.clone()`
+  errors. Live desktop and iPhone-emulated checks both reached the Google account
+  chooser at `accounts.google.com`.
 - Commander/Idea/Laval suite in the Commander image against disposable
   PostgreSQL 16: 72 tests pass; seven intentionally unavailable/retired tests
   skip.

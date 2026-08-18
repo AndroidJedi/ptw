@@ -87,7 +87,7 @@ scripts/configure_laval_providers.sh
 ```
 
 The script validates the free sandbox, writes `DATAFORSEO_VERIFIED=1`, and fixes
-the run maximum at USD 0.005 with only USD 0.004 reservable. It does not configure Google Trends. Apply for
+the run maximum at USD 0.05 with only USD 0.04 reservable. It does not configure Google Trends. Apply for
 the restricted official alpha at <https://developers.google.com/search/apis/trends>;
 until access and its bridge are ready, live runs pause after Opportunity Matrix.
 

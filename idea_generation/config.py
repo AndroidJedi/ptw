@@ -32,8 +32,8 @@ class Settings:
     trend_bridge_url: str = ""
     trend_bridge_token: str = ""
     research_bridge_url: str = ""
-    max_spend_usd: float = 0.005
-    reserved_spend_usd: float = 0.004
+    max_spend_usd: float = 0.05
+    reserved_spend_usd: float = 0.04
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -45,8 +45,8 @@ class Settings:
             "TELEGRAM_ALLOWED_USER_IDS", ""
         )
         raw_user_ids = os.environ.get("TELEGRAM_ALLOWED_USER_IDS", "") or raw_ids
-        max_spend_usd = min(0.005, max(0.0, float(os.environ.get("LAVAL_MAX_SPEND_USD", "0.005"))))
-        reserved_spend_usd = min(max_spend_usd, 0.004, max(0.0, float(os.environ.get("LAVAL_RESERVED_SPEND_USD", "0.004"))))
+        max_spend_usd = min(0.05, max(0.0, float(os.environ.get("LAVAL_MAX_SPEND_USD", "0.05"))))
+        reserved_spend_usd = min(max_spend_usd, 0.04, max(0.0, float(os.environ.get("LAVAL_RESERVED_SPEND_USD", "0.04"))))
         return cls(
             database_url=database_url,
             telegram_token=token,

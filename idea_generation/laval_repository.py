@@ -36,7 +36,7 @@ class LavalRepository:
     def create_run(
         self, raw_text: str, config: LavalConfig, *, actor: str = "owner",
         evidence_mode: str = "demo_fixture", provider_snapshot: Mapping[str, Any] | None = None,
-        max_spend_usd: float = .005, reserved_spend_usd: float = .004,
+        max_spend_usd: float = .05, reserved_spend_usd: float = .04,
     ) -> dict[str, Any]:
         raw_text = raw_text.strip()
         if not raw_text or len(raw_text) > 100_000:
@@ -285,7 +285,7 @@ class LavalRepository:
                 (run_id,),
             ).fetchone()[0]
             if float(committed) + estimated_cost > float(run[0]) + 1e-9:
-                raise RuntimeError("DataForSEO $0.005 run cap: the $0.004 reservation budget is exhausted")
+                raise RuntimeError("DataForSEO $0.05 run cap: the $0.04 reservation budget is exhausted")
             task_id = new_uuid7()
             connection.execute(
                 """INSERT INTO laval_provider_tasks(
@@ -482,7 +482,7 @@ class LavalRepository:
             "provider_projected_usd": round(float(provider.get("projected") or 0), 6),
             "provider_reserved_usd": round(float(provider.get("reserved") or 0), 6),
             "provider_actual_usd": round(float(provider.get("actual") or 0), 6),
-            "max_spend_usd": float(run.get("max_spend_usd") or .005),
+            "max_spend_usd": float(run.get("max_spend_usd") or .05),
         }
 
     def override(

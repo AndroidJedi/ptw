@@ -81,7 +81,7 @@ class LavalDomainTests(unittest.TestCase):
         self.assertIn("dimensions", trends)
         self.assertTrue(trends["raw"]["fixture"])
 
-    def test_dataforseo_uses_normal_queue_and_conservative_half_cent_budget_units(self) -> None:
+    def test_dataforseo_uses_normal_queue_and_conservative_five_cent_budget_units(self) -> None:
         provider = DataForSEOSearchProvider("api-login", "api-password", poll_interval=0)
         self.assertEqual(.0006, provider.estimate_cost(10))
         self.assertEqual(.0012, provider.estimate_cost(20))
@@ -247,16 +247,16 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
             )
         self.repository.reserve_provider_task(
             created["run_id"], "SERP_DISCOVERY", "large", "dataforseo",
-            {"key": "large", "query": "q", "country": "US", "language": "en", "depth": 10}, .0039,
+            {"key": "large", "query": "q", "country": "US", "language": "en", "depth": 10}, .039,
         )
         with self.assertRaisesRegex(RuntimeError, "reservation budget"):
             self.repository.reserve_provider_task(
                 created["run_id"], "SERP_DISCOVERY", "over", "dataforseo",
-                {"key": "over", "query": "q2", "country": "GB", "language": "en", "depth": 10}, .0002,
+                {"key": "over", "query": "q2", "country": "GB", "language": "en", "depth": 10}, .002,
             )
         with self.assertRaises(Exception):
             self.store.execute(
-                "UPDATE laval_runs SET max_spend_usd=0.006 WHERE id=%s RETURNING 1",
+                "UPDATE laval_runs SET max_spend_usd=0.06 WHERE id=%s RETURNING 1",
                 (created["run_id"],),
             )
 

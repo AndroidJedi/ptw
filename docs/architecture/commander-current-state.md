@@ -202,7 +202,7 @@ artifacts were present. The mobile “artifact not created” message was caused
 a failed `/show` request during a transient whole-VPS stall, not missing data.
 
 Migration 006, provider readiness, evidence-mode badges/exports, stop-before-
-Trends behavior, queued DataForSEO task persistence, the USD 0.005/0.004 spend
+Trends behavior, queued DataForSEO task persistence, the USD 0.05/0.04 spend
 boundary, mobile error/export handling, and a secret-safe provider setup script
 are deployed in migration/image/Hosting release order. Post-deploy checks prove
 the preserved run is `demo_fixture`, all 16 artifacts persist, fixture evidence
@@ -211,11 +211,11 @@ the demo warning, readiness is fail-closed, and restart persistence passes. The
 remaining acceptance boundary is a physical authenticated owner iPhone reload;
 a paid live run remains correctly unavailable until DataForSEO is configured.
 
-At the owner's direction, migration 007 lowered the live-search hard ceiling to
-USD 0.005 per run and the reservation boundary to USD 0.004. Existing and future
-runs are database-clamped to those values, runtime configuration cannot exceed
-them, the setup script preserves them, and the production readiness response and
-mobile UI display the new cap.
+Migration 007 temporarily lowered the live-search ceiling to half a cent. After
+confirming that the fixed five-country, secondary-language, and competitor-
+evidence scope conservatively requires about USD 0.0372, the owner restored the
+original five-cent boundary. Migration 008, runtime clamps, setup, readiness,
+and the mobile UI now enforce USD 0.05 maximum with USD 0.04 reservable.
 
 The first DataForSEO credential attempt returned an access-specific HTTP 403;
 dummy-auth probes from the same VPS returned the expected 401 from sandbox and

@@ -211,6 +211,12 @@ the demo warning, readiness is fail-closed, and restart persistence passes. The
 remaining acceptance boundary is a physical authenticated owner iPhone reload;
 a paid live run remains correctly unavailable until DataForSEO is configured.
 
+At the owner's direction, migration 007 lowered the live-search hard ceiling to
+USD 0.005 per run and the reservation boundary to USD 0.004. Existing and future
+runs are database-clamped to those values, runtime configuration cannot exceed
+them, the setup script preserves them, and the production readiness response and
+mobile UI display the new cap.
+
 ## Operational warning
 
 The GitHub working tree and `/opt/ptw/platform` have unrelated histories. Do

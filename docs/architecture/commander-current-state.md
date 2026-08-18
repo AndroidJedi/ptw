@@ -135,6 +135,14 @@ verified Google Firebase user.
 - Laval truthfulness Hosting release `8210ca592d3e0651` serves
   `index-DtKsokDI.js`, `App-BlQWs5Db.js`, and `ptw-shell-v9`. The post-deploy
   audit passes shell/assets, gateway health, negative auth, and CORS.
+- Owner-visible recovery Hosting release `fd288a9c92b674cd` serves
+  `index-CVxHWi6a.js`, `App-DOSmdhLe.js`, and `ptw-shell-v10`. Migration 009 is
+  recorded in production; run `01a01540-7c8b-7f0a-af6c-530ce9070bae` exposes
+  the original system failure, `codex:production-recovery` resume, and completed
+  retry. Its 32/32 persisted provider tasks and USD 0.0192 cost remain exactly
+  once. The requested S00-S15 Telegram snapshot was published by the existing
+  worker on its first attempt, and the live shell/assets, dependency bridge,
+  health, negative auth, and CORS audits pass.
 - A later authenticated Overview HTTP 500 was traced to an Owner Gateway
   recreation that omitted `/opt/ptw/platform/.env`, producing a passwordless
   platform PostgreSQL URL. Production was recreated with the correct environment

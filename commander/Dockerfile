@@ -13,7 +13,7 @@ COPY commander/assets/fonts ./commander/assets/fonts
 
 RUN groupadd --system --gid 10001 commander \
     && useradd --system --uid 10001 --gid 10001 commander \
-    && mkdir -p /var/lib/ptw/assets /run/ptw-auth \
+    && mkdir -p /var/lib/ptw/assets /run/ptw-auth/skills \
     && chown -R commander:commander /var/lib/ptw /run/ptw-auth
 USER commander
 

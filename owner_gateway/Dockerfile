@@ -20,7 +20,7 @@ COPY config ./config
 COPY commander/assets/fonts ./commander/assets/fonts
 RUN groupadd --system --gid 10002 owner-gateway \
     && useradd --system --uid 10002 --gid 10002 --create-home owner-gateway \
-    && mkdir -p /var/lib/ptw-owner /run/ptw-auth \
+    && mkdir -p /var/lib/ptw-owner /run/ptw-auth/skills \
     && chown -R owner-gateway:owner-gateway /var/lib/ptw-owner /run/ptw-auth
 USER owner-gateway
 RUN git config --global --add safe.directory /workspace

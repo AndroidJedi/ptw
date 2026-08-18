@@ -28,7 +28,11 @@ def main() -> None:
                 "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
             )
         }
-        check({"users", "sessions", "jobs", "events"} <= tables, "migrations")
+        check({"users", "sessions", "jobs", "events", "platform_control"} <= tables, "migrations")
+        control = connection.execute(
+            "SELECT singleton, emergency_stop FROM platform_control"
+        ).fetchall()
+        check(control == [(True, False)], "platform control seed")
         append_event(connection, "HEALTH_CHECK", "integration-test", payload={"marker": marker})
 
     unauthorized = {"message_id": marker, "from": {"id": -marker}, "chat": {"id": -marker}, "text": "/ping"}

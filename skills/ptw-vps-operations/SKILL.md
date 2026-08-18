@@ -103,6 +103,23 @@ Use repository runbooks as authority.
 - Preserve fail-closed gateway verification and never print browser tokens.
 - Require authenticated owner-browser Overview success before full acceptance.
 
+## DataForSEO credential onboarding
+
+Run `scripts/configure_laval_providers.sh` only in an interactive VPS terminal;
+its SSH session ends after the one-shot command succeeds or fails. A trailing
+`Connection ... closed` therefore does not diagnose a network failure. Trust the
+preceding provider status instead. The script validates the registered API login
+and separately generated API password against the free sandbox and leaves the
+root-owned environment unchanged on every rejection.
+
+For an authenticated HTTP 403, first prove the same VPS can reach the sandbox
+with dummy Basic Auth and receives the expected HTTP 401. If it can, do not
+restart PTW or rotate unrelated credentials: verify the exact API login/password
+from Dashboard -> API Access, inspect the account's IP whitelist and account
+status, and escalate the persistent access-specific rejection to DataForSEO.
+Never print the credential pair or the full response body; report only bounded
+HTTP/provider status and message fields.
+
 ## Capture reusable incident knowledge
 
 After every production incident, update the narrowest canonical repository

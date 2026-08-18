@@ -217,6 +217,12 @@ runs are database-clamped to those values, runtime configuration cannot exceed
 them, the setup script preserves them, and the production readiness response and
 mobile UI display the new cap.
 
+The first DataForSEO credential attempt returned an access-specific HTTP 403;
+dummy-auth probes from the same VPS returned the expected 401 from sandbox and
+production, proving endpoint reachability while production remained unchanged.
+The setup script now reports bounded HTTP/provider status details so account,
+IP-whitelist, and credential failures are actionable without exposing secrets.
+
 ## Operational warning
 
 The GitHub working tree and `/opt/ptw/platform` have unrelated histories. Do

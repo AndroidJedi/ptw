@@ -160,3 +160,18 @@ Canonical record of deployment gaps and prevention rules. Do not store secrets.
 - Prevention: a Telegram capability is not available until deployed help,
   routing, authorization, provider readiness, real execution, graph persistence,
   restart behavior, and the failure message have all been verified.
+
+## 2026-08-18 — DataForSEO onboarding hid an access-specific rejection
+
+- Impact: the interactive provider setup ended with a generic authentication
+  failure and the expected closure of its one-shot SSH session looked like a
+  transport outage.
+- Cause: `curl --fail-with-body` short-circuited the safe JSON-status parser, so
+  an authenticated HTTP 403 was flattened even though credential-free probes
+  proved VPS DNS, TLS, egress, and both DataForSEO endpoints healthy.
+- Correction: setup now preserves the provider response long enough to report
+  only bounded HTTP/provider status fields, safely escapes curl-config values,
+  and continues to leave production unchanged on rejection.
+- Prevention: distinguish one-shot SSH completion from connection failure, use
+  a dummy-auth 401 as the egress discriminator, then check API Access, IP
+  whitelisting, account status, and provider support without exposing secrets.

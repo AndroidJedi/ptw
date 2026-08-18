@@ -113,6 +113,11 @@ verified Google Firebase user.
   its document and asset cache, and reported no consumed-body `Response.clone()`
   errors. Live desktop and iPhone-emulated checks both reached the Google account
   chooser at `accounts.google.com`.
+- The App Check regression is repaired in Hosting release
+  `ee49e1047722d5bf`: live assets `index-CeGcYnjt.js` and `App-COBAGTGW.js`
+  contain the Commander gateway origin, App Check header, and production site
+  key, while `ptw-shell-v8` is live. Missing credentials still fail closed with
+  HTTP 401 and the production-origin CORS preflight succeeds.
 - Commander/Laval suite in the Commander image against disposable PostgreSQL
   16: 57 tests pass; seven intentionally retired Telegram tests skip.
 - Focused Laval PostgreSQL suite: 14 tests pass, including the 16-stage fixture,

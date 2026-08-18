@@ -19,6 +19,7 @@
           { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com https://www.google.com/recaptcha/ https://www.recaptcha.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://commander.proove-them-wrong.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firebaseinstallations.googleapis.com https://firebaseappcheck.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.google.com/recaptcha/ https://www.recaptcha.net/recaptcha/ https://commander.proove-them-wrong.com wss://commander.proove-them-wrong.com; frame-src https://accounts.google.com https://provethemwrong-86123.firebaseapp.com https://www.google.com/recaptcha/ https://www.recaptcha.net; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'" }
         ]
       },
+      { "source": "/", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
       { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
       { "source": "/index.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
     ],

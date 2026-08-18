@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: web-only Commander and Idea Laval implemented locally; production cutover pending
+Status: web-only Commander and Idea Laval deployed; owner UID binding and authenticated acceptance pending
 Updated: 2026-08-18
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -57,6 +57,21 @@ tooling, and active documentation have been removed. Roboto is owned by
 `commander/assets/fonts` with its license. There is no compatibility or archived
 client subsystem in the repository.
 
+Production cutover is live on the existing VPS. Firebase Hosting serves the
+mobile web console at `https://provethemwrong-86123.web.app`, and
+`https://commander.proove-them-wrong.com` terminates TLS in the independent
+platform Caddy service before proxying to the Owner Gateway. Commander, Idea,
+and Owner Gateway remain loopback-only on their host-published ports. The
+root-only broker is installed as a systemd service and exposes its Unix socket
+only to the gateway group. Existing Idea data was preserved by additive
+migration; no production reset was run.
+
+Firebase Identity Platform, the Google provider, verified-owner blocking
+functions, and reCAPTCHA Enterprise App Check are enabled. The gateway service
+account is stored outside Git with owner/gateway-group read permissions. The
+owner email is allowlisted, but the UID remains deliberately unbound until the
+first successful Google login creates the authoritative Firebase user.
+
 ## Verification
 
 - React TypeScript, three Vitest tests, the production Vite build, and two
@@ -71,6 +86,7 @@ client subsystem in the repository.
   export.
 - Owner Gateway built-image suite: 10 tests pass, including exact-owner Laval
   proxying and confirmation-only reset/root-operation gates.
+- Production Owner Gateway built-image suite: 10/10 tests pass on the VPS.
 - Fresh Idea, Commander, and Owner Gateway images build and import their runtime
   entrypoints; the Idea image exposes the `lav` CLI.
 - Commander deterministic demo and `git diff --check` pass.
@@ -78,20 +94,29 @@ client subsystem in the repository.
 - Two-database reset rehearsal passes with the required clean checkpoint:
   one mission, ten idea contexts/revisions, ten post contexts/revisions, and no
   domain runtime rows.
+- Firebase Hosting returns the PTW Commander shell with HTTP 200. The public
+  gateway health endpoint returns `{"status":"ok"}`, protected APIs reject
+  missing bearer credentials with HTTP 401, and the production-origin CORS
+  preflight allows only the required methods and headers.
+- Deployed Commander and Owner Gateway health checks pass; the Idea service
+  reports the active mission, ten preserved generations, and no active Laval
+  run. Root broker and Caddy restart checks pass.
 
 ## Production work remaining
 
-1. Add the live Laval provider credentials/access (or explicitly accept fixture
-   mode), rebuild the Idea API, Commander API, Owner Gateway, and web image, and
-   run the Laval production acceptance checklist.
-2. Enable billing/Identity Platform, Google Sign-In, blocking functions, and
-   reCAPTCHA Enterprise App Check in the existing Firebase project; pin the
-   created owner UID and deploy Hosting.
-3. Deploy the reviewed control plane and the independent platform change,
-   install the root broker service, and perform the confirmation-gated reset.
-4. Run owner login, Plan/Execute, root `id`/`pwd`, manual Generation 1, single
-   and ten-variant review, Telegram emergency controls, restart persistence,
-   and reset acceptance checks.
+1. Complete the first allowlisted Google login, pin the resulting Firebase UID
+   in the VPS-only gateway environment, recreate the gateway, and run the
+   authenticated browser/API acceptance checks.
+2. Add DataForSEO credentials and restricted Google Trends bridge access when
+   available, switch Laval away from visibly marked deterministic fixture mode,
+   and run the live-provider production acceptance checklist. Fixture evidence
+   must not enter the permanent Commander research graph.
+3. Run owner Plan/Execute, root `id`/`pwd`, manual Generation 1, single- and
+   ten-variant review, Telegram emergency controls, and restart-persistence
+   acceptance. Do not claim Telegram/provider readiness before these pass.
+4. Exercise the production reset only after the owner supplies its exact web
+   confirmation. The reset is irreversible and was intentionally not invoked
+   during deployment.
 
 ## Operational warning
 

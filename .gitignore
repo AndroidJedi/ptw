@@ -27,3 +27,4 @@ test-results/
 !.env.example
 firebase-debug.log
 firebase-debug.*.log
+.firebase/

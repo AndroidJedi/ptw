@@ -14,6 +14,7 @@ class DeploymentConfigTests(unittest.TestCase):
         self.assertTrue(compose.startswith("name: ptw-idea-generation\n"))
         self.assertNotEqual(ROOT.name, "ptw-idea-generation")
         self.assertIn("aliases: [ptw-idea-api]", compose)
+        self.assertIn("name: ptw_default", compose)
 
 
 if __name__ == "__main__":

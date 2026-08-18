@@ -32,6 +32,7 @@ services:
       default:
       existing-ptw-backend:
         aliases: [ptw-idea-api]
+      existing-commander-database:
     ports:
       - "127.0.0.1:${IDEA_GENERATION_HTTP_PORT:-8093}:8080"
     healthcheck:
@@ -44,3 +45,6 @@ networks:
   existing-ptw-backend:
     external: true
     name: ptw-agent-platform_backend
+  existing-commander-database:
+    external: true
+    name: ptw_default

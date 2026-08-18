@@ -121,7 +121,9 @@ mission.
 The Idea Compose file owns the explicit `ptw-idea-generation` project. Do not
 override it to Commander's `ptw` project: operating separate Compose files in
 one project makes each service appear orphaned to the other and permits orphan
-cleanup to remove a live dependency. After deploying either boundary, run:
+cleanup to remove a live dependency. The isolated Idea service explicitly joins
+external `ptw_default` for `commander-db` DNS and the platform backend for its
+`ptw-idea-api` gateway alias. After deploying either boundary, run:
 
 ```sh
 skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh

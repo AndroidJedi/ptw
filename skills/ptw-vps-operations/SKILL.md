@@ -79,8 +79,10 @@ Use repository runbooks as authority.
    database-backed path rather than trusting shallow health alone.
 5. Keep Idea Laval in its explicit `ptw-idea-generation` Compose project.
    Commander and Idea must not share a project namespace because orphan cleanup
-   from one Compose file can delete services owned by the other. After either
-   deployment, run the owner-incident skill's VPS dependency audit.
+   from one Compose file can delete services owned by the other. Keep Idea on
+   external `ptw_default` for `commander-db` DNS as well as the platform backend
+   for its gateway alias. After either deployment, run the owner-incident
+   skill's VPS dependency audit.
 6. Apply numbered migrations explicitly, then start services in dependency
    order: Commander API, Idea API, Owner Gateway, web Hosting.
 7. Validate loopback/public health, exact-owner auth, App Check, API calls,

@@ -86,7 +86,9 @@ PostgreSQL password and returned HTTP 500.
 - Keep `docker-compose.idea-generation.yml` in the explicit
   `ptw-idea-generation` project. Never let Commander and Idea share one Compose
   project namespace: orphan cleanup from either file can delete the other
-  service. Start Idea with `--wait`, then audit the gateway-to-Idea run list.
+  service. Explicitly attach Idea to external `ptw_default` so `commander-db`
+  remains resolvable after isolation. Start Idea with `--wait`, then audit the
+  gateway-to-Idea run list.
 - Add coverage at the failed layer. Source mocks and shallow health alone do
   not catch tree-shaken config, stale output, or missing runtime credentials.
 - Bump the shell cache when behavior must reach already-controlled clients.

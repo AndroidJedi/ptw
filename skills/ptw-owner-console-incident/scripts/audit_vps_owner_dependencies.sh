@@ -47,6 +47,11 @@ test "$owner_project" != "$idea_project" || {
   echo "Owner Gateway and Idea Laval share a Compose project" >&2
   exit 1
 }
+docker inspect --format '{{json .NetworkSettings.Networks}}' "$idea_container" \
+  | python3 -c 'import json, sys; raise SystemExit(0 if "ptw_default" in json.load(sys.stdin) else 1)' || {
+    echo "Idea Laval is missing the Commander database network" >&2
+    exit 1
+  }
 
 curl --fail --silent --show-error http://127.0.0.1:8092/healthz >/dev/null
 curl --fail --silent --show-error http://127.0.0.1:8093/healthz >/dev/null

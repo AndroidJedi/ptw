@@ -40,7 +40,9 @@ links or container mounts from drifting.
 Idea Laval now owns an explicit Compose project separate from Commander. This
 closes the production failure where the Idea container was absent, shared-network
 DNS had no `ptw-idea-api` target, and the authenticated Ideas tab received HTTP
-503. A bundled incident audit verifies both containers, loopback health, and the
+503. The isolated service explicitly joins Commander's database network for
+`commander-db` DNS and the platform backend for its gateway alias. A bundled
+incident audit verifies both containers, networks, loopback health, and the
 token-protected gateway-to-Idea run-list call.
 
 The Ideas view now exposes only the Idea Laval evidence engine. Legacy C01-C10

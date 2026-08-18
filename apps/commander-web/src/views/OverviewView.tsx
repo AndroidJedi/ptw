@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, ArrowUpRight, BriefcaseBusiness, Clock, MessageSquareMore } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowUpRight, BriefcaseBusiness, Clock, FlaskConical, MessageSquareMore } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api'
 import { local, type Language } from '../i18n'
@@ -13,8 +13,6 @@ export function OverviewView({ api, language }: { api: ApiClient; language: Lang
   if (error) return <ErrorState message={error} retry={load} />
   if (!data) return <Loading />
   const remaining = Math.max(0, Math.ceil((new Date(data.mission.deadline_at).getTime() - Date.now()) / 86_400_000))
-  const trend = data.idea_score_trend
-  const points = trend.length ? trend.map((item, index) => `${(index / Math.max(1, trend.length - 1)) * 100},${100 - item.best}`).join(' ') : ''
   return <>
     <PageHeader eyebrow="MISSION_20M_3Y" title={String(local(data.mission.name, language))} />
     <section className="mission-strip">
@@ -27,9 +25,14 @@ export function OverviewView({ api, language }: { api: ApiClient; language: Lang
       <article className={data.jobs.blocked ? 'warn' : ''}><AlertTriangle /><span>Заблоковано</span><strong>{data.jobs.blocked}</strong></article>
       <article><ArrowUpRight /><span>Останнє розгортання</span><strong>{data.jobs.last_deploy || '—'}</strong></article>
     </section>
-    <section className="panel trend">
-      <div className="section-title"><div><p>ЕВОЛЮЦІЯ ІДЕЙ</p><h2>Динаміка оцінки</h2></div><span>Шкала 100 балів</span></div>
-      {trend.length ? <><svg viewBox="0 0 100 100" role="img" aria-label="Графік найкращих оцінок за поколіннями"><polyline points={points} /></svg><div className="trend-labels"><span>G{trend[0].generation}</span><strong>{trend.at(-1)?.best.toFixed(1)}</strong><span>G{trend.at(-1)?.generation}</span></div></> : <p className="muted">Покоління 1 ще не запускалося.</p>}
+    <section className="panel">
+      <div className="section-title"><div><p>IDEA LAVAL ENGINE</p><h2>Інспектовані запуски</h2></div><FlaskConical /></div>
+      <div className="metric-grid" aria-label="Статус Idea Laval">
+        <article><span>Усього</span><strong>{data.laval_runs.total}</strong></article>
+        <article><span>Активні</span><strong>{data.laval_runs.active}</strong></article>
+        <article><span>Завершені</span><strong>{data.laval_runs.completed}</strong></article>
+      </div>
+      {data.laval_runs.total === 0 && <p className="muted">Ще немає ідей власника або Laval-запусків.</p>}
     </section>
   </>
 }

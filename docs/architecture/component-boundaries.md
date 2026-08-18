@@ -6,7 +6,7 @@ Updated: 2026-08-17
 `project.components.json` is the machine-readable authority for path ownership
 and validation. PTW has four current boundaries:
 
-- `creative-learning`: generic Python learning domain, idea evolution,
+- `creative-learning`: generic Python learning domain, Idea Laval,
   creative production, feedback lineage, PostgreSQL migrations, and workers.
 - `commander-web`: the React/TypeScript mobile-first PWA. It renders bounded
   read models and sends owner intent; it never becomes a domain database.

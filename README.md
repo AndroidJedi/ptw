@@ -15,7 +15,7 @@ digest.
 React PWA
     |
 Owner Gateway (HTTPS/WSS; Firebase Auth + App Check)
-    |-- Idea Evolution + Idea Laval + post APIs -> PostgreSQL
+    |-- Idea Laval + post APIs -> PostgreSQL
     |-- Plan / Execute -> Codex
     `-- Unix socket -> root broker -> root PTY
 

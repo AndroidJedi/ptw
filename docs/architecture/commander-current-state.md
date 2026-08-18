@@ -25,8 +25,11 @@ silently rewrite API requests to the application shell. Successful API calls
 also require a JSON content type, and Hosting uses popup-compatible COOP for the
 desktop Google sign-in flow.
 
-The Ideas view now includes the Idea Laval evidence engine alongside Idea
-Evolution. Laval persists 16 inspectable/restartable stages from Owner Capture
+The Ideas view now exposes only the Idea Laval evidence engine. Legacy C01-C10
+generation controls, seeded rankings, contexts, API routes, runtime engine,
+Telegram mutation controller, and source/docs are removed. An empty run list is
+the authoritative state until the owner creates a Laval idea. Laval persists 16
+inspectable/restartable stages from Owner Capture
 through Final Shortlist, localized search work for configurable countries,
 global competitor deduplication, evidence and complaint clusters, Opportunity
 Matrix rows, separate Trend Scores and Trend Discoveries, bounded synthesis,
@@ -75,8 +78,9 @@ parallel `web.app` host forwarding before Auth initialization, and
 platform Caddy service before proxying to the Owner Gateway. Commander, Idea,
 and Owner Gateway remain loopback-only on their host-published ports. The
 root-only broker is installed as a systemd service and exposes its Unix socket
-only to the gateway group. Existing Idea data was preserved by additive
-migration; no production reset was run.
+only to the gateway group. Numbered migration `005_retire_idea_evolution.sql`
+purges the retired idea records while preserving `laval_*` data and the active
+mission; the broad production reset was not run.
 
 Firebase Identity Platform, the Google provider, verified-owner blocking
 functions, and reCAPTCHA Enterprise App Check are enabled. The gateway service
@@ -86,7 +90,7 @@ verified Google Firebase user.
 
 ## Verification
 
-- React TypeScript, seven Vitest tests, two Playwright browser tests, and the
+- React TypeScript, eight Vitest tests, two Playwright browser tests, and the
   production Vite build pass. Regression coverage clicks the Laval create CTA,
   verifies its five-country request, and asserts the production gateway fallback.
   Production browser checks confirm `web.app` forwards before Auth starts,
@@ -102,9 +106,8 @@ verified Google Firebase user.
   its document and asset cache, and reported no consumed-body `Response.clone()`
   errors. Live desktop and iPhone-emulated checks both reached the Google account
   chooser at `accounts.google.com`.
-- Commander/Idea/Laval suite in the Commander image against disposable
-  PostgreSQL 16: 72 tests pass; seven intentionally unavailable/retired tests
-  skip.
+- Commander/Laval suite in the Commander image against disposable PostgreSQL
+  16: 57 tests pass; seven intentionally retired Telegram tests skip.
 - Focused Laval PostgreSQL suite: 14 tests pass, including the 16-stage fixture,
   exact 21-variant provenance, partial country failure, retry/cache behavior,
   manual approval, country rerun/staleness, overrides, authenticated API, and
@@ -118,15 +121,15 @@ verified Google Firebase user.
 - Commander deterministic demo and `git diff --check` pass.
 - Independent platform checkout: 51/51 tests pass.
 - Two-database reset rehearsal passes with the required clean checkpoint:
-  one mission, ten idea contexts/revisions, ten post contexts/revisions, and no
-  domain runtime rows.
+  one mission, zero legacy idea contexts/revisions, ten post contexts/revisions,
+  and no domain runtime rows.
 - Firebase Hosting returns the PTW Commander shell with HTTP 200. The public
   gateway health endpoint returns `{"status":"ok"}`, protected APIs reject
   missing bearer credentials with HTTP 401, and the production-origin CORS
   preflight allows only the required methods and headers.
 - Deployed Commander and Owner Gateway health checks pass; the Idea service
-  reports the active mission, ten preserved generations, and no active Laval
-  run. Root broker and Caddy restart checks pass.
+  reports the active mission, zero legacy generations/ideas/contexts, and no
+  Laval run. Root broker and Caddy restart checks pass.
 - Production UID binding matches the authoritative verified Google Firebase
   user after gateway recreation and restart. The prior pin is rejected, the
   authoritative owner claim is accepted, and bounded gateway logs contain no
@@ -145,9 +148,9 @@ verified Google Firebase user.
    available, switch Laval away from visibly marked deterministic fixture mode,
    and run the live-provider production acceptance checklist. Fixture evidence
    must not enter the permanent Commander research graph.
-3. Run owner Plan/Execute, root `id`/`pwd`, manual Generation 1, single- and
-   ten-variant review, Telegram emergency controls, and restart-persistence
-   acceptance. Do not claim Telegram/provider readiness before these pass.
+3. Run owner Plan/Execute, root `id`/`pwd`, single-post review, Telegram
+   emergency controls, and restart-persistence acceptance. Do not claim
+   Telegram/provider readiness before these pass.
 4. Exercise the production reset only after the owner supplies its exact web
    confirmation. The reset is irreversible and was intentionally not invoked
    during deployment.

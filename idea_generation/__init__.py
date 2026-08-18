@@ -1,6 +1,5 @@
-"""Minimal PostgreSQL-backed business idea evolution service."""
+"""PostgreSQL-backed Idea Laval engine."""
 
-from .engine import EvolutionEngine
 from .provider import MockLLMProvider
 
-__all__ = ["EvolutionEngine", "MockLLMProvider"]
+__all__ = ["MockLLMProvider"]

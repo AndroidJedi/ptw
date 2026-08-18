@@ -16,7 +16,6 @@ from .laval_repository import LavalRepository
 from .laval_service import LavalRunner, LavalService
 from .manage import ROOT
 from .provider import BridgeProvider, MockLLMProvider, OpenAIProvider
-from .seeds import load
 from .store import PostgresStore
 
 
@@ -34,8 +33,7 @@ def _runtime() -> tuple[LavalRepository, LavalPipeline, LavalService]:
     settings = Settings.from_environment()
     store = PostgresStore(settings.database_url)
     store.migrate(ROOT / "db/idea_generation")
-    mission, contexts = load(ROOT / "ideaGeneration")
-    store.seed(mission, contexts)
+    store.seed_laval_mission()
     repository = LavalRepository(store)
     pipeline = LavalPipeline(repository, providers_from_settings(settings, _llm(settings)))
     return repository, pipeline, LavalService(repository, LavalRunner(pipeline))

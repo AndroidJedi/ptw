@@ -1,6 +1,6 @@
 # Idea Laval Engine
 
-Status: implemented locally; production provider/deployment acceptance pending  
+Status: v2 product boundary; fixture orchestration deployed, live-provider acceptance pending
 Updated: 2026-08-18
 
 ## Purpose
@@ -24,7 +24,12 @@ Owner Idea
   -> shortlist and finalists
 ```
 
-It extends Idea Evolution; it is not a separate product or source of truth.
+This is the only supported Ideas subsystem. Legacy C01-C10 generations, seeded
+idea rankings, generation controls, idea contexts, and idea-to-post batch
+bridges are retired and must not be exposed or seeded. An empty Laval run list
+means that the owner has not submitted an idea; fixtures may exercise providers
+in tests but must never appear as owner-created production data.
+
 PostgreSQL owns the run, stages, child items, artifacts, evidence, normalized
 entities, approvals, overrides, costs, and lineage. JSON and Markdown exports
 are derivatives generated from database state.
@@ -90,7 +95,7 @@ Scores from Trend Discoveries, approves gates, reruns stages/countries, writes
 audited overrides, and exports JSON or Markdown. All calls pass Firebase Auth,
 App Check, exact-owner verification, and the Owner Gateway bridge.
 
-The same services are available inside the Idea Evolution image:
+The same services are available through the `lav` CLI inside the Idea service:
 
 ```sh
 lav idea new --text "OWNER IDEA"

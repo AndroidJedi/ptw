@@ -28,7 +28,6 @@ from idea_generation.laval_providers import (
 from idea_generation.laval_repository import LavalRepository
 from idea_generation.laval_service import LavalRunner, LavalService
 from idea_generation.provider import MockLLMProvider
-from idea_generation.seeds import load
 from idea_generation.store import PostgresStore
 
 
@@ -104,8 +103,7 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.store = PostgresStore(os.environ["IDEA_GENERATION_TEST_DATABASE_URL"])
         cls.store.migrate(Path("db/idea_generation"))
-        mission, contexts = load(Path("ideaGeneration"))
-        cls.store.seed(mission, contexts)
+        cls.store.seed_laval_mission()
 
     def setUp(self) -> None:
         with self.store.transaction() as connection:
@@ -277,7 +275,9 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
             owner_gateway_token="owner-bridge",
         )
         headers = {"X-PTW-Owner-Gateway-Token": "owner-bridge"}
-        with TestClient(create_app(settings, lambda _chat, _text: None)) as client:
+        with TestClient(create_app(settings)) as client:
+            self.assertEqual(404, client.post("/internal/web/generations", json={}).status_code)
+            self.assertEqual(404, client.post("/internal/telegram/update", json={}).status_code)
             self.assertEqual(403, client.post("/internal/web/laval/runs", json={"text": "idea"}).status_code)
             created = client.post(
                 "/internal/web/laval/runs",

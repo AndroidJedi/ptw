@@ -67,8 +67,8 @@ git diff --check
 
 ## Idea Laval VPS cutover
 
-The Idea service reads Laval provider settings from the same explicitly passed
-VPS environment files as the existing Idea Evolution runtime. The fixture
+The Idea service reads Laval provider settings from explicitly passed VPS
+environment files. The fixture
 providers are safe for orchestration acceptance but do not constitute live
 market evidence. For live operation set `LAVAL_SEARCH_PROVIDER=dataforseo` with
 its two credentials and set `LAVAL_TREND_PROVIDER=google_trends` with the
@@ -90,8 +90,10 @@ firebase deploy --only hosting
 
 The Idea API binds to loopback port `8093` by default, avoiding Commander's
 `8091`; normal browser traffic still travels through the authenticated Owner
-Gateway over the shared backend network. The Idea API applies migration
-`004_idea_laval_engine.sql` at startup.
+Gateway over the shared backend network. The Idea API applies numbered
+migrations at startup. Migration `005_retire_idea_evolution.sql` irreversibly
+removes retired C01-C10 runtime rows while preserving Laval runs and the active
+mission.
 
 Before declaring the feature live, complete the manual and automatic runs,
 five-country/rerun inspection, override, restart, graph-persistence, export,

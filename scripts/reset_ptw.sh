@@ -94,8 +94,8 @@ BEGIN
       ('reviews', (SELECT count(*) FROM commander_creative_reviews))
   ) AS counts(label,value)
   WHERE (label IN ('missions','active_mission') AND value<>1)
-     OR (label IN ('contexts','context_revisions','ad_contexts','ad_context_revisions') AND value<>10)
-     OR (label NOT IN ('missions','active_mission','contexts','context_revisions','ad_contexts','ad_context_revisions') AND value<>0);
+     OR (label IN ('ad_contexts','ad_context_revisions') AND value<>10)
+     OR (label NOT IN ('missions','active_mission','ad_contexts','ad_context_revisions') AND value<>0);
   IF failures IS NOT NULL THEN RAISE EXCEPTION 'clean checkpoint failed: %', failures; END IF;
 END $$;
 SQL

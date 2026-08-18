@@ -62,6 +62,13 @@ class LavalGatewayProxyTests(unittest.TestCase):
         ):
             created = client.post("/api/v1/laval/runs", headers=headers, json={"text": "Owner idea", "config": {}})
             listed = client.get("/api/v1/laval/runs", headers=headers)
+            for method, path in (
+                ("get", "/api/v1/ideas"),
+                ("post", "/api/v1/generations"),
+                ("get", "/api/v1/contexts"),
+                ("post", "/api/v1/post-batches"),
+            ):
+                self.assertEqual(404, getattr(client, method)(path, headers=headers).status_code)
         self.assertEqual(200, created.status_code)
         self.assertEqual({"items": [], "next_cursor": None}, listed.json())
         self.assertEqual("firebase:owner", calls[0][2]["json"]["actor"])

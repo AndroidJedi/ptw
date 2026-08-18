@@ -4,7 +4,6 @@ import argparse
 from pathlib import Path
 
 from .config import Settings
-from .seeds import load
 from .store import PostgresStore
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,17 +16,20 @@ def main() -> None:
     store = PostgresStore(Settings.from_environment().database_url)
     if args.command == "migrate": store.migrate(ROOT / "db/idea_generation")
     elif args.command == "seed":
-        mission, contexts = load(ROOT / "ideaGeneration")
-        store.seed(mission, contexts)
+        store.seed_laval_mission()
     elif args.command == "reset-runtime":
         with store.transaction() as connection:
-            connection.execute("TRUNCATE laval_runs,telegram_events,reports,executions,idea_evaluations,ideas,idea_submissions,generations,guidance RESTART IDENTITY CASCADE")
+            connection.execute("TRUNCATE laval_runs,telegram_inbox,telegram_offsets,telegram_events,reports,executions,idea_evaluations,ideas,idea_submission_drafts,idea_submissions,generations,guidance,context_revisions,contexts RESTART IDENTITY CASCADE")
             connection.execute("UPDATE missions SET status='active',auto_enabled=FALSE,run_series_remaining=0,stop_after_current_cycle=FALSE")
     else:
-        mission = store.mission(); contexts = store.active_contexts()
-        generations = store.fetchone("SELECT COUNT(*) AS count FROM generations WHERE status='completed'")["count"]
-        if mission["auto_enabled"] or generations or len(contexts) != 10: raise SystemExit("verification failed")
-        print(f"Postgres: OK; Mission: {mission['code']}; Contexts: 10/10; Autopilot: OFF; Generations: 0")
+        mission = store.mission()
+        legacy = store.fetchone(
+            "SELECT (SELECT count(*) FROM generations) + (SELECT count(*) FROM ideas) + "
+            "(SELECT count(*) FROM contexts) AS count"
+        )["count"]
+        runs = store.fetchone("SELECT COUNT(*) AS count FROM laval_runs")["count"]
+        if legacy: raise SystemExit("verification failed: legacy Idea Evolution data exists")
+        print(f"Postgres: OK; Mission: {mission['code']}; Legacy rows: 0; Laval runs: {runs}")
 
 
 if __name__ == "__main__": main()

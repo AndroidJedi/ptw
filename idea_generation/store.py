@@ -27,41 +27,31 @@ class PostgresStore:
                 connection.execute(path.read_text())
                 connection.execute("INSERT INTO idea_schema_migrations(version) VALUES (%s)", (path.name,))
 
-    def seed(self, mission_text: str, contexts: list[dict[str, str]]) -> None:
-        if len(contexts) != 10 or [item["code"] for item in contexts] != [f"C{i:02d}" for i in range(1, 11)]:
-            raise ValueError("seed requires exactly C01-C10")
+    def seed_laval_mission(self) -> None:
+        """Seed only the durable mission required by Laval; never seed ideas or legacy contexts."""
         with self.transaction() as connection:
-            connection.execute("UPDATE missions SET is_active=FALSE WHERE is_active")
-            connection.execute("""INSERT INTO missions(
-                    code,name,name_i18n,task_text,is_active,activated_at,deadline_at
-                ) VALUES ('MISSION_20M_3Y',%s,%s::jsonb,%s,TRUE,NOW(),NOW() + INTERVAL '36 months')
-                ON CONFLICT (code) DO UPDATE SET
-                    name=EXCLUDED.name,
-                    name_i18n=EXCLUDED.name_i18n,
-                    task_text=EXCLUDED.task_text,
-                    is_active=TRUE,
-                    activated_at=COALESCE(missions.activated_at, EXCLUDED.activated_at),
-                    deadline_at=COALESCE(missions.deadline_at, EXCLUDED.deadline_at),
-                    updated_at=NOW()""",
+            connection.execute("UPDATE missions SET is_active=FALSE WHERE is_active AND code<>'MISSION_20M_3Y'")
+            connection.execute(
+                """INSERT INTO missions(
+                        code,name,name_i18n,task_text,is_active,activated_at,deadline_at
+                    ) VALUES ('MISSION_20M_3Y',%s,%s::jsonb,%s,TRUE,NOW(),NOW() + INTERVAL '36 months')
+                    ON CONFLICT (code) DO UPDATE SET
+                        name=EXCLUDED.name,
+                        name_i18n=EXCLUDED.name_i18n,
+                        task_text=EXCLUDED.task_text,
+                        is_active=TRUE,
+                        activated_at=COALESCE(missions.activated_at, EXCLUDED.activated_at),
+                        deadline_at=COALESCE(missions.deadline_at, EXCLUDED.deadline_at),
+                        updated_at=NOW()""",
                 (
                     "Build a remotely operated company worth $20M within 36 months",
                     self.json({
                         "en": "Build a remotely operated company worth $20M within 36 months",
                         "uk": "Побудувати дистанційно керовану компанію вартістю $20 млн за 36 місяців",
                     }),
-                    mission_text,
-                ))
-            for order, item in enumerate(contexts, 1):
-                row = connection.execute("""INSERT INTO contexts(code,name,prompt_text,sort_order) VALUES (%s,%s,%s,%s)
-                    ON CONFLICT (code) DO NOTHING RETURNING id,version""",
-                    (item["code"], item["name"], item["prompt"], order)).fetchone()
-                if row is None:
-                    row = connection.execute(
-                        "SELECT id,version FROM contexts WHERE code=%s", (item["code"],)
-                    ).fetchone()
-                connection.execute("""INSERT INTO context_revisions(context_id,version,name,prompt_text,changed_by,change_note)
-                    VALUES (%s,%s,%s,%s,'seed','authoritative v1 seed') ON CONFLICT DO NOTHING""",
-                    (row[0], row[1], item["name"], item["prompt"]))
+                    "Evaluate and transform only owner-submitted ideas through the Idea Laval pipeline.",
+                ),
+            )
 
     def mission(self, *, lock: bool = False) -> dict[str, Any]:
         suffix = " FOR UPDATE" if lock else ""
@@ -86,9 +76,6 @@ class PostgresStore:
         with self.transaction() as connection:
             row = connection.execute(sql, params).fetchone()
             return int(row[0]) if row else None
-
-    def active_contexts(self) -> list[dict[str, Any]]:
-        return self.fetchall("SELECT * FROM contexts WHERE active ORDER BY sort_order")
 
     def update_mission(self, **values: Any) -> None:
         allowed = {"status", "auto_enabled", "cadence_hours", "run_series_remaining", "stop_after_current_cycle"}

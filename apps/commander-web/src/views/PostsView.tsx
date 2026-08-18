@@ -1,4 +1,4 @@
-import { History, Images, Plus, Send } from 'lucide-react'
+import { History, Plus, Send } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api'
 import { local, type Language } from '../i18n'
@@ -28,7 +28,6 @@ export function PostsView({ api, language }: { api: ApiClient; language: Languag
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [requestText, setRequestText] = useState('')
-  const [ideaId, setIdeaId] = useState('')
 
   const load = () => api.get<{ items: Creative[] }>(`/api/v1/posts?review_status=${filter}&limit=20`)
     .then((data) => { setItems(data.items); setSelected(data.items[0] || null) })
@@ -52,13 +51,10 @@ export function PostsView({ api, language }: { api: ApiClient; language: Languag
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl) }
   }, [api, selected])
 
-  const create = async (count: 1 | 10) => {
+  const create = async () => {
     setBusy(true); setError('')
     try {
-      await api.post(
-        count === 1 ? '/api/v1/posts' : '/api/v1/post-batches',
-        count === 1 ? { request_text: requestText } : { idea_id: ideaId ? Number(ideaId) : null },
-      )
+      await api.post('/api/v1/posts', { request_text: requestText })
       setFilter('pending'); await load()
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
@@ -84,15 +80,13 @@ export function PostsView({ api, language }: { api: ApiClient; language: Languag
     {error && <ErrorState message={error} retry={load} />}
     <section className="post-controls">
       <label>Один пост: гачок | підпис | заклик до дії<input value={requestText} onChange={(event) => setRequestText(event.target.value)} placeholder="Вони сумнівались… | Покажи прогрес | ПОЧАТИ" /></label>
-      <button onClick={() => create(1)} disabled={busy || !requestText.trim()}><Plus />Створити один</button>
-      <label>10 варіантів: ID ідеї (порожнє = найкраща)<input inputMode="numeric" value={ideaId} onChange={(event) => setIdeaId(event.target.value.replace(/\D/g, ''))} placeholder="Наприклад, 42" /></label>
-      <button onClick={() => create(10)} disabled={busy}><Images />Створити 10 варіантів</button>
+      <button onClick={create} disabled={busy || !requestText.trim()}><Plus />Створити один</button>
     </section>
     <div className="tabs review-tabs" role="tablist">
       <button className={filter === 'pending' ? 'selected' : ''} onClick={() => setFilter('pending')}>Черга перевірки</button>
       <button className={filter === 'reviewed' ? 'selected' : ''} onClick={() => setFilter('reviewed')}><History />Галерея / історія</button>
     </div>
-    {items?.length === 0 && <Empty><h2>{filter === 'pending' ? 'Черга порожня' : 'Ще немає перевірок'}</h2><p>Створіть один пост або набір із 10 варіантів.</p></Empty>}
+    {items?.length === 0 && <Empty><h2>{filter === 'pending' ? 'Черга порожня' : 'Ще немає перевірок'}</h2><p>Створіть один пост.</p></Empty>}
     {items && items.length > 1 && <div className="creative-picker" aria-label="Креативи">{items.map((item) => <button key={item.uuid} className={selected?.uuid === item.uuid ? 'selected' : ''} onClick={() => setSelected(item)}><strong>{item.batch_id ? `${item.position}/10` : 'ОДИН'}</strong><span>{String(local(item.title, language))}</span><small>{item.rating ? `${item.rating}/5` : 'перевірка'}</small></button>)}</div>}
     {selected && <div className="review-layout">
       <div>

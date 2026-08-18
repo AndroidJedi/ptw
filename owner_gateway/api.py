@@ -126,28 +126,6 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     def overview(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return read.overview(platform.summary())
 
-    @app.get("/api/v1/ideas")
-    def ideas(limit: int = Query(default=20, ge=1, le=100), cursor: str | None = None, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        try:
-            return read.ideas(limit=limit, cursor=cursor)
-        except ValueError as error:
-            raise HTTPException(status_code=400, detail=str(error)) from error
-
-    @app.post("/api/v1/generations")
-    async def generations(request: Mapping[str, Any], _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        require_running()
-        if not settings.idea_service_token:
-            raise HTTPException(status_code=503, detail="idea generation bridge is not configured")
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(
-                f"{settings.idea_service_url}/internal/web/generations",
-                headers={"X-PTW-Owner-Gateway-Token": settings.idea_service_token},
-                json={"count": request.get("count", 1)},
-            )
-        if response.status_code >= 400:
-            raise HTTPException(status_code=response.status_code, detail=response.json().get("detail", "generation failed"))
-        return response.json()
-
     @app.get("/api/v1/laval/runs")
     async def laval_runs(
         limit: int = Query(default=30, ge=1, le=100),
@@ -224,26 +202,6 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         payload = {**dict(request), "actor": f"firebase:{identity.uid}"}
         return (await laval_bridge("POST", f"/internal/web/laval/runs/{run_id}/{action}", body=payload)).json()
 
-    @app.get("/api/v1/contexts")
-    def contexts(kind: str = Query(default="idea", pattern="^(idea|post)$"), _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return {"items": read.contexts(kind=kind)}
-
-    @app.put("/api/v1/contexts/{kind}/{code}")
-    def revise_context(kind: str, code: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        expected_prefix = "C" if kind == "idea" else "A" if kind == "post" else ""
-        if not expected_prefix or not re.fullmatch(expected_prefix + r"(0[1-9]|10)", code.upper()):
-            raise HTTPException(status_code=400, detail="invalid context kind or code")
-        try:
-            return read.revise_context(
-                kind=kind, code=code, name=str(request.get("name", "")),
-                prompt=str(request.get("prompt", "")), actor=f"firebase:{identity.uid}",
-                note=str(request.get("note", "web owner revision")),
-            )
-        except KeyError as error:
-            raise HTTPException(status_code=404, detail="context not found") from error
-        except ValueError as error:
-            raise HTTPException(status_code=400, detail=str(error)) from error
-
     @app.get("/api/v1/posts")
     def posts(
         limit: int = Query(default=20, ge=1, le=100),
@@ -261,18 +219,6 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
                 policy_path=settings.commander_policy_path, asset_directory=settings.commander_asset_root,
             )
         except ValueError as error:
-            raise HTTPException(status_code=400, detail=str(error)) from error
-
-    @app.post("/api/v1/post-batches")
-    def create_post_batch(request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        require_running()
-        try:
-            idea_id = int(request["idea_id"]) if request.get("idea_id") is not None else None
-            return read.create_post_batch(
-                idea_id=idea_id, chat_id=settings.owner_chat_id, actor=f"firebase:{identity.uid}",
-                policy_path=settings.commander_policy_path, asset_directory=settings.commander_asset_root,
-            )
-        except (KeyError, TypeError, ValueError) as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
 
     @app.post("/api/v1/creatives/{creative_id}/reviews")

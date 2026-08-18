@@ -12,19 +12,9 @@ export interface Mission {
 export interface Overview {
   mission: Mission
   health: Record<string, string>
-  idea_score_trend: Array<{ generation: number; best: number; average: number }>
+  laval_runs: { total: number; active: number; completed: number }
   pending_reviews: number
   jobs: { active: number; blocked: number; last_deploy?: string }
-}
-
-export interface Idea {
-  id: number
-  generation: number
-  mode: string
-  score?: number
-  title: I18n
-  one_liner: I18n
-  details: Record<string, I18n<string | string[]>>
 }
 
 export type LavalStageStatus = 'pending' | 'running' | 'partial' | 'completed' | 'failed' | 'paused' | 'stale'

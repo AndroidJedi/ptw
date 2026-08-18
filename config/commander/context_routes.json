@@ -61,7 +61,7 @@
     "idea_laval": {
       "canonical": [
         "docs/architecture/idea-laval-engine.md",
-        "ideaGeneration/docs/IDEA_EVOLUTION_SYSTEM_BOOTSTRAP.md",
+        "docs/architecture/idea-laval-engine.md",
         "docs/architecture/research-to-hypothesis.md"
       ],
       "optional": [

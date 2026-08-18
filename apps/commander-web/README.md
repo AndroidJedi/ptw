@@ -11,7 +11,9 @@ npm run test:e2e
 
 Configuration:
 
-- `VITE_COMMANDER_API_URL=https://commander.proove-them-wrong.com`
+- Production builds default to
+  `VITE_COMMANDER_API_URL=https://commander.proove-them-wrong.com`; an explicit
+  value can override it for a different deployment.
 - `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY=<public site key>`
 
 The service worker caches document/script/style/font shell resources only. It

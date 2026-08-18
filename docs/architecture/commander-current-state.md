@@ -19,6 +19,12 @@ resolves the active mission instead of using a hard-coded mission constant. LLM
 contracts are English-first and owner-facing generated idea fields contain
 `{en, uk}`; the UI shows Ukrainian by default and can reveal the source.
 
+The production PWA defaults API and WebSocket traffic to the Commander gateway
+even when no build-time override is supplied. Firebase Hosting therefore cannot
+silently rewrite API requests to the application shell. Successful API calls
+also require a JSON content type, and Hosting uses popup-compatible COOP for the
+desktop Google sign-in flow.
+
 The Ideas view now includes the Idea Laval evidence engine alongside Idea
 Evolution. Laval persists 16 inspectable/restartable stages from Owner Capture
 through Final Shortlist, localized search work for configurable countries,
@@ -75,7 +81,9 @@ first successful Google login creates the authoritative Firebase user.
 
 ## Verification
 
-- React TypeScript, three Vitest tests, and the production Vite build pass.
+- React TypeScript, seven Vitest tests, two Playwright browser tests, and the
+  production Vite build pass. Regression coverage clicks the Laval create CTA,
+  verifies its five-country request, and asserts the production gateway fallback.
   Production browser checks confirm `web.app` forwards before Auth starts,
   iPhone uses a same-tab Google flow with the first-party `firebaseapp.com`
   callback, desktop retains the popup flow, and App Check returns HTTP 200.

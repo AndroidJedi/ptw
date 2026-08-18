@@ -2,7 +2,21 @@ import { getToken } from 'firebase/app-check'
 import type { User } from 'firebase/auth'
 import { appCheck } from './firebase'
 
-const baseUrl = (import.meta.env.VITE_COMMANDER_API_URL || '').replace(/\/$/, '')
+const PRODUCTION_API_URL = 'https://commander.proove-them-wrong.com'
+
+export function resolveApiBaseUrl(configured: string | undefined, production: boolean) {
+  return (configured || (production ? PRODUCTION_API_URL : '')).replace(/\/$/, '')
+}
+
+const baseUrl = resolveApiBaseUrl(import.meta.env.VITE_COMMANDER_API_URL, import.meta.env.PROD)
+
+async function jsonBody(response: Response): Promise<unknown> {
+  const contentType = response.headers.get('content-type') || ''
+  if (!contentType.toLowerCase().includes('application/json')) {
+    throw new Error(`API повернув неочікувану відповідь (HTTP ${response.status}). Оновіть сторінку й повторіть.`)
+  }
+  return response.json()
+}
 
 export class ApiClient {
   constructor(private readonly user: User) {}
@@ -22,11 +36,15 @@ export class ApiClient {
       credentials: 'omit',
       headers: { ...(await this.headers(Boolean(init.body))), ...init.headers },
     })
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({})) as { detail?: string }
-      throw new Error(body.detail || `HTTP ${response.status}`)
-    }
-    return response.json() as Promise<T>
+    const body = await jsonBody(response).catch((cause) => {
+      if (!response.ok) return {}
+      throw cause
+    }) as { detail?: string } | T
+    const detail = body && typeof body === 'object' && 'detail' in body
+      ? String(body.detail || '')
+      : ''
+    if (!response.ok) throw new Error(detail || `HTTP ${response.status}`)
+    return body as T
   }
 
   get<T>(path: string): Promise<T> { return this.request<T>(path) }

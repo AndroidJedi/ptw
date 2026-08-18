@@ -20,8 +20,8 @@ COPY config ./config
 COPY commander/assets/fonts ./commander/assets/fonts
 RUN groupadd --system --gid 10002 owner-gateway \
     && useradd --system --uid 10002 --gid 10002 --create-home owner-gateway \
-    && mkdir -p /var/lib/ptw-owner \
-    && chown -R owner-gateway:owner-gateway /var/lib/ptw-owner
+    && mkdir -p /var/lib/ptw-owner /run/ptw-auth \
+    && chown -R owner-gateway:owner-gateway /var/lib/ptw-owner /run/ptw-auth
 USER owner-gateway
 RUN git config --global --add safe.directory /workspace
 CMD ["uvicorn", "owner_gateway.api:create_app_from_env", "--factory", "--host", "0.0.0.0", "--port", "8088"]

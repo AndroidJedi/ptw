@@ -126,6 +126,8 @@ services:
       CODEX_HOME: /run/ptw-auth
       CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
       GH_CONFIG_DIR: /run/ptw-gh
+    group_add:
+      - "10001"
     volumes:
       - /root/ptw:/workspace
       - commander-assets:/var/lib/ptw/assets

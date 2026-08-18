@@ -1,4 +1,4 @@
-const CACHE = 'ptw-shell-v5'
+const CACHE = 'ptw-shell-v6'
 const CACHE_PREFIX = 'ptw-shell-'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/ptw.svg']
 
@@ -15,7 +15,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys()
     const isUpgrade = keys.some((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE)
-    await Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))
+    await Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE).map((key) => caches.delete(key)))
     await self.clients.claim()
     if (isUpgrade) {
       const windows = await self.clients.matchAll({ type: 'window' })

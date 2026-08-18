@@ -1,11 +1,16 @@
 # Owner control plane operations
 
 Status: production cutover runbook
-Updated: 2026-08-17
+Updated: 2026-08-18
 
-Commander Web is deployed to `https://provethemwrong-86123.web.app`; the API
+Commander Web is deployed to `https://provethemwrong-86123.firebaseapp.com`; the API
 and WebSockets use `https://commander.proove-them-wrong.com`. Firebase stores
 identity and static Hosting content only.
+
+The `firebaseapp.com` Hosting origin is canonical so Firebase Auth helper state
+remains first-party in Safari and other storage-partitioned browsers. The
+parallel `web.app` URL forwards to the canonical origin before Auth is
+initialized.
 
 ## Authentication boundary
 

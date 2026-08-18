@@ -58,7 +58,8 @@ tooling, and active documentation have been removed. Roboto is owned by
 client subsystem in the repository.
 
 Production cutover is live on the existing VPS. Firebase Hosting serves the
-mobile web console at `https://provethemwrong-86123.web.app`, and
+mobile web console at `https://provethemwrong-86123.firebaseapp.com`, with the
+parallel `web.app` host forwarding before Auth initialization, and
 `https://commander.proove-them-wrong.com` terminates TLS in the independent
 platform Caddy service before proxying to the Owner Gateway. Commander, Idea,
 and Owner Gateway remain loopback-only on their host-published ports. The

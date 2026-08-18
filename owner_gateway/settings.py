@@ -64,7 +64,7 @@ class Settings:
             root_broker_socket=Path(os.environ.get("ROOT_BROKER_SOCKET", "/run/ptw-root-broker/control.sock")),
             commander_asset_root=Path(os.environ.get("COMMANDER_ASSET_DIR", "/var/lib/ptw/assets")),
             commander_policy_path=Path(os.environ.get("COMMANDER_POLICY_PATH", "config/commander/policies.json")),
-            public_origin=os.environ.get("OWNER_WEB_ORIGIN", "https://provethemwrong-86123.web.app"),
+            public_origin=os.environ.get("OWNER_WEB_ORIGIN", "https://provethemwrong-86123.firebaseapp.com"),
             telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", "").strip(),
             commander_service_url=os.environ.get(
                 "COMMANDER_SERVICE_URL", "http://ptw-commander-api:8080"

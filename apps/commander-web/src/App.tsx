@@ -1,4 +1,4 @@
-import { onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut, type User } from 'firebase/auth'
+import { getRedirectResult, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut, type User } from 'firebase/auth'
 import { LogIn, LogOut, ShieldCheck } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ApiClient } from './api'
@@ -14,16 +14,39 @@ import { PostsView } from './views/PostsView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
 
+function prefersRedirectSignIn() {
+  return window.matchMedia?.('(pointer: coarse)').matches
+    || /Android|iPad|iPhone|iPod/i.test(window.navigator.userAgent)
+}
+
+async function enforceOwner(user: User) {
+  if (!user.emailVerified || user.email?.toLowerCase() !== OWNER) {
+    await signOut(auth)
+    throw new Error('Доступ дозволено лише підтвердженому обліковому запису власника.')
+  }
+}
+
 function Login() {
   const [error, setError] = useState('')
+  useEffect(() => {
+    let active = true
+    void getRedirectResult(auth)
+      .then((result) => result ? enforceOwner(result.user) : undefined)
+      .catch((cause: { message?: string }) => {
+        if (active) setError(cause.message || 'Не вдалося увійти.')
+      })
+    return () => { active = false }
+  }, [])
+
   const login = async () => {
     setError('')
     try {
-      const result = await signInWithPopup(auth, googleProvider)
-      if (!result.user.emailVerified || result.user.email?.toLowerCase() !== OWNER) {
-        await signOut(auth)
-        throw new Error('Доступ дозволено лише підтвердженому обліковому запису власника.')
+      if (prefersRedirectSignIn()) {
+        await signInWithRedirect(auth, googleProvider)
+        return
       }
+      const result = await signInWithPopup(auth, googleProvider)
+      await enforceOwner(result.user)
     } catch (cause) {
       const error = cause as { code?: string; message?: string }
       if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {

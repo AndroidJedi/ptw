@@ -18,6 +18,20 @@ export interface Overview {
 }
 
 export type LavalStageStatus = 'pending' | 'running' | 'partial' | 'completed' | 'failed' | 'paused' | 'stale'
+export type LavalEvidenceMode = 'demo_fixture' | 'live_search_pending_trends' | 'live_complete'
+
+export interface LavalProviderReadiness {
+  llm_provider: string
+  search_provider: string
+  trend_provider: string
+  search_live_ready: boolean
+  trends_live_ready: boolean
+  demo_available: boolean
+  default_evidence_mode: LavalEvidenceMode
+  max_spend_usd: number
+  reserved_spend_usd: number
+  missing: string[]
+}
 
 export interface LavalRun {
   id: string
@@ -34,6 +48,11 @@ export interface LavalRun {
   created_at: string
   updated_at: string
   config: Record<string, unknown>
+  evidence_mode: LavalEvidenceMode
+  provider_snapshot: Record<string, string>
+  max_spend_usd: number
+  reserved_spend_usd: number
+  awaiting_reason?: string | null
 }
 
 export interface LavalStage {
@@ -53,7 +72,7 @@ export interface LavalStage {
 export interface LavalStatus {
   run: LavalRun
   stages: LavalStage[]
-  cost: { items: Array<Record<string, unknown>>; total_usd: number }
+  cost: { items: Array<Record<string, unknown>>; total_usd: number; provider_projected_usd?: number; provider_reserved_usd?: number; provider_actual_usd?: number; max_spend_usd?: number }
   runner_active?: boolean
 }
 

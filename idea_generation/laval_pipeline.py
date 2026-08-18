@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 import hashlib
 import re
+import time
 from typing import Any, Callable, Mapping, Sequence
 from urllib.parse import urlsplit, urlunsplit
 
@@ -104,6 +105,10 @@ class LavalPipeline:
                     self.repository.fail_stage(run_id, stage, error)
                     raise
             finished = self.repository.stage(run_id, stage)
+            run = self.repository.run(run_id)
+            if stage == "OPPORTUNITY_MATRIX" and run.get("evidence_mode") == "live_search_pending_trends":
+                self.repository.await_provider(run_id, "awaiting_trends_provider")
+                return self.repository.status(run_id)
             if self.repository.approval_required(run_id, stage, str(finished["input_hash"])):
                 self.repository.pause(run_id)
                 return self.repository.status(run_id)
@@ -123,6 +128,64 @@ class LavalPipeline:
     def _ensure_active(self, run_id: str) -> None:
         if self.repository.run(run_id)["status"] in {"paused", "cancelled"}:
             raise RunPaused("Laval run is paused")
+
+    def _queued_search_batch(
+        self, run_id: str, stage: str, requests: Sequence[Mapping[str, Any]]
+    ) -> dict[str, list[dict[str, Any]]]:
+        provider = self.providers.search
+        if not all(hasattr(provider, name) for name in ("estimate_cost", "submit_many", "fetch_result")):
+            return {}
+        tasks: dict[str, dict[str, Any]] = {}
+        for request in requests:
+            key = str(request["key"])
+            task = self.repository.provider_task(run_id, stage, key)
+            if not task:
+                task = self.repository.reserve_provider_task(
+                    run_id, stage, key, provider.name, request,
+                    float(provider.estimate_cost(int(request["depth"]))),  # type: ignore[attr-defined]
+                )
+            tasks[key] = task
+
+        to_submit = [dict(task["request"]) for task in tasks.values() if not task.get("remote_task_id") and task["status"] == "reserved"]
+        if to_submit:
+            submitted = provider.submit_many(to_submit)  # type: ignore[attr-defined]
+            submission_errors = []
+            for item in submitted:
+                task = tasks[str(item["key"])]
+                if item.get("remote_task_id"):
+                    self.repository.submit_provider_task(str(task["id"]), str(item["remote_task_id"]), float(item.get("cost") or 0))
+                    tasks[str(item["key"])] = self.repository.provider_task(run_id, stage, str(item["key"])) or task
+                else:
+                    message = str(item.get("error") or "unknown error")
+                    self.repository.fail_provider_task(str(task["id"]), message)
+                    submission_errors.append(f"{item['key']}: {message}")
+            if submission_errors:
+                raise RuntimeError(f"DataForSEO task submission failed: {'; '.join(submission_errors)}")
+
+        results: dict[str, list[dict[str, Any]]] = {}
+        pending: dict[str, dict[str, Any]] = {}
+        for key, task in tasks.items():
+            if task["status"] == "completed" and isinstance(task.get("response"), Mapping):
+                results[key] = list(task["response"].get("results") or [])
+                self.repository.record_provider_cost_once(str(task["id"]), str(task["request"].get("operation") or "localized_serp"))
+            elif task.get("remote_task_id"):
+                pending[key] = task
+        deadline = time.monotonic() + float(getattr(provider, "poll_timeout", 900))
+        while pending and time.monotonic() < deadline:
+            for key, task in list(pending.items()):
+                rows = provider.fetch_result(str(task["remote_task_id"]))  # type: ignore[attr-defined]
+                if rows is None:
+                    continue
+                response = {"results": rows}
+                self.repository.complete_provider_task(str(task["id"]), response)
+                self.repository.record_provider_cost_once(str(task["id"]), str(task["request"].get("operation") or "localized_serp"))
+                results[key] = rows
+                pending.pop(key)
+            if pending:
+                time.sleep(float(getattr(provider, "poll_interval", 5)))
+        if pending:
+            raise TimeoutError(f"DataForSEO queued tasks timed out: {len(pending)} still pending; restart will resume without reposting")
+        return results
 
     @staticmethod
     def _retry(operation: Callable[[], Any], before_retry: Callable[[], None] | None = None) -> Any:
@@ -283,6 +346,23 @@ class LavalPipeline:
         grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
         failures: list[dict[str, Any]] = []
         calls = 0
+        queued_requests: list[dict[str, Any]] = []
+        for intent in plan["query_intents"]:
+            for variant in intent["variants"]:
+                country = str(variant["country"]).upper()
+                if country_filter and country != country_filter.upper():
+                    continue
+                query = str(variant["query"])
+                key = f"{intent['query_intent_id']}:{country}:{variant['language']}:{input_hash(query)[:10]}"
+                existing = self.store.fetchone(
+                    "SELECT status,input_hash FROM laval_stage_items WHERE run_id=%s AND stage='SERP_DISCOVERY' AND item_key=%s",
+                    (run_id, key),
+                )
+                digest = input_hash(query, country, variant["language"], config.serp_depth, self.providers.search.name)
+                if not (existing and existing["status"] == "completed" and existing["input_hash"] == digest):
+                    queued_requests.append({"key": key, "query": query, "country": country, "language": variant["language"], "depth": config.serp_depth, "operation": "localized_serp"})
+        queued_results = self._queued_search_batch(run_id, "SERP_DISCOVERY", queued_requests)
+        queued_mode = hasattr(self.providers.search, "submit_many")
         for intent in plan["query_intents"]:
             for variant in intent["variants"]:
                 country = str(variant["country"]).upper()
@@ -302,10 +382,12 @@ class LavalPipeline:
                     continue
                 self.repository.stage_item(run_id, "SERP_DISCOVERY", key, status="running", country=country, provider=self.providers.search.name, digest=digest, payload={"query": query})
                 try:
-                    results = self._retry(
-                        lambda: self.providers.search.search(query, country=country, language=variant["language"], depth=config.serp_depth),
-                        lambda: self.repository.stage_item(run_id, "SERP_DISCOVERY", key, status="running", country=country, provider=self.providers.search.name, digest=digest, payload={"query": query, "retry": True}),
-                    )
+                    results = queued_results.get(key)
+                    if results is None:
+                        results = self._retry(
+                            lambda: self.providers.search.search(query, country=country, language=variant["language"], depth=config.serp_depth),
+                            lambda: self.repository.stage_item(run_id, "SERP_DISCOVERY", key, status="running", country=country, provider=self.providers.search.name, digest=digest, payload={"query": query, "retry": True}),
+                        )
                     calls += 1
                     normalized = []
                     cost = 0.0
@@ -346,7 +428,8 @@ class LavalPipeline:
                     item_payload = {"query": variant, "results": normalized}
                     grouped[country].append(item_payload)
                     self.repository.stage_item(run_id, "SERP_DISCOVERY", key, status="completed", country=country, provider=self.providers.search.name, digest=digest, payload=item_payload)
-                    self.repository.record_cost(run_id, "SERP_DISCOVERY", self.providers.search.name, "localized_serp", amount_usd=cost)
+                    if not queued_mode:
+                        self.repository.record_cost(run_id, "SERP_DISCOVERY", self.providers.search.name, "localized_serp", amount_usd=cost)
                 except Exception as error:
                     failure = {"country": country, "query": query, "error": type(error).__name__, "message": str(error)[:500]}
                     failures.append(failure)
@@ -478,6 +561,17 @@ class LavalPipeline:
 
     def _competitor_evidence(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
         competitors = self.store.fetchall("SELECT * FROM laval_competitors WHERE run_id=%s AND selected ORDER BY score DESC LIMIT %s", (run_id, config.max_unique_competitors))
+        queued_requests: list[dict[str, Any]] = []
+        for competitor in competitors:
+            searches = (
+                (f'{competitor["name"]} review video demo', "youtube", config.youtube_items_per_competitor),
+                (f'{competitor["name"]} problems review annoying missing feature reddit', "negative", config.negative_feedback_items_per_competitor),
+            )
+            for query, purpose, limit in searches:
+                if limit > 0:
+                    queued_requests.append({"key": f'{competitor["id"]}:{purpose}', "query": query, "country": "US", "language": "en", "depth": min(100, max(3, limit)), "operation": purpose})
+        queued_results = self._queued_search_batch(run_id, "COMPETITOR_EVIDENCE", queued_requests)
+        queued_mode = hasattr(self.providers.search, "submit_many")
         dossiers: dict[str, dict[str, Any]] = {}
         failures: list[dict[str, Any]] = []
         for competitor in competitors:
@@ -532,15 +626,19 @@ class LavalPipeline:
                 except Exception as error:
                     failures.append({"competitor_id": competitor_id, "source": "website", "url": page_url, "error": type(error).__name__})
             searches = (
-                (f'site:youtube.com "{competitor["name"]}" review demo', "youtube", config.youtube_items_per_competitor),
-                (f'"{competitor["name"]}" problems review annoying missing feature reddit', "negative", config.negative_feedback_items_per_competitor),
+                (f'{competitor["name"]} review video demo', "youtube", config.youtube_items_per_competitor),
+                (f'{competitor["name"]} problems review annoying missing feature reddit', "negative", config.negative_feedback_items_per_competitor),
             )
             for query, purpose, limit in searches:
                 if limit <= 0:
                     continue
                 try:
-                    rows = self._retry(lambda: self.providers.search.search(query, country="US", language="en", depth=min(100, max(3, limit))))
-                    self.repository.record_cost(run_id, "COMPETITOR_EVIDENCE", self.providers.search.name, purpose)
+                    rows = queued_results.get(f"{competitor_id}:{purpose}")
+                    if rows is None and not queued_mode:
+                        rows = self._retry(lambda: self.providers.search.search(query, country="US", language="en", depth=min(100, max(3, limit))))
+                        self.repository.record_cost(run_id, "COMPETITOR_EVIDENCE", self.providers.search.name, purpose)
+                    if rows is None:
+                        raise RuntimeError(f"queued search result is missing for {purpose}")
                     selected = rows if purpose == "negative" else [item for item in rows if "youtube" in canonical_domain(str(item.get("url") or ""))]
                     if purpose == "youtube" and not selected:
                         selected = rows[:1]
@@ -577,6 +675,8 @@ class LavalPipeline:
         return artifact, {"competitors": len(competitors), "evidence_items": sum(len(item["evidence_ids"]) for item in dossiers.values()), "failures": len(failures), "graph_sources": len(graph.get("sources", {}))}, bool(failures)
 
     def _sync_evidence_graph(self, run_id: str) -> dict[str, Any]:
+        if self.repository.run(run_id).get("evidence_mode") == "demo_fixture":
+            return {"sources": {}, "demo_excluded": True}
         pending = self.store.fetchall(
             """SELECT * FROM laval_evidence
                WHERE run_id=%s AND commander_source_id IS NULL AND source_type<>'fixture'

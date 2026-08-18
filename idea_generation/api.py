@@ -40,7 +40,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         laval_repository, providers_from_settings(settings, llm)
     )
     laval_runner = LavalRunner(laval_pipeline)
-    laval = LavalService(laval_repository, laval_runner)
+    readiness = {
+        "llm_provider": settings.llm_provider,
+        "search_provider": settings.search_provider,
+        "trend_provider": settings.trend_provider,
+        "search_live_ready": settings.search_provider == "dataforseo" and settings.dataforseo_verified and bool(settings.dataforseo_login and settings.dataforseo_password),
+        "trends_live_ready": settings.trend_provider == "google_trends" and bool(settings.trend_bridge_url),
+        "demo_available": settings.search_provider == "fixture" and settings.trend_provider in {"fixture", "manual"},
+        "max_spend_usd": settings.max_spend_usd,
+        "reserved_spend_usd": settings.reserved_spend_usd,
+    }
+    laval = LavalService(laval_repository, laval_runner, readiness=readiness)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -75,6 +85,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         require_owner_gateway(x_ptw_owner_gateway_token)
         return laval.list(limit)
 
+    @app.get("/internal/web/laval/providers")
+    def laval_providers(
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        missing = []
+        if not readiness["search_live_ready"]:
+            missing.append("dataforseo_credentials")
+        if not readiness["trends_live_ready"]:
+            missing.append("google_trends_alpha_bridge")
+        return {
+            **readiness,
+            "demo_available": readiness["demo_available"],
+            "default_evidence_mode": "demo_fixture" if settings.search_provider == "fixture" else ("live_complete" if readiness["trends_live_ready"] else "live_search_pending_trends"),
+            "missing": missing,
+        }
+
     @app.post("/internal/web/laval/runs")
     def create_laval_run(
         request: Mapping[str, Any], x_ptw_owner_gateway_token: str = Header(default="")
@@ -85,6 +112,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 str(request.get("text") or ""),
                 request.get("config") if isinstance(request.get("config"), Mapping) else {},
                 actor=str(request.get("actor") or "owner-gateway"),
+                requested_mode=str(request.get("mode") or "demo"),
             )
         except (TypeError, ValueError, RuntimeError) as error:
             raise HTTPException(status_code=400, detail=str(error)) from error

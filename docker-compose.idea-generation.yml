@@ -22,9 +22,12 @@ services:
       LAVAL_SEARCH_PROVIDER: ${LAVAL_SEARCH_PROVIDER:-fixture}
       DATAFORSEO_LOGIN: ${DATAFORSEO_LOGIN:-}
       DATAFORSEO_PASSWORD: ${DATAFORSEO_PASSWORD:-}
+      DATAFORSEO_VERIFIED: ${DATAFORSEO_VERIFIED:-0}
       LAVAL_TREND_PROVIDER: ${LAVAL_TREND_PROVIDER:-fixture}
       GOOGLE_TRENDS_BRIDGE_URL: ${GOOGLE_TRENDS_BRIDGE_URL:-}
       GOOGLE_TRENDS_BRIDGE_TOKEN: ${GOOGLE_TRENDS_BRIDGE_TOKEN:-}
+      LAVAL_MAX_SPEND_USD: ${LAVAL_MAX_SPEND_USD:-0.05}
+      LAVAL_RESERVED_SPEND_USD: ${LAVAL_RESERVED_SPEND_USD:-0.04}
       LAVAL_RESEARCH_BRIDGE_URL: ${LAVAL_RESEARCH_BRIDGE_URL:-http://ptw-commander-api:8080/internal/research/laval}
       TZ: Europe/Kyiv
     command: ["uvicorn", "idea_generation.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]

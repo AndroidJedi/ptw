@@ -77,7 +77,7 @@ function Console({ user }: { user: User }) {
   </Shell>
 }
 
-export default function App() {
+function LiveApp() {
   const [user, setUser] = useState<User | null | undefined>(undefined)
   useEffect(() => onAuthStateChanged(auth, (candidate) => {
     if (candidate && (candidate.email?.toLowerCase() !== OWNER || !candidate.emailVerified)) void signOut(auth)
@@ -85,4 +85,15 @@ export default function App() {
   }), [])
   if (user === undefined) return <main className="boot" role="status">PTW</main>
   return user ? <Console user={user} /> : <Login />
+}
+
+const e2eOwner = {
+  email: OWNER,
+  emailVerified: true,
+  getIdToken: async () => 'e2e-owner-token',
+} as unknown as User
+
+export default function App() {
+  const e2eMode = import.meta.env.DEV && (import.meta.env.VITE_E2E === 'true' || new URLSearchParams(window.location.search).has('e2e'))
+  return e2eMode ? <Console user={e2eOwner} /> : <LiveApp />
 }

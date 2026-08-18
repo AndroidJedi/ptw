@@ -2,6 +2,25 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-18 — Laval controls appeared inert during a transient VPS stall
+
+- Impact: the already-rendered Ideas view accepted a stage selection but its
+  artifact/export requests stalled. The real API error appeared above the
+  mobile scroll position, so the inspector misleadingly said the artifact had
+  not been created. SSH also stalled during banner exchange.
+- Evidence: Hosting stayed healthy while public gateway and SSH requests timed
+  out. On recovery without a restart, the 1 GiB VPS had about 57 MiB available,
+  no swap, and recent load averages above 27. All services and stored artifacts
+  were healthy afterward, so resource pressure is the observed correlate rather
+  than a proven single-process root cause.
+- Correction: surface API failures in a fixed in-viewport banner, distinguish
+  load failure from missing artifact, persist evidence modes, and label the
+  existing fixture run as a demo. Add provider-readiness and spend boundaries.
+- Prevention: when both HTTPS and SSH accept TCP but stall, check host load,
+  memory, and disk from the recovery console before rotating credentials or
+  recreating healthy containers. Do not infer a missing database artifact from
+  a failed browser fetch.
+
 ## 2026-08-17 — Telegram control surface retired in favor of owner web UI
 
 - Impact: the growing Telegram command set was inconvenient for analysis,

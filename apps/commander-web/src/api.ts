@@ -25,7 +25,10 @@ export class ApiClient {
     const token = await this.user.getIdToken()
     const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
     if (json) headers['Content-Type'] = 'application/json'
-    headers['X-Firebase-AppCheck'] = (await getToken(appCheck, false)).token
+    const e2eMode = import.meta.env.DEV && (import.meta.env.VITE_E2E === 'true' || new URLSearchParams(window.location.search).has('e2e'))
+    headers['X-Firebase-AppCheck'] = e2eMode
+      ? 'e2e-app-check'
+      : (await getToken(appCheck, false)).token
     return headers
   }
 

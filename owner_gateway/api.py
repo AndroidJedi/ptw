@@ -133,12 +133,18 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     ) -> dict[str, Any]:
         return (await laval_bridge("GET", "/internal/web/laval/runs", params={"limit": limit})).json()
 
+    @app.get("/api/v1/laval/providers")
+    async def laval_providers(
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await laval_bridge("GET", "/internal/web/laval/providers")).json()
+
     @app.post("/api/v1/laval/runs")
     async def create_laval_run(
         request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
     ) -> dict[str, Any]:
         require_running()
-        payload = {"text": request.get("text"), "config": request.get("config") or {}, "actor": f"firebase:{identity.uid}"}
+        payload = {"text": request.get("text"), "config": request.get("config") or {}, "mode": request.get("mode") or "demo", "actor": f"firebase:{identity.uid}"}
         return (await laval_bridge("POST", "/internal/web/laval/runs", body=payload)).json()
 
     @app.get("/api/v1/laval/runs/{run_id}")

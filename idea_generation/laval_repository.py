@@ -34,7 +34,9 @@ class LavalRepository:
         self.store = store
 
     def create_run(
-        self, raw_text: str, config: LavalConfig, *, actor: str = "owner"
+        self, raw_text: str, config: LavalConfig, *, actor: str = "owner",
+        evidence_mode: str = "demo_fixture", provider_snapshot: Mapping[str, Any] | None = None,
+        max_spend_usd: float = .05, reserved_spend_usd: float = .04,
     ) -> dict[str, Any]:
         raw_text = raw_text.strip()
         if not raw_text or len(raw_text) > 100_000:
@@ -48,8 +50,9 @@ class LavalRepository:
                 raise RuntimeError("active mission is not seeded")
             connection.execute(
                 """INSERT INTO laval_runs(
-                       id,mission_id,status,current_stage,config,approval_mode,approval_gates,created_by
-                   ) VALUES(%s,%s,'pending','OWNER_DNA',%s::jsonb,%s,%s,%s)""",
+                       id,mission_id,status,current_stage,config,approval_mode,approval_gates,created_by,
+                       evidence_mode,provider_snapshot,max_spend_usd,reserved_spend_usd
+                   ) VALUES(%s,%s,'pending','OWNER_DNA',%s::jsonb,%s,%s,%s,%s,%s::jsonb,%s,%s)""",
                 (
                     run_id,
                     mission[0],
@@ -57,6 +60,10 @@ class LavalRepository:
                     config.approval_mode,
                     list(config.approval_gates),
                     actor,
+                    evidence_mode,
+                    self.store.json(provider_snapshot or {}),
+                    max_spend_usd,
+                    reserved_spend_usd,
                 ),
             )
             connection.execute(
@@ -151,6 +158,8 @@ class LavalRepository:
     def complete_stage(
         self, run_id: str, stage: str, artifact: Mapping[str, Any] | Sequence[Any], *, metrics: Mapping[str, Any] | None = None, partial: bool = False
     ) -> None:
+        if artifact is None:
+            raise ValueError("completed Laval stage requires an artifact")
         payload = json_safe(artifact)
         self.save_artifact(run_id, stage, f"{stage.lower()}.json", payload)
         self.save_artifact(run_id, stage, f"{stage.lower()}.md", _markdown(payload, title=stage.replace("_", " ").title()))
@@ -236,6 +245,100 @@ class LavalRepository:
             "UPDATE laval_runs SET status=%s,current_stage=%s,completed_at=%s,updated_at=NOW() WHERE id=%s RETURNING 1",
             (status, self.run(run_id).get("current_stage"), None if paused else datetime.now(timezone.utc), run_id),
         )
+
+    def await_provider(self, run_id: str, reason: str) -> None:
+        self.store.execute(
+            "UPDATE laval_runs SET status='paused',awaiting_reason=%s,updated_at=NOW() WHERE id=%s RETURNING 1",
+            (reason[:500], run_id),
+        )
+
+    def enable_live_trends(self, run_id: str, provider: str) -> None:
+        self.store.execute(
+            """UPDATE laval_runs SET evidence_mode='live_complete',awaiting_reason=NULL,
+                      provider_snapshot=jsonb_set(provider_snapshot,'{trends}',to_jsonb(%s::text),TRUE),
+                      updated_at=NOW()
+               WHERE id=%s AND evidence_mode='live_search_pending_trends' RETURNING 1""",
+            (provider, run_id),
+        )
+
+    def reserve_provider_task(
+        self, run_id: str, stage: str, item_key: str, provider: str,
+        request: Mapping[str, Any], estimated_cost: float,
+    ) -> dict[str, Any]:
+        with self.store.transaction() as connection:
+            existing = connection.execute(
+                "SELECT * FROM laval_provider_tasks WHERE run_id=%s AND stage=%s AND item_key=%s FOR UPDATE",
+                (run_id, stage, item_key),
+            ).fetchone()
+            if existing:
+                columns = [item.name for item in connection.execute(
+                    "SELECT * FROM laval_provider_tasks WHERE id=%s", (existing[0],)
+                ).description]
+                return json_safe(dict(zip(columns, existing)))
+            run = connection.execute(
+                "SELECT reserved_spend_usd FROM laval_runs WHERE id=%s FOR UPDATE", (run_id,)
+            ).fetchone()
+            if not run:
+                raise KeyError("Laval run not found")
+            committed = connection.execute(
+                "SELECT COALESCE(sum(CASE WHEN status='completed' THEN actual_cost_usd ELSE reserved_cost_usd END),0) FROM laval_provider_tasks WHERE run_id=%s AND status<>'failed'",
+                (run_id,),
+            ).fetchone()[0]
+            if float(committed) + estimated_cost > float(run[0]) + 1e-9:
+                raise RuntimeError("DataForSEO $0.05 run cap: the $0.04 reservation budget is exhausted")
+            task_id = new_uuid7()
+            connection.execute(
+                """INSERT INTO laval_provider_tasks(
+                       id,run_id,stage,item_key,provider,status,request,reserved_cost_usd
+                   ) VALUES(%s,%s,%s,%s,%s,'reserved',%s::jsonb,%s)""",
+                (task_id, run_id, stage, item_key, provider, self.store.json(request), estimated_cost),
+            )
+        return self.provider_task(run_id, stage, item_key)
+
+    def provider_task(self, run_id: str, stage: str, item_key: str) -> dict[str, Any] | None:
+        row = self.store.fetchone(
+            "SELECT * FROM laval_provider_tasks WHERE run_id=%s AND stage=%s AND item_key=%s",
+            (run_id, stage, item_key),
+        )
+        return json_safe(row) if row else None
+
+    def submit_provider_task(self, task_id: str, remote_task_id: str, actual_cost: float) -> None:
+        self.store.execute(
+            """UPDATE laval_provider_tasks SET remote_task_id=%s,status='submitted',
+                      actual_cost_usd=%s,updated_at=NOW() WHERE id=%s RETURNING 1""",
+            (remote_task_id, actual_cost, task_id),
+        )
+
+    def complete_provider_task(self, task_id: str, response: Mapping[str, Any]) -> None:
+        self.store.execute(
+            "UPDATE laval_provider_tasks SET status='completed',response=%s::jsonb,error=NULL,updated_at=NOW() WHERE id=%s RETURNING 1",
+            (self.store.json(response), task_id),
+        )
+
+    def fail_provider_task(self, task_id: str, error: Exception | str) -> None:
+        error_type = type(error).__name__ if isinstance(error, Exception) else "ProviderError"
+        self.store.execute(
+            "UPDATE laval_provider_tasks SET status='failed',error=%s::jsonb,updated_at=NOW() WHERE id=%s RETURNING 1",
+            (self.store.json({"type": error_type, "message": str(error)[:500]}), task_id),
+        )
+
+    def record_provider_cost_once(self, task_id: str, operation: str) -> bool:
+        with self.store.transaction() as connection:
+            row = connection.execute(
+                """UPDATE laval_provider_tasks SET cost_recorded=TRUE,updated_at=NOW()
+                   WHERE id=%s AND status='completed' AND cost_recorded=FALSE
+                   RETURNING run_id,stage,provider,actual_cost_usd,remote_task_id""",
+                (task_id,),
+            ).fetchone()
+            if not row:
+                return False
+            connection.execute(
+                """INSERT INTO laval_cost_events(
+                       id,run_id,stage,provider,operation,request_count,amount_usd,cached,metadata
+                   ) VALUES(%s,%s,%s,%s,%s,1,%s,FALSE,%s::jsonb)""",
+                (new_uuid7(), row[0], row[1], row[2], operation, row[3], self.store.json({"remote_task_id": row[4]})),
+            )
+        return True
 
     def save_artifact(self, run_id: str, stage: str, name: str, value: Any) -> str:
         artifact_id = new_uuid7()
@@ -365,9 +468,21 @@ class LavalRepository:
                FROM laval_cost_events WHERE run_id=%s GROUP BY stage,provider,operation ORDER BY stage,provider,operation""",
             (run_id,),
         )
+        run = self.run(run_id)
+        provider = self.store.fetchone(
+            """SELECT COALESCE(sum(reserved_cost_usd),0)::float projected,
+                      COALESCE(sum(reserved_cost_usd) FILTER (WHERE status<>'failed'),0)::float reserved,
+                      COALESCE(sum(actual_cost_usd) FILTER (WHERE status<>'failed'),0)::float actual
+               FROM laval_provider_tasks WHERE run_id=%s""",
+            (run_id,),
+        ) or {}
         return {
             "items": json_safe(rows),
             "total_usd": round(sum(float(item["amount_usd"] or 0) for item in rows), 6),
+            "provider_projected_usd": round(float(provider.get("projected") or 0), 6),
+            "provider_reserved_usd": round(float(provider.get("reserved") or 0), 6),
+            "provider_actual_usd": round(float(provider.get("actual") or 0), 6),
+            "max_spend_usd": float(run.get("max_spend_usd") or .05),
         }
 
     def override(
@@ -428,7 +543,9 @@ class LavalRepository:
         row = self.stage(run_id, stage)
         artifact = row.get("artifact")
         if artifact is None:
-            artifact = {}
+            if row.get("status") in {"completed", "partial"}:
+                raise ValueError("artifact_missing: completed stage has no persisted artifact")
+            return {"stage": row, "output": None, "items": self.stage_items(run_id, stage, country=country)}
         if view:
             if not isinstance(artifact, Mapping) or view not in artifact:
                 raise KeyError(f"view {view!r} is not available")
@@ -452,7 +569,20 @@ class LavalRepository:
             payload: Any = self.show(run_id, stage)["output"]
             stem = stage.lower()
         else:
-            payload = {item["stage"]: item.get("artifact") for item in self.stages(run_id)}
+            run = self.run(run_id)
+            payload = {
+                "evidence_notice": {
+                    "mode": run.get("evidence_mode", "demo_fixture"),
+                    "label": {
+                        "demo_fixture": "DEMO — NO LIVE RESEARCH",
+                        "live_search_pending_trends": "LIVE SEARCH — WAITING FOR TRENDS",
+                        "live_complete": "LIVE COMPLETE",
+                    }.get(run.get("evidence_mode"), "DEMO — NO LIVE RESEARCH"),
+                    "providers": run.get("provider_snapshot") or {},
+                    "warning": "DEMO — NO LIVE RESEARCH" if run.get("evidence_mode") == "demo_fixture" else None,
+                },
+                "stages": {item["stage"]: item.get("artifact") for item in self.stages(run_id)},
+            }
             stem = "all"
         if format == "json":
             content = json.dumps(payload, ensure_ascii=False, indent=2, default=str) + "\n"

@@ -63,6 +63,17 @@ Then inspect every applicable boundary:
    Idea container, loopback health, shared-network DNS, then the token-protected
    run-list call from inside Owner Gateway. “Bridge is not configured” and an
    upstream 403 are different failures; do not rotate tokens blindly.
+9. **Host pressure:** if public HTTPS and SSH both accept TCP but stall before a
+   response/banner, use the provider recovery console to inspect load, available
+   memory, swap, disk, and bounded container state. A cached Hosting shell can
+   remain healthy while the 1 GiB VPS is temporarily unable to serve API or SSH.
+   Do not recreate healthy services or rotate credentials until this boundary
+   is distinguished.
+
+For Laval stage inspection, a selected card plus “artifact not created” does
+not prove PostgreSQL lacks the artifact. Confirm the `/show` response and the
+`laval_stage_runs.artifact` presence separately; browser request failures must
+be rendered as failures, not as an empty artifact.
 
 Treat “Firebase ID token and App Check are required” as an incomplete request,
 not a reason to relax authentication. The gateway uses one message when either

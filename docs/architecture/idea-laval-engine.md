@@ -1,6 +1,6 @@
 # Idea Laval Engine
 
-Status: v2 product boundary; fixture orchestration deployed, live-provider acceptance pending
+Status: evidence modes and five-cent live-search guard implemented; deployment pending
 Updated: 2026-08-18
 
 ## Purpose
@@ -33,6 +33,13 @@ in tests but must never appear as owner-created production data.
 PostgreSQL owns the run, stages, child items, artifacts, evidence, normalized
 entities, approvals, overrides, costs, and lineage. JSON and Markdown exports
 are derivatives generated from database state.
+
+Every run has one durable evidence mode. `demo_fixture` is an inspectable
+orchestration demo and must display `DEMO — NO LIVE RESEARCH` everywhere.
+`live_search_pending_trends` uses real search evidence but pauses after the
+Opportunity Matrix. Only `live_complete` may proceed through Google Trends,
+synthesis, evaluation, and a final shortlist. Provider names and the spend cap
+are snapshotted when the run is created.
 
 ## Stages and restart behavior
 
@@ -75,8 +82,10 @@ the existing structured LLM provider, the PostgreSQL repository, and the
 Commander research sink.
 
 - `LAVAL_SEARCH_PROVIDER=fixture` is deterministic and makes no network calls.
-- `LAVAL_SEARCH_PROVIDER=dataforseo` uses localized Google organic SERPs with
-  explicit country/language/depth. Credentials remain outside Git.
+- `LAVAL_SEARCH_PROVIDER=dataforseo` uses DataForSEO's Standard normal-priority
+  task queue with explicit country/language/depth. Remote task IDs are persisted
+  before polling so restart does not repost paid work. The internal reservation
+  ceiling is USD 0.04 and the absolute per-run display cap is USD 0.05.
 - `LAVAL_TREND_PROVIDER=fixture` supplies deterministic recorded-style results.
 - `LAVAL_TREND_PROVIDER=google_trends` requires an owner-provided bridge URL for
   the restricted Google Trends alpha/API account. The bridge contract returns
@@ -85,6 +94,15 @@ Commander research sink.
 No Google Custom Search dependency exists. Provider failures are persisted per
 item; the stage continues when remaining evidence is sufficient and applies a
 partial status/confidence penalty.
+
+DataForSEO credentials come from Dashboard -> API Access and are an API login
+plus a separately generated API password. Configure them only through
+`scripts/configure_laval_providers.sh` on the VPS; the script hides input,
+validates against DataForSEO's free sandbox, writes the non-secret
+`DATAFORSEO_VERIFIED=1` readiness marker, and updates only the root-owned
+environment file. Google Trends remains a limited alpha; apply at
+<https://developers.google.com/search/apis/trends>. Never use unofficial Trends
+scraping as a production substitute.
 
 ## Web and CLI operation
 

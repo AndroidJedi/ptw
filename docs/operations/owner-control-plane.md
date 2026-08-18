@@ -75,6 +75,22 @@ its two credentials and set `LAVAL_TREND_PROVIDER=google_trends` with the
 owner-controlled Trends bridge URL/token. Do not put these values in Git or the
 web application.
 
+Obtain the DataForSEO API login and API password from
+<https://app.dataforseo.com/api-access>; the API password is distinct from the
+dashboard password. Configure it interactively without chat or shell-history
+exposure:
+
+```sh
+ssh -i ~/.ssh/ptw_commander -o IdentitiesOnly=yes root@165.245.212.184
+cd /root/ptw
+scripts/configure_laval_providers.sh
+```
+
+The script validates the free sandbox, writes `DATAFORSEO_VERIFIED=1`, and fixes
+the run maximum at USD 0.05 with only USD 0.04 reservable. It does not configure Google Trends. Apply for
+the restricted official alpha at <https://developers.google.com/search/apis/trends>;
+until access and its bridge are ready, live runs pause after Opportunity Matrix.
+
 Build and restart the three server-side boundaries, then build Hosting:
 
 ```sh

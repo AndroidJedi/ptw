@@ -170,8 +170,16 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-create .check-row { min-height: 48px; display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
 .laval-create .check-row input { width: 22px; height: 22px; margin: 0; accent-color: var(--pink); }
 .laval-error, .laval-failure { margin: 10px 0; padding: 12px; border: 1px solid #7d3030; border-radius: 12px; color: #ffaaaa; background: #250d0d; font-size: 12px; }
-.laval-error { display: flex; justify-content: space-between; align-items: center; }
-.laval-error button { width: 44px; min-height: 44px; border: 0; color: inherit; background: transparent; }
+.laval-error { position: fixed; z-index: 60; top: max(10px, env(safe-area-inset-top)); right: 10px; left: 10px; display: flex; gap: 8px; justify-content: space-between; align-items: center; box-shadow: 0 12px 40px #000b; }
+.laval-error span { flex: 1; }
+.laval-error button, .laval-notice button { min-width: 44px; min-height: 44px; display: inline-flex; gap: 5px; align-items: center; justify-content: center; border: 0; color: inherit; background: transparent; }
+.laval-error button svg, .laval-notice button svg { width: 18px; }
+.laval-notice { position: fixed; z-index: 59; right: 10px; bottom: calc(82px + env(safe-area-inset-bottom)); left: 10px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #297f54; border-radius: 12px; color: #bfffd9; background: #0c281a; font-size: 12px; box-shadow: 0 12px 40px #000b; }
+.laval-mode { margin: 10px 0 16px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.laval-mode legend { color: #fff; font-size: 12px; font-weight: 850; }
+.laval-mode label { min-height: 48px; display: flex; gap: 10px; align-items: center; }
+.laval-mode input { width: 22px; height: 22px; margin: 0; accent-color: var(--pink); }
+.laval-mode p { margin: 6px 0 0; color: #ffcf8b; font-size: 11px; }
 .laval-layout { display: grid; gap: 14px; }
 .laval-runs { display: flex; gap: 8px; overflow-x: auto; }
 .laval-runs > button { min-width: 210px; min-height: 112px; padding: 12px; display: grid; gap: 7px; text-align: left; border: 1px solid var(--line); border-radius: 14px; color: #fff; background: var(--panel); }
@@ -179,6 +187,9 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-runs span, .laval-run-head p { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 10px; text-transform: uppercase; }
 .laval-runs strong { overflow: hidden; font-size: 12px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .laval-runs small { color: var(--pink); font: 9px ui-monospace, monospace; }
+.evidence-badge { width: fit-content; padding: 4px 7px; border: 1px solid #a15c18; border-radius: 999px; color: #ffd096; font: 8px ui-monospace, monospace; font-style: normal; letter-spacing: .04em; }
+.evidence-badge.live_complete { border-color: #2e9b67; color: #99f0c0; }
+.evidence-badge.live_search_pending_trends { border-color: #8b7118; color: #ffe087; }
 .status-dot { width: 8px; height: 8px; flex: 0 0 auto; display: inline-block; border-radius: 50%; background: var(--muted); }
 .status-dot.running, .status-dot.pending { background: var(--yellow); box-shadow: 0 0 0 3px #443814; }
 .status-dot.completed { background: var(--green); }
@@ -188,6 +199,8 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-run-head { padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); }
 .laval-run-head h3 { margin: 5px 0; font-size: 22px; }
 .laval-run-head p { margin: 0 0 14px; }
+.laval-run-head .evidence-badge { display: block; margin-top: 7px; }
+.laval-run-head .laval-waiting { margin: 8px 0 0; color: #ffe087; text-transform: none; }
 .laval-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .laval-actions button { min-height: 44px; padding: 0 11px; font-size: 11px; }
 .laval-actions svg { width: 15px; }
@@ -215,6 +228,10 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-shortlist h4 { margin: 4px 0; font-size: 15px; }
 .laval-shortlist p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
 .laval-shortlist small { color: var(--pink); font: 8px ui-monospace, monospace; }
+.laval-export-preview { position: fixed; z-index: 70; inset: 0; padding: max(24px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom)); overflow: auto; background: #0b0b0ef8; }
+.laval-export-preview > div { display: flex; align-items: center; justify-content: space-between; }
+.laval-export-preview > div button { width: 44px; min-height: 44px; border: 0; color: #fff; background: transparent; }
+.laval-export-preview pre { margin-top: 12px; padding: 12px; overflow: auto; border-radius: 10px; color: #c5fbdc; background: #050506; white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.5 ui-monospace, monospace; }
 .laval-override { margin-top: 14px; border-top: 1px solid var(--line); }
 .laval-override summary { min-height: 48px; display: flex; align-items: center; cursor: pointer; color: #ff71ae; font-size: 11px; font-weight: 800; }
 .laval-override > div { display: grid; gap: 7px; }
@@ -300,6 +317,9 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
   .context-grid { grid-template-columns: repeat(5, 1fr); }
   .context-editor { inset: 8% 15%; border: 1px solid var(--line); border-radius: 20px; }
   .laval-create { inset: 8% 18%; border: 1px solid var(--line); border-radius: 20px; }
+  .laval-error, .laval-notice { right: 24px; left: auto; width: min(520px, calc(100vw - 48px)); }
+  .laval-notice { bottom: 24px; }
+  .laval-export-preview { inset: 8% 18%; border: 1px solid var(--line); border-radius: 20px; }
   .laval-layout { grid-template-columns: 250px minmax(0, 1fr); align-items: start; }
   .laval-runs { max-height: calc(100vh - 220px); display: block; overflow: auto; }
   .laval-runs > button { width: 100%; min-width: 0; margin-bottom: 7px; }

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import math
+import time
 from dataclasses import dataclass
 from html.parser import HTMLParser
 import re
@@ -82,7 +84,9 @@ class FixtureSearchProvider:
 
 class DataForSEOSearchProvider:
     name = "dataforseo"
-    endpoint = "https://api.dataforseo.com/v3/serp/google/organic/live/advanced"
+    task_post_endpoint = "https://api.dataforseo.com/v3/serp/google/organic/task_post"
+    task_get_endpoint = "https://api.dataforseo.com/v3/serp/google/organic/task_get/advanced"
+    normal_cost_per_ten = 0.0006
     locations = {
         "US": "United States",
         "GB": "United Kingdom",
@@ -91,34 +95,78 @@ class DataForSEOSearchProvider:
         "DK": "Denmark",
     }
 
-    def __init__(self, login: str, password: str, *, timeout: float = 90) -> None:
+    def __init__(self, login: str, password: str, *, timeout: float = 90, poll_timeout: float = 900, poll_interval: float = 5) -> None:
         if not login or not password:
             raise RuntimeError("DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD are required")
         self.auth = (login, password)
         self.timeout = timeout
+        self.poll_timeout = poll_timeout
+        self.poll_interval = poll_interval
 
-    def search(self, query: str, *, country: str, language: str, depth: int) -> list[dict[str, Any]]:
+    def estimate_cost(self, depth: int) -> float:
+        return self.normal_cost_per_ten * max(1, math.ceil(depth / 10))
+
+    def submit_many(self, requests: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         import httpx
-        response = httpx.post(
-            self.endpoint,
-            auth=self.auth,
-            json=[{
-                "keyword": query,
-                "location_name": self.locations.get(country, country),
-                "language_code": language,
-                "depth": depth,
-                "device": "desktop",
-            }],
-            timeout=self.timeout,
-        )
+        payload = [{
+            "keyword": str(item["query"]),
+            "location_name": self.locations.get(str(item["country"]), str(item["country"])),
+            "language_code": str(item["language"]),
+            "depth": int(item["depth"]),
+            "device": "desktop",
+            "priority": 1,
+            "tag": str(item["key"])[:255],
+        } for item in requests]
+        response = httpx.post(self.task_post_endpoint, auth=self.auth, json=payload, timeout=self.timeout)
+        response.raise_for_status()
+        body = response.json()
+        if int(body.get("status_code", 0)) != 20000:
+            raise RuntimeError(f"DataForSEO rejected queued tasks: {body.get('status_message', 'unknown error')}")
+        tasks = body.get("tasks") or []
+        if len(tasks) != len(requests):
+            raise RuntimeError("DataForSEO returned an unexpected queued task count")
+        result = []
+        for request, task in zip(requests, tasks):
+            if int(task.get("status_code", 0)) != 20100 or not task.get("id"):
+                result.append({"key": request["key"], "error": str(task.get("status_message") or "unknown error")})
+            else:
+                result.append({"key": request["key"], "remote_task_id": str(task["id"]), "cost": float(task.get("cost") or 0)})
+        return result
+
+    def fetch_result(self, remote_task_id: str) -> list[dict[str, Any]] | None:
+        import httpx
+        response = httpx.get(f"{self.task_get_endpoint}/{remote_task_id}", auth=self.auth, timeout=self.timeout)
         response.raise_for_status()
         payload = response.json()
         if int(payload.get("status_code", 0)) != 20000:
-            raise RuntimeError(f"DataForSEO rejected the request: {payload.get('status_message', 'unknown error')}")
+            raise RuntimeError(f"DataForSEO result request failed: {payload.get('status_message', 'unknown error')}")
         tasks = payload.get("tasks") or []
         task = tasks[0] if tasks else {}
-        if int(task.get("status_code", 0)) != 20000:
-            raise RuntimeError(f"DataForSEO task failed: {task.get('status_message', 'unknown error')}")
+        status = int(task.get("status_code", 0))
+        if status in {20100, 40601, 40602} or not task.get("result"):
+            return None
+        if status != 20000:
+            raise RuntimeError(f"DataForSEO queued task failed: {task.get('status_message', 'unknown error')}")
+        return self._rows(task, depth=int((task.get("data") or {}).get("depth") or 10))
+
+    def wait_for_results(self, tasks: Mapping[str, str]) -> dict[str, list[dict[str, Any]]]:
+        pending = dict(tasks)
+        results: dict[str, list[dict[str, Any]]] = {}
+        deadline = time.monotonic() + self.poll_timeout
+        while pending and time.monotonic() < deadline:
+            for key, remote_task_id in list(pending.items()):
+                rows = self.fetch_result(remote_task_id)
+                if rows is not None:
+                    results[key] = rows
+                    pending.pop(key)
+            if pending:
+                time.sleep(self.poll_interval)
+        if pending:
+            raise TimeoutError(f"DataForSEO queued tasks timed out: {len(pending)} still pending")
+        return results
+
+    @staticmethod
+    def _rows(task: Mapping[str, Any], *, depth: int) -> list[dict[str, Any]]:
         results = task.get("result") or []
         items = (results[0] if results else {}).get("items") or []
         rows = []
@@ -132,13 +180,13 @@ class DataForSEOSearchProvider:
                 "domain": str(item.get("domain") or ""),
                 "snippet": str(item.get("description") or ""),
                 "result_type": "organic",
-                "provider_metadata": {
-                    "task_id": task.get("id"),
-                    "cost": float(task.get("cost") or 0),
-                    "provider_status": task.get("status_code"),
-                },
+                "provider_metadata": {"task_id": task.get("id"), "cost": float(task.get("cost") or 0), "provider_status": task.get("status_code")},
             })
         return rows[:depth]
+
+    def search(self, query: str, *, country: str, language: str, depth: int) -> list[dict[str, Any]]:
+        submitted = self.submit_many([{"key": "single", "query": query, "country": country, "language": language, "depth": depth}])
+        return self.wait_for_results({"single": submitted[0]["remote_task_id"]})["single"]
 
 
 class _TextExtractor(HTMLParser):

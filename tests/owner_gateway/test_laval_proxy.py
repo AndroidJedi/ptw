@@ -52,6 +52,8 @@ class LavalGatewayProxyTests(unittest.TestCase):
                 calls.append((method, url, kwargs))
                 if method == "POST":
                     return httpx.Response(200, json={"run_id": "01234567-89ab-7def-8123-456789abcdef", "status": "pending"})
+                if url.endswith("/providers"):
+                    return httpx.Response(200, json={"search_live_ready": False, "trends_live_ready": False, "missing": ["dataforseo_credentials"]})
                 return httpx.Response(200, json={"items": [], "next_cursor": None})
 
         headers = {"Authorization": "Bearer owner-token", "X-Firebase-AppCheck": "app-token"}
@@ -62,6 +64,7 @@ class LavalGatewayProxyTests(unittest.TestCase):
         ):
             created = client.post("/api/v1/laval/runs", headers=headers, json={"text": "Owner idea", "config": {}})
             listed = client.get("/api/v1/laval/runs", headers=headers)
+            providers = client.get("/api/v1/laval/providers", headers=headers)
             for method, path in (
                 ("get", "/api/v1/ideas"),
                 ("post", "/api/v1/generations"),
@@ -71,6 +74,8 @@ class LavalGatewayProxyTests(unittest.TestCase):
                 self.assertEqual(404, getattr(client, method)(path, headers=headers).status_code)
         self.assertEqual(200, created.status_code)
         self.assertEqual({"items": [], "next_cursor": None}, listed.json())
+        self.assertFalse(providers.json()["search_live_ready"])
+        self.assertEqual("demo", calls[0][2]["json"]["mode"])
         self.assertEqual("firebase:owner", calls[0][2]["json"]["actor"])
         self.assertEqual("bridge-token", calls[0][2]["headers"]["X-PTW-Owner-Gateway-Token"])
         self.assertTrue(calls[0][1].endswith("/internal/web/laval/runs"))

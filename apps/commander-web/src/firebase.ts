@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check'
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, type AppCheck } from 'firebase/app-check'
 import { browserLocalPersistence, getAuth, GoogleAuthProvider, setPersistence } from 'firebase/auth'
 
 const firebaseConfig = {
@@ -24,7 +24,11 @@ export const googleProvider = new GoogleAuthProvider()
 googleProvider.setCustomParameters({ prompt: 'select_account', login_hint: 'sgolovaschuk@gmail.com' })
 
 const appCheckKey = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY || productionAppCheckKey
-export const appCheck = initializeAppCheck(firebaseApp, {
-  provider: new ReCaptchaEnterpriseProvider(appCheckKey),
-  isTokenAutoRefreshEnabled: true,
-})
+const e2eMode = import.meta.env.DEV && (import.meta.env.VITE_E2E === 'true' || new URLSearchParams(window.location.search).has('e2e'))
+
+export const appCheck: AppCheck = e2eMode
+  ? undefined as unknown as AppCheck
+  : initializeAppCheck(firebaseApp, {
+    provider: new ReCaptchaEnterpriseProvider(appCheckKey),
+    isTokenAutoRefreshEnabled: true,
+  })

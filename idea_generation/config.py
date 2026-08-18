@@ -27,10 +27,13 @@ class Settings:
     search_provider: str = "fixture"
     dataforseo_login: str = ""
     dataforseo_password: str = ""
+    dataforseo_verified: bool = False
     trend_provider: str = "fixture"
     trend_bridge_url: str = ""
     trend_bridge_token: str = ""
     research_bridge_url: str = ""
+    max_spend_usd: float = 0.05
+    reserved_spend_usd: float = 0.04
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -42,6 +45,8 @@ class Settings:
             "TELEGRAM_ALLOWED_USER_IDS", ""
         )
         raw_user_ids = os.environ.get("TELEGRAM_ALLOWED_USER_IDS", "") or raw_ids
+        max_spend_usd = min(0.05, max(0.0, float(os.environ.get("LAVAL_MAX_SPEND_USD", "0.05"))))
+        reserved_spend_usd = min(max_spend_usd, 0.04, max(0.0, float(os.environ.get("LAVAL_RESERVED_SPEND_USD", "0.04"))))
         return cls(
             database_url=database_url,
             telegram_token=token,
@@ -59,6 +64,7 @@ class Settings:
             ).strip().lower(),
             dataforseo_login=os.environ.get("DATAFORSEO_LOGIN", "").strip(),
             dataforseo_password=os.environ.get("DATAFORSEO_PASSWORD", "").strip(),
+            dataforseo_verified=os.environ.get("DATAFORSEO_VERIFIED", "").strip() == "1",
             trend_provider=os.environ.get(
                 "LAVAL_TREND_PROVIDER", os.environ.get("TREND_PROVIDER", "fixture")
             ).strip().lower(),
@@ -68,4 +74,6 @@ class Settings:
                 "LAVAL_RESEARCH_BRIDGE_URL",
                 "http://ptw-commander-api:8080/internal/research/laval",
             ).strip(),
+            max_spend_usd=max_spend_usd,
+            reserved_spend_usd=reserved_spend_usd,
         )

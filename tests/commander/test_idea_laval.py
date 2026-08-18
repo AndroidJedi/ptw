@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import os
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 from idea_generation.laval_context import ContextCompiler
 from idea_generation.laval_domain import (
@@ -19,6 +21,7 @@ from idea_generation.laval_domain import (
 )
 from idea_generation.laval_pipeline import LavalPipeline
 from idea_generation.laval_providers import (
+    DataForSEOSearchProvider,
     FixtureSearchProvider,
     FixtureTrendProvider,
     FixtureWebPageProvider,
@@ -78,6 +81,43 @@ class LavalDomainTests(unittest.TestCase):
         self.assertIn("dimensions", trends)
         self.assertTrue(trends["raw"]["fixture"])
 
+    def test_dataforseo_uses_normal_queue_and_conservative_five_cent_budget_units(self) -> None:
+        provider = DataForSEOSearchProvider("api-login", "api-password", poll_interval=0)
+        self.assertEqual(.0006, provider.estimate_cost(10))
+        self.assertEqual(.0012, provider.estimate_cost(20))
+        self.assertNotIn("/live/", provider.task_post_endpoint)
+        self.assertNotIn("site:youtube.com", inspect.getsource(LavalPipeline._competitor_evidence))
+        if importlib.util.find_spec("httpx") is None:
+            self.skipTest("httpx is exercised by the built-image suite")
+
+        class Response:
+            def __init__(self, payload): self.payload = payload
+            def raise_for_status(self): return None
+            def json(self): return self.payload
+
+        submitted_payload = {
+            "status_code": 20000,
+            "tasks": [{"id": "remote-task", "status_code": 20100, "cost": .0006}],
+        }
+        completed_payload = {
+            "status_code": 20000,
+            "tasks": [{
+                "id": "remote-task", "status_code": 20000, "cost": .0006,
+                "data": {"depth": 10},
+                "result": [{"items": [{"type": "organic", "url": "https://example.com", "domain": "example.com", "title": "Example", "rank_absolute": 1}]}],
+            }],
+        }
+        with (
+            patch("httpx.post", return_value=Response(submitted_payload)) as post,
+            patch("httpx.get", return_value=Response(completed_payload)) as get,
+        ):
+            tasks = provider.submit_many([{"key": "one", "query": "accountability app", "country": "US", "language": "en", "depth": 10}])
+            rows = provider.fetch_result(tasks[0]["remote_task_id"])
+        self.assertEqual("remote-task", tasks[0]["remote_task_id"])
+        self.assertEqual("https://example.com", rows[0]["url"])
+        self.assertEqual(1, post.call_args.kwargs["json"][0]["priority"])
+        self.assertIn("task_get/advanced/remote-task", get.call_args.args[0])
+
     def test_context_compiler_enforces_synthesis_limits(self) -> None:
         config = LavalConfig.from_mapping({"synthesis": {"max_opportunities": 2, "max_trend_scores": 1, "max_trend_discoveries": 1}})
         packet = ContextCompiler(config).build_synthesis_context(
@@ -135,6 +175,7 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         )
         result = self.pipeline.run(created["run_id"])
         self.assertEqual("completed", result["run"]["status"])
+        self.assertEqual("demo_fixture", result["run"]["evidence_mode"])
         self.assertEqual(16, len(result["stages"]))
         self.assertTrue(all(item["status"] in {"completed", "partial"} for item in result["stages"]))
         country_slots = self.store.fetchone("SELECT count(*) n FROM laval_competitor_country_rankings WHERE run_id=%s", (created["run_id"],))["n"]
@@ -177,6 +218,106 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         second = self.pipeline.run(created["run_id"])
         self.assertEqual("paused", second["run"]["status"])
         self.assertEqual("OPPORTUNITY_MATRIX", second["run"]["current_stage"])
+
+    def test_live_search_without_trends_stops_before_trend_generation(self) -> None:
+        created = self.repository.create_run(
+            "Accountability circles backed by live search.", self._config(), actor="test",
+            evidence_mode="live_search_pending_trends",
+            provider_snapshot={"search": "dataforseo", "trends": "unavailable", "llm": "test"},
+        )
+        result = self.pipeline.run(created["run_id"])
+        self.assertEqual("paused", result["run"]["status"])
+        self.assertEqual("awaiting_trends_provider", result["run"]["awaiting_reason"])
+        self.assertEqual("completed", self.repository.stage(created["run_id"], "OPPORTUNITY_MATRIX")["status"])
+        self.assertEqual("pending", self.repository.stage(created["run_id"], "TREND_QUERY_PLAN")["status"])
+        self.assertEqual(0, self.store.fetchone("SELECT count(*) n FROM laval_idea_variants WHERE run_id=%s", (created["run_id"],))["n"])
+        service = LavalService(
+            self.repository, LavalRunner(self.pipeline),
+            readiness={"trends_live_ready": False, "trend_provider": "fixture"},
+        )
+        with self.assertRaisesRegex(RuntimeError, "not ready"):
+            service.resume(created["run_id"])
+
+    def test_completed_stage_artifact_and_provider_budget_are_database_invariants(self) -> None:
+        created = self.repository.create_run("Budgeted live research.", self._config(), actor="test")
+        with self.assertRaises(Exception):
+            self.store.execute(
+                "UPDATE laval_stage_runs SET status='completed',artifact=NULL WHERE run_id=%s AND stage='OWNER_CAPTURE' RETURNING 1",
+                (created["run_id"],),
+            )
+        self.repository.reserve_provider_task(
+            created["run_id"], "SERP_DISCOVERY", "large", "dataforseo",
+            {"key": "large", "query": "q", "country": "US", "language": "en", "depth": 10}, .039,
+        )
+        with self.assertRaisesRegex(RuntimeError, "reservation budget"):
+            self.repository.reserve_provider_task(
+                created["run_id"], "SERP_DISCOVERY", "over", "dataforseo",
+                {"key": "over", "query": "q2", "country": "GB", "language": "en", "depth": 10}, .002,
+            )
+
+    def test_fixture_backfill_and_graph_exclusion_are_durable(self) -> None:
+        created = self.repository.create_run("Fixture lineage must remain a demo.", self._config(), actor="test")
+        self.store.execute(
+            "UPDATE laval_stage_runs SET provider='fixture' WHERE run_id=%s AND stage='OWNER_CAPTURE' RETURNING 1",
+            (created["run_id"],),
+        )
+        self.store.execute(
+            "UPDATE laval_runs SET evidence_mode='live_complete',provider_snapshot='{}'::jsonb WHERE id=%s RETURNING 1",
+            (created["run_id"],),
+        )
+        self.store.execute("DELETE FROM idea_schema_migrations WHERE version='006_laval_evidence_modes.sql' RETURNING 1")
+        self.store.migrate(Path("db/idea_generation"))
+        self.assertEqual("demo_fixture", self.repository.run(created["run_id"])["evidence_mode"])
+
+        class RecordingResearch:
+            name = "recording"
+            calls = 0
+            def record(self, _payload): self.calls += 1; return {"sources": {}}
+
+        research = RecordingResearch()
+        pipeline = LavalPipeline(self.repository, ProviderBundle(
+            llm=MockLLMProvider(), search=FixtureSearchProvider(), web=FixtureWebPageProvider(),
+            trends=FixtureTrendProvider(), research=research,
+        ))
+        result = pipeline._sync_evidence_graph(created["run_id"])
+        self.assertTrue(result["demo_excluded"])
+        self.assertEqual(0, research.calls)
+
+    def test_submitted_dataforseo_task_resumes_without_reposting_or_duplicate_cost(self) -> None:
+        created = self.repository.create_run(
+            "Resume paid search safely.", self._config(), actor="test",
+            evidence_mode="live_search_pending_trends", provider_snapshot={"search": "dataforseo"},
+        )
+        request = {"key": "US:en:q", "query": "accountability app", "country": "US", "language": "en", "depth": 10, "operation": "localized_serp"}
+        task = self.repository.reserve_provider_task(created["run_id"], "SERP_DISCOVERY", request["key"], "dataforseo", request, .0006)
+        self.repository.submit_provider_task(str(task["id"]), "remote-paid-once", .0006)
+
+        class RestartedQueueProvider:
+            name = "dataforseo"
+            poll_timeout = 1
+            poll_interval = 0
+            submissions = 0
+            fetches = 0
+            def estimate_cost(self, _depth): return .0006
+            def submit_many(self, _requests): self.submissions += 1; return []
+            def fetch_result(self, remote_task_id):
+                self.fetches += 1
+                return [{"url": "https://example.com", "provider_metadata": {"task_id": remote_task_id}}]
+
+        search = RestartedQueueProvider()
+        pipeline = LavalPipeline(self.repository, ProviderBundle(
+            llm=MockLLMProvider(), search=search, web=FixtureWebPageProvider(),
+            trends=FixtureTrendProvider(), research=NullResearchSink(),
+        ))
+        first = pipeline._queued_search_batch(created["run_id"], "SERP_DISCOVERY", [request])
+        second = pipeline._queued_search_batch(created["run_id"], "SERP_DISCOVERY", [request])
+        self.assertEqual(first, second)
+        self.assertEqual(0, search.submissions)
+        self.assertEqual(1, search.fetches)
+        self.assertEqual(1, self.store.fetchone(
+            "SELECT count(*) n FROM laval_cost_events WHERE run_id=%s AND provider='dataforseo'",
+            (created["run_id"],),
+        )["n"])
 
     def test_country_rerun_marks_every_downstream_stage_stale(self) -> None:
         created = self.repository.create_run("Visible progress proof.", self._config(), actor="test")
@@ -285,6 +426,13 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
                 json={"text": "A visible accountability proof journey.", "config": {"approval_mode": "automatic"}},
             )
             self.assertEqual(200, created.status_code)
+            providers = client.get("/internal/web/laval/providers", headers=headers)
+            self.assertFalse(providers.json()["search_live_ready"])
+            blocked = client.post(
+                "/internal/web/laval/runs", headers=headers,
+                json={"text": "Must be live", "mode": "live", "config": {}},
+            )
+            self.assertEqual(400, blocked.status_code)
             run_id = created.json()["run_id"]
             status = client.get(f"/internal/web/laval/runs/{run_id}", headers=headers)
             self.assertEqual("pending", status.json()["run"]["status"])

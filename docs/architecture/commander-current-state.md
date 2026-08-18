@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: web-only Commander and Idea Laval deployed; owner UID bound, authenticated functional acceptance pending
+Status: truthful Laval evidence modes implemented locally; deployment and owner acceptance pending
 Updated: 2026-08-18
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -110,9 +110,10 @@ verified Google Firebase user.
 
 ## Verification
 
-- React TypeScript, eight Vitest tests, two Playwright browser tests, and the
-  production Vite build pass. Regression coverage clicks the Laval create CTA,
-  verifies its five-country request, and asserts the production gateway fallback.
+- React TypeScript, nine Vitest tests, six Playwright browser tests across
+  desktop Chrome, Pixel emulation, and iPhone WebKit, and the production Vite
+  build pass. Regression coverage clicks Laval creation, all 16 stage cards,
+  rerun/approval/navigation, provider gating, and authenticated export fallback.
   Production browser checks confirm `web.app` forwards before Auth starts,
   iPhone uses a same-tab Google flow with the first-party `firebaseapp.com`
   callback, desktop retains the popup flow, and App Check returns HTTP 200.
@@ -136,9 +137,9 @@ verified Google Firebase user.
   platform PostgreSQL URL. Production was recreated with the correct environment
   and `PlatformRepository.summary()` succeeds. Compose interpolation and gateway
   settings now fail fast on this condition.
-- Commander/Laval suite in the Commander image against disposable PostgreSQL
-  16: 57 tests pass; seven intentionally retired Telegram tests skip.
-- Focused Laval PostgreSQL suite: 14 tests pass, including the 16-stage fixture,
+- Commander/Laval built-image suite: 62 tests pass or intentionally skip only
+  environment/integration cases; every dependency-backed unit path passes.
+- Focused Laval PostgreSQL suite: 19 tests pass, including the 16-stage fixture,
   exact 21-variant provenance, partial country failure, retry/cache behavior,
   manual approval, country rerun/staleness, overrides, authenticated API, and
   export.
@@ -187,6 +188,21 @@ verified Google Firebase user.
 4. Exercise the production reset only after the owner supplies its exact web
    confirmation. The reset is irreversible and was intentionally not invoked
    during deployment.
+
+## 2026-08-18 Laval truthfulness milestone
+
+Production audit resolved run `01a01476-a4f6-7f3f-bab0-26845f45fc6d` as a
+fixture demo: search, competitor evidence, and Trends used fixture providers;
+the Codex bridge handled language stages using the existing authenticated VPS
+runtime; provider cost and graph-linked sources were zero. All 16 database
+artifacts were present. The mobile “artifact not created” message was caused by
+a failed `/show` request during a transient whole-VPS stall, not missing data.
+
+Migration 006, provider readiness, evidence-mode badges/exports, stop-before-
+Trends behavior, queued DataForSEO task persistence, the USD 0.05/0.04 spend
+boundary, mobile error/export handling, and a secret-safe provider setup script
+are implemented and locally verified in the working branch. They are not production claims until
+the image/deployment checks and authenticated owner-browser acceptance pass.
 
 ## Operational warning
 

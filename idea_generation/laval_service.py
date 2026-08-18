@@ -66,14 +66,34 @@ class LavalRunner:
 
 
 class LavalService:
-    def __init__(self, repository: LavalRepository, runner: LavalRunner) -> None:
+    def __init__(self, repository: LavalRepository, runner: LavalRunner, *, readiness: Mapping[str, Any] | None = None) -> None:
         self.repository = repository
         self.runner = runner
         self.store = repository.store
+        self.readiness = dict(readiness or {})
 
-    def create(self, text: str, config: Mapping[str, Any] | None, *, actor: str) -> dict[str, Any]:
+    def create(self, text: str, config: Mapping[str, Any] | None, *, actor: str, requested_mode: str = "demo") -> dict[str, Any]:
         parsed = LavalConfig.from_mapping(config)
-        result = self.repository.create_run(text, parsed, actor=actor)
+        if requested_mode not in {"demo", "live"}:
+            raise ValueError("mode must be demo or live")
+        if requested_mode == "demo" and not self.readiness.get("demo_available", True):
+            raise RuntimeError("Demo mode is unavailable while live providers are active")
+        if requested_mode == "live" and not self.readiness.get("search_live_ready"):
+            raise RuntimeError("Live research requires verified DataForSEO credentials")
+        evidence_mode = "demo_fixture" if requested_mode == "demo" else (
+            "live_complete" if self.readiness.get("trends_live_ready") else "live_search_pending_trends"
+        )
+        snapshot = {
+            "search": "fixture" if evidence_mode == "demo_fixture" else self.readiness.get("search_provider", "unavailable"),
+            "web": "fixture" if evidence_mode == "demo_fixture" else "http",
+            "trends": "fixture" if evidence_mode == "demo_fixture" else self.readiness.get("trend_provider", "unavailable"),
+            "llm": self.readiness.get("llm_provider", "unknown"),
+        }
+        result = self.repository.create_run(
+            text, parsed, actor=actor, evidence_mode=evidence_mode, provider_snapshot=snapshot,
+            max_spend_usd=float(self.readiness.get("max_spend_usd", .05)),
+            reserved_spend_usd=float(self.readiness.get("reserved_spend_usd", .04)),
+        )
         return {**result, "status": "pending", "config": parsed.to_dict()}
 
     def list(self, limit: int = 30) -> dict[str, Any]:
@@ -95,6 +115,10 @@ class LavalService:
         run = self.repository.run(run_id)
         if run["status"] == "completed":
             raise ValueError("completed Laval run does not need resume")
+        if run.get("awaiting_reason") == "awaiting_trends_provider":
+            if not self.readiness.get("trends_live_ready"):
+                raise RuntimeError("Google Trends provider is not ready; synthesis and shortlist remain blocked")
+            self.repository.enable_live_trends(run_id, str(self.readiness.get("trend_provider") or "google_trends"))
         self.repository.ready(run_id)
         started = self.runner.start(run_id)
         return {"run_id": run_id, "started": started, "status": "pending"}

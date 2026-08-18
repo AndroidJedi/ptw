@@ -18,14 +18,14 @@
 
     @health {
         method GET
-        path /health
+        path /health /healthz
     }
     handle @health {
-        reverse_proxy commander-api:8000
+        reverse_proxy ptw-owner-gateway:8088
     }
 
     handle {
-        respond "Not Found" 404
+        reverse_proxy ptw-owner-gateway:8088
     }
 }
 

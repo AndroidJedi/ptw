@@ -175,3 +175,15 @@ Canonical record of deployment gaps and prevention rules. Do not store secrets.
 - Prevention: distinguish one-shot SSH completion from connection failure, use
   a dummy-auth 401 as the egress discriminator, then check API Access, IP
   whitelisting, account status, and provider support without exposing secrets.
+
+## 2026-08-18 — One Standard-queue SERP outlived the polling window
+
+- Impact: a live five-country run showed SERP Discovery as failed after 31 of
+  32 paid tasks completed; the final remote task remained safely persisted.
+- Cause: the 900-second polling window treated a normal-priority queue outlier
+  as a stage failure even though DataForSEO completed it later.
+- Correction: free Advanced retrieval confirmed the existing task was ready,
+  the same run resumed without reposting or rebilling, and the default polling
+  window was raised to 3600 seconds with an owner-actionable fallback message.
+- Prevention: audit persisted provider task state before retrying, never infer
+  a need to repost from a queue timeout, and retain exactly-once cost recording.

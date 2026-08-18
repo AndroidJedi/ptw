@@ -28,6 +28,7 @@ class Settings:
     dataforseo_login: str = ""
     dataforseo_password: str = ""
     dataforseo_verified: bool = False
+    dataforseo_poll_timeout: int = 3600
     trend_provider: str = "fixture"
     trend_bridge_url: str = ""
     trend_bridge_token: str = ""
@@ -65,6 +66,7 @@ class Settings:
             dataforseo_login=os.environ.get("DATAFORSEO_LOGIN", "").strip(),
             dataforseo_password=os.environ.get("DATAFORSEO_PASSWORD", "").strip(),
             dataforseo_verified=os.environ.get("DATAFORSEO_VERIFIED", "").strip() == "1",
+            dataforseo_poll_timeout=max(60, int(os.environ.get("DATAFORSEO_POLL_TIMEOUT_SECONDS", "3600"))),
             trend_provider=os.environ.get(
                 "LAVAL_TREND_PROVIDER", os.environ.get("TREND_PROVIDER", "fixture")
             ).strip().lower(),

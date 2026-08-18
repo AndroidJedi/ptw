@@ -95,7 +95,7 @@ class DataForSEOSearchProvider:
         "DK": "Denmark",
     }
 
-    def __init__(self, login: str, password: str, *, timeout: float = 90, poll_timeout: float = 900, poll_interval: float = 5) -> None:
+    def __init__(self, login: str, password: str, *, timeout: float = 90, poll_timeout: float = 3600, poll_interval: float = 5) -> None:
         if not login or not password:
             raise RuntimeError("DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD are required")
         self.auth = (login, password)
@@ -349,7 +349,11 @@ def providers_from_settings(settings: Settings, llm: StructuredProvider) -> Prov
         search: SearchProvider = FixtureSearchProvider()
         web: WebPageProvider = FixtureWebPageProvider()
     elif settings.search_provider == "dataforseo":
-        search = DataForSEOSearchProvider(settings.dataforseo_login, settings.dataforseo_password)
+        search = DataForSEOSearchProvider(
+            settings.dataforseo_login,
+            settings.dataforseo_password,
+            poll_timeout=settings.dataforseo_poll_timeout,
+        )
         web = HttpWebPageProvider()
     else:
         raise RuntimeError("LAVAL_SEARCH_PROVIDER must be fixture or dataforseo")

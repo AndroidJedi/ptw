@@ -84,8 +84,10 @@ Commander research sink.
 - `LAVAL_SEARCH_PROVIDER=fixture` is deterministic and makes no network calls.
 - `LAVAL_SEARCH_PROVIDER=dataforseo` uses DataForSEO's Standard normal-priority
   task queue with explicit country/language/depth. Remote task IDs are persisted
-  before polling so restart does not repost paid work. The internal reservation
-  ceiling is USD 0.04 and the absolute per-run cap is USD 0.05.
+  before polling so restart does not repost paid work. Polling allows up to one
+  hour for queue outliers; a later Retry fetches the same paid task rather than
+  posting it again. The internal reservation ceiling is USD 0.04 and the
+  absolute per-run cap is USD 0.05.
 - `LAVAL_TREND_PROVIDER=fixture` supplies deterministic recorded-style results.
 - `LAVAL_TREND_PROVIDER=google_trends` requires an owner-provided bridge URL for
   the restricted Google Trends alpha/API account. The bridge contract returns

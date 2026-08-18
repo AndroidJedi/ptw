@@ -120,6 +120,14 @@ status, and escalate the persistent access-specific rejection to DataForSEO.
 Never print the credential pair or the full response body; report only bounded
 HTTP/provider status and message fields.
 
+For a Laval Standard-queue timeout, resolve the exact run and compare
+`laval_provider_tasks` counts for `completed` and `submitted`. A submitted row
+with a remote task ID is already paid and must never be reposted. Use the
+provider's Advanced GET only to determine readiness; retrieval is free. Once it
+is ready, resume the same run so the persisted ID is fetched and its cost is
+recorded exactly once. Keep the production poll window at 3600 seconds because
+normal-priority outliers can exceed the earlier 900-second window.
+
 ## Capture reusable incident knowledge
 
 After every production incident, update the narrowest canonical repository

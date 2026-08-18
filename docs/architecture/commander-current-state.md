@@ -223,6 +223,12 @@ production, proving endpoint reachability while production remained unchanged.
 The setup script now reports bounded HTTP/provider status details so account,
 IP-whitelist, and credential failures are actionable without exposing secrets.
 
+The first paid live run persisted 32 Standard-queue task IDs and completed 31
+within the original 900-second poll window. The remaining paid task completed
+remotely and the run resumed by fetching that same ID, with no repost or second
+charge. Production now allows 3600 seconds for queue outliers and tells the
+owner to Retry later while preserving exactly-once task and cost state.
+
 ## Operational warning
 
 The GitHub working tree and `/opt/ptw/platform` have unrelated histories. Do

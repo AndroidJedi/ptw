@@ -83,6 +83,7 @@ class LavalDomainTests(unittest.TestCase):
 
     def test_dataforseo_uses_normal_queue_and_conservative_five_cent_budget_units(self) -> None:
         provider = DataForSEOSearchProvider("api-login", "api-password", poll_interval=0)
+        self.assertEqual(3600, provider.poll_timeout)
         self.assertEqual(.0006, provider.estimate_cost(10))
         self.assertEqual(.0012, provider.estimate_cost(20))
         self.assertNotIn("/live/", provider.task_post_endpoint)

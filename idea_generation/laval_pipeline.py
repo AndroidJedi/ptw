@@ -170,7 +170,7 @@ class LavalPipeline:
                 self.repository.record_provider_cost_once(str(task["id"]), str(task["request"].get("operation") or "localized_serp"))
             elif task.get("remote_task_id"):
                 pending[key] = task
-        deadline = time.monotonic() + float(getattr(provider, "poll_timeout", 900))
+        deadline = time.monotonic() + float(getattr(provider, "poll_timeout", 3600))
         while pending and time.monotonic() < deadline:
             for key, task in list(pending.items()):
                 rows = provider.fetch_result(str(task["remote_task_id"]))  # type: ignore[attr-defined]
@@ -184,7 +184,10 @@ class LavalPipeline:
             if pending:
                 time.sleep(float(getattr(provider, "poll_interval", 5)))
         if pending:
-            raise TimeoutError(f"DataForSEO queued tasks timed out: {len(pending)} still pending; restart will resume without reposting")
+            raise TimeoutError(
+                f"DataForSEO is still processing {len(pending)} queued task(s); tap Retry later. "
+                "Existing task IDs are preserved and will not be reposted or billed again"
+            )
         return results
 
     @staticmethod

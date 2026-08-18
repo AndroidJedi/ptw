@@ -1,4 +1,4 @@
-const CACHE = 'ptw-shell-v6'
+const CACHE = 'ptw-shell-v7'
 const CACHE_PREFIX = 'ptw-shell-'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/ptw.svg']
 
@@ -43,8 +43,11 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-    if (response.ok) caches.open(CACHE).then((cache) => cache.put(request, response.clone()))
+  event.respondWith((async () => {
+    const cached = await caches.match(request)
+    if (cached) return cached
+    const response = await fetch(request)
+    if (response.ok) await (await caches.open(CACHE)).put(request, response.clone())
     return response
-  })))
+  })())
 })

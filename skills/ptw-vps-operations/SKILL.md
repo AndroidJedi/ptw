@@ -119,6 +119,10 @@ one serialized `application_name=ptw-idea-api` connection. After a provider rebo
 capture bounded PID/PPID/RSS/age, prior-boot OOM events, load, available memory,
 swap, disk, containers, PostgreSQL connection counts, and database sizes before
 recreation. Never infer a single-process cause from host pressure alone.
+When sampling `pg_stat_activity`, inspect persistent non-idle rows rather than
+only their count. A health probe that executes `SELECT 1` without closing its
+transaction appears as an anonymous `idle in transaction` backend and must be
+fixed at the probe boundary; do not kill it repeatedly as an operational cure.
 
 The production profile requires 2 GB persistent `/swapfile` only when at least
 4 GB disk is free, `vm.swappiness=10`, and both PostgreSQL authorities tuned to

@@ -430,6 +430,15 @@ class _FakeConnection:
 
 
 class PostgresStoreTests(unittest.TestCase):
+    def test_ping_closes_its_transaction(self) -> None:
+        connection = _FakeConnection(fetchone_results=[(1,)])
+        store = PostgresKnowledgeStore(connection)
+
+        store.ping()
+
+        self.assertEqual(connection.commits, 1)
+        self.assertEqual(connection.rollbacks, 0)
+
     def test_entity_and_outbox_commit_together(self) -> None:
         connection = _FakeConnection()
         store = PostgresKnowledgeStore(connection)

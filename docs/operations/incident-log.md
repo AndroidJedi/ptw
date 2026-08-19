@@ -220,3 +220,21 @@ Canonical record of deployment gaps and prevention rules. Do not store secrets.
   Append failure/resume/recovery actors to `laval_run_actions`, expose the
   task/cost recovery report and explicit Resume saved work control, and project
   the same S00-S15 state through the Commander Telegram outbox.
+
+## 2026-08-19 — One-gigabyte pressure caused global OOM and owner-console stalls
+
+- Impact: the Owner Console became stuck on loading and SSH sometimes accepted
+  TCP without completing its banner after a day of normal latency.
+- Cause: the VPS had no swap and only 80 MB available while retired creative
+  and notification workers still ran. Kernel history proves repeated global
+  OOM kills of API and system-update processes. Repository operations also
+  created avoidable PostgreSQL connection churn, and the Commander readiness
+  probe left its `SELECT 1` transaction open between checks.
+- Correction: install a persistent 2 GB swap file, tune both PostgreSQL
+  instances, retire the two polling workers, reuse one serialized Laval
+  connection, and close every readiness transaction. Deploy prebuilt amd64
+  images and services strictly one at a time under the maintenance lock.
+- Prevention: the 1 GB release and audit scripts enforce serialization, memory
+  thresholds, worker absence, OOM inspection, bounded deadlines, and database
+  activity sampling. Inspect persistent `idle in transaction` rows by query and
+  application name instead of treating a stable count as polling.

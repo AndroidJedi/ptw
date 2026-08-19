@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: 1 GB reliability profile and owner-safe Laval correction UX implemented locally; deployment and production acceptance pending
+Status: 1 GB reliability profile and owner-safe Laval correction UX deployed; 24-hour and authenticated-owner acceptance pending
 Updated: 2026-08-19
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -70,7 +70,7 @@ and Trend Gate offer corrections. Their current selected/enabled rows arrive as
 human-readable choices, while the stable target UUID is submitted internally.
 The owner must provide a reason; the Firebase actor and reason remain appended
 to the audit log, and the precise downstream boundary becomes stale. This
-change is verified locally but is not yet deployed to the production PWA/API.
+change is deployed to the production PWA/API.
 
 Creative production and review are retired operationally on the 1 GB profile.
 Their source, migrations, immutable artifacts, append-only reviews, UUID
@@ -180,7 +180,7 @@ verified Google Firebase user.
   platform PostgreSQL URL. Production was recreated with the correct environment
   and `PlatformRepository.summary()` succeeds. Compose interpolation and gateway
   settings now fail fast on this condition.
-- Commander/Laval built-image suite: 70 tests pass or intentionally skip only
+- Commander/Laval built-image suite: 71 tests pass or intentionally skip only
   environment/integration cases; every dependency-backed unit path passes.
 - Focused Laval PostgreSQL suite: 13 tests pass, including the 16-stage fixture,
   exact 21-variant provenance, partial country failure, retry/cache behavior,
@@ -218,11 +218,10 @@ verified Google Firebase user.
 
 ## Production work remaining
 
-1. Recover the VPS through the provider console if SSH still stalls, then deploy
-   the stage-bound Laval correction targets and 1 GB reliability profile through
-   the single locked serial release script. Verify swap, PostgreSQL settings,
-   absent retired workers, cancelled pending Telegram outbox rows, memory,
-   latency, OOM history, process age/RSS, and the 30-second connection sample.
+1. Run the locked 1 GB audit after 24 clean hours. The deployed profile has a
+   2 GB swap file, swappiness 10, 329 MB idle available memory, both databases
+   at the bounded settings, healthy APIs, and no retired Commander workers.
+   The rollout found no new OOM event after its start.
 2. Verify competitor, opportunity, and trend corrections from the authenticated
    owner browser. Complete the remaining browser/API functional acceptance:
    create and inspect a Laval run, exercise Plan/Execute and root terminal

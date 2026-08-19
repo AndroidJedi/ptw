@@ -88,6 +88,13 @@ class PostgresKnowledgeStore:
             with self.connection.cursor() as cursor:
                 operation(cursor)
 
+    def ping(self) -> None:
+        """Verify the database and always close the probe transaction."""
+        with self.transaction():
+            with self.connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+
     def add_entity(self, entity: Entity) -> None:
         def operation(cursor: Cursor) -> None:
             attributes = json.dumps(dict(entity.attributes), sort_keys=True)

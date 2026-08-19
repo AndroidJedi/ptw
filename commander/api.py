@@ -70,9 +70,7 @@ def create_app(
     @app.get("/readyz")
     def ready() -> dict[str, object]:
         try:
-            with store.connection.cursor() as cursor:
-                cursor.execute("SELECT 1")
-                cursor.fetchone()
+            store.ping()
         except Exception as error:
             raise HTTPException(status_code=503, detail="database unavailable") from error
         canary = app.state.checkpoint_canary

@@ -22,6 +22,13 @@ Canonical record of deployment gaps and prevention rules. Do not store secrets.
   sessions for one automatic retry, and keep a recovered retry verified while
   retaining the failed attempt. Production recovery must resume the same saved
   run and prove paid provider IDs, evidence counts, and cost do not duplicate.
+- Verification: release `976d46a` and Hosting version `86239a8851ef08c0` are
+  live. The owner-authorized resume completed the same run at 16/16 stages with
+  16 successful required language calls, no fallback, and no unresolved
+  failure. S07 completed on stage attempt 2; the audit retains the original
+  failure, resume request, and completed retry. All 52 provider tasks and 52
+  remote IDs were reused, evidence remained at 506 rows, and actual provider
+  cost remained exactly USD 0.0372.
 
 ## 2026-08-19 — Completed Laval run displayed deterministic fallback as finalists
 

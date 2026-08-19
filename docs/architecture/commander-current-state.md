@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Laval S07 evidence validation and automatic retry fix implemented; deployment verification pending
+Status: Laval S07 evidence validation and automatic retry fix deployed; saved live run recovered and verified
 Updated: 2026-08-19
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -194,6 +194,23 @@ verified Google Firebase user.
 
 ## Verification
 
+- Laval reliability release `976d46a` is live in the healthy Commander, Idea,
+  and Owner Gateway services; follow-up `60cd43d` stabilizes the UI recovery
+  regression test without changing runtime code. Firebase Hosting version
+  `86239a8851ef08c0` serves `index-nqRdLETV.js`, `App-C0QRNtfY.js`, and
+  `ptw-shell-v13`; the public shell/assets, gateway health, negative
+  authentication, and CORS audit passes. Owner-authorized recovery resumed run
+  `01a01a93-e248-7615-942a-f7e0ef1c780b` at `OPPORTUNITY_MATRIX` attempt 2 and
+  completed all 16 stages. The run reports 16 successful required language
+  calls, zero fallback/unresolved failures, 10 opportunities, 24 variants, and
+  24 evaluations. Its 52 completed provider tasks, 52 persisted remote IDs,
+  506 evidence rows, and USD 0.0372 actual provider cost are unchanged; no paid
+  search was reposted. The append-only audit retains the original S07 failure,
+  the owner-authorized resume, and the completed retry. Commander built-image
+  tests report 91 passes with 29 expected dependency/external skips, the Owner
+  Gateway image passes 19 tests, the focused Laval image and disposable
+  PostgreSQL suite each pass 22 tests, Vitest passes 15 checks, and Playwright
+  passes nine checks across desktop Chrome, mobile Chrome, and iPhone WebKit.
 - Laval integrity release `85f0a2f` is live on all three healthy production
   services. Firebase Hosting version `859b2a2856d201a3` serves
   `index-BFK2C8KR.js`, `App-BR0jJtNv.js`, and `ptw-shell-v12`; the live bundle
@@ -330,11 +347,10 @@ verified Google Firebase user.
    owner browser. Complete the remaining browser/API functional acceptance:
    create and inspect a Laval run, exercise Plan/Execute and root terminal
    access, and verify restart persistence from the browser.
-3. DataForSEO is configured and the saved five-country live-search run reached
-   the Opportunity Matrix with paid task IDs and cost preserved. The owner must
-   explicitly choose **Resume with Market Signals** in the web console; deploy
-   must not start it. Google Trends can be added later but is not an acceptance
-   blocker. Fixture evidence must not enter the permanent Commander research graph.
+3. Review the recovered five-country live run's evidence, opportunities, and
+   final shortlist from the authenticated owner browser. Google Trends can be
+   added later but is not an acceptance blocker. Fixture evidence must not
+   enter the permanent Commander research graph.
 4. Run owner Plan/Execute, root `id`/`pwd`, Telegram emergency controls, and
    restart-persistence acceptance. Do not claim
    Telegram/provider readiness before these pass.

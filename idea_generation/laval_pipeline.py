@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, timezone
 import hashlib
 import re
 import time
@@ -14,10 +15,13 @@ from commander.ids import new_uuid7
 from .laval_context import ContextCompiler
 from .laval_domain import (
     LavalConfig,
+    LEGACY_STAGES,
+    MARKET_SIGNAL_NORMALIZATION_VERSION,
     OPERATORS,
     QUERY_FAMILIES,
     STAGES,
     canonical_domain,
+    canonical_evidence_url,
     canonical_url,
     clamp,
     competitor_score,
@@ -25,6 +29,7 @@ from .laval_domain import (
     idea_score,
     input_hash,
     json_safe,
+    market_signal_score,
     normalize_words,
     opportunity_score,
     stage_index,
@@ -32,6 +37,7 @@ from .laval_domain import (
 )
 from .laval_providers import ProviderBundle
 from .laval_repository import LavalRepository
+from .laval_fresh_stage import FreshStageRunner
 
 
 class RunPaused(RuntimeError):
@@ -43,6 +49,7 @@ class LavalPipeline:
         self.repository = repository
         self.store = repository.store
         self.providers = providers
+        self.fresh_stages = FreshStageRunner(repository, providers.llm)
 
     def run(
         self,
@@ -55,10 +62,11 @@ class LavalPipeline:
     ) -> dict[str, Any]:
         run = self.repository.run(run_id)
         config = LavalConfig.from_mapping(run["config"])
+        stages = STAGES if run.get("pipeline_version") == "market_signals_v2" else LEGACY_STAGES
         through = (through_stage or run.get("through_stage") or "").upper() or None
-        if through:
-            stage_index(through)
-        start = stage_index(start_stage) if start_stage else 1
+        if through and through not in stages:
+            raise ValueError(f"stage {through} is not part of {run.get('pipeline_version')}")
+        start = stages.index(start_stage.upper()) if start_stage else 1
         functions: dict[str, Callable[[str, LavalConfig, str | None], tuple[dict[str, Any], dict[str, Any], bool]]] = {
             "OWNER_DNA": self._owner_dna,
             "QUERY_PLAN": self._query_plan,
@@ -70,17 +78,20 @@ class LavalPipeline:
             "TREND_QUERY_PLAN": self._trend_query_plan,
             "GOOGLE_TRENDS_RESEARCH": self._trends_research,
             "TREND_GATE": self._trend_gate,
+            "MARKET_SIGNAL_PLAN": self._market_signal_plan,
+            "MARKET_SIGNAL_COLLECTION": self._market_signal_collection,
+            "MARKET_SIGNAL_GATE": self._market_signal_gate,
             "SYNTHESIS_PACKET": self._synthesis_packet,
             "IDEA_EXPANSION": self._idea_expansion,
             "IDEA_CLUSTERING": self._idea_clustering,
             "IDEA_EVALUATION": self._idea_evaluation,
             "FINAL_SHORTLIST": self._final_shortlist,
         }
-        for ordinal, stage in enumerate(STAGES[1:], 1):
+        for ordinal, stage in enumerate(stages[1:], 1):
             if ordinal < start:
                 continue
             self._ensure_active(run_id)
-            previous = self.repository.stage(run_id, STAGES[ordinal - 1]).get("artifact")
+            previous = self.repository.stage(run_id, stages[ordinal - 1]).get("artifact")
             overrides = self.store.fetchall(
                 "SELECT override_type,target_id,action,reason,payload,created_at FROM laval_overrides WHERE run_id=%s ORDER BY created_at",
                 (run_id,),
@@ -106,7 +117,11 @@ class LavalPipeline:
                     raise
             finished = self.repository.stage(run_id, stage)
             run = self.repository.run(run_id)
-            if stage == "OPPORTUNITY_MATRIX" and run.get("evidence_mode") == "live_search_pending_trends":
+            if (
+                stage == "OPPORTUNITY_MATRIX"
+                and run.get("pipeline_version") != "market_signals_v2"
+                and run.get("evidence_mode") == "live_search_pending_trends"
+            ):
                 self.repository.await_provider(run_id, "awaiting_trends_provider")
                 return self.repository.status(run_id)
             if self.repository.approval_required(run_id, stage, str(finished["input_hash"])):
@@ -123,6 +138,8 @@ class LavalPipeline:
             return self.providers.search.name
         if stage == "GOOGLE_TRENDS_RESEARCH":
             return self.providers.trends.name
+        if stage == "MARKET_SIGNAL_COLLECTION":
+            return str(getattr(self.providers.llm, "model_name", "deterministic+llm"))
         return str(getattr(self.providers.llm, "model_name", "deterministic+llm"))
 
     def _ensure_active(self, run_id: str) -> None:
@@ -211,31 +228,32 @@ class LavalPipeline:
                     before_retry()
         raise RuntimeError("unreachable provider retry state")
 
-    def _llm(self, run_id: str, stage: str, mode: str, prompt: str, payload: dict[str, Any], required: str) -> dict[str, Any] | None:
+    def _llm(
+        self, run_id: str, stage: str, mode: str, prompt: str,
+        payload: dict[str, Any], required: str,
+        validator: Callable[[dict[str, Any]], bool] | None = None,
+    ) -> dict[str, Any] | None:
         estimated_input = max(1, len(self.store.json({"prompt": prompt, "payload": payload})) // 4)
-        try:
-            result = self.providers.llm.generate_structured(
-                mode,
-                prompt,
-                payload,
-                {"type": "object", "required": [required]},
-            )
-            self.repository.record_cost(
-                run_id, stage, str(getattr(self.providers.llm, "model_name", "llm")), mode,
-                input_tokens=estimated_input,
-                output_tokens=max(1, len(self.store.json(result)) // 4),
-            )
-            return result if isinstance(result.get(required), (dict, list)) else None
-        except Exception as error:
-            self.repository.record_cost(
-                run_id,
-                stage,
-                str(getattr(self.providers.llm, "model_name", "llm")),
-                mode,
-                input_tokens=estimated_input,
-                metadata={"fallback": True, "error": type(error).__name__},
-            )
-            return None
+        result = self.fresh_stages.run(
+            run_id,
+            stage,
+            mode,
+            prompt,
+            payload,
+            required,
+            prompt_template_version=f"{mode}-v1",
+            validator=validator,
+        )
+        self.repository.record_cost(
+            run_id,
+            stage,
+            str(getattr(self.providers.llm, "model_name", "llm")),
+            mode,
+            input_tokens=estimated_input,
+            output_tokens=max(1, len(self.store.json(result)) // 4) if result else 0,
+            metadata={"fallback": result is None},
+        )
+        return result
 
     def _owner_dna(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
         owner = self.repository.owner(run_id)
@@ -416,7 +434,7 @@ class LavalPipeline:
                             "excerpt": str(result.get("snippet") or "")[:4000],
                             "claim": f"Google organic result for {query!r} at position {int(result.get('position') or position)}",
                             "confidence": .65 if is_fixture else .8,
-                            "metadata": {**dict(result.get("provider_metadata") or {}), "query_intent_id": intent["query_intent_id"], "query": query, "language": variant["language"]},
+                            "metadata": {**dict(result.get("provider_metadata") or {}), "query_intent_id": intent["query_intent_id"], "query_family": intent["family"], "query": query, "language": variant["language"]},
                         })
                         metadata = dict(result.get("provider_metadata") or {})
                         cost = max(cost, float(metadata.get("cost") or 0))
@@ -668,7 +686,7 @@ class LavalPipeline:
                         evidence_id = self.repository.add_evidence(run_id, {
                             "source_type": source_type, "source_url": url, "source_title": str(result.get("title") or url), "publisher": domain,
                             "competitor_id": competitor_id, "country": "US", "excerpt": str(result.get("snippet") or ""), "claim": claim,
-                            "confidence": .55 if source_type == "fixture" else .62, "metadata": {"purpose": purpose, "query": query, "provider": self.providers.search.name},
+                            "confidence": .55 if source_type == "fixture" else .62, "metadata": {**dict(result.get("provider_metadata") or {}), "purpose": purpose, "query": query, "provider": self.providers.search.name},
                         })
                         evidence_ids.append(evidence_id)
                         self.repository.add_lineage(run_id, "evidence", evidence_id, "derived_from", "competitor", competitor_id)
@@ -878,6 +896,168 @@ class LavalPipeline:
             raise RuntimeError("trend query plan is empty")
         return {"queries": queries, "unique_terms": [term for _, term in terms], "windows": list(config.trend_windows), "countries": [item["code"] for item in config.countries]}, {"queries": len(queries), "unique_terms": len(terms)}, False
 
+    def _market_signal_plan(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        opportunities = self.store.fetchall(
+            """SELECT * FROM laval_opportunities
+               WHERE run_id=%s AND enabled
+               ORDER BY aggregate_score DESC,id LIMIT %s""",
+            (run_id, config.trend_gate_candidates),
+        )
+        planned = []
+        unique_ids: set[str] = set()
+        for opportunity in opportunities:
+            evidence_ids = [str(value) for value in opportunity.get("evidence_ids") or []]
+            evidence = self.store.fetchall(
+                """SELECT id,source_type,source_url,source_title,competitor_id,country,
+                          excerpt,claim,confidence,metadata
+                   FROM laval_evidence
+                   WHERE run_id=%s AND id=ANY(%s::uuid[])
+                   ORDER BY id""",
+                (run_id, evidence_ids),
+            ) if evidence_ids else []
+            seen_urls: set[str] = set()
+            deduplicated = []
+            for item in evidence:
+                key = canonical_evidence_url(str(item.get("source_url") or "")) or f"evidence:{item['id']}"
+                if key in seen_urls:
+                    continue
+                seen_urls.add(key)
+                compact = json_safe(item)
+                deduplicated.append(compact)
+                unique_ids.add(str(item["id"]))
+            planned.append({
+                "opportunity_id": str(opportunity["id"]),
+                "statement": opportunity["statement"],
+                "pain": opportunity["pain"],
+                "evidence": deduplicated,
+            })
+        run = self.repository.run(run_id)
+        artifact = {
+            "pipeline": "market_signals_v2",
+            "normalization_version": MARKET_SIGNAL_NORMALIZATION_VERSION,
+            "as_of": run["created_at"],
+            "opportunities": planned,
+            "optional_sources": {
+                "google_trends": {
+                    "required": False,
+                    "provider": (run.get("provider_snapshot") or {}).get("trends", "unavailable"),
+                }
+            },
+            "additional_search": {
+                "executed": False,
+                "reason": "existing paid SERP and competitor evidence are sufficient for initial scoring",
+                "reserved_spend_usd": float(run.get("reserved_spend_usd") or .04),
+                "absolute_cap_usd": float(run.get("max_spend_usd") or .05),
+            },
+        }
+        if not planned:
+            raise RuntimeError("market signal plan has no evidence-backed opportunities")
+        return artifact, {"opportunities": len(planned), "unique_evidence": len(unique_ids), "additional_searches": 0}, False
+
+    def _market_signal_collection(self, run_id: str, _config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        plan = self.repository.stage(run_id, "MARKET_SIGNAL_PLAN")["artifact"]
+        pairs = [
+            {
+                "opportunity_id": opportunity["opportunity_id"],
+                "opportunity": opportunity["statement"],
+                "evidence_id": str(item["id"]),
+                "source_type": item["source_type"],
+                "title": item["source_title"],
+                "claim": item.get("claim") or item.get("excerpt") or "",
+            }
+            for opportunity in plan["opportunities"]
+            for item in opportunity["evidence"]
+        ]
+        expected = {(item["opportunity_id"], item["evidence_id"]) for item in pairs}
+
+        def valid_classifications(result: dict[str, Any]) -> bool:
+            items = result.get("classifications")
+            if not isinstance(items, list) or len(items) != len(expected):
+                return False
+            observed = {
+                (str(item.get("opportunity_id") or ""), str(item.get("evidence_id") or ""))
+                for item in items if isinstance(item, Mapping) and isinstance(item.get("relevant"), bool)
+            }
+            return observed == expected
+
+        llm = self._llm(
+            run_id,
+            "MARKET_SIGNAL_COLLECTION",
+            "laval_market_signal_relevance",
+            "Classify each supplied opportunity/evidence pair only as relevant or not relevant. Preserve every exact opportunity_id and evidence_id. Do not estimate, score, infer dates, or add evidence.",
+            {"pairs": pairs},
+            "classifications",
+            valid_classifications,
+        )
+        classifications = []
+        if llm:
+            for item in llm.get("classifications") or []:
+                if not isinstance(item, Mapping) or not isinstance(item.get("relevant"), bool):
+                    continue
+                key = (str(item.get("opportunity_id") or ""), str(item.get("evidence_id") or ""))
+                if key in expected:
+                    classifications.append({
+                        "opportunity_id": key[0],
+                        "evidence_id": key[1],
+                        "relevant": item["relevant"],
+                    })
+        classified = {(item["opportunity_id"], item["evidence_id"]) for item in classifications}
+        fallback = classified != expected
+        if fallback:
+            classifications = [
+                {"opportunity_id": item["opportunity_id"], "evidence_id": item["evidence_id"], "relevant": True}
+                for item in pairs
+            ]
+        artifact = {
+            "normalization_version": MARKET_SIGNAL_NORMALIZATION_VERSION,
+            "classification_mode": "persisted_lineage_fallback" if fallback else "fresh_binary_llm",
+            "classifications": classifications,
+            "google_trends_available": (plan.get("optional_sources") or {}).get("google_trends", {}).get("provider") not in {None, "", "unavailable"},
+        }
+        return artifact, {"evaluated_pairs": len(classifications), "relevant_pairs": sum(item["relevant"] for item in classifications)}, fallback
+
+    def _market_signal_gate(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        plan = self.repository.stage(run_id, "MARKET_SIGNAL_PLAN")["artifact"]
+        collected = self.repository.stage(run_id, "MARKET_SIGNAL_COLLECTION")["artifact"]
+        by_opportunity: dict[str, list[str]] = defaultdict(list)
+        for item in collected.get("classifications") or []:
+            if item.get("relevant") is True:
+                by_opportunity[str(item["opportunity_id"])].append(str(item["evidence_id"]))
+        as_of = datetime.fromisoformat(str(plan["as_of"]).replace("Z", "+00:00"))
+        if as_of.tzinfo is None:
+            as_of = as_of.replace(tzinfo=timezone.utc)
+        scores = []
+        for opportunity in plan["opportunities"]:
+            opportunity_id = str(opportunity["opportunity_id"])
+            computed = market_signal_score(
+                opportunity["evidence"],
+                by_opportunity.get(opportunity_id, []),
+                config,
+                as_of=as_of,
+            )
+            score_id = new_uuid7()
+            score = {"id": score_id, "opportunity_id": opportunity_id, **computed, "as_of": as_of.isoformat()}
+            self.store.execute(
+                """INSERT INTO laval_market_signal_scores(
+                       id,run_id,opportunity_id,normalization_version,formula,weights,
+                       components,raw_counts,data_status,evidence_ids,aggregate_score,as_of
+                   ) VALUES(%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,
+                            %s::uuid[],%s,%s) RETURNING 1""",
+                (
+                    score_id, run_id, opportunity_id, computed["normalization_version"],
+                    computed["formula"], self.store.json(computed["weights"]),
+                    self.store.json(computed["components"]), self.store.json(computed["raw_counts"]),
+                    self.store.json(computed["data_status"]), computed["evidence_ids"],
+                    computed["aggregate_score"], as_of,
+                ),
+            )
+            self.repository.add_lineage(run_id, "market_signal_score", score_id, "derived_from", "opportunity", opportunity_id)
+            for evidence_id in computed["evidence_ids"]:
+                self.repository.add_lineage(run_id, "market_signal_score", score_id, "derived_from", "evidence", evidence_id)
+            scores.append(score)
+        scores.sort(key=lambda item: (-item["aggregate_score"], item["opportunity_id"]))
+        return {"scores": scores, "google_trends_required": False}, {"scores": len(scores), "with_data": sum(item["data_status"]["overall"] == "available" for item in scores)}, False
+
     def _trends_research(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
         queries = self.store.fetchall("SELECT * FROM laval_trend_queries WHERE run_id=%s AND enabled ORDER BY country,term,time_window", (run_id,))
         completed, failures = [], []
@@ -976,9 +1156,22 @@ class LavalPipeline:
 
     def _synthesis_packet(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
         dna = self.repository.stage(run_id, "OWNER_DNA")["artifact"]["owner_dna"]
+        run = self.repository.run(run_id)
         opportunities = json_safe(self.store.fetchall("SELECT * FROM laval_opportunities WHERE run_id=%s AND enabled ORDER BY aggregate_score DESC", (run_id,)))
-        scores = json_safe(self.store.fetchall("SELECT * FROM laval_trend_scores WHERE run_id=%s AND enabled ORDER BY aggregate_score DESC", (run_id,)))
-        discoveries = json_safe(self.store.fetchall("SELECT * FROM laval_trend_discoveries WHERE run_id=%s AND enabled ORDER BY confidence DESC", (run_id,)))
+        if run.get("pipeline_version") == "market_signals_v2":
+            scores = []
+            discoveries = []
+            market_scores = json_safe(self.store.fetchall(
+                """SELECT DISTINCT ON (opportunity_id) *
+                   FROM laval_market_signal_scores WHERE run_id=%s
+                   ORDER BY opportunity_id,created_at DESC""",
+                (run_id,),
+            ))
+            market_scores.sort(key=lambda item: (-float(item["aggregate_score"]), str(item["opportunity_id"])))
+        else:
+            scores = json_safe(self.store.fetchall("SELECT * FROM laval_trend_scores WHERE run_id=%s AND enabled ORDER BY aggregate_score DESC", (run_id,)))
+            discoveries = json_safe(self.store.fetchall("SELECT * FROM laval_trend_discoveries WHERE run_id=%s AND enabled ORDER BY confidence DESC", (run_id,)))
+            market_scores = []
         dossiers = [row["dossier"] for row in self.store.fetchall("SELECT dossier FROM laval_competitor_dossiers WHERE run_id=%s", (run_id,))]
         pains = [
             str(cluster.get("statement"))
@@ -987,10 +1180,10 @@ class LavalPipeline:
             if not cluster.get("single_source")
         ] or [str(value) for dossier in dossiers for value in dossier.get("complaints", [])]
         distribution = [str(value) for dossier in dossiers for value in dossier.get("distribution", [])]
-        packet = ContextCompiler(config).build_synthesis_context(dna, opportunities, scores, discoveries, pains, distribution, OPERATORS)
-        evidence_ids = list(dict.fromkeys(str(value) for group in (packet["opportunities"], packet["trend_scores"], packet["trend_discoveries"]) for item in group for value in item.get("evidence_ids", [])))
+        packet = ContextCompiler(config).build_synthesis_context(dna, opportunities, scores, discoveries, pains, distribution, OPERATORS, market_scores)
+        evidence_ids = list(dict.fromkeys(str(value) for group in (packet["opportunities"], packet["trend_scores"], packet["trend_discoveries"], packet["market_signal_scores"]) for item in group for value in item.get("evidence_ids", [])))
         packet["selected_evidence_ids"] = evidence_ids
-        return packet, {"opportunities": len(packet["opportunities"]), "trend_scores": len(packet["trend_scores"]), "trend_discoveries": len(packet["trend_discoveries"]), "evidence_ids": len(evidence_ids)}, False
+        return packet, {"opportunities": len(packet["opportunities"]), "trend_scores": len(packet["trend_scores"]), "trend_discoveries": len(packet["trend_discoveries"]), "market_signal_scores": len(packet["market_signal_scores"]), "evidence_ids": len(evidence_ids)}, False
 
     @staticmethod
     def _i18n(en: str, uk_prefix: str) -> dict[str, str]:
@@ -998,11 +1191,13 @@ class LavalPipeline:
 
     def _idea_expansion(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
         packet = self.repository.stage(run_id, "SYNTHESIS_PACKET")["artifact"]
-        llm = self._llm(run_id, "IDEA_EXPANSION", "laval_idea_expansion", "Generate broad, non-duplicate idea variants. Use every transformation operator. Each variant must reference valid owner, opportunity, trend-score, trend-discovery, and evidence IDs from the synthesis packet. Every owner-facing field must have exact en and uk keys.", packet, "variants")
+        llm = self._llm(run_id, "IDEA_EXPANSION", "laval_idea_expansion", "Generate broad, non-duplicate idea variants. Use every transformation operator. Each variant must reference valid owner, opportunity, market-signal or legacy trend, and evidence IDs from the synthesis packet. Every owner-facing field must have exact en and uk keys.", packet, "variants")
         raw = llm.get("variants") if llm else None
         opportunities = packet.get("opportunities") or []
         trend_scores = packet.get("trend_scores") or []
         discoveries = packet.get("trend_discoveries") or []
+        market_scores = packet.get("market_signal_scores") or []
+        directional_scores = market_scores or trend_scores
         owner_id = self.repository.owner(run_id)["id"]
         operator_counts = {
             operator: sum(
@@ -1017,14 +1212,14 @@ class LavalPipeline:
             or any(count != config.variants_per_operator for count in operator_counts.values())
         ):
             raw = []
-            labels = {"invert": ("Invert", "Інверсія"), "remove": ("Remove", "Усунення"), "extreme": ("Extreme", "Екстремум"), "transfer": ("Transfer", "Перенесення"), "resegment": ("Resegment", "Новий сегмент"), "recombine": ("Recombine", "Рекомбінація"), "distribution_first": ("Distribution First", "Спершу дистрибуція")}
+            labels = {"invert": ("Invert", "Інверсія"), "remove": ("Remove", "Усунення"), "extreme": ("Extreme", "Екстремум"), "transfer": ("Transfer", "Перенесення"), "resegment": ("Resegment", "Новий сегмент"), "recombine": ("Recombine", "Рекомбінація"), "distribution_first": ("Distribution First", "Спершу дистрибуція"), "behavior_first": ("Behavior First", "Спершу поведінка")}
             for op_index, operator in enumerate(OPERATORS):
                 for ordinal in range(config.variants_per_operator):
                     opportunity = opportunities[(op_index + ordinal) % len(opportunities)] if opportunities else {}
-                    score = trend_scores[(op_index * config.variants_per_operator + ordinal) % len(trend_scores)] if trend_scores else {}
+                    score = directional_scores[(op_index * config.variants_per_operator + ordinal) % len(directional_scores)] if directional_scores else {}
                     discovery = discoveries[(op_index + ordinal) % len(discoveries)] if discoveries else {}
                     statement = str(opportunity.get("statement") or "an uncovered user need")
-                    trend_term = str(discovery.get("discovered_term") or score.get("term") or "emerging behavior")
+                    trend_term = str(discovery.get("discovered_term") or score.get("term") or "measured market behavior")
                     en_label, uk_label = labels[operator]
                     title = f"{en_label} {ordinal + 1}: {statement[:72]}"
                     raw.append({
@@ -1036,11 +1231,13 @@ class LavalPipeline:
                         "operator": operator,
                         "opportunity_ids": [opportunity["id"]] if opportunity.get("id") else [],
                         "trend_signal_ids": [score["id"]] if score.get("id") else [],
+                        "market_signal_ids": [score["id"]] if market_scores and score.get("id") else [],
                         "trend_discovery_ids": [discovery["id"]] if discovery.get("id") else [],
                         "evidence_ids": list(dict.fromkeys((opportunity.get("evidence_ids") or []) + (score.get("evidence_ids") or []) + (discovery.get("evidence_ids") or []))),
                     })
         valid_opportunities = {str(item["id"]) for item in opportunities}
         valid_scores = {str(item["id"]) for item in trend_scores}
+        valid_market_scores = {str(item["id"]) for item in market_scores}
         valid_discoveries = {str(item["id"]) for item in discoveries}
         valid_evidence = {str(value) for value in packet.get("selected_evidence_ids") or []}
         operator_ids = {}
@@ -1048,6 +1245,7 @@ class LavalPipeline:
             "invert": "Invert an important category assumption.", "remove": "Remove a repeated user pain.", "extreme": "Push a useful property to an extreme.",
             "transfer": "Import a mechanism from an adjacent behavior.", "resegment": "Apply the mechanism to a surprising plausible audience.",
             "recombine": "Combine Owner DNA, an opportunity, and trend behavior.", "distribution_first": "Rebuild the concept around a distribution loop.",
+            "behavior_first": "Start from a repeated observed behavior before selecting a product form.",
         }
         for operator in OPERATORS:
             operator_id = new_uuid7()
@@ -1070,29 +1268,32 @@ class LavalPipeline:
                     localized[field] = {"en": text, "uk": f"Переклад: {text}"}
             opportunity_ids = [str(value) for value in item.get("opportunity_ids", []) if str(value) in valid_opportunities]
             score_ids = [str(value) for value in item.get("trend_signal_ids", []) if str(value) in valid_scores]
+            market_score_ids = [str(value) for value in item.get("market_signal_ids", []) if str(value) in valid_market_scores]
             discovery_ids = [str(value) for value in item.get("trend_discovery_ids", []) if str(value) in valid_discoveries]
             evidence_ids = [str(value) for value in item.get("evidence_ids", []) if str(value) in valid_evidence]
             if not opportunity_ids and opportunities:
                 opportunity_ids = [str(opportunities[len(variants) % len(opportunities)]["id"])]
             if not score_ids and trend_scores:
                 score_ids = [str(trend_scores[len(variants) % len(trend_scores)]["id"])]
+            if not market_score_ids and market_scores:
+                market_score_ids = [str(market_scores[len(variants) % len(market_scores)]["id"])]
             if not discovery_ids and discoveries:
                 discovery_ids = [str(discoveries[len(variants) % len(discoveries)]["id"])]
             if not evidence_ids:
-                evidence_ids = list(dict.fromkeys(str(value) for group in (opportunities, trend_scores, discoveries) for candidate in group if str(candidate.get("id")) in set(opportunity_ids + score_ids + discovery_ids) for value in candidate.get("evidence_ids", [])))
+                evidence_ids = list(dict.fromkeys(str(value) for group in (opportunities, trend_scores, discoveries, market_scores) for candidate in group if str(candidate.get("id")) in set(opportunity_ids + score_ids + discovery_ids + market_score_ids) for value in candidate.get("evidence_ids", [])))
             variant_id = new_uuid7()
-            variant = {"id": variant_id, **localized, "operator": operator, "owner_idea_id": owner_id, "opportunity_ids": opportunity_ids, "trend_signal_ids": score_ids, "trend_discovery_ids": discovery_ids, "evidence_ids": evidence_ids}
+            variant = {"id": variant_id, **localized, "operator": operator, "owner_idea_id": owner_id, "opportunity_ids": opportunity_ids, "trend_signal_ids": score_ids, "trend_discovery_ids": discovery_ids, "market_signal_ids": market_score_ids, "evidence_ids": evidence_ids}
             self.store.execute(
                 """INSERT INTO laval_idea_variants(
                        id,run_id,owner_idea_id,title,one_liner,mechanism,target_user,why_new,operator,
-                       opportunity_ids,trend_signal_ids,trend_discovery_ids,evidence_ids
+                       opportunity_ids,trend_signal_ids,trend_discovery_ids,market_signal_ids,evidence_ids
                    ) VALUES(%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s,
-                            %s::uuid[],%s::uuid[],%s::uuid[],%s::uuid[]) RETURNING 1""",
-                (variant_id, run_id, owner_id, self.store.json(variant["title"]), self.store.json(variant["one_liner"]), self.store.json(variant["mechanism"]), self.store.json(variant["target_user"]), self.store.json(variant["why_new"]), operator, opportunity_ids, score_ids, discovery_ids, evidence_ids),
+                            %s::uuid[],%s::uuid[],%s::uuid[],%s::uuid[],%s::uuid[]) RETURNING 1""",
+                (variant_id, run_id, owner_id, self.store.json(variant["title"]), self.store.json(variant["one_liner"]), self.store.json(variant["mechanism"]), self.store.json(variant["target_user"]), self.store.json(variant["why_new"]), operator, opportunity_ids, score_ids, discovery_ids, market_score_ids, evidence_ids),
             )
             self.repository.add_lineage(run_id, "idea_variant", variant_id, "derived_from", "owner_idea", owner_id)
             self.repository.add_lineage(run_id, "idea_variant", variant_id, "transformed_by", "transformation_operator", operator_ids[operator])
-            for kind, ids in (("opportunity", opportunity_ids), ("trend_score", score_ids), ("trend_discovery", discovery_ids), ("evidence", evidence_ids)):
+            for kind, ids in (("opportunity", opportunity_ids), ("trend_score", score_ids), ("trend_discovery", discovery_ids), ("market_signal_score", market_score_ids), ("evidence", evidence_ids)):
                 for target_id in ids:
                     self.repository.add_lineage(run_id, "idea_variant", variant_id, "derived_from", kind, target_id)
             variants.append(variant)
@@ -1133,11 +1334,17 @@ class LavalPipeline:
         by_id = {str(item.get("idea_id")): item for item in evaluations if isinstance(item, Mapping) and item.get("idea_id")}
         results = []
         for ordinal, variant in enumerate(variants):
+            signal_support = min(1, .35 + .16 * (
+                len(variant.get("trend_signal_ids") or [])
+                + len(variant.get("trend_discovery_ids") or [])
+                + len(variant.get("market_signal_ids") or [])
+            ))
             dimensions = {
                 "owner_fit": min(1, .55 + .08 * len(variant.get("opportunity_ids") or [])),
                 "differentiation": .82 if variant["operator"] in {"invert", "transfer", "resegment"} else .68,
                 "opportunity_support": min(1, .4 + .18 * len(variant.get("opportunity_ids") or [])),
-                "trend_support": min(1, .35 + .16 * (len(variant.get("trend_signal_ids") or []) + len(variant.get("trend_discovery_ids") or []))),
+                "trend_support": signal_support,
+                "market_signal_support": signal_support,
                 "distribution_potential": .9 if variant["operator"] == "distribution_first" else .62,
                 "novelty": .5 + (int(hashlib.sha256(str(variant["id"]).encode()).hexdigest()[:2], 16) / 510),
             }
@@ -1167,7 +1374,7 @@ class LavalPipeline:
     def _final_shortlist(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
         rows = self.store.fetchall(
             """SELECT s.*,v.title,v.one_liner,v.mechanism,v.target_user,v.why_new,v.operator,
-                      v.opportunity_ids,v.trend_signal_ids,v.trend_discovery_ids,v.evidence_ids
+                      v.opportunity_ids,v.trend_signal_ids,v.trend_discovery_ids,v.market_signal_ids,v.evidence_ids
                FROM laval_idea_scores s JOIN laval_idea_variants v ON v.id=s.idea_id
                WHERE s.run_id=%s ORDER BY s.final_score DESC,s.idea_id""",
             (run_id,),

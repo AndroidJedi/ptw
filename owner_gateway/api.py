@@ -245,14 +245,14 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         require_laval_id(run_id)
-        if action not in {"run", "pause", "resume", "approve", "rerun", "override", "notify"}:
+        if action not in {"run", "pause", "resume", "resume-market-signals", "approve", "rerun", "override", "notify"}:
             raise HTTPException(status_code=404, detail="unknown Laval action")
         if action == "notify" and not settings.outbound_notifications_enabled:
             raise HTTPException(status_code=410, detail="outbound notifications are retired")
         if action not in {"pause", "notify"}:
             require_running()
         payload = {**dict(request), "actor": f"firebase:{identity.uid}"}
-        if action in {"run", "resume", "approve", "rerun"}:
+        if action in {"run", "resume", "resume-market-signals", "approve", "rerun"}:
             async with operation_start_lock:
                 require_no_active_codex()
                 return (await laval_bridge("POST", f"/internal/web/laval/runs/{run_id}/{action}", body=payload)).json()

@@ -17,7 +17,7 @@ export interface Overview {
 }
 
 export type LavalStageStatus = 'pending' | 'running' | 'partial' | 'completed' | 'failed' | 'paused' | 'stale'
-export type LavalEvidenceMode = 'demo_fixture' | 'live_search_pending_trends' | 'live_complete'
+export type LavalEvidenceMode = 'demo_fixture' | 'live_search_pending_trends' | 'live_complete' | 'live_market_signals'
 
 export interface LavalProviderReadiness {
   llm_provider: string
@@ -30,6 +30,7 @@ export interface LavalProviderReadiness {
   max_spend_usd: number
   reserved_spend_usd: number
   missing: string[]
+  optional_sources?: { google_trends: { ready: boolean; required: false } }
 }
 
 export interface LavalRun {
@@ -52,6 +53,7 @@ export interface LavalRun {
   max_spend_usd: number
   reserved_spend_usd: number
   awaiting_reason?: string | null
+  pipeline_version?: string
 }
 
 export interface LavalStage {
@@ -94,6 +96,7 @@ export interface LavalStatus {
     }>
   }
   runner_active?: boolean
+  resume_with_market_signals_available?: boolean
 }
 
 export interface Creative {

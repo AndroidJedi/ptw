@@ -3,23 +3,28 @@ from __future__ import annotations
 import importlib.util
 import inspect
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 import unittest
 from unittest.mock import patch
 
+from commander.ids import new_uuid7
 from idea_generation.laval_context import ContextCompiler
 from idea_generation.laval_domain import (
     LavalConfig,
     canonical_domain,
+    canonical_evidence_url,
     canonical_url,
     competitor_score,
     deduplicate_queries,
     idea_score,
     input_hash,
+    market_signal_score,
     opportunity_score,
     trend_score,
 )
 from idea_generation.laval_pipeline import LavalPipeline
+from idea_generation.laval_fresh_stage import FreshStageRunner
 from idea_generation.laval_notifications import LavalTelegramNotifier, format_laval_status_message
 from idea_generation.laval_providers import (
     DataForSEOSearchProvider,
@@ -59,6 +64,8 @@ class LavalDomainTests(unittest.TestCase):
     def test_url_canonicalization_removes_tracking_query_and_www(self) -> None:
         self.assertEqual("https://example.com/path", canonical_url("HTTPS://WWW.Example.com/path/?utm=1"))
         self.assertEqual("example.com", canonical_domain("https://www.example.com/a"))
+        self.assertEqual("https://youtube.com/watch?v=one", canonical_evidence_url("https://youtube.com/watch?v=one&utm_source=test"))
+        self.assertNotEqual(canonical_evidence_url("https://youtube.com/watch?v=one"), canonical_evidence_url("https://youtube.com/watch?v=two"))
 
     def test_scoring_uses_the_specified_normalized_weights(self) -> None:
         config = LavalConfig.from_mapping()
@@ -71,6 +78,65 @@ class LavalDomainTests(unittest.TestCase):
     def test_input_hash_is_order_stable_and_changes_with_inputs(self) -> None:
         self.assertEqual(input_hash({"b": 2, "a": 1}), input_hash({"a": 1, "b": 2}))
         self.assertNotEqual(input_hash({"a": 1}), input_hash({"a": 2}))
+
+    def test_market_signal_v1_exact_formula_and_raw_counts(self) -> None:
+        config = LavalConfig.from_mapping()
+        source_types = ["reddit", "forum", "youtube", "review"]
+        evidence = [{
+            "id": f"00000000-0000-7000-8000-{index:012d}",
+            "source_url": f"https://source{index}.example/item",
+            "source_type": source_types[index % 4],
+            "country": ["US", "GB", "DE", "NO", "DK"][index % 5],
+            "competitor_id": f"10000000-0000-7000-8000-{index:012d}",
+            "metadata": {
+                "query_family": ["category", "problem", "alternative", "behavioral"][index % 4],
+                "published_at": "2026-08-01T00:00:00Z",
+                "purpose": "negative",
+            },
+        } for index in range(10)]
+        result = market_signal_score(
+            evidence,
+            [item["id"] for item in evidence],
+            config,
+            as_of=datetime(2026, 8, 19, tzinfo=timezone.utc),
+        )
+        self.assertEqual(1, result["aggregate_score"])
+        self.assertEqual({key: 1 for key in result["components"]}, result["components"])
+        self.assertEqual(10, result["raw_counts"]["relevant_unique_sources"])
+        self.assertEqual("market-signal-v1", result["normalization_version"])
+        self.assertNotIn("coverage", result)
+
+    def test_market_signal_missing_data_is_zero_and_explicit(self) -> None:
+        result = market_signal_score(
+            [], [], LavalConfig.from_mapping(),
+            as_of=datetime(2026, 8, 19, tzinfo=timezone.utc),
+        )
+        self.assertEqual(0, result["aggregate_score"])
+        self.assertEqual("no_data", result["data_status"]["overall"])
+        self.assertTrue(all(value == 0 for value in result["components"].values()))
+
+    def test_market_signal_deduplicates_urls_and_never_invents_dates(self) -> None:
+        evidence = [
+            {"id": "e-1", "source_url": "https://example.com/item?tracking=1", "source_type": "reddit", "country": "US", "metadata": {"query_family": "problem", "purpose": "negative"}},
+            {"id": "e-2", "source_url": "https://www.example.com/item", "source_type": "reddit", "country": "GB", "retrieved_at": "2026-08-18T00:00:00Z", "metadata": {"query_family": "problem", "purpose": "negative"}},
+        ]
+        result = market_signal_score(
+            evidence, ["e-1", "e-2"], LavalConfig.from_mapping(),
+            as_of=datetime(2026, 8, 19, tzinfo=timezone.utc),
+        )
+        self.assertEqual(1, result["raw_counts"]["evaluated_unique_sources"])
+        self.assertEqual(1, result["raw_counts"]["relevant_unique_sources"])
+        self.assertEqual(0, result["raw_counts"]["recent_dated_sources_365d"])
+        self.assertEqual("no_data", result["data_status"]["components"]["recent_content_activity"])
+
+    def test_market_signal_score_is_fully_reproducible(self) -> None:
+        evidence = [{"id": "e-1", "source_url": "https://example.com", "source_type": "forum", "country": "US", "metadata": {"query_family": "category", "published_at": "2026-01-01T00:00:00Z"}}]
+        config = LavalConfig.from_mapping()
+        as_of = datetime(2026, 8, 19, tzinfo=timezone.utc)
+        self.assertEqual(
+            market_signal_score(evidence, ["e-1"], config, as_of=as_of),
+            market_signal_score(evidence, ["e-1"], config, as_of=as_of),
+        )
 
     def test_fixture_providers_are_deterministic_and_visibly_marked(self) -> None:
         search = FixtureSearchProvider()
@@ -171,6 +237,30 @@ class LavalDomainTests(unittest.TestCase):
             runner.start("conflicting-run")
         self.assertEqual(("active-run",), runner.active_run_ids())
 
+    def test_fresh_stage_runner_never_passes_stage_history_and_sessions_are_distinct(self) -> None:
+        class Repository:
+            audits = []
+            def record_llm_invocation(self, *args, **kwargs):
+                self.audits.append({"args": args, **kwargs})
+
+        class Provider:
+            model_name = "test-model"
+            calls = []
+            last_invocation = {}
+            def generate_structured(self, mode, _prompt, payload, _schema):
+                self.calls.append((mode, payload))
+                self.last_invocation = {"session_id": f"provider-{len(self.calls)}"}
+                return {"items": []}
+
+        repository, provider = Repository(), Provider()
+        runner = FreshStageRunner(repository, provider)
+        runner.run("run", "STAGE_A", "mode_a", "prompt A", {"stage_a_input": 1}, "items", prompt_template_version="a-v1")
+        runner.run("run", "STAGE_B", "mode_b", "prompt B", {"stage_b_input": 2}, "items", prompt_template_version="b-v1")
+
+        self.assertEqual([{"stage_a_input": 1}, {"stage_b_input": 2}], [payload for _, payload in provider.calls])
+        self.assertNotEqual(repository.audits[0]["session_id"], repository.audits[1]["session_id"])
+        self.assertEqual(["provider-1", "provider-2"], [item["provider_session_id"] for item in repository.audits])
+
     def test_context_compiler_enforces_synthesis_limits(self) -> None:
         config = LavalConfig.from_mapping({"synthesis": {"max_opportunities": 2, "max_trend_scores": 1, "max_trend_discoveries": 1}})
         packet = ContextCompiler(config).build_synthesis_context(
@@ -249,15 +339,15 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         self.assertEqual(15, country_slots)
         self.assertGreater(self.store.fetchone("SELECT count(*) n FROM laval_evidence WHERE run_id=%s", (created["run_id"],))["n"], 20)
         self.assertGreater(self.store.fetchone("SELECT count(*) n FROM laval_opportunities WHERE run_id=%s", (created["run_id"],))["n"], 0)
-        self.assertGreater(self.store.fetchone("SELECT count(*) n FROM laval_trend_discoveries WHERE run_id=%s", (created["run_id"],))["n"], 0)
-        self.assertEqual(21, self.store.fetchone("SELECT count(*) n FROM laval_idea_variants WHERE run_id=%s", (created["run_id"],))["n"])
-        self.assertEqual(21, self.store.fetchone(
+        self.assertGreater(self.store.fetchone("SELECT count(*) n FROM laval_market_signal_scores WHERE run_id=%s", (created["run_id"],))["n"], 0)
+        self.assertEqual(24, self.store.fetchone("SELECT count(*) n FROM laval_idea_variants WHERE run_id=%s", (created["run_id"],))["n"])
+        self.assertEqual(24, self.store.fetchone(
             """SELECT count(DISTINCT source_id) n FROM laval_lineage_edges
                WHERE run_id=%s AND source_kind='idea_variant' AND relation='transformed_by'""",
             (created["run_id"],),
         )["n"])
-        self.assertEqual(7, self.store.fetchone("SELECT count(*) n FROM laval_transformation_operators WHERE run_id=%s", (created["run_id"],))["n"])
-        self.assertEqual(21, self.store.fetchone(
+        self.assertEqual(8, self.store.fetchone("SELECT count(*) n FROM laval_transformation_operators WHERE run_id=%s", (created["run_id"],))["n"])
+        self.assertEqual(24, self.store.fetchone(
             "SELECT count(*) n FROM laval_idea_variants WHERE run_id=%s AND cardinality(evidence_ids)>0",
             (created["run_id"],),
         )["n"])
@@ -278,9 +368,20 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         opportunity_targets = self.repository.show(created["run_id"], "OPPORTUNITY_MATRIX")["override_targets"]
         self.assertTrue(opportunity_targets)
         self.assertEqual({"opportunity"}, {item["kind"] for item in opportunity_targets})
-        trend_targets = self.repository.show(created["run_id"], "TREND_GATE")["override_targets"]
-        self.assertTrue(trend_targets)
-        self.assertEqual({"trend_score", "trend_discovery"}, {item["kind"] for item in trend_targets})
+        market = self.repository.show(created["run_id"], "MARKET_SIGNAL_GATE")["output"]
+        self.assertFalse(market["google_trends_required"])
+        self.assertTrue(all("formula" in item and "raw_counts" in item and "evidence_ids" in item for item in market["scores"]))
+        self.assertEqual(0, self.store.fetchone("SELECT count(*) n FROM laval_evidence WHERE run_id=%s AND source_type='trend'", (created["run_id"],))["n"])
+
+        invocations = self.store.fetchall(
+            "SELECT stage,session_id,provider_session_id FROM laval_llm_invocations WHERE run_id=%s ORDER BY created_at,id",
+            (created["run_id"],),
+        )
+        generator = next(item for item in invocations if item["stage"] == "IDEA_EXPANSION")
+        evaluator = next(item for item in invocations if item["stage"] == "IDEA_EVALUATION")
+        self.assertNotEqual(generator["session_id"], evaluator["session_id"])
+        self.assertNotEqual(generator["provider_session_id"], evaluator["provider_session_id"])
+        self.assertTrue(all("history" not in payload and "messages" not in payload for _, payload in self.pipeline.providers.llm.calls))
 
     def test_manual_run_pauses_at_gate_and_resumes_after_approval(self) -> None:
         created = self.repository.create_run("Accountability circles for hard goals.", self._config("manual"), actor="test")
@@ -297,6 +398,7 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
             "Accountability circles backed by live search.", self._config(), actor="test",
             evidence_mode="live_search_pending_trends",
             provider_snapshot={"search": "dataforseo", "trends": "unavailable", "llm": "test"},
+            pipeline_version="legacy-trends-v2",
         )
         result = self.pipeline.run(created["run_id"])
         self.assertEqual("paused", result["run"]["status"])
@@ -310,6 +412,76 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(RuntimeError, "not ready"):
             service.resume(created["run_id"])
+
+    def test_owner_upgrade_to_market_signals_preserves_paid_tasks_cost_and_evidence(self) -> None:
+        created = self.repository.create_run(
+            "Resume saved live work without Google Trends.", self._config(), actor="test",
+            evidence_mode="live_search_pending_trends",
+            provider_snapshot={"search": "dataforseo", "trends": "unavailable"},
+            pipeline_version="legacy-trends-v2",
+        )
+        run_id = created["run_id"]
+        self.pipeline.run(run_id)
+        request = {"key": "saved", "query": "saved", "country": "US", "language": "en", "depth": 10, "operation": "localized_serp"}
+        task = self.repository.reserve_provider_task(run_id, "SERP_DISCOVERY", "saved", "dataforseo", request, .0006)
+        self.repository.submit_provider_task(str(task["id"]), "paid-task-preserved", .0006)
+        evidence_before = self.store.fetchone("SELECT count(*) n FROM laval_evidence WHERE run_id=%s", (run_id,))["n"]
+        service = LavalService(self.repository, type("Runner", (), {"start": lambda self, *_args, **_kwargs: True})())
+
+        result = service.resume_with_market_signals(run_id, actor="firebase:owner")
+
+        self.assertTrue(result["started"])
+        upgraded = self.repository.run(run_id)
+        self.assertEqual("market_signals_v2", upgraded["pipeline_version"])
+        self.assertEqual("live_market_signals", upgraded["evidence_mode"])
+        self.assertEqual("market-signal-v1", upgraded["config"]["market_signals"]["normalization_version"])
+        self.assertEqual(0.20, upgraded["config"]["market_signal_weights"]["cross_country_recurrence"])
+        self.assertEqual("MARKET_SIGNAL_PLAN", upgraded["current_stage"])
+        self.assertEqual("paid-task-preserved", self.repository.provider_task(run_id, "SERP_DISCOVERY", "saved")["remote_task_id"])
+        self.assertEqual(evidence_before, self.store.fetchone("SELECT count(*) n FROM laval_evidence WHERE run_id=%s", (run_id,))["n"])
+        self.assertEqual(1, self.store.fetchone("SELECT count(*) n FROM laval_run_actions WHERE run_id=%s AND action='resume_with_market_signals'", (run_id,))["n"])
+
+    def test_llm_invocation_audit_is_append_only(self) -> None:
+        created = self.repository.create_run("append-only audit", LavalConfig())
+        invocation_id = self.repository.record_llm_invocation(
+            created["run_id"], "OWNER_DNA", "laval_owner_dna",
+            prompt_template_version="laval-v3", context_hash="a" * 64,
+            output_schema_hash="b" * 64, model="mock-v1",
+            session_id=str(new_uuid7()), provider_session_id=str(new_uuid7()),
+            result_status="success", error_type=None,
+        )
+        with self.assertRaises(Exception):
+            self.store.execute(
+                "UPDATE laval_llm_invocations SET result_status='failed' WHERE id=%s RETURNING 1",
+                (invocation_id,),
+            )
+        with self.assertRaises(Exception):
+            self.store.execute(
+                "DELETE FROM laval_llm_invocations WHERE id=%s RETURNING 1",
+                (invocation_id,),
+            )
+
+    def test_completed_legacy_trends_run_remains_immutable_history(self) -> None:
+        created = self.repository.create_run(
+            "Completed Trends history must remain readable.", self._config(), actor="test",
+            evidence_mode="live_complete",
+            provider_snapshot={"search": "fixture", "trends": "fixture"},
+            pipeline_version="legacy-trends-v2",
+        )
+        run_id = created["run_id"]
+        before = self.pipeline.run(run_id)
+        stage_names = [item["stage"] for item in before["stages"]]
+        trend_count = self.store.fetchone("SELECT count(*) n FROM laval_trend_scores WHERE run_id=%s", (run_id,))["n"]
+
+        self.store.migrate(Path("db/idea_generation"))
+        after = self.repository.status(run_id)
+
+        self.assertEqual("completed", after["run"]["status"])
+        self.assertEqual("legacy-trends-v2", after["run"]["pipeline_version"])
+        self.assertEqual(stage_names, [item["stage"] for item in after["stages"]])
+        self.assertIn("GOOGLE_TRENDS_RESEARCH", stage_names)
+        self.assertEqual(trend_count, self.store.fetchone("SELECT count(*) n FROM laval_trend_scores WHERE run_id=%s", (run_id,))["n"])
+        self.assertFalse(after["resume_with_market_signals_available"])
 
     def test_completed_stage_artifact_and_provider_budget_are_database_invariants(self) -> None:
         created = self.repository.create_run("Budgeted live research.", self._config(), actor="test")

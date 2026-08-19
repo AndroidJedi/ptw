@@ -5,6 +5,8 @@ import time
 import urllib.request
 from typing import Any, Protocol
 
+from commander.ids import new_uuid7
+
 
 class StructuredProvider(Protocol):
     def generate_structured(
@@ -20,10 +22,12 @@ class MockLLMProvider:
     def __init__(self, failures: list[Exception | dict[str, Any]] | None = None) -> None:
         self.failures = list(failures or [])
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.last_invocation: dict[str, Any] = {}
 
     def generate_structured(
         self, mode: str, system_prompt: str, input_payload: dict[str, Any], output_schema: dict[str, Any]
     ) -> dict[str, Any]:
+        self.last_invocation = {"session_id": str(new_uuid7()), "session_mode": "fresh"}
         self.calls.append((mode, input_payload))
         if self.failures:
             result = self.failures.pop(0)
@@ -103,6 +107,11 @@ class OpenAIProvider:
             response_format={"type": "json_object"},
         )
         content = response.choices[0].message.content
+        self.last_invocation = {
+            "session_id": str(response.id),
+            "session_mode": "fresh",
+            "conversation_reused": False,
+        }
         if not content: raise RuntimeError("provider returned an empty response")
         result = json.loads(content)
         if not isinstance(result, dict): raise ValueError("provider response must be a JSON object")
@@ -112,14 +121,21 @@ class OpenAIProvider:
 class BridgeProvider:
     """Use the established authenticated Codex worker through its internal API."""
 
-    model_name = "codex-bridge"
-
-    def __init__(self, url: str, token: str, timeout_seconds: int = 360) -> None:
+    def __init__(self, url: str, token: str, model: str = "codex-cli-default", timeout_seconds: int = 360) -> None:
         if not url or not token:
             raise RuntimeError("LLM_BRIDGE_URL and TELEGRAM_BOT_TOKEN are required for bridge mode")
         self.url = url.rstrip("/")
         self.token = token
+        self.model_name = model or "codex-cli-default"
         self.timeout_seconds = timeout_seconds
+        self.last_invocation: dict[str, Any] = {}
+        self._request_metadata: dict[str, str] = {}
+
+    def prepare_invocation(self, prompt_template_version: str, context_hash: str) -> None:
+        self._request_metadata = {
+            "prompt_template_version": prompt_template_version,
+            "context_hash": context_hash,
+        }
 
     def generate_structured(
         self, mode: str, system_prompt: str, input_payload: dict[str, Any], output_schema: dict[str, Any]
@@ -130,6 +146,8 @@ class BridgeProvider:
             "system_prompt": system_prompt,
             "input_payload": input_payload,
             "output_schema": output_schema,
+            "model": self.model_name,
+            **self._request_metadata,
         }
         request_id = int(self._request(self.url, request, headers)["request_id"])
         deadline = time.monotonic() + self.timeout_seconds
@@ -137,6 +155,7 @@ class BridgeProvider:
             payload = self._request(f"{self.url}/{request_id}", None, headers)
             if payload["status"] == "completed":
                 result = payload.get("result") or {}
+                self.last_invocation = dict(result.get("invocation") or {}) if isinstance(result, dict) else {}
                 body = result.get("response") if isinstance(result, dict) else None
                 decoded = json.loads(body) if isinstance(body, str) else body
                 if not isinstance(decoded, dict):

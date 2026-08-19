@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: 1 GB reliability profile and owner-safe Laval correction UX deployed; 24-hour and authenticated-owner acceptance pending
+Status: Idea Laval v3 verified locally; serialized production rollout pending
 Updated: 2026-08-19
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -52,17 +52,34 @@ the authoritative state until the owner creates a Laval idea. Laval persists 16
 inspectable/restartable stages from Owner Capture
 through Final Shortlist, localized search work for configurable countries,
 global competitor deduplication, evidence and complaint clusters, Opportunity
-Matrix rows, separate Trend Scores and Trend Discoveries, bounded synthesis,
-21 operator-driven variants, clustering, independent evaluation, overrides,
-costs, and provenance. The Owner Gateway is the only normal web instruction
+Matrix rows, deterministic Market Signals, bounded synthesis,
+24 variants across eight operators including `BEHAVIOR_FIRST`, clustering,
+fresh independent evaluation, overrides, costs, and provenance. The Owner Gateway is the only normal web instruction
 channel; its bounded proxy never gives the browser direct database access.
 
 Laval's live research path is pluggable. DataForSEO implements localized organic
 SERPs, website collection uses public HTTP pages, and the restricted Google
-Trends API is represented by an owner-configured bridge. Deterministic fixture
+Trends API is an optional supplemental source represented by an owner-configured
+bridge; its absence does not block Market Signals or finalists. Deterministic fixture
 providers remain the safe default and are visibly marked. Live evidence passes
 through `ResearchKnowledgeService`; finalists become proposed Hypotheses with
 `derived_from` edges to permanent Source UUIDs.
+
+Market Signals v2 keeps the pipeline at 16 stages by replacing the three Trends
+stages with Plan, Collection, and Gate. `market-signal-v1` stores the exact
+formula, six code-computed components, raw counters, data availability, and
+deduplicated evidence IDs; missing data contributes zero and no coverage
+multiplier exists. An LLM can only classify supplied evidence IDs as relevant
+or not relevant. Each language-stage call has a distinct fresh session and an
+append-only audit containing context/schema hashes, prompt version, model, and
+truthful success/fallback/failed state.
+
+The independent platform bridge defect is fixed in source: it previously
+rejected every `laval_*` mode, ignored the caller's schema, and therefore made
+Laval silently use deterministic fallback while documentation incorrectly
+credited Codex. The corrected worker allowlists Laval modes and invokes a new
+`codex exec --ephemeral --sandbox read-only --output-schema … -` for every job;
+it never resumes a conversation or uses the dangerous sandbox bypass.
 
 Laval manual corrections are now contextual instead of exposing a generic
 database form on every stage. Only Competitor Selection, Opportunity Matrix,
@@ -142,7 +159,7 @@ verified Google Firebase user.
 
 ## Verification
 
-- React TypeScript, twelve Vitest tests, six Playwright browser tests across
+- React TypeScript, thirteen Vitest tests, six Playwright browser tests across
   desktop Chrome, Pixel emulation, and iPhone WebKit, and the production Vite
   build pass. Regression coverage clicks Laval creation, all 16 stage cards,
   rerun/approval/navigation, provider gating, and authenticated export fallback.
@@ -180,10 +197,13 @@ verified Google Firebase user.
   platform PostgreSQL URL. Production was recreated with the correct environment
   and `PlatformRepository.summary()` succeeds. Compose interpolation and gateway
   settings now fail fast on this condition.
-- Commander/Laval built-image suite: 71 tests pass or intentionally skip only
-  environment/integration cases; every dependency-backed unit path passes.
-- Focused Laval PostgreSQL suite: 13 tests pass, including the 16-stage fixture,
-  exact 21-variant provenance, partial country failure, retry/cache behavior,
+- Commander/Laval built-image suite: 79 tests pass or intentionally skip only
+  seven retired/external-integration cases; every dependency-backed unit path
+  passes.
+- Focused Laval suite: 32 tests pass, including the 16-stage fixture without
+  Google Trends, exact 24-variant provenance, Market Signal formulas/raw data,
+  fresh generator/evaluator sessions, legacy preservation and paid-run upgrade,
+  append-only LLM audit enforcement, partial country failure, retry/cache behavior,
   manual approval, country rerun/staleness, overrides, authenticated API, and
   export.
 - Owner Gateway built-image suite: 19 tests pass, including exact-owner Laval
@@ -196,7 +216,8 @@ verified Google Firebase user.
 - Fresh Idea, Commander, and Owner Gateway images build and import their runtime
   entrypoints; the Idea image exposes the `lav` CLI.
 - Commander deterministic demo and `git diff --check` pass.
-- Independent platform checkout: 51/51 tests pass.
+- Independent platform checkout: 65/65 tests pass, including the fresh,
+  schema-bound Laval bridge contract.
 - Two-database reset rehearsal passes with the required clean checkpoint:
   one mission, zero legacy idea contexts/revisions, ten post contexts/revisions,
   and no domain runtime rows.
@@ -222,14 +243,15 @@ verified Google Firebase user.
    2 GB swap file, swappiness 10, 329 MB idle available memory, both databases
    at the bounded settings, healthy APIs, and no retired Commander workers.
    The rollout found no new OOM event after its start.
-2. Verify competitor, opportunity, and trend corrections from the authenticated
+2. Verify competitor and opportunity corrections plus Market Signal inspection from the authenticated
    owner browser. Complete the remaining browser/API functional acceptance:
    create and inspect a Laval run, exercise Plan/Execute and root terminal
    access, and verify restart persistence from the browser.
-3. DataForSEO is configured and the first five-country live-search run reached
-   the competitor-selection gate. Add restricted Google Trends bridge access
-   when available and complete the remaining live-provider acceptance checklist.
-   Fixture evidence must not enter the permanent Commander research graph.
+3. DataForSEO is configured and the saved five-country live-search run reached
+   the Opportunity Matrix with paid task IDs and cost preserved. The owner must
+   explicitly choose **Resume with Market Signals** in the web console; deploy
+   must not start it. Google Trends can be added later but is not an acceptance
+   blocker. Fixture evidence must not enter the permanent Commander research graph.
 4. Run owner Plan/Execute, root `id`/`pwd`, Telegram emergency controls, and
    restart-persistence acceptance. Do not claim
    Telegram/provider readiness before these pass.
@@ -241,10 +263,13 @@ verified Google Firebase user.
 
 Production audit resolved run `01a01476-a4f6-7f3f-bab0-26845f45fc6d` as a
 fixture demo: search, competitor evidence, and Trends used fixture providers;
-the Codex bridge handled language stages using the existing authenticated VPS
-runtime; provider cost and graph-linked sources were zero. All 16 database
+provider cost and graph-linked sources were zero. All 16 database
 artifacts were present. The mobile “artifact not created” message was caused by
 a failed `/show` request during a transient whole-VPS stall, not missing data.
+The later v3 bridge audit corrected one claim from that report: the independent
+platform API rejected the `laval_*` modes, so those language stages used their
+persisted deterministic fallbacks rather than Codex. No historic artifact was
+rewritten; the v3 bridge repair makes future execution auditable.
 
 Migration 006, provider readiness, evidence-mode badges/exports, stop-before-
 Trends behavior, queued DataForSEO task persistence, the USD 0.05/0.04 spend

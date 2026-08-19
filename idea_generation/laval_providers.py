@@ -173,6 +173,14 @@ class DataForSEOSearchProvider:
         for item in items:
             if item.get("type") != "organic" or not item.get("url"):
                 continue
+            published_at = item.get("timestamp") or item.get("published_datetime")
+            provider_metadata = {
+                "task_id": task.get("id"),
+                "cost": float(task.get("cost") or 0),
+                "provider_status": task.get("status_code"),
+            }
+            if isinstance(published_at, str) and published_at.strip():
+                provider_metadata["published_at"] = published_at.strip()
             rows.append({
                 "position": int(item.get("rank_absolute") or item.get("rank_group") or len(rows) + 1),
                 "title": str(item.get("title") or item.get("domain") or item["url"]),
@@ -180,7 +188,7 @@ class DataForSEOSearchProvider:
                 "domain": str(item.get("domain") or ""),
                 "snippet": str(item.get("description") or ""),
                 "result_type": "organic",
-                "provider_metadata": {"task_id": task.get("id"), "cost": float(task.get("cost") or 0), "provider_status": task.get("status_code")},
+                "provider_metadata": provider_metadata,
             })
         return rows[:depth]
 

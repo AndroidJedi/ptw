@@ -25,7 +25,7 @@ def _llm(settings: Settings):
     if settings.llm_provider == "openai":
         return OpenAIProvider(settings.openai_api_key, settings.llm_model)
     if settings.llm_provider == "bridge":
-        return BridgeProvider(settings.llm_bridge_url, settings.telegram_token)
+        return BridgeProvider(settings.llm_bridge_url, settings.telegram_token, settings.llm_model)
     raise RuntimeError("LLM_PROVIDER must be mock, openai, or bridge")
 
 
@@ -66,7 +66,7 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--force", action="store_true")
     run.add_argument("--json", action="store_true")
 
-    for name in ("resume", "pause", "status", "stages", "cost"):
+    for name in ("resume", "resume-market-signals", "pause", "status", "stages", "cost"):
         command = commands.add_parser(name)
         command.add_argument("run_id")
         command.add_argument("--json", action="store_true")
@@ -137,6 +137,9 @@ def main() -> None:
         elif args.command == "resume":
             repository.ready(args.run_id)
             _print(pipeline.run(args.run_id), args.json)
+        elif args.command == "resume-market-signals":
+            repository.upgrade_to_market_signals(args.run_id, actor=actor)
+            _print(pipeline.run(args.run_id, start_stage="MARKET_SIGNAL_PLAN"), args.json)
         elif args.command == "pause":
             _print(service.pause(args.run_id), args.json)
         elif args.command == "status":

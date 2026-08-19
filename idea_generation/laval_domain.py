@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import re
 from typing import Any, Mapping, Sequence
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
-STAGES = (
+LEGACY_STAGES = (
     "OWNER_CAPTURE",
     "OWNER_DNA",
     "QUERY_PLAN",
@@ -29,6 +30,25 @@ STAGES = (
     "FINAL_SHORTLIST",
 )
 
+STAGES = (
+    "OWNER_CAPTURE",
+    "OWNER_DNA",
+    "QUERY_PLAN",
+    "SERP_DISCOVERY",
+    "COMPETITOR_SELECTION",
+    "COMPETITOR_EVIDENCE",
+    "COMPETITOR_DOSSIERS",
+    "OPPORTUNITY_MATRIX",
+    "MARKET_SIGNAL_PLAN",
+    "MARKET_SIGNAL_COLLECTION",
+    "MARKET_SIGNAL_GATE",
+    "SYNTHESIS_PACKET",
+    "IDEA_EXPANSION",
+    "IDEA_CLUSTERING",
+    "IDEA_EVALUATION",
+    "FINAL_SHORTLIST",
+)
+
 QUERY_FAMILIES = ("category", "problem", "alternative", "behavioral")
 OPERATORS = (
     "invert",
@@ -38,7 +58,24 @@ OPERATORS = (
     "resegment",
     "recombine",
     "distribution_first",
+    "behavior_first",
 )
+
+MARKET_SIGNAL_NORMALIZATION_VERSION = "market-signal-v1"
+MARKET_SIGNAL_FORMULA = (
+    "0.20 × cross_country_recurrence + 0.20 × query_family_recurrence "
+    "+ 0.15 × recent_content_activity + 0.15 × community_activity "
+    "+ 0.15 × negative_pain_recurrence + 0.15 × semantic_relevance"
+)
+MARKET_SIGNAL_WEIGHTS = {
+    "cross_country_recurrence": .20,
+    "query_family_recurrence": .20,
+    "recent_content_activity": .15,
+    "community_activity": .15,
+    "negative_pain_recurrence": .15,
+    "semantic_relevance": .15,
+}
+COMMUNITY_SOURCE_TYPES = frozenset({"reddit", "forum", "youtube", "review"})
 
 DEFAULT_COUNTRIES = (
     {"code": "US", "language": "en"},
@@ -125,6 +162,12 @@ class LavalConfig:
         "distribution_potential": .10,
         "novelty": .10,
     })
+    market_signal_weights: dict[str, float] = field(
+        default_factory=lambda: dict(MARKET_SIGNAL_WEIGHTS)
+    )
+    market_signal_recent_source_target: int = 10
+    market_signal_community_source_target: int = 10
+    market_signal_complaint_target: int = 10
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None = None) -> "LavalConfig":
@@ -198,6 +241,21 @@ class LavalConfig:
             opportunity_weights=_weights(raw.get("opportunity_weights"), cls().opportunity_weights),
             trend_weights=_weights(raw.get("trend_weights"), cls().trend_weights),
             idea_weights=_weights(raw.get("idea_weights"), cls().idea_weights),
+            market_signal_weights=_weights(
+                raw.get("market_signal_weights"), cls().market_signal_weights
+            ),
+            market_signal_recent_source_target=_bounded_int(
+                (raw.get("market_signals") or {}).get("recent_source_target", 10),
+                "market_signal_recent_source_target", 1, 100,
+            ),
+            market_signal_community_source_target=_bounded_int(
+                (raw.get("market_signals") or {}).get("community_source_target", 10),
+                "market_signal_community_source_target", 1, 100,
+            ),
+            market_signal_complaint_target=_bounded_int(
+                (raw.get("market_signals") or {}).get("complaint_target", 10),
+                "market_signal_complaint_target", 1, 100,
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -233,6 +291,14 @@ class LavalConfig:
             "opportunity_weights": dict(self.opportunity_weights),
             "trend_weights": dict(self.trend_weights),
             "idea_weights": dict(self.idea_weights),
+            "market_signals": {
+                "normalization_version": MARKET_SIGNAL_NORMALIZATION_VERSION,
+                "recent_source_target": self.market_signal_recent_source_target,
+                "community_source_target": self.market_signal_community_source_target,
+                "complaint_target": self.market_signal_complaint_target,
+                "community_source_types": sorted(COMMUNITY_SOURCE_TYPES),
+            },
+            "market_signal_weights": dict(self.market_signal_weights),
         }
 
 
@@ -265,6 +331,122 @@ def idea_score(dimensions: Mapping[str, Any], config: LavalConfig) -> float:
     return weighted_score(dimensions, config.idea_weights)
 
 
+def _real_published_at(evidence: Mapping[str, Any]) -> datetime | None:
+    value = (evidence.get("metadata") or {}).get("published_at")
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def market_signal_score(
+    evidence: Sequence[Mapping[str, Any]],
+    relevant_evidence_ids: Sequence[str],
+    config: LavalConfig,
+    *,
+    as_of: datetime,
+) -> dict[str, Any]:
+    """Compute market-signal-v1 only from persisted, explicitly evaluated evidence."""
+    evaluated_by_id = {str(item.get("id")): item for item in evidence if item.get("id")}
+    relevant = {str(value) for value in relevant_evidence_ids} & set(evaluated_by_id)
+    source_groups: dict[str, list[Mapping[str, Any]]] = {}
+    for evidence_id in sorted(evaluated_by_id):
+        item = evaluated_by_id[evidence_id]
+        source_key = canonical_evidence_url(str(item.get("source_url") or "")) or f"evidence:{evidence_id}"
+        source_groups.setdefault(source_key, []).append(item)
+    deduplicated = [
+        next(item for item in items if str(item["id"]) in relevant)
+        for items in source_groups.values()
+        if any(str(item["id"]) in relevant for item in items)
+    ]
+
+    target_countries = {str(item["code"]).upper() for item in config.countries}
+    countries = {
+        str(item.get("country") or "").upper()
+        for item in deduplicated
+        if str(item.get("country") or "").upper() in target_countries
+    }
+    families = {
+        str((item.get("metadata") or {}).get("query_family") or "").lower()
+        for item in deduplicated
+    } & set(QUERY_FAMILIES[: config.query_families])
+    as_of_utc = as_of if as_of.tzinfo else as_of.replace(tzinfo=timezone.utc)
+    as_of_utc = as_of_utc.astimezone(timezone.utc)
+    recent = [
+        item for item in deduplicated
+        if (published := _real_published_at(item)) is not None
+        and as_of_utc - timedelta(days=365) <= published <= as_of_utc
+    ]
+    community = [
+        item for item in deduplicated
+        if str(item.get("source_type") or "").lower() in COMMUNITY_SOURCE_TYPES
+    ]
+    community_types = {str(item.get("source_type")).lower() for item in community}
+    complaints = [
+        item for item in deduplicated
+        if (item.get("metadata") or {}).get("purpose") == "negative"
+    ]
+    complaint_competitors = {str(item.get("competitor_id")) for item in complaints if item.get("competitor_id")}
+    complaint_countries = {str(item.get("country")).upper() for item in complaints if item.get("country")}
+
+    components = {
+        "cross_country_recurrence": len(countries) / max(1, len(target_countries)),
+        "query_family_recurrence": len(families) / max(1, config.query_families),
+        "recent_content_activity": min(len(recent) / config.market_signal_recent_source_target, 1),
+        "community_activity": (
+            .5 * min(len(community) / config.market_signal_community_source_target, 1)
+            + .5 * len(community_types) / len(COMMUNITY_SOURCE_TYPES)
+        ),
+        "negative_pain_recurrence": sum((
+            min(len(complaints) / config.market_signal_complaint_target, 1),
+            min(len(complaint_competitors) / max(1, config.max_unique_competitors), 1),
+            min(len(complaint_countries) / max(1, len(target_countries)), 1),
+        )) / 3,
+        "semantic_relevance": len(deduplicated) / max(1, len(source_groups)),
+    }
+    components = {key: round(clamp(value), 6) for key, value in components.items()}
+    availability = {
+        "cross_country_recurrence": "available" if countries else "no_data",
+        "query_family_recurrence": "available" if families else "no_data",
+        "recent_content_activity": "available" if recent else "no_data",
+        "community_activity": "available" if community else "no_data",
+        "negative_pain_recurrence": "available" if complaints else "no_data",
+        "semantic_relevance": "available" if source_groups else "no_data",
+    }
+    raw_counts = {
+        "target_countries": len(target_countries),
+        "countries_with_independent_evidence": len(countries),
+        "configured_query_families": config.query_families,
+        "query_families_with_evidence": len(families),
+        "evaluated_unique_sources": len(source_groups),
+        "relevant_unique_sources": len(deduplicated),
+        "recent_dated_sources_365d": len(recent),
+        "community_unique_sources": len(community),
+        "community_source_types": len(community_types),
+        "independent_complaints": len(complaints),
+        "competitors_with_complaints": len(complaint_competitors),
+        "countries_with_complaints": len(complaint_countries),
+    }
+    return {
+        "normalization_version": MARKET_SIGNAL_NORMALIZATION_VERSION,
+        "formula": MARKET_SIGNAL_FORMULA,
+        "weights": dict(config.market_signal_weights),
+        "components": components,
+        "raw_counts": raw_counts,
+        "data_status": {
+            "overall": "available" if any(value == "available" for value in availability.values()) else "no_data",
+            "components": availability,
+        },
+        "evidence_ids": [str(item["id"]) for item in deduplicated],
+        "aggregate_score": weighted_score(components, config.market_signal_weights),
+    }
+
+
 def canonical_url(value: str) -> str:
     candidate = value.strip()
     if not candidate:
@@ -285,6 +467,21 @@ def canonical_url(value: str) -> str:
 def canonical_domain(value: str) -> str:
     normalized = canonical_url(value)
     return (urlsplit(normalized).hostname or "").removeprefix("www.")
+
+
+def canonical_evidence_url(value: str) -> str:
+    """Keep identity-bearing query parameters while removing tracking noise."""
+    base = canonical_url(value)
+    if not base:
+        return ""
+    parts = urlsplit(value if "://" in value else "https://" + value)
+    query = [
+        (key, item)
+        for key, item in parse_qsl(parts.query, keep_blank_values=True)
+        if not key.lower().startswith(("utm_", "tracking"))
+        and key.lower() not in {"gclid", "fbclid", "ref", "source"}
+    ]
+    return base + (f"?{urlencode(sorted(query))}" if query else "")
 
 
 def normalize_words(value: str) -> tuple[str, ...]:
@@ -309,10 +506,11 @@ def deduplicate_queries(values: Sequence[Mapping[str, Any]]) -> list[dict[str, A
 
 
 def stage_index(stage: str) -> int:
-    try:
-        return STAGES.index(stage.upper())
-    except ValueError as error:
-        raise ValueError(f"unknown Laval stage: {stage}") from error
+    normalized = stage.upper()
+    for stages in (STAGES, LEGACY_STAGES):
+        if normalized in stages:
+            return stages.index(normalized)
+    raise ValueError(f"unknown Laval stage: {stage}")
 
 
 def json_safe(value: Any) -> Any:

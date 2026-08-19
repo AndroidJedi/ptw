@@ -1,7 +1,7 @@
 # Idea Laval Engine
 
-Status: evidence modes and five-cent live-search guard implemented
-Updated: 2026-08-18
+Status: Market Signals v2 and fresh-session audit implemented
+Updated: 2026-08-19
 
 ## Purpose
 
@@ -14,9 +14,7 @@ Owner Idea
   -> website, YouTube, review, forum, and complaint evidence
   -> competitor dossiers
   -> Opportunity Matrix
-  -> Google Trends research
-       -> Trend Scores
-       -> Trend Discoveries
+  -> deterministic MarketSignalScore from persisted evidence
   -> bounded Synthesis Packet
   -> explicit transformation operators
   -> clustered variants
@@ -34,23 +32,31 @@ PostgreSQL owns the run, stages, child items, artifacts, evidence, normalized
 entities, approvals, overrides, costs, and lineage. JSON and Markdown exports
 are derivatives generated from database state.
 
-Every run has one durable evidence mode. `demo_fixture` is an inspectable
-orchestration demo and must display `DEMO — NO LIVE RESEARCH` everywhere.
-`live_search_pending_trends` uses real search evidence but pauses after the
-Opportunity Matrix. Only `live_complete` may proceed through Google Trends,
-synthesis, evaluation, and a final shortlist. Provider names and the spend cap
-are snapshotted when the run is created.
+Every run has one durable pipeline version and evidence mode. `demo_fixture` is
+an inspectable orchestration demo and must display `DEMO — NO LIVE RESEARCH`
+everywhere. New live runs use `market_signals_v2` plus
+`live_market_signals`; Google Trends is optional and its absence never blocks
+synthesis or finalists. Historical `legacy-trends-v2`,
+`live_search_pending_trends`, and `live_complete` rows remain readable and are
+not rewritten. Provider names, score configuration, and spend cap are
+snapshotted when the run is created.
 
 ## Stages and restart behavior
 
-The canonical stages are `OWNER_CAPTURE`, `OWNER_DNA`, `QUERY_PLAN`,
+The canonical Market Signals v2 stages are `OWNER_CAPTURE`, `OWNER_DNA`, `QUERY_PLAN`,
 `SERP_DISCOVERY`, `COMPETITOR_SELECTION`, `COMPETITOR_EVIDENCE`,
-`COMPETITOR_DOSSIERS`, `OPPORTUNITY_MATRIX`, `TREND_QUERY_PLAN`,
-`GOOGLE_TRENDS_RESEARCH`, `TREND_GATE`, `SYNTHESIS_PACKET`, `IDEA_EXPANSION`,
+`COMPETITOR_DOSSIERS`, `OPPORTUNITY_MATRIX`, `MARKET_SIGNAL_PLAN`,
+`MARKET_SIGNAL_COLLECTION`, `MARKET_SIGNAL_GATE`, `SYNTHESIS_PACKET`, `IDEA_EXPANSION`,
 `IDEA_CLUSTERING`, `IDEA_EVALUATION`, and `FINAL_SHORTLIST`.
 
+An eligible incomplete legacy run exposes **Resume with Market Signals** only
+in the owner web console. That explicit action changes its three unstarted
+ordinal 8-10 rows to the Market Signal stages and preserves paid task IDs,
+recorded spend, evidence, lineage, and all earlier artifacts. It refuses
+completed legacy Trends history and never starts automatically.
+
 Every stage stores an input hash, status, attempt, provider/model, metrics,
-bounded error, and current artifact. Country/query/competitor/trend operations
+bounded error, and current artifact. Country/query/competitor/signal operations
 also have independent child states. A restart resumes `pending` or `running`
 runs; a failed run remains visible until the owner resumes it. Reusing the same
 input hash skips paid calls. Reruns mark every downstream stage stale before
@@ -73,8 +79,30 @@ runs; full resume remains web-only.
 
 `laval_evidence` retains source URI/title, retrieval time, source class,
 country, claim/excerpt, confidence, provider metadata, and optional competitor.
-Every opportunity, trend signal/discovery, idea, and evaluation keeps stable
+Every opportunity, market/trend signal, idea, and evaluation keeps stable
 evidence/parent IDs plus explicit `laval_lineage_edges`.
+
+`MarketSignalScore` is code-owned and uses only persisted evidence IDs. Laval
+stores the exact formula, `market-signal-v1` normalization version, weights,
+six components, raw counters, per-component data status, score timestamp, and
+deduplicated evidence IDs. Missing confirmed data contributes zero and is
+separately displayed as `no_data`; there is no coverage multiplier. The exact
+formula is:
+
+```text
+0.20 × cross_country_recurrence
++ 0.20 × query_family_recurrence
++ 0.15 × recent_content_activity
++ 0.15 × community_activity
++ 0.15 × negative_pain_recurrence
++ 0.15 × semantic_relevance
+```
+
+Only a real provider `published_at` value may contribute to the 365-day
+counter; retrieval time is never substituted. Canonical duplicate URLs count
+once. A fresh LLM invocation may only classify supplied
+opportunity/evidence-ID pairs as relevant or not relevant. It never supplies a
+numeric component or final score.
 
 With live research configured, evidence is sent through Commander's internal
 bridge, which calls `ResearchKnowledgeService` with the product research agent.
@@ -85,7 +113,7 @@ Fixture records are also excluded when live and fixture providers are mixed.
 
 ## Providers
 
-Business logic depends on `SearchProvider`, `WebPageProvider`, `TrendProvider`,
+Business logic depends on `SearchProvider`, `WebPageProvider`, an optional `TrendProvider`,
 the existing structured LLM provider, the PostgreSQL repository, and the
 Commander research sink.
 
@@ -96,10 +124,16 @@ Commander research sink.
   hour for queue outliers; a later Retry fetches the same paid task rather than
   posting it again. The internal reservation ceiling is USD 0.04 and the
   absolute per-run cap is USD 0.05.
-- `LAVAL_TREND_PROVIDER=fixture` supplies deterministic recorded-style results.
-- `LAVAL_TREND_PROVIDER=google_trends` requires an owner-provided bridge URL for
-  the restricted Google Trends alpha/API account. The bridge contract returns
-  normalized dimensions plus related/rising/breakout discoveries.
+- `LAVAL_TREND_PROVIDER=google_trends` remains an optional supplemental source;
+  it is not required for Market Signals v2 completion.
+
+Every Laval language stage uses a bounded context packet and a separate fresh
+model invocation. The VPS bridge accepts explicit `laval_*` modes, passes the
+caller's JSON Schema to `codex exec --output-schema`, supplies the prompt on
+stdin, and runs `--ephemeral --sandbox read-only`. It never uses `resume` or a
+dangerous sandbox bypass. `laval_llm_invocations` is append-only and records
+context/schema hashes, prompt version, model, independent session IDs, and
+`success`, `fallback`, or `failed`.
 
 No Google Custom Search dependency exists. Provider failures are persisted per
 item; the stage continues when remaining evidence is sufficient and applies a
@@ -118,12 +152,14 @@ scraping as a production substitute.
 
 The mobile-first Ideas view is the normal VPS interface. It creates runs with a
 configurable country/language list, starts or pauses work, polls durable state,
-shows all 16 stages, filters SERP/selection output by country, separates Trend
-Scores from Trend Discoveries, approves gates, reruns stages/countries, writes
-audited overrides, and exports JSON or Markdown. Manual corrections appear only
-on Competitor Selection, Opportunity Matrix, and Trend Gate. The API returns
-the currently selected/enabled rows so the owner chooses a human-readable
-competitor, opportunity, trend score, or trend discovery; the web UI supplies
+shows all 16 stages, filters SERP/selection output by country, displays the
+MarketSignalScore formula, components, raw counters, data status, and evidence
+IDs, approves gates, reruns stages/countries, writes
+audited overrides, and exports JSON or Markdown. New-run manual corrections
+appear on Competitor Selection and Opportunity Matrix; historical legacy runs
+retain their Trend Gate correction alias. The API returns the currently
+selected/enabled rows so the owner chooses a human-readable competitor,
+opportunity, or legacy trend row; the web UI supplies
 the target UUID internally and requires a reason. The actor and reason are
 appended to the audit log, and the affected downstream stages become stale for
 deliberate reconstruction. All calls pass Firebase Auth, App Check, exact-owner
@@ -141,7 +177,8 @@ The same services are available through the `lav` CLI inside the Idea service:
 lav idea new --text "OWNER IDEA"
 lav run RUN_UUID --through COMPETITOR_SELECTION
 lav status RUN_UUID --watch
-lav show RUN_UUID TREND_GATE --view discoveries --json
+lav show RUN_UUID MARKET_SIGNAL_GATE --view scores --json
+lav resume-market-signals RUN_UUID
 lav approve RUN_UUID COMPETITOR_SELECTION
 lav rerun RUN_UUID SERP_DISCOVERY --country DE
 lav competitor reject RUN_UUID --competitor UUID --reason "not a product"
@@ -159,12 +196,13 @@ database, rebuild the Idea API/Commander API/Owner Gateway/Web images, and run:
 1. exact-owner login and negative authentication checks;
 2. one manual run through all three gates and one automatic run;
 3. five-country top-three inspection and a Germany-only rerun;
-4. raw trend, Trend Score, and Trend Discovery inspection;
-5. one competitor rejection and one opportunity/trend disable;
-6. process restart during SERP and trend work;
+4. raw Market Signal components, counters, data status, and evidence IDs;
+5. one competitor rejection and one opportunity disable;
+6. process restart during SERP and Market Signal work;
 7. Source -> proposed Hypothesis graph persistence for finalists;
 8. JSON/Markdown export and user-facing provider failure behavior;
-9. emergency stop and web-only resume.
+9. emergency stop and web-only resume;
+10. completion without Google Trends and no repeated paid task submission.
 
 Fixture acceptance proves orchestration, persistence, UI, and lineage but is not
 evidence that a live external provider is ready.

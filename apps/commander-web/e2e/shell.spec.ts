@@ -3,8 +3,8 @@ import { expect, test } from '@playwright/test'
 const runId = '01234567-89ab-7def-8123-456789abcdef'
 const stages = [
   'OWNER_CAPTURE', 'OWNER_DNA', 'QUERY_PLAN', 'SERP_DISCOVERY', 'COMPETITOR_SELECTION',
-  'COMPETITOR_EVIDENCE', 'COMPETITOR_DOSSIERS', 'OPPORTUNITY_MATRIX', 'TREND_QUERY_PLAN',
-  'GOOGLE_TRENDS_RESEARCH', 'TREND_GATE', 'SYNTHESIS_PACKET', 'IDEA_EXPANSION',
+  'COMPETITOR_EVIDENCE', 'COMPETITOR_DOSSIERS', 'OPPORTUNITY_MATRIX', 'MARKET_SIGNAL_PLAN',
+  'MARKET_SIGNAL_COLLECTION', 'MARKET_SIGNAL_GATE', 'SYNTHESIS_PACKET', 'IDEA_EXPANSION',
   'IDEA_CLUSTERING', 'IDEA_EVALUATION', 'FINAL_SHORTLIST',
 ]
 
@@ -27,7 +27,8 @@ test.beforeEach(async ({ page }) => {
       llm_provider: 'bridge', search_provider: 'fixture', trend_provider: 'fixture',
       search_live_ready: false, trends_live_ready: false, demo_available: true,
       default_evidence_mode: 'demo_fixture', max_spend_usd: .05, reserved_spend_usd: .04,
-      missing: ['dataforseo_credentials', 'google_trends_alpha_bridge'],
+      missing: ['dataforseo_credentials'],
+      optional_sources: { google_trends: { ready: false, required: false } },
     })
     if (url.pathname === '/api/v1/laval/runs' && route.request().method() === 'POST') return json({ run_id: runId })
     if (url.pathname === '/api/v1/laval/runs') return json({ items: [{

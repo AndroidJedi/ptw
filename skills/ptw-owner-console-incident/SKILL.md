@@ -88,6 +88,15 @@ instead that unpublished Telegram rows are cancelled without deletion and that
 emergency `/help`, `/status`, and `/stop` remain available through the sole
 platform poller.
 
+For an old run whose visible blocker is Google Trends, verify the status API's
+`resume_with_market_signals_available` flag and the owner-visible **Resume with
+Market Signals** control. The action must go through authenticated Owner
+Gateway routing, must not run automatically, and must preserve paid task IDs,
+cost, evidence, and lineage. For Market Signal inspection, verify the UI shows
+the stored version/formula, all six numeric components, raw counters,
+`available` versus `no_data`, and evidence IDs. Never display or apply a hidden
+coverage multiplier.
+
 Treat “Firebase ID token and App Check are required” as an incomplete request,
 not a reason to relax authentication. The gateway uses one message when either
 value is empty, so determine which browser header is missing. In the first

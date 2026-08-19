@@ -19,6 +19,7 @@ function humanStage(value: string) { return value.replaceAll('_', ' ') }
 function isI18n(value: unknown): value is I18n { return Boolean(value && typeof value === 'object' && 'en' in value && 'uk' in value) }
 function evidenceLabel(mode?: LavalEvidenceMode) {
   if (mode === 'live_complete') return 'LIVE COMPLETE'
+  if (mode === 'live_market_signals') return 'LIVE · MARKET SIGNALS'
   if (mode === 'live_search_pending_trends') return 'LIVE SEARCH — WAITING FOR TRENDS'
   return 'DEMO — NO LIVE RESEARCH'
 }
@@ -108,11 +109,11 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
 
   const act = async (action: string, body: Record<string, unknown> = {}) => {
     if (!selected) return false
-    setBusy(true); setBusyAction(action); setError(''); setNotice(action === 'resume' ? 'Відновлення збереженої роботи…' : '')
+    setBusy(true); setBusyAction(action); setError(''); setNotice(action.includes('resume') ? 'Відновлення збереженої роботи…' : '')
     try {
       const result = await api.post<{ started?: boolean; queued?: number }>(`/api/v1/laval/runs/${selected}/${action}`, body)
       await loadStatus(selected); await loadRuns()
-      if (action === 'resume') setNotice(result.started === false ? 'Запуск уже виконується.' : 'Відновлення запущено: збережені remote task IDs повторно не надсилаються і повторно не оплачуються.')
+      if (action.includes('resume')) setNotice(result.started === false ? 'Запуск уже виконується.' : 'Відновлення запущено: збережені remote task IDs повторно не надсилаються і повторно не оплачуються.')
       else setNotice('Дію виконано.')
       return true
     } catch (cause) { setError((cause as Error).message); return false }
@@ -191,7 +192,7 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
 
   return <section className="laval-engine">
     <div className="laval-toolbar">
-      <div><small>IDEA LAVAL ENGINE</small><h2>Evidence → opportunity → trend → ideas</h2></div>
+      <div><small>IDEA LAVAL ENGINE</small><h2>Evidence → opportunity → market signals → ideas</h2></div>
       <button className="primary" disabled={!providers} onClick={() => setShowCreate(true)}><Plus />Нова Laval-ідея</button>
     </div>
     {error && <div className="laval-error" role="alert"><span>{error}</span><button onClick={() => { setError(''); void loadProviders(); void loadRuns(); void loadStatus() }} aria-label="Повторити"><RefreshCcw /> Повторити</button><button onClick={() => setError('')} aria-label="Закрити"><X /></button></div>}
@@ -204,7 +205,7 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
         <label><input type="radio" name="evidence-mode" value="demo" checked={requestedMode === 'demo'} disabled={!providers?.demo_available} onChange={() => setRequestedMode('demo')} /><span><strong>Демо</strong> — deterministic fixture, не ринкове дослідження</span></label>
         <label><input type="radio" name="evidence-mode" value="live" checked={requestedMode === 'live'} disabled={!providers?.search_live_ready} onChange={() => setRequestedMode('live')} /><span><strong>Живе дослідження</strong> — DataForSEO, максимум ${(providers?.max_spend_usd ?? .05).toFixed(2)}</span></label>
         {!providers?.search_live_ready && <p>DataForSEO ще не налаштовано. Живий запуск заблоковано.</p>}
-        {providers?.search_live_ready && !providers.trends_live_ready && <p>Запуск зупиниться після Opportunity Matrix до підключення Google Trends.</p>}
+        {providers?.search_live_ready && !providers.trends_live_ready && <p>Google Trends не підключено — це необов’язкове джерело і запуск продовжиться без нього.</p>}
       </fieldset>
       <label className="check-row"><input type="checkbox" checked={automatic} onChange={(event) => setAutomatic(event.target.checked)} /><span>Автоматично проходити контрольні точки</span></label>
       <button className="primary large" disabled={busy || !idea.trim() || (requestedMode === 'demo' ? !providers?.demo_available : !providers?.search_live_ready)} onClick={create}><FlaskConical />{busy ? 'Створення…' : requestedMode === 'demo' ? 'Створити чітко позначене демо' : 'Створити живий запуск'}</button>
@@ -222,12 +223,13 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
         {!selected && <div className="state"><FlaskConical /><h2>Створіть перший запуск</h2><p>Кожний етап буде видимим, відновлюваним і пов’язаним із доказами.</p></div>}
         {status && <>
           <header className="laval-run-head">
-            <div><small>RUN {short(status.run.id)} · OWNER {short(status.run.owner_idea_id)}</small><em className={`evidence-badge ${status.run.evidence_mode}`}>{evidenceLabel(status.run.evidence_mode)}</em><h3>{status.run.current_stage ? humanStage(status.run.current_stage) : 'CREATED'}</h3><p><StatusDot status={status.run.status} />{status.run.status} · {status.stages.filter((item) => ['completed', 'partial'].includes(item.status)).length}/16</p><p className="laval-cost">projected ${(status.cost.provider_projected_usd ?? 0).toFixed(4)} · reserved ${(status.cost.provider_reserved_usd ?? 0).toFixed(4)} · actual ${(status.cost.provider_actual_usd ?? status.cost.total_usd).toFixed(4)} · max ${(status.cost.max_spend_usd ?? .05).toFixed(2)}</p>{status.run.awaiting_reason && <p className="laval-waiting">Google Trends access required before synthesis and shortlist.</p>}</div>
+            <div><small>RUN {short(status.run.id)} · OWNER {short(status.run.owner_idea_id)}</small><em className={`evidence-badge ${status.run.evidence_mode}`}>{evidenceLabel(status.run.evidence_mode)}</em><h3>{status.run.current_stage ? humanStage(status.run.current_stage) : 'CREATED'}</h3><p><StatusDot status={status.run.status} />{status.run.status} · {status.stages.filter((item) => ['completed', 'partial'].includes(item.status)).length}/16</p><p className="laval-cost">projected ${(status.cost.provider_projected_usd ?? 0).toFixed(4)} · reserved ${(status.cost.provider_reserved_usd ?? 0).toFixed(4)} · actual ${(status.cost.provider_actual_usd ?? status.cost.total_usd).toFixed(4)} · max ${(status.cost.max_spend_usd ?? .05).toFixed(2)}</p>{status.run.awaiting_reason && <p className="laval-waiting">{status.resume_with_market_signals_available ? 'Цей legacy-run можна продовжити через Market Signals без Google Trends.' : 'Запуск очікує дії провайдера.'}</p>}</div>
             <div className="laval-actions">
               {status.run.status === 'pending' && <button className="primary" disabled={busy} onClick={() => act('run')}><Play />{busyAction === 'run' ? 'Запуск…' : 'Запустити'}</button>}
               {status.run.status === 'running' && <button className="secondary" disabled={busy} onClick={() => act('pause')}><CirclePause />Пауза</button>}
-              {status.run.status === 'paused' && !approval && !status.run.awaiting_reason && <button className="primary" disabled={busy} onClick={() => act('resume')}><Play />Продовжити</button>}
-              {status.run.awaiting_reason && <button className="secondary" disabled><CirclePause />Очікує Google Trends</button>}
+              {status.run.status === 'paused' && !approval && !status.run.awaiting_reason && !status.resume_with_market_signals_available && <button className="primary" disabled={busy} onClick={() => act('resume')}><Play />Продовжити</button>}
+              {status.resume_with_market_signals_available && <button className="primary" disabled={busy} onClick={() => act('resume-market-signals')}><Play />{busyAction === 'resume-market-signals' ? 'Відновлення…' : 'Resume with Market Signals'}</button>}
+              {status.run.awaiting_reason && !status.resume_with_market_signals_available && <button className="secondary" disabled><CirclePause />Очікує провайдера</button>}
               {approval && current && <button className="primary" disabled={busy} onClick={() => act('approve', { stage: current.stage })}><Check />Схвалити й продовжити</button>}
               <button className="secondary" disabled={busy} onClick={() => download('json')}><Download />JSON</button>
               <button className="secondary" disabled={busy} onClick={() => download('md')}>MD</button>
@@ -246,7 +248,7 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
               <div><dt>Вартість записано</dt><dd>{status.recovery.provider_tasks.cost_recorded} · ${status.recovery.provider_tasks.actual_cost_usd.toFixed(4)}</dd></div>
             </dl>
             <p className="laval-recovery-safe">Відновлення використовує вже збережені remote task IDs. Submitted-задачі не публікуються і не оплачуються повторно.</p>
-            <button className="primary" disabled={busy} onClick={() => act('resume')}><Play />{busyAction === 'resume' ? 'Відновлення…' : 'Відновити збережену роботу'}</button>
+            {!status.resume_with_market_signals_available && <button className="primary" disabled={busy} onClick={() => act('resume')}><Play />{busyAction === 'resume' ? 'Відновлення…' : 'Відновити збережену роботу'}</button>}
           </section>}
           {status.run.status === 'failed' && !status.recovery && status.run.error_text && <p className="laval-failure">{status.run.error_text}</p>}
           {status.recovery?.history && status.recovery.history.length > 0 && <details className="laval-recovery-history">
@@ -262,6 +264,7 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
           {stageName && <section className="laval-inspector" ref={inspectorRef} tabIndex={-1}>
             <div className="laval-inspector-head"><div><small>АРТЕФАКТ ЕТАПУ</small><h3>{humanStage(stageName)}</h3></div><div>
               {stageName === 'TREND_GATE' && <select aria-label="Trend view" value={view} onChange={(event) => { const value = event.target.value; const stage = status.stages.find((item) => item.stage === stageName); if (stage) void inspect(stage, value, countryFilter) }}><option value="">Усе</option><option value="scores">Trend Scores</option><option value="discoveries">Trend Discoveries</option></select>}
+              {stageName === 'MARKET_SIGNAL_GATE' && <select aria-label="Market signal view" value={view} onChange={(event) => { const value = event.target.value; const stage = status.stages.find((item) => item.stage === stageName); if (stage) void inspect(stage, value, countryFilter) }}><option value="">Усе</option><option value="scores">MarketSignalScore</option></select>}
               {['SERP_DISCOVERY', 'COMPETITOR_SELECTION'].includes(stageName) && <select aria-label="Country filter" value={countryFilter} onChange={(event) => { const value = event.target.value; const stage = status.stages.find((item) => item.stage === stageName); if (stage) void inspect(stage, view, value) }}><option value="">Усі країни</option>{configuredCountries.map((code) => <option key={code}>{code}</option>)}</select>}
               <button className="secondary" disabled={busy} onClick={() => act('rerun', { stage: stageName, ...(stageName === 'SERP_DISCOVERY' && countryFilter ? { country: countryFilter } : {}) })}><RotateCcw />{busy ? 'Виконується…' : 'Перезапустити'}</button>
             </div></div>
@@ -292,6 +295,8 @@ function StageArtifact({ value, language, loading, error }: { value: unknown; la
   if (error) return <p className="laval-failure">Не вдалося завантажити артефакт: {error}</p>
   const output = value && typeof value === 'object' && 'output' in value ? (value as { output: unknown }).output : value
   if (output === null || output === undefined) return <p className="muted">Артефакт ще не створено для незавершеного етапу.</p>
+  if (Array.isArray(output) && output.some((item) => item && typeof item === 'object' && 'normalization_version' in item)) return <MarketSignalScores scores={output as Array<Record<string, unknown>>} />
+  if (output && typeof output === 'object' && 'scores' in output && Array.isArray((output as { scores: unknown[] }).scores) && (output as { scores: Array<Record<string, unknown>> }).scores.some((item) => item.normalization_version)) return <MarketSignalScores scores={(output as { scores: Array<Record<string, unknown>> }).scores} />
   if (output && typeof output === 'object' && 'shortlist' in output) {
     const items = (output as { shortlist: Array<Record<string, unknown>> }).shortlist || []
     return <div className="laval-shortlist">{items.map((item) => {
@@ -300,6 +305,22 @@ function StageArtifact({ value, language, loading, error }: { value: unknown; la
     })}</div>
   }
   return <pre className="laval-json">{JSON.stringify(output, null, 2)}</pre>
+}
+
+function MarketSignalScores({ scores }: { scores: Array<Record<string, unknown>> }) {
+  return <div className="market-signal-scores">{scores.map((score) => {
+    const components = (score.components || {}) as Record<string, number>
+    const raw = (score.raw_counts || {}) as Record<string, number>
+    const status = (score.data_status || {}) as { overall?: string; components?: Record<string, string> }
+    const evidence = (score.evidence_ids || []) as string[]
+    return <article key={String(score.id)}>
+      <header><div><small>{String(score.normalization_version)} · {status.overall === 'no_data' ? 'ДАНИХ НЕМАЄ' : 'ДАНІ НАЯВНІ'}</small><h4>MarketSignalScore</h4></div><strong>{(Number(score.aggregate_score || 0) * 100).toFixed(1)}</strong></header>
+      <p><code>{String(score.formula)}</code></p>
+      <dl>{Object.entries(components).map(([name, value]) => <div key={name}><dt>{humanStage(name)}</dt><dd>{(Number(value) * 100).toFixed(1)}% · {status.components?.[name] === 'no_data' ? 'даних немає' : 'виміряно'}</dd></div>)}</dl>
+      <details><summary>Сирі лічильники</summary><pre>{JSON.stringify(raw, null, 2)}</pre></details>
+      <details><summary>Evidence IDs ({evidence.length})</summary><ul>{evidence.map((id) => <li key={id}><code>{id}</code></li>)}</ul></details>
+    </article>
+  })}</div>
 }
 
 function OverridePanel({ apiAction, stage, countries, targets }: { apiAction: (body: Record<string, unknown>) => Promise<boolean>; stage: string; countries: string[]; targets: OverrideTarget[] }) {

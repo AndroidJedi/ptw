@@ -99,9 +99,7 @@ class LavalService:
             raise RuntimeError("Demo mode is unavailable while live providers are active")
         if requested_mode == "live" and not self.readiness.get("search_live_ready"):
             raise RuntimeError("Live research requires verified DataForSEO credentials")
-        evidence_mode = "demo_fixture" if requested_mode == "demo" else (
-            "live_complete" if self.readiness.get("trends_live_ready") else "live_search_pending_trends"
-        )
+        evidence_mode = "demo_fixture" if requested_mode == "demo" else "live_market_signals"
         snapshot = {
             "search": "fixture" if evidence_mode == "demo_fixture" else self.readiness.get("search_provider", "unavailable"),
             "web": "fixture" if evidence_mode == "demo_fixture" else "http",
@@ -168,6 +166,21 @@ class LavalService:
             "recovery_action_id": action_id,
             "resume_behavior": recovery["resume_behavior"],
             "provider_tasks": recovery["provider_tasks"],
+        }
+
+    def resume_with_market_signals(self, run_id: str, *, actor: str) -> dict[str, Any]:
+        action_id = self.repository.upgrade_to_market_signals(run_id, actor=actor)
+        started = self.runner.start(run_id, start_stage="MARKET_SIGNAL_PLAN")
+        return {
+            "run_id": run_id,
+            "started": started,
+            "status": "pending",
+            "action_id": action_id,
+            "resume_behavior": {
+                "reuses_persisted_remote_ids": True,
+                "reposts_submitted_tasks": False,
+                "duplicates_recorded_cost": False,
+            },
         }
 
     def notify(self, run_id: str, *, actor: str) -> dict[str, Any]:
@@ -245,7 +258,11 @@ class LavalService:
         elif kind == "opportunity" and action == "disable":
             if not self.store.execute("UPDATE laval_opportunities SET enabled=FALSE WHERE run_id=%s AND id=%s RETURNING 1", (run_id, target)):
                 raise KeyError("opportunity not found")
-            invalidate = "TREND_QUERY_PLAN"
+            invalidate = (
+                "MARKET_SIGNAL_PLAN"
+                if self.repository.run(run_id).get("pipeline_version") == "market_signals_v2"
+                else "TREND_QUERY_PLAN"
+            )
         elif kind in {"trend", "trend_score", "trend_discovery"} and action == "disable":
             changed = self.store.execute("UPDATE laval_trend_scores SET enabled=FALSE WHERE run_id=%s AND id=%s RETURNING 1", (run_id, target))
             if not changed:

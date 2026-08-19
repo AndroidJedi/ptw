@@ -171,6 +171,17 @@ is ready, resume the same run so the persisted ID is fetched and its cost is
 recorded exactly once. Keep the production poll window at 3600 seconds because
 normal-priority outliers can exceed the earlier 900-second window.
 
+For Laval structured-language failures, inspect the independent platform
+bridge before blaming model quality. Its allowlist must include the active
+`laval_*` mode, and every job must invoke a new `codex exec --ephemeral` with
+the caller's `--output-schema`, prompt on stdin, and `--sandbox read-only`.
+Reject any deployment containing `exec resume`, prompt-as-argv, or
+`--dangerously-bypass-approvals-and-sandbox`. Verify the Idea database has one
+append-only `laval_llm_invocations` row per attempted stage with context/schema
+hashes, prompt version, model, independent session ID, and truthful result
+status. A deterministic stage artifact alone does not prove Codex executed;
+check the invocation audit.
+
 Do not leave a production recovery as an invisible agent-only action. Normal
 recovery must be available through the Ideas view's **Resume saved work**
 control. If emergency diagnosis requires an authenticated internal resume,
@@ -181,6 +192,13 @@ Confirm the Telegram projection contains the same run state and S00-S15
 statuses, and that its outbox row is published, without printing chat IDs or
 tokens. Keep deliberate stage rerun separate because it invalidates downstream
 artifacts while resume preserves provider task IDs and cached work.
+
+An incomplete `legacy-trends-v2` run paused for Google Trends must expose
+**Resume with Market Signals** in the owner web console. This is an explicit
+owner action: never trigger it during deploy or startup. Before and after the
+action compare persisted remote task IDs, provider actual cost, evidence count,
+and lineage. Completed legacy Trends runs are immutable history and are never
+upgraded. Google Trends readiness is optional for new `market_signals_v2` runs.
 
 ## Capture reusable incident knowledge
 

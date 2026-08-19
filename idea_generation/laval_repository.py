@@ -9,7 +9,7 @@ from typing import Any, Mapping, Sequence
 
 from commander.ids import new_uuid7
 
-from .laval_domain import LavalConfig, STAGES, json_safe, stage_index
+from .laval_domain import LEGACY_STAGES, LavalConfig, STAGES, json_safe, stage_index
 from .store import PostgresStore
 
 
@@ -37,6 +37,7 @@ class LavalRepository:
         self, raw_text: str, config: LavalConfig, *, actor: str = "owner",
         evidence_mode: str = "demo_fixture", provider_snapshot: Mapping[str, Any] | None = None,
         max_spend_usd: float = .05, reserved_spend_usd: float = .04,
+        pipeline_version: str = "market_signals_v2",
     ) -> dict[str, Any]:
         raw_text = raw_text.strip()
         if not raw_text or len(raw_text) > 100_000:
@@ -51,8 +52,8 @@ class LavalRepository:
             connection.execute(
                 """INSERT INTO laval_runs(
                        id,mission_id,status,current_stage,config,approval_mode,approval_gates,created_by,
-                       evidence_mode,provider_snapshot,max_spend_usd,reserved_spend_usd
-                   ) VALUES(%s,%s,'pending','OWNER_DNA',%s::jsonb,%s,%s,%s,%s,%s::jsonb,%s,%s)""",
+                       evidence_mode,provider_snapshot,max_spend_usd,reserved_spend_usd,pipeline_version
+                   ) VALUES(%s,%s,'pending','OWNER_DNA',%s::jsonb,%s,%s,%s,%s,%s::jsonb,%s,%s,%s)""",
                 (
                     run_id,
                     mission[0],
@@ -64,6 +65,7 @@ class LavalRepository:
                     self.store.json(provider_snapshot or {}),
                     max_spend_usd,
                     reserved_spend_usd,
+                    pipeline_version,
                 ),
             )
             connection.execute(
@@ -73,7 +75,8 @@ class LavalRepository:
             connection.execute(
                 "UPDATE laval_runs SET owner_idea_id=%s WHERE id=%s", (owner_id, run_id)
             )
-            for ordinal, stage in enumerate(STAGES):
+            stages = STAGES if pipeline_version == "market_signals_v2" else LEGACY_STAGES
+            for ordinal, stage in enumerate(stages):
                 status = "completed" if ordinal == 0 else "pending"
                 artifact = {"owner_idea_id": owner_id, "raw_text": raw_text} if ordinal == 0 else None
                 connection.execute(
@@ -136,7 +139,75 @@ class LavalRepository:
         run = self.run(run_id)
         stages = self.stages(run_id)
         costs = self.cost(run_id)
-        return {"run": run, "stages": stages, "cost": costs, "recovery": self.recovery(run_id)}
+        return {
+            "run": run,
+            "stages": stages,
+            "cost": costs,
+            "recovery": self.recovery(run_id),
+            "resume_with_market_signals_available": self.market_signal_upgrade_available(run_id),
+        }
+
+    def market_signal_upgrade_available(self, run_id: str) -> bool:
+        run = self.run(run_id)
+        if run.get("pipeline_version") == "market_signals_v2" or run["status"] in {"completed", "cancelled"}:
+            return False
+        opportunity = self.store.fetchone(
+            """SELECT status FROM laval_stage_runs
+               WHERE run_id=%s AND stage='OPPORTUNITY_MATRIX'""",
+            (run_id,),
+        )
+        later = self.store.fetchone(
+            """SELECT count(*) n FROM laval_stage_runs
+               WHERE run_id=%s AND ordinal>=8 AND status IN ('completed','partial')""",
+            (run_id,),
+        )
+        return bool(opportunity and opportunity["status"] in {"completed", "partial"} and int((later or {}).get("n") or 0) == 0)
+
+    def upgrade_to_market_signals(self, run_id: str, *, actor: str) -> str:
+        if not self.market_signal_upgrade_available(run_id):
+            raise ValueError("run cannot be resumed with Market Signals")
+        run = self.run(run_id)
+        versioned_config = LavalConfig.from_mapping(run.get("config") or {}).to_dict()
+        mapping = {
+            8: "MARKET_SIGNAL_PLAN",
+            9: "MARKET_SIGNAL_COLLECTION",
+            10: "MARKET_SIGNAL_GATE",
+        }
+        with self.store.transaction() as connection:
+            for ordinal, stage in mapping.items():
+                connection.execute(
+                    """UPDATE laval_stage_runs
+                       SET stage=%s,status='pending',input_hash=NULL,artifact=NULL,error=NULL,
+                           started_at=NULL,completed_at=NULL,updated_at=NOW()
+                       WHERE run_id=%s AND ordinal=%s""",
+                    (stage, run_id, ordinal),
+                )
+            connection.execute(
+                """UPDATE laval_runs
+                   SET pipeline_version='market_signals_v2',evidence_mode=CASE
+                         WHEN evidence_mode='live_search_pending_trends' THEN 'live_market_signals'
+                         ELSE evidence_mode END,
+                       config=%s::jsonb,
+                       awaiting_reason=NULL,status='pending',current_stage='MARKET_SIGNAL_PLAN',
+                       through_stage=NULL,error_text=NULL,updated_at=NOW()
+                   WHERE id=%s""",
+                (self.store.json(versioned_config), run_id),
+            )
+        return self.record_action(
+            run_id,
+            "resume_with_market_signals",
+            stage="MARKET_SIGNAL_PLAN",
+            actor=actor,
+            previous_status=str(run["status"]),
+            outcome="upgraded",
+            details={
+                "preserved_provider_tasks": self.provider_task_summary(run_id),
+                "preserved_cost": self.cost(run_id),
+                "preserved_evidence_count": int(self.store.fetchone(
+                    "SELECT count(*) n FROM laval_evidence WHERE run_id=%s", (run_id,)
+                )["n"]),
+            },
+        )
 
     def record_action(
         self,
@@ -591,6 +662,36 @@ class LavalRepository:
             (new_uuid7(), run_id, stage, provider, operation, requests, input_tokens, output_tokens, amount_usd, cached, self.store.json(metadata or {})),
         )
 
+    def record_llm_invocation(
+        self,
+        run_id: str,
+        stage: str,
+        mode: str,
+        *,
+        prompt_template_version: str,
+        context_hash: str,
+        output_schema_hash: str,
+        model: str,
+        session_id: str,
+        provider_session_id: str | None,
+        result_status: str,
+        error_type: str | None,
+    ) -> str:
+        invocation_id = new_uuid7()
+        self.store.execute(
+            """INSERT INTO laval_llm_invocations(
+                   id,run_id,stage,mode,prompt_template_version,context_hash,
+                   output_schema_hash,model,session_id,provider_session_id,
+                   result_status,error_type
+               ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING 1""",
+            (
+                invocation_id, run_id, stage, mode, prompt_template_version,
+                context_hash, output_schema_hash, model, session_id,
+                provider_session_id, result_status, error_type,
+            ),
+        )
+        return invocation_id
+
     def cost(self, run_id: str) -> dict[str, Any]:
         rows = self.store.fetchall(
             """SELECT stage,provider,operation,sum(request_count) request_count,
@@ -629,6 +730,8 @@ class LavalRepository:
 
     def invalidate_from(self, run_id: str, stage: str, *, country: str | None = None) -> None:
         index = stage_index(stage)
+        run = self.run(run_id)
+        market_pipeline = run.get("pipeline_version") == "market_signals_v2"
         if index <= stage_index("SERP_DISCOVERY"):
             if country:
                 self.store.execute("DELETE FROM laval_stage_items WHERE run_id=%s AND stage='SERP_DISCOVERY' AND country=%s RETURNING 1", (run_id, country))
@@ -646,19 +749,22 @@ class LavalRepository:
             self.store.execute("DELETE FROM laval_competitor_dossiers WHERE run_id=%s RETURNING 1", (run_id,))
         if index <= stage_index("OPPORTUNITY_MATRIX"):
             self.store.execute("DELETE FROM laval_opportunities WHERE run_id=%s RETURNING 1", (run_id,))
-        if index <= stage_index("TREND_QUERY_PLAN"):
+        if index <= 8 and not market_pipeline:
             self.store.execute("DELETE FROM laval_trend_queries WHERE run_id=%s RETURNING 1", (run_id,))
-        if index <= stage_index("GOOGLE_TRENDS_RESEARCH"):
+        if index <= 9 and not market_pipeline:
             self.store.execute("DELETE FROM laval_stage_items WHERE run_id=%s AND stage='GOOGLE_TRENDS_RESEARCH' RETURNING 1", (run_id,))
             self.store.execute("DELETE FROM laval_evidence WHERE run_id=%s AND source_type='trend' RETURNING 1", (run_id,))
-        if index <= stage_index("TREND_GATE"):
-            self.store.execute("DELETE FROM laval_trend_scores WHERE run_id=%s RETURNING 1", (run_id,))
-            self.store.execute("DELETE FROM laval_trend_discoveries WHERE run_id=%s RETURNING 1", (run_id,))
+        if index <= 10:
+            if market_pipeline:
+                self.store.execute("DELETE FROM laval_market_signal_scores WHERE run_id=%s RETURNING 1", (run_id,))
+            else:
+                self.store.execute("DELETE FROM laval_trend_scores WHERE run_id=%s RETURNING 1", (run_id,))
+                self.store.execute("DELETE FROM laval_trend_discoveries WHERE run_id=%s RETURNING 1", (run_id,))
         if index <= stage_index("IDEA_EXPANSION"):
             self.store.execute("DELETE FROM laval_idea_variants WHERE run_id=%s RETURNING 1", (run_id,))
         if index <= stage_index("IDEA_EVALUATION"):
             self.store.execute("DELETE FROM laval_idea_scores WHERE run_id=%s RETURNING 1", (run_id,))
-        stages = STAGES[index:]
+        stages = (STAGES if market_pipeline else LEGACY_STAGES)[index:]
         self.store.execute(
             """UPDATE laval_stage_runs SET status=CASE WHEN stage=%s THEN 'pending' ELSE 'stale' END,
                       artifact=NULL,error=NULL,completed_at=NULL,updated_at=NOW()
@@ -759,6 +865,7 @@ class LavalRepository:
                         "demo_fixture": "DEMO — NO LIVE RESEARCH",
                         "live_search_pending_trends": "LIVE SEARCH — WAITING FOR TRENDS",
                         "live_complete": "LIVE COMPLETE",
+                        "live_market_signals": "LIVE — MARKET SIGNALS",
                     }.get(run.get("evidence_mode"), "DEMO — NO LIVE RESEARCH"),
                     "providers": run.get("provider_snapshot") or {},
                     "warning": "DEMO — NO LIVE RESEARCH" if run.get("evidence_mode") == "demo_fixture" else None,

@@ -50,7 +50,10 @@ def format_laval_status_message(status: Mapping[str, Any], event: str) -> str:
         )
         lines.append("Resume in the app reuses saved task IDs; it does not repost or rebill them.")
     if run.get("awaiting_reason") == "awaiting_trends_provider":
-        lines.append("Blocked: Google Trends provider is required before synthesis and shortlist.")
+        if status.get("resume_with_market_signals_available"):
+            lines.append("Action: use Resume with Market Signals in the web app; Google Trends is optional.")
+        else:
+            lines.append("Blocked legacy run: provider action is required in the web app.")
     elif run.get("status") == "paused" and current in (run.get("approval_gates") or []):
         lines.append(f"Action: review and approve {current} in the app.")
     lines.append("Stages:")

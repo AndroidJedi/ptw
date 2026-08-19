@@ -25,7 +25,7 @@ def _provider(settings: Settings):
     if settings.llm_provider == "openai":
         return OpenAIProvider(settings.openai_api_key, settings.llm_model)
     if settings.llm_provider == "bridge":
-        return BridgeProvider(settings.llm_bridge_url, settings.telegram_token)
+        return BridgeProvider(settings.llm_bridge_url, settings.telegram_token, settings.llm_model)
     raise RuntimeError("LLM_PROVIDER must be mock, openai, or bridge")
 
 
@@ -66,7 +66,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             store.close()
 
-    app = FastAPI(title="PTW Idea Laval", version="2.0.0", docs_url=None, redoc_url=None, lifespan=lifespan)
+    app = FastAPI(title="PTW Idea Laval", version="3.0.0", docs_url=None, redoc_url=None, lifespan=lifespan)
 
     @app.get("/healthz")
     def health() -> dict[str, Any]:
@@ -102,13 +102,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         missing = []
         if not readiness["search_live_ready"]:
             missing.append("dataforseo_credentials")
-        if not readiness["trends_live_ready"]:
-            missing.append("google_trends_alpha_bridge")
         return {
             **readiness,
             "demo_available": readiness["demo_available"],
-            "default_evidence_mode": "demo_fixture" if settings.search_provider == "fixture" else ("live_complete" if readiness["trends_live_ready"] else "live_search_pending_trends"),
+            "default_evidence_mode": "demo_fixture" if settings.search_provider == "fixture" else "live_market_signals",
             "missing": missing,
+            "optional_sources": {
+                "google_trends": {
+                    "ready": readiness["trends_live_ready"],
+                    "required": False,
+                }
+            },
         }
 
     @app.get("/internal/web/laval/activity")
@@ -205,6 +209,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 return laval.pause(run_id)
             if action == "resume":
                 return laval.resume(run_id, actor=str(request.get("actor") or "owner-gateway"))
+            if action == "resume-market-signals":
+                return laval.resume_with_market_signals(
+                    run_id, actor=str(request.get("actor") or "owner-gateway")
+                )
             if action == "approve":
                 return laval.approve(run_id, str(request.get("stage") or ""), actor=str(request.get("actor") or "owner-gateway"))
             if action == "rerun":

@@ -61,12 +61,14 @@ class ContextCompiler:
         pains: Sequence[str],
         distribution: Sequence[str],
         operators: Sequence[str],
+        market_signal_scores: Sequence[Mapping[str, Any]] = (),
     ) -> dict[str, Any]:
         return {
             "owner_dna": json_safe(owner_dna),
             "opportunities": self._compact(opportunities, self.config.max_opportunities, ("id", "statement", "pain", "affected_segment", "evidence_ids", "aggregate_score")),
             "trend_scores": self._compact(trend_scores, self.config.max_trend_scores, ("id", "opportunity_id", "term", "country", "window", "dimensions", "aggregate_score", "evidence_ids")),
             "trend_discoveries": self._compact(discoveries, self.config.max_trend_discoveries, ("id", "seed_term", "discovered_term", "discovery_type", "country", "growth_label", "opportunity_ids", "evidence_ids", "confidence")),
+            "market_signal_scores": self._compact(market_signal_scores, self.config.max_trend_scores, ("id", "opportunity_id", "normalization_version", "formula", "weights", "components", "raw_counts", "data_status", "aggregate_score", "evidence_ids", "as_of")),
             "negative_pain_clusters": list(dict.fromkeys(pains))[: self.config.max_negative_pain_clusters],
             "distribution_patterns": list(dict.fromkeys(distribution))[: self.config.max_distribution_patterns],
             "transformation_operators": list(operators),
@@ -79,7 +81,8 @@ class ContextCompiler:
                 "opportunities": json_safe(packet.get("opportunities") or []),
                 "trend_scores": json_safe(packet.get("trend_scores") or []),
                 "trend_discoveries": json_safe(packet.get("trend_discoveries") or []),
+                "market_signal_scores": json_safe(packet.get("market_signal_scores") or []),
             },
-            "variants": self._compact(variants, 100, ("id", "title", "one_liner", "mechanism", "target_user", "why_new", "operator", "opportunity_ids", "trend_signal_ids", "trend_discovery_ids", "evidence_ids")),
+            "variants": self._compact(variants, 100, ("id", "title", "one_liner", "mechanism", "target_user", "why_new", "operator", "opportunity_ids", "trend_signal_ids", "trend_discovery_ids", "market_signal_ids", "evidence_ids")),
             "rubric": dict(self.config.idea_weights),
         }

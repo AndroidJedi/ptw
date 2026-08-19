@@ -68,6 +68,11 @@ class LavalGatewayProxyTests(unittest.TestCase):
             created = client.post("/api/v1/laval/runs", headers=headers, json={"text": "Owner idea", "config": {}})
             listed = client.get("/api/v1/laval/runs", headers=headers)
             providers = client.get("/api/v1/laval/providers", headers=headers)
+            market_resume = client.post(
+                "/api/v1/laval/runs/01234567-89ab-7def-8123-456789abcdef/resume-market-signals",
+                headers=headers,
+                json={},
+            )
             notified = client.post(
                 "/api/v1/laval/runs/01234567-89ab-7def-8123-456789abcdef/notify",
                 headers=headers,
@@ -96,6 +101,7 @@ class LavalGatewayProxyTests(unittest.TestCase):
         self.assertEqual(200, created.status_code)
         self.assertEqual({"items": [], "next_cursor": None}, listed.json())
         self.assertFalse(providers.json()["search_live_ready"])
+        self.assertEqual(200, market_resume.status_code)
         self.assertEqual(410, notified.status_code)
         self.assertEqual(409, codex_conflict.status_code)
         self.assertIn("11234567-89ab-7def-8123-456789abcdef", codex_conflict.json()["detail"])
@@ -107,6 +113,7 @@ class LavalGatewayProxyTests(unittest.TestCase):
         self.assertEqual("firebase:owner", calls[0][2]["json"]["actor"])
         self.assertEqual("bridge-token", calls[0][2]["headers"]["X-PTW-Owner-Gateway-Token"])
         self.assertTrue(calls[0][1].endswith("/internal/web/laval/runs"))
+        self.assertTrue(any(item[1].endswith("/resume-market-signals") for item in calls))
         self.assertFalse(any(item[1].endswith("/notify") for item in calls))
 
 

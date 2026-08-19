@@ -8,7 +8,8 @@ describe('LavalEngine', () => {
     llm_provider: 'bridge', search_provider: 'fixture', trend_provider: 'fixture',
     search_live_ready: false, trends_live_ready: false, demo_available: true,
     default_evidence_mode: 'demo_fixture', max_spend_usd: .05, reserved_spend_usd: .04,
-    missing: ['dataforseo_credentials', 'google_trends_alpha_bridge'],
+    missing: ['dataforseo_credentials'],
+    optional_sources: { google_trends: { ready: false, required: false as const } },
   }
 
   it('shows a web-native empty state and create action', async () => {
@@ -20,7 +21,7 @@ describe('LavalEngine', () => {
     render(<LavalEngine api={api} language="uk" />)
     expect(await screen.findByText('Ще немає Laval-запусків.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Нова Laval-ідея/ })).toBeInTheDocument()
-    expect(screen.getByText('Evidence → opportunity → trend → ideas')).toBeInTheDocument()
+    expect(screen.getByText('Evidence → opportunity → market signals → ideas')).toBeInTheDocument()
   })
 
   it('submits the owner idea through the Laval API', async () => {
@@ -167,5 +168,47 @@ describe('LavalEngine', () => {
     fireEvent.click(screen.getByRole('button', { name: /Відновити збережену роботу/ }))
     await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/laval/runs/${run.id}/resume`, {}))
     expect(screen.queryByRole('button', { name: /Статус у Telegram/ })).not.toBeInTheDocument()
+  })
+
+  it('shows the MarketSignalScore formula, raw counters, data status, and evidence IDs', async () => {
+    const run = {
+      id: '01234567-89ab-7def-8123-456789abcdef', owner_idea_id: '11234567-89ab-7def-8123-456789abcdef',
+      status: 'completed', current_stage: 'FINAL_SHORTLIST', approval_mode: 'automatic', approval_gates: [],
+      owner_preview: 'Market signal idea', completed_stages: 16, variant_count: 24, config: {},
+      evidence_mode: 'live_market_signals', pipeline_version: 'market_signals_v2', provider_snapshot: { search: 'dataforseo', trends: 'unavailable' },
+      max_spend_usd: .05, reserved_spend_usd: .04, created_at: '', updated_at: '',
+    }
+    const status = {
+      run,
+      stages: [{ stage: 'MARKET_SIGNAL_GATE', ordinal: 10, status: 'completed', attempt: 1, metrics: {} }],
+      cost: { items: [], total_usd: .0192 },
+    }
+    const score = {
+      id: 'score-1', normalization_version: 'market-signal-v1',
+      formula: '0.20 × cross_country_recurrence + 0.20 × query_family_recurrence', aggregate_score: .42,
+      components: { cross_country_recurrence: .4, recent_content_activity: 0 },
+      raw_counts: { target_countries: 5, recent_dated_sources_365d: 0 },
+      data_status: { overall: 'available', components: { cross_country_recurrence: 'available', recent_content_activity: 'no_data' } },
+      evidence_ids: ['evidence-1'],
+    }
+    const api = {
+      get: vi.fn((path: string) => {
+        if (path.includes('/providers')) return Promise.resolve(readiness)
+        if (path.includes('/show?')) return Promise.resolve({ output: { scores: [score], google_trends_required: false } })
+        if (path.includes(run.id)) return Promise.resolve(status)
+        return Promise.resolve({ items: [run] })
+      }),
+      post: vi.fn(), blob: vi.fn(),
+    } as unknown as ApiClient
+    render(<LavalEngine api={api} language="uk" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /MARKET SIGNAL GATE/ }))
+    expect(await screen.findByText('MarketSignalScore')).toBeInTheDocument()
+    expect(screen.getByText(/0.20 × cross_country_recurrence/)).toBeInTheDocument()
+    expect(screen.getByText(/даних немає/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Сирі лічильники'))
+    expect(screen.getByText(/recent_dated_sources_365d/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Evidence IDs (1)'))
+    expect(screen.getByText('evidence-1')).toBeInTheDocument()
   })
 })

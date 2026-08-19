@@ -182,6 +182,13 @@ hashes, prompt version, model, independent session ID, and truthful result
 status. A deterministic stage artifact alone does not prove Codex executed;
 check the invocation audit.
 
+For ChatGPT-authenticated Codex CLI, keep `LLM_MODEL=codex-cli-default` unless
+a named model has passed a live CLI canary. The sentinel must omit `--model`;
+an API model name such as `gpt-5` can be rejected by Codex subscription auth.
+After a bridge release, run one schema-bound `laval_market_signal_relevance`
+canary outside any Laval run and require `session_mode=fresh`,
+`ephemeral=true`, `conversation_reused=false`, and a schema-valid response.
+
 Do not leave a production recovery as an invisible agent-only action. Normal
 recovery must be available through the Ideas view's **Resume saved work**
 control. If emergency diagnosis requires an authenticated internal resume,

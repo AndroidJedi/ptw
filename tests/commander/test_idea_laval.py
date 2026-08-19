@@ -261,6 +261,32 @@ class LavalDomainTests(unittest.TestCase):
         self.assertNotEqual(repository.audits[0]["session_id"], repository.audits[1]["session_id"])
         self.assertEqual(["provider-1", "provider-2"], [item["provider_session_id"] for item in repository.audits])
 
+    def test_bridge_default_model_uses_codex_cli_default_without_model_override(self) -> None:
+        from idea_generation.provider import BridgeProvider
+
+        provider = BridgeProvider("http://bridge", "token")
+        captured = {}
+
+        def request(_url, payload, _headers):
+            if payload is not None:
+                captured.update(payload)
+                return {"request_id": 1}
+            return {
+                "status": "completed",
+                "result": {
+                    "response": {"classifications": []},
+                    "invocation": {"session_id": "fresh", "model": "codex-cli-default"},
+                },
+            }
+
+        provider._request = request
+        result = provider.generate_structured(
+            "laval_market_signal_relevance", "binary", {}, {"type": "object"}
+        )
+        self.assertEqual({"classifications": []}, result)
+        self.assertNotIn("model", captured)
+        self.assertEqual("codex-cli-default", provider.model_name)
+
     def test_context_compiler_enforces_synthesis_limits(self) -> None:
         config = LavalConfig.from_mapping({"synthesis": {"max_opportunities": 2, "max_trend_scores": 1, "max_trend_discoveries": 1}})
         packet = ContextCompiler(config).build_synthesis_context(

@@ -131,7 +131,9 @@ Every Laval language stage uses a bounded context packet and a separate fresh
 model invocation. The VPS bridge accepts explicit `laval_*` modes, passes the
 caller's JSON Schema to `codex exec --output-schema`, supplies the prompt on
 stdin, and runs `--ephemeral --sandbox read-only`. It never uses `resume` or a
-dangerous sandbox bypass. `laval_llm_invocations` is append-only and records
+dangerous sandbox bypass. `codex-cli-default` deliberately omits `--model`, so
+ChatGPT-authenticated Codex selects its supported default instead of receiving
+an API-only model name. `laval_llm_invocations` is append-only and records
 context/schema hashes, prompt version, model, independent session IDs, and
 `success`, `fallback`, or `failed`.
 

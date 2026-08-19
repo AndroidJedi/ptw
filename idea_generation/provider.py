@@ -146,9 +146,10 @@ class BridgeProvider:
             "system_prompt": system_prompt,
             "input_payload": input_payload,
             "output_schema": output_schema,
-            "model": self.model_name,
             **self._request_metadata,
         }
+        if self.model_name != "codex-cli-default":
+            request["model"] = self.model_name
         request_id = int(self._request(self.url, request, headers)["request_id"])
         deadline = time.monotonic() + self.timeout_seconds
         while time.monotonic() < deadline:

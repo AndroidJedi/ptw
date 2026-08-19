@@ -18,7 +18,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?reuse the existing bot token}
       TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:?reuse the owner allowlist}
       LLM_PROVIDER: ${LLM_PROVIDER:-bridge}
-      LLM_MODEL: ${LLM_MODEL:-gpt-5}
+      LLM_MODEL: ${LLM_MODEL:-codex-cli-default}
       LLM_BRIDGE_URL: ${LLM_BRIDGE_URL:-http://ptw-agent-platform-commander-api-1:8000/internal/llm/structured}
       AD_BATCH_BRIDGE_URL: ${AD_BATCH_BRIDGE_URL:-http://ptw-commander-api:8080/internal/ad-batches}
       LAVAL_SEARCH_PROVIDER: ${LAVAL_SEARCH_PROVIDER:-fixture}

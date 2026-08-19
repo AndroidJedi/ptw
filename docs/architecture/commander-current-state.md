@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Idea Laval v3 verified locally; serialized production rollout pending
+Status: Idea Laval v3 deployed and verified; saved live run awaits owner resume
 Updated: 2026-08-19
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -80,6 +80,8 @@ Laval silently use deterministic fallback while documentation incorrectly
 credited Codex. The corrected worker allowlists Laval modes and invokes a new
 `codex exec --ephemeral --sandbox read-only --output-schema … -` for every job;
 it never resumes a conversation or uses the dangerous sandbox bypass.
+Production uses the audited `codex-cli-default` sentinel, which omits an
+explicit `--model` so ChatGPT-authenticated Codex selects its supported default.
 
 Laval manual corrections are now contextual instead of exposing a generic
 database form on every stage. Only Competitor Selection, Opportunity Matrix,
@@ -192,15 +194,28 @@ verified Google Firebase user.
   once. The requested S00-S15 Telegram snapshot was published by the existing
   worker on its first attempt, and the live shell/assets, dependency bridge,
   health, negative auth, and CORS audits pass.
+- Idea Laval v3 Hosting release `68b7e7afd31da5ff` serves
+  `index-Dryv3Ppk.js` and `App-DYrfMMcY.js`. Main release `2c6626c`, model
+  hotfix `93dd302`, platform bridge `ed76c50`, and Idea migration 010 are live.
+  A production schema-bound relevance canary returned a distinct session ID,
+  `session_mode=fresh`, `ephemeral=true`, `conversation_reused=false`, and a
+  schema-valid binary result. The canary exposed and then closed a configuration
+  defect where API model name `gpt-5` was rejected by ChatGPT-authenticated
+  Codex; the VPS skill now preserves that diagnostic guardrail.
+- Saved live run `01a01540-7c8b-7f0a-af6c-530ce9070bae` remains paused at
+  Opportunity Matrix after rollout. Its 52 persisted remote task IDs, 52
+  exactly-once cost records, USD 0.0372 total provider cost, and 494 evidence
+  rows remain present; status exposes `Resume with Market Signals`. No reset,
+  rerun, or automatic resume was executed.
 - A later authenticated Overview HTTP 500 was traced to an Owner Gateway
   recreation that omitted `/opt/ptw/platform/.env`, producing a passwordless
   platform PostgreSQL URL. Production was recreated with the correct environment
   and `PlatformRepository.summary()` succeeds. Compose interpolation and gateway
   settings now fail fast on this condition.
-- Commander/Laval built-image suite: 79 tests pass or intentionally skip only
+- Commander/Laval built-image suite: 80 tests pass or intentionally skip only
   seven retired/external-integration cases; every dependency-backed unit path
   passes.
-- Focused Laval suite: 32 tests pass, including the 16-stage fixture without
+- Focused Laval suite: 33 tests pass, including the 16-stage fixture without
   Google Trends, exact 24-variant provenance, Market Signal formulas/raw data,
   fresh generator/evaluator sessions, legacy preservation and paid-run upgrade,
   append-only LLM audit enforcement, partial country failure, retry/cache behavior,
@@ -216,7 +231,7 @@ verified Google Firebase user.
 - Fresh Idea, Commander, and Owner Gateway images build and import their runtime
   entrypoints; the Idea image exposes the `lav` CLI.
 - Commander deterministic demo and `git diff --check` pass.
-- Independent platform checkout: 65/65 tests pass, including the fresh,
+- Independent platform checkout: 66/66 tests pass, including the fresh,
   schema-bound Laval bridge contract.
 - Two-database reset rehearsal passes with the required clean checkpoint:
   one mission, zero legacy idea contexts/revisions, ten post contexts/revisions,
@@ -226,8 +241,9 @@ verified Google Firebase user.
   missing bearer credentials with HTTP 401, and the production-origin CORS
   preflight allows only the required methods and headers.
 - Deployed Commander and Owner Gateway health checks pass; the Idea service
-  reports the active mission, zero legacy generations/ideas/contexts, and no
-  Laval run. Root broker and Caddy restart checks pass.
+  reports the active mission, zero legacy generations/ideas/contexts, one
+  completed fixture history run, and one paused live run. Root broker and Caddy
+  restart checks pass.
 - Production UID binding matches the authoritative verified Google Firebase
   user after gateway recreation and restart. The prior pin is rejected, the
   authoritative owner claim is accepted, and bounded gateway logs contain no

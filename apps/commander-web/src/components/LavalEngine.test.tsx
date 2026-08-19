@@ -87,7 +87,7 @@ describe('LavalEngine', () => {
     render(<LavalEngine api={api} language="uk" />)
 
     expect(await screen.findByText('LIVE · LEGACY PIPELINE')).toBeInTheDocument()
-    expect(screen.getByText(/Google Trends не потрібен/)).toBeInTheDocument()
+    expect(await screen.findByText(/Google Trends не потрібен/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Схвалити й продовжити/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Продовжити дослідження' }))
     await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/laval/runs/${run.id}/resume-market-signals`, {}))

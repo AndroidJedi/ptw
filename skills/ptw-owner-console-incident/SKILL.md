@@ -81,10 +81,12 @@ failure time, provider-task counts, persisted remote-ID count, recorded cost,
 and an explicit **Resume saved work** action. Resume must append the authenticated
 Firebase actor to `laval_run_actions` and preserve submitted provider IDs;
 deliberate rerun is a different action that invalidates downstream artifacts.
-Verify both the automatic terminal Telegram notification and the web-triggered
-status notification are projected from the same status response, contain all
-16 stage statuses, and use the existing Commander outbox. Telegram remains
-notification-only and must not gain a resume callback.
+On the 1 GB production profile, do not expect an automatic terminal Telegram
+notification or a web-triggered status notification: outbound delivery is
+retired, the web control is hidden, and cached calls return HTTP 410. Verify
+instead that unpublished Telegram rows are cancelled without deletion and that
+emergency `/help`, `/status`, and `/stop` remain available through the sole
+platform poller.
 
 Treat “Firebase ID token and App Check are required” as an incomplete request,
 not a reason to relax authentication. The gateway uses one message when either
@@ -115,6 +117,11 @@ PostgreSQL password and returned HTTP 500.
   not catch tree-shaken config, stale output, or missing runtime credentials.
 - Bump the shell cache when behavior must reach already-controlled clients.
 - Update this skill and the current-state checkpoint with reusable evidence.
+- On a 1 GB stall, use one locked serial SSH session after provider recovery.
+  Inspect bounded process age/RSS, OOM history, swap, containers, and both
+  PostgreSQL connection/size views before restarting anything. A sudden latency
+  cliff after hours of normal service can be a stale child or accumulated
+  connections, but this remains a hypothesis until those probes identify it.
 
 ## Verify and deploy
 

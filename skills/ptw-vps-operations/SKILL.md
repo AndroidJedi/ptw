@@ -26,6 +26,13 @@ group-write permissions after every pull. Verify after recreating either service
 
 ## Start every operation
 
+All production diagnostics, recovery, and deployment commands run through one
+SSH session while holding `/run/lock/ptw-maintenance.lock`. If another owner
+holds it, exit immediately. Never open parallel SSH channels, use background
+jobs, pipelines that run production commands concurrently, `xargs -P`, GNU
+Parallel, parallel image loads, or a multi-service Compose start. Read-only
+provider-console work before SSH recovery is the only exception.
+
 1. Inspect `/root/ptw/AGENTS.md` if present, then read
    `/root/ptw/docs/README.md`, current-state checkpoint, and the task route.
 2. Run `git -C /root/ptw status --short --branch` before writes. Preserve all
@@ -53,8 +60,8 @@ Use repository runbooks as authority.
 
 ## Safety boundaries
 
-- Keep normal instructions web-only. Telegram is notifications plus emergency
-  `/help`, `/status`, and `/stop`.
+- Keep normal instructions web-only. Telegram is limited to emergency `/help`,
+  `/status`, and `/stop`; proactive outbound notifications are retired.
 - Never print, copy, rotate, or replace the existing Telegram token without
   explicit owner authorization.
 - Use disposable databases for migration tests unless an exact production
@@ -68,13 +75,16 @@ Use repository runbooks as authority.
 
 ## Deployment workflow
 
-1. Reconcile local and VPS Git state without destroying either side.
-2. Build and test the changed boundary before restarting it.
+1. Reconcile local and VPS Git state without destroying either side, under the
+   maintenance lock.
+2. Build, test, and package Linux/amd64 images off-host. Production never runs
+   Docker builds and uses only prebuilt release tags.
 3. Pass every required interpolation file explicitly. Commander and Owner
    Gateway recreation requires both `/opt/ptw/platform/.env` and
    `.env.commander`; omission previously produced a passwordless platform DSN
    and authenticated Overview HTTP 500s.
-4. Use `docker compose up -d --wait` for recreated services. Confirm parsed DSN
+4. Use `docker compose up -d --no-deps --wait --no-build <service>` for exactly
+   one recreated service at a time. Confirm parsed DSN
    password presence without printing the URL, then exercise the exact
    database-backed path rather than trusting shallow health alone.
 5. Keep Idea Laval in its explicit `ptw-idea-generation` Compose project.
@@ -83,12 +93,41 @@ Use repository runbooks as authority.
    external `ptw_default` for `commander-db` DNS as well as the platform backend
    for its gateway alias. After either deployment, run the owner-incident
    skill's VPS dependency audit.
-6. Apply numbered migrations explicitly, then start services in dependency
-   order: Commander API, Idea API, Owner Gateway, web Hosting.
+6. Load and verify one image at a time. Apply numbered migrations once, then
+   start services in dependency order: Commander database if required,
+   Commander migration, Commander API, Idea API, Owner Gateway, and finally web
+   Hosting after API verification. Never start `commander-worker` or
+   `commander-ad-worker` on the 1 GB profile.
 7. Validate loopback/public health, exact-owner auth, App Check, API calls,
    persistence, restart behavior, and user-facing errors.
 8. For Commander changes, run the repository-mandated tests, demo, and
    `git diff --check`.
+
+Use `scripts/build_ptw_release_images.sh` locally and
+`scripts/publish_ptw_release_serial.sh` for the release. The publisher creates
+one serialized SSH input stream and the VPS runner owns the maintenance lock for
+Git reconciliation, image loads, swap/tuning, migrations, starts, and checks.
+
+## 1 GB pressure discriminator
+
+When latency is normal for hours and then HTTPS plus the SSH banner stall,
+stale Codex/Node children, a stuck Laval thread, duplicate containers, and
+connection accumulation are credible discriminators. The pre-fix Idea store
+opened a PostgreSQL connection per repository call and could create thousands
+of short-lived backend PIDs during one Laval run; the fixed service should hold
+one serialized `application_name=ptw-idea-api` connection. After a provider reboot,
+capture bounded PID/PPID/RSS/age, prior-boot OOM events, load, available memory,
+swap, disk, containers, PostgreSQL connection counts, and database sizes before
+recreation. Never infer a single-process cause from host pressure alone.
+
+The production profile requires 2 GB persistent `/swapfile` only when at least
+4 GB disk is free, `vm.swappiness=10`, and both PostgreSQL authorities tuned to
+48 MB shared buffers, 192 MB effective cache, 1 MB work memory, 32 MB
+maintenance memory, 20 connections, and one autovacuum worker. Acceptance needs
+more than 250 MB idle `MemAvailable`, stable swap, no new OOM event, no retired
+worker, no overlapping operation, and API responses below two seconds.
+After 24 hours, run `/root/ptw/scripts/audit_ptw_1gb.sh` through one SSH session;
+do not substitute concurrent ad-hoc probes.
 
 ## Firebase Hosting and owner authentication
 

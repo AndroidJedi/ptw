@@ -2,6 +2,8 @@ name: ptw-idea-generation
 
 services:
   idea-generation-api:
+    image: ptw-idea-generation:${PTW_IMAGE_TAG:-latest}
+    pull_policy: never
     build:
       context: .
       dockerfile: idea_generation/Dockerfile
@@ -30,6 +32,7 @@ services:
       LAVAL_MAX_SPEND_USD: ${LAVAL_MAX_SPEND_USD:-0.05}
       LAVAL_RESERVED_SPEND_USD: ${LAVAL_RESERVED_SPEND_USD:-0.04}
       LAVAL_RESEARCH_BRIDGE_URL: ${LAVAL_RESEARCH_BRIDGE_URL:-http://ptw-commander-api:8080/internal/research/laval}
+      OUTBOUND_NOTIFICATIONS_ENABLED: ${OUTBOUND_NOTIFICATIONS_ENABLED:-false}
       TZ: Europe/Kyiv
     command: ["uvicorn", "idea_generation.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]
     networks:

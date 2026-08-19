@@ -4,6 +4,8 @@ import tempfile
 import unittest
 import importlib.util
 from pathlib import Path
+import subprocess
+import sys
 
 from owner_gateway.settings import Settings
 
@@ -43,6 +45,24 @@ class OwnerClaimsTests(unittest.TestCase):
     def test_exact_owner_is_allowed(self) -> None:
         identity = validate_owner_claims(self.settings, self.claims, {"app_id": "firebase-app"})
         self.assertEqual("owner-uid", identity.uid)
+
+    def test_disabled_gateway_import_does_not_load_pillow_or_ad_runtime(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys; import owner_gateway.api; "
+                    "assert 'PIL' not in sys.modules; "
+                    "assert 'commander.ad_generation' not in sys.modules"
+                ),
+            ],
+            cwd=Path(__file__).resolve().parents[2],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
 
     def test_wrong_email_uid_provider_verification_or_app_check_is_denied(self) -> None:
         variants = [

@@ -676,7 +676,12 @@ class LavalRepository:
         if artifact is None:
             if row.get("status") in {"completed", "partial"}:
                 raise ValueError("artifact_missing: completed stage has no persisted artifact")
-            return {"stage": row, "output": None, "items": self.stage_items(run_id, stage, country=country)}
+            return {
+                "stage": row,
+                "output": None,
+                "items": self.stage_items(run_id, stage, country=country),
+                "override_targets": self.override_targets(run_id, stage),
+            }
         if view:
             if not isinstance(artifact, Mapping) or view not in artifact:
                 raise KeyError(f"view {view!r} is not available")
@@ -691,7 +696,53 @@ class LavalRepository:
                     artifact = {**artifact, "items": filtered, "country": code}
             elif isinstance(artifact, list):
                 artifact = [item for item in artifact if isinstance(item, Mapping) and str(item.get("country", "")).upper() == code]
-        return {"stage": row, "output": json_safe(artifact), "items": self.stage_items(run_id, stage, country=country)}
+        return {
+            "stage": row,
+            "output": json_safe(artifact),
+            "items": self.stage_items(run_id, stage, country=country),
+            "override_targets": self.override_targets(run_id, stage),
+        }
+
+    def override_targets(self, run_id: str, stage: str) -> list[dict[str, Any]]:
+        """Return current owner-selectable correction targets for a stage.
+
+        UUIDs remain the write-contract identifiers, but the web owner chooses a
+        human-readable row. Querying current tables also prevents the immutable
+        stage artifact from offering an item that was already disabled/rejected.
+        """
+        if stage == "COMPETITOR_SELECTION":
+            rows = self.store.fetchall(
+                """SELECT id,'competitor' kind,name,domain,url,score
+                   FROM laval_competitors
+                   WHERE run_id=%s AND selected
+                   ORDER BY score DESC,name""",
+                (run_id,),
+            )
+        elif stage == "OPPORTUNITY_MATRIX":
+            rows = self.store.fetchall(
+                """SELECT id,'opportunity' kind,statement,pain,aggregate_score
+                   FROM laval_opportunities
+                   WHERE run_id=%s AND enabled
+                   ORDER BY aggregate_score DESC,statement""",
+                (run_id,),
+            )
+        elif stage == "TREND_GATE":
+            rows = self.store.fetchall(
+                """SELECT id,'trend_score' kind,term,country,time_window,aggregate_score,
+                          NULL::text discovered_term,NULL::text discovery_type,NULL::text growth_label
+                   FROM laval_trend_scores
+                   WHERE run_id=%s AND enabled
+                   UNION ALL
+                   SELECT id,'trend_discovery' kind,seed_term term,country,time_window,NULL::numeric aggregate_score,
+                          discovered_term,discovery_type,growth_label
+                   FROM laval_trend_discoveries
+                   WHERE run_id=%s AND enabled
+                   ORDER BY kind,aggregate_score DESC NULLS LAST,term""",
+                (run_id, run_id),
+            )
+        else:
+            return []
+        return json_safe(rows)
 
     def export(self, run_id: str, *, stage: str | None = None, format: str = "json") -> tuple[str, str, str]:
         if format not in {"json", "md"}:

@@ -20,7 +20,7 @@ test.beforeEach(async ({ page }) => {
     })
     if (url.pathname === '/api/v1/overview') return json({
       mission: { name: { en: 'Mission', uk: 'Місія' }, deadline_at: '2029-08-18T00:00:00Z' },
-      health: { commander: 'ok' }, pending_reviews: 0,
+      health: { commander: 'ok' },
       jobs: { active: 0, blocked: 0, last_deploy: null }, laval_runs: { total: 1, active: 0, completed: 1 },
     })
     if (url.pathname === '/api/v1/laval/providers') return json({
@@ -49,7 +49,7 @@ test.beforeEach(async ({ page }) => {
     })
     if (url.pathname.endsWith('/show')) return json({ output: { proof: 'visible artifact' } })
     if (url.pathname.endsWith('/export')) return route.fulfill({ status: 200, contentType: url.searchParams.get('format') === 'md' ? 'text/markdown' : 'application/json', body: url.searchParams.get('format') === 'md' ? '# DEMO — NO LIVE RESEARCH' : '{"mode":"demo_fixture"}' })
-    if (url.pathname.endsWith('/notify')) return json({ queued: 1 })
+    if (url.pathname === '/api/v1/jobs') return json({ items: [] })
     if (route.request().method() === 'POST') return json({ ok: true })
     return json({})
   })
@@ -84,9 +84,9 @@ test('exercises Laval mobile controls, demo gating, stage focus, and export fall
   await expect(preview).toBeVisible()
   if (browserName === 'webkit') await expect(page.getByText(/DEMO — NO LIVE RESEARCH/).last()).toBeVisible()
   await preview.getByRole('button', { name: 'Закрити' }).click()
-  await page.getByRole('button', { name: /Статус у Telegram/ }).click()
-  await expect(page.getByText(/всі 16 етапів поставлено в чергу Telegram/)).toBeVisible()
+  await expect(page.getByRole('button', { name: /Статус у Telegram/ })).toHaveCount(0)
   await page.getByRole('button', { name: /Схвалити й продовжити/ }).click()
-  await page.getByRole('button', { name: 'Пости' }).last().click()
-  await expect(page.getByRole('heading', { name: 'Пости' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Пости' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Завдання' }).last().click()
+  await expect(page.getByRole('heading', { name: 'Завдання' })).toBeVisible()
 })

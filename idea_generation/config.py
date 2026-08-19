@@ -11,6 +11,13 @@ def _ids(value: str) -> frozenset[int]:
     return result
 
 
+def _enabled(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     database_url: str
@@ -35,6 +42,7 @@ class Settings:
     research_bridge_url: str = ""
     max_spend_usd: float = 0.05
     reserved_spend_usd: float = 0.04
+    outbound_notifications_enabled: bool = False
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -78,4 +86,5 @@ class Settings:
             ).strip(),
             max_spend_usd=max_spend_usd,
             reserved_spend_usd=reserved_spend_usd,
+            outbound_notifications_enabled=_enabled("OUTBOUND_NOTIFICATIONS_ENABLED"),
         )

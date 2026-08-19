@@ -11,17 +11,26 @@ done
 [ "$(id -u)" -eq 0 ] || { echo "reset must run as root" >&2; exit 1; }
 [ "$confirmation" = "RESET PTW PRODUCTION" ] || { echo "exact confirmation is required" >&2; exit 2; }
 
+exec 9>/run/lock/ptw-maintenance.lock
+flock -n 9 || { echo "another PTW maintenance operation is active" >&2; exit 73; }
+
 commander_root=/root/ptw
 platform_root=/opt/ptw/platform
-commander_compose="docker compose --env-file $commander_root/.env.commander -f $commander_root/docker-compose.commander.yml"
+commander_compose="docker compose --env-file $platform_root/.env --env-file $commander_root/.env.commander -f $commander_root/docker-compose.commander.yml"
 platform_compose="docker compose --env-file $platform_root/.env --env-file $commander_root/.env.owner-gateway -f $platform_root/docker-compose.yml"
-idea_compose="docker compose --env-file $platform_root/.env --env-file $commander_root/.env.owner-gateway -f $commander_root/docker-compose.idea-generation.yml"
+idea_compose="docker compose --env-file $platform_root/.env --env-file $commander_root/.env.owner-gateway --project-name ptw-idea-generation -f $commander_root/docker-compose.idea-generation.yml"
 
 # Exact app processes only. PostgreSQL, Caddy, owner gateway, root broker, Git,
 # SSH, credentials, volumes, and Git stay intact.
-$commander_compose stop commander-api commander-worker commander-ad-worker >/dev/null
+$commander_compose stop commander-api >/dev/null
+$commander_compose stop commander-worker >/dev/null
+$commander_compose rm -f commander-worker >/dev/null
+$commander_compose stop commander-ad-worker >/dev/null
+$commander_compose rm -f commander-ad-worker >/dev/null
 $idea_compose stop idea-generation-api >/dev/null 2>&1 || true
-$platform_compose stop commander-api commander-worker git-watcher >/dev/null 2>&1 || true
+$platform_compose stop commander-api >/dev/null 2>&1 || true
+$platform_compose stop commander-worker >/dev/null 2>&1 || true
+$platform_compose stop git-watcher >/dev/null 2>&1 || true
 
 $commander_compose exec -T commander-db psql -X -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander \
   -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION ptw_commander;'
@@ -43,17 +52,19 @@ do
   find "$live_directory" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 done
 
-$commander_compose run --rm commander-migrate
+$commander_compose run --rm --no-deps commander-migrate
 $idea_compose run --rm --no-deps idea-generation-api python -m idea_generation.manage migrate
 $idea_compose run --rm --no-deps idea-generation-api python -m idea_generation.manage seed
-$platform_compose run --rm commander-api python -c \
+$platform_compose run --rm --no-deps commander-api python -c \
   'from common.database import apply_migrations; apply_migrations()'
-$platform_compose run --rm commander-api python -c \
+$platform_compose run --rm --no-deps commander-api python -c \
   'import os, psycopg; from common.database import database_url; owner=int(os.environ["PLATFORM_OWNER_TELEGRAM_ID"]); c=psycopg.connect(database_url()); c.execute("INSERT INTO users(telegram_user_id,role) VALUES(%s,%s) ON CONFLICT(telegram_user_id) DO NOTHING",(owner,"operator")); c.commit(); c.close()'
 
-$commander_compose up -d commander-api commander-worker commander-ad-worker >/dev/null
-$idea_compose up -d idea-generation-api >/dev/null
-$platform_compose up -d commander-api commander-worker git-watcher >/dev/null 2>&1 || true
+$commander_compose up -d --no-deps --wait --no-build commander-api >/dev/null
+$idea_compose up -d --no-deps --wait --no-build idea-generation-api >/dev/null
+$platform_compose up -d --no-deps --wait --no-build commander-api >/dev/null 2>&1 || true
+$platform_compose up -d --no-deps --wait --no-build commander-worker >/dev/null 2>&1 || true
+$platform_compose up -d --no-deps --wait --no-build git-watcher >/dev/null 2>&1 || true
 
 $commander_compose exec -T commander-db psql -X -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander -At <<'SQL'
 DO $$

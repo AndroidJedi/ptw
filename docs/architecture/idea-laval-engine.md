@@ -120,15 +120,20 @@ The mobile-first Ideas view is the normal VPS interface. It creates runs with a
 configurable country/language list, starts or pauses work, polls durable state,
 shows all 16 stages, filters SERP/selection output by country, separates Trend
 Scores from Trend Discoveries, approves gates, reruns stages/countries, writes
-audited overrides, and exports JSON or Markdown. All calls pass Firebase Auth,
-App Check, exact-owner verification, and the Owner Gateway bridge.
+audited overrides, and exports JSON or Markdown. Manual corrections appear only
+on Competitor Selection, Opportunity Matrix, and Trend Gate. The API returns
+the currently selected/enabled rows so the owner chooses a human-readable
+competitor, opportunity, trend score, or trend discovery; the web UI supplies
+the target UUID internally and requires a reason. The actor and reason are
+appended to the audit log, and the affected downstream stages become stale for
+deliberate reconstruction. All calls pass Firebase Auth, App Check, exact-owner
+verification, and the Owner Gateway bridge.
 
 Failed runs show an in-page recovery report and a distinct **Resume saved
-work** action. The owner can also enqueue the current authoritative status to
-Telegram. Automatic failure, approval-pause, provider-pause, and completion
-notifications contain the run state, cost, recovery facts, and all 16 stage
-statuses. Telegram remains a notification projection; it cannot resume or
-rerun Laval.
+work** action. On the 1 GB production profile, automatic and owner-triggered
+Telegram status notifications are retired. The notifier is not constructed,
+the web action is hidden, and cached notification calls receive HTTP 410;
+historical outbox rows remain preserved.
 
 The same services are available through the `lav` CLI inside the Idea service:
 

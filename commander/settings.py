@@ -22,6 +22,13 @@ def _optional_ids(name: str, fallback: frozenset[int]) -> frozenset[int]:
     return frozenset(int(value.strip()) for value in raw.split(",") if value.strip())
 
 
+def _enabled(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     database_url: str
@@ -39,6 +46,8 @@ class Settings:
     codex_executable: str = "/opt/ptw-codex/bin/codex"
     checkpoint_max_age_seconds: int = 86400
     checkpoint_required: bool = False
+    creative_runtime_enabled: bool = False
+    outbound_notifications_enabled: bool = False
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -73,6 +82,7 @@ class Settings:
             ).strip(),
             codex_executable=os.environ.get("CODEX_EXECUTABLE", "/opt/ptw-codex/bin/codex"),
             checkpoint_max_age_seconds=checkpoint_max_age,
-            checkpoint_required=os.environ.get("COMMANDER_CHECKPOINT_REQUIRED", "false").lower()
-            in {"1", "true", "yes"},
+            checkpoint_required=_enabled("COMMANDER_CHECKPOINT_REQUIRED"),
+            creative_runtime_enabled=_enabled("CREATIVE_RUNTIME_ENABLED"),
+            outbound_notifications_enabled=_enabled("OUTBOUND_NOTIFICATIONS_ENABLED"),
         )

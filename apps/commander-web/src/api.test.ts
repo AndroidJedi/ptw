@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { resolveApiBaseUrl } from './api'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { fetchWithDeadline, resolveApiBaseUrl } from './api'
+
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 describe('API origin', () => {
   it('uses the Commander gateway for production builds without an override', () => {
@@ -12,5 +17,18 @@ describe('API origin', () => {
 
   it('honors and normalizes an explicit API origin', () => {
     expect(resolveApiBaseUrl('https://example.test/', true)).toBe('https://example.test')
+  })
+})
+
+describe('API deadline', () => {
+  it('turns a stalled request into an explicit overload error', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+    })))
+    const request = fetchWithDeadline('/api/v1/overview', {}, 25)
+    const rejected = expect(request).rejects.toThrow(/Сервер може бути перевантажений.*Повторити/)
+    await vi.advanceTimersByTimeAsync(25)
+    await rejected
   })
 })

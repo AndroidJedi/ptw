@@ -31,6 +31,22 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     runner = CommandRunner(settings.codex_executable, settings.repository_path, store, platform)
     owner = OwnerDependency(verifier or FirebaseVerifier(settings))
     tasks: set[asyncio.Task[Any]] = set()
+    operation_start_lock = asyncio.Lock()
+    interrupted_commands = store.recover_interrupted_commands()
+    for interrupted in interrupted_commands:
+        platform_job_id = interrupted.get("platform_job_id")
+        if platform_job_id is None:
+            continue
+        try:
+            platform.complete_job(
+                int(platform_job_id),
+                success=False,
+                result={"error": "owner gateway restarted during operation"},
+            )
+        except Exception:
+            # Gateway startup must remain available even if the platform DB is
+            # the dependency being diagnosed. Local exclusion state is repaired.
+            pass
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -68,7 +84,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         if not settings.idea_service_token:
             raise HTTPException(status_code=503, detail="Idea Laval bridge is not configured")
         try:
-            async with httpx.AsyncClient(timeout=60) as client:
+            async with httpx.AsyncClient(timeout=15) as client:
                 response = await client.request(
                     method,
                     f"{settings.idea_service_url}{path}",
@@ -85,6 +101,34 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
                 detail = None
             raise HTTPException(status_code=response.status_code, detail=detail or "Idea Laval request failed")
         return response
+
+    async def active_laval() -> Mapping[str, Any] | None:
+        response = await laval_bridge("GET", "/internal/web/laval/activity")
+        activity = response.json()
+        return activity if activity.get("active") else None
+
+    def require_no_active_codex(*, exclude_id: str | None = None) -> None:
+        active = store.active_command(exclude_id=exclude_id)
+        if active is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Codex operation {active['id']} is active ({active['status']}); "
+                    "wait before starting Laval"
+                ),
+            )
+
+    async def require_no_active_laval() -> None:
+        active = await active_laval()
+        if active is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Laval run {active['run_id']} is active; wait before starting Codex",
+            )
+
+    def creative_gone() -> None:
+        if not settings.creative_runtime_enabled:
+            raise HTTPException(status_code=410, detail="creative production and review are retired")
 
     async def propagate_emergency_stop(active: bool, actor: str) -> list[str]:
         if not settings.telegram_bot_token:
@@ -203,9 +247,15 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         require_laval_id(run_id)
         if action not in {"run", "pause", "resume", "approve", "rerun", "override", "notify"}:
             raise HTTPException(status_code=404, detail="unknown Laval action")
+        if action == "notify" and not settings.outbound_notifications_enabled:
+            raise HTTPException(status_code=410, detail="outbound notifications are retired")
         if action not in {"pause", "notify"}:
             require_running()
         payload = {**dict(request), "actor": f"firebase:{identity.uid}"}
+        if action in {"run", "resume", "approve", "rerun"}:
+            async with operation_start_lock:
+                require_no_active_codex()
+                return (await laval_bridge("POST", f"/internal/web/laval/runs/{run_id}/{action}", body=payload)).json()
         return (await laval_bridge("POST", f"/internal/web/laval/runs/{run_id}/{action}", body=payload)).json()
 
     @app.get("/api/v1/posts")
@@ -214,10 +264,12 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         review_status: str | None = Query(default=None, pattern="^(pending|reviewed)$"),
         _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
+        creative_gone()
         return read.posts(limit=limit, review_status=review_status)
 
     @app.post("/api/v1/posts")
     def create_post(request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        creative_gone()
         require_running()
         try:
             return read.create_single_post(
@@ -229,6 +281,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
 
     @app.post("/api/v1/creatives/{creative_id}/reviews")
     def review_creative(creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        creative_gone()
         if not re.fullmatch(r"[0-9a-fA-F-]{36}", creative_id):
             raise HTTPException(status_code=400, detail="invalid Creative UUID")
         try:
@@ -257,12 +310,14 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
 
     @app.get("/api/v1/creatives/{creative_id}/reviews")
     def creative_reviews(creative_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        creative_gone()
         if not re.fullmatch(r"[0-9a-fA-F-]{36}", creative_id):
             raise HTTPException(status_code=400, detail="invalid Creative UUID")
         return {"items": read.creative_reviews(creative_id)}
 
     @app.get("/api/v1/artifacts/{digest}")
     def artifact(digest: str, _identity: OwnerIdentity = Depends(owner)) -> FileResponse:
+        creative_gone()
         if not re.fullmatch(r"[0-9a-f]{64}", digest):
             raise HTTPException(status_code=400, detail="invalid artifact digest")
         try:
@@ -281,14 +336,19 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
 
     @app.post("/api/v1/jobs")
     @app.post("/api/v1/command-sessions")
-    def create_job(request: Mapping[str, Any], _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+    async def create_job(request: Mapping[str, Any], _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         mode = str(request.get("mode", "plan"))
         instruction = str(request.get("instruction", "")).strip()
         if mode not in {"plan", "execute"} or not instruction or len(instruction) > 20_000:
             raise HTTPException(status_code=400, detail="mode and 1-20000 character instruction are required")
-        command = store.create_command(mode, instruction)
-        background(build_plan(command["id"], instruction))
-        return command
+        async with operation_start_lock:
+            await require_no_active_laval()
+            try:
+                command = store.create_command(mode, instruction)
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
+            background(build_plan(command["id"], instruction))
+            return command
 
     @app.get("/api/v1/command-sessions")
     def command_sessions(limit: int = Query(default=30, ge=1, le=100), _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
@@ -299,22 +359,25 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         return {"items": platform.issues(limit), "next_cursor": None}
 
     @app.post("/api/v1/command-sessions/{session_id}/approve")
-    def approve(session_id: str, request: Mapping[str, Any], _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+    async def approve(session_id: str, request: Mapping[str, Any], _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         require_running()
         destructive_allowed = request.get("destructive_confirmation") == "EXECUTE DESTRUCTIVE PLAN"
-        try:
-            command = store.approve_once(
-                session_id, str(request.get("plan_digest", "")),
-                destructive_allowed=destructive_allowed,
-            )
-        except KeyError as error:
-            raise HTTPException(status_code=404, detail="command session not found") from error
-        except PermissionError as error:
-            raise HTTPException(status_code=412, detail=str(error)) from error
-        except ValueError as error:
-            raise HTTPException(status_code=409, detail=str(error)) from error
-        background(runner.execute(session_id))
-        return command
+        async with operation_start_lock:
+            await require_no_active_laval()
+            require_no_active_codex(exclude_id=session_id)
+            try:
+                command = store.approve_once(
+                    session_id, str(request.get("plan_digest", "")),
+                    destructive_allowed=destructive_allowed,
+                )
+            except KeyError as error:
+                raise HTTPException(status_code=404, detail="command session not found") from error
+            except PermissionError as error:
+                raise HTTPException(status_code=412, detail=str(error)) from error
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
+            background(runner.execute(session_id))
+            return command
 
     @app.post("/api/v1/jobs/{session_id}/cancel")
     @app.post("/api/v1/command-sessions/{session_id}/cancel")

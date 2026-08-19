@@ -14,6 +14,7 @@ if HAS_RUNTIME:
 
     from owner_gateway.api import create_app
     from owner_gateway.auth import OwnerIdentity
+    from owner_gateway.control_store import ControlStore
     from owner_gateway.settings import Settings
 
 
@@ -52,6 +53,8 @@ class LavalGatewayProxyTests(unittest.TestCase):
                 calls.append((method, url, kwargs))
                 if method == "POST":
                     return httpx.Response(200, json={"run_id": "01234567-89ab-7def-8123-456789abcdef", "status": "pending"})
+                if url.endswith("/activity"):
+                    return httpx.Response(200, json={"active": True, "operation": "laval", "run_id": "11234567-89ab-7def-8123-456789abcdef"})
                 if url.endswith("/providers"):
                     return httpx.Response(200, json={"search_live_ready": False, "trends_live_ready": False, "missing": ["dataforseo_credentials"]})
                 return httpx.Response(200, json={"items": [], "next_cursor": None})
@@ -70,6 +73,19 @@ class LavalGatewayProxyTests(unittest.TestCase):
                 headers=headers,
                 json={},
             )
+            codex_conflict = client.post(
+                "/api/v1/jobs", headers=headers,
+                json={"mode": "plan", "instruction": "inspect health"},
+            )
+            ControlStore(self.settings.control_database_path).create_command(
+                "plan", "already active"
+            )
+            laval_conflict = client.post(
+                "/api/v1/laval/runs/01234567-89ab-7def-8123-456789abcdef/run",
+                headers=headers, json={},
+            )
+            posts = client.get("/api/v1/posts", headers=headers)
+            artifact = client.get("/api/v1/artifacts/" + "a" * 64, headers=headers)
             for method, path in (
                 ("get", "/api/v1/ideas"),
                 ("post", "/api/v1/generations"),
@@ -80,13 +96,18 @@ class LavalGatewayProxyTests(unittest.TestCase):
         self.assertEqual(200, created.status_code)
         self.assertEqual({"items": [], "next_cursor": None}, listed.json())
         self.assertFalse(providers.json()["search_live_ready"])
-        self.assertEqual(200, notified.status_code)
+        self.assertEqual(410, notified.status_code)
+        self.assertEqual(409, codex_conflict.status_code)
+        self.assertIn("11234567-89ab-7def-8123-456789abcdef", codex_conflict.json()["detail"])
+        self.assertEqual(409, laval_conflict.status_code)
+        self.assertIn("Codex operation", laval_conflict.json()["detail"])
+        self.assertEqual(410, posts.status_code)
+        self.assertEqual(410, artifact.status_code)
         self.assertEqual("demo", calls[0][2]["json"]["mode"])
         self.assertEqual("firebase:owner", calls[0][2]["json"]["actor"])
         self.assertEqual("bridge-token", calls[0][2]["headers"]["X-PTW-Owner-Gateway-Token"])
         self.assertTrue(calls[0][1].endswith("/internal/web/laval/runs"))
-        notify_call = next(item for item in calls if item[1].endswith("/notify"))
-        self.assertEqual("firebase:owner", notify_call[2]["json"]["actor"])
+        self.assertFalse(any(item[1].endswith("/notify") for item in calls))
 
 
 if __name__ == "__main__":

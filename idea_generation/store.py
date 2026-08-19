@@ -3,19 +3,41 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager
 from pathlib import Path
+import threading
 from typing import Any, Iterator
 
 
 class PostgresStore:
     def __init__(self, database_url: str) -> None:
         self.database_url = database_url
+        self._connection: Any | None = None
+        self._connection_guard = threading.Lock()
 
     @contextmanager
     def transaction(self) -> Iterator[Any]:
         import psycopg
-        with psycopg.connect(self.database_url) as connection:
-            with connection.transaction():
-                yield connection
+        with self._connection_guard:
+            connection = self._connection
+            if connection is None or connection.closed:
+                connection = psycopg.connect(
+                    self.database_url,
+                    connect_timeout=5,
+                    application_name="ptw-idea-api",
+                )
+                self._connection = connection
+            try:
+                with connection.transaction():
+                    yield connection
+            except Exception:
+                if connection.closed:
+                    self._connection = None
+                raise
+
+    def close(self) -> None:
+        with self._connection_guard:
+            if self._connection is not None:
+                self._connection.close()
+                self._connection = None
 
     def migrate(self, directory: Path) -> None:
         with self.transaction() as connection:

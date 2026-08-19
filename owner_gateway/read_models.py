@@ -20,7 +20,7 @@ class DomainReadModels:
     def _connect(self, url: str) -> Iterator[Any]:
         import psycopg
         from psycopg.rows import dict_row
-        with psycopg.connect(url, row_factory=dict_row) as connection:
+        with psycopg.connect(url, row_factory=dict_row, connect_timeout=5) as connection:
             yield connection
 
     def mission(self) -> dict[str, Any]:
@@ -45,15 +45,11 @@ class DomainReadModels:
                    FROM laval_runs"""
             ).fetchone()
         with self._connect(self.commander_database_url) as connection:
-            pending = connection.execute(
-                "SELECT count(*) n FROM commander_ad_slots WHERE creative_id IS NOT NULL AND feedback_id IS NULL"
-            ).fetchone()["n"]
             db_ok = connection.execute("SELECT 1 ok").fetchone()["ok"] == 1
         return {
             "mission": self.mission(),
             "health": {"idea_db": "ok", "commander_db": "ok" if db_ok else "error", "gateway": "ok"},
             "laval_runs": dict(laval),
-            "pending_reviews": pending,
             "jobs": jobs,
         }
 

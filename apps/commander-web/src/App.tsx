@@ -10,7 +10,6 @@ import { IdeasView } from './views/IdeasView'
 import { JobsView } from './views/JobsView'
 import { MoreView } from './views/MoreView'
 import { OverviewView } from './views/OverviewView'
-import { PostsView } from './views/PostsView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
 
@@ -71,7 +70,6 @@ function Console({ user }: { user: User }) {
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label="Вийти"><LogOut /></button></div>
     {page === 'overview' && <OverviewView api={api} language={language} />}
     {page === 'ideas' && <IdeasView api={api} language={language} />}
-    {page === 'posts' && <PostsView api={api} language={language} />}
     {page === 'jobs' && <JobsView api={api} />}
     {page === 'more' && <MoreView api={api} />}
   </Shell>

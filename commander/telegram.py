@@ -76,7 +76,6 @@ class TelegramControlPlane:
             return (
                 f"Commander {'STOPPED' if status['emergency_stop'] else 'active'}\n"
                 f"Active jobs: {status['queued_tasks']}\n"
-                f"Pending reviews: {status['pending_approvals']}\n"
                 f"Web: {self.web_url}"
             )
         if command in {"/stop", "stop"}:

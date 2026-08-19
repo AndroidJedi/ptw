@@ -12,7 +12,7 @@ class PlatformRepository:
     @contextmanager
     def connection(self) -> Iterator[Any]:
         import psycopg
-        with psycopg.connect(self.database_url) as connection:
+        with psycopg.connect(self.database_url, connect_timeout=5) as connection:
             yield connection
 
     def create_running_job(self, instruction: str, command_id: str) -> int:

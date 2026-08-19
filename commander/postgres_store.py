@@ -56,7 +56,7 @@ def connect_postgres(connection_string: str) -> "PostgresKnowledgeStore":
         raise RuntimeError(
             "PostgreSQL support requires: pip install -r requirements-commander.txt"
         ) from error
-    return PostgresKnowledgeStore(psycopg.connect(connection_string))
+    return PostgresKnowledgeStore(psycopg.connect(connection_string, connect_timeout=5))
 
 
 class PostgresKnowledgeStore:
@@ -410,7 +410,8 @@ class PostgresKnowledgeStore:
                 cursor.execute(
                     """SELECT id, topic, aggregate_id, payload, attempts
                        FROM commander_outbox
-                       WHERE published_at IS NULL AND available_at <= clock_timestamp()
+                       WHERE published_at IS NULL AND cancelled_at IS NULL
+                         AND available_at <= clock_timestamp()
                          AND topic = ANY(%s)
                        ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT %s""",
                     (list(topics), limit),
@@ -419,7 +420,8 @@ class PostgresKnowledgeStore:
                 cursor.execute(
                     """SELECT id, topic, aggregate_id, payload, attempts
                        FROM commander_outbox
-                       WHERE published_at IS NULL AND available_at <= clock_timestamp()
+                       WHERE published_at IS NULL AND cancelled_at IS NULL
+                         AND available_at <= clock_timestamp()
                        ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT %s""",
                     (limit,),
                 )

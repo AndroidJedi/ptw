@@ -12,7 +12,8 @@ python3 -m commander.demo --output-dir .local/commander-demo
 ```
 
 The executable production composition is `docker-compose.commander.yml`. It
-contains the Commander database/migrator, domain API, outbox worker, ad worker,
+contains the Commander database/migrator, domain API, retired-profile outbox
+and ad workers,
 Owner Gateway, and reset-independent control storage. Idea Laval runs from
 `docker-compose.idea-generation.yml` on the shared platform backend network.
 The Idea API's default loopback port is `8093`; its browser-facing Laval routes
@@ -34,7 +35,8 @@ files are immutable and addressed by SHA-256 digest.
 ## Runtime controls
 
 - Normal owner actions use Firebase-authenticated `/api/v1/*` endpoints.
-- Telegram is limited to notifications plus `/help`, `/status`, and `/stop`.
+- Telegram is limited to emergency `/help`, `/status`, and `/stop`; proactive
+  outbound notifications are retired.
 - Emergency stop is durable and checked before generation or execution side
   effects; only the web System view resumes all runtimes.
 - Plan mode is read-only. Execute requires the immutable plan digest, and a
@@ -42,13 +44,15 @@ files are immutable and addressed by SHA-256 digest.
 - The root broker is a separate break-glass systemd service and never exposes
   credentials or PTY transcripts to PostgreSQL.
 
-## Image generation
+## Retired creative runtime
 
-The ten-context post workflow uses A01–A10, `gpt-image-2` high-quality source
-images, and deterministic 1080×1350 final rendering. `commander-ad-worker` owns
-provider calls so outbox delivery is not blocked. Missing provider readiness
-preserves the batch and creates actionable job/issue state; there is no silent
-model fallback.
+The historical ten-context post workflow, A01–A10 state, immutable images,
+review lineage, migrations, and source remain preserved. On the 1 GB production
+profile `CREATIVE_RUNTIME_ENABLED=false` and
+`OUTBOUND_NOTIFICATIONS_ENABLED=false`; neither polling worker starts, Pillow
+and ad-generation modules are not imported by the Commander API, pending
+Telegram deliveries are cancelled append-only, and retired endpoints return
+HTTP 410.
 
 See [`owner-control-plane.md`](owner-control-plane.md) for authentication,
 Plan/Execute, root terminal, deployment, and production acceptance. See

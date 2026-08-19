@@ -1,13 +1,13 @@
 # Commander current state
 
-Status: live DataForSEO and owner-visible Laval recovery implemented; Google Trends and final owner iPhone acceptance pending
-Updated: 2026-08-18
+Status: 1 GB reliability profile and owner-safe Laval correction UX implemented locally; deployment and production acceptance pending
+Updated: 2026-08-19
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
 ## Completed milestone
 
 PTW is now a web-only Commander. The mobile-first React/Vite PWA contains
-Overview, Ideas, Posts, Jobs, Docs/System, and the break-glass root terminal.
+Overview, Ideas, Jobs, Docs/System, and the break-glass root terminal.
 Firebase is used only for verified Google identity and App Check. The Owner
 Gateway independently pins the one owner email and UID, exposes bounded
 PostgreSQL read/write APIs, streams Codex Plan/Execute events, and bridges an
@@ -64,16 +64,48 @@ providers remain the safe default and are visibly marked. Live evidence passes
 through `ResearchKnowledgeService`; finalists become proposed Hypotheses with
 `derived_from` edges to permanent Source UUIDs.
 
-Creative review supports pin, rectangle, and freehand annotations in normalized
-coordinates, an area comment per annotation, overall rating/comment, and
-predicted CTR. Reviews are append-only and bound to both Creative UUID and
-Artifact digest. Corrections create a new review with `supersedes`; the original
-HumanFeedback and WeightUpdate lineage is retained.
+Laval manual corrections are now contextual instead of exposing a generic
+database form on every stage. Only Competitor Selection, Opportunity Matrix,
+and Trend Gate offer corrections. Their current selected/enabled rows arrive as
+human-readable choices, while the stable target UUID is submitted internally.
+The owner must provide a reason; the Firebase actor and reason remain appended
+to the audit log, and the precise downstream boundary becomes stale. This
+change is verified locally but is not yet deployed to the production PWA/API.
 
-Telegram is reduced to notifications and owner-only `/help`, `/status`, and
-`/stop`. Unsupported input returns the web link without creating domain work.
+Creative production and review are retired operationally on the 1 GB profile.
+Their source, migrations, immutable artifacts, append-only reviews, UUID
+lineage, and historical database rows remain intact. The Posts navigation and
+pending-review metric are absent, while cached clients receive HTTP 410 from
+post, creative-review, artifact, ad-batch, workspace-acknowledgement, and
+status-notification endpoints.
+
+Telegram is reduced to owner-only `/help`, `/status`, and `/stop`; proactive
+outbound notifications are retired. The established platform long poller can
+return those bounded emergency responses directly, while Commander no longer
+enqueues them to its outbox. Unsupported input returns the web link without
+creating domain work.
 Emergency stop is durable in the platform database and fans out to idea and
 creative runtimes; only the web UI can resume the complete system.
+
+The 1 GB runtime profile disables both Commander polling workers by Compose
+profile, cancels unpublished Telegram outbox rows without deleting them, and
+never constructs Laval notification producers or imports the Pillow/ad runtime
+when creative mode is disabled. PostgreSQL connections have five-second
+deadlines, and Idea Laval reuses one serialized process connection instead of
+forking a PostgreSQL backend for every repository call. Browser API requests
+have a 15-second overload deadline with a Retry action. Laval and Codex
+Plan/Execute starts are mutually exclusive and a
+conflict reports the active operation with HTTP 409. A single Laval process may
+also run only one pipeline thread at a time.
+
+Production releases are built for Linux/amd64 off-host. The release publisher
+uses one SSH connection and one input stream; the VPS deployment holds
+`/run/lock/ptw-maintenance.lock` from Git reconciliation through image loading,
+migrations, one-service-at-a-time recreation, dependency checks, and a
+30-second activity sample. No production build, background job, parallel image
+load, or multi-service Compose start is permitted. The script creates a
+persistent 2 GB `/swapfile` only with at least 4 GB free and applies the bounded
+PostgreSQL memory profile to both local database instances.
 
 The confirmation-gated reset path recreates only the two `public` schemas and
 clears the Commander asset volume plus three exact live directories. By the
@@ -110,7 +142,7 @@ verified Google Firebase user.
 
 ## Verification
 
-- React TypeScript, ten Vitest tests, six Playwright browser tests across
+- React TypeScript, twelve Vitest tests, six Playwright browser tests across
   desktop Chrome, Pixel emulation, and iPhone WebKit, and the production Vite
   build pass. Regression coverage clicks Laval creation, all 16 stage cards,
   rerun/approval/navigation, provider gating, and authenticated export fallback.
@@ -148,13 +180,13 @@ verified Google Firebase user.
   platform PostgreSQL URL. Production was recreated with the correct environment
   and `PlatformRepository.summary()` succeeds. Compose interpolation and gateway
   settings now fail fast on this condition.
-- Commander/Laval built-image suite: 66 tests pass or intentionally skip only
+- Commander/Laval built-image suite: 70 tests pass or intentionally skip only
   environment/integration cases; every dependency-backed unit path passes.
 - Focused Laval PostgreSQL suite: 13 tests pass, including the 16-stage fixture,
   exact 21-variant provenance, partial country failure, retry/cache behavior,
   manual approval, country rerun/staleness, overrides, authenticated API, and
   export.
-- Owner Gateway built-image suite: 14 tests pass, including exact-owner Laval
+- Owner Gateway built-image suite: 19 tests pass, including exact-owner Laval
   proxying, isolated Idea Compose ownership, post-review filter SQL, credential
   fail-fast behavior, and confirmation-only reset/root-operation gates.
 - Production Owner Gateway built-image suite: 14/14 tests pass on the VPS.
@@ -186,17 +218,23 @@ verified Google Firebase user.
 
 ## Production work remaining
 
-1. Complete authenticated browser/API functional acceptance: reload the owner
-   console, create and inspect a Laval run, exercise Plan/Execute and root
-   terminal access, and verify restart persistence from the browser.
-2. DataForSEO is configured and the first five-country live-search run reached
+1. Recover the VPS through the provider console if SSH still stalls, then deploy
+   the stage-bound Laval correction targets and 1 GB reliability profile through
+   the single locked serial release script. Verify swap, PostgreSQL settings,
+   absent retired workers, cancelled pending Telegram outbox rows, memory,
+   latency, OOM history, process age/RSS, and the 30-second connection sample.
+2. Verify competitor, opportunity, and trend corrections from the authenticated
+   owner browser. Complete the remaining browser/API functional acceptance:
+   create and inspect a Laval run, exercise Plan/Execute and root terminal
+   access, and verify restart persistence from the browser.
+3. DataForSEO is configured and the first five-country live-search run reached
    the competitor-selection gate. Add restricted Google Trends bridge access
    when available and complete the remaining live-provider acceptance checklist.
    Fixture evidence must not enter the permanent Commander research graph.
-3. Run owner Plan/Execute, root `id`/`pwd`, single-post review, Telegram
-   emergency controls, and restart-persistence acceptance. Do not claim
+4. Run owner Plan/Execute, root `id`/`pwd`, Telegram emergency controls, and
+   restart-persistence acceptance. Do not claim
    Telegram/provider readiness before these pass.
-4. Exercise the production reset only after the owner supplies its exact web
+5. Exercise the production reset only after the owner supplies its exact web
    confirmation. The reset is irreversible and was intentionally not invoked
    during deployment.
 
@@ -240,9 +278,10 @@ That recovery was initially triggered by Codex from the VPS, not by the owner
 button. Laval now makes the boundary auditable: migration 009 stores bounded
 stage failures, resume actors/outcomes, and retry completion; the status API
 returns provider-task/cost recovery facts; and the Ideas UI separates Resume
-saved work from deliberate stage rerun. Automatic terminal notifications and
-the owner-triggered Telegram status action both render the authoritative run
-state plus all 16 stage statuses through the existing Commander outbox.
+saved work from deliberate stage rerun. Those recovery notifications previously
+rendered the authoritative run state through Commander outbox; migration 011
+now preserves but cancels unpublished Telegram rows, and the 1 GB profile
+retires both automatic and owner-triggered status delivery.
 
 ## Operational warning
 

@@ -87,12 +87,59 @@ class ControlStore:
         now = self.now()
         destructive = self.destructive_text(instruction)
         with self.connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            active = connection.execute(
+                """SELECT id,status FROM command_sessions
+                   WHERE status IN ('planning','queued','running','cancel_requested')
+                   ORDER BY created_at LIMIT 1"""
+            ).fetchone()
+            if active is not None:
+                raise ValueError(
+                    f"Codex operation {active['id']} is already active ({active['status']})"
+                )
             connection.execute(
                 "INSERT INTO command_sessions(id,mode,instruction,status,destructive,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
                 (session_id, mode, instruction, "planning", int(destructive), now, now),
             )
         self.event(session_id, {"type": "session.created", "mode": mode, "destructive": destructive})
         return self.command(session_id)
+
+    def active_command(self, *, exclude_id: str | None = None) -> dict[str, Any] | None:
+        query = """SELECT id,status,mode FROM command_sessions
+                   WHERE status IN ('planning','queued','running','cancel_requested')"""
+        params: tuple[Any, ...] = ()
+        if exclude_id is not None:
+            query += " AND id<>?"
+            params = (exclude_id,)
+        query += " ORDER BY created_at LIMIT 1"
+        with self.connection() as connection:
+            row = connection.execute(query, params).fetchone()
+        return None if row is None else dict(row)
+
+    def recover_interrupted_commands(self) -> list[dict[str, Any]]:
+        """Fail commands whose owning gateway process disappeared on restart."""
+
+        with self.connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute(
+                """SELECT id,status,platform_job_id FROM command_sessions
+                   WHERE status IN ('planning','queued','running','cancel_requested')
+                   ORDER BY created_at"""
+            ).fetchall()
+            connection.execute(
+                """UPDATE command_sessions
+                   SET status='failed',error='gateway restarted; operation process is no longer active',
+                       updated_at=?
+                   WHERE status IN ('planning','queued','running','cancel_requested')""",
+                (self.now(),),
+            )
+        recovered = [dict(row) for row in rows]
+        for row in recovered:
+            self.event(str(row["id"]), {
+                "type": "operation.recovered_after_restart",
+                "previous_status": row["status"],
+            })
+        return recovered
 
     def command(self, session_id: str) -> dict[str, Any]:
         with self.connection() as connection:
@@ -138,6 +185,16 @@ class ControlStore:
                 raise KeyError(session_id)
             if row["status"] != "awaiting_approval" or row["execution_count"] != 0:
                 raise ValueError("this plan cannot be executed again")
+            active = connection.execute(
+                """SELECT id,status FROM command_sessions
+                   WHERE id<>? AND status IN ('planning','queued','running','cancel_requested')
+                   ORDER BY created_at LIMIT 1""",
+                (session_id,),
+            ).fetchone()
+            if active is not None:
+                raise ValueError(
+                    f"Codex operation {active['id']} is already active ({active['status']})"
+                )
             if not secrets.compare_digest(str(row["plan_digest"]), digest):
                 raise ValueError("approved plan digest does not match")
             if bool(row["destructive"]) and not destructive_allowed:

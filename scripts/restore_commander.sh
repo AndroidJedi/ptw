@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+exec 9>/run/lock/ptw-maintenance.lock
+flock -n 9 || { echo "another PTW maintenance operation is active" >&2; exit 73; }
+
 if [ "$#" -ne 2 ] || [ "$2" != "--confirm-replace-current-state" ]; then
   echo "usage: $0 /absolute/path/to/backup --confirm-replace-current-state" >&2
   exit 2
@@ -13,9 +16,13 @@ case "$backup" in
 esac
 
 scripts/verify_commander_backup.sh "$backup"
-compose="docker compose --env-file .env.commander -f docker-compose.commander.yml"
-$compose stop commander-api commander-worker
-$compose up -d commander-db
+compose="docker compose --env-file /opt/ptw/platform/.env --env-file .env.commander -f docker-compose.commander.yml"
+$compose stop commander-api
+$compose stop commander-worker
+$compose rm -f commander-worker
+$compose stop commander-ad-worker
+$compose rm -f commander-ad-worker
+$compose up -d --no-deps --wait --no-build commander-db
 
 $compose exec -T commander-db dropdb -U ptw_commander --force --if-exists ptw_commander
 $compose exec -T commander-db createdb -U ptw_commander ptw_commander
@@ -29,5 +36,6 @@ docker run --rm \
   -v "$backup:/backup:ro" \
   alpine:3.22 tar -C /data -xzf /backup/assets.tar.gz
 
-$compose up -d commander-api commander-worker
+$compose run --rm --no-deps commander-migrate
+$compose up -d --no-deps --wait --no-build commander-api
 echo "restore complete; verify /healthz and /readyz"

@@ -40,7 +40,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     laval_pipeline = LavalPipeline(
         laval_repository, providers_from_settings(settings, llm)
     )
-    laval_notifier = LavalTelegramNotifier(laval_repository, tuple(settings.allowed_chat_ids))
+    laval_notifier = (
+        LavalTelegramNotifier(laval_repository, tuple(settings.allowed_chat_ids))
+        if settings.outbound_notifications_enabled
+        else None
+    )
     laval_runner = LavalRunner(laval_pipeline, laval_notifier)
     readiness = {
         "llm_provider": settings.llm_provider,
@@ -57,7 +61,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         laval_runner.resume_incomplete()
-        yield
+        try:
+            yield
+        finally:
+            store.close()
 
     app = FastAPI(title="PTW Idea Laval", version="2.0.0", docs_url=None, redoc_url=None, lifespan=lifespan)
 
@@ -102,6 +109,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "demo_available": readiness["demo_available"],
             "default_evidence_mode": "demo_fixture" if settings.search_provider == "fixture" else ("live_complete" if readiness["trends_live_ready"] else "live_search_pending_trends"),
             "missing": missing,
+        }
+
+    @app.get("/internal/web/laval/activity")
+    def laval_activity(
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        active_run_ids = laval_runner.active_run_ids()
+        return {
+            "active": bool(active_run_ids),
+            "operation": "laval",
+            "run_id": active_run_ids[0] if active_run_ids else None,
         }
 
     @app.post("/internal/web/laval/runs")
@@ -193,6 +212,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if action == "override":
                 return laval.override(run_id, request, actor=str(request.get("actor") or "owner-gateway"))
             if action == "notify":
+                if not settings.outbound_notifications_enabled:
+                    raise HTTPException(
+                        status_code=410, detail="outbound notifications are retired"
+                    )
                 return laval.notify(run_id, actor=str(request.get("actor") or "owner-gateway"))
             raise HTTPException(status_code=404, detail="unknown Laval action")
         except KeyError as error:

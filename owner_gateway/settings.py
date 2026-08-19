@@ -6,6 +6,13 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 
+def _enabled(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     firebase_project_id: str
@@ -29,6 +36,8 @@ class Settings:
     public_origin: str
     telegram_bot_token: str = ""
     commander_service_url: str = "http://ptw-commander-api:8080"
+    creative_runtime_enabled: bool = False
+    outbound_notifications_enabled: bool = False
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -73,4 +82,6 @@ class Settings:
             commander_service_url=os.environ.get(
                 "COMMANDER_SERVICE_URL", "http://ptw-commander-api:8080"
             ).rstrip("/"),
+            creative_runtime_enabled=_enabled("CREATIVE_RUNTIME_ENABLED"),
+            outbound_notifications_enabled=_enabled("OUTBOUND_NOTIFICATIONS_ENABLED"),
         )

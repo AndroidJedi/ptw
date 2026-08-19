@@ -73,10 +73,11 @@ Commander policy. SSH keys and passphrases never enter browser state or Git.
 
 ## Telegram
 
-Telegram is a thin notification and emergency adapter. Only `/help`, `/status`,
-and `/stop` are operational commands; other input returns a deep link to the
-web console. The established long poller and allowlists remain the single
-update consumer and security boundary.
+Telegram is a thin emergency adapter. Only `/help`, `/status`, and `/stop` are
+operational commands; other input returns a deep link to the web console. The
+established long poller and allowlists remain the single update consumer and
+security boundary. Proactive outbound notifications are retired on the 1 GB
+profile.
 
 ## Recovery
 

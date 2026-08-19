@@ -1,4 +1,4 @@
-import { Check, CirclePause, Download, Eye, FlaskConical, Play, Plus, RefreshCcw, RotateCcw, Send, X } from 'lucide-react'
+import { Check, CirclePause, Download, FlaskConical, Play, Plus, RefreshCcw, RotateCcw, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { local, type Language } from '../i18n'
@@ -21,6 +21,35 @@ function evidenceLabel(mode?: LavalEvidenceMode) {
   if (mode === 'live_complete') return 'LIVE COMPLETE'
   if (mode === 'live_search_pending_trends') return 'LIVE SEARCH — WAITING FOR TRENDS'
   return 'DEMO — NO LIVE RESEARCH'
+}
+
+type OverrideTarget = {
+  id: string
+  kind: 'competitor' | 'opportunity' | 'trend_score' | 'trend_discovery'
+  name?: string
+  domain?: string
+  statement?: string
+  term?: string
+  country?: string
+  time_window?: string
+  discovered_term?: string
+  discovery_type?: string
+  growth_label?: string
+}
+
+const CORRECTABLE_STAGES = ['COMPETITOR_SELECTION', 'OPPORTUNITY_MATRIX', 'TREND_GATE']
+
+function correctionTargets(value: unknown): OverrideTarget[] {
+  if (!value || typeof value !== 'object' || !('override_targets' in value)) return []
+  const targets = (value as { override_targets?: unknown }).override_targets
+  return Array.isArray(targets) ? targets.filter((item): item is OverrideTarget => Boolean(item && typeof item === 'object' && 'id' in item && 'kind' in item)) : []
+}
+
+function correctionTargetLabel(target: OverrideTarget) {
+  if (target.kind === 'competitor') return `${target.name || target.domain || 'Competitor'}${target.domain && target.name !== target.domain ? ` — ${target.domain}` : ''}`
+  if (target.kind === 'opportunity') return target.statement || 'Можливість'
+  if (target.kind === 'trend_discovery') return `Відкриття · ${target.discovered_term || target.term || '—'} · ${target.country || '—'} / ${target.time_window || '—'}`
+  return `Оцінка тренду · ${target.term || '—'} · ${target.country || '—'} / ${target.time_window || '—'}`
 }
 
 export function LavalEngine({ api, language }: { api: ApiClient; language: Language }) {
@@ -78,15 +107,15 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
   }, [api, selected, status?.run.status])
 
   const act = async (action: string, body: Record<string, unknown> = {}) => {
-    if (!selected) return
-    setBusy(true); setBusyAction(action); setError(''); setNotice(action === 'resume' ? 'Відновлення збереженої роботи…' : action === 'notify' ? 'Надсилання статусу в Telegram…' : '')
+    if (!selected) return false
+    setBusy(true); setBusyAction(action); setError(''); setNotice(action === 'resume' ? 'Відновлення збереженої роботи…' : '')
     try {
       const result = await api.post<{ started?: boolean; queued?: number }>(`/api/v1/laval/runs/${selected}/${action}`, body)
       await loadStatus(selected); await loadRuns()
       if (action === 'resume') setNotice(result.started === false ? 'Запуск уже виконується.' : 'Відновлення запущено: збережені remote task IDs повторно не надсилаються і повторно не оплачуються.')
-      else if (action === 'notify') setNotice(`Статус і всі 16 етапів поставлено в чергу Telegram (${result.queued ?? 0}).`)
       else setNotice('Дію виконано.')
-    } catch (cause) { setError((cause as Error).message) }
+      return true
+    } catch (cause) { setError((cause as Error).message); return false }
     finally { setBusy(false); setBusyAction('') }
   }
   const create = async () => {
@@ -200,7 +229,6 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
               {status.run.status === 'paused' && !approval && !status.run.awaiting_reason && <button className="primary" disabled={busy} onClick={() => act('resume')}><Play />Продовжити</button>}
               {status.run.awaiting_reason && <button className="secondary" disabled><CirclePause />Очікує Google Trends</button>}
               {approval && current && <button className="primary" disabled={busy} onClick={() => act('approve', { stage: current.stage })}><Check />Схвалити й продовжити</button>}
-              <button className="secondary" disabled={busy} onClick={() => act('notify')}><Send />{busyAction === 'notify' ? 'Надсилання…' : 'Статус у Telegram'}</button>
               <button className="secondary" disabled={busy} onClick={() => download('json')}><Download />JSON</button>
               <button className="secondary" disabled={busy} onClick={() => download('md')}>MD</button>
             </div>
@@ -238,7 +266,17 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
               <button className="secondary" disabled={busy} onClick={() => act('rerun', { stage: stageName, ...(stageName === 'SERP_DISCOVERY' && countryFilter ? { country: countryFilter } : {}) })}><RotateCcw />{busy ? 'Виконується…' : 'Перезапустити'}</button>
             </div></div>
             <StageArtifact value={stageOutput} language={language} loading={stageLoading} error={stageLoadError} />
-            <OverridePanel apiAction={(body) => act('override', body)} stage={stageName} countries={configuredCountries} />
+            {CORRECTABLE_STAGES.includes(stageName) && !stageLoading && !stageLoadError && Boolean(stageOutput) && <OverridePanel
+              apiAction={async (body) => {
+                const applied = await act('override', body)
+                const stage = status.stages.find((item) => item.stage === stageName)
+                if (applied && stage) await inspect(stage, view, countryFilter)
+                return applied
+              }}
+              stage={stageName}
+              countries={configuredCountries}
+              targets={correctionTargets(stageOutput)}
+            />}
           </section>}
         </>}
       </div>
@@ -264,21 +302,33 @@ function StageArtifact({ value, language, loading, error }: { value: unknown; la
   return <pre className="laval-json">{JSON.stringify(output, null, 2)}</pre>
 }
 
-function OverridePanel({ apiAction, stage, countries }: { apiAction: (body: Record<string, unknown>) => Promise<void>; stage: string; countries: string[] }) {
-  const suggested = stage === 'COMPETITOR_SELECTION' ? 'competitor' : stage === 'OPPORTUNITY_MATRIX' ? 'opportunity' : stage === 'TREND_GATE' ? 'trend' : ''
-  const [type, setType] = useState(suggested || 'opportunity')
-  const [action, setAction] = useState(suggested === 'competitor' ? 'reject' : 'disable')
+function OverridePanel({ apiAction, stage, countries, targets }: { apiAction: (body: Record<string, unknown>) => Promise<boolean>; stage: string; countries: string[]; targets: OverrideTarget[] }) {
+  const type = stage === 'COMPETITOR_SELECTION' ? 'competitor' : stage === 'OPPORTUNITY_MATRIX' ? 'opportunity' : 'trend'
+  const [action, setAction] = useState(type === 'competitor' ? 'reject' : 'disable')
   const [target, setTarget] = useState('')
   const [country, setCountry] = useState(countries[0] || 'US')
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  useEffect(() => { if (suggested) { setType(suggested); setAction(suggested === 'competitor' ? 'reject' : 'disable') } }, [suggested])
-  return <details className="laval-override"><summary>Ручне виправлення · audit log</summary><div>
-    <label>Тип<select value={type} onChange={(event) => { const value = event.target.value; setType(value); setAction(value === 'competitor' ? 'reject' : 'disable') }}><option value="competitor">Competitor</option><option value="opportunity">Opportunity</option><option value="trend">Trend</option></select></label>
-    {type === 'competitor' && <label>Дія<select value={action} onChange={(event) => setAction(event.target.value)}><option value="reject">Reject</option><option value="add">Add URL</option></select></label>}
-    {type === 'competitor' && action === 'add' && <label>Країна<select value={country} onChange={(event) => setCountry(event.target.value)}>{countries.map((code) => <option key={code}>{code}</option>)}</select></label>}
-    <label>{action === 'add' ? 'URL' : 'UUID'}<input value={target} onChange={(event) => setTarget(event.target.value)} /></label>
-    <label>Причина<input value={reason} onChange={(event) => setReason(event.target.value)} /></label>
-    <button className="secondary" disabled={!target || submitting} onClick={async () => { setSubmitting(true); try { await apiAction({ type, action, target_id: target, reason, ...(action === 'add' ? { payload: { url: target, country } } : {}) }) } finally { setSubmitting(false) } }}><Eye />{submitting ? 'Застосування…' : 'Застосувати й позначити downstream stale'}</button>
+  const invalidatedFrom = type === 'competitor' ? 'збору доказів про конкурентів' : type === 'opportunity' ? 'планування тренд-запитів' : 'пакета синтезу'
+  const title = type === 'competitor' ? 'Скоригувати список конкурентів' : type === 'opportunity' ? 'Вимкнути можливість' : 'Вимкнути тренд-сигнал'
+  useEffect(() => { setAction(type === 'competitor' ? 'reject' : 'disable'); setTarget(''); setReason('') }, [stage, type])
+  return <details className="laval-override"><summary>{title}</summary><div>
+    <p>Оберіть зрозумілий елемент — його внутрішній UUID буде підставлено автоматично. Причина та автор потраплять у журнал аудиту; етапи, починаючи з {invalidatedFrom}, будуть позначені для перебудови.</p>
+    {type === 'competitor' && <label>Що змінити<select aria-label="Що змінити" value={action} onChange={(event) => { setAction(event.target.value); setTarget('') }}><option value="reject">Відхилити знайденого конкурента</option><option value="add">Додати конкурента за URL</option></select></label>}
+    {action === 'add' ? <>
+      <label>URL конкурента<input type="url" inputMode="url" value={target} onChange={(event) => setTarget(event.target.value)} placeholder="https://example.com" /></label>
+      <label>Країна<select value={country} onChange={(event) => setCountry(event.target.value)}>{countries.map((code) => <option key={code}>{code}</option>)}</select></label>
+    </> : <label>{type === 'competitor' ? 'Конкурент' : type === 'opportunity' ? 'Можливість' : 'Тренд-сигнал або відкриття'}<select value={target} onChange={(event) => setTarget(event.target.value)}>
+      <option value="">Оберіть зі списку…</option>
+      {targets.map((item) => <option key={item.id} value={item.id}>{correctionTargetLabel(item)}</option>)}
+    </select>{targets.length === 0 && <span className="muted">Немає активних елементів для корекції.</span>}</label>}
+    <label>Причина<input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Чому цей елемент треба змінити?" /></label>
+    <button className="secondary" disabled={!target.trim() || !reason.trim() || submitting} onClick={async () => {
+      setSubmitting(true)
+      try {
+        const applied = await apiAction({ type, action, target_id: target.trim(), reason: reason.trim(), ...(action === 'add' ? { payload: { url: target.trim(), country } } : {}) })
+        if (applied) { setTarget(''); setReason('') }
+      } finally { setSubmitting(false) }
+    }}><Check />{submitting ? 'Застосування…' : 'Застосувати корекцію'}</button>
   </div></details>
 }

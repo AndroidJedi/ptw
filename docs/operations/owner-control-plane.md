@@ -37,6 +37,10 @@ cancellation, validation, Git/PR, and deployment evidence are shown in Jobs.
 Destructive plans additionally require an exact owner confirmation. They do
 not require a backup by the owner's explicit decision.
 
+Laval and Codex planning/execution are intentionally serial on the 1 GB host.
+A conflicting start returns HTTP 409 with the active operation ID. Waiting for
+plan approval is not active work; approving it rechecks Laval before execution.
+
 ## Emergency control
 
 Telegram `/stop` and the web emergency button set the durable platform stop,
@@ -91,18 +95,25 @@ the run maximum at USD 0.05 with only USD 0.04 reservable. It does not configure
 the restricted official alpha at <https://developers.google.com/search/apis/trends>;
 until access and its bridge are ready, live runs pause after Opportunity Matrix.
 
-Build and restart the three server-side boundaries, then build Hosting:
+Build Linux/amd64 images locally, publish them through the single locked SSH
+session, then deploy Hosting after all API checks pass:
 
 ```sh
-cd /root/ptw
-docker compose --env-file /opt/ptw/platform/.env --env-file .env.commander \
-  -f docker-compose.commander.yml \
-  up -d --build --wait commander-api owner-gateway
-docker compose --env-file /opt/ptw/platform/.env --env-file .env.owner-gateway \
-  -f docker-compose.idea-generation.yml up -d --build --wait idea-generation-api
-npm --prefix apps/commander-web run build
-firebase deploy --only hosting
+scripts/build_ptw_release_images.sh RELEASE_TAG .local/release-images
+scripts/publish_ptw_release_serial.sh RELEASE_TAG .local/release-images
 ```
+
+The publisher opens exactly one SSH session, acquires the maintenance lock
+before Git synchronization, transfers and loads one image at a time, applies
+migrations once, and uses `--no-deps --wait --no-build` for exactly one service
+per start. It rejects a dirty VPS checkout or an existing lock holder. Never
+run `docker build`, background jobs, `xargs -P`, GNU Parallel, parallel SSH, or
+a multi-service `compose up` on production.
+
+After 24 clean hours, open one SSH session and run
+`/root/ptw/scripts/audit_ptw_1gb.sh`. It uses the same nonblocking maintenance
+lock and fails on a retired worker, sub-two-second health regression, less than
+250 MiB available memory, or any OOM evidence in the preceding 24 hours.
 
 The web build has no secret dependency for App Check: the public production
 reCAPTCHA Enterprise site key lives beside the Firebase browser config. The

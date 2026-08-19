@@ -5,7 +5,7 @@ from __future__ import annotations
 import hmac
 from datetime import date
 from pathlib import Path
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 from fastapi import FastAPI, Header, HTTPException
 
@@ -23,18 +23,24 @@ import re
 from .research import CreativeIdeationResearchService, ResearchFinding, ResearchKnowledgeService
 from .research_agents import RESEARCH_AGENTS
 from .checkpoint import checkpoint_response, startup_checkpoint_canary
-from .ad_generation import AdGenerationEngine
-from .ad_runtime import create_ad_engine
+if TYPE_CHECKING:
+    from .ad_generation import AdGenerationEngine
 
 
 def create_app(
     settings: Settings,
     store: PostgresKnowledgeStore,
     telegram_client: TelegramBotClient,
-    ad_engine: AdGenerationEngine | None = None,
+    ad_engine: "AdGenerationEngine | None" = None,
 ) -> FastAPI:
     commander = Commander(store, CommanderPolicy.load(settings.policy_path))
-    if ad_engine is None and isinstance(store, PostgresKnowledgeStore):
+    if (
+        settings.creative_runtime_enabled
+        and ad_engine is None
+        and isinstance(store, PostgresKnowledgeStore)
+    ):
+        from .ad_runtime import create_ad_engine
+
         ad_engine = create_ad_engine(settings, store, commander)
     research_provider = (
         OpenAICreativeResearchProvider(settings.openai_api_key, model=settings.research_model)
@@ -115,6 +121,8 @@ def create_app(
     def create_ad_batch(
         request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
     ) -> dict[str, object]:
+        if not settings.creative_runtime_enabled:
+            raise HTTPException(status_code=410, detail="creative runtime is retired")
         if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
             raise HTTPException(status_code=403, detail="invalid bridge token")
         if ad_engine is None:
@@ -141,6 +149,8 @@ def create_app(
         request: Mapping[str, Any],
         x_ptw_bridge_token: str = Header(default=""),
     ) -> Mapping[str, Any]:
+        if not settings.creative_runtime_enabled:
+            raise HTTPException(status_code=410, detail="creative runtime is retired")
         if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
             raise HTTPException(status_code=403, detail="invalid bridge token")
         if ad_engine is None:
@@ -160,6 +170,8 @@ def create_app(
     def register_workspace_task(
         request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
     ) -> dict[str, object]:
+        if not settings.outbound_notifications_enabled:
+            raise HTTPException(status_code=410, detail="workspace acknowledgements are retired")
         if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
             raise HTTPException(status_code=403, detail="invalid bridge token")
         task_id = str(request.get("task_id", "")).strip()
@@ -192,6 +204,8 @@ def create_app(
     def workspace_task_acknowledgement(
         task_id: str, x_ptw_bridge_token: str = Header(default="")
     ) -> dict[str, object]:
+        if not settings.outbound_notifications_enabled:
+            raise HTTPException(status_code=410, detail="workspace acknowledgements are retired")
         if not hmac.compare_digest(x_ptw_bridge_token, settings.telegram_bot_token):
             raise HTTPException(status_code=403, detail="invalid bridge token")
         try:
@@ -362,12 +376,13 @@ def create_app(
                 if not store.record_inbox_once(update_id):
                     return {"ok": True, "duplicate": True}
                 reply = control.handle_update(update)
-                store.enqueue_outbox(
-                    "telegram.send_message", None,
-                    {"chat_id": reply.chat_id, "text": reply.text},
-                )
+                if settings.outbound_notifications_enabled:
+                    store.enqueue_outbox(
+                        "telegram.send_message", None,
+                        {"chat_id": reply.chat_id, "text": reply.text},
+                    )
                 result = {"response": reply.text}
-                if reply.callback_query_id:
+                if settings.outbound_notifications_enabled and reply.callback_query_id:
                     store.enqueue_outbox(
                         "telegram.answer_callback", None,
                         {"callback_query_id": reply.callback_query_id},

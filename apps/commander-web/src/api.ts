@@ -3,12 +3,37 @@ import type { User } from 'firebase/auth'
 import { appCheck } from './firebase'
 
 const PRODUCTION_API_URL = 'https://commander.proove-them-wrong.com'
+export const API_DEADLINE_MS = 15_000
 
 export function resolveApiBaseUrl(configured: string | undefined, production: boolean) {
   return (configured || (production ? PRODUCTION_API_URL : '')).replace(/\/$/, '')
 }
 
 const baseUrl = resolveApiBaseUrl(import.meta.env.VITE_COMMANDER_API_URL, import.meta.env.PROD)
+
+export async function fetchWithDeadline(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  deadlineMs = API_DEADLINE_MS,
+): Promise<Response> {
+  const controller = new AbortController()
+  const callerSignal = init.signal
+  const abortFromCaller = () => controller.abort(callerSignal?.reason)
+  if (callerSignal?.aborted) abortFromCaller()
+  else callerSignal?.addEventListener('abort', abortFromCaller, { once: true })
+  const timeout = window.setTimeout(() => controller.abort('api-deadline'), deadlineMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } catch (cause) {
+    if (controller.signal.aborted && !callerSignal?.aborted) {
+      throw new Error('API не відповідає протягом 15 секунд. Сервер може бути перевантажений — натисніть «Повторити».')
+    }
+    throw cause
+  } finally {
+    window.clearTimeout(timeout)
+    callerSignal?.removeEventListener('abort', abortFromCaller)
+  }
+}
 
 async function jsonBody(response: Response): Promise<unknown> {
   const contentType = response.headers.get('content-type') || ''
@@ -33,7 +58,7 @@ export class ApiClient {
   }
 
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const response = await fetch(`${baseUrl}${path}`, {
+    const response = await fetchWithDeadline(`${baseUrl}${path}`, {
       ...init,
       cache: 'no-store',
       credentials: 'omit',
@@ -56,7 +81,7 @@ export class ApiClient {
   }
 
   async blob(path: string): Promise<Blob> {
-    const response = await fetch(`${baseUrl}${path}`, {
+    const response = await fetchWithDeadline(`${baseUrl}${path}`, {
       cache: 'no-store', credentials: 'omit', headers: await this.headers(),
     })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)

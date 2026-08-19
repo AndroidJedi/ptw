@@ -80,7 +80,56 @@ describe('LavalEngine', () => {
     expect(screen.queryByText('Артефакт ще не створено.')).not.toBeInTheDocument()
   })
 
-  it('explains safe recovery and can send the authoritative stage status to Telegram', async () => {
+  it('offers stage-specific correction targets without asking the owner for a UUID', async () => {
+    const run = {
+      id: '01234567-89ab-7def-8123-456789abcdef', owner_idea_id: '11234567-89ab-7def-8123-456789abcdef',
+      status: 'paused', current_stage: 'COMPETITOR_SELECTION', approval_mode: 'manual', approval_gates: ['COMPETITOR_SELECTION'],
+      owner_preview: 'Correction UX', completed_stages: 5, variant_count: 0, config: { countries: [{ code: 'US' }] },
+      evidence_mode: 'demo_fixture', provider_snapshot: { search: 'fixture', trends: 'fixture' },
+      max_spend_usd: .05, reserved_spend_usd: .04, created_at: '', updated_at: '',
+    }
+    const stages = [
+      { stage: 'OWNER_CAPTURE', ordinal: 0, status: 'completed', attempt: 1, metrics: {} },
+      { stage: 'COMPETITOR_SELECTION', ordinal: 4, status: 'completed', attempt: 1, metrics: {} },
+    ]
+    const status = { run, stages, cost: { items: [], total_usd: 0 } }
+    const competitorId = '21234567-89ab-7def-8123-456789abcdef'
+    const post = vi.fn(() => Promise.resolve({ ok: true }))
+    const api = {
+      get: vi.fn((path: string) => {
+        if (path.includes('/providers')) return Promise.resolve(readiness)
+        if (path.includes('/show?')) {
+          if (path.includes('COMPETITOR_SELECTION')) return Promise.resolve({
+            output: { global_deduplicated: [] },
+            override_targets: [{ id: competitorId, kind: 'competitor', name: 'Clear Rival', domain: 'rival.example' }],
+          })
+          return Promise.resolve({ output: { raw_text: 'Owner idea' }, override_targets: [] })
+        }
+        if (path.includes(run.id)) return Promise.resolve(status)
+        return Promise.resolve({ items: [run] })
+      }),
+      post, blob: vi.fn(),
+    } as unknown as ApiClient
+    render(<LavalEngine api={api} language="uk" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /OWNER CAPTURE/ }))
+    await screen.findByText(/Owner idea/)
+    expect(screen.queryByText(/Скоригувати список конкурентів/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /COMPETITOR SELECTION/ }))
+    fireEvent.click(await screen.findByText('Скоригувати список конкурентів'))
+    expect(screen.getByText(/UUID буде підставлено автоматично/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('UUID')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Конкурент'), { target: { value: competitorId } })
+    fireEvent.change(screen.getByLabelText('Причина'), { target: { value: 'Not a direct product' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Застосувати корекцію' }))
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/laval/runs/${run.id}/override`, {
+      type: 'competitor', action: 'reject', target_id: competitorId, reason: 'Not a direct product',
+    }))
+  })
+
+  it('explains safe recovery without offering retired Telegram notifications', async () => {
     const run = {
       id: '01234567-89ab-7def-8123-456789abcdef', owner_idea_id: '11234567-89ab-7def-8123-456789abcdef',
       status: 'failed', current_stage: 'SERP_DISCOVERY', approval_mode: 'manual', approval_gates: ['COMPETITOR_SELECTION'],
@@ -102,7 +151,7 @@ describe('LavalEngine', () => {
         history: [],
       },
     }
-    const post = vi.fn((path: string) => Promise.resolve(path.endsWith('/notify') ? { queued: 1 } : { started: true }))
+    const post = vi.fn(() => Promise.resolve({ started: true }))
     const api = {
       get: vi.fn((path: string) => {
         if (path.includes('/providers')) return Promise.resolve({ ...readiness, search_live_ready: true, search_provider: 'dataforseo' })
@@ -117,7 +166,6 @@ describe('LavalEngine', () => {
     expect(screen.getByText(/Submitted-задачі не публікуються і не оплачуються повторно/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Відновити збережену роботу/ }))
     await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/laval/runs/${run.id}/resume`, {}))
-    fireEvent.click(screen.getByRole('button', { name: /Статус у Telegram/ }))
-    await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/laval/runs/${run.id}/notify`, {}))
+    expect(screen.queryByRole('button', { name: /Статус у Telegram/ })).not.toBeInTheDocument()
   })
 })

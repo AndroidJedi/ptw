@@ -251,8 +251,10 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-override { margin-top: 14px; border-top: 1px solid var(--line); }
 .laval-override summary { min-height: 48px; display: flex; align-items: center; cursor: pointer; color: #ff71ae; font-size: 11px; font-weight: 800; }
 .laval-override > div { display: grid; gap: 7px; }
+.laval-override p { margin: 0 0 6px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.laval-override label > span { display: block; margin: -1px 0 8px; font-weight: 500; }
 .laval-override input, .laval-override select { margin-bottom: 5px; }
-.laval-override button { min-height: 48px; }
+.laval-override button { min-height: 48px; margin-top: 4px; }
 
 .command-pane { padding: 16px; border: 1px solid var(--line); border-radius: 20px; background: var(--panel); }
 .mode-switch { margin-bottom: 18px; display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }

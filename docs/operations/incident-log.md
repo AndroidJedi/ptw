@@ -2,6 +2,33 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-19 — Recurrent 1 GB VPS stall after normal daytime latency
+
+- Impact: the Owner Console remained on “Завантаження…”, the gateway timed out,
+  and SSH accepted TCP but did not deliver a banner. The same broad symptom had
+  appeared the previous day after hours of normal service.
+- Evidence: the earlier recovered sample had 57 MiB available, no swap, and
+  load above 27. A stale Codex/Node child, stuck Laval thread, duplicate
+  container, or accumulated database connections can cause the sudden cliff,
+  but no single process is yet proven because this recurrence still requires a
+  provider-console reboot and locked post-boot inspection. A disposable local
+  full Laval run then revealed a concrete amplification path: the Idea store
+  created more than ten thousand short-lived PostgreSQL backend PIDs by opening
+  one connection per repository call.
+- Correction: retain the 1 GB host and both PostgreSQL authorities, retire
+  creative/outbound polling, add 2 GB swap only with 4 GB free disk, tune both
+  databases, bound connection/browser waits, and reject overlapping Laval and
+  Codex work. Idea Laval now reuses one process-level connection behind a lock,
+  reducing the same 13-test PostgreSQL suite from about 63 seconds with a
+  transport failure to about 11 seconds. Preserve all historical rows and
+  source.
+- Prevention: build Linux/amd64 images off-host and deploy through one SSH
+  session holding `/run/lock/ptw-maintenance.lock`. Load one image and start one
+  service at a time; never use background jobs, parallel shells, server builds,
+  or multi-service Compose starts. Capture bounded PID/PPID/RSS/age, OOM, load,
+  memory, disk, containers, database size/connection, swap, and 30-second
+  activity evidence before calling the incident resolved.
+
 ## 2026-08-18 — Laval controls appeared inert during a transient VPS stall
 
 - Impact: the already-rendered Ideas view accepted a stage selection but its

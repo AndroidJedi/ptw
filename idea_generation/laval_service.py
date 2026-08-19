@@ -32,6 +32,9 @@ class LavalRunner:
             current = self._threads.get(run_id)
             if current and current.is_alive():
                 return False
+            active = [key for key, value in self._threads.items() if value.is_alive()]
+            if active:
+                raise RuntimeError(f"Laval run {active[0]} is already active")
             thread = threading.Thread(
                 target=self._execute,
                 kwargs={"run_id": run_id, "through_stage": through_stage, "start_stage": start_stage, "force": force, "country": country},
@@ -66,12 +69,18 @@ class LavalRunner:
             thread = self._threads.get(run_id)
             return bool(thread and thread.is_alive())
 
+    def active_run_ids(self) -> tuple[str, ...]:
+        with self._guard:
+            return tuple(
+                run_id for run_id, thread in self._threads.items() if thread.is_alive()
+            )
+
     def resume_incomplete(self) -> None:
         rows = self.pipeline.store.fetchall(
             "SELECT id FROM laval_runs WHERE status IN ('pending','running') ORDER BY created_at"
         )
-        for row in rows:
-            self.start(str(row["id"]))
+        if rows:
+            self.start(str(rows[0]["id"]))
 
 
 class LavalService:
@@ -198,6 +207,8 @@ class LavalService:
         target = str(request.get("target_id") or "")
         reason = str(request.get("reason") or "").strip()
         payload = dict(request.get("payload") or {})
+        if not reason:
+            raise ValueError("manual correction requires a reason for the audit log")
         if kind == "competitor" and action == "add":
             url = canonical_url(str(payload.get("url") or target))
             domain = canonical_domain(url)

@@ -158,6 +158,19 @@ class LavalDomainTests(unittest.TestCase):
         runner._execute(run_id="run-1")
         self.assertEqual([("run-1", "failed")], notifier.calls)
 
+    def test_runner_rejects_a_second_concurrent_laval_run(self) -> None:
+        class Pipeline:
+            pass
+
+        class ActiveThread:
+            def is_alive(self): return True
+
+        runner = LavalRunner(Pipeline())
+        runner._threads["active-run"] = ActiveThread()
+        with self.assertRaisesRegex(RuntimeError, "active-run"):
+            runner.start("conflicting-run")
+        self.assertEqual(("active-run",), runner.active_run_ids())
+
     def test_context_compiler_enforces_synthesis_limits(self) -> None:
         config = LavalConfig.from_mapping({"synthesis": {"max_opportunities": 2, "max_trend_scores": 1, "max_trend_discoveries": 1}})
         packet = ContextCompiler(config).build_synthesis_context(
@@ -193,6 +206,10 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
                        last_error TEXT
                    )"""
             )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.store.close()
 
     def setUp(self) -> None:
         with self.store.transaction() as connection:
@@ -258,6 +275,12 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         final = self.repository.show(created["run_id"], "FINAL_SHORTLIST")["output"]
         self.assertEqual(10, len(final["shortlist"]))
         self.assertEqual(3, len(final["finalists"]))
+        opportunity_targets = self.repository.show(created["run_id"], "OPPORTUNITY_MATRIX")["override_targets"]
+        self.assertTrue(opportunity_targets)
+        self.assertEqual({"opportunity"}, {item["kind"] for item in opportunity_targets})
+        trend_targets = self.repository.show(created["run_id"], "TREND_GATE")["override_targets"]
+        self.assertTrue(trend_targets)
+        self.assertEqual({"trend_score", "trend_discovery"}, {item["kind"] for item in trend_targets})
 
     def test_manual_run_pauses_at_gate_and_resumes_after_approval(self) -> None:
         created = self.repository.create_run("Accountability circles for hard goals.", self._config("manual"), actor="test")
@@ -436,7 +459,16 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
     def test_manual_competitor_add_and_reject_are_audited_and_invalidate_downstream(self) -> None:
         created = self.repository.create_run("Visible progress proof.", self._config(), actor="test")
         self.pipeline.run(created["run_id"], through_stage="COMPETITOR_SELECTION")
+        visible_targets = self.repository.show(created["run_id"], "COMPETITOR_SELECTION")["override_targets"]
+        self.assertTrue(visible_targets)
+        self.assertEqual({"competitor"}, {item["kind"] for item in visible_targets})
+        self.assertTrue(all(item.get("name") and item.get("domain") for item in visible_targets))
+        self.assertEqual([], self.repository.show(created["run_id"], "OWNER_CAPTURE")["override_targets"])
         service = LavalService(self.repository, LavalRunner(self.pipeline))
+        with self.assertRaisesRegex(ValueError, "requires a reason"):
+            service.override(created["run_id"], {
+                "type": "competitor", "action": "reject", "target_id": visible_targets[0]["id"], "reason": "",
+            }, actor="test-owner")
         added = service.override(created["run_id"], {
             "type": "competitor",
             "action": "add",
@@ -446,12 +478,14 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         }, actor="test-owner")
         competitor = self.store.fetchone("SELECT * FROM laval_competitors WHERE id=%s", (added["target_id"],))
         self.assertTrue(competitor["selected"])
+        self.assertIn(added["target_id"], {item["id"] for item in self.repository.show(created["run_id"], "COMPETITOR_SELECTION")["override_targets"]})
         self.assertEqual("pending", self.repository.stage(created["run_id"], "COMPETITOR_EVIDENCE")["status"])
         service.override(created["run_id"], {
             "type": "competitor", "action": "reject", "target_id": added["target_id"], "reason": "not a direct competitor",
         }, actor="test-owner")
         competitor = self.store.fetchone("SELECT * FROM laval_competitors WHERE id=%s", (added["target_id"],))
         self.assertFalse(competitor["selected"])
+        self.assertNotIn(added["target_id"], {item["id"] for item in self.repository.show(created["run_id"], "COMPETITOR_SELECTION")["override_targets"]})
         self.assertEqual(2, self.store.fetchone("SELECT count(*) n FROM laval_overrides WHERE run_id=%s", (created["run_id"],))["n"])
 
     def test_provider_retry_and_child_input_hash_cache_avoid_repeat_calls(self) -> None:
@@ -542,8 +576,7 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
             status = client.get(f"/internal/web/laval/runs/{run_id}", headers=headers)
             self.assertEqual("pending", status.json()["run"]["status"])
             notified = client.post(f"/internal/web/laval/runs/{run_id}/notify", headers=headers, json={"actor": "firebase:owner"})
-            self.assertEqual(200, notified.status_code)
-            self.assertEqual(1, notified.json()["queued"])
+            self.assertEqual(410, notified.status_code)
             exported = client.get(f"/internal/web/laval/runs/{run_id}/export?stage=OWNER_CAPTURE&format=json", headers=headers)
             self.assertEqual(200, exported.status_code)
             self.assertIn("raw_text", exported.text)

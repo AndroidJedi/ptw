@@ -1,6 +1,20 @@
 services:
   commander-db:
     image: postgres:16-alpine
+    command:
+      - postgres
+      - -c
+      - shared_buffers=48MB
+      - -c
+      - effective_cache_size=192MB
+      - -c
+      - work_mem=1MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - max_connections=20
+      - -c
+      - autovacuum_max_workers=1
     restart: unless-stopped
     environment:
       POSTGRES_DB: ptw_commander
@@ -27,6 +41,8 @@ services:
     command: ["sh", "/scripts/migrate_commander.sh"]
 
   commander-api:
+    image: ptw-commander:${PTW_IMAGE_TAG:-latest}
+    pull_policy: never
     build:
       context: .
       dockerfile: commander/Dockerfile
@@ -44,6 +60,8 @@ services:
       CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
       COMMANDER_CHECKPOINT_MAX_AGE_SECONDS: ${COMMANDER_CHECKPOINT_MAX_AGE_SECONDS:-86400}
       COMMANDER_CHECKPOINT_REQUIRED: ${COMMANDER_CHECKPOINT_REQUIRED:-false}
+      CREATIVE_RUNTIME_ENABLED: ${CREATIVE_RUNTIME_ENABLED:-false}
+      OUTBOUND_NOTIFICATIONS_ENABLED: ${OUTBOUND_NOTIFICATIONS_ENABLED:-false}
     volumes:
       - commander-assets:/var/lib/ptw/assets
       - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
@@ -63,6 +81,9 @@ services:
       retries: 10
 
   commander-worker:
+    profiles: [retired-outbound]
+    image: ptw-commander:${PTW_IMAGE_TAG:-latest}
+    pull_policy: never
     build:
       context: .
       dockerfile: commander/Dockerfile
@@ -81,6 +102,9 @@ services:
     command: ["python", "-m", "commander.worker"]
 
   commander-ad-worker:
+    profiles: [retired-creative]
+    image: ptw-commander:${PTW_IMAGE_TAG:-latest}
+    pull_policy: never
     build:
       context: .
       dockerfile: commander/Dockerfile
@@ -102,6 +126,8 @@ services:
     command: ["python", "-m", "commander.ad_worker"]
 
   owner-gateway:
+    image: ptw-owner-gateway:${PTW_IMAGE_TAG:-latest}
+    pull_policy: never
     build:
       context: .
       dockerfile: owner_gateway/Dockerfile
@@ -126,6 +152,8 @@ services:
       CODEX_HOME: /run/ptw-auth
       CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
       GH_CONFIG_DIR: /run/ptw-gh
+      CREATIVE_RUNTIME_ENABLED: ${CREATIVE_RUNTIME_ENABLED:-false}
+      OUTBOUND_NOTIFICATIONS_ENABLED: ${OUTBOUND_NOTIFICATIONS_ENABLED:-false}
     group_add:
       - "10001"
     volumes:

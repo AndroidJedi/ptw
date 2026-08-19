@@ -16,7 +16,7 @@ and must identify their source revision.
 | Instagram adapter | [`verticals/instagram/README.md`](verticals/instagram/README.md) | Creative feedback route |
 | Firebase authentication and deployment | [`operations/owner-control-plane.md`](operations/owner-control-plane.md) | [`operations/commander.md`](operations/commander.md) |
 | Irreversible reset boundary | [`operations/disaster-recovery.md`](operations/disaster-recovery.md) | [`operations/incident-log.md`](operations/incident-log.md) |
-| Telegram notifications/emergency controls | [`operations/telegram-runtime.md`](operations/telegram-runtime.md) | Incident log |
+| Telegram emergency controls | [`operations/telegram-runtime.md`](operations/telegram-runtime.md) | Incident log |
 
 ## Authority
 

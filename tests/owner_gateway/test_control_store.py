@@ -33,6 +33,26 @@ class ControlStoreTests(unittest.TestCase):
             self.store.approve_once(command["id"], digest, destructive_allowed=False)
         self.store.approve_once(command["id"], digest, destructive_allowed=True)
 
+    def test_only_one_heavy_codex_operation_can_be_active(self) -> None:
+        first = self.store.create_command("plan", "inspect production")
+        with self.assertRaisesRegex(ValueError, first["id"]):
+            self.store.create_command("execute", "change production")
+        first_digest = self.store.set_plan(first["id"], "1. Report")
+        second = self.store.create_command("plan", "inspect after approval wait")
+        self.assertEqual("planning", second["status"])
+        self.assertEqual(second["id"], self.store.active_command()["id"])
+        with self.assertRaisesRegex(ValueError, second["id"]):
+            self.store.approve_once(first["id"], first_digest, destructive_allowed=False)
+
+    def test_restart_fails_stale_active_commands_and_releases_the_guard(self) -> None:
+        command = self.store.create_command("plan", "stale process")
+        recovered = self.store.recover_interrupted_commands()
+        self.assertEqual(command["id"], recovered[0]["id"])
+        self.assertEqual("failed", self.store.command(command["id"])["status"])
+        self.assertIsNone(self.store.active_command())
+        replacement = self.store.create_command("plan", "fresh process")
+        self.assertEqual("planning", replacement["status"])
+
     def test_websocket_ticket_is_bound_single_use_and_short_lived(self) -> None:
         ticket = self.store.issue_ticket("owner", "/api/v1/root-sessions")
         self.assertEqual("owner", self.store.consume_ticket(ticket, "/api/v1/root-sessions"))

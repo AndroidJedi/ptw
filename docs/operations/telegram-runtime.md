@@ -1,15 +1,14 @@
-# Telegram notification and emergency runtime
+# Telegram emergency runtime
 
-Status: web-first target contract
-Updated: 2026-08-17
+Status: emergency-only target contract
+Updated: 2026-08-19
 
 The existing `@ptw_commander_bot` and `/opt/ptw/platform` long poller remain the
 single Telegram update consumer. No webhook or second poller is allowed.
 
-Telegram is not the normal control plane. It sends concise notifications for
-ideas, posts, reviews, jobs, issues, deployment, and failures. Every
-notification that needs action includes a deep link to
-`https://provethemwrong-86123.web.app`.
+Telegram is not the normal control plane. Proactive outbound notifications are
+retired on the 1 GB profile. The long poller exists only so the three bounded
+emergency commands remain available.
 
 Only three inbound commands are supported:
 
@@ -26,15 +25,13 @@ changes, or resumptions. The sole poller must not route to retired handlers.
 The existing user/chat allowlists remain mandatory. Never print, copy, rotate,
 or replace the bot token during this cutover. A production acceptance check
 must cover unauthorized access, `/help`, `/status`, `/stop`, unsupported-command
-redirection, restart persistence, and a real notification deep link.
+redirection, restart persistence, and the absence of queued outbound delivery.
 
-Telegram output is a notification projection only. PostgreSQL and the web
-Owner Gateway remain authoritative.
+The platform poller returns the bounded command response from Commander's
+internal bridge. Commander does not enqueue that response into its retired
+outbox worker. PostgreSQL and the web Owner Gateway remain authoritative.
 
-Idea Laval terminal notifications are projected from the same database-backed
-status response used by the Ideas view. Failure, manual-gate pause,
-provider-wait pause, and completion messages include the exact run/current
-stage, evidence mode, cost, bounded error or required action, and S00-S15 with
-their status and attempt. The owner may resend this snapshot from the web UI;
-Telegram never exposes a resume callback. Notification enqueueing uses the
-existing Commander transactional outbox and outbound worker.
+Historical Idea Laval notification rows remain queryable. Migration 011 marks
+unpublished Telegram outbox rows cancelled with a reason and timestamp; claim
+queries exclude them. The Laval notifier is not constructed and the web status
+button/API return path is retired with HTTP 410.

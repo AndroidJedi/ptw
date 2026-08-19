@@ -1,5 +1,5 @@
 export type I18n<T = string> = { en: T; uk: T }
-export type Page = 'overview' | 'ideas' | 'posts' | 'jobs' | 'more'
+export type Page = 'overview' | 'ideas' | 'jobs' | 'more'
 
 export interface Mission {
   code: string
@@ -13,7 +13,6 @@ export interface Overview {
   mission: Mission
   health: Record<string, string>
   laval_runs: { total: number; active: number; completed: number }
-  pending_reviews: number
   jobs: { active: number; blocked: number; last_deploy?: string }
 }
 

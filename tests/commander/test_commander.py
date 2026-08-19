@@ -5,6 +5,8 @@ import importlib.util
 import tempfile
 import unittest
 import uuid
+import subprocess
+import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -446,6 +448,14 @@ class PostgresStoreTests(unittest.TestCase):
         self.assertEqual(connection.commits, 0)
         self.assertEqual(connection.rollbacks, 1)
 
+    def test_cancelled_outbox_rows_are_never_claimed(self) -> None:
+        connection = _FakeConnection()
+        store = PostgresKnowledgeStore(connection)
+        with store.transaction():
+            self.assertEqual((), store.claim_outbox(topics=("telegram.send_message",)))
+        sql = "\n".join(statement for statement, _ in connection.statements)
+        self.assertIn("cancelled_at IS NULL", sql)
+
     def test_workspace_task_registration_and_ack_are_transactional(self) -> None:
         connection = _FakeConnection()
         store = PostgresKnowledgeStore(connection)
@@ -510,6 +520,62 @@ class PostgresStoreTests(unittest.TestCase):
         sql = "\n".join(statement for statement, _ in connection.statements)
         self.assertIn("INSERT INTO commander_session_checkpoints", sql)
         self.assertIn("FROM commander_session_checkpoints WHERE id", sql)
+
+
+class RetiredRuntimeTests(unittest.TestCase):
+    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is required")
+    def test_disabled_api_import_does_not_load_pillow_or_ad_runtime(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys; import commander.api; "
+                    "assert 'PIL' not in sys.modules; "
+                    "assert 'commander.ad_generation' not in sys.modules; "
+                    "assert 'commander.ad_runtime' not in sys.modules"
+                ),
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is required")
+    def test_retired_endpoints_are_gone_and_emergency_reply_is_not_enqueued(self) -> None:
+        from fastapi.testclient import TestClient
+        from commander.api import create_app
+        from commander.settings import Settings
+
+        with tempfile.TemporaryDirectory() as directory:
+            class Store(MemoryKnowledgeStore):
+                def record_inbox_once(self, _update_id: int) -> bool:
+                    return True
+
+            settings = Settings(
+                "unused", "existing-bot-token", "x" * 32,
+                frozenset({7}), frozenset({11}), Path(directory),
+                ROOT / "config/commander/policies.json",
+            )
+            store = Store()
+            client = TestClient(create_app(settings, store, object()))
+            self.assertEqual(410, client.post("/internal/ad-batches", json={}).status_code)
+            self.assertEqual(410, client.post("/internal/workspace/tasks", json={}).status_code)
+            response = client.post(
+                "/internal/telegram/update",
+                json={
+                    "update_id": 99,
+                    "message": {"from": {"id": 7}, "chat": {"id": 11}, "text": "/status"},
+                },
+                headers={"X-PTW-Bridge-Token": "existing-bot-token"},
+            )
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertIn("Commander", response.json()["result"]["response"])
+            self.assertFalse(
+                any(item["topic"].startswith("telegram.") for item in store.outbox)
+            )
 
 
 class RuntimeImageTests(unittest.TestCase):
@@ -914,7 +980,7 @@ class RuntimeImageTests(unittest.TestCase):
             )
             self.assertEqual(tracked.status_code, 200, tracked.text)
             messages = [item for item in store.outbox if item["topic"] == "telegram.send_message"]
-            self.assertIn("https://provethemwrong-86123.web.app", messages[-1]["payload"]["text"])
+            self.assertEqual([], messages)
             self.assertIn("response", tracked.json()["result"])
 
     def test_worker_records_delivery_failure_without_crashing(self) -> None:

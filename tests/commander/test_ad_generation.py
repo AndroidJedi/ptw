@@ -420,6 +420,7 @@ class AdGenerationPostgresTests(unittest.TestCase):
             allowed_chat_ids=frozenset({123}),
             asset_directory=Path(self.directory.name),
             policy_path=Path("config/commander/policies.json"),
+            creative_runtime_enabled=True,
         )
         request = {
             "chat_id": 123,

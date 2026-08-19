@@ -204,6 +204,14 @@ verified Google Firebase user.
   schema-valid binary result. The canary exposed and then closed a configuration
   defect where API model name `gpt-5` was rejected by ChatGPT-authenticated
   Codex; the VPS skill now preserves that diagnostic guardrail.
+- Direct Laval Telegram transition release `59bc63f` is live. Production has
+  `LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED=true` while the retired general
+  `OUTBOUND_NOTIFICATIONS_ENABLED` path and both repository polling workers
+  remain disabled. A post-restart canary sent one message, appended reserved
+  and sent actions, produced zero `commander_outbox` rows, and did not start or
+  resume a Laval run. The saved live run remained paused at Opportunity Matrix
+  with all 52 remote task IDs, 52 cost records, USD 0.0372, and 494 evidence
+  rows unchanged. Hosting version `a4f3c404d086ada6` passed the live audit.
 - Saved live run `01a01540-7c8b-7f0a-af6c-530ce9070bae` remains paused at
   Opportunity Matrix after rollout. Its 52 persisted remote task IDs, 52
   exactly-once cost records, USD 0.0372 total provider cost, and 494 evidence

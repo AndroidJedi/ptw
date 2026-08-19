@@ -181,7 +181,7 @@ mem_available_kb=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
     echo "idle MemAvailable is below the 250 MiB acceptance boundary" >&2
     exit 1
 }
-new_oom_events=$(journalctl -k -b 0 --since "$deployment_started_at" --no-pager \
+new_oom_events=$(journalctl --quiet -k -b 0 --since "$deployment_started_at" --no-pager \
     --case-sensitive=false --grep='out of memory|oom|killed process' 2>/dev/null || true)
 [[ -z $new_oom_events ]] || {
     echo "new OOM evidence appeared during deployment" >&2

@@ -38,7 +38,7 @@ mem_available_kb=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
     echo "MemAvailable is below 250 MiB" >&2
     exit 1
 }
-oom_events=$(journalctl -k --since '24 hours ago' --no-pager --case-sensitive=false \
+oom_events=$(journalctl --quiet -k --since '24 hours ago' --no-pager --case-sensitive=false \
     --grep='out of memory|oom|killed process' 2>/dev/null || true)
 [[ -z $oom_events ]] || {
     echo "OOM evidence exists in the last 24 hours" >&2

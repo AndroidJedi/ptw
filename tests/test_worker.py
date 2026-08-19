@@ -54,6 +54,7 @@ def test_structured_llm_uses_fresh_ephemeral_schema_bound_session(monkeypatch) -
             "required": ["relevant_evidence_ids"],
             "additionalProperties": False,
         },
+        "model": "gpt-5",
     }
 
     result = execute_structured_llm(request)
@@ -63,13 +64,14 @@ def test_structured_llm_uses_fresh_ephemeral_schema_bound_session(monkeypatch) -
         "session_mode": "fresh",
         "ephemeral": True,
         "conversation_reused": False,
-        "model": "default",
+        "model": "gpt-5",
     }
     assert json.loads(result["response"]) == {"relevant_evidence_ids": ["e-1"]}
     assert observed["schema"] == request["output_schema"]
     assert observed["command"][-1] == "-"
     assert "--ephemeral" in observed["command"]
     assert "--output-schema" in observed["command"]
+    assert observed["command"][observed["command"].index("--model") + 1] == "gpt-5"
     assert observed["command"][observed["command"].index("--sandbox") + 1] == "read-only"
     assert "resume" not in observed["command"]
     assert "--dangerously-bypass-approvals-and-sandbox" not in observed["command"]

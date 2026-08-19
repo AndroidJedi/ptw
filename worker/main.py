@@ -160,6 +160,10 @@ def execute_structured_llm(parameters: dict) -> dict:
             "exec",
             "--ephemeral",
             "--ignore-user-config",
+        ]
+        if parameters.get("model"):
+            command.extend(["--model", str(parameters["model"])])
+        command.extend([
             "--sandbox",
             "read-only",
             "--skip-git-repo-check",
@@ -171,7 +175,7 @@ def execute_structured_llm(parameters: dict) -> dict:
             "--output-last-message",
             str(output),
             "-",
-        ]
+        ])
         completed = subprocess.run(
             command,
             input=prompt,

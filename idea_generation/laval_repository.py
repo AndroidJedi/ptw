@@ -158,6 +158,10 @@ class LavalRepository:
         """
 
         run = self.run(run_id)
+        stage_status = {
+            str(item["stage"]): str(item["status"])
+            for item in self.stages(run_id)
+        }
         rows = self.store.fetchall(
             """SELECT i.stage,i.result_status,count(*)::int count
                FROM laval_llm_invocations i
@@ -166,7 +170,14 @@ class LavalRepository:
                GROUP BY i.stage,i.result_status ORDER BY i.stage,i.result_status""",
             (run_id,),
         )
-        totals = {"attempted": 0, "success": 0, "fallback": 0, "failed": 0}
+        totals = {
+            "attempted": 0,
+            "success": 0,
+            "fallback": 0,
+            "failed": 0,
+            "recovered_failures": 0,
+            "unresolved_failures": 0,
+        }
         grouped: dict[str, dict[str, Any]] = {}
         for row in rows:
             stage = str(row["stage"])
@@ -174,7 +185,15 @@ class LavalRepository:
             count = int(row["count"] or 0)
             item = grouped.setdefault(
                 stage,
-                {"stage": stage, "attempted": 0, "success": 0, "fallback": 0, "failed": 0},
+                {
+                    "stage": stage,
+                    "attempted": 0,
+                    "success": 0,
+                    "fallback": 0,
+                    "failed": 0,
+                    "recovered_failures": 0,
+                    "unresolved_failures": 0,
+                },
             )
             item["attempted"] += count
             totals["attempted"] += count
@@ -182,9 +201,16 @@ class LavalRepository:
                 item[status] += count
                 totals[status] += count
         for item in grouped.values():
+            completed = stage_status.get(item["stage"]) in {"completed", "partial"}
+            recovered = item["failed"] if completed and item["success"] and not item["fallback"] else 0
+            unresolved = item["failed"] - recovered
+            item["recovered_failures"] = recovered
+            item["unresolved_failures"] = unresolved
+            totals["recovered_failures"] += recovered
+            totals["unresolved_failures"] += unresolved
             item["verdict"] = (
-                "invalid" if item["failed"] or item["fallback"]
-                else "verified" if item["success"] == item["attempted"] and item["attempted"]
+                "invalid" if unresolved or item["fallback"]
+                else "verified" if completed and item["success"]
                 else "pending"
             )
 
@@ -198,13 +224,15 @@ class LavalRepository:
         }
         if run.get("pipeline_version") == "market_signals_v2":
             expected.add("MARKET_SIGNAL_COLLECTION")
-        successful_stages = {stage for stage, item in grouped.items() if item["success"] and not item["fallback"] and not item["failed"]}
+        successful_stages = {
+            stage for stage, item in grouped.items() if item["verdict"] == "verified"
+        }
         missing = sorted(expected - successful_stages)
         live = run.get("evidence_mode") != "demo_fixture"
         if not live:
             verdict = "fixture"
             message = "Demo output may use deterministic fallback and is not live market research."
-        elif totals["failed"] or totals["fallback"]:
+        elif totals["unresolved_failures"] or totals["fallback"]:
             verdict = "invalid"
             message = "Live model output failed or fell back. Do not use this run for a decision."
         elif run.get("status") == "completed" and missing:
@@ -215,7 +243,10 @@ class LavalRepository:
             message = "Model-backed language stages are not complete yet."
         else:
             verdict = "verified"
-            message = "Every required language stage is model-backed; evidence quality still requires review."
+            message = (
+                "Every required language stage is model-backed; automatic retries recovered "
+                f"{totals['recovered_failures']} failed call(s); evidence quality still requires review."
+            )
         return {
             **totals,
             "verdict": verdict,

@@ -44,6 +44,64 @@ class RunPaused(RuntimeError):
     pass
 
 
+def _supplied_evidence_ids(value: Any) -> set[str]:
+    """Collect every evidence ID visible anywhere in a bounded model context."""
+
+    result: set[str] = set()
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if key == "evidence_ids" and isinstance(item, Sequence) and not isinstance(item, (str, bytes)):
+                result.update(str(evidence_id) for evidence_id in item if evidence_id)
+            else:
+                result.update(_supplied_evidence_ids(item))
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        for item in value:
+            result.update(_supplied_evidence_ids(item))
+    return result
+
+
+def _opportunity_validation_error(
+    value: Mapping[str, Any], dossiers: Sequence[Mapping[str, Any]]
+) -> str | None:
+    items = value.get("opportunities")
+    if not isinstance(items, list) or not items:
+        return "opportunities must be a non-empty list"
+    supplied_evidence = _supplied_evidence_ids(dossiers)
+    supplied_competitors = {
+        str(dossier.get("competitor_id"))
+        for dossier in dossiers
+        if dossier.get("competitor_id")
+    }
+    invalid_rows: list[int] = []
+    unknown_evidence = 0
+    unknown_competitors = 0
+    for index, item in enumerate(items, 1):
+        if not isinstance(item, Mapping):
+            invalid_rows.append(index)
+            continue
+        cited_evidence = {str(item_id) for item_id in item.get("evidence_ids") or []}
+        cited_competitors = {str(item_id) for item_id in item.get("competitor_ids") or []}
+        row_unknown_evidence = cited_evidence - supplied_evidence
+        row_unknown_competitors = cited_competitors - supplied_competitors
+        if (
+            not str(item.get("statement") or "").strip()
+            or not cited_evidence
+            or row_unknown_evidence
+            or row_unknown_competitors
+        ):
+            invalid_rows.append(index)
+            unknown_evidence += len(row_unknown_evidence)
+            unknown_competitors += len(row_unknown_competitors)
+    if invalid_rows:
+        rows = ",".join(map(str, invalid_rows[:20]))
+        return (
+            f"opportunity semantic validation failed for rows {rows}; "
+            f"unknown evidence IDs={unknown_evidence}; "
+            f"unknown competitor IDs={unknown_competitors}"
+        )
+    return None
+
+
 class LavalPipeline:
     def __init__(self, repository: LavalRepository, providers: ProviderBundle) -> None:
         self.repository = repository
@@ -231,7 +289,7 @@ class LavalPipeline:
     def _llm(
         self, run_id: str, stage: str, mode: str, prompt: str,
         payload: dict[str, Any], required: str,
-        validator: Callable[[dict[str, Any]], bool] | None = None,
+        validator: Callable[[dict[str, Any]], bool | str] | None = None,
     ) -> dict[str, Any] | None:
         estimated_input = max(1, len(self.store.json({"prompt": prompt, "payload": payload})) // 4)
         evidence_mode = str(self.repository.run(run_id).get("evidence_mode") or "demo_fixture")
@@ -246,7 +304,7 @@ class LavalPipeline:
                 prompt,
                 payload,
                 required,
-                prompt_template_version=f"{mode}-v2-strict",
+                prompt_template_version=f"{mode}-v3-strict-retry",
                 allow_fallback=allow_fallback,
                 validator=validator,
             )
@@ -255,14 +313,21 @@ class LavalPipeline:
             failed = True
             raise
         finally:
+            attempts = max(1, self.fresh_stages.last_attempt_count)
             self.repository.record_cost(
                 run_id,
                 stage,
                 str(getattr(self.providers.llm, "model_name", "llm")),
                 mode,
-                input_tokens=estimated_input,
+                requests=attempts,
+                input_tokens=estimated_input * attempts,
                 output_tokens=max(1, len(self.store.json(result)) // 4) if result else 0,
-                metadata={"fallback": result is None and allow_fallback, "failed": failed},
+                metadata={
+                    "fallback": result is None and allow_fallback,
+                    "failed": failed,
+                    "attempts": attempts,
+                    "automatic_retries": max(0, attempts - 1),
+                },
             )
 
     def _owner_dna(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
@@ -894,31 +959,15 @@ class LavalPipeline:
         dna = self.repository.stage(run_id, "OWNER_DNA")["artifact"]["owner_dna"]
         dossiers = [row["dossier"] for row in self.store.fetchall("SELECT dossier FROM laval_competitor_dossiers WHERE run_id=%s ORDER BY confidence DESC", (run_id,))]
         compiler = ContextCompiler(config)
-        dossier_evidence = {
-            str(evidence_id)
-            for dossier in dossiers
-            for evidence_id in dossier.get("evidence_ids", [])
-        }
-        dossier_competitors = {str(dossier.get("competitor_id")) for dossier in dossiers}
-
-        def valid_opportunities(value: dict[str, Any]) -> bool:
-            items = value.get("opportunities")
-            if not isinstance(items, list) or not items:
-                return False
-            return all(
-                isinstance(item, Mapping)
-                and str(item.get("statement") or "").strip()
-                and bool(item.get("evidence_ids"))
-                and set(map(str, item.get("evidence_ids") or [])).issubset(dossier_evidence)
-                and set(map(str, item.get("competitor_ids") or [])).issubset(dossier_competitors)
-                for item in items
-            )
+        def valid_opportunities(value: dict[str, Any]) -> bool | str:
+            error = _opportunity_validation_error(value, dossiers)
+            return error or True
 
         llm = self._llm(
             run_id,
             "OPPORTUNITY_MATRIX",
             "laval_opportunity_matrix",
-            "Compress dossiers into evidence-backed opportunity vectors. Preserve all rows, cite only supplied evidence IDs, and return normalized component scores from 0 to 1.",
+            "Compress dossiers into evidence-backed opportunity vectors. Preserve all rows, cite only exact evidence IDs visible anywhere in the supplied dossiers, including complaint clusters, and return normalized component scores from 0 to 1.",
             compiler.build_opportunity_context(dna, dossiers),
             "opportunities",
             valid_opportunities,

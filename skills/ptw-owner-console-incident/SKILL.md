@@ -102,6 +102,17 @@ instead that unpublished Telegram rows are cancelled without deletion and that
 emergency `/help`, `/status`, and `/stop` remain available through the sole
 platform poller.
 
+When semantic validation rejects a model response for unknown evidence IDs,
+compare the rejected IDs against the complete serialized bounded context, not
+only a normalized parent's top-level `evidence_ids`. Nested complaint clusters
+are deliberately supplied evidence and must belong to the validator's allowlist;
+IDs absent from every supplied `evidence_ids` field still fail closed. Live
+language calls receive one automatic retry in a distinct fresh ephemeral
+session. Persist both invocation rows, expose a bounded row/count reason, and
+treat the failed call as recovered only when the containing stage subsequently
+completes with a successful response. Never erase the failed audit row or let a
+recovered call make `attempted`, cost metadata, or session provenance untruthful.
+
 For an old run whose visible blocker is Google Trends, verify the status API's
 `resume_with_market_signals_available` flag and the owner-visible **Resume with
 Market Signals** control. The action must go through authenticated Owner

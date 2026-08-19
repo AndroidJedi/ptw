@@ -77,6 +77,8 @@ export interface LavalQualityCount {
   success: number
   fallback: number
   failed: number
+  recovered_failures?: number
+  unresolved_failures?: number
 }
 
 export interface LavalRunQuality extends LavalQualityCount {

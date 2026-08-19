@@ -142,11 +142,16 @@ object declares its properties, required fields, and
 `additionalProperties=false`, while every array declares its item schema.
 Semantic validators additionally require exact query families, supplied IDs,
 24 operator-balanced variants, and one independent evaluation per surviving
-idea. Deterministic fallback remains available only in visibly labelled fixture
-mode. A live language failure fails the stage and run before downstream work;
-it cannot synthesize opportunities, variants, evaluations, or finalists. Final
-hypothesis publication has a second guard that requires every mandatory live
-language stage to be model-backed.
+idea. The supplied-ID universe is computed from the complete bounded context,
+including nested complaint-cluster evidence, rather than only a dossier's
+top-level citations. A live semantic/provider failure receives exactly one
+automatic retry in a new ephemeral session; both attempts remain append-only
+audit rows, and a recovered retry is reported separately from an unresolved
+failure. Deterministic fallback remains available only in visibly labelled
+fixture mode. A live language failure after retry fails the stage and run before
+downstream work; it cannot synthesize opportunities, variants, evaluations, or
+finalists. Final hypothesis publication has a second guard that requires every
+mandatory live language stage to be model-backed.
 
 No Google Custom Search dependency exists. Provider failures are persisted per
 item; the stage continues when remaining evidence is sufficient and applies a

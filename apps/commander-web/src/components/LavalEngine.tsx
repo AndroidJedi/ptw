@@ -53,8 +53,8 @@ function evidenceLabel(mode?: LavalEvidenceMode) {
 function stageTrustLabel(quality: LavalRunQuality | undefined, stage: string) {
   const item = quality?.by_stage.find((candidate) => candidate.stage === stage)
   if (!item) return ''
-  if (item.failed || item.fallback) return ' · MODEL FAILED'
-  if (item.success) return ' · MODEL ✓'
+  if (item.verdict === 'invalid') return ' · MODEL FAILED'
+  if (item.verdict === 'verified') return item.recovered_failures ? ' · MODEL ✓ · AUTO-RETRY' : ' · MODEL ✓'
   return ''
 }
 
@@ -292,7 +292,7 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
               <button className="secondary" disabled={busy} onClick={() => download('md')}>MD</button>
             </div>
           </header>
-          {status.quality && <RunQuality quality={status.quality} />}
+          {status.quality && <RunQuality quality={status.quality} runStatus={status.run.status} />}
           {status.run.status === 'failed' && status.recovery && <section className="laval-recovery" role="alert">
             <small>ЗВІТ ПРО ПОМИЛКУ ТА ВІДНОВЛЕННЯ</small>
             <h4>{humanStage(status.recovery.stage || status.run.current_stage || 'UNKNOWN')} · спроба #{status.recovery.attempt}</h4>
@@ -348,14 +348,14 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
 
 function StatusDot({ status }: { status: string }) { return <i className={`status-dot ${status}`} aria-hidden="true" /> }
 
-function RunQuality({ quality }: { quality: LavalRunQuality }) {
+function RunQuality({ quality, runStatus }: { quality: LavalRunQuality; runStatus: LavalRun['status'] }) {
   if (quality.verdict === 'invalid') return <section className="laval-quality invalid" role="alert">
-    <div><small>ЯКІСТЬ РЕЗУЛЬТАТУ · НЕДІЙСНИЙ</small><h4>Цей результат не можна використовувати</h4></div>
-    <p>Автоматичний запуск завершив етапи, але модель не створила надійний аналіз. UI раніше показав технічний fallback як фінальний результат.</p>
-    <dl><div><dt>Успішні відповіді моделі</dt><dd>{quality.success}/{quality.attempted}</dd></div><div><dt>Fallback</dt><dd>{quality.fallback}</dd></div><div><dt>Помилки</dt><dd>{quality.failed}</dd></div></dl>
-    <p>Не приймайте рішення за shortlist і його балами. Потрібен новий запуск після виправлення; цей запуск збережено як історію.</p>
+    <div><small>ЯКІСТЬ РЕЗУЛЬТАТУ · НЕДІЙСНИЙ</small><h4>{runStatus === 'failed' ? 'Запуск безпечно зупинено' : 'Цей результат не можна використовувати'}</h4></div>
+    <p>{runStatus === 'failed' ? 'Модель або перевірка відповіді не пройшла навіть після однієї автоматичної повторної спроби. Fallback не публікувався.' : 'Історичний запуск містить непідтверджений fallback; його shortlist не є результатом моделі.'}</p>
+    <dl><div><dt>Успішні відповіді моделі</dt><dd>{quality.success}</dd></div><div><dt>Усього спроб</dt><dd>{quality.attempted}</dd></div><div><dt>Відновлено auto-retry</dt><dd>{quality.recovered_failures || 0}</dd></div><div><dt>Невідновлені помилки</dt><dd>{quality.unresolved_failures ?? quality.failed}</dd></div><div><dt>Fallback</dt><dd>{quality.fallback}</dd></div></dl>
+    <p>{runStatus === 'failed' ? 'Використайте «Відновити збережену роботу» після усунення причини — вже оплачені пошукові задачі не повторюються.' : 'Не приймайте рішення за цим shortlist і його балами; запуск збережено як історію.'}</p>
   </section>
-  if (quality.verdict === 'verified') return <section className="laval-quality verified"><small>ЯКІСТЬ РЕЗУЛЬТАТУ · MODEL-BACKED</small><p>Усі обов’язкові мовні етапи виконані моделлю: {quality.success}/{quality.attempted}. Ринкові докази все одно слід перевірити.</p></section>
+  if (quality.verdict === 'verified') return <section className="laval-quality verified"><small>ЯКІСТЬ РЕЗУЛЬТАТУ · MODEL-BACKED</small><p>Усі обов’язкові мовні етапи виконані моделлю: {quality.success} успішних відповідей із {quality.attempted} спроб.{quality.recovered_failures ? ` Автоматично відновлено: ${quality.recovered_failures}.` : ''} Ринкові докази все одно слід перевірити.</p></section>
   if (quality.verdict === 'fixture') return <section className="laval-quality fixture"><small>ЯКІСТЬ РЕЗУЛЬТАТУ · DEMO</small><p>Детермінований fixture для перевірки процесу; це не ринковий висновок.</p></section>
   return <section className="laval-quality pending"><small>ЯКІСТЬ РЕЗУЛЬТАТУ · ЩЕ НЕ ГОТОВО</small><p>Мовні етапи, підтверджені моделлю: {quality.success}/{quality.attempted}.</p></section>
 }

@@ -184,6 +184,11 @@ describe('LavalEngine', () => {
     }))
     const status = {
       run, stages, cost: { items: [], total_usd: .0186, provider_actual_usd: .0192, max_spend_usd: .05 },
+      quality: {
+        verdict: 'invalid', message: 'failed safely', attempted: 2, success: 0, fallback: 0, failed: 2,
+        recovered_failures: 0, unresolved_failures: 2, missing_stages: ['OWNER_DNA'],
+        by_stage: [{ stage: 'SERP_DISCOVERY', verdict: 'invalid', attempted: 2, success: 0, fallback: 0, failed: 2, recovered_failures: 0, unresolved_failures: 2 }],
+      },
       recovery: {
         available: true, stage: 'SERP_DISCOVERY', stage_status: 'failed', attempt: 1, failed_at: '2026-08-18T15:00:00Z',
         failure: { type: 'TimeoutError', message: 'one queued task is still pending' },
@@ -204,6 +209,8 @@ describe('LavalEngine', () => {
     render(<LavalEngine api={api} language="uk" />)
 
     expect(await screen.findByText('ЗВІТ ПРО ПОМИЛКУ ТА ВІДНОВЛЕННЯ')).toBeInTheDocument()
+    expect(screen.getByText('Запуск безпечно зупинено')).toBeInTheDocument()
+    expect(screen.getByText(/навіть після однієї автоматичної повторної спроби/)).toBeInTheDocument()
     expect(screen.getByText(/Submitted-задачі не публікуються і не оплачуються повторно/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Відновити збережену роботу/ }))
     await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/laval/runs/${run.id}/resume`, {}))
@@ -262,6 +269,7 @@ describe('LavalEngine', () => {
     }
     const quality = {
       verdict: 'invalid', message: 'fallback', attempted: 16, success: 0, fallback: 16, failed: 0,
+      recovered_failures: 0, unresolved_failures: 0,
       missing_stages: ['OWNER_DNA'], by_stage: [{ stage: 'IDEA_EXPANSION', verdict: 'invalid', attempted: 1, success: 0, fallback: 1, failed: 0 }],
     }
     const status = {
@@ -289,7 +297,8 @@ describe('LavalEngine', () => {
     render(<LavalEngine api={api} language="uk" />)
 
     expect(await screen.findByText('Цей результат не можна використовувати')).toBeInTheDocument()
-    expect(screen.getByText(/0\/16/)).toBeInTheDocument()
+    expect(screen.getByText('Успішні відповіді моделі').parentElement).toHaveTextContent('0')
+    expect(screen.getByText('Усього спроб').parentElement).toHaveTextContent('16')
     fireEvent.click(screen.getByRole('button', { name: /FINAL SHORTLIST/ }))
     expect(await screen.findByText('Спершу дистрибуція 1')).toBeInTheDocument()
     expect(screen.getByText(/INVALID FALLBACK/)).toBeInTheDocument()

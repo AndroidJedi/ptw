@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Laval result integrity and readable stage review deployed and verified
+Status: Laval S07 evidence validation and automatic retry fix implemented; deployment verification pending
 Updated: 2026-08-19
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -111,7 +111,16 @@ publication unless all mandatory language stages are model-backed. The
 status/show APIs now separate stage completion from model provenance. Ideas
 presents readable Ukrainian summaries for all 16 stages, puts raw JSON behind
 disclosure, labels the historical result invalid, exposes its successful model
-call count, and never calls its fallback rows finalists.
+  call count, and never calls its fallback rows finalists.
+
+The next live run exposed an evidence-contract mismatch at Opportunity Matrix:
+the model correctly cited IDs visible inside supplied complaint clusters, while
+the semantic validator allowed only each dossier's smaller top-level citation
+list. The corrected validator derives its allowlist recursively from the exact
+bounded model context. Live language calls now receive one fresh-session
+automatic retry, retain both attempts in append-only audit, expose a bounded
+semantic reason, and distinguish recovered retry failures from unresolved
+failures in API and UI quality verdicts.
 
 Creative production and review are retired operationally on the 1 GB profile.
 Their source, migrations, immutable artifacts, append-only reviews, UUID

@@ -2,6 +2,27 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-19 — Opportunity Matrix rejected evidence that its own context supplied
+
+- Impact: live run `01a01a93-e248-7615-942a-f7e0ef1c780b` safely stopped at
+  S07 after 12 successful language calls. Its USD 0.0372 paid search, 52 remote
+  task IDs, and 506 evidence rows were preserved, but no opportunities or
+  downstream shortlist were produced.
+- Cause: the model returned ten schema-valid opportunities. Four cited nine
+  evidence IDs from complaint clusters included in the exact dossier context;
+  the application validator incorrectly allowed only the dossiers' smaller
+  top-level `evidence_ids` arrays and rejected all nine as unknown.
+- Correction: derive the evidence allowlist recursively from every
+  `evidence_ids` field in the bounded supplied context, retain rejection of IDs
+  absent from that context, add one fresh-session automatic retry for live
+  semantic/provider failures, and report recovered versus unresolved attempts
+  without erasing append-only audit history.
+- Prevention: regression coverage must accept nested complaint-cluster IDs,
+  reject invented IDs with bounded row/count diagnostics, prove two distinct
+  sessions for one automatic retry, and keep a recovered retry verified while
+  retaining the failed attempt. Production recovery must resume the same saved
+  run and prove paid provider IDs, evidence counts, and cost do not duplicate.
+
 ## 2026-08-19 — Completed Laval run displayed deterministic fallback as finalists
 
 - Impact: the first completed live Market Signals run showed templated,

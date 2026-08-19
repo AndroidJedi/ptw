@@ -23,7 +23,7 @@ from idea_generation.laval_domain import (
     opportunity_score,
     trend_score,
 )
-from idea_generation.laval_pipeline import LavalPipeline
+from idea_generation.laval_pipeline import LavalPipeline, _opportunity_validation_error
 from idea_generation.laval_fresh_stage import FreshStageRunner
 from idea_generation.laval_notifications import LavalTelegramNotifier, format_laval_status_message
 from idea_generation.laval_providers import (
@@ -295,18 +295,71 @@ class LavalDomainTests(unittest.TestCase):
         class Provider:
             model_name = "test-model"
             last_invocation = {}
+            calls = 0
             def generate_structured(self, *_args, **_kwargs):
+                self.calls += 1
                 raise RuntimeError("invalid_json_schema")
 
-        repository = Repository()
-        runner = FreshStageRunner(repository, Provider())
+        repository, provider = Repository(), Provider()
+        runner = FreshStageRunner(repository, provider)
         with self.assertRaisesRegex(RuntimeError, "invalid_json_schema"):
             runner.run(
                 "run", "OWNER_DNA", "laval_owner_dna", "prompt", {"raw_text": "idea"},
                 "owner_dna", prompt_template_version="laval_owner_dna-v2-strict", allow_fallback=False,
             )
-        self.assertEqual("failed", repository.audits[0]["result_status"])
-        self.assertEqual("RuntimeError", repository.audits[0]["error_type"])
+        self.assertEqual(2, provider.calls)
+        self.assertEqual(["failed", "failed"], [item["result_status"] for item in repository.audits])
+        self.assertEqual(["RuntimeError", "RuntimeError"], [item["error_type"] for item in repository.audits])
+        self.assertIn("automatic-retry-2", repository.audits[1]["prompt_template_version"])
+
+    def test_fresh_stage_runner_automatically_retries_semantic_failure_once(self) -> None:
+        class Repository:
+            audits = []
+            def record_llm_invocation(self, *args, **kwargs):
+                self.audits.append({"args": args, **kwargs})
+
+        class Provider:
+            model_name = "test-model"
+            last_invocation = {}
+            prompts = []
+            def generate_structured(self, _mode, prompt, _payload, _schema):
+                self.prompts.append(prompt)
+                self.last_invocation = {"session_id": f"provider-{len(self.prompts)}"}
+                return {"items": [] if len(self.prompts) == 1 else [{"id": "valid"}]}
+
+        repository, provider = Repository(), Provider()
+        result = FreshStageRunner(repository, provider).run(
+            "run", "STAGE", "mode", "prompt", {"input": 1}, "items",
+            prompt_template_version="mode-v3-strict-retry", allow_fallback=False,
+            validator=lambda value: bool(value["items"]),
+        )
+
+        self.assertEqual([{"id": "valid"}], result["items"])
+        self.assertEqual(2, len(provider.prompts))
+        self.assertIn("Automatic retry", provider.prompts[1])
+        self.assertEqual(["failed", "success"], [item["result_status"] for item in repository.audits])
+        self.assertNotEqual(repository.audits[0]["session_id"], repository.audits[1]["session_id"])
+        self.assertEqual(["provider-1", "provider-2"], [item["provider_session_id"] for item in repository.audits])
+
+    def test_opportunity_validator_accepts_complaint_cluster_evidence_from_context(self) -> None:
+        dossiers = [{
+            "competitor_id": "competitor-1",
+            "evidence_ids": ["top-level-evidence"],
+            "complaint_clusters": [{"evidence_ids": ["cluster-evidence"]}],
+        }]
+        opportunity = {
+            "opportunities": [{
+                "statement": "A supported opportunity",
+                "competitor_ids": ["competitor-1"],
+                "evidence_ids": ["cluster-evidence"],
+            }],
+        }
+
+        self.assertIsNone(_opportunity_validation_error(opportunity, dossiers))
+        opportunity["opportunities"][0]["evidence_ids"] = ["invented-evidence"]
+        error = _opportunity_validation_error(opportunity, dossiers)
+        self.assertIn("rows 1", error)
+        self.assertIn("unknown evidence IDs=1", error)
 
     def test_bridge_default_model_uses_codex_cli_default_without_model_override(self) -> None:
         from idea_generation.provider import BridgeProvider
@@ -460,7 +513,10 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         pipeline = LavalPipeline(
             self.repository,
             ProviderBundle(
-                llm=MockLLMProvider([RuntimeError("invalid_json_schema")]),
+                llm=MockLLMProvider([
+                    RuntimeError("invalid_json_schema"),
+                    RuntimeError("invalid_json_schema"),
+                ]),
                 search=FixtureSearchProvider(),
                 web=FixtureWebPageProvider(),
                 trends=FixtureTrendProvider(),
@@ -481,7 +537,8 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         self.assertEqual("failed", status["run"]["status"])
         self.assertEqual("failed", self.repository.stage(created["run_id"], "OWNER_DNA")["status"])
         self.assertEqual("invalid", status["quality"]["verdict"])
-        self.assertEqual(1, status["quality"]["failed"])
+        self.assertEqual(2, status["quality"]["failed"])
+        self.assertEqual(2, status["quality"]["unresolved_failures"])
         self.assertEqual(0, self.store.fetchone(
             "SELECT count(*) n FROM laval_provider_tasks WHERE run_id=%s",
             (created["run_id"],),
@@ -509,6 +566,34 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         self.assertEqual(1, status["quality"]["fallback"])
         self.assertEqual("invalid", shown["quality"]["run"]["verdict"])
 
+    def test_successful_automatic_retry_is_verified_but_retains_failed_attempt_audit(self) -> None:
+        created = self.repository.create_run(
+            "Recover one live language call automatically.",
+            self._config(),
+            evidence_mode="live_market_signals",
+            provider_snapshot={"search": "dataforseo", "llm": "bridge"},
+        )
+        run_id = created["run_id"]
+        self.repository.start_stage(run_id, "OWNER_DNA", "digest", provider="bridge", model="model")
+        for result_status, error_type in (("failed", "InvalidStructuredResponse"), ("success", None)):
+            self.repository.record_llm_invocation(
+                run_id, "OWNER_DNA", "laval_owner_dna",
+                prompt_template_version="laval_owner_dna-v3-strict-retry",
+                context_hash="a" * 64, output_schema_hash="b" * 64,
+                model="codex-cli-default", session_id=str(new_uuid7()),
+                provider_session_id=str(new_uuid7()), result_status=result_status,
+                error_type=error_type,
+            )
+        self.repository.complete_stage(run_id, "OWNER_DNA", {"owner_dna": {"problem": "valid"}})
+
+        quality = self.repository.llm_quality(run_id)
+        owner = next(item for item in quality["by_stage"] if item["stage"] == "OWNER_DNA")
+        self.assertEqual("verified", owner["verdict"])
+        self.assertEqual(1, owner["recovered_failures"])
+        self.assertEqual(0, owner["unresolved_failures"])
+        self.assertEqual(1, quality["recovered_failures"])
+        self.assertEqual(0, quality["unresolved_failures"])
+
     def test_live_dossier_retry_replaces_current_attempt_quality_without_losing_audit(self) -> None:
         class FailSecondDossierOnce:
             model_name = "mock-v1"
@@ -516,12 +601,12 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
             def __init__(self):
                 self.delegate = MockLLMProvider()
                 self.dossiers = 0
-                self.failed = False
+                self.failures = 0
             def generate_structured(self, mode, prompt, payload, schema):
                 if mode == "laval_competitor_dossier":
                     self.dossiers += 1
-                    if self.dossiers == 2 and not self.failed:
-                        self.failed = True
+                    if self.dossiers in {2, 3} and self.failures < 2:
+                        self.failures += 1
                         raise RuntimeError("transient dossier failure")
                 result = self.delegate.generate_structured(mode, prompt, payload, schema)
                 self.last_invocation = self.delegate.last_invocation
@@ -550,7 +635,7 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         stage_quality = next(item for item in resumed["quality"]["by_stage"] if item["stage"] == "COMPETITOR_DOSSIERS")
         self.assertEqual(0, stage_quality["failed"])
         self.assertGreater(stage_quality["success"], 1)
-        self.assertEqual(1, self.store.fetchone(
+        self.assertEqual(2, self.store.fetchone(
             "SELECT count(*) n FROM laval_llm_invocations WHERE run_id=%s AND stage='COMPETITOR_DOSSIERS' AND result_status='failed'",
             (created["run_id"],),
         )["n"])

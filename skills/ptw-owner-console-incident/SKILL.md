@@ -75,6 +75,20 @@ not prove PostgreSQL lacks the artifact. Confirm the `/show` response and the
 `laval_stage_runs.artifact` presence separately; browser request failures must
 be rendered as failures, not as an empty artifact.
 
+For a completed Laval run whose opportunities or finalists read like templates,
+do not diagnose model quality from the artifact text. Compare the run-level
+`quality` object with bounded `laval_llm_invocations` counts. Zero `success`
+with `fallback`/`failed` rows means the provider never produced the shown
+analysis; a completed stage only proves that an artifact was persisted. A
+strict-schema bridge rejection is identified by validating every nested object
+has explicit properties, all properties required,
+`additionalProperties=false`, and every array has `items`. Live Laval must fail
+closed on either provider or semantic-validation failure, and Final Shortlist
+must refuse graph publication unless all mandatory language stages are
+model-backed. Preserve old artifacts as history, but require the owner UI to
+show an invalid run warning, per-stage model state, a readable summary first,
+and raw JSON behind disclosure. Never relabel fallback candidates as finalists.
+
 For a failed Laval run, the owner must not need SSH or an agent to recover it.
 Verify the visible error report includes the exact stage/attempt, bounded error,
 failure time, provider-task counts, persisted remote-ID count, recorded cost,
@@ -170,6 +184,9 @@ PostgreSQL password and returned HTTP 500.
   gateway-to-Idea run list.
 - Add coverage at the failed layer. Source mocks and shallow health alone do
   not catch tree-shaken config, stale output, or missing runtime credentials.
+- Exercise strict Laval schemas against the real bridge contract. A generic
+  top-level object/array test does not prove nested Codex output schemas are
+  accepted, and a deterministic artifact does not prove a model call occurred.
 - Bump the shell cache when behavior must reach already-controlled clients.
 - Update this skill and the current-state checkpoint with reusable evidence.
 - On a 1 GB stall, use one locked serial SSH session after provider recovery.

@@ -137,6 +137,17 @@ an API-only model name. `laval_llm_invocations` is append-only and records
 context/schema hashes, prompt version, model, independent session IDs, and
 `success`, `fallback`, or `failed`.
 
+All seven `laval_*` output contracts are complete strict schemas: every nested
+object declares its properties, required fields, and
+`additionalProperties=false`, while every array declares its item schema.
+Semantic validators additionally require exact query families, supplied IDs,
+24 operator-balanced variants, and one independent evaluation per surviving
+idea. Deterministic fallback remains available only in visibly labelled fixture
+mode. A live language failure fails the stage and run before downstream work;
+it cannot synthesize opportunities, variants, evaluations, or finalists. Final
+hypothesis publication has a second guard that requires every mandatory live
+language stage to be model-backed.
+
 No Google Custom Search dependency exists. Provider failures are persisted per
 item; the stage continues when remaining evidence is sufficient and applies a
 partial status/confidence penalty.
@@ -154,7 +165,8 @@ scraping as a production substitute.
 
 The mobile-first Ideas view is the normal VPS interface. It creates runs with a
 configurable country/language list, starts or pauses work, polls durable state,
-shows all 16 stages, filters SERP/selection output by country, displays the
+shows all 16 stages as readable Ukrainian summaries, filters SERP/selection
+output by country, displays the
 MarketSignalScore formula, components, raw counters, data status, and evidence
 IDs, approves gates, reruns stages/countries, writes
 audited overrides, and exports JSON or Markdown. New-run manual corrections
@@ -166,6 +178,14 @@ the target UUID internally and requires a reason. The actor and reason are
 appended to the audit log, and the affected downstream stages become stale for
 deliberate reconstruction. All calls pass Firebase Auth, App Check, exact-owner
 verification, and the Owner Gateway bridge.
+
+Pipeline completion and model provenance are separate API facts. `status`
+returns a run-level quality verdict and per-stage success/fallback/failed
+counts; `show` returns both run and selected-stage quality. A historical live
+artifact containing fallback output is preserved but prominently labelled
+invalid, finalist language is suppressed, and the owner is told not to use its
+scores. Raw JSON remains available only through progressive disclosure after
+the readable stage result.
 
 Creating a run from the web is a one-click create-and-start flow. Automatic
 progression through all 16 stages is the recommended default; checkpoint review

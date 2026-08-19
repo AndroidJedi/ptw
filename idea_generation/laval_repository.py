@@ -143,8 +143,85 @@ class LavalRepository:
             "run": run,
             "stages": stages,
             "cost": costs,
+            "quality": self.llm_quality(run_id),
             "recovery": self.recovery(run_id),
             "resume_with_market_signals_available": self.market_signal_upgrade_available(run_id),
+        }
+
+    def llm_quality(self, run_id: str) -> dict[str, Any]:
+        """Expose model provenance separately from pipeline completion state.
+
+        A completed row means the stage persisted an artifact; it does not mean
+        the language provider produced that artifact. This aggregate lets every
+        client distinguish model-backed output from deterministic fixture or a
+        historical live fallback without interpreting raw audit tables.
+        """
+
+        run = self.run(run_id)
+        rows = self.store.fetchall(
+            """SELECT i.stage,i.result_status,count(*)::int count
+               FROM laval_llm_invocations i
+               JOIN laval_stage_runs s ON s.run_id=i.run_id AND s.stage=i.stage
+               WHERE i.run_id=%s AND (s.started_at IS NULL OR i.created_at>=s.started_at)
+               GROUP BY i.stage,i.result_status ORDER BY i.stage,i.result_status""",
+            (run_id,),
+        )
+        totals = {"attempted": 0, "success": 0, "fallback": 0, "failed": 0}
+        grouped: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            stage = str(row["stage"])
+            status = str(row["result_status"])
+            count = int(row["count"] or 0)
+            item = grouped.setdefault(
+                stage,
+                {"stage": stage, "attempted": 0, "success": 0, "fallback": 0, "failed": 0},
+            )
+            item["attempted"] += count
+            totals["attempted"] += count
+            if status in {"success", "fallback", "failed"}:
+                item[status] += count
+                totals[status] += count
+        for item in grouped.values():
+            item["verdict"] = (
+                "invalid" if item["failed"] or item["fallback"]
+                else "verified" if item["success"] == item["attempted"] and item["attempted"]
+                else "pending"
+            )
+
+        expected = {
+            "OWNER_DNA",
+            "QUERY_PLAN",
+            "COMPETITOR_DOSSIERS",
+            "OPPORTUNITY_MATRIX",
+            "IDEA_EXPANSION",
+            "IDEA_EVALUATION",
+        }
+        if run.get("pipeline_version") == "market_signals_v2":
+            expected.add("MARKET_SIGNAL_COLLECTION")
+        successful_stages = {stage for stage, item in grouped.items() if item["success"] and not item["fallback"] and not item["failed"]}
+        missing = sorted(expected - successful_stages)
+        live = run.get("evidence_mode") != "demo_fixture"
+        if not live:
+            verdict = "fixture"
+            message = "Demo output may use deterministic fallback and is not live market research."
+        elif totals["failed"] or totals["fallback"]:
+            verdict = "invalid"
+            message = "Live model output failed or fell back. Do not use this run for a decision."
+        elif run.get("status") == "completed" and missing:
+            verdict = "invalid"
+            message = "The run completed without model-backed output for every required language stage."
+        elif not totals["attempted"] or missing:
+            verdict = "pending"
+            message = "Model-backed language stages are not complete yet."
+        else:
+            verdict = "verified"
+            message = "Every required language stage is model-backed; evidence quality still requires review."
+        return {
+            **totals,
+            "verdict": verdict,
+            "message": message,
+            "missing_stages": missing,
+            "by_stage": list(grouped.values()),
         }
 
     def market_signal_upgrade_available(self, run_id: str) -> bool:
@@ -778,6 +855,15 @@ class LavalRepository:
 
     def show(self, run_id: str, stage: str, *, view: str | None = None, country: str | None = None) -> dict[str, Any]:
         row = self.stage(run_id, stage)
+        run_quality = self.llm_quality(run_id)
+        stage_quality = next(
+            (item for item in run_quality["by_stage"] if item["stage"] == stage.upper()),
+            {"stage": stage.upper(), "verdict": "not_applicable", "attempted": 0, "success": 0, "fallback": 0, "failed": 0},
+        )
+        quality = {
+            "run": {key: value for key, value in run_quality.items() if key != "by_stage"},
+            "stage": stage_quality,
+        }
         artifact = row.get("artifact")
         if artifact is None:
             if row.get("status") in {"completed", "partial"}:
@@ -787,6 +873,7 @@ class LavalRepository:
                 "output": None,
                 "items": self.stage_items(run_id, stage, country=country),
                 "override_targets": self.override_targets(run_id, stage),
+                "quality": quality,
             }
         if view:
             if not isinstance(artifact, Mapping) or view not in artifact:
@@ -807,6 +894,7 @@ class LavalRepository:
             "output": json_safe(artifact),
             "items": self.stage_items(run_id, stage, country=country),
             "override_targets": self.override_targets(run_id, stage),
+            "quality": quality,
         }
 
     def override_targets(self, run_id: str, stage: str) -> list[dict[str, Any]]:

@@ -251,4 +251,51 @@ describe('LavalEngine', () => {
     fireEvent.click(screen.getByText('Evidence IDs (1)'))
     expect(screen.getByText('evidence-1')).toBeInTheDocument()
   })
+
+  it('marks a completed live fallback run invalid and renders a readable shortlist before raw JSON', async () => {
+    const run = {
+      id: '01234567-89ab-7def-8123-456789abcdef', owner_idea_id: '11234567-89ab-7def-8123-456789abcdef',
+      status: 'completed', current_stage: 'FINAL_SHORTLIST', approval_mode: 'automatic', approval_gates: [],
+      owner_preview: 'Public proof challenge', completed_stages: 16, variant_count: 24, config: {},
+      evidence_mode: 'live_market_signals', pipeline_version: 'market_signals_v2', provider_snapshot: { search: 'dataforseo', llm: 'bridge' },
+      max_spend_usd: .05, reserved_spend_usd: .0372, created_at: '', updated_at: '',
+    }
+    const quality = {
+      verdict: 'invalid', message: 'fallback', attempted: 16, success: 0, fallback: 16, failed: 0,
+      missing_stages: ['OWNER_DNA'], by_stage: [{ stage: 'IDEA_EXPANSION', verdict: 'invalid', attempted: 1, success: 0, fallback: 1, failed: 0 }],
+    }
+    const status = {
+      run, quality,
+      stages: [{ stage: 'FINAL_SHORTLIST', ordinal: 15, status: 'completed', attempt: 1, metrics: {} }],
+      cost: { items: [], total_usd: .0372, provider_actual_usd: .0372 },
+    }
+    const show = {
+      output: { shortlist: [{
+        idea_id: 'idea-1', rank: 1, finalist: true, operator: 'distribution_first', final_score: .667,
+        title: { en: 'Distribution First 1', uk: 'Спершу дистрибуція 1' },
+        one_liner: { en: 'Fallback text', uk: 'Fallback-текст' },
+      }], graph_sync: { hypotheses: { 'idea-1': 'published-before-fix' } } },
+      quality: { run: { ...quality, by_stage: undefined }, stage: { stage: 'FINAL_SHORTLIST', verdict: 'not_applicable', attempted: 0, success: 0, fallback: 0, failed: 0 } },
+    }
+    const api = {
+      get: vi.fn((path: string) => {
+        if (path.includes('/providers')) return Promise.resolve(readiness)
+        if (path.includes('/show?')) return Promise.resolve(show)
+        if (path.includes(run.id)) return Promise.resolve(status)
+        return Promise.resolve({ items: [run] })
+      }),
+      post: vi.fn(), blob: vi.fn(),
+    } as unknown as ApiClient
+    render(<LavalEngine api={api} language="uk" />)
+
+    expect(await screen.findByText('Цей результат не можна використовувати')).toBeInTheDocument()
+    expect(screen.getByText(/0\/16/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /FINAL SHORTLIST/ }))
+    expect(await screen.findByText('Спершу дистрибуція 1')).toBeInTheDocument()
+    expect(screen.getByText(/INVALID FALLBACK/)).toBeInTheDocument()
+    expect(screen.queryByText('FINALIST')).not.toBeInTheDocument()
+    expect(screen.queryByText(/published-before-fix/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Технічні дані · raw JSON'))
+    expect(await screen.findByText(/published-before-fix/)).toBeInTheDocument()
+  })
 })

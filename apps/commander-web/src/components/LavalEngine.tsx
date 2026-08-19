@@ -2,7 +2,7 @@ import { Check, CirclePause, Download, FlaskConical, Play, Plus, RefreshCcw, Rot
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { local, type Language } from '../i18n'
-import type { I18n, LavalEvidenceMode, LavalProviderReadiness, LavalRun, LavalStage, LavalStatus } from '../types'
+import type { I18n, LavalEvidenceMode, LavalProviderReadiness, LavalQualityCount, LavalRun, LavalRunQuality, LavalStage, LavalStatus } from '../types'
 
 const DEFAULT_COUNTRIES = 'US:en, GB:en, DE:de:en, NO:no:en, DK:da:en'
 
@@ -15,7 +15,21 @@ function countries(value: string) {
 }
 
 function short(value?: string) { return value ? `${value.slice(0, 8)}…${value.slice(-4)}` : '—' }
-function humanStage(value: string) { return value.replaceAll('_', ' ') }
+const STAGE_LABELS: Record<string, string> = {
+  OWNER_CAPTURE: 'Початкова ідея', OWNER_DNA: 'Суть ідеї', QUERY_PLAN: 'План пошуку',
+  SERP_DISCOVERY: 'Результати пошуку', COMPETITOR_SELECTION: 'Відбір конкурентів',
+  COMPETITOR_EVIDENCE: 'Докази про конкурентів', COMPETITOR_DOSSIERS: 'Досьє конкурентів',
+  OPPORTUNITY_MATRIX: 'Матриця можливостей', MARKET_SIGNAL_PLAN: 'План ринкових сигналів',
+  MARKET_SIGNAL_COLLECTION: 'Релевантність доказів', MARKET_SIGNAL_GATE: 'Оцінка ринкових сигналів',
+  TREND_QUERY_PLAN: 'План тренд-запитів', GOOGLE_TRENDS_RESEARCH: 'Дослідження Google Trends',
+  TREND_GATE: 'Оцінка трендів', SYNTHESIS_PACKET: 'Пакет синтезу',
+  IDEA_EXPANSION: 'Варіанти ідей', IDEA_CLUSTERING: 'Дедуплікація ідей',
+  IDEA_EVALUATION: 'Оцінка ідей', FINAL_SHORTLIST: 'Фінальний список',
+  cross_country_recurrence: 'Повторюваність між країнами', query_family_recurrence: 'Повторюваність типів запитів',
+  recent_content_activity: 'Свіжа активність', community_activity: 'Активність спільнот',
+  negative_pain_recurrence: 'Повторювані скарги', semantic_relevance: 'Семантична релевантність',
+}
+function humanStage(value: string) { return STAGE_LABELS[value] || value.replaceAll('_', ' ') }
 function isI18n(value: unknown): value is I18n { return Boolean(value && typeof value === 'object' && 'en' in value && 'uk' in value) }
 function runStatusLabel(status: LavalRun['status']) {
   return {
@@ -35,6 +49,13 @@ function evidenceLabel(mode?: LavalEvidenceMode) {
   if (mode === 'live_market_signals') return 'LIVE · MARKET SIGNALS'
   if (mode === 'live_search_pending_trends') return 'LIVE · LEGACY PIPELINE'
   return 'DEMO — NO LIVE RESEARCH'
+}
+function stageTrustLabel(quality: LavalRunQuality | undefined, stage: string) {
+  const item = quality?.by_stage.find((candidate) => candidate.stage === stage)
+  if (!item) return ''
+  if (item.failed || item.fallback) return ' · MODEL FAILED'
+  if (item.success) return ' · MODEL ✓'
+  return ''
 }
 
 type OverrideTarget = {
@@ -271,6 +292,7 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
               <button className="secondary" disabled={busy} onClick={() => download('md')}>MD</button>
             </div>
           </header>
+          {status.quality && <RunQuality quality={status.quality} />}
           {status.run.status === 'failed' && status.recovery && <section className="laval-recovery" role="alert">
             <small>ЗВІТ ПРО ПОМИЛКУ ТА ВІДНОВЛЕННЯ</small>
             <h4>{humanStage(status.recovery.stage || status.run.current_stage || 'UNKNOWN')} · спроба #{status.recovery.attempt}</h4>
@@ -294,17 +316,17 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
           </details>}
           <div className="laval-stages">
             {status.stages.map((stage) => <button key={stage.stage} className={`${stage.status} ${stageName === stage.stage ? 'selected' : ''}`} onClick={() => inspect(stage)}>
-              <span>S{String(stage.ordinal).padStart(2, '0')}</span><strong>{humanStage(stage.stage)}</strong><small>{stage.status} · #{stage.attempt}{stage.provider ? ` · ${stage.provider}` : ''}</small>
+              <span>S{String(stage.ordinal).padStart(2, '0')}</span><strong>{humanStage(stage.stage)}</strong><small>{stage.stage.replaceAll('_', ' ')} · {stage.status} · #{stage.attempt}{stage.provider ? ` · ${stage.provider}` : ''}{stageTrustLabel(status.quality, stage.stage)}</small>
             </button>)}
           </div>
           {stageName && <section className="laval-inspector" ref={inspectorRef} tabIndex={-1}>
-            <div className="laval-inspector-head"><div><small>АРТЕФАКТ ЕТАПУ</small><h3>{humanStage(stageName)}</h3></div><div>
+            <div className="laval-inspector-head"><div><small>РЕЗУЛЬТАТ ЕТАПУ</small><h3>{humanStage(stageName)}</h3></div><div>
               {stageName === 'TREND_GATE' && <select aria-label="Trend view" value={view} onChange={(event) => { const value = event.target.value; const stage = status.stages.find((item) => item.stage === stageName); if (stage) void inspect(stage, value, countryFilter) }}><option value="">Усе</option><option value="scores">Trend Scores</option><option value="discoveries">Trend Discoveries</option></select>}
               {stageName === 'MARKET_SIGNAL_GATE' && <select aria-label="Market signal view" value={view} onChange={(event) => { const value = event.target.value; const stage = status.stages.find((item) => item.stage === stageName); if (stage) void inspect(stage, value, countryFilter) }}><option value="">Усе</option><option value="scores">MarketSignalScore</option></select>}
               {['SERP_DISCOVERY', 'COMPETITOR_SELECTION'].includes(stageName) && <select aria-label="Country filter" value={countryFilter} onChange={(event) => { const value = event.target.value; const stage = status.stages.find((item) => item.stage === stageName); if (stage) void inspect(stage, view, value) }}><option value="">Усі країни</option>{configuredCountries.map((code) => <option key={code}>{code}</option>)}</select>}
               <button className="secondary" disabled={busy} onClick={() => act('rerun', { stage: stageName, ...(stageName === 'SERP_DISCOVERY' && countryFilter ? { country: countryFilter } : {}) })}><RotateCcw />{busy ? 'Виконується…' : 'Перезапустити'}</button>
             </div></div>
-            <StageArtifact value={stageOutput} language={language} loading={stageLoading} error={stageLoadError} />
+            <StageArtifact stage={stageName} value={stageOutput} language={language} loading={stageLoading} error={stageLoadError} />
             {CORRECTABLE_STAGES.includes(stageName) && !stageLoading && !stageLoadError && Boolean(stageOutput) && <OverridePanel
               apiAction={async (body) => {
                 const applied = await act('override', body)
@@ -326,21 +348,106 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
 
 function StatusDot({ status }: { status: string }) { return <i className={`status-dot ${status}`} aria-hidden="true" /> }
 
-function StageArtifact({ value, language, loading, error }: { value: unknown; language: Language; loading: boolean; error: string }) {
+function RunQuality({ quality }: { quality: LavalRunQuality }) {
+  if (quality.verdict === 'invalid') return <section className="laval-quality invalid" role="alert">
+    <div><small>ЯКІСТЬ РЕЗУЛЬТАТУ · НЕДІЙСНИЙ</small><h4>Цей результат не можна використовувати</h4></div>
+    <p>Автоматичний запуск завершив етапи, але модель не створила надійний аналіз. UI раніше показав технічний fallback як фінальний результат.</p>
+    <dl><div><dt>Успішні відповіді моделі</dt><dd>{quality.success}/{quality.attempted}</dd></div><div><dt>Fallback</dt><dd>{quality.fallback}</dd></div><div><dt>Помилки</dt><dd>{quality.failed}</dd></div></dl>
+    <p>Не приймайте рішення за shortlist і його балами. Потрібен новий запуск після виправлення; цей запуск збережено як історію.</p>
+  </section>
+  if (quality.verdict === 'verified') return <section className="laval-quality verified"><small>ЯКІСТЬ РЕЗУЛЬТАТУ · MODEL-BACKED</small><p>Усі обов’язкові мовні етапи виконані моделлю: {quality.success}/{quality.attempted}. Ринкові докази все одно слід перевірити.</p></section>
+  if (quality.verdict === 'fixture') return <section className="laval-quality fixture"><small>ЯКІСТЬ РЕЗУЛЬТАТУ · DEMO</small><p>Детермінований fixture для перевірки процесу; це не ринковий висновок.</p></section>
+  return <section className="laval-quality pending"><small>ЯКІСТЬ РЕЗУЛЬТАТУ · ЩЕ НЕ ГОТОВО</small><p>Мовні етапи, підтверджені моделлю: {quality.success}/{quality.attempted}.</p></section>
+}
+
+type ArtifactQuality = { run?: Omit<LavalRunQuality, 'by_stage'>; stage?: LavalQualityCount }
+function record(value: unknown): Record<string, unknown> { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {} }
+function rows(value: unknown): Array<Record<string, unknown>> { return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item))) : [] }
+function text(value: unknown, language: Language) { return isI18n(value) ? String(local(value, language)) : String(value ?? '') }
+
+function StageArtifact({ stage, value, language, loading, error }: { stage: string; value: unknown; language: Language; loading: boolean; error: string }) {
   if (loading) return <p className="muted" role="status">Завантаження артефакту…</p>
   if (error) return <p className="laval-failure">Не вдалося завантажити артефакт: {error}</p>
-  const output = value && typeof value === 'object' && 'output' in value ? (value as { output: unknown }).output : value
+  const envelope = record(value)
+  const output = 'output' in envelope ? envelope.output : value
+  const quality = record(envelope.quality) as ArtifactQuality
   if (output === null || output === undefined) return <p className="muted">Артефакт ще не створено для незавершеного етапу.</p>
-  if (Array.isArray(output) && output.some((item) => item && typeof item === 'object' && 'normalization_version' in item)) return <MarketSignalScores scores={output as Array<Record<string, unknown>>} />
-  if (output && typeof output === 'object' && 'scores' in output && Array.isArray((output as { scores: unknown[] }).scores) && (output as { scores: Array<Record<string, unknown>> }).scores.some((item) => item.normalization_version)) return <MarketSignalScores scores={(output as { scores: Array<Record<string, unknown>> }).scores} />
-  if (output && typeof output === 'object' && 'shortlist' in output) {
-    const items = (output as { shortlist: Array<Record<string, unknown>> }).shortlist || []
-    return <div className="laval-shortlist">{items.map((item) => {
-      const title = item.title as I18n | undefined; const one = item.one_liner as I18n | undefined
-      return <article key={String(item.idea_id)}><span>#{String(item.rank)}</span><div><small>{short(String(item.idea_id))} · {String(item.operator)}{item.finalist ? ' · FINALIST' : ''}</small><h4>{title && isI18n(title) ? String(local(title, language)) : String(item.idea_id)}</h4><p>{one && isI18n(one) ? String(local(one, language)) : ''}</p></div><strong>{(Number(item.final_score) * 100).toFixed(1)}</strong></article>
-    })}</div>
+  return <>
+    <ArtifactTrust quality={quality} />
+    <ReadableArtifact stage={stage} output={output} language={language} quality={quality} />
+    <RawArtifact output={output} />
+  </>
+}
+
+function RawArtifact({ output }: { output: unknown }) {
+  const [open, setOpen] = useState(false)
+  return <details className="laval-raw" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}><summary>Технічні дані · raw JSON</summary>{open && <pre className="laval-json">{JSON.stringify(output, null, 2)}</pre>}</details>
+}
+
+function ArtifactTrust({ quality }: { quality: ArtifactQuality }) {
+  const stage = quality.stage
+  const run = quality.run
+  if (stage?.verdict === 'invalid') return <p className="artifact-trust invalid"><strong>FALLBACK, НЕ РЕЗУЛЬТАТ МОДЕЛІ.</strong> Успішно {stage.success}/{stage.attempted}; fallback {stage.fallback}; помилок {stage.failed}.</p>
+  if (run?.verdict === 'invalid') return <p className="artifact-trust invalid"><strong>НЕДІЙСНИЙ RUN.</strong> Цей етап залежить від невдалих model/fallback етапів вище.</p>
+  if (stage?.verdict === 'verified') return <p className="artifact-trust verified"><strong>MODEL-BACKED.</strong> Успішно {stage.success}/{stage.attempted} відповідей.</p>
+  if (run?.verdict === 'fixture') return <p className="artifact-trust fixture"><strong>DEMO FIXTURE.</strong> Лише перевірка механіки процесу.</p>
+  return null
+}
+
+function ReadableArtifact({ stage, output, language, quality }: { stage: string; output: unknown; language: Language; quality: ArtifactQuality }) {
+  const data = record(output)
+  if (Array.isArray(output) && rows(output).some((item) => item.normalization_version)) return <MarketSignalScores scores={rows(output)} />
+  if (rows(data.scores).some((item) => item.normalization_version)) return <MarketSignalScores scores={rows(data.scores)} />
+  if (stage === 'OWNER_CAPTURE') return <div className="artifact-readable"><h4>Початкова ідея</h4><p>{String(data.raw_text || '—')}</p></div>
+  if (stage === 'OWNER_DNA') {
+    const dna = record(data.owner_dna)
+    return <div className="artifact-readable"><h4>Що система зрозуміла з ідеї</h4><dl className="artifact-facts"><Fact label="Проблема" value={dna.problem} /><Fact label="Для кого" value={dna.target_user} /><Fact label="Механізм" value={dna.core_mechanism} /><Fact label="Емоція" value={dna.core_emotion} /><Fact label="Чому зараз" value={dna.why_now} /></dl><NamedList title="Що треба зберегти" values={dna.must_preserve} /><NamedList title="Невідоме" values={dna.unknowns} /></div>
   }
-  return <pre className="laval-json">{JSON.stringify(output, null, 2)}</pre>
+  if (stage === 'QUERY_PLAN') return <div className="artifact-readable"><h4>Пошукові наміри</h4><p>{rows(data.query_intents).length} запитів для {Array.isArray(data.countries) ? data.countries.length : 'заданих'} ринків.</p><div className="artifact-list">{rows(data.query_intents).map((item, index) => <article key={String(item.query_intent_id || index)}><small>{String(item.family || 'query')}</small><h5>{String(item.base_query || '—')}</h5><p>{rows(item.variants).map((variant) => `${String(variant.country)}:${String(variant.language)} — ${String(variant.query)}`).join(' · ')}</p></article>)}</div></div>
+  if (stage === 'SERP_DISCOVERY') return <div className="artifact-readable"><h4>Що повернув пошук</h4><p>Провайдер: {String(data.provider || '—')}. Невдалих запитів: {rows(data.failures).length}.</p><div className="artifact-stats">{Object.entries(record(data.countries)).map(([country, searches]) => <div key={country}><strong>{Array.isArray(searches) ? searches.reduce((total, item) => total + rows(record(item).results).length, 0) : 0}</strong><span>{country} результатів</span></div>)}</div></div>
+  if (stage === 'COMPETITOR_SELECTION') return <RankedEvidence title="Відібрані кандидати в конкуренти" items={rows(data.global_deduplicated)} language={language} />
+  if (stage === 'COMPETITOR_EVIDENCE') return <div className="artifact-readable"><h4>Покриття доказами</h4><p>{rows(data.competitors).length} конкурентів · {rows(data.failures).length} збоїв джерел.</p><div className="artifact-list">{rows(data.competitors).map((item) => <article key={String(item.competitor_id)}><h5>{String(item.name || 'Конкурент')}</h5><p>{Array.isArray(item.evidence_ids) ? item.evidence_ids.length : 0} evidence items</p></article>)}</div></div>
+  if (stage === 'COMPETITOR_DOSSIERS') return <div className="artifact-readable"><h4>Досьє конкурентів</h4><div className="artifact-list">{rows(data.competitors).map((item) => <article key={String(item.competitor_id)}><small>{String(item.type || 'competitor')} · confidence {(Number(item.confidence || 0) * 100).toFixed(0)}%</small><h5>{String(item.name || item.url || 'Конкурент')}</h5><NamedList title="Позиціонування" values={item.positioning} compact /><NamedList title="Скарги" values={item.complaints} compact /><NamedList title="Прогалини" values={item.gaps} compact /></article>)}</div></div>
+  if (stage === 'OPPORTUNITY_MATRIX') return <Opportunities items={rows(data.opportunities)} />
+  if (stage === 'MARKET_SIGNAL_PLAN') return <div className="artifact-readable"><h4>План Market Signals</h4><p>Нових платних пошуків: {record(data.additional_search).executed === true ? 'так' : '0'}. Використано вже збережені докази.</p><Opportunities items={rows(data.opportunities)} /></div>
+  if (stage === 'MARKET_SIGNAL_COLLECTION') {
+    const classifications = rows(data.classifications)
+    return <div className="artifact-readable"><h4>Релевантність доказів</h4><div className="artifact-stats"><div><strong>{classifications.length}</strong><span>перевірено пар</span></div><div><strong>{classifications.filter((item) => item.relevant === true).length}</strong><span>релевантні</span></div></div><p>Режим: {String(data.classification_mode || '—')}</p></div>
+  }
+  if (stage === 'SYNTHESIS_PACKET') return <div className="artifact-readable"><h4>Пакет для генерації</h4><ArtifactCounts data={data} /><NamedList title="Повторювані болі" values={data.negative_pain_clusters} /><NamedList title="Патерни дистрибуції" values={data.distribution_patterns} /></div>
+  if (stage === 'IDEA_EXPANSION') return <IdeaRows title="Згенеровані варіанти" items={rows(data.variants)} language={language} trusted={quality.run?.verdict !== 'invalid'} />
+  if (stage === 'IDEA_CLUSTERING') return <div className="artifact-readable"><h4>Дедуплікація ідей</h4><div className="artifact-stats"><div><strong>{rows(data.clusters).length}</strong><span>унікальних кластерів</span></div><div><strong>{Array.isArray(data.representative_ids) ? data.representative_ids.length : 0}</strong><span>представників</span></div></div></div>
+  if (stage === 'IDEA_EVALUATION') return <IdeaScores items={rows(data.scores)} language={language} />
+  if (stage === 'FINAL_SHORTLIST') return <Shortlist items={rows(data.shortlist)} language={language} verdict={quality.run?.verdict} />
+  if (stage === 'TREND_GATE') return <div className="artifact-readable"><h4>Trend Gate</h4><ArtifactCounts data={data} /></div>
+  return <div className="artifact-readable"><h4>Короткий огляд</h4><ArtifactCounts data={data} /></div>
+}
+
+function Fact({ label, value }: { label: string; value: unknown }) { return <div><dt>{label}</dt><dd>{String(value || '—')}</dd></div> }
+function NamedList({ title, values, compact = false }: { title: string; values: unknown; compact?: boolean }) {
+  const items = Array.isArray(values) ? values.map((item) => typeof item === 'string' ? item : String(record(item).statement || record(item).name || JSON.stringify(item))).filter(Boolean) : []
+  if (!items.length) return null
+  return <div className={compact ? 'named-list compact' : 'named-list'}><strong>{title}</strong><ul>{items.slice(0, compact ? 3 : 8).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></div>
+}
+function ArtifactCounts({ data }: { data: Record<string, unknown> }) {
+  const entries = Object.entries(data).filter(([, value]) => Array.isArray(value) || ['string', 'number', 'boolean'].includes(typeof value)).slice(0, 10)
+  return <div className="artifact-stats">{entries.map(([name, value]) => <div key={name}><strong>{Array.isArray(value) ? value.length : String(value)}</strong><span>{humanStage(name)}</span></div>)}</div>
+}
+function RankedEvidence({ title, items }: { title: string; items: Array<Record<string, unknown>>; language: Language }) {
+  return <div className="artifact-readable"><h4>{title}</h4><div className="artifact-list">{items.map((item, index) => <article key={String(item.id || item.competitor_id || index)}><small>#{index + 1} · {String(item.result_type || item.type || 'candidate')}</small><h5>{String(item.name || item.domain || item.url || '—')}</h5><p>{String(item.domain || item.url || '')}{typeof item.score === 'number' ? ` · score ${(item.score * 100).toFixed(1)}` : ''}</p></article>)}</div></div>
+}
+function Opportunities({ items }: { items: Array<Record<string, unknown>> }) {
+  return <div className="artifact-readable"><h4>Можливості</h4><div className="artifact-list">{items.map((item, index) => { const evidenceCount = Array.isArray(item.evidence_ids) ? item.evidence_ids.length : rows(item.evidence).length; return <article key={String(item.id || item.opportunity_id || index)}><small>#{index + 1}{typeof item.aggregate_score === 'number' ? ` · ${(item.aggregate_score * 100).toFixed(1)}` : ''} · {evidenceCount} доказів</small><h5>{String(item.statement || '—')}</h5><p>{String(item.affected_segment || item.pain || '')}</p></article> })}</div></div>
+}
+function IdeaRows({ title, items, language, trusted }: { title: string; items: Array<Record<string, unknown>>; language: Language; trusted: boolean }) {
+  return <div className="artifact-readable"><h4>{title}</h4><div className="artifact-list">{items.map((item, index) => <article key={String(item.id || item.idea_id || index)}><small>{String(item.operator || 'idea')} · {trusted ? 'MODEL OUTPUT' : 'INVALID FALLBACK'}</small><h5>{text(item.title, language)}</h5><p>{text(item.one_liner, language)}</p></article>)}</div></div>
+}
+function IdeaScores({ items, language }: { items: Array<Record<string, unknown>>; language: Language }) {
+  return <div className="artifact-readable"><h4>Незалежна оцінка</h4><div className="artifact-list">{items.map((item, index) => { const evaluator = record(item.evaluator); return <article key={String(item.idea_id || index)}><small>#{index + 1} · final {(Number(item.final_score || 0) * 100).toFixed(1)}</small><h5>{text(item.title, language)}</h5><p><strong>Критика:</strong> {String(evaluator.critique || '—')}</p><p><strong>Сильна сторона:</strong> {String(evaluator.strengths || '—')}</p></article> })}</div></div>
+}
+function Shortlist({ items, language, verdict }: { items: Array<Record<string, unknown>>; language: Language; verdict?: string }) {
+  const trusted = verdict === 'verified'
+  return <div className="laval-shortlist">{items.map((item) => <article key={String(item.idea_id)}><span>#{String(item.rank)}</span><div><small>{short(String(item.idea_id))} · {String(item.operator)} · {trusted && item.finalist ? 'FINALIST' : verdict === 'fixture' ? 'DEMO CANDIDATE' : 'INVALID FALLBACK'}</small><h4>{text(item.title, language) || String(item.idea_id)}</h4><p>{text(item.one_liner, language)}</p></div><strong>{(Number(item.final_score) * 100).toFixed(1)}</strong></article>)}</div>
 }
 
 function MarketSignalScores({ scores }: { scores: Array<Record<string, unknown>> }) {

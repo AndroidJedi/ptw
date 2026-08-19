@@ -34,6 +34,126 @@ class MockLLMProvider:
             if isinstance(result, Exception):
                 raise result
             return result
+        if mode == "laval_owner_dna":
+            raw = str(input_payload.get("owner_idea") or "Owner idea")
+            return {"owner_dna": {
+                "problem": raw,
+                "target_user": "People described by the owner idea",
+                "core_mechanism": raw[:500],
+                "core_emotion": "Motivation and accountability",
+                "why_now": "Current demand must be validated with evidence",
+                "must_preserve": [raw[:500]],
+                "assumptions": ["Users repeat the behavior"],
+                "unknowns": ["Willingness to pay"],
+            }}
+        if mode == "laval_query_plan":
+            mechanism = str((input_payload.get("owner_dna") or {}).get("core_mechanism") or "product")
+            return {"query_intents": [
+                {
+                    "family": family,
+                    "base_query": f"{mechanism[:80]} {family} product",
+                    "translations": [
+                        {"language": str(language), "query": f"{mechanism[:60]} {family} {language}"}
+                        for language in input_payload.get("languages") or []
+                    ],
+                }
+                for family in input_payload.get("families") or []
+                for _ in range(int(input_payload.get("queries_per_family") or 1))
+            ]}
+        if mode == "laval_competitor_dossier":
+            competitor = input_payload.get("competitor") or {}
+            evidence = input_payload.get("evidence") or []
+            claims = [str(item.get("claim") or item.get("excerpt") or "") for item in evidence]
+            evidence_ids = [str(item.get("id")) for item in evidence if item.get("id")]
+            return {"dossier": {
+                "competitor_id": str(competitor.get("id") or ""),
+                "name": str(competitor.get("name") or "Competitor"),
+                "url": str(competitor.get("url") or ""),
+                "type": str(competitor.get("result_type") or "direct_product"),
+                "country_presence": ["US"],
+                "positioning": claims[:2] or ["Evidence-backed positioning"],
+                "audiences": ["Target users"],
+                "features": ["Core workflow"],
+                "pricing": ["Pricing requires validation"],
+                "distribution": ["Search and sharing"],
+                "hooks": claims[:2] or ["Clear outcome"],
+                "strengths": ["Existing discoverability"],
+                "complaints": ["Users need a simpler workflow"],
+                "gaps": ["A narrower evidence-backed workflow"],
+                "keywords": ["accountability", "proof"],
+                "evidence_ids": evidence_ids,
+                "confidence": .72,
+            }}
+        if mode == "laval_opportunity_matrix":
+            return {"opportunities": [
+                {
+                    "statement": f"Users need a better supported alternative to {dossier.get('name') or 'the existing product'}.",
+                    "pain": str((dossier.get("complaints") or ["Unmet need"])[0]),
+                    "affected_segment": str((dossier.get("audiences") or ["Target users"])[0]),
+                    "competitor_ids": [str(dossier.get("competitor_id"))],
+                    "countries": list(dossier.get("country_presence") or []),
+                    "evidence_ids": list(dossier.get("evidence_ids") or []),
+                    "scores": {
+                        "frequency": .6, "severity": .65, "coverage_gap": .7,
+                        "cross_market": .5, "owner_relevance": .8, "confidence": .7,
+                    },
+                }
+                for dossier in input_payload.get("dossiers") or []
+                if dossier.get("competitor_id") and dossier.get("evidence_ids")
+            ]}
+        if mode == "laval_market_signal_relevance":
+            return {"classifications": [
+                {
+                    "opportunity_id": str(item.get("opportunity_id") or ""),
+                    "evidence_id": str(item.get("evidence_id") or ""),
+                    "relevant": True,
+                }
+                for item in input_payload.get("pairs") or []
+            ]}
+        if mode == "laval_idea_expansion":
+            opportunities = input_payload.get("opportunities") or []
+            trends = input_payload.get("trend_scores") or []
+            discoveries = input_payload.get("trend_discoveries") or []
+            market = input_payload.get("market_signal_scores") or []
+            evidence_ids = list(input_payload.get("selected_evidence_ids") or [])
+            count = int((input_payload.get("generation_requirements") or {}).get("variants_per_operator") or 3)
+            operators = input_payload.get("transformation_operators") or []
+            variants = []
+            for operator in operators:
+                for ordinal in range(count):
+                    opportunity = opportunities[(len(variants)) % len(opportunities)] if opportunities else {}
+                    angles = ("onboarding", "retention", "referral", "pricing", "community", "proof")
+                    angle = angles[ordinal % len(angles)]
+                    title = f"{str(operator).replace('_', ' ').title()} {angle} concept"
+                    variants.append({
+                        "title": {"en": title, "uk": f"Концепція {ordinal + 1}: {operator}"},
+                        "one_liner": {"en": f"An evidence-backed product concept focused on {angle}.", "uk": f"Продуктова концепція на основі доказів: {angle}."},
+                        "mechanism": {"en": f"Apply {operator} to the validated opportunity.", "uk": f"Застосувати {operator} до перевіреної можливості."},
+                        "target_user": {"en": str(opportunity.get("affected_segment") or "Target users"), "uk": "Цільові користувачі"},
+                        "why_new": {"en": "It combines a measured gap with a distinct operator.", "uk": "Поєднує виміряну прогалину з окремим оператором."},
+                        "operator": str(operator),
+                        "opportunity_ids": [str(opportunity["id"])] if opportunity.get("id") else [],
+                        "trend_signal_ids": [str(trends[0]["id"])] if trends else [],
+                        "trend_discovery_ids": [str(discoveries[0]["id"])] if discoveries else [],
+                        "market_signal_ids": [str(market[0]["id"])] if market else [],
+                        "evidence_ids": evidence_ids[:8],
+                    })
+            return {"variants": variants}
+        if mode == "laval_idea_evaluation":
+            return {"evaluations": [
+                {
+                    "idea_id": str(item["id"]),
+                    "score": .7,
+                    "dimensions": {
+                        "owner_fit": .75, "differentiation": .7, "opportunity_support": .75,
+                        "trend_support": .6, "distribution_potential": .68, "novelty": .65,
+                    },
+                    "strengths": "Clear evidence lineage and a testable mechanism.",
+                    "critique": "Distribution and willingness to pay still require direct testing.",
+                    "fatal_flaw": None,
+                }
+                for item in input_payload.get("variants") or []
+            ]}
         if mode == "evaluate":
             evaluations = []
             evaluator = input_payload["context"]["code"]

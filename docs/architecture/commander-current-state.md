@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: seamless Laval start and legacy Market Signals recovery deployed
+Status: Laval result integrity and readable stage review implemented; deployment verification pending
 Updated: 2026-08-19
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -100,6 +100,18 @@ action that upgrades saved work to Market Signals; the UI no longer presents a
 Google Trends wait, manual approval, and provider wait as competing actions.
 Telegram status links target the exact run, and the PWA shell cache is bumped so
 the retired Trends/Telegram controls cannot survive as an old loaded screen.
+
+The first completed live Market Signals run exposed a second truthfulness
+defect: all recorded language calls were fallback/failed because their nested
+output schemas were incomplete, yet downstream deterministic fallbacks still
+produced and published a shortlist. The correction defines complete strict
+schemas for every Laval language mode, adds semantic ID/count validation,
+disables fallback for every live evidence mode, and blocks final hypothesis
+publication unless all mandatory language stages are model-backed. The
+status/show APIs now separate stage completion from model provenance. Ideas
+presents readable Ukrainian summaries for all 16 stages, puts raw JSON behind
+disclosure, labels the historical result invalid, exposes its successful model
+call count, and never calls its fallback rows finalists.
 
 Creative production and review are retired operationally on the 1 GB profile.
 Their source, migrations, immutable artifacts, append-only reviews, UUID

@@ -234,30 +234,51 @@ class LavalPipeline:
         validator: Callable[[dict[str, Any]], bool] | None = None,
     ) -> dict[str, Any] | None:
         estimated_input = max(1, len(self.store.json({"prompt": prompt, "payload": payload})) // 4)
-        result = self.fresh_stages.run(
-            run_id,
-            stage,
-            mode,
-            prompt,
-            payload,
-            required,
-            prompt_template_version=f"{mode}-v1",
-            validator=validator,
-        )
-        self.repository.record_cost(
-            run_id,
-            stage,
-            str(getattr(self.providers.llm, "model_name", "llm")),
-            mode,
-            input_tokens=estimated_input,
-            output_tokens=max(1, len(self.store.json(result)) // 4) if result else 0,
-            metadata={"fallback": result is None},
-        )
-        return result
+        evidence_mode = str(self.repository.run(run_id).get("evidence_mode") or "demo_fixture")
+        allow_fallback = evidence_mode == "demo_fixture"
+        result: dict[str, Any] | None = None
+        failed = False
+        try:
+            result = self.fresh_stages.run(
+                run_id,
+                stage,
+                mode,
+                prompt,
+                payload,
+                required,
+                prompt_template_version=f"{mode}-v2-strict",
+                allow_fallback=allow_fallback,
+                validator=validator,
+            )
+            return result
+        except Exception:
+            failed = True
+            raise
+        finally:
+            self.repository.record_cost(
+                run_id,
+                stage,
+                str(getattr(self.providers.llm, "model_name", "llm")),
+                mode,
+                input_tokens=estimated_input,
+                output_tokens=max(1, len(self.store.json(result)) // 4) if result else 0,
+                metadata={"fallback": result is None and allow_fallback, "failed": failed},
+            )
 
     def _owner_dna(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
         owner = self.repository.owner(run_id)
         compiler = ContextCompiler(config)
+        required = {"problem", "target_user", "core_mechanism", "core_emotion", "why_now", "must_preserve", "assumptions", "unknowns"}
+
+        def valid_owner_dna(value: dict[str, Any]) -> bool:
+            dna = value.get("owner_dna")
+            return (
+                isinstance(dna, Mapping)
+                and required.issubset(dna)
+                and all(str(dna.get(field) or "").strip() for field in required - {"must_preserve", "assumptions", "unknowns"})
+                and all(isinstance(dna.get(field), list) for field in ("must_preserve", "assumptions", "unknowns"))
+            )
+
         result = self._llm(
             run_id,
             "OWNER_DNA",
@@ -265,9 +286,9 @@ class LavalPipeline:
             "Extract Owner DNA from the English source. Preserve must-preserve constraints and explicitly list assumptions and unknowns. Return JSON only.",
             compiler.build_owner_dna_context(owner["raw_text"]),
             "owner_dna",
+            valid_owner_dna,
         )
         dna = result.get("owner_dna") if result else None
-        required = {"problem", "target_user", "core_mechanism", "core_emotion", "why_now", "must_preserve", "assumptions", "unknowns"}
         if not isinstance(dna, Mapping) or not required.issubset(dna):
             raw = owner["raw_text"].strip()
             first = next((line.strip("# -") for line in raw.splitlines() if line.strip()), "Owner idea")
@@ -317,11 +338,39 @@ class LavalPipeline:
         languages = sorted({str(item["language"]) for item in config.countries} | {
             str(item["secondary_language"]) for item in config.countries if item.get("secondary_language")
         })
+
+        def valid_query_plan(value: dict[str, Any]) -> bool:
+            items = value.get("query_intents")
+            if not isinstance(items, list):
+                return False
+            expected_families = set(QUERY_FAMILIES[: config.query_families])
+            family_counts = {
+                family: sum(isinstance(item, Mapping) and item.get("family") == family for item in items)
+                for family in expected_families
+            }
+            if len(items) != len(expected_families) * config.queries_per_family or any(
+                count != config.queries_per_family for count in family_counts.values()
+            ):
+                return False
+            for item in items:
+                if not isinstance(item, Mapping) or not str(item.get("base_query") or "").strip():
+                    return False
+                translations = item.get("translations")
+                if not isinstance(translations, list):
+                    return False
+                translated = {
+                    str(entry.get("language") or ""): str(entry.get("query") or "").strip()
+                    for entry in translations if isinstance(entry, Mapping)
+                }
+                if any(language != "en" and not translated.get(language) for language in languages):
+                    return False
+            return True
+
         generated = self._llm(
             run_id,
             "QUERY_PLAN",
             "laval_query_plan",
-            "Create compact product-discovery search intents for the four supplied families. Return query_intents with family, base_query in English, and translations keyed by requested language. A translation must retain the exact semantic intent and must not introduce a new category.",
+            "Create compact product-discovery search intents for the four supplied families. Return query_intents with family, base_query in English, and translations as {language, query} rows for every requested non-English language. A translation must retain the exact semantic intent and must not introduce a new category.",
             {
                 "owner_dna": dna,
                 "families": list(QUERY_FAMILIES[: config.query_families]),
@@ -329,6 +378,7 @@ class LavalPipeline:
                 "languages": languages,
             },
             "query_intents",
+            valid_query_plan,
         )
         generated_by_family: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
         if generated:
@@ -344,7 +394,16 @@ class LavalPipeline:
                 query = str(candidate.get("base_query") or "").strip()
                 if not query:
                     continue
-                translations = candidate.get("translations") if isinstance(candidate.get("translations"), Mapping) else {}
+                raw_translations = candidate.get("translations")
+                if isinstance(raw_translations, Mapping):
+                    translations = {str(key): str(value) for key, value in raw_translations.items()}
+                elif isinstance(raw_translations, list):
+                    translations = {
+                        str(item.get("language") or ""): str(item.get("query") or "")
+                        for item in raw_translations if isinstance(item, Mapping)
+                    }
+                else:
+                    translations = {}
                 intent_id = new_uuid7()
                 variants = []
                 for country in config.countries:
@@ -483,15 +542,29 @@ class LavalPipeline:
             return given
         domain = str(result.get("domain") or "").lower()
         title = str(result.get("title") or "").lower()
-        if any(value in domain for value in ("reddit.com", "youtube.com", "facebook.com", "instagram.com", "tiktok.com")):
+        snippet = str(result.get("snippet") or "").lower()
+        if any(value in domain for value in (
+            "reddit.com", "youtube.com", "facebook.com", "instagram.com", "tiktok.com",
+            "linkedin.com", "quora.com", "stackexchange.com", "stackoverflow.com", "x.com",
+        )):
             return "social"
-        if any(value in domain for value in ("wikipedia.org", "medium.com")) or any(value in title for value in ("guide", "how to", "news")):
+        if any(value in domain for value in (
+            "wikipedia.org", "medium.com", "substack.com", "reverso.net", "linguee.com",
+            "powerthesaurus.org", "thesaurus.com", "dictionary.com", "merriam-webster.com",
+            "goodreads.com", "amazon.com", "books.google.",
+        )) or any(value in title for value in (
+            "guide", "how to", "news", "grammar", "synonym", "definition", "meaning", "book review",
+        )):
             return "article"
         if any(value in domain for value in ("g2.com", "capterra.com", "trustpilot.com")):
             return "review_site"
         if re.search(r"\b(best|top)\s+\d+", title) or "directory" in domain:
             return "directory"
-        return "direct_product"
+        product_language = re.search(
+            r"\b(app|application|platform|software|service|tool|product|accountability|goal|habit|challenge)\b",
+            f"{title} {snippet}",
+        )
+        return "direct_product" if product_language else "irrelevant"
 
     def _competitor_selection(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
         serp = self.repository.stage(run_id, "SERP_DISCOVERY")["artifact"]
@@ -733,9 +806,29 @@ class LavalPipeline:
         partial = False
         for competitor in competitors:
             evidence = self.repository.evidence(run_id, competitor_id=str(competitor["id"]))
-            llm = self._llm(run_id, "COMPETITOR_DOSSIERS", "laval_competitor_dossier", "Extract only evidence-supported product positioning, audience, features, pricing, distribution, hooks, strengths, complaints, gaps, and keywords. Every claim must cite supplied evidence IDs.", compiler.build_competitor_extraction_context(competitor, evidence), "dossier")
-            dossier = llm.get("dossier") if llm else None
             evidence_ids = [str(item["id"]) for item in evidence]
+
+            def valid_dossier(value: dict[str, Any]) -> bool:
+                dossier = value.get("dossier")
+                cited = dossier.get("evidence_ids") if isinstance(dossier, Mapping) else None
+                return (
+                    isinstance(dossier, Mapping)
+                    and str(dossier.get("competitor_id") or "") == str(competitor["id"])
+                    and isinstance(cited, list)
+                    and bool(cited)
+                    and set(map(str, cited)).issubset(evidence_ids)
+                )
+
+            llm = self._llm(
+                run_id,
+                "COMPETITOR_DOSSIERS",
+                "laval_competitor_dossier",
+                "Extract only evidence-supported product positioning, audience, features, pricing, distribution, hooks, strengths, complaints, gaps, and keywords. Every claim must cite supplied evidence IDs.",
+                compiler.build_competitor_extraction_context(competitor, evidence),
+                "dossier",
+                valid_dossier,
+            )
+            dossier = llm.get("dossier") if llm else None
             if not isinstance(dossier, Mapping):
                 claims = [str(item.get("claim") or item.get("excerpt") or "")[:500] for item in evidence if item.get("claim") or item.get("excerpt")]
                 complaints = [value for value in claims if any(word in value.lower() for word in ("problem", "fatigue", "missing", "hard", "weak", "annoy"))]
@@ -787,7 +880,11 @@ class LavalPipeline:
             dossier["confidence"] = confidence
             self.store.execute(
                 """INSERT INTO laval_competitor_dossiers(competitor_id,run_id,dossier,confidence,evidence_ids)
-                   VALUES(%s,%s,%s::jsonb,%s,%s::uuid[]) RETURNING 1""",
+                   VALUES(%s,%s,%s::jsonb,%s,%s::uuid[])
+                   ON CONFLICT(competitor_id) DO UPDATE SET
+                       dossier=EXCLUDED.dossier,confidence=EXCLUDED.confidence,
+                       evidence_ids=EXCLUDED.evidence_ids
+                   RETURNING 1""",
                 (competitor["id"], run_id, self.store.json(dossier), confidence, dossier["evidence_ids"]),
             )
             results.append(dossier)
@@ -797,7 +894,35 @@ class LavalPipeline:
         dna = self.repository.stage(run_id, "OWNER_DNA")["artifact"]["owner_dna"]
         dossiers = [row["dossier"] for row in self.store.fetchall("SELECT dossier FROM laval_competitor_dossiers WHERE run_id=%s ORDER BY confidence DESC", (run_id,))]
         compiler = ContextCompiler(config)
-        llm = self._llm(run_id, "OPPORTUNITY_MATRIX", "laval_opportunity_matrix", "Compress dossiers into evidence-backed opportunity vectors. Preserve all rows, cite only supplied evidence IDs, and return normalized component scores from 0 to 1.", compiler.build_opportunity_context(dna, dossiers), "opportunities")
+        dossier_evidence = {
+            str(evidence_id)
+            for dossier in dossiers
+            for evidence_id in dossier.get("evidence_ids", [])
+        }
+        dossier_competitors = {str(dossier.get("competitor_id")) for dossier in dossiers}
+
+        def valid_opportunities(value: dict[str, Any]) -> bool:
+            items = value.get("opportunities")
+            if not isinstance(items, list) or not items:
+                return False
+            return all(
+                isinstance(item, Mapping)
+                and str(item.get("statement") or "").strip()
+                and bool(item.get("evidence_ids"))
+                and set(map(str, item.get("evidence_ids") or [])).issubset(dossier_evidence)
+                and set(map(str, item.get("competitor_ids") or [])).issubset(dossier_competitors)
+                for item in items
+            )
+
+        llm = self._llm(
+            run_id,
+            "OPPORTUNITY_MATRIX",
+            "laval_opportunity_matrix",
+            "Compress dossiers into evidence-backed opportunity vectors. Preserve all rows, cite only supplied evidence IDs, and return normalized component scores from 0 to 1.",
+            compiler.build_opportunity_context(dna, dossiers),
+            "opportunities",
+            valid_opportunities,
+        )
         raw = llm.get("opportunities") if llm else None
         if not isinstance(raw, list) or not raw:
             raw = []
@@ -1191,14 +1316,66 @@ class LavalPipeline:
 
     def _idea_expansion(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
         packet = self.repository.stage(run_id, "SYNTHESIS_PACKET")["artifact"]
-        llm = self._llm(run_id, "IDEA_EXPANSION", "laval_idea_expansion", "Generate broad, non-duplicate idea variants. Use every transformation operator. Each variant must reference valid owner, opportunity, market-signal or legacy trend, and evidence IDs from the synthesis packet. Every owner-facing field must have exact en and uk keys.", packet, "variants")
-        raw = llm.get("variants") if llm else None
         opportunities = packet.get("opportunities") or []
         trend_scores = packet.get("trend_scores") or []
         discoveries = packet.get("trend_discoveries") or []
         market_scores = packet.get("market_signal_scores") or []
         directional_scores = market_scores or trend_scores
         owner_id = self.repository.owner(run_id)["id"]
+        valid_opportunity_ids = {str(item["id"]) for item in opportunities}
+        valid_trend_ids = {str(item["id"]) for item in trend_scores}
+        valid_discovery_ids = {str(item["id"]) for item in discoveries}
+        valid_market_ids = {str(item["id"]) for item in market_scores}
+        valid_evidence_ids = {str(value) for value in packet.get("selected_evidence_ids") or []}
+
+        def valid_variants(value: dict[str, Any]) -> bool:
+            items = value.get("variants")
+            if not isinstance(items, list) or len(items) != len(OPERATORS) * config.variants_per_operator:
+                return False
+            counts = {
+                operator: sum(
+                    isinstance(item, Mapping) and str(item.get("operator") or "").lower() == operator
+                    for item in items
+                )
+                for operator in OPERATORS
+            }
+            if any(count != config.variants_per_operator for count in counts.values()):
+                return False
+            id_fields = (
+                ("opportunity_ids", valid_opportunity_ids),
+                ("trend_signal_ids", valid_trend_ids),
+                ("trend_discovery_ids", valid_discovery_ids),
+                ("market_signal_ids", valid_market_ids),
+                ("evidence_ids", valid_evidence_ids),
+            )
+            return all(
+                isinstance(item, Mapping)
+                and all(
+                    isinstance(item.get(field), Mapping)
+                    and set(item[field]) == {"en", "uk"}
+                    and all(str(item[field][language]).strip() for language in ("en", "uk"))
+                    for field in ("title", "one_liner", "mechanism", "target_user", "why_new")
+                )
+                and all(
+                    isinstance(item.get(field), list)
+                    and set(map(str, item.get(field) or [])).issubset(valid_ids)
+                    for field, valid_ids in id_fields
+                )
+                and bool(item.get("opportunity_ids"))
+                and bool(item.get("evidence_ids"))
+                for item in items
+            )
+
+        llm = self._llm(
+            run_id,
+            "IDEA_EXPANSION",
+            "laval_idea_expansion",
+            "Generate broad, non-duplicate idea variants. Use every transformation operator. Each variant must reference valid owner, opportunity, market-signal or legacy trend, and evidence IDs from the synthesis packet. Every owner-facing field must have exact en and uk keys.",
+            {**packet, "generation_requirements": {"variants_per_operator": config.variants_per_operator}},
+            "variants",
+            valid_variants,
+        )
+        raw = llm.get("variants") if llm else None
         operator_counts = {
             operator: sum(
                 1 for item in raw or []
@@ -1235,11 +1412,11 @@ class LavalPipeline:
                         "trend_discovery_ids": [discovery["id"]] if discovery.get("id") else [],
                         "evidence_ids": list(dict.fromkeys((opportunity.get("evidence_ids") or []) + (score.get("evidence_ids") or []) + (discovery.get("evidence_ids") or []))),
                     })
-        valid_opportunities = {str(item["id"]) for item in opportunities}
-        valid_scores = {str(item["id"]) for item in trend_scores}
-        valid_market_scores = {str(item["id"]) for item in market_scores}
-        valid_discoveries = {str(item["id"]) for item in discoveries}
-        valid_evidence = {str(value) for value in packet.get("selected_evidence_ids") or []}
+        valid_opportunities = valid_opportunity_ids
+        valid_scores = valid_trend_ids
+        valid_market_scores = valid_market_ids
+        valid_discoveries = valid_discovery_ids
+        valid_evidence = valid_evidence_ids
         operator_ids = {}
         instructions = {
             "invert": "Invert an important category assumption.", "remove": "Remove a repeated user pain.", "extreme": "Push a useful property to an extreme.",
@@ -1329,7 +1506,33 @@ class LavalPipeline:
         variants = json_safe(self.store.fetchall("SELECT * FROM laval_idea_variants WHERE run_id=%s AND representative ORDER BY created_at,id", (run_id,)))
         packet = self.repository.stage(run_id, "SYNTHESIS_PACKET")["artifact"]
         context = ContextCompiler(config).build_evaluation_context(packet, variants)
-        llm = self._llm(run_id, "IDEA_EVALUATION", "laval_idea_evaluation", "Independently score every supplied idea in fresh context. Return each exact idea ID once, normalized 0..1 dimensions, an overall score, strengths, critique, and fatal flaw. Do not generate new ideas.", context, "evaluations")
+        expected_idea_ids = {str(item["id"]) for item in variants}
+
+        def valid_evaluations(value: dict[str, Any]) -> bool:
+            items = value.get("evaluations")
+            if not isinstance(items, list) or len(items) != len(expected_idea_ids):
+                return False
+            ids = [str(item.get("idea_id") or "") for item in items if isinstance(item, Mapping)]
+            return (
+                len(ids) == len(items)
+                and set(ids) == expected_idea_ids
+                and len(set(ids)) == len(ids)
+                and all(
+                    isinstance(item.get("dimensions"), Mapping)
+                    and set(config.idea_weights).issubset(item["dimensions"])
+                    for item in items if isinstance(item, Mapping)
+                )
+            )
+
+        llm = self._llm(
+            run_id,
+            "IDEA_EVALUATION",
+            "laval_idea_evaluation",
+            "Independently score every supplied idea in fresh context. Return each exact idea ID once, normalized 0..1 dimensions, an overall score, strengths, critique, and fatal flaw. Do not generate new ideas.",
+            context,
+            "evaluations",
+            valid_evaluations,
+        )
         evaluations = llm.get("evaluations") if llm else []
         by_id = {str(item.get("idea_id")): item for item in evaluations if isinstance(item, Mapping) and item.get("idea_id")}
         results = []
@@ -1372,6 +1575,18 @@ class LavalPipeline:
         return {"scores": results}, {"evaluated": len(results), "independent_evaluator_results": len(by_id)}, len(by_id) != len(results)
 
     def _final_shortlist(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        run = self.repository.run(run_id)
+        if run.get("evidence_mode") != "demo_fixture":
+            quality = self.repository.llm_quality(run_id)
+            if (
+                quality["failed"]
+                or quality["fallback"]
+                or not quality["success"]
+                or quality["missing_stages"]
+            ):
+                raise RuntimeError(
+                    "Final shortlist blocked: live language stages are not fully model-backed"
+                )
         rows = self.store.fetchall(
             """SELECT s.*,v.title,v.one_liner,v.mechanism,v.target_user,v.why_new,v.operator,
                       v.opportunity_ids,v.trend_signal_ids,v.trend_discovery_ids,v.market_signal_ids,v.evidence_ids

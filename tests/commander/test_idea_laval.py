@@ -35,12 +35,21 @@ from idea_generation.laval_providers import (
     ProviderBundle,
 )
 from idea_generation.laval_repository import LavalRepository
+from idea_generation.laval_schemas import SCHEMAS, output_schema, strictly_describes_nested_values
 from idea_generation.laval_service import LavalRunner, LavalService
 from idea_generation.provider import MockLLMProvider
 from idea_generation.store import PostgresStore
 
 
 class LavalDomainTests(unittest.TestCase):
+    def test_every_laval_language_schema_is_strict_at_every_nested_value(self) -> None:
+        self.assertEqual(7, len(SCHEMAS))
+        for mode, schema in SCHEMAS.items():
+            with self.subTest(mode=mode):
+                self.assertTrue(strictly_describes_nested_values(schema))
+                required = next(iter(schema["properties"]))
+                self.assertEqual(schema, output_schema(mode, required))
+
     def test_default_country_contract_and_custom_country_validation(self) -> None:
         config = LavalConfig.from_mapping()
         self.assertEqual(["US", "GB", "DE", "NO", "DK"], [item["code"] for item in config.countries])
@@ -128,6 +137,18 @@ class LavalDomainTests(unittest.TestCase):
         self.assertEqual(1, result["raw_counts"]["relevant_unique_sources"])
         self.assertEqual(0, result["raw_counts"]["recent_dated_sources_365d"])
         self.assertEqual("no_data", result["data_status"]["components"]["recent_content_activity"])
+
+    def test_non_product_serp_pages_are_not_promoted_as_competitors(self) -> None:
+        examples = [
+            {"domain": "quora.com", "title": "How do I prove them wrong?", "snippet": "A discussion"},
+            {"domain": "english.stackexchange.com", "title": "Grammar of prove them wrong", "snippet": "Question"},
+            {"domain": "powerthesaurus.org", "title": "Prove them wrong synonyms", "snippet": "Words"},
+            {"domain": "linkedin.com", "title": "Software testing: prove them wrong", "snippet": "A post"},
+        ]
+        self.assertTrue(all(LavalPipeline._result_type(item) not in {"direct_product", "adjacent_product", "substitute"} for item in examples))
+        self.assertEqual("direct_product", LavalPipeline._result_type({
+            "domain": "example.com", "title": "Public accountability app", "snippet": "A goal challenge platform",
+        }))
 
     def test_market_signal_score_is_fully_reproducible(self) -> None:
         evidence = [{"id": "e-1", "source_url": "https://example.com", "source_type": "forum", "country": "US", "metadata": {"query_family": "category", "published_at": "2026-01-01T00:00:00Z"}}]
@@ -264,6 +285,28 @@ class LavalDomainTests(unittest.TestCase):
         self.assertEqual([{"stage_a_input": 1}, {"stage_b_input": 2}], [payload for _, payload in provider.calls])
         self.assertNotEqual(repository.audits[0]["session_id"], repository.audits[1]["session_id"])
         self.assertEqual(["provider-1", "provider-2"], [item["provider_session_id"] for item in repository.audits])
+
+    def test_fresh_stage_runner_fails_closed_when_live_fallback_is_disabled(self) -> None:
+        class Repository:
+            audits = []
+            def record_llm_invocation(self, *args, **kwargs):
+                self.audits.append({"args": args, **kwargs})
+
+        class Provider:
+            model_name = "test-model"
+            last_invocation = {}
+            def generate_structured(self, *_args, **_kwargs):
+                raise RuntimeError("invalid_json_schema")
+
+        repository = Repository()
+        runner = FreshStageRunner(repository, Provider())
+        with self.assertRaisesRegex(RuntimeError, "invalid_json_schema"):
+            runner.run(
+                "run", "OWNER_DNA", "laval_owner_dna", "prompt", {"raw_text": "idea"},
+                "owner_dna", prompt_template_version="laval_owner_dna-v2-strict", allow_fallback=False,
+            )
+        self.assertEqual("failed", repository.audits[0]["result_status"])
+        self.assertEqual("RuntimeError", repository.audits[0]["error_type"])
 
     def test_bridge_default_model_uses_codex_cli_default_without_model_override(self) -> None:
         from idea_generation.provider import BridgeProvider
@@ -412,6 +455,105 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         self.assertNotEqual(generator["session_id"], evaluator["session_id"])
         self.assertNotEqual(generator["provider_session_id"], evaluator["provider_session_id"])
         self.assertTrue(all("history" not in payload and "messages" not in payload for _, payload in self.pipeline.providers.llm.calls))
+
+    def test_live_language_failure_stops_before_paid_search_and_is_visible_as_invalid(self) -> None:
+        pipeline = LavalPipeline(
+            self.repository,
+            ProviderBundle(
+                llm=MockLLMProvider([RuntimeError("invalid_json_schema")]),
+                search=FixtureSearchProvider(),
+                web=FixtureWebPageProvider(),
+                trends=FixtureTrendProvider(),
+                research=NullResearchSink(),
+            ),
+        )
+        created = self.repository.create_run(
+            "A live concept that must fail closed.",
+            self._config(),
+            actor="test",
+            evidence_mode="live_market_signals",
+            provider_snapshot={"search": "dataforseo", "llm": "bridge"},
+        )
+        with self.assertRaisesRegex(RuntimeError, "invalid_json_schema"):
+            pipeline.run(created["run_id"])
+
+        status = self.repository.status(created["run_id"])
+        self.assertEqual("failed", status["run"]["status"])
+        self.assertEqual("failed", self.repository.stage(created["run_id"], "OWNER_DNA")["status"])
+        self.assertEqual("invalid", status["quality"]["verdict"])
+        self.assertEqual(1, status["quality"]["failed"])
+        self.assertEqual(0, self.store.fetchone(
+            "SELECT count(*) n FROM laval_provider_tasks WHERE run_id=%s",
+            (created["run_id"],),
+        )["n"])
+
+    def test_historical_live_fallback_is_not_presented_as_a_valid_artifact(self) -> None:
+        created = self.repository.create_run(
+            "Preserve a historical fallback as invalid history.",
+            self._config(),
+            evidence_mode="live_market_signals",
+            provider_snapshot={"search": "dataforseo", "llm": "bridge"},
+        )
+        self.repository.record_llm_invocation(
+            created["run_id"], "OWNER_DNA", "laval_owner_dna",
+            prompt_template_version="legacy-v1", context_hash="a" * 64,
+            output_schema_hash="b" * 64, model="codex-cli-default",
+            session_id=str(new_uuid7()), provider_session_id=None,
+            result_status="fallback", error_type="RuntimeError",
+        )
+
+        status = self.repository.status(created["run_id"])
+        shown = self.repository.show(created["run_id"], "OWNER_CAPTURE")
+        self.assertEqual("invalid", status["quality"]["verdict"])
+        self.assertEqual(0, status["quality"]["success"])
+        self.assertEqual(1, status["quality"]["fallback"])
+        self.assertEqual("invalid", shown["quality"]["run"]["verdict"])
+
+    def test_live_dossier_retry_replaces_current_attempt_quality_without_losing_audit(self) -> None:
+        class FailSecondDossierOnce:
+            model_name = "mock-v1"
+            last_invocation = {}
+            def __init__(self):
+                self.delegate = MockLLMProvider()
+                self.dossiers = 0
+                self.failed = False
+            def generate_structured(self, mode, prompt, payload, schema):
+                if mode == "laval_competitor_dossier":
+                    self.dossiers += 1
+                    if self.dossiers == 2 and not self.failed:
+                        self.failed = True
+                        raise RuntimeError("transient dossier failure")
+                result = self.delegate.generate_structured(mode, prompt, payload, schema)
+                self.last_invocation = self.delegate.last_invocation
+                return result
+
+        llm = FailSecondDossierOnce()
+        pipeline = LavalPipeline(
+            self.repository,
+            ProviderBundle(
+                llm=llm, search=FixtureSearchProvider(), web=FixtureWebPageProvider(),
+                trends=FixtureTrendProvider(), research=NullResearchSink(),
+            ),
+        )
+        created = self.repository.create_run(
+            "Retry a partially completed live dossier stage.", self._config(),
+            evidence_mode="live_market_signals",
+            provider_snapshot={"search": "fixture", "llm": "mock"},
+        )
+        with self.assertRaisesRegex(RuntimeError, "transient dossier failure"):
+            pipeline.run(created["run_id"], through_stage="COMPETITOR_DOSSIERS")
+        self.repository.ready(created["run_id"], through_stage="COMPETITOR_DOSSIERS")
+        resumed = pipeline.run(created["run_id"], through_stage="COMPETITOR_DOSSIERS")
+
+        self.assertEqual("paused", resumed["run"]["status"])
+        self.assertEqual("completed", self.repository.stage(created["run_id"], "COMPETITOR_DOSSIERS")["status"])
+        stage_quality = next(item for item in resumed["quality"]["by_stage"] if item["stage"] == "COMPETITOR_DOSSIERS")
+        self.assertEqual(0, stage_quality["failed"])
+        self.assertGreater(stage_quality["success"], 1)
+        self.assertEqual(1, self.store.fetchone(
+            "SELECT count(*) n FROM laval_llm_invocations WHERE run_id=%s AND stage='COMPETITOR_DOSSIERS' AND result_status='failed'",
+            (created["run_id"],),
+        )["n"])
 
     def test_manual_run_pauses_at_gate_and_resumes_after_approval(self) -> None:
         created = self.repository.create_run("Accountability circles for hard goals.", self._config("manual"), actor="test")

@@ -215,6 +215,17 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .market-signal-scores dl { display: grid; gap: 6px; }
 .market-signal-scores dl div { display: flex; justify-content: space-between; gap: 16px; }
 .market-signal-scores code { overflow-wrap: anywhere; }
+.laval-quality { margin: 12px 0; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.laval-quality.invalid { border-color: #a83f4b; background: #290e13; }
+.laval-quality.verified { border-color: #27774d; background: #0e2419; }
+.laval-quality.fixture, .laval-quality.pending { border-color: #856f26; background: #28220e; }
+.laval-quality small { color: var(--pink); font-size: 10px; font-weight: 900; letter-spacing: .1em; }
+.laval-quality h4 { margin: 5px 0 8px; font-size: 18px; }
+.laval-quality p { margin: 6px 0; line-height: 1.45; }
+.laval-quality dl { margin: 10px 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.laval-quality dl div { padding: 9px; border: 1px solid rgba(255,255,255,.12); border-radius: 9px; }
+.laval-quality dt { color: var(--muted); font-size: 9px; }
+.laval-quality dd { margin: 4px 0 0; font-size: 18px; font-weight: 900; }
 .laval-run-head .laval-waiting { margin: 8px 0 0; color: #ffe087; text-transform: none; }
 .laval-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .laval-actions button { min-height: 44px; padding: 0 11px; font-size: 11px; }
@@ -253,6 +264,33 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-inspector-head button { min-height: 44px; padding-inline: 10px; font-size: 10px; }
 .laval-inspector-head svg { width: 14px; }
 .laval-json { max-height: 650px; margin: 14px 0 0; padding: 13px; overflow: auto; border-radius: 11px; color: #c5fbdc; background: #050506; font: 10px/1.5 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.artifact-trust { margin: 14px 0 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; line-height: 1.4; }
+.artifact-trust.invalid { color: #ffd6da; border-color: #a83f4b; background: #290e13; }
+.artifact-trust.verified { color: #d5ffe7; border-color: #27774d; background: #0e2419; }
+.artifact-trust.fixture { color: #fff3bd; border-color: #856f26; background: #28220e; }
+.artifact-readable { margin-top: 16px; }
+.artifact-readable > h4 { margin: 0 0 8px; font-size: 17px; }
+.artifact-readable > p { color: var(--muted); line-height: 1.5; }
+.artifact-facts { display: grid; gap: 7px; }
+.artifact-facts div { padding: 10px; border-left: 2px solid var(--pink); background: rgba(255,255,255,.025); }
+.artifact-facts dt { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.artifact-facts dd { margin: 4px 0 0; line-height: 1.45; }
+.artifact-list { display: grid; gap: 8px; }
+.artifact-list article { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.02); }
+.artifact-list h5 { margin: 4px 0; font-size: 14px; line-height: 1.35; }
+.artifact-list small { color: var(--pink); font: 9px ui-monospace, monospace; text-transform: uppercase; }
+.artifact-list p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.artifact-stats { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; margin: 10px 0; }
+.artifact-stats > div { min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 9px; }
+.artifact-stats strong, .artifact-stats span { display: block; overflow-wrap: anywhere; }
+.artifact-stats strong { font-size: 18px; }
+.artifact-stats span { margin-top: 3px; color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.named-list { margin: 12px 0; }
+.named-list > strong { font-size: 11px; }
+.named-list ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.named-list.compact { margin: 8px 0 0; }
+.laval-raw { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+.laval-raw summary { min-height: 44px; display: flex; align-items: center; color: var(--muted); cursor: pointer; font-size: 11px; }
 .laval-shortlist { margin-top: 14px; }
 .laval-shortlist article { padding: 14px 0; display: grid; grid-template-columns: 28px 1fr auto; gap: 9px; border-top: 1px solid var(--line); }
 .laval-shortlist article > span { color: var(--pink); font-size: 17px; font-weight: 900; }

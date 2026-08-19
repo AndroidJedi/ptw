@@ -70,9 +70,25 @@ export interface LavalStage {
   error?: { type?: string; message?: string }
 }
 
+export interface LavalQualityCount {
+  stage?: string
+  verdict: 'verified' | 'invalid' | 'pending' | 'fixture' | 'not_applicable'
+  attempted: number
+  success: number
+  fallback: number
+  failed: number
+}
+
+export interface LavalRunQuality extends LavalQualityCount {
+  message: string
+  missing_stages: string[]
+  by_stage: LavalQualityCount[]
+}
+
 export interface LavalStatus {
   run: LavalRun
   stages: LavalStage[]
+  quality?: LavalRunQuality
   cost: { items: Array<Record<string, unknown>>; total_usd: number; provider_projected_usd?: number; provider_reserved_usd?: number; provider_actual_usd?: number; max_spend_usd?: number }
   recovery?: {
     available: boolean

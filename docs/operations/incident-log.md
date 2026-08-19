@@ -2,6 +2,30 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-19 — Completed Laval run displayed deterministic fallback as finalists
+
+- Impact: the first completed live Market Signals run showed templated,
+  irrelevant opportunity text and ranked it as a final shortlist even though
+  none of its recorded language invocations succeeded. Paid search evidence
+  was retained, but the resulting synthesis and published hypotheses were not
+  trustworthy.
+- Cause: each `laval_*` output schema constrained only its top-level
+  object/array. Strict Codex output validation rejected the incomplete nested
+  schema before inference, while live execution still permitted deterministic
+  fallback and UI completion/finalist labels ignored invocation provenance.
+  Loose SERP type inference also treated several community, grammar, synonym,
+  and book pages as products.
+- Correction: define complete strict nested schemas and semantic validators for
+  all seven language modes; disable fallback outside fixture mode; block final
+  hypothesis publication unless every mandatory live language stage is
+  model-backed; exclude known non-product result classes; expose run/stage
+  quality counts; render readable Ukrainian summaries with raw JSON collapsed;
+  and preserve the old run as visibly invalid history.
+- Prevention: acceptance must prove schema validity through the real bridge,
+  exact query/operator/evaluation counts, supplied-ID integrity, failure before
+  paid search when the first language stage fails, 0-success historical-run
+  labelling, and the absence of finalist language on fallback artifacts.
+
 ## 2026-08-19 — Laval creation looked started while a stale legacy run looked blocked on Trends
 
 - Impact: the owner selected automatic progression and pressed the live-run

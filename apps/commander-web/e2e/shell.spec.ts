@@ -48,7 +48,7 @@ test.beforeEach(async ({ page }) => {
       stages: stages.map((stage, ordinal) => ({ stage, ordinal, status: ordinal < 5 ? 'completed' : 'pending', attempt: ordinal < 5 ? 1 : 0, provider: ordinal < 5 ? 'fixture' : null, metrics: {}, input_hash: ordinal < 5 ? 'hash' : null })),
       cost: { items: [], total_usd: 0, provider_reserved_usd: 0, provider_actual_usd: 0, max_spend_usd: .05 },
     })
-    if (url.pathname.endsWith('/show')) return json({ output: { proof: 'visible artifact' } })
+    if (url.pathname.endsWith('/show')) return json({ output: { raw_text: 'visible artifact' } })
     if (url.pathname.endsWith('/export')) return route.fulfill({ status: 200, contentType: url.searchParams.get('format') === 'md' ? 'text/markdown' : 'application/json', body: url.searchParams.get('format') === 'md' ? '# DEMO — NO LIVE RESEARCH' : '{"mode":"demo_fixture"}' })
     if (url.pathname === '/api/v1/jobs') return json({ items: [] })
     if (route.request().method() === 'POST') return json({ ok: true })

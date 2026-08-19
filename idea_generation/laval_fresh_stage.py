@@ -10,6 +10,7 @@ from commander.ids import new_uuid7
 
 from .laval_domain import input_hash
 from .laval_repository import LavalRepository
+from .laval_schemas import output_schema
 from .provider import StructuredProvider
 
 
@@ -33,15 +34,9 @@ class FreshStageRunner:
     ) -> dict[str, Any] | None:
         session_id = new_uuid7()
         context_hash = input_hash(payload)
-        value_type = "object" if required in {"owner_dna", "dossier"} else "array"
-        output_schema = {
-            "type": "object",
-            "properties": {required: {"type": value_type}},
-            "required": [required],
-            "additionalProperties": False,
-        }
+        schema = output_schema(mode, required)
         schema_hash = hashlib.sha256(
-            json.dumps(output_schema, sort_keys=True, separators=(",", ":")).encode()
+            json.dumps(schema, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
         model = str(getattr(self.provider, "model_name", "llm"))
         prepare = getattr(self.provider, "prepare_invocation", None)
@@ -49,7 +44,7 @@ class FreshStageRunner:
             prepare(prompt_template_version, context_hash)
         try:
             result = self.provider.generate_structured(
-                mode, prompt, payload, output_schema
+                mode, prompt, payload, schema
             )
             valid = (
                 isinstance(result, dict)

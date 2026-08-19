@@ -101,7 +101,7 @@ def status_response(connection: psycopg.Connection) -> str:
 
 
 def execute_job(connection: psycopg.Connection, job_type: str, job_id: int | None = None,
-                parameters: dict | None = None, reporter=None) -> str:
+                parameters: dict | None = None, reporter=None) -> str | dict:
     if job_type == "ping":
         return "pong"
     if job_type == "version":
@@ -120,21 +120,81 @@ def execute_job(connection: psycopg.Connection, job_type: str, job_id: int | Non
         return execute_structured_llm(parameters)
     raise ValueError(f"Unsupported job type: {job_type}")
 
-def execute_structured_llm(parameters: dict) -> str:
-    codex_home = Path(os.environ.get("CODEX_HOME", "/tmp/ptw-codex")); codex_home.mkdir(mode=0o700,parents=True,exist_ok=True)
-    mounted=Path('/run/ptw-codex-auth/auth.json'); runtime=codex_home/'auth.json'
-    if mounted.is_file() and not runtime.exists(): shutil.copyfile(mounted,runtime); runtime.chmod(0o600)
-    mode=parameters.get('mode')
-    idea_contract='''For generate, evolve, or normalize_human return exactly: {"title":"...","one_liner":"...","details":{"customer":"...","problem":"...","product":"...","business_model":"...","distribution":"...","automation":"...","five_year_exit_logic":"...","key_risks":["..."],"first_validation_test":"..."},"parent_ids":[]}. Return one idea, never an ideas array. For exploit preserve valid parent IDs supplied in input; for explore use an empty array.'''
-    evaluation_contract='''For evaluate return exactly {"evaluations":[...]}, with exactly one entry for every supplied idea ID and no others. Each entry is {"idea_id":integer,"score":number 0..100,"criteria":{"exit_potential":0..25,"founder_independence":0..20,"distribution":0..15,"scalability_economics":0..15,"defensibility":0..15,"speed_capital_efficiency":0..10},"strengths":"...","critique":"...","fatal_flaw":null or "..."}. Criteria must sum exactly to score.'''
-    prompt=("Return ONLY one valid JSON object. No markdown or commentary. You are a bounded business-idea reasoning engine; never edit files or execute tools.\n"
-            +(evaluation_contract if mode=='evaluate' else idea_contract)+"\nREQUEST:\n"+json.dumps(parameters,ensure_ascii=False))
-    with tempfile.TemporaryDirectory(prefix='ptw-llm-') as directory:
-        output=Path(directory)/'result.json'
-        command=[os.getenv('CODEX_EXECUTABLE','codex'),'exec','--ephemeral','--ignore-user-config','--dangerously-bypass-approvals-and-sandbox','--cd',directory,'--output-last-message',str(output),prompt]
-        completed=subprocess.run(command,text=True,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,timeout=300,env=os.environ.copy())
-        if completed.returncode: raise RuntimeError('structured model execution failed')
-        data=json.loads(output.read_text(encoding='utf-8')); return json.dumps(data,ensure_ascii=False)
+def _codex_session_id(stdout: str) -> str:
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        session_id = event.get("thread_id") or event.get("session_id")
+        if isinstance(session_id, str) and session_id:
+            return session_id
+    raise RuntimeError("structured model execution did not report a session ID")
+
+
+def execute_structured_llm(parameters: dict) -> dict:
+    """Run one schema-bound Codex invocation with no reusable conversation state."""
+    codex_home = Path(os.environ.get("CODEX_HOME", "/tmp/ptw-codex"))
+    codex_home.mkdir(mode=0o700, parents=True, exist_ok=True)
+    mounted = Path("/run/ptw-codex-auth/auth.json")
+    runtime = codex_home / "auth.json"
+    if mounted.is_file() and not runtime.exists():
+        shutil.copyfile(mounted, runtime)
+        runtime.chmod(0o600)
+
+    prompt = (
+        parameters["system_prompt"].strip()
+        + "\n\nReturn only one JSON object matching the supplied schema."
+        + "\nINPUT_PAYLOAD:\n"
+        + json.dumps(parameters["input_payload"], ensure_ascii=False, sort_keys=True)
+    )
+    with tempfile.TemporaryDirectory(prefix="ptw-llm-") as directory:
+        output = Path(directory) / "result.json"
+        schema = Path(directory) / "output-schema.json"
+        schema.write_text(
+            json.dumps(parameters["output_schema"], ensure_ascii=False, sort_keys=True),
+            encoding="utf-8",
+        )
+        command = [
+            os.getenv("CODEX_EXECUTABLE", "codex"),
+            "exec",
+            "--ephemeral",
+            "--ignore-user-config",
+            "--sandbox",
+            "read-only",
+            "--skip-git-repo-check",
+            "--json",
+            "--cd",
+            directory,
+            "--output-schema",
+            str(schema),
+            "--output-last-message",
+            str(output),
+            "-",
+        ]
+        completed = subprocess.run(
+            command,
+            input=prompt,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=300,
+            env=os.environ.copy(),
+        )
+        if completed.returncode:
+            raise RuntimeError("structured model execution failed")
+        data = json.loads(output.read_text(encoding="utf-8"))
+        session_id = _codex_session_id(completed.stdout)
+        return {
+            "response": json.dumps(data, ensure_ascii=False),
+            "invocation": {
+                "session_id": session_id,
+                "session_mode": "fresh",
+                "ephemeral": True,
+                "conversation_reused": False,
+                "model": parameters.get("model") or os.getenv("PTW_CODEX_MODEL", "default"),
+            },
+        }
 
 
 def send_telegram(parameters: dict, text: str) -> None:
@@ -187,14 +247,18 @@ def process_one(connection: psycopg.Connection) -> bool:
     try:
         if job_type == "engineer":
             send_telegram(parameters, f"TASK-{job_id} started. Stage and issue updates will be reported automatically. Use /inspect TASK-{job_id} at any time.")
-        text = execute_job(
+        result = execute_job(
             connection, job_type, job_id, parameters,
             reporter=lambda update: send_telegram(parameters, update),
         )
-        if job_type != 'llm_structured': send_telegram(parameters, text)
+        if job_type != 'llm_structured':
+            send_telegram(parameters, result)
+            stored_result = {"response": result}
+        else:
+            stored_result = result
         connection.execute(
             "UPDATE jobs SET status = 'completed', result = %s, finished_at = now() WHERE id = %s",
-            (Jsonb({"response": text}), job_id),
+            (Jsonb(stored_result), job_id),
         )
         if job_type != 'llm_structured': append_event(
             connection, "JOB_COMPLETED", "commander-worker", status="completed",

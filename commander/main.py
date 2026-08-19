@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import re
@@ -36,6 +37,38 @@ IDEA_COMMANDS = frozenset({
     "/context", "/context_set", "/context_name", "/context_history", "/context_restore",
     "/context_enable", "/context_disable", "/executions", "/errors", "/cost", "/task", "/help",
 })
+STRUCTURED_LLM_MODES = frozenset({
+    "generate",
+    "evaluate",
+    "evolve",
+    "normalize_human",
+    "telegram_chat",
+    "laval_owner_dna",
+    "laval_query_plan",
+    "laval_competitor_dossier",
+    "laval_opportunity_matrix",
+    "laval_market_signal_relevance",
+    "laval_idea_expansion",
+    "laval_idea_evaluation",
+})
+MAX_STRUCTURED_LLM_REQUEST_BYTES = 1_000_000
+
+
+def validate_structured_llm_request(request: dict) -> None:
+    """Reject malformed or unexpectedly large internal model requests."""
+    if (
+        request.get("mode") not in STRUCTURED_LLM_MODES
+        or not isinstance(request.get("system_prompt"), str)
+        or not request["system_prompt"].strip()
+        or not isinstance(request.get("input_payload"), dict)
+        or not isinstance(request.get("output_schema"), dict)
+    ):
+        raise ValueError("invalid structured LLM request")
+    for field in ("prompt_template_version", "context_hash", "model"):
+        if field in request and not isinstance(request[field], str):
+            raise ValueError("invalid structured LLM request")
+    if len(json.dumps(request, ensure_ascii=False).encode("utf-8")) > MAX_STRUCTURED_LLM_REQUEST_BYTES:
+        raise ValueError("structured LLM request is too large")
 
 
 def bridge_target(command: str, text: str) -> str | None:
@@ -602,9 +635,10 @@ app = FastAPI(
 def enqueue_structured_llm(request: dict, x_ptw_bridge_token: str = Header(default="")) -> dict:
     if not hmac.compare_digest(x_ptw_bridge_token, secrets.get("TELEGRAM_BOT_TOKEN")):
         raise HTTPException(status_code=403, detail="invalid bridge token")
-    allowed_modes = {"generate", "evaluate", "evolve", "normalize_human", "telegram_chat"}
-    if request.get("mode") not in allowed_modes or not isinstance(request.get("input_payload"), dict):
-        raise HTTPException(status_code=400, detail="invalid structured LLM request")
+    try:
+        validate_structured_llm_request(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     owner = min(allowed_user_ids())
     with psycopg.connect(database_url(secrets)) as connection:
         user_id = connection.execute("INSERT INTO users(telegram_user_id,role) VALUES(%s,'operator') ON CONFLICT(telegram_user_id) DO UPDATE SET role=users.role RETURNING id", (owner,)).fetchone()[0]

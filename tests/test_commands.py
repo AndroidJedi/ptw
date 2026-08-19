@@ -1,6 +1,9 @@
-from commander.main import (IDEA_COMMANDS, SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
+import pytest
+
+from commander.main import (IDEA_COMMANDS, STRUCTURED_LLM_MODES, SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
                             bridge_target, engineering_task, normalized_command,
-                            public_health, safe_bridge_error, task_research_reference)
+                            public_health, safe_bridge_error, task_research_reference,
+                            validate_structured_llm_request)
 
 
 def test_command_routing_is_deterministic() -> None:
@@ -55,3 +58,36 @@ def test_task_can_consume_an_explicit_research_hypothesis() -> None:
         "abc-123", "implement onboarding"
     )
     assert task_research_reference("implement onboarding") == (None, "implement onboarding")
+
+
+def test_structured_bridge_accepts_laval_modes_and_full_contract() -> None:
+    assert {
+        "laval_owner_dna",
+        "laval_query_plan",
+        "laval_competitor_dossier",
+        "laval_opportunity_matrix",
+        "laval_market_signal_relevance",
+        "laval_idea_expansion",
+        "laval_idea_evaluation",
+    } <= STRUCTURED_LLM_MODES
+    validate_structured_llm_request({
+        "mode": "laval_market_signal_relevance",
+        "system_prompt": "Classify evidence.",
+        "input_payload": {"evidence_ids": ["e-1"]},
+        "output_schema": {"type": "object"},
+        "prompt_template_version": "market-signal-v1",
+        "context_hash": "sha256:abc",
+    })
+
+
+@pytest.mark.parametrize("missing", ["system_prompt", "input_payload", "output_schema"])
+def test_structured_bridge_rejects_incomplete_contract(missing: str) -> None:
+    request = {
+        "mode": "laval_owner_dna",
+        "system_prompt": "Return DNA.",
+        "input_payload": {},
+        "output_schema": {"type": "object"},
+    }
+    request.pop(missing)
+    with pytest.raises(ValueError, match="invalid structured LLM request"):
+        validate_structured_llm_request(request)

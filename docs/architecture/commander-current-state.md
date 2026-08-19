@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: seamless Laval start and legacy Market Signals recovery implemented
+Status: seamless Laval start and legacy Market Signals recovery deployed
 Updated: 2026-08-19
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -173,6 +173,16 @@ verified Google Firebase user.
 
 ## Verification
 
+- Seamless Laval Hosting release `ca95e7a78db478c1` serves
+  `index-DMjj1FUz.js`, `App-CPpo1qZU.js`, and `ptw-shell-v11`. Fourteen Vitest
+  checks and nine Playwright checks across desktop Chrome, mobile Chrome, and
+  iPhone WebKit pass, including one-click create/start, automatic-mode default,
+  exact-run deep-link selection, and the single legacy Market Signals recovery
+  action. The live shell/assets, gateway health, negative authentication, and
+  CORS audit passes. No run was started or resumed during deployment. The Idea
+  container was intentionally not recreated while a pending run exists, so the
+  notification deep-link formatter is committed but awaits the next safe Idea
+  image rollout.
 - React TypeScript, thirteen Vitest tests, six Playwright browser tests across
   desktop Chrome, Pixel emulation, and iPhone WebKit, and the production Vite
   build pass. Regression coverage clicks Laval creation, all 16 stage cards,

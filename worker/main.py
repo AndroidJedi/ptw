@@ -161,8 +161,9 @@ def execute_structured_llm(parameters: dict) -> dict:
             "--ephemeral",
             "--ignore-user-config",
         ]
-        if parameters.get("model"):
-            command.extend(["--model", str(parameters["model"])])
+        requested_model = str(parameters.get("model") or "").strip()
+        if requested_model and requested_model != "codex-cli-default":
+            command.extend(["--model", requested_model])
         command.extend([
             "--sandbox",
             "read-only",
@@ -196,7 +197,7 @@ def execute_structured_llm(parameters: dict) -> dict:
                 "session_mode": "fresh",
                 "ephemeral": True,
                 "conversation_reused": False,
-                "model": parameters.get("model") or os.getenv("PTW_CODEX_MODEL", "default"),
+                "model": requested_model or "codex-cli-default",
             },
         }
 

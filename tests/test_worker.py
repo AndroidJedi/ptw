@@ -98,3 +98,28 @@ def test_structured_llm_requires_reported_fresh_session_id(monkeypatch) -> None:
         assert "session ID" in str(exc)
     else:
         raise AssertionError("missing session ID must fail the invocation")
+
+
+def test_structured_llm_cli_default_omits_model_override(monkeypatch) -> None:
+    observed = {}
+
+    def fake_run(command, **_kwargs):
+        observed["command"] = command
+        output_path = Path(command[command.index("--output-last-message") + 1])
+        output_path.write_text('{"classifications": []}', encoding="utf-8")
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout='{"type":"thread.started","thread_id":"fresh-default"}\n',
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    result = execute_structured_llm({
+        "mode": "laval_market_signal_relevance",
+        "system_prompt": "Classify supplied pairs.",
+        "input_payload": {},
+        "output_schema": {"type": "object"},
+        "model": "codex-cli-default",
+    })
+    assert "--model" not in observed["command"]
+    assert result["invocation"]["model"] == "codex-cli-default"

@@ -66,7 +66,7 @@ Use repository runbooks as authority.
   explicit owner authorization.
 - Use disposable databases for migration tests unless an exact production
   target is explicitly authorized.
-- Expose only canonical Idea Laval v2. Never seed or expose C01-C10, synthetic
+- Expose only canonical Idea Laval v3. Never seed or expose C01-C10, synthetic
   owner ideas, Idea Evolution, or fixture/demo records as production owner data.
 - Never run `scripts/reset_ptw.sh` without the owner's exact irreversible-reset
   request and confirmation.
@@ -96,8 +96,10 @@ Use repository runbooks as authority.
 6. Load and verify one image at a time. Apply numbered migrations once, then
    start services in dependency order: Commander database if required,
    Commander migration, Commander API, Idea API, Owner Gateway, and finally web
-   Hosting after API verification. Never start `commander-worker` or
-   `commander-ad-worker` on the 1 GB profile.
+   Hosting after API verification. Never start the retired `/root/ptw`
+   `commander-worker` or `commander-ad-worker` on the 1 GB profile. The
+   unrelated `/opt/ptw/platform` `commander-worker` is the required Codex/LLM
+   bridge and must remain healthy.
 7. Validate loopback/public health, exact-owner auth, App Check, API calls,
    persistence, restart behavior, and user-facing errors.
 8. For Commander changes, run the repository-mandated tests, demo, and
@@ -188,6 +190,12 @@ an API model name such as `gpt-5` can be rejected by Codex subscription auth.
 After a bridge release, run one schema-bound `laval_market_signal_relevance`
 canary outside any Laval run and require `session_mode=fresh`,
 `ephemeral=true`, `conversation_reused=false`, and a schema-valid response.
+The canary creates a platform `llm_structured` job but must not create or mutate
+an Idea Laval run. If a canary fails, retain the failed job as history, inspect
+its sanitized issue, deploy the correction, require a successful replacement
+canary, and only then mark the generated issue resolved with the real cause and
+acceptance evidence. An out-of-run canary has no `laval_llm_invocations` row;
+that audit begins only when a Laval stage calls `FreshStageRunner`.
 
 Do not leave a production recovery as an invisible agent-only action. Normal
 recovery must be available through the Ideas view's **Resume saved work**
@@ -206,6 +214,26 @@ owner action: never trigger it during deploy or startup. Before and after the
 action compare persisted remote task IDs, provider actual cost, evidence count,
 and lineage. Completed legacy Trends runs are immutable history and are never
 upgraded. Google Trends readiness is optional for new `market_signals_v2` runs.
+
+When the owner asks to “run the PTW idea again,” resolve the selected run before
+acting and distinguish three different operations:
+
+- **Resume with Market Signals** upgrades the existing eligible paused legacy
+  run in place, reuses paid work, and is the correct action for a Google Trends
+  blocker.
+- **Rerun stage** deliberately invalidates downstream artifacts and is not a
+  synonym for resume. Use it only when the owner names the stage or correction.
+- **New Laval idea** creates a separate run and a new spend budget. Never choose
+  this when the owner means the already-paid PTW run.
+
+Immediately before owner resume, require zero active Laval runs and snapshot
+the selected run ID, status/current stage, pipeline version, persisted remote-ID
+count, exactly-once cost-record count, provider actual cost, evidence count, and
+lineage count without printing remote IDs. After the click, prove the same run
+changed to `market_signals_v2`/`live_market_signals`, ordinals 8-10 became the
+three Market Signal stages, one authenticated `resume_with_market_signals`
+action was appended, and all snapshot counts remain unchanged before claiming
+safe reuse.
 
 ## Capture reusable incident knowledge
 

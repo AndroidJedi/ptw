@@ -97,6 +97,36 @@ the stored version/formula, all six numeric components, raw counters,
 `available` versus `no_data`, and evidence IDs. Never display or apply a hidden
 coverage multiplier.
 
+If the owner asks to run the same PTW idea again, do not direct them to **New
+Laval idea** or **Rerun**. Select the existing run and use **Resume with Market
+Signals** only when its status response explicitly reports
+`resume_with_market_signals_available=true`. Before the click, record safe
+aggregate baselines: run ID, paused status, current stage, pipeline version,
+active-run count, provider-task count, persisted remote-ID count, recorded-cost
+count and total, evidence count, and lineage count. Never render remote task IDs
+in UI, logs, or chat.
+
+After the authenticated owner click, verify all of these boundaries:
+
+1. The request is exactly `POST /api/v1/laval/runs/{run_id}/resume-market-signals`
+   with Firebase ID token and App Check; it is not generic resume or rerun.
+2. The same run now uses `market_signals_v2` and `live_market_signals`; ordinal
+   stages 8-10 are Plan, Collection, and Gate, while completed earlier stages
+   remain intact.
+3. Exactly one `resume_with_market_signals` action carries the authenticated
+   Firebase actor. Paid-task, remote-ID, recorded-cost, total-cost, evidence,
+   and pre-existing lineage baselines did not decrease or duplicate.
+4. `laval_llm_invocations` appends fresh stage rows with different local and
+   provider session IDs and truthful `success/fallback/failed` outcomes. A
+   standalone bridge canary is expected not to appear in this table.
+5. Market Signal cards expose the exact stored formula/version, six components,
+   raw counters, `available`/`no_data`, and evidence IDs. The score contains no
+   `coverage` field or hidden multiplier, and finalists can complete without
+   Google Trends.
+
+The button starts work immediately after the owner confirms it. Do not click it
+merely to test visibility; use read-only status inspection for that check.
+
 Treat “Firebase ID token and App Check are required” as an incomplete request,
 not a reason to relax authentication. The gateway uses one message when either
 value is empty, so determine which browser header is missing. In the first

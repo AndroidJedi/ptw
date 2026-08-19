@@ -2,6 +2,27 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-19 — Laval creation looked started while a stale legacy run looked blocked on Trends
+
+- Impact: the owner selected automatic progression and pressed the live-run
+  creation action, but the new run remained `pending` behind a second Start
+  button. A separately selected legacy run still displayed “waiting for Google
+  Trends,” a retired Telegram action, and a competing approval action even
+  though the API already exposed the Market Signals upgrade.
+- Cause: web creation and execution were two actions with ambiguous labels;
+  automatic mode controlled only approval gates. The notification canary had
+  projected a real historical run without a test label, and an already-open PWA
+  tab retained the pre-Market-Signals UI, making the unrelated run look like the
+  result of the new creation.
+- Correction: make web creation create and start in one click, select automatic
+  progression by default, label saved pending runs as not started, expose one
+  mutually exclusive legacy continuation action, remove Trends-wait language,
+  deep-link notifications to the exact run, and bump the shell cache.
+- Prevention: browser coverage must assert the create-then-start request pair,
+  exact-run deep links, and the absence of approval/provider-wait competition on
+  eligible legacy runs. Never force a production notification canary against a
+  real owner run unless the message is unmistakably labelled as a test.
+
 ## 2026-08-19 — Recurrent 1 GB VPS stall after normal daytime latency
 
 - Impact: the Owner Console remained on “Завантаження…”, the gateway timed out,

@@ -62,6 +62,12 @@ test('renders the authenticated owner console without horizontal overflow', asyn
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })
 
+test('opens the exact Laval run from a notification deep link', async ({ page }) => {
+  await page.goto(`/?e2e=1&page=ideas&run=${runId}`)
+  await expect(page.getByText(`RUN ${runId.slice(0, 8)}…${runId.slice(-4)}`)).toBeVisible()
+  await expect(page.getByText('DEMO — NO LIVE RESEARCH').first()).toBeVisible()
+})
+
 test('exercises Laval mobile controls, demo gating, stage focus, and export fallback', async ({ page, browserName }) => {
   await page.goto('/?e2e=1')
   await page.getByRole('button', { name: 'Ідеї' }).last().click()
@@ -72,8 +78,8 @@ test('exercises Laval mobile controls, demo gating, stage focus, and export fall
   await expect(page.getByText(/DataForSEO ще не налаштовано/)).toBeVisible()
   await expect(page.getByRole('radio', { name: /Живе дослідження/ })).toBeDisabled()
   await page.getByLabel('Повний текст ідеї').fill('Mobile demo idea')
-  await page.getByRole('button', { name: /Створити чітко позначене демо/ }).click()
-  await expect(page.getByText(/Демо-запуск створено/)).toBeVisible()
+  await page.getByRole('button', { name: /Запустити демо/ }).click()
+  await expect(page.getByText(/Демо запущено/)).toBeVisible()
 
   await page.getByRole('button', { name: /OWNER CAPTURE/ }).click()
   await expect(page.getByText(/visible artifact/)).toBeVisible()

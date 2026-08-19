@@ -167,8 +167,6 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-create > div:first-child { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
 .laval-create > div:first-child button { width: 44px; min-height: 44px; border: 0; color: #fff; background: transparent; }
 .laval-create label, .laval-override label { display: block; color: var(--muted); font-size: 11px; font-weight: 750; }
-.laval-create .check-row { min-height: 48px; display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
-.laval-create .check-row input { width: 22px; height: 22px; margin: 0; accent-color: var(--pink); }
 .laval-error, .laval-failure { margin: 10px 0; padding: 12px; border: 1px solid #7d3030; border-radius: 12px; color: #ffaaaa; background: #250d0d; font-size: 12px; }
 .laval-error { position: fixed; z-index: 60; top: max(10px, env(safe-area-inset-top)); right: 10px; left: 10px; display: flex; gap: 8px; justify-content: space-between; align-items: center; box-shadow: 0 12px 40px #000b; }
 .laval-error span { flex: 1; }
@@ -178,12 +176,15 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-mode { margin: 10px 0 16px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
 .laval-mode legend { color: #fff; font-size: 12px; font-weight: 850; }
 .laval-mode label { min-height: 48px; display: flex; gap: 10px; align-items: center; }
+.laval-mode label span { line-height: 1.4; }
+.laval-mode label strong { color: #fff; }
 .laval-mode input { width: 22px; height: 22px; margin: 0; accent-color: var(--pink); }
 .laval-mode p { margin: 6px 0 0; color: #ffcf8b; font-size: 11px; }
 .laval-layout { display: grid; gap: 14px; }
 .laval-runs { display: flex; gap: 8px; overflow-x: auto; }
 .laval-runs > button { min-width: 210px; min-height: 112px; padding: 12px; display: grid; gap: 7px; text-align: left; border: 1px solid var(--line); border-radius: 14px; color: #fff; background: var(--panel); }
 .laval-runs > button.selected { border-color: var(--pink); background: #2b101d; }
+.laval-run-badges { display: flex; flex-wrap: wrap; gap: 5px; }
 .laval-runs span, .laval-run-head p { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 10px; text-transform: uppercase; }
 .laval-runs strong { overflow: hidden; font-size: 12px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .laval-runs small { color: var(--pink); font: 9px ui-monospace, monospace; }
@@ -191,6 +192,8 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .evidence-badge.live_complete { border-color: #2e9b67; color: #99f0c0; }
 .evidence-badge.live_market_signals { border-color: #2e9b67; color: #99f0c0; }
 .evidence-badge.live_search_pending_trends { border-color: #8b7118; color: #ffe087; }
+.run-mode-badge { width: fit-content; padding: 4px 7px; border: 1px solid #59606c; border-radius: 999px; color: #c9ced8; font: 8px ui-monospace, monospace; font-style: normal; letter-spacing: .04em; }
+.run-mode-badge.automatic { border-color: #2e9b67; color: #99f0c0; }
 .status-dot { width: 8px; height: 8px; flex: 0 0 auto; display: inline-block; border-radius: 50%; background: var(--muted); }
 .status-dot.running, .status-dot.pending { background: var(--yellow); box-shadow: 0 0 0 3px #443814; }
 .status-dot.completed { background: var(--green); }
@@ -201,6 +204,9 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-run-head h3 { margin: 5px 0; font-size: 22px; }
 .laval-run-head p { margin: 0 0 14px; }
 .laval-run-head .evidence-badge { display: block; margin-top: 7px; }
+.laval-run-head .laval-run-badges { margin-top: 7px; }
+.laval-run-head .laval-run-badges .evidence-badge { margin-top: 0; }
+.laval-run-head .laval-pending-note { margin: 8px 0; color: #ffe087; text-transform: none; }
 
 .market-signal-scores { display: grid; gap: 12px; }
 .market-signal-scores article { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: rgba(255,255,255,.02); }

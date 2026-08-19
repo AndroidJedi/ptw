@@ -24,10 +24,19 @@ describe('LavalEngine', () => {
     expect(screen.getByText('Evidence → opportunity → market signals → ideas')).toBeInTheDocument()
   })
 
-  it('submits the owner idea through the Laval API', async () => {
-    const post = vi.fn().mockReturnValue(new Promise(() => undefined))
+  it('creates and starts the owner idea in one click with automatic progression by default', async () => {
+    const runId = '01234567-89ab-7def-8123-456789abcdef'
+    const post = vi.fn()
+      .mockResolvedValueOnce({ run_id: runId })
+      .mockResolvedValueOnce({ started: true })
     const api = {
-      get: vi.fn((path: string) => Promise.resolve(path.includes('/providers') ? readiness : { items: [] })),
+      get: vi.fn((path: string) => Promise.resolve(path.includes('/providers') ? readiness : path.includes(runId) ? {
+        run: {
+          id: runId, owner_idea_id: runId, status: 'running', current_stage: 'OWNER_DNA', approval_mode: 'automatic', approval_gates: [],
+          config: {}, evidence_mode: 'demo_fixture', provider_snapshot: {}, max_spend_usd: .05, reserved_spend_usd: .04,
+        },
+        stages: [], cost: { items: [], total_usd: 0 },
+      } : { items: [] })),
       post,
       blob: vi.fn(),
     } as unknown as ApiClient
@@ -35,13 +44,13 @@ describe('LavalEngine', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /Нова Laval-ідея/ }))
     fireEvent.change(screen.getByLabelText('Повний текст ідеї'), { target: { value: 'A fully formed owner idea' } })
-    fireEvent.click(await screen.findByRole('button', { name: /Створити чітко позначене демо/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Запустити демо/ }))
 
     await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/laval/runs', {
       text: 'A fully formed owner idea',
       mode: 'demo',
       config: {
-        approval_mode: 'manual',
+        approval_mode: 'automatic',
         countries: [
           { code: 'US', language: 'en' },
           { code: 'GB', language: 'en' },
@@ -51,6 +60,37 @@ describe('LavalEngine', () => {
         ],
       },
     }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/laval/runs/${runId}/run`, {}))
+    expect(await screen.findByText(/Демо запущено/)).toBeInTheDocument()
+  })
+
+  it('shows one Market Signals recovery action for an eligible legacy run', async () => {
+    const run = {
+      id: '01234567-89ab-7def-8123-456789abcdef', owner_idea_id: '11234567-89ab-7def-8123-456789abcdef',
+      status: 'paused', current_stage: 'OPPORTUNITY_MATRIX', approval_mode: 'manual', approval_gates: ['OPPORTUNITY_MATRIX'],
+      owner_preview: 'Saved live research', completed_stages: 8, variant_count: 0, config: {},
+      evidence_mode: 'live_search_pending_trends', pipeline_version: 'legacy-trends-v2',
+      provider_snapshot: { search: 'dataforseo', trends: 'unavailable' }, awaiting_reason: 'awaiting_trends_provider',
+      max_spend_usd: .05, reserved_spend_usd: .04, created_at: '2026-08-18T14:22:22Z', updated_at: '',
+    }
+    const status = {
+      run,
+      stages: [{ stage: 'OPPORTUNITY_MATRIX', ordinal: 7, status: 'completed', attempt: 1, metrics: {} }],
+      cost: { items: [], total_usd: .0372, provider_actual_usd: .0372 },
+      resume_with_market_signals_available: true,
+    }
+    const post = vi.fn(() => Promise.resolve({ started: true }))
+    const api = {
+      get: vi.fn((path: string) => Promise.resolve(path.includes('/providers') ? readiness : path.includes(run.id) ? status : { items: [run] })),
+      post, blob: vi.fn(),
+    } as unknown as ApiClient
+    render(<LavalEngine api={api} language="uk" />)
+
+    expect(await screen.findByText('LIVE · LEGACY PIPELINE')).toBeInTheDocument()
+    expect(screen.getByText(/Google Trends не потрібен/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Схвалити й продовжити/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Продовжити дослідження' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/laval/runs/${run.id}/resume-market-signals`, {}))
   })
 
   it('labels fixture runs and shows stage API failures instead of claiming the artifact is absent', async () => {

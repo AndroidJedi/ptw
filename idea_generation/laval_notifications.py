@@ -56,6 +56,10 @@ def format_laval_status_message(status: Mapping[str, Any], event: str) -> str:
             lines.append("Blocked legacy run: provider action is required in the web app.")
     elif run.get("status") == "paused" and current in (run.get("approval_gates") or []):
         lines.append(f"Action: review and approve {current} in the app.")
+    lines.append(
+        "Web: https://provethemwrong-86123.firebaseapp.com/?page=ideas&run="
+        f"{run['id']}"
+    )
     lines.append("Stages:")
     for stage in stages:
         stage_status = str(stage.get("status") or "unknown")
@@ -64,7 +68,6 @@ def format_laval_status_message(status: Mapping[str, Any], event: str) -> str:
             f"{marker} S{int(stage.get('ordinal') or 0):02d} {stage.get('stage')} — "
             f"{stage_status} #{int(stage.get('attempt') or 0)}"
         )
-    lines.append("Web: https://provethemwrong-86123.firebaseapp.com")
     return "\n".join(lines)[:4096]
 
 

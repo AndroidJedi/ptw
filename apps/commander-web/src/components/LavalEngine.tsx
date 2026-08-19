@@ -17,10 +17,23 @@ function countries(value: string) {
 function short(value?: string) { return value ? `${value.slice(0, 8)}…${value.slice(-4)}` : '—' }
 function humanStage(value: string) { return value.replaceAll('_', ' ') }
 function isI18n(value: unknown): value is I18n { return Boolean(value && typeof value === 'object' && 'en' in value && 'uk' in value) }
+function runStatusLabel(status: LavalRun['status']) {
+  return {
+    pending: 'НЕ ЗАПУЩЕНО', running: 'ВИКОНУЄТЬСЯ', paused: 'ПРИЗУПИНЕНО',
+    completed: 'ЗАВЕРШЕНО', failed: 'ПОМИЛКА', cancelled: 'СКАСОВАНО',
+  }[status]
+}
+function runModeLabel(mode: LavalRun['approval_mode']) { return mode === 'automatic' ? 'АВТО · БЕЗ ЗУПИНОК' : 'З ПЕРЕВІРКОЮ' }
+function runCreatedLabel(value?: string) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('uk-UA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date)
+}
 function evidenceLabel(mode?: LavalEvidenceMode) {
   if (mode === 'live_complete') return 'LIVE COMPLETE'
   if (mode === 'live_market_signals') return 'LIVE · MARKET SIGNALS'
-  if (mode === 'live_search_pending_trends') return 'LIVE SEARCH — WAITING FOR TRENDS'
+  if (mode === 'live_search_pending_trends') return 'LIVE · LEGACY PIPELINE'
   return 'DEMO — NO LIVE RESEARCH'
 }
 
@@ -53,10 +66,10 @@ function correctionTargetLabel(target: OverrideTarget) {
   return `Оцінка тренду · ${target.term || '—'} · ${target.country || '—'} / ${target.time_window || '—'}`
 }
 
-export function LavalEngine({ api, language }: { api: ApiClient; language: Language }) {
+export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; language: Language; initialRunId?: string }) {
   const [runs, setRuns] = useState<LavalRun[] | null>(null)
   const [providers, setProviders] = useState<LavalProviderReadiness | null>(null)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(initialRunId || null)
   const [status, setStatus] = useState<LavalStatus | null>(null)
   const [stageName, setStageName] = useState('')
   const [stageOutput, setStageOutput] = useState<unknown>(null)
@@ -65,7 +78,7 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
   const [showCreate, setShowCreate] = useState(false)
   const [idea, setIdea] = useState('')
   const [countryText, setCountryText] = useState(DEFAULT_COUNTRIES)
-  const [automatic, setAutomatic] = useState(false)
+  const [approvalMode, setApprovalMode] = useState<'automatic' | 'manual'>('automatic')
   const [requestedMode, setRequestedMode] = useState<'demo' | 'live'>('demo')
   const [busy, setBusy] = useState(false)
   const [busyAction, setBusyAction] = useState('')
@@ -76,11 +89,15 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
   const [exportPreview, setExportPreview] = useState<{ filename: string; text: string } | null>(null)
   const inspectorRef = useRef<HTMLElement>(null)
 
-  const loadRuns = async () => {
+  const loadRuns = async (preferredRunId?: string) => {
     try {
       const result = await api.get<{ items: LavalRun[] }>('/api/v1/laval/runs?limit=30')
       setRuns(result.items)
-      if (!selected && result.items[0]) setSelected(result.items[0].id)
+      setSelected((current) => {
+        const requested = preferredRunId || current
+        if (requested && result.items.some((item) => item.id === requested)) return requested
+        return result.items[0]?.id || null
+      })
     } catch (cause) { setError((cause as Error).message) }
   }
   const loadProviders = async () => {
@@ -120,18 +137,27 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
     finally { setBusy(false); setBusyAction('') }
   }
   const create = async () => {
-    setBusy(true); setError('')
+    setBusy(true); setBusyAction('create'); setError(''); setNotice('')
     try {
       const result = await api.post<{ run_id: string }>('/api/v1/laval/runs', {
         text: idea,
         mode: requestedMode,
-        config: { countries: countries(countryText), approval_mode: automatic ? 'automatic' : 'manual' },
+        config: { countries: countries(countryText), approval_mode: approvalMode },
       })
       setIdea(''); setShowCreate(false); setSelected(result.run_id)
-      await loadRuns()
-      setNotice(requestedMode === 'demo' ? 'Демо-запуск створено. Його дані не є живим дослідженням.' : 'Живий запуск створено.')
+      try {
+        const launch = await api.post<{ started?: boolean }>(`/api/v1/laval/runs/${result.run_id}/run`, {})
+        setNotice(launch.started === false
+          ? 'Дослідження вже виконується.'
+          : requestedMode === 'demo'
+            ? 'Демо запущено. Воно чітко позначене як неживе дослідження.'
+            : 'Живе дослідження запущено. Етапи оновлюються автоматично.')
+      } catch (cause) {
+        setError(`Ідею збережено, але запуск не розпочався: ${(cause as Error).message}`)
+      }
+      await loadStatus(result.run_id); await loadRuns(result.run_id)
     } catch (cause) { setError((cause as Error).message) }
-    finally { setBusy(false) }
+    finally { setBusy(false); setBusyAction('') }
   }
   const inspect = async (stage: LavalStage, selectedView = view, country = countryFilter) => {
     if (!selected) return
@@ -187,7 +213,14 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
   }
 
   const current = status?.stages.find((item) => item.stage === status.run.current_stage)
-  const approval = Boolean(status?.run.status === 'paused' && current && ['completed', 'partial'].includes(current.status) && status.run.approval_gates.includes(current.stage))
+  const approval = Boolean(
+    status?.run.status === 'paused'
+    && !status.run.awaiting_reason
+    && !status.resume_with_market_signals_available
+    && current
+    && ['completed', 'partial'].includes(current.status)
+    && status.run.approval_gates.includes(current.stage),
+  )
   const configuredCountries = useMemo(() => ((status?.run.config.countries as Array<{ code: string }> | undefined) || []).map((item) => item.code), [status])
 
   return <section className="laval-engine">
@@ -207,15 +240,18 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
         {!providers?.search_live_ready && <p>DataForSEO ще не налаштовано. Живий запуск заблоковано.</p>}
         {providers?.search_live_ready && !providers.trends_live_ready && <p>Google Trends не підключено — це необов’язкове джерело і запуск продовжиться без нього.</p>}
       </fieldset>
-      <label className="check-row"><input type="checkbox" checked={automatic} onChange={(event) => setAutomatic(event.target.checked)} /><span>Автоматично проходити контрольні точки</span></label>
-      <button className="primary large" disabled={busy || !idea.trim() || (requestedMode === 'demo' ? !providers?.demo_available : !providers?.search_live_ready)} onClick={create}><FlaskConical />{busy ? 'Створення…' : requestedMode === 'demo' ? 'Створити чітко позначене демо' : 'Створити живий запуск'}</button>
+      <fieldset className="laval-mode"><legend>Проходження етапів</legend>
+        <label><input type="radio" name="approval-mode" value="automatic" checked={approvalMode === 'automatic'} onChange={() => setApprovalMode('automatic')} /><span><strong>Автоматично · рекомендовано</strong> — пройти всі 16 етапів без зупинок</span></label>
+        <label><input type="radio" name="approval-mode" value="manual" checked={approvalMode === 'manual'} onChange={() => setApprovalMode('manual')} /><span><strong>З перевіркою</strong> — пауза на трьох контрольних точках</span></label>
+      </fieldset>
+      <button className="primary large" disabled={busy || !idea.trim() || (requestedMode === 'demo' ? !providers?.demo_available : !providers?.search_live_ready)} onClick={create}><FlaskConical />{busyAction === 'create' ? 'Запускаємо…' : requestedMode === 'demo' ? 'Запустити демо' : 'Запустити живе дослідження'}</button>
     </div>}
     <div className="laval-layout">
       <aside className="laval-runs" aria-label="Laval-запуски">
         {runs === null && <p className="muted">Завантаження…</p>}
         {runs?.length === 0 && <p className="muted">Ще немає Laval-запусків.</p>}
-        {runs?.map((run) => <button key={run.id} className={selected === run.id ? 'selected' : ''} onClick={() => setSelected(run.id)}>
-          <span><StatusDot status={run.status} />{run.status}</span><em className={`evidence-badge ${run.evidence_mode || 'demo_fixture'}`}>{evidenceLabel(run.evidence_mode)}</em><strong>{run.owner_preview || 'Owner idea'}</strong><small>{short(run.id)} · {run.completed_stages ?? 0}/16</small>
+        {runs?.map((run) => <button key={run.id} className={selected === run.id ? 'selected' : ''} aria-current={selected === run.id ? 'true' : undefined} onClick={() => setSelected(run.id)}>
+          <span><StatusDot status={run.status} />{runStatusLabel(run.status)}</span><div className="laval-run-badges"><em className={`evidence-badge ${run.evidence_mode || 'demo_fixture'}`}>{evidenceLabel(run.evidence_mode)}</em><em className={`run-mode-badge ${run.approval_mode}`}>{runModeLabel(run.approval_mode)}</em></div><strong>{run.owner_preview || 'Owner idea'}</strong><small>{short(run.id)} · {run.completed_stages ?? 0}/16{runCreatedLabel(run.created_at) ? ` · ${runCreatedLabel(run.created_at)}` : ''}</small>
         </button>)}
       </aside>
       <div className="laval-workspace">
@@ -223,12 +259,12 @@ export function LavalEngine({ api, language }: { api: ApiClient; language: Langu
         {!selected && <div className="state"><FlaskConical /><h2>Створіть перший запуск</h2><p>Кожний етап буде видимим, відновлюваним і пов’язаним із доказами.</p></div>}
         {status && <>
           <header className="laval-run-head">
-            <div><small>RUN {short(status.run.id)} · OWNER {short(status.run.owner_idea_id)}</small><em className={`evidence-badge ${status.run.evidence_mode}`}>{evidenceLabel(status.run.evidence_mode)}</em><h3>{status.run.current_stage ? humanStage(status.run.current_stage) : 'CREATED'}</h3><p><StatusDot status={status.run.status} />{status.run.status} · {status.stages.filter((item) => ['completed', 'partial'].includes(item.status)).length}/16</p><p className="laval-cost">projected ${(status.cost.provider_projected_usd ?? 0).toFixed(4)} · reserved ${(status.cost.provider_reserved_usd ?? 0).toFixed(4)} · actual ${(status.cost.provider_actual_usd ?? status.cost.total_usd).toFixed(4)} · max ${(status.cost.max_spend_usd ?? .05).toFixed(2)}</p>{status.run.awaiting_reason && <p className="laval-waiting">{status.resume_with_market_signals_available ? 'Цей legacy-run можна продовжити через Market Signals без Google Trends.' : 'Запуск очікує дії провайдера.'}</p>}</div>
+            <div><small>ВИБРАНИЙ RUN {short(status.run.id)} · OWNER {short(status.run.owner_idea_id)}</small><div className="laval-run-badges"><em className={`evidence-badge ${status.run.evidence_mode}`}>{evidenceLabel(status.run.evidence_mode)}</em><em className={`run-mode-badge ${status.run.approval_mode}`}>{runModeLabel(status.run.approval_mode)}</em></div><h3>{status.run.current_stage ? humanStage(status.run.current_stage) : 'CREATED'}</h3><p><StatusDot status={status.run.status} />{runStatusLabel(status.run.status)} · {status.stages.filter((item) => ['completed', 'partial'].includes(item.status)).length}/16</p>{status.run.status === 'pending' && <p className="laval-pending-note">Цей запуск створено, але він ще не почався.</p>}<p className="laval-cost">projected ${(status.cost.provider_projected_usd ?? 0).toFixed(4)} · reserved ${(status.cost.provider_reserved_usd ?? 0).toFixed(4)} · actual ${(status.cost.provider_actual_usd ?? status.cost.total_usd).toFixed(4)} · max ${(status.cost.max_spend_usd ?? .05).toFixed(2)}</p>{status.run.awaiting_reason && <p className="laval-waiting">{status.resume_with_market_signals_available ? 'Готово до продовження через Market Signals. Google Trends не потрібен; всі вже оплачені дані будуть збережені.' : 'Запуск очікує дії провайдера.'}</p>}</div>
             <div className="laval-actions">
-              {status.run.status === 'pending' && <button className="primary" disabled={busy} onClick={() => act('run')}><Play />{busyAction === 'run' ? 'Запуск…' : 'Запустити'}</button>}
+              {status.run.status === 'pending' && <button className="primary" disabled={busy} onClick={() => act('run')}><Play />{busyAction === 'run' ? 'Запускаємо…' : 'Почати дослідження'}</button>}
               {status.run.status === 'running' && <button className="secondary" disabled={busy} onClick={() => act('pause')}><CirclePause />Пауза</button>}
               {status.run.status === 'paused' && !approval && !status.run.awaiting_reason && !status.resume_with_market_signals_available && <button className="primary" disabled={busy} onClick={() => act('resume')}><Play />Продовжити</button>}
-              {status.resume_with_market_signals_available && <button className="primary" disabled={busy} onClick={() => act('resume-market-signals')}><Play />{busyAction === 'resume-market-signals' ? 'Відновлення…' : 'Resume with Market Signals'}</button>}
+              {status.resume_with_market_signals_available && <button className="primary" disabled={busy} onClick={() => act('resume-market-signals')}><Play />{busyAction === 'resume-market-signals' ? 'Продовжуємо…' : 'Продовжити дослідження'}</button>}
               {status.run.awaiting_reason && !status.resume_with_market_signals_available && <button className="secondary" disabled><CirclePause />Очікує провайдера</button>}
               {approval && current && <button className="primary" disabled={busy} onClick={() => act('approve', { stage: current.stage })}><Check />Схвалити й продовжити</button>}
               <button className="secondary" disabled={busy} onClick={() => download('json')}><Download />JSON</button>

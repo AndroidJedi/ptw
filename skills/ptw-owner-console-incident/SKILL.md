@@ -97,6 +97,22 @@ the stored version/formula, all six numeric components, raw counters,
 `available` versus `no_data`, and evidence IDs. Never display or apply a hidden
 coverage multiplier.
 
+If the API reports `resume_with_market_signals_available=true` but the browser
+still shows **waiting for Google Trends**, **Approve and continue**, a provider
+wait button, or a retired Telegram-status action, treat the screen as a stale
+pre-Market-Signals bundle. The corrected UI must expose exactly one continuation
+action; approval and provider-wait controls are mutually exclusive with the
+upgrade. Audit the live chunks, bump the shell cache, and verify the controlled
+client reloads before changing run state. Telegram projections must deep-link
+to the exact run so a newer default selection cannot impersonate the notified
+run.
+
+Web creation must be one visible create-and-start action. Regression coverage
+must prove that one owner click first persists the run and then calls its
+authenticated `run` action, defaults to automatic progression, and leaves a
+recoverable, explicitly labelled not-started record if launch fails. Do not
+describe `approval_mode=automatic` as proof that execution actually started.
+
 If the owner asks to run the same PTW idea again, do not direct them to **New
 Laval idea** or **Rerun**. Select the existing run and use **Resume with Market
 Signals** only when its status response explicitly reports

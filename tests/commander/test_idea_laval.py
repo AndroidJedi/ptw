@@ -206,6 +206,10 @@ class LavalDomainTests(unittest.TestCase):
         self.assertIn("does not repost or rebill", message)
         self.assertIn("S00 STAGE_0 — completed", message)
         self.assertIn("S15 STAGE_15 — pending", message)
+        self.assertIn(
+            "?page=ideas&run=01234567-89ab-7def-8123-456789abcdef",
+            message,
+        )
 
     def test_runner_automatically_notifies_terminal_run_state(self) -> None:
         class Repository:

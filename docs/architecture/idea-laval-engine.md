@@ -167,6 +167,14 @@ appended to the audit log, and the affected downstream stages become stale for
 deliberate reconstruction. All calls pass Firebase Auth, App Check, exact-owner
 verification, and the Owner Gateway bridge.
 
+Creating a run from the web is a one-click create-and-start flow. Automatic
+progression through all 16 stages is the recommended default; checkpoint review
+is a separate, explicit mode. A persisted historical `pending` run remains
+recoverable but is labelled as not started. An eligible legacy Trends run shows
+one continuation action only: it upgrades to Market Signals while preserving
+paid work. Telegram status projections deep-link to that exact run rather than
+opening whichever run the browser would otherwise select.
+
 Failed runs show an in-page recovery report and a distinct **Resume saved
 work** action. On the 1 GB production profile, automatic and owner-triggered
 Telegram status notifications are retired. The notifier is not constructed,

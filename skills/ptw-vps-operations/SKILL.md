@@ -116,6 +116,14 @@ deduplication on the same transition, absence of a new poller/container, and a
 bounded failed action when Telegram rejects delivery. Never resume a saved run
 merely to test notification delivery.
 
+Never force a status-formatted notification canary against an existing owner
+run: it is indistinguishable from a real state transition and can be mistaken
+for newly requested work. Prefer unit/transport verification plus the next
+naturally occurring owner-authorized terminal transition. If the owner
+explicitly authorizes a live delivery canary, label it unmistakably as a test
+and do not present real-run recovery instructions. Normal status notifications
+must link to their exact run in the web console.
+
 Use `scripts/build_ptw_release_images.sh` locally and
 `scripts/publish_ptw_release_serial.sh` for the release. The publisher creates
 one serialized SSH input stream and the VPS runner owns the maintenance lock for

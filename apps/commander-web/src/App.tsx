@@ -13,6 +13,16 @@ import { OverviewView } from './views/OverviewView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
 
+function initialConsoleLocation(): { page: Page; runId?: string } {
+  const params = new URLSearchParams(window.location.search)
+  const requestedPage = params.get('page')
+  const page: Page = ['overview', 'ideas', 'jobs', 'more'].includes(requestedPage || '')
+    ? requestedPage as Page
+    : 'overview'
+  const runId = params.get('run') || undefined
+  return { page, ...(runId ? { runId } : {}) }
+}
+
 function prefersRedirectSignIn() {
   return window.matchMedia?.('(pointer: coarse)').matches
     || /Android|iPad|iPhone|iPod/i.test(window.navigator.userAgent)
@@ -63,13 +73,23 @@ function Login() {
 }
 
 function Console({ user }: { user: User }) {
-  const [page, setPage] = useState<Page>('overview')
+  const initialLocation = useMemo(initialConsoleLocation, [])
+  const [page, setPage] = useState<Page>(initialLocation.page)
   const [language, setLanguage] = useState<Language>('uk')
   const api = useMemo(() => new ApiClient(user), [user])
-  return <Shell page={page} onPage={setPage} language={language} onLanguage={() => setLanguage(language === 'uk' ? 'en' : 'uk')}>
+  const navigate = (nextPage: Page) => {
+    const params = new URLSearchParams(window.location.search)
+    if (nextPage === 'overview') params.delete('page')
+    else params.set('page', nextPage)
+    if (nextPage !== 'ideas') params.delete('run')
+    const search = params.toString()
+    window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
+    setPage(nextPage)
+  }
+  return <Shell page={page} onPage={navigate} language={language} onLanguage={() => setLanguage(language === 'uk' ? 'en' : 'uk')}>
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label="Вийти"><LogOut /></button></div>
     {page === 'overview' && <OverviewView api={api} language={language} />}
-    {page === 'ideas' && <IdeasView api={api} language={language} />}
+    {page === 'ideas' && <IdeasView api={api} language={language} initialRunId={initialLocation.runId} />}
     {page === 'jobs' && <JobsView api={api} />}
     {page === 'more' && <MoreView api={api} />}
   </Shell>

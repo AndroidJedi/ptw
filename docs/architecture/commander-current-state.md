@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Idea Laval v3 deployed and verified; saved live run awaits owner resume
+Status: seamless Laval start and legacy Market Signals recovery implemented
 Updated: 2026-08-19
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -90,6 +90,16 @@ human-readable choices, while the stable target UUID is submitted internally.
 The owner must provide a reason; the Firebase actor and reason remain appended
 to the audit log, and the precise downstream boundary becomes stale. This
 change is deployed to the production PWA/API.
+
+The Ideas flow now treats **Start research** as one owner action: it creates the
+run and immediately starts it, with automatic 16-stage progression selected by
+default and manual checkpoint review available as an explicit alternative.
+Pending history is labelled as not started rather than ambiguously pending.
+Eligible legacy Trends runs expose one mutually exclusive **Continue research**
+action that upgrades saved work to Market Signals; the UI no longer presents a
+Google Trends wait, manual approval, and provider wait as competing actions.
+Telegram status links target the exact run, and the PWA shell cache is bumped so
+the retired Trends/Telegram controls cannot survive as an old loaded screen.
 
 Creative production and review are retired operationally on the 1 GB profile.
 Their source, migrations, immutable artifacts, append-only reviews, UUID

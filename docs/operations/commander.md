@@ -35,8 +35,10 @@ files are immutable and addressed by SHA-256 digest.
 ## Runtime controls
 
 - Normal owner actions use Firebase-authenticated `/api/v1/*` endpoints.
-- Telegram is limited to emergency `/help`, `/status`, and `/stop`; proactive
-  outbound notifications are retired.
+- Telegram input is limited to emergency `/help`, `/status`, and `/stop`.
+  General proactive delivery remains retired; Idea Laval alone sends one direct,
+  deduplicated status message when a run pauses, completes, or fails. This uses
+  `sendMessage` and starts no polling worker.
 - Emergency stop is durable and checked before generation or execution side
   effects; only the web System view resumes all runtimes.
 - Plan mode is read-only. Execute requires the immutable plan digest, and a
@@ -52,7 +54,8 @@ profile `CREATIVE_RUNTIME_ENABLED=false` and
 `OUTBOUND_NOTIFICATIONS_ENABLED=false`; neither polling worker starts, Pillow
 and ad-generation modules are not imported by the Commander API, pending
 Telegram deliveries are cancelled append-only, and retired endpoints return
-HTTP 410.
+HTTP 410. `LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED=true` is independent of that
+retired outbox runtime and enables only direct terminal Laval messages.
 
 See [`owner-control-plane.md`](owner-control-plane.md) for authentication,
 Plan/Execute, root terminal, deployment, and production acceptance. See

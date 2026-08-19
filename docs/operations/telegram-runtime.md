@@ -4,11 +4,15 @@ Status: emergency-only target contract
 Updated: 2026-08-19
 
 The existing `@ptw_commander_bot` and `/opt/ptw/platform` long poller remain the
-single Telegram update consumer. No webhook or second poller is allowed.
+single Telegram update consumer. No webhook or second update poller is allowed.
 
-Telegram is not the normal control plane. Proactive outbound notifications are
-retired on the 1 GB profile. The long poller exists only so the three bounded
-emergency commands remain available.
+Telegram is not the normal control plane. General proactive outbound
+notifications are retired on the 1 GB profile. The narrow exception is an Idea
+Laval transition notification after a run becomes `paused`, `completed`, or
+`failed`. The Idea process calls Telegram `sendMessage` once at that transition;
+it does not call `getUpdates`, start a worker, or write to `commander_outbox`.
+The long poller exists only so the three bounded emergency commands remain
+available.
 
 Only three inbound commands are supported:
 
@@ -33,5 +37,7 @@ outbox worker. PostgreSQL and the web Owner Gateway remain authoritative.
 
 Historical Idea Laval notification rows remain queryable. Migration 011 marks
 unpublished Telegram outbox rows cancelled with a reason and timestamp; claim
-queries exclude them. The Laval notifier is not constructed and the web status
-button/API return path is retired with HTTP 410.
+queries exclude them. Direct Laval transition sends are deduplicated by run,
+event, status, stage, stage attempt, and chat ID, and record append-only reserved,
+sent, or failed actions. They never resume or mutate the run. The manual web
+status button/API remains retired with HTTP 410.

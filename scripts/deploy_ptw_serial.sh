@@ -138,6 +138,7 @@ done
 export PTW_IMAGE_TAG=$release_tag
 export CREATIVE_RUNTIME_ENABLED=false
 export OUTBOUND_NOTIFICATIONS_ENABLED=false
+export LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED=true
 
 "${commander_compose[@]}" up -d --no-deps --wait --no-build commander-db
 "${commander_compose[@]}" run --rm --no-deps commander-migrate

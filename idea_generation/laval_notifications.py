@@ -1,4 +1,4 @@
-"""Durable, bounded Telegram projections of authoritative Laval run state."""
+"""Direct, bounded Telegram projections of authoritative Laval run state."""
 
 from __future__ import annotations
 
@@ -69,12 +69,18 @@ def format_laval_status_message(status: Mapping[str, Any], event: str) -> str:
 
 
 class LavalTelegramNotifier:
-    def __init__(self, repository: LavalRepository, chat_ids: Sequence[int]) -> None:
+    def __init__(
+        self,
+        repository: LavalRepository,
+        chat_ids: Sequence[int],
+        client: Any,
+    ) -> None:
         self.repository = repository
         self.store = repository.store
         self.chat_ids = tuple(sorted({int(value) for value in chat_ids}))
+        self.client = client
 
-    def enqueue(self, run_id: str, event: str, *, force: bool = False, actor: str = "system") -> int:
+    def send(self, run_id: str, event: str, *, force: bool = False, actor: str = "system") -> int:
         status = self.repository.status(run_id)
         run = status["run"]
         current = next(
@@ -82,23 +88,21 @@ class LavalTelegramNotifier:
             {},
         )
         text = format_laval_status_message(status, event)
-        queued = 0
-        with self.store.transaction() as connection:
-            if connection.execute("SELECT to_regclass('public.commander_outbox')").fetchone()[0] is None:
-                return 0
-            for chat_id in self.chat_ids:
-                dedupe = None if force else (
-                    f"telegram:{run_id}:{event}:{run.get('status')}:{run.get('current_stage')}:"
-                    f"{current.get('attempt', 0)}:{chat_id}"
-                )
-                action_id = new_uuid7()
+        sent = 0
+        for chat_id in self.chat_ids:
+            dedupe = None if force else (
+                f"telegram-direct:{run_id}:{event}:{run.get('status')}:{run.get('current_stage')}:"
+                f"{current.get('attempt', 0)}:{chat_id}"
+            )
+            reservation_id = new_uuid7()
+            with self.store.transaction() as connection:
                 inserted = connection.execute(
                     """INSERT INTO laval_run_actions(
                            id,run_id,action,stage,actor,previous_status,outcome,details,dedupe_key
-                       ) VALUES(%s,%s,'telegram_status_enqueued',%s,%s,%s,'queued',%s::jsonb,%s)
+                       ) VALUES(%s,%s,'telegram_status_send_reserved',%s,%s,%s,'reserved',%s::jsonb,%s)
                        ON CONFLICT(dedupe_key) DO NOTHING RETURNING id""",
                     (
-                        action_id,
+                        reservation_id,
                         run_id,
                         run.get("current_stage"),
                         actor,
@@ -107,12 +111,43 @@ class LavalTelegramNotifier:
                         dedupe,
                     ),
                 ).fetchone()
-                if not inserted:
-                    continue
-                connection.execute(
-                    """INSERT INTO commander_outbox(id,topic,aggregate_id,payload)
-                       VALUES(%s,'telegram.send_message',NULL,%s::jsonb)""",
-                    (new_uuid7(), self.store.json({"chat_id": chat_id, "text": text, "source": "idea-laval"})),
+            if not inserted:
+                continue
+            try:
+                result = self.client.send_message(chat_id, text)
+            except Exception as error:
+                self.repository.record_action(
+                    run_id,
+                    "telegram_status_send_failed",
+                    stage=str(run.get("current_stage") or "") or None,
+                    actor=actor,
+                    previous_status=str(run.get("status") or ""),
+                    outcome="failed",
+                    details={
+                        "event": event,
+                        "chat_id": chat_id,
+                        "reservation_id": reservation_id,
+                        "error_type": type(error).__name__,
+                    },
                 )
-                queued += 1
-        return queued
+                continue
+            self.repository.record_action(
+                run_id,
+                "telegram_status_sent",
+                stage=str(run.get("current_stage") or "") or None,
+                actor=actor,
+                previous_status=str(run.get("status") or ""),
+                outcome="sent",
+                details={
+                    "event": event,
+                    "chat_id": chat_id,
+                    "reservation_id": reservation_id,
+                    "telegram_message_id": result.get("message_id"),
+                },
+            )
+            sent += 1
+        return sent
+
+    def enqueue(self, run_id: str, event: str, *, force: bool = False, actor: str = "system") -> int:
+        """Compatibility alias; delivery is synchronous and never enters an outbox."""
+        return self.send(run_id, event, force=force, actor=actor)

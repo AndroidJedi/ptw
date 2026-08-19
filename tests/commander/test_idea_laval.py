@@ -217,7 +217,7 @@ class LavalDomainTests(unittest.TestCase):
 
         class Notifier:
             calls = []
-            def enqueue(self, run_id, event): self.calls.append((run_id, event))
+            def send(self, run_id, event): self.calls.append((run_id, event))
 
         notifier = Notifier()
         runner = LavalRunner(Pipeline(), notifier)
@@ -631,19 +631,74 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         self.assertEqual("firebase:owner", action["actor"])
         self.assertEqual("started", action["outcome"])
 
-    def test_owner_can_queue_telegram_snapshot_with_all_stage_statuses(self) -> None:
+    def test_owner_can_send_telegram_snapshot_directly_without_outbox(self) -> None:
         created = self.repository.create_run("Send visible status.", self._config(), actor="test")
         run_id = created["run_id"]
-        notifier = LavalTelegramNotifier(self.repository, (123,))
+
+        class Telegram:
+            calls = []
+
+            def send_message(self, chat_id, text):
+                self.calls.append((chat_id, text))
+                return {"message_id": 987}
+
+        telegram = Telegram()
+        notifier = LavalTelegramNotifier(self.repository, (123,), telegram)
         service = LavalService(self.repository, LavalRunner(self.pipeline), notifier=notifier)
         result = service.notify(run_id, actor="firebase:owner")
-        self.assertEqual(1, result["queued"])
+        self.assertEqual(1, result["sent"])
+        self.assertEqual(0, result["queued"])
+        self.assertEqual(123, telegram.calls[0][0])
+        self.assertIn("S00 OWNER_CAPTURE — completed", telegram.calls[0][1])
+        self.assertIn("S15 FINAL_SHORTLIST — pending", telegram.calls[0][1])
         row = self.store.fetchone(
-            "SELECT payload FROM commander_outbox WHERE payload->>'source'='idea-laval' ORDER BY created_at DESC LIMIT 1"
+            "SELECT action,outcome,details FROM laval_run_actions "
+            "WHERE run_id=%s AND action='telegram_status_sent' ORDER BY created_at DESC LIMIT 1",
+            (run_id,),
         )
-        self.assertEqual(123, row["payload"]["chat_id"])
-        self.assertIn("S00 OWNER_CAPTURE — completed", row["payload"]["text"])
-        self.assertIn("S15 FINAL_SHORTLIST — pending", row["payload"]["text"])
+        self.assertEqual("sent", row["outcome"])
+        self.assertEqual(987, row["details"]["telegram_message_id"])
+
+    def test_automatic_telegram_transition_is_deduplicated_without_polling(self) -> None:
+        created = self.repository.create_run("Send one transition.", self._config(), actor="test")
+        run_id = created["run_id"]
+
+        class Telegram:
+            calls = []
+
+            def send_message(self, chat_id, text):
+                self.calls.append((chat_id, text))
+                return {"message_id": len(self.calls)}
+
+        telegram = Telegram()
+        notifier = LavalTelegramNotifier(self.repository, (123,), telegram)
+        self.assertEqual(1, notifier.send(run_id, "paused"))
+        self.assertEqual(0, notifier.send(run_id, "paused"))
+        self.assertEqual(1, len(telegram.calls))
+        self.assertEqual(
+            0,
+            int(self.store.fetchone(
+                "SELECT count(*) n FROM commander_outbox WHERE topic='telegram.send_message'"
+            )["n"]),
+        )
+
+    def test_direct_telegram_failure_is_bounded_and_audited(self) -> None:
+        created = self.repository.create_run("Audit failed send.", self._config(), actor="test")
+        run_id = created["run_id"]
+
+        class Telegram:
+            def send_message(self, _chat_id, _text):
+                raise TimeoutError("secret provider response must not be stored")
+
+        notifier = LavalTelegramNotifier(self.repository, (123,), Telegram())
+        self.assertEqual(0, notifier.send(run_id, "failed"))
+        row = self.store.fetchone(
+            "SELECT details FROM laval_run_actions "
+            "WHERE run_id=%s AND action='telegram_status_send_failed'",
+            (run_id,),
+        )
+        self.assertEqual("TimeoutError", row["details"]["error_type"])
+        self.assertNotIn("secret provider response", str(row["details"]))
 
     def test_country_rerun_marks_every_downstream_stage_stale(self) -> None:
         created = self.repository.create_run("Visible progress proof.", self._config(), actor="test")

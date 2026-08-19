@@ -57,9 +57,9 @@ class LavalRunner:
                 try:
                     state = self.pipeline.repository.run(run_id)["status"]
                     if state in {"failed", "paused", "completed"}:
-                        self.notifier.enqueue(run_id, str(state))
+                        self.notifier.send(run_id, str(state))
                 except Exception:
-                    # Notification delivery is durable but must never corrupt run state.
+                    # Notification audit is durable, but delivery must never corrupt run state.
                     pass
             with self._guard:
                 self._threads.pop(run_id, None)
@@ -187,10 +187,15 @@ class LavalService:
         self.repository.run(run_id)
         if self.notifier is None:
             raise RuntimeError("Telegram status notifications are not configured")
-        queued = int(self.notifier.enqueue(run_id, "owner_status", force=True, actor=actor))
-        if queued < 1:
-            raise RuntimeError("Telegram status notification could not be queued")
-        return {"run_id": run_id, "queued": queued, "status": self.repository.run(run_id)["status"]}
+        sent = int(self.notifier.send(run_id, "owner_status", force=True, actor=actor))
+        if sent < 1:
+            raise RuntimeError("Telegram status notification could not be sent")
+        return {
+            "run_id": run_id,
+            "sent": sent,
+            "queued": 0,
+            "status": self.repository.run(run_id)["status"],
+        }
 
     def approve(self, run_id: str, stage: str, *, actor: str) -> dict[str, Any]:
         result = self.repository.approve(run_id, stage.upper(), actor=actor)

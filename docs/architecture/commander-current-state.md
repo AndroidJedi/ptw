@@ -98,18 +98,20 @@ pending-review metric are absent, while cached clients receive HTTP 410 from
 post, creative-review, artifact, ad-batch, workspace-acknowledgement, and
 status-notification endpoints.
 
-Telegram is reduced to owner-only `/help`, `/status`, and `/stop`; proactive
-outbound notifications are retired. The established platform long poller can
-return those bounded emergency responses directly, while Commander no longer
-enqueues them to its outbox. Unsupported input returns the web link without
-creating domain work.
+Telegram input is reduced to owner-only `/help`, `/status`, and `/stop`; general
+proactive outbound notifications remain retired. The narrow Idea Laval
+exception sends one direct, deduplicated `sendMessage` after a run becomes
+paused, completed, or failed. It uses no outbox or additional poller and records
+append-only delivery actions without changing run state. The established
+platform long poller returns bounded emergency responses directly. Unsupported
+input returns the web link without creating domain work.
 Emergency stop is durable in the platform database and fans out to idea and
 creative runtimes; only the web UI can resume the complete system.
 
 The 1 GB runtime profile disables both Commander polling workers by Compose
 profile, cancels unpublished Telegram outbox rows without deleting them, and
-never constructs Laval notification producers or imports the Pillow/ad runtime
-when creative mode is disabled. PostgreSQL connections have five-second
+constructs only the direct Laval transition notifier; it does not import the
+Pillow/ad runtime when creative mode is disabled. PostgreSQL connections have five-second
 deadlines, and Idea Laval reuses one serialized process connection instead of
 forking a PostgreSQL backend for every repository call. Browser API requests
 have a 15-second overload deadline with a Retry action. Laval and Codex

@@ -76,8 +76,10 @@ Commander policy. SSH keys and passphrases never enter browser state or Git.
 Telegram is a thin emergency adapter. Only `/help`, `/status`, and `/stop` are
 operational commands; other input returns a deep link to the web console. The
 established long poller and allowlists remain the single update consumer and
-security boundary. Proactive outbound notifications are retired on the 1 GB
-profile.
+security boundary. General proactive outbound notifications are retired on the
+1 GB profile. Idea Laval alone may call `sendMessage` directly after a run
+becomes paused, completed, or failed; that narrow output path consumes no
+updates, starts no poller, and never uses the retired Commander outbox.
 
 ## Recovery
 

@@ -60,8 +60,12 @@ Use repository runbooks as authority.
 
 ## Safety boundaries
 
-- Keep normal instructions web-only. Telegram is limited to emergency `/help`,
-  `/status`, and `/stop`; proactive outbound notifications are retired.
+- Keep normal instructions web-only. Telegram input is limited to emergency
+  `/help`, `/status`, and `/stop`; general proactive delivery is retired. The
+  sole outbound exception is a direct, deduplicated Idea Laval transition
+  notification for `paused`, `completed`, or `failed`. It must use `sendMessage`
+  from the completing Idea process, never `getUpdates`, a new poller, or the
+  retired `commander_outbox` worker.
 - Never print, copy, rotate, or replace the existing Telegram token without
   explicit owner authorization.
 - Use disposable databases for migration tests unless an exact production
@@ -104,6 +108,13 @@ Use repository runbooks as authority.
    persistence, restart behavior, and user-facing errors.
 8. For Commander changes, run the repository-mandated tests, demo, and
    `git diff --check`.
+
+For a Laval Telegram release, keep `OUTBOUND_NOTIFICATIONS_ENABLED=false` and
+enable only `LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED`. Verify one direct canary
+send, its `telegram_status_send_reserved` and `telegram_status_sent` actions,
+deduplication on the same transition, absence of a new poller/container, and a
+bounded failed action when Telegram rejects delivery. Never resume a saved run
+merely to test notification delivery.
 
 Use `scripts/build_ptw_release_images.sh` locally and
 `scripts/publish_ptw_release_serial.sh` for the release. The publisher creates

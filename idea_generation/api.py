@@ -8,6 +8,8 @@ from typing import Any, Mapping
 
 from fastapi import FastAPI, Header, HTTPException, Query, Response
 
+from commander.telegram_api import TelegramBotClient
+
 from .config import Settings
 from .manage import ROOT
 from .laval_pipeline import LavalPipeline
@@ -41,8 +43,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         laval_repository, providers_from_settings(settings, llm)
     )
     laval_notifier = (
-        LavalTelegramNotifier(laval_repository, tuple(settings.allowed_chat_ids))
-        if settings.outbound_notifications_enabled
+        LavalTelegramNotifier(
+            laval_repository,
+            tuple(settings.allowed_chat_ids),
+            TelegramBotClient(settings.telegram_token, timeout_seconds=10),
+        )
+        if settings.laval_telegram_notifications_enabled
         else None
     )
     laval_runner = LavalRunner(laval_pipeline, laval_notifier)

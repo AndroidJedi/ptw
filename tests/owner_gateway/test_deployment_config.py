@@ -15,6 +15,10 @@ class DeploymentConfigTests(unittest.TestCase):
         self.assertNotEqual(ROOT.name, "ptw-idea-generation")
         self.assertIn("aliases: [ptw-idea-api]", compose)
         self.assertIn("name: ptw_default", compose)
+        self.assertIn(
+            "LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED: ${LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED:-true}",
+            compose,
+        )
 
     def test_one_gigabyte_profile_retires_workers_and_tunes_commander_postgres(self) -> None:
         compose = (ROOT / "docker-compose.commander.yml").read_text()
@@ -37,6 +41,7 @@ class DeploymentConfigTests(unittest.TestCase):
         self.assertNotIn("docker build", deploy)
         self.assertNotIn("xargs -P", deploy)
         self.assertNotIn("GNU Parallel", deploy)
+        self.assertIn("export LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED=true", deploy)
         self.assertEqual(1, publish.count("ssh -i"))
         self.assertLess(deploy.index("receive_image commander"), deploy.index("receive_image idea-generation"))
         self.assertLess(deploy.index("receive_image idea-generation"), deploy.index("receive_image owner-gateway"))

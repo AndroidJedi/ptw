@@ -43,6 +43,7 @@ class Settings:
     max_spend_usd: float = 0.05
     reserved_spend_usd: float = 0.04
     outbound_notifications_enabled: bool = False
+    laval_telegram_notifications_enabled: bool = False
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -87,4 +88,7 @@ class Settings:
             max_spend_usd=max_spend_usd,
             reserved_spend_usd=reserved_spend_usd,
             outbound_notifications_enabled=_enabled("OUTBOUND_NOTIFICATIONS_ENABLED"),
+            laval_telegram_notifications_enabled=_enabled(
+                "LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED"
+            ),
         )

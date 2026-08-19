@@ -33,6 +33,7 @@ services:
       LAVAL_RESERVED_SPEND_USD: ${LAVAL_RESERVED_SPEND_USD:-0.04}
       LAVAL_RESEARCH_BRIDGE_URL: ${LAVAL_RESEARCH_BRIDGE_URL:-http://ptw-commander-api:8080/internal/research/laval}
       OUTBOUND_NOTIFICATIONS_ENABLED: ${OUTBOUND_NOTIFICATIONS_ENABLED:-false}
+      LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED: ${LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED:-true}
       TZ: Europe/Kyiv
     command: ["uvicorn", "idea_generation.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]
     networks:

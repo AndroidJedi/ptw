@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Laval result integrity and readable stage review implemented; deployment verification pending
+Status: Laval result integrity and readable stage review deployed and verified
 Updated: 2026-08-19
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -185,6 +185,22 @@ verified Google Firebase user.
 
 ## Verification
 
+- Laval integrity release `85f0a2f` is live on all three healthy production
+  services. Firebase Hosting version `859b2a2856d201a3` serves
+  `index-BFK2C8KR.js`, `App-BR0jJtNv.js`, and `ptw-shell-v12`; the live bundle
+  contains the invalid-result warning, model-failure labels, readable stage
+  heading, fallback label, and collapsed raw-JSON disclosure. The public
+  shell/assets, gateway health, negative authentication, and CORS audit passes.
+  Historical run `01a019c8-9872-73e3-baa2-e3f16e27685c` remains completed at
+  exactly USD 0.0372 but now reports `invalid`, 0 successful language calls,
+  and 16 fallback calls. An isolated strict-schema relevance canary returned a
+  schema-valid fresh ephemeral session with no conversation reuse; Laval run
+  and invocation counts were identical before and after. No run was started,
+  resumed, rerun, rewritten, or charged during release verification. Commander
+  built-image tests report 88 passes with 28 dependency/external skips, the
+  Owner Gateway image passes 19 tests, the focused Idea Laval domain image
+  passes 20 tests, Vitest passes 15 checks, and Playwright passes nine checks
+  across desktop Chrome, mobile Chrome, and iPhone WebKit.
 - Seamless Laval Hosting release `ca95e7a78db478c1` serves
   `index-DMjj1FUz.js`, `App-CPpo1qZU.js`, and `ptw-shell-v11`. Fourteen Vitest
   checks and nine Playwright checks across desktop Chrome, mobile Chrome, and

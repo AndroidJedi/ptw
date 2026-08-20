@@ -169,7 +169,7 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-create { position: fixed; z-index: 35; inset: 0; padding: max(24px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom)); overflow: auto; background: #0b0b0ef8; }
 .laval-create > div:first-child { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
 .laval-create > div:first-child button { width: 44px; min-height: 44px; border: 0; color: #fff; background: transparent; }
-.laval-create label, .laval-override label { display: block; color: var(--muted); font-size: 11px; font-weight: 750; }
+.laval-create label, .inline-add label, .inline-correction label { display: block; color: var(--muted); font-size: 11px; font-weight: 750; }
 .laval-error, .laval-failure { margin: 10px 0; padding: 12px; border: 1px solid #7d3030; border-radius: 12px; color: #ffaaaa; background: #250d0d; font-size: 12px; }
 .laval-error { position: fixed; z-index: 60; top: max(10px, env(safe-area-inset-top)); right: 10px; left: 10px; display: flex; gap: 8px; justify-content: space-between; align-items: center; box-shadow: 0 12px 40px #000b; }
 .laval-error span { flex: 1; }
@@ -254,6 +254,7 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-stages button > span { grid-row: span 2; color: var(--pink); font: 11px ui-monospace, monospace; }
 .laval-stages button strong { font-size: 10px; overflow-wrap: anywhere; }
 .laval-stages button small { color: var(--muted); font-size: 8px; overflow-wrap: anywhere; }
+.laval-stages button > em { grid-column: 2; color: #ff71ae; font-size: 9px; font-style: normal; font-weight: 800; }
 .laval-stages button.selected { border-color: var(--pink); }
 .laval-stages button.completed, .laval-stages button.partial { background: #102219; }
 .laval-stages button.running { border-color: #8b7118; background: #27210e; }
@@ -274,6 +275,9 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .artifact-readable { margin-top: 16px; }
 .artifact-readable > h4 { margin: 0 0 8px; font-size: 17px; }
 .artifact-readable > p { color: var(--muted); line-height: 1.5; }
+.artifact-section-head { margin-bottom: 10px; display: flex; gap: 10px; align-items: start; justify-content: space-between; }
+.artifact-section-head h4 { margin: 0; font-size: 17px; }
+.artifact-section-head p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
 .artifact-facts { display: grid; gap: 7px; }
 .artifact-facts div { padding: 10px; border-left: 2px solid var(--pink); background: rgba(255,255,255,.025); }
 .artifact-facts dt { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
@@ -283,6 +287,29 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .artifact-list h5 { margin: 4px 0; font-size: 14px; line-height: 1.35; }
 .artifact-list small { color: var(--pink); font: 9px ui-monospace, monospace; text-transform: uppercase; }
 .artifact-list p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.artifact-item-head { display: flex; gap: 10px; align-items: start; justify-content: space-between; }
+.artifact-item-head > div:first-child { min-width: 0; flex: 1; }
+.inline-edit-trigger { min-width: 88px; min-height: 44px; padding: 8px 10px; border: 1px solid #71334d; border-radius: 9px; color: #ff9bc5; background: #211018; font-size: 10px; font-weight: 850; }
+.inline-correction { width: min(100%, 360px); padding: 10px; border: 1px solid #71334d; border-radius: 10px; background: #160c11; }
+.inline-correction input { margin: 5px 0 7px; }
+.inline-correction > div { display: flex; gap: 6px; align-items: center; }
+.inline-correction button { min-height: 44px; }
+.inline-correction .icon-button { width: 44px; padding: 0; }
+.inline-correction > small { display: block; margin-top: 6px; color: var(--muted); font-size: 9px; line-height: 1.35; }
+.artifact-item-details { margin-top: 8px; border-top: 1px solid var(--line); }
+.artifact-item-details summary { min-height: 44px; display: flex; align-items: center; color: #ff9bc5; cursor: pointer; font-size: 10px; font-weight: 800; }
+.artifact-item-details dl { margin: 0 0 4px; display: grid; gap: 7px; }
+.artifact-item-details dl div { display: grid; grid-template-columns: minmax(90px, .35fr) 1fr; gap: 8px; }
+.artifact-item-details dt { color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.artifact-item-details dd { margin: 0; font-size: 10px; overflow-wrap: anywhere; }
+.artifact-item-details a { color: #ff9bc5; }
+.inline-add { position: relative; }
+.inline-add > summary { min-height: 44px; display: flex; align-items: center; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; color: #fff; cursor: pointer; font-size: 10px; font-weight: 800; list-style: none; white-space: nowrap; }
+.inline-add > summary::-webkit-details-marker { display: none; }
+.inline-add[open] > div { position: absolute; z-index: 5; top: 48px; right: 0; width: min(340px, calc(100vw - 56px)); padding: 12px; border: 1px solid #71334d; border-radius: 12px; background: #160c11; box-shadow: 0 16px 40px #000b; }
+.inline-add input, .inline-add select { margin: 5px 0 8px; }
+.inline-add button { width: 100%; min-height: 44px; }
+.editable-trends { margin-top: 12px; }
 .artifact-stats { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px; margin: 10px 0; }
 .artifact-stats > div { min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 9px; }
 .artifact-stats strong, .artifact-stats span { display: block; overflow-wrap: anywhere; }
@@ -304,13 +331,6 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-export-preview > div { display: flex; align-items: center; justify-content: space-between; }
 .laval-export-preview > div button { width: 44px; min-height: 44px; border: 0; color: #fff; background: transparent; }
 .laval-export-preview pre { margin-top: 12px; padding: 12px; overflow: auto; border-radius: 10px; color: #c5fbdc; background: #050506; white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.5 ui-monospace, monospace; }
-.laval-override { margin-top: 14px; border-top: 1px solid var(--line); }
-.laval-override summary { min-height: 48px; display: flex; align-items: center; cursor: pointer; color: #ff71ae; font-size: 11px; font-weight: 800; }
-.laval-override > div { display: grid; gap: 7px; }
-.laval-override p { margin: 0 0 6px; color: var(--muted); font-size: 11px; line-height: 1.5; }
-.laval-override label > span { display: block; margin: -1px 0 8px; font-weight: 500; }
-.laval-override input, .laval-override select { margin-bottom: 5px; }
-.laval-override button { min-height: 48px; margin-top: 4px; }
 .laval-stage-phases { display: grid; gap: 16px; }
 .laval-stage-phases > section > h4 { margin: 0 0 7px; color: var(--muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
 .thesis-results { margin: 14px 0 20px; padding: 16px; border: 1px solid #6d1a40; border-radius: 18px; background: #180c12; }
@@ -450,8 +470,6 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
   .laval-run-head p { margin-bottom: 0; }
   .laval-actions { justify-content: flex-end; }
   .laval-stages { grid-template-columns: repeat(4, 1fr); }
-  .laval-override > div { grid-template-columns: repeat(3, 1fr); align-items: end; }
-  .laval-override button { margin-bottom: 5px; }
   .docs-layout { display: grid; grid-template-columns: 280px 1fr; gap: 16px; }
   .docs-layout > nav { display: block; overflow: visible; }
   .docs-layout > nav button { width: 100%; margin-bottom: 6px; justify-content: space-between; text-align: left; }

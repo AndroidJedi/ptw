@@ -122,6 +122,8 @@ export interface LavalRun {
   approval_gates: string[]
   owner_preview?: string
   completed_stages?: number
+  processed_stages?: number
+  partial_stages?: number
   variant_count?: number
   error_text?: string
   created_at: string

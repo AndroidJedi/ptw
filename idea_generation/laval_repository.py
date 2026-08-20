@@ -114,6 +114,8 @@ class LavalRepository:
         rows = self.store.fetchall(
             """SELECT r.*,left(o.raw_text,240) owner_preview,
                       (SELECT count(*) FROM laval_stage_runs s WHERE s.run_id=r.id AND s.status='completed') completed_stages,
+                      (SELECT count(*) FROM laval_stage_runs s WHERE s.run_id=r.id AND s.status IN ('completed','partial')) processed_stages,
+                      (SELECT count(*) FROM laval_stage_runs s WHERE s.run_id=r.id AND s.status='partial') partial_stages,
                       (SELECT count(*) FROM laval_idea_variants v WHERE v.run_id=r.id) variant_count
                FROM laval_runs r JOIN laval_owner_ideas o ON o.run_id=r.id
                ORDER BY r.created_at DESC LIMIT %s""",

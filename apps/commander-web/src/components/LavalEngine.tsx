@@ -75,7 +75,11 @@ type OverrideTarget = {
   kind: 'competitor' | 'opportunity' | 'trend_score' | 'trend_discovery'
   name?: string
   domain?: string
+  url?: string
+  score?: number
   statement?: string
+  pain?: string
+  aggregate_score?: number
   term?: string
   country?: string
   time_window?: string
@@ -90,13 +94,6 @@ function correctionTargets(value: unknown): OverrideTarget[] {
   if (!value || typeof value !== 'object' || !('override_targets' in value)) return []
   const targets = (value as { override_targets?: unknown }).override_targets
   return Array.isArray(targets) ? targets.filter((item): item is OverrideTarget => Boolean(item && typeof item === 'object' && 'id' in item && 'kind' in item)) : []
-}
-
-function correctionTargetLabel(target: OverrideTarget) {
-  if (target.kind === 'competitor') return `${target.name || target.domain || 'Competitor'}${target.domain && target.name !== target.domain ? ` — ${target.domain}` : ''}`
-  if (target.kind === 'opportunity') return target.statement || 'Можливість'
-  if (target.kind === 'trend_discovery') return `Відкриття · ${target.discovered_term || target.term || '—'} · ${target.country || '—'} / ${target.time_window || '—'}`
-  return `Оцінка тренду · ${target.term || '—'} · ${target.country || '—'} / ${target.time_window || '—'}`
 }
 
 export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; language: Language; initialRunId?: string }) {
@@ -285,7 +282,7 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
         {runs === null && <p className="muted">Завантаження…</p>}
         {runs?.length === 0 && <p className="muted">Ще немає Laval-запусків.</p>}
         {runs?.map((run) => <button key={run.id} className={selected === run.id ? 'selected' : ''} aria-current={selected === run.id ? 'true' : undefined} onClick={() => setSelected(run.id)}>
-          <span><StatusDot status={run.status} />{runStatusLabel(run.status)}</span><div className="laval-run-badges"><em className={`evidence-badge ${run.evidence_mode || 'demo_fixture'}`}>{evidenceLabel(run.evidence_mode)}</em><em className={`run-mode-badge ${run.approval_mode}`}>{runModeLabel(run.approval_mode)}</em></div><strong>{run.owner_preview || 'Owner idea'}</strong><small>{short(run.id)} · {run.completed_stages ?? 0}/{run.pipeline_version === 'mechanism_thesis_v1' ? 22 : 16}{runCreatedLabel(run.created_at) ? ` · ${runCreatedLabel(run.created_at)}` : ''}</small>
+          <span><StatusDot status={run.status} />{runStatusLabel(run.status)}</span><div className="laval-run-badges"><em className={`evidence-badge ${run.evidence_mode || 'demo_fixture'}`}>{evidenceLabel(run.evidence_mode)}</em><em className={`run-mode-badge ${run.approval_mode}`}>{runModeLabel(run.approval_mode)}</em></div><strong>{run.owner_preview || 'Owner idea'}</strong><small>{short(run.id)} · {run.processed_stages ?? run.completed_stages ?? 0}/{run.pipeline_version === 'mechanism_thesis_v1' ? 22 : 16} оброблено{run.partial_stages ? ` · ${run.partial_stages} частково` : ''}{runCreatedLabel(run.created_at) ? ` · ${runCreatedLabel(run.created_at)}` : ''}</small>
         </button>)}
       </aside>
       <div className="laval-workspace">
@@ -332,7 +329,7 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
             const phaseStages = status.stages.filter((stage) => phase.stages.includes(stage.stage))
             if (!phaseStages.length) return null
             return <section key={phase.title}><h4>{phase.title}</h4><div className="laval-stages">{phaseStages.map((stage) => <button key={stage.stage} className={`${stage.status} ${stageName === stage.stage ? 'selected' : ''}`} onClick={() => inspect(stage)}>
-              <span>S{String(stage.ordinal).padStart(2, '0')}</span><strong>{humanStage(stage.stage)}</strong><small>{stage.stage.replaceAll('_', ' ')} · {stage.status} · #{stage.attempt}{stage.provider ? ` · ${stage.provider}` : ''}{stageTrustLabel(status.quality, stage.stage)}</small>
+              <span>S{String(stage.ordinal).padStart(2, '0')}</span><strong>{humanStage(stage.stage)}</strong><small>{stage.stage.replaceAll('_', ' ')} · {stage.status} · #{stage.attempt}{stage.provider ? ` · ${stage.provider}` : ''}{stageTrustLabel(status.quality, stage.stage)}</small><em>Відкрити деталі →</em>
             </button>)}</div></section>
           })}</div>
           {stageName && <section className="laval-inspector" ref={inspectorRef} tabIndex={-1}>
@@ -342,18 +339,23 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
               {['SERP_DISCOVERY', 'COMPETITOR_SELECTION'].includes(stageName) && <select aria-label="Country filter" value={countryFilter} onChange={(event) => { const value = event.target.value; const stage = status.stages.find((item) => item.stage === stageName); if (stage) void inspect(stage, view, value) }}><option value="">Усі країни</option>{configuredCountries.map((code) => <option key={code}>{code}</option>)}</select>}
               <button className="secondary" disabled={busy} onClick={() => act('rerun', { stage: stageName, ...(stageName === 'SERP_DISCOVERY' && countryFilter ? { country: countryFilter } : {}) })}><RotateCcw />{busy ? 'Виконується…' : 'Перезапустити'}</button>
             </div></div>
-            <StageArtifact stage={stageName} value={stageOutput} language={language} loading={stageLoading} error={stageLoadError} />
-            {CORRECTABLE_STAGES.includes(stageName) && !stageLoading && !stageLoadError && Boolean(stageOutput) && <OverridePanel
-              apiAction={async (body) => {
-                const applied = await act('override', body)
-                const stage = status.stages.find((item) => item.stage === stageName)
-                if (applied && stage) await inspect(stage, view, countryFilter)
-                return applied
-              }}
+            <StageArtifact
               stage={stageName}
-              countries={configuredCountries}
-              targets={correctionTargets(stageOutput)}
-            />}
+              value={stageOutput}
+              language={language}
+              loading={stageLoading}
+              error={stageLoadError}
+              correction={CORRECTABLE_STAGES.includes(stageName) && !stageLoading && !stageLoadError && Boolean(stageOutput) ? {
+                targets: correctionTargets(stageOutput),
+                countries: configuredCountries,
+                apiAction: async (body) => {
+                  const applied = await act('override', body)
+                  const stage = status.stages.find((item) => item.stage === stageName)
+                  if (applied && stage) await inspect(stage, view, countryFilter)
+                  return applied
+                },
+              } : undefined}
+            />
           </section>}
         </>}
       </div>
@@ -377,11 +379,16 @@ function RunQuality({ quality, runStatus }: { quality: LavalRunQuality; runStatu
 }
 
 type ArtifactQuality = { run?: Omit<LavalRunQuality, 'by_stage'>; stage?: LavalQualityCount }
+type CorrectionContext = {
+  targets: OverrideTarget[]
+  countries: string[]
+  apiAction: (body: Record<string, unknown>) => Promise<boolean>
+}
 function record(value: unknown): Record<string, unknown> { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {} }
 function rows(value: unknown): Array<Record<string, unknown>> { return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item))) : [] }
 function text(value: unknown, language: Language) { return isI18n(value) ? String(local(value, language)) : String(value ?? '') }
 
-function StageArtifact({ stage, value, language, loading, error }: { stage: string; value: unknown; language: Language; loading: boolean; error: string }) {
+function StageArtifact({ stage, value, language, loading, error, correction }: { stage: string; value: unknown; language: Language; loading: boolean; error: string; correction?: CorrectionContext }) {
   if (loading) return <p className="muted" role="status">Завантаження артефакту…</p>
   if (error) return <p className="laval-failure">Не вдалося завантажити артефакт: {error}</p>
   const envelope = record(value)
@@ -390,7 +397,7 @@ function StageArtifact({ stage, value, language, loading, error }: { stage: stri
   if (output === null || output === undefined) return <p className="muted">Артефакт ще не створено для незавершеного етапу.</p>
   return <>
     <ArtifactTrust quality={quality} />
-    <ReadableArtifact stage={stage} output={output} language={language} quality={quality} />
+    <ReadableArtifact stage={stage} output={output} language={language} quality={quality} correction={correction} />
     <RawArtifact output={output} />
   </>
 }
@@ -410,7 +417,7 @@ function ArtifactTrust({ quality }: { quality: ArtifactQuality }) {
   return null
 }
 
-function ReadableArtifact({ stage, output, language, quality }: { stage: string; output: unknown; language: Language; quality: ArtifactQuality }) {
+function ReadableArtifact({ stage, output, language, quality, correction }: { stage: string; output: unknown; language: Language; quality: ArtifactQuality; correction?: CorrectionContext }) {
   const data = record(output)
   if (Array.isArray(output) && rows(output).some((item) => item.normalization_version)) return <MarketSignalScores scores={rows(output)} />
   if (rows(data.scores).some((item) => item.normalization_version)) return <MarketSignalScores scores={rows(data.scores)} />
@@ -421,12 +428,12 @@ function ReadableArtifact({ stage, output, language, quality }: { stage: string;
   }
   if (stage === 'QUERY_PLAN') return <div className="artifact-readable"><h4>Пошукові наміри</h4><p>{rows(data.query_intents).length} запитів для {Array.isArray(data.countries) ? data.countries.length : 'заданих'} ринків.</p><div className="artifact-list">{rows(data.query_intents).map((item, index) => <article key={String(item.query_intent_id || index)}><small>{String(item.family || 'query')}</small><h5>{String(item.base_query || '—')}</h5><p>{rows(item.variants).map((variant) => `${String(variant.country)}:${String(variant.language)} — ${String(variant.query)}`).join(' · ')}</p></article>)}</div></div>
   if (stage === 'SERP_DISCOVERY') return <div className="artifact-readable"><h4>Що повернув пошук</h4><p>Провайдер: {String(data.provider || '—')}. Невдалих запитів: {rows(data.failures).length}.</p><div className="artifact-stats">{Object.entries(record(data.countries)).map(([country, searches]) => <div key={country}><strong>{Array.isArray(searches) ? searches.reduce((total, item) => total + rows(record(item).results).length, 0) : 0}</strong><span>{country} результатів</span></div>)}</div></div>
-  if (stage === 'COMPETITOR_SELECTION') return <RankedEvidence title="Відібрані кандидати в конкуренти" items={rows(data.global_deduplicated)} language={language} />
+  if (stage === 'COMPETITOR_SELECTION') return <RankedEvidence title="Відібрані конкуренти" items={rows(data.global_deduplicated)} language={language} correction={correction} />
   if (stage === 'COMPETITOR_EVIDENCE') return <div className="artifact-readable"><h4>Покриття доказами</h4><p>{rows(data.competitors).length} конкурентів · {rows(data.failures).length} збоїв джерел.</p><div className="artifact-list">{rows(data.competitors).map((item) => <article key={String(item.competitor_id)}><h5>{String(item.name || 'Конкурент')}</h5><p>{Array.isArray(item.evidence_ids) ? item.evidence_ids.length : 0} evidence items</p></article>)}</div></div>
   if (stage === 'YOUTUBE_DISCOVERY') return <div className="artifact-readable"><h4>YouTube: незалежні творці</h4><p>Офіційний API · без scraping captions. Відео: {rows(data.videos).length}; канали: {rows(data.channels).length}.</p><p>Velocity: {String(data.velocity_status || 'insufficient_history')} — потрібні щонайменше два append-only snapshots.</p></div>
   if (stage === 'YOUTUBE_OBSERVATION') return <div className="artifact-readable"><h4>Поведінкові спостереження</h4><div className="artifact-list">{rows(data.observations).map((item) => <article key={String(item.id)}><small>{String(item.observation_type)} · {String(item.independent_creator_count || 0)} незалежних creators</small><h5>{String(item.statement || '—')}</h5><p>{Array.isArray(item.evidence_ids) ? item.evidence_ids.length : 0} evidence IDs</p></article>)}</div></div>
   if (stage === 'COMPETITOR_DOSSIERS') return <div className="artifact-readable"><h4>Досьє конкурентів</h4><div className="artifact-list">{rows(data.competitors).map((item) => <article key={String(item.competitor_id)}><small>{String(item.type || 'competitor')} · confidence {(Number(item.confidence || 0) * 100).toFixed(0)}%</small><h5>{String(item.name || item.url || 'Конкурент')}</h5><NamedList title="Позиціонування" values={item.positioning} compact /><NamedList title="Скарги" values={item.complaints} compact /><NamedList title="Прогалини" values={item.gaps} compact /></article>)}</div></div>
-  if (stage === 'OPPORTUNITY_MATRIX') return <Opportunities items={rows(data.opportunities)} />
+  if (stage === 'OPPORTUNITY_MATRIX') return <Opportunities items={rows(data.opportunities)} correction={correction} />
   if (stage === 'MARKET_SIGNAL_PLAN') return <div className="artifact-readable"><h4>План Market Signals</h4><p>Нових платних пошуків: {record(data.additional_search).executed === true ? 'так' : '0'}. Використано вже збережені докази.</p><Opportunities items={rows(data.opportunities)} /></div>
   if (stage === 'MARKET_SIGNAL_COLLECTION') {
     const classifications = rows(data.classifications)
@@ -441,7 +448,7 @@ function ReadableArtifact({ stage, output, language, quality }: { stage: string;
   if (stage === 'THESIS_FALSIFICATION') return <div className="artifact-readable"><h4>Спроба спростування</h4><div className="artifact-list">{rows(data.reports).map((item) => <article key={String(item.thesis_id)}><small>{String(item.verdict)}</small><h5>{String(item.fatal_objection || 'Фатального заперечення немає')}</h5><p>Непідтриманих high-severity: {String(item.unsupported_high_severity_count || 0)}</p></article>)}</div></div>
   if (stage === 'THESIS_SHORTLIST') return <div className="artifact-readable"><h4>Рекомендація без відсотка успіху</h4><p>{String(data.status || '—')}</p><p>{String(data.recommendation_reason || '')}</p></div>
   if (stage === 'FINAL_SHORTLIST') return <Shortlist items={rows(data.shortlist)} language={language} verdict={quality.run?.verdict} />
-  if (stage === 'TREND_GATE') return <div className="artifact-readable"><h4>Trend Gate</h4><ArtifactCounts data={data} /></div>
+  if (stage === 'TREND_GATE') return <div className="artifact-readable"><h4>Trend Gate</h4><ArtifactCounts data={data} />{correction && <EditableTrendTargets correction={correction} />}</div>
   return <div className="artifact-readable"><h4>Короткий огляд</h4><ArtifactCounts data={data} /></div>
 }
 
@@ -455,11 +462,93 @@ function ArtifactCounts({ data }: { data: Record<string, unknown> }) {
   const entries = Object.entries(data).filter(([, value]) => Array.isArray(value) || ['string', 'number', 'boolean'].includes(typeof value)).slice(0, 10)
   return <div className="artifact-stats">{entries.map(([name, value]) => <div key={name}><strong>{Array.isArray(value) ? value.length : String(value)}</strong><span>{humanStage(name)}</span></div>)}</div>
 }
-function RankedEvidence({ title, items }: { title: string; items: Array<Record<string, unknown>>; language: Language }) {
-  return <div className="artifact-readable"><h4>{title}</h4><div className="artifact-list">{items.map((item, index) => <article key={String(item.id || item.competitor_id || index)}><small>#{index + 1} · {String(item.result_type || item.type || 'candidate')}</small><h5>{String(item.name || item.domain || item.url || '—')}</h5><p>{String(item.domain || item.url || '')}{typeof item.score === 'number' ? ` · score ${(item.score * 100).toFixed(1)}` : ''}</p></article>)}</div></div>
+function RankedEvidence({ title, items, correction }: { title: string; items: Array<Record<string, unknown>>; language: Language; correction?: CorrectionContext }) {
+  const visible: Array<Record<string, unknown>> = correction
+    ? correction.targets.filter((target) => target.kind === 'competitor').map((target) => ({
+      ...items.find((item) => String(item.competitor_id || item.id) === target.id), ...target,
+    }) as Record<string, unknown>)
+    : items
+  return <div className="artifact-readable"><div className="artifact-section-head"><div><h4>{title}</h4><p>Відкрийте деталі або змініть конкретний елемент прямо в списку.</p></div>{correction && <AddCompetitor correction={correction} />}</div>
+    {visible.length === 0 ? <p className="muted">Немає активних конкурентів.</p> : <div className="artifact-list">{visible.map((item, index) => <article key={String(item.id || item.competitor_id || index)}>
+      <div className="artifact-item-head"><div><small>#{index + 1} · {String(item.result_type || item.type || 'competitor')}</small><h5>{String(item.name || item.domain || item.url || '—')}</h5></div>{correction && <InlineCorrection target={item as OverrideTarget} type="competitor" action="reject" label="Вилучити" apiAction={correction.apiAction} />}</div>
+      <p>{String(item.domain || item.url || '')}{typeof item.score === 'number' ? ` · score ${(item.score * 100).toFixed(1)}` : ''}</p><ItemDetails item={item} />
+    </article>)}</div>}
+  </div>
 }
-function Opportunities({ items }: { items: Array<Record<string, unknown>> }) {
-  return <div className="artifact-readable"><h4>Можливості</h4><div className="artifact-list">{items.map((item, index) => { const evidenceCount = Array.isArray(item.evidence_ids) ? item.evidence_ids.length : rows(item.evidence).length; return <article key={String(item.id || item.opportunity_id || index)}><small>#{index + 1}{typeof item.aggregate_score === 'number' ? ` · ${(item.aggregate_score * 100).toFixed(1)}` : ''} · {evidenceCount} доказів</small><h5>{String(item.statement || '—')}</h5><p>{String(item.affected_segment || item.pain || '')}</p></article> })}</div></div>
+function Opportunities({ items, correction }: { items: Array<Record<string, unknown>>; correction?: CorrectionContext }) {
+  const visible: Array<Record<string, unknown>> = correction
+    ? correction.targets.filter((target) => target.kind === 'opportunity').map((target) => ({
+      ...items.find((item) => String(item.opportunity_id || item.id) === target.id), ...target,
+    }) as Record<string, unknown>)
+    : items
+  return <div className="artifact-readable"><div className="artifact-section-head"><div><h4>Можливості</h4>{correction && <p>Переглядайте підстави та вимикайте нерелевантні можливості на місці.</p>}</div></div>
+    {visible.length === 0 ? <p className="muted">Немає активних можливостей.</p> : <div className="artifact-list">{visible.map((item, index) => { const evidenceCount = Array.isArray(item.evidence_ids) ? item.evidence_ids.length : rows(item.evidence).length; return <article key={String(item.id || item.opportunity_id || index)}>
+      <div className="artifact-item-head"><div><small>#{index + 1}{typeof item.aggregate_score === 'number' ? ` · ${(item.aggregate_score * 100).toFixed(1)}` : ''} · {evidenceCount} доказів</small><h5>{String(item.statement || '—')}</h5></div>{correction && <InlineCorrection target={item as OverrideTarget} type="opportunity" action="disable" label="Вимкнути" apiAction={correction.apiAction} />}</div>
+      <p>{String(item.affected_segment || item.pain || '')}</p><ItemDetails item={item} />
+    </article> })}</div>}
+  </div>
+}
+function ItemDetails({ item }: { item: Record<string, unknown> }) {
+  const url = String(item.url || '')
+  const countries = Array.isArray(item.countries) ? item.countries.map(String) : []
+  const components = record(item.components)
+  const evidenceCount = Array.isArray(item.evidence_ids) ? item.evidence_ids.length : rows(item.evidence).length
+  if (!url && !countries.length && !Object.keys(components).length && !item.pain && !item.affected_segment && !evidenceCount) return null
+  return <details className="artifact-item-details"><summary>Деталі</summary><dl>
+    {url && <div><dt>Джерело</dt><dd><a href={url} target="_blank" rel="noreferrer">{url}</a></dd></div>}
+    {countries.length > 0 && <div><dt>Ринки</dt><dd>{countries.join(', ')}</dd></div>}
+    {Boolean(item.pain) && <div><dt>Біль</dt><dd>{String(item.pain)}</dd></div>}
+    {Boolean(item.affected_segment) && <div><dt>Сегмент</dt><dd>{String(item.affected_segment)}</dd></div>}
+    {evidenceCount > 0 && <div><dt>Докази</dt><dd>{evidenceCount}</dd></div>}
+    {Object.entries(components).map(([name, value]) => <div key={name}><dt>{humanStage(name)}</dt><dd>{typeof value === 'number' ? (value * 100).toFixed(1) : String(value)}</dd></div>)}
+  </dl></details>
+}
+
+function InlineCorrection({ target, type, action, label, apiAction }: { target: OverrideTarget; type: 'competitor' | 'opportunity' | 'trend'; action: 'reject' | 'disable'; label: string; apiAction: CorrectionContext['apiAction'] }) {
+  const [editing, setEditing] = useState(false)
+  const [reason, setReason] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const name = target.name || target.statement || target.discovered_term || target.term || target.domain || 'елемент'
+  if (!editing) return <button className="inline-edit-trigger" onClick={() => setEditing(true)}>{label}</button>
+  return <div className="inline-correction">
+    <label>Причина<input autoFocus aria-label={`Причина для ${name}`} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Коротко: чому?" /></label>
+    <div><button className="secondary" disabled={!reason.trim() || submitting} onClick={async () => {
+      setSubmitting(true)
+      try {
+        const applied = await apiAction({ type, action, target_id: target.id, reason: reason.trim() })
+        if (!applied) setSubmitting(false)
+      } catch { setSubmitting(false) }
+    }}><Check />{submitting ? 'Застосування…' : 'Підтвердити'}</button><button className="icon-button" aria-label="Скасувати зміну" onClick={() => { setEditing(false); setReason('') }}><X /></button></div>
+    <small>Причина потрапить в аудит; залежні етапи буде перебудовано.</small>
+  </div>
+}
+
+function AddCompetitor({ correction }: { correction: CorrectionContext }) {
+  const [url, setUrl] = useState('')
+  const [country, setCountry] = useState(correction.countries[0] || 'US')
+  const [reason, setReason] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  return <details className="inline-add"><summary>+ Додати конкурента</summary><div>
+    <label>URL<input type="url" inputMode="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://example.com" /></label>
+    <label>Країна<select value={country} onChange={(event) => setCountry(event.target.value)}>{(correction.countries.length ? correction.countries : ['US']).map((code) => <option key={code}>{code}</option>)}</select></label>
+    <label>Причина<input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Чому це конкурент?" /></label>
+    <button className="secondary" disabled={!url.trim() || !reason.trim() || submitting} onClick={async () => {
+      setSubmitting(true)
+      try {
+        const applied = await correction.apiAction({ type: 'competitor', action: 'add', target_id: url.trim(), reason: reason.trim(), payload: { url: url.trim(), country } })
+        if (!applied) setSubmitting(false)
+      } catch { setSubmitting(false) }
+    }}><Check />{submitting ? 'Додавання…' : 'Додати'}</button>
+  </div></details>
+}
+
+function EditableTrendTargets({ correction }: { correction: CorrectionContext }) {
+  const targets = correction.targets.filter((target) => target.kind === 'trend_score' || target.kind === 'trend_discovery')
+  if (!targets.length) return <p className="muted">Немає активних тренд-сигналів.</p>
+  return <div className="artifact-list editable-trends">{targets.map((target) => <article key={target.id}>
+    <div className="artifact-item-head"><div><small>{target.kind === 'trend_discovery' ? 'ВІДКРИТТЯ' : 'ТРЕНД-СИГНАЛ'} · {target.country || '—'} · {target.time_window || '—'}</small><h5>{target.discovered_term || target.term || '—'}</h5></div><InlineCorrection target={target} type="trend" action="disable" label="Вимкнути" apiAction={correction.apiAction} /></div>
+    <p>{target.discovery_type || target.growth_label || (typeof target.aggregate_score === 'number' ? `score ${(target.aggregate_score * 100).toFixed(1)}` : '')}</p>
+  </article>)}</div>
 }
 function IdeaRows({ title, items, language, trusted }: { title: string; items: Array<Record<string, unknown>>; language: Language; trusted: boolean }) {
   return <div className="artifact-readable"><h4>{title}</h4><div className="artifact-list">{items.map((item, index) => <article key={String(item.id || item.idea_id || index)}><small>{String(item.operator || 'idea')} · {trusted ? 'MODEL OUTPUT' : 'INVALID FALLBACK'}</small><h5>{text(item.title, language)}</h5><p>{text(item.one_liner, language)}</p></article>)}</div></div>
@@ -486,35 +575,4 @@ function MarketSignalScores({ scores }: { scores: Array<Record<string, unknown>>
       <details><summary>Evidence IDs ({evidence.length})</summary><ul>{evidence.map((id) => <li key={id}><code>{id}</code></li>)}</ul></details>
     </article>
   })}</div>
-}
-
-function OverridePanel({ apiAction, stage, countries, targets }: { apiAction: (body: Record<string, unknown>) => Promise<boolean>; stage: string; countries: string[]; targets: OverrideTarget[] }) {
-  const type = stage === 'COMPETITOR_SELECTION' ? 'competitor' : stage === 'OPPORTUNITY_MATRIX' ? 'opportunity' : 'trend'
-  const [action, setAction] = useState(type === 'competitor' ? 'reject' : 'disable')
-  const [target, setTarget] = useState('')
-  const [country, setCountry] = useState(countries[0] || 'US')
-  const [reason, setReason] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const invalidatedFrom = type === 'competitor' ? 'збору доказів про конкурентів' : type === 'opportunity' ? 'планування тренд-запитів' : 'пакета синтезу'
-  const title = type === 'competitor' ? 'Скоригувати список конкурентів' : type === 'opportunity' ? 'Вимкнути можливість' : 'Вимкнути тренд-сигнал'
-  useEffect(() => { setAction(type === 'competitor' ? 'reject' : 'disable'); setTarget(''); setReason('') }, [stage, type])
-  return <details className="laval-override"><summary>{title}</summary><div>
-    <p>Оберіть зрозумілий елемент — його внутрішній UUID буде підставлено автоматично. Причина та автор потраплять у журнал аудиту; етапи, починаючи з {invalidatedFrom}, будуть позначені для перебудови.</p>
-    {type === 'competitor' && <label>Що змінити<select aria-label="Що змінити" value={action} onChange={(event) => { setAction(event.target.value); setTarget('') }}><option value="reject">Відхилити знайденого конкурента</option><option value="add">Додати конкурента за URL</option></select></label>}
-    {action === 'add' ? <>
-      <label>URL конкурента<input type="url" inputMode="url" value={target} onChange={(event) => setTarget(event.target.value)} placeholder="https://example.com" /></label>
-      <label>Країна<select value={country} onChange={(event) => setCountry(event.target.value)}>{countries.map((code) => <option key={code}>{code}</option>)}</select></label>
-    </> : <label>{type === 'competitor' ? 'Конкурент' : type === 'opportunity' ? 'Можливість' : 'Тренд-сигнал або відкриття'}<select value={target} onChange={(event) => setTarget(event.target.value)}>
-      <option value="">Оберіть зі списку…</option>
-      {targets.map((item) => <option key={item.id} value={item.id}>{correctionTargetLabel(item)}</option>)}
-    </select>{targets.length === 0 && <span className="muted">Немає активних елементів для корекції.</span>}</label>}
-    <label>Причина<input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Чому цей елемент треба змінити?" /></label>
-    <button className="secondary" disabled={!target.trim() || !reason.trim() || submitting} onClick={async () => {
-      setSubmitting(true)
-      try {
-        const applied = await apiAction({ type, action, target_id: target.trim(), reason: reason.trim(), ...(action === 'add' ? { payload: { url: target.trim(), country } } : {}) })
-        if (applied) { setTarget(''); setReason('') }
-      } finally { setSubmitting(false) }
-    }}><Check />{submitting ? 'Застосування…' : 'Застосувати корекцію'}</button>
-  </div></details>
 }

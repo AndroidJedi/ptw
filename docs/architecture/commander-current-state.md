@@ -1,10 +1,22 @@
 # Commander current state
 
-Status: Idea Laval V2 bridge contract repaired; first live 22-stage run completed
+Status: Idea Laval V2 bridge contract repaired; owner review UX streamlined locally
 Updated: 2026-08-20
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
 ## Current implementation milestone
+
+The next local Owner UI revision makes stage inspection and correction
+item-local. Every stage card explicitly opens details; selected competitors,
+opportunities, and legacy trend rows expose their permitted audited action
+beside the readable item, with the reason requested only after the owner acts.
+Competitor addition remains contextual to the selected list. The detached UUID
+target form is removed, while the existing server-resolved UUID, required
+reason, actor audit, and downstream invalidation contracts remain unchanged.
+Run summaries now report processed stages separately from strict completion and
+show partial-stage count, so a 21-complete plus one-partial run no longer
+conflicts with a 22-of-22 processed header. This revision is verified locally
+but is not yet deployed.
 
 New Idea Laval runs use immutable pipeline version `mechanism_thesis_v1` and a
 22-stage evidence -> mechanism -> product-thesis topology. The pipeline retains
@@ -60,7 +72,7 @@ forbids builds, injects the bounded owner value, and recreates Owner Gateway.
 
 Local verification: the Commander built-image suite passes 107 tests with 35
 expected external/dependency skips; the disposable PostgreSQL Laval suite passes
-55 tests; the Owner Gateway built image passes 20 tests; Vitest passes 17 tests;
+55 tests; the Owner Gateway built image passes 20 tests; Vitest passes 18 tests;
 and the independent platform suite passes 27 tests. Commander demo generation,
 both migration families on disposable PostgreSQL, skill verification, production
 web build verification, shell syntax validation, and `git diff --check` pass.

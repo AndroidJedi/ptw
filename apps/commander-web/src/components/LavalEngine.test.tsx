@@ -121,7 +121,7 @@ describe('LavalEngine', () => {
     expect(screen.queryByText('Артефакт ще не створено.')).not.toBeInTheDocument()
   })
 
-  it('offers stage-specific correction targets without asking the owner for a UUID', async () => {
+  it('edits a competitor directly in its readable list without asking for a UUID', async () => {
     const run = {
       id: '01234567-89ab-7def-8123-456789abcdef', owner_idea_id: '11234567-89ab-7def-8123-456789abcdef',
       status: 'paused', current_stage: 'COMPETITOR_SELECTION', approval_mode: 'manual', approval_gates: ['COMPETITOR_SELECTION'],
@@ -142,7 +142,7 @@ describe('LavalEngine', () => {
         if (path.includes('/show?')) {
           if (path.includes('COMPETITOR_SELECTION')) return Promise.resolve({
             output: { global_deduplicated: [] },
-            override_targets: [{ id: competitorId, kind: 'competitor', name: 'Clear Rival', domain: 'rival.example' }],
+            override_targets: [{ id: competitorId, kind: 'competitor', name: 'Clear Rival', domain: 'rival.example', url: 'https://rival.example', score: .78 }],
           })
           return Promise.resolve({ output: { raw_text: 'Owner idea' }, override_targets: [] })
         }
@@ -158,15 +158,52 @@ describe('LavalEngine', () => {
     expect(screen.queryByText(/Скоригувати список конкурентів/)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /COMPETITOR SELECTION/ }))
-    fireEvent.click(await screen.findByText('Скоригувати список конкурентів'))
-    expect(screen.getByText(/UUID буде підставлено автоматично/)).toBeInTheDocument()
+    expect(await screen.findByText('Clear Rival')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Деталі'))
+    expect(screen.getByRole('link', { name: 'https://rival.example' })).toBeInTheDocument()
     expect(screen.queryByLabelText('UUID')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Конкурент'), { target: { value: competitorId } })
-    fireEvent.change(screen.getByLabelText('Причина'), { target: { value: 'Not a direct product' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Застосувати корекцію' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Вилучити' }))
+    fireEvent.change(screen.getByLabelText('Причина для Clear Rival'), { target: { value: 'Not a direct product' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Підтвердити' }))
 
     await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/laval/runs/${run.id}/override`, {
       type: 'competitor', action: 'reject', target_id: competitorId, reason: 'Not a direct product',
+    }))
+  })
+
+  it('disables an opportunity directly beside its details', async () => {
+    const run = {
+      id: '01234567-89ab-7def-8123-456789abcdef', owner_idea_id: '11234567-89ab-7def-8123-456789abcdef',
+      status: 'paused', current_stage: 'OPPORTUNITY_MATRIX', approval_mode: 'manual', approval_gates: ['OPPORTUNITY_MATRIX'],
+      owner_preview: 'Opportunity corrections', completed_stages: 10, processed_stages: 10, partial_stages: 0, variant_count: 0,
+      config: { countries: [{ code: 'US' }] }, evidence_mode: 'demo_fixture', provider_snapshot: { search: 'fixture', trends: 'fixture' },
+      max_spend_usd: .05, reserved_spend_usd: .04, created_at: '', updated_at: '',
+    }
+    const opportunityId = '31234567-89ab-7def-8123-456789abcdef'
+    const status = { run, stages: [{ stage: 'OPPORTUNITY_MATRIX', ordinal: 9, status: 'completed', attempt: 1, metrics: {} }], cost: { items: [], total_usd: 0 } }
+    const post = vi.fn(() => Promise.resolve({ ok: true }))
+    const api = {
+      get: vi.fn((path: string) => {
+        if (path.includes('/providers')) return Promise.resolve(readiness)
+        if (path.includes('/show?')) return Promise.resolve({
+          output: { opportunities: [{ id: opportunityId, statement: 'Private proof before public pressure', pain: 'Public accountability can become harmful.', evidence_ids: ['evidence-1'] }] },
+          override_targets: [{ id: opportunityId, kind: 'opportunity', statement: 'Private proof before public pressure', pain: 'Public accountability can become harmful.', aggregate_score: .72 }],
+        })
+        if (path.includes(run.id)) return Promise.resolve(status)
+        return Promise.resolve({ items: [run] })
+      }),
+      post, blob: vi.fn(),
+    } as unknown as ApiClient
+    render(<LavalEngine api={api} language="uk" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /OPPORTUNITY MATRIX/ }))
+    expect(await screen.findByText('Private proof before public pressure')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Вимкнути' }))
+    fireEvent.change(screen.getByLabelText('Причина для Private proof before public pressure'), { target: { value: 'Outside the intended segment' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Підтвердити' }))
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/laval/runs/${run.id}/override`, {
+      type: 'opportunity', action: 'disable', target_id: opportunityId, reason: 'Outside the intended segment',
     }))
   })
 

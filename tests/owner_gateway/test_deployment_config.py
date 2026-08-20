@@ -48,6 +48,18 @@ class DeploymentConfigTests(unittest.TestCase):
         for service in ("commander-db", "commander-api", "idea-generation-api", "owner-gateway"):
             self.assertIn(f"--no-deps --wait --no-build {service}", deploy)
 
+    def test_production_reset_reuses_the_exact_deployed_release(self) -> None:
+        reset = (ROOT / "scripts/reset_ptw.sh").read_text()
+
+        self.assertIn("export PTW_IMAGE_TAG=$release_tag", reset)
+        self.assertIn("refusing unversioned production reset image tag", reset)
+        self.assertIn('ptw-idea-generation:$release_tag', reset)
+        self.assertIn('ptw-owner-gateway:$release_tag', reset)
+        self.assertNotIn("run --rm --no-deps commander-migrate", reset)
+        self.assertGreaterEqual(reset.count("run --rm --no-deps --no-build"), 5)
+        self.assertIn('-e PLATFORM_OWNER_TELEGRAM_ID="$platform_owner_id"', reset)
+        self.assertIn("--force-recreate owner-gateway", reset)
+
 
 if __name__ == "__main__":
     unittest.main()

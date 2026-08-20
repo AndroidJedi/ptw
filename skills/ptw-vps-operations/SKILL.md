@@ -74,6 +74,14 @@ Use repository runbooks as authority.
   owner ideas, Idea Evolution, or fixture/demo records as production owner data.
 - Never run `scripts/reset_ptw.sh` without the owner's exact irreversible-reset
   request and confirmation.
+- Before a reset drops either application schema, resolve one matching,
+  non-`latest` release tag from the deployed Commander, Idea, and Owner Gateway
+  containers. Export that tag for every reset migration/start and require
+  `--no-build`; a reset must never build on the 1 GB VPS or silently switch to
+  a default image. Pass the configured platform owner ID explicitly into its
+  one-shot seed container because Compose interpolation files do not
+  automatically inject variables into a service environment. Recreate Owner
+  Gateway after reseeding so it cannot retain pre-reset database connections.
 - Resolve exact targets before restarts or deletion. Inspect bounded logs; never
   dump Compose configuration or container environments.
 

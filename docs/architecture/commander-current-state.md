@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Idea Laval mechanism/thesis V2 implemented and locally verified; production cutover/reset pending
+Status: Idea Laval mechanism/thesis V2 deployed on a verified clean production state
 Updated: 2026-08-20
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -32,10 +32,21 @@ phases, thesis cards without percentage-like success scores, server-side UUID
 resolution, manual probe evidence capture, explicit mechanism selection for
 Mutate, and a materially different loop requirement for Pivot.
 
-This milestone is not deployed. The next operational step is an owner-confirmed
-clean production reset through `scripts/reset_ptw.sh`, root-only provider
-configuration, then the established one-service-at-a-time 1 GB release and live
-acceptance. No production database or service was changed during implementation.
+Production runs release `laval-v2-40f9f2d` at commit `40f9f2d`. The owner
+confirmed the irreversible clean reset; Commander/Idea runtime state, platform
+jobs/sessions/events, generated assets, and bounded workspaces were removed and
+reseeded to the canonical empty checkpoint. DataForSEO, YouTube Data API, and
+the LLM bridge report live-ready. Commander, Idea, Owner Gateway, the platform
+bridges, Caddy, the public Hosting bundle, and one-at-a-time restart recovery
+passed acceptance. The remaining acceptance is the authenticated owner-browser
+creation of the first real V2 run.
+
+The reset rehearsal exposed two runbook defects before its final checkpoint:
+the helper did not inherit the deployed image tag and its platform owner seed
+did not explicitly inject `PLATFORM_OWNER_TELEGRAM_ID`. Production was recovered
+under the maintenance lock on the verified V2 images. The reset now resolves a
+matching non-`latest` tag from all three deployed application containers,
+forbids builds, injects the bounded owner value, and recreates Owner Gateway.
 
 Local verification: the Commander built-image suite passes 102 tests with 33
 expected external/dependency skips; the disposable PostgreSQL Laval suite passes

@@ -20,6 +20,33 @@ commander_compose="docker compose --env-file $platform_root/.env --env-file $com
 platform_compose="docker compose --env-file $platform_root/.env --env-file $commander_root/.env.owner-gateway -f $platform_root/docker-compose.yml"
 idea_compose="docker compose --env-file $platform_root/.env --env-file $commander_root/.env.owner-gateway --project-name ptw-idea-generation -f $commander_root/docker-compose.idea-generation.yml"
 
+commander_container=$($commander_compose ps -aq commander-api)
+idea_container=$($idea_compose ps -aq idea-generation-api)
+owner_container=$($commander_compose ps -aq owner-gateway)
+[ -n "$commander_container" ] && [ -n "$idea_container" ] && [ -n "$owner_container" ] || {
+  echo "deployed PTW application containers are required to resolve the release tag" >&2
+  exit 1
+}
+commander_image=$(docker inspect --format '{{.Config.Image}}' "$commander_container")
+idea_image=$(docker inspect --format '{{.Config.Image}}' "$idea_container")
+owner_image=$(docker inspect --format '{{.Config.Image}}' "$owner_container")
+case "$commander_image" in
+  ptw-commander:*) release_tag=${commander_image#ptw-commander:} ;;
+  *) echo "unexpected deployed Commander image: $commander_image" >&2; exit 1 ;;
+esac
+case "$release_tag" in
+  ""|latest|*[!A-Za-z0-9._-]*) echo "refusing unversioned production reset image tag" >&2; exit 1 ;;
+esac
+[ "$idea_image" = "ptw-idea-generation:$release_tag" ] || {
+  echo "Idea image tag does not match Commander release $release_tag" >&2
+  exit 1
+}
+[ "$owner_image" = "ptw-owner-gateway:$release_tag" ] || {
+  echo "Owner Gateway image tag does not match Commander release $release_tag" >&2
+  exit 1
+}
+export PTW_IMAGE_TAG=$release_tag
+
 # Exact app processes only. PostgreSQL, Caddy, owner gateway, root broker, Git,
 # SSH, credentials, volumes, and Git stay intact.
 $commander_compose stop commander-api >/dev/null
@@ -52,19 +79,25 @@ do
   find "$live_directory" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
 done
 
-$commander_compose run --rm --no-deps commander-migrate
-$idea_compose run --rm --no-deps idea-generation-api python -m idea_generation.manage migrate
-$idea_compose run --rm --no-deps idea-generation-api python -m idea_generation.manage seed
-$platform_compose run --rm --no-deps commander-api python -c \
+$commander_compose run --rm --no-deps --no-build commander-migrate
+$idea_compose run --rm --no-deps --no-build idea-generation-api python -m idea_generation.manage migrate
+$idea_compose run --rm --no-deps --no-build idea-generation-api python -m idea_generation.manage seed
+$platform_compose run --rm --no-deps --no-build commander-api python -c \
   'from common.database import apply_migrations; apply_migrations()'
-$platform_compose run --rm --no-deps commander-api python -c \
+platform_owner_id=$(sed -n 's/^PLATFORM_OWNER_TELEGRAM_ID=//p' "$commander_root/.env.owner-gateway")
+case "$platform_owner_id" in
+  ""|*[!0-9]*) echo "PLATFORM_OWNER_TELEGRAM_ID is missing or invalid" >&2; exit 1 ;;
+esac
+$platform_compose run --rm --no-deps --no-build -e PLATFORM_OWNER_TELEGRAM_ID="$platform_owner_id" commander-api python -c \
   'import os, psycopg; from common.database import database_url; owner=int(os.environ["PLATFORM_OWNER_TELEGRAM_ID"]); c=psycopg.connect(database_url()); c.execute("INSERT INTO users(telegram_user_id,role) VALUES(%s,%s) ON CONFLICT(telegram_user_id) DO NOTHING",(owner,"operator")); c.commit(); c.close()'
+platform_owner_id=
 
 $commander_compose up -d --no-deps --wait --no-build commander-api >/dev/null
 $idea_compose up -d --no-deps --wait --no-build idea-generation-api >/dev/null
 $platform_compose up -d --no-deps --wait --no-build commander-api >/dev/null 2>&1 || true
 $platform_compose up -d --no-deps --wait --no-build commander-worker >/dev/null 2>&1 || true
 $platform_compose up -d --no-deps --wait --no-build git-watcher >/dev/null 2>&1 || true
+$commander_compose up -d --no-deps --wait --no-build --force-recreate owner-gateway >/dev/null
 
 $commander_compose exec -T commander-db psql -X -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander -At <<'SQL'
 DO $$

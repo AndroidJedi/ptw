@@ -222,6 +222,27 @@ byte limit before attributing the rejection to mode drift. After correction,
 run an out-of-run canary for the previously rejected mode before resuming saved
 work.
 
+For a saved Laval bridge recovery, take a bounded pre-resume snapshot of stage
+attempts, provider-task totals, remote-ID count, exactly-once cost-record count,
+actual provider cost, evidence and lineage counts, YouTube channel/video/snapshot
+counts, and language-invocation results. Resume the same run; never rerun S06 or
+post a provider task to repair S07. Acceptance requires S00-S06 to remain
+reusable, S07 to advance to its next stage attempt, every failed invocation to
+remain append-only, and the successful S07 invocation to have a fresh provider
+session. Provider-task, paid-ID, cost, YouTube discovery, snapshot, and evidence
+counts must not change; only legitimate S07-and-later outputs such as behavior
+observations and downstream lineage may grow. Require at least one successful
+invocation for every mandatory mode before declaring the run complete.
+
+Keep provider attribution aligned with execution: S06 identifies the YouTube
+evidence provider, while S07 identifies the structured-LLM bridge model. After
+the recovered run reaches a terminal state, recreate only the Idea service on
+the same pinned image while holding the maintenance lock. Compare the complete
+run snapshot before and after restart, rerun the authenticated bridge contract
+and Owner Gateway dependency audits, and fail acceptance if startup mutates a
+completed run. A legitimately partial evidence stage may coexist with an
+overall completed run; report it explicitly instead of rewriting history.
+
 For ChatGPT-authenticated Codex CLI, keep `LLM_MODEL=codex-cli-default` unless
 a named model has passed a live CLI canary. The sentinel must omit `--model`;
 an API model name such as `gpt-5` can be rejected by Codex subscription auth.

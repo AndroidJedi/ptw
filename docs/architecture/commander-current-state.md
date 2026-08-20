@@ -1,23 +1,31 @@
 # Commander current state
 
-Status: Idea Laval owner review UX streamlined and deployed
+Status: Idea Laval Ukrainian completed-run PDF deployed
 Updated: 2026-08-20
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
 ## Current implementation milestone
 
-The deployed Owner UI makes stage inspection and correction
-item-local. Every stage card explicitly opens details; selected competitors,
-opportunities, and legacy trend rows expose their permitted audited action
-beside the readable item, with the reason requested only after the owner acts.
-Competitor addition remains contextual to the selected list. The detached UUID
-target form is removed, while the existing server-resolved UUID, required
-reason, actor audit, and downstream invalidation contracts remain unchanged.
-Run summaries now report processed stages separately from strict completion and
-show partial-stage count, so a 21-complete plus one-partial run no longer
-conflicts with a 22-of-22 processed header. This revision is deployed as PTW
-release `laval-review-acc03a2` and Firebase Hosting version
-`3ea404fd83205aca`.
+Completed Idea Laval cases now expose one primary `Завантажити PDF` action in
+the Research header. The Idea service generates a concise Ukrainian report with
+five-phase and score visuals, competitors, opportunities, market signals,
+YouTube observations, mechanisms, falsification outcomes, every stage status,
+and bounded clickable HTTP(S) references. PDF export is whole-run only and
+rejects unfinished runs; JSON and Markdown remain the technical exports. The
+live completed 22-stage case generated a valid 12-page, 80034-byte PDF with 66
+clickable URI annotations. This revision is deployed as PTW release
+`laval-pdf-9a2545a` at commit `9a2545a` and Firebase Hosting version
+`69930816d588c284`, serving `App-CoaIr1k1.js` and `ptw-shell-v15`.
+
+The deployed Owner UI also keeps stage inspection and correction item-local.
+Every stage card explicitly opens details; selected competitors, opportunities,
+and legacy trend rows expose their permitted audited action beside the readable
+item, with the reason requested only after the owner acts. Competitor addition
+remains contextual to the selected list. The detached UUID target form is
+removed, while server-resolved UUID, required reason, actor audit, and
+downstream invalidation remain unchanged. Run summaries report processed stages
+separately from strict completion and show partial-stage count, so 21 complete
+plus one partial no longer conflicts with a 22-of-22 processed header.
 
 New Idea Laval runs use immutable pipeline version `mechanism_thesis_v1` and a
 22-stage evidence -> mechanism -> product-thesis topology. The pipeline retains
@@ -45,7 +53,7 @@ phases, thesis cards without percentage-like success scores, server-side UUID
 resolution, manual probe evidence capture, explicit mechanism selection for
 Mutate, and a materially different loop requirement for Pivot.
 
-Production runs PTW release `laval-review-acc03a2` at commit `acc03a2` and
+Production runs PTW release `laval-pdf-9a2545a` at commit `9a2545a` and
 independent platform release `laval-contract-6b0c860` at commit `6b0c860`. The
 platform advertises exactly the 11 active Laval modes and a 1000000-byte request
 limit through its authenticated capabilities endpoint; Idea startup and release

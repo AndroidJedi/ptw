@@ -50,15 +50,20 @@ STRUCTURED_LLM_MODES = frozenset({
     "laval_market_signal_relevance",
     "laval_idea_expansion",
     "laval_idea_evaluation",
+    "laval_youtube_observation",
+    "laval_mechanism_extraction",
+    "laval_thesis_synthesis",
+    "laval_thesis_falsification",
 })
 MAX_STRUCTURED_LLM_REQUEST_BYTES = 1_000_000
 
 
 def validate_structured_llm_request(request: dict) -> None:
     """Reject malformed or unexpectedly large internal model requests."""
+    if request.get("mode") not in STRUCTURED_LLM_MODES:
+        raise ValueError("unsupported structured LLM mode")
     if (
-        request.get("mode") not in STRUCTURED_LLM_MODES
-        or not isinstance(request.get("system_prompt"), str)
+        not isinstance(request.get("system_prompt"), str)
         or not request["system_prompt"].strip()
         or not isinstance(request.get("input_payload"), dict)
         or not isinstance(request.get("output_schema"), dict)
@@ -69,6 +74,16 @@ def validate_structured_llm_request(request: dict) -> None:
             raise ValueError("invalid structured LLM request")
     if len(json.dumps(request, ensure_ascii=False).encode("utf-8")) > MAX_STRUCTURED_LLM_REQUEST_BYTES:
         raise ValueError("structured LLM request is too large")
+
+
+def structured_llm_capabilities() -> dict:
+    """Expose the authenticated Laval contract without queueing a model job."""
+    return {
+        "laval_modes": sorted(
+            mode for mode in STRUCTURED_LLM_MODES if mode.startswith("laval_")
+        ),
+        "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
+    }
 
 
 def bridge_target(command: str, text: str) -> str | None:
@@ -645,6 +660,16 @@ def enqueue_structured_llm(request: dict, x_ptw_bridge_token: str = Header(defau
         session_id = connection.execute("INSERT INTO sessions(user_id,status,summary) VALUES(%s,'active','internal structured LLM request') RETURNING id", (user_id,)).fetchone()[0]
         job_id = connection.execute("INSERT INTO jobs(session_id,type,status,requested_by,parameters) VALUES(%s,'llm_structured','queued',%s,%s) RETURNING id", (session_id,user_id,Jsonb(request))).fetchone()[0]
     return {"request_id": job_id, "status": "queued"}
+
+
+@app.get("/internal/llm/structured/capabilities")
+def get_structured_llm_capabilities(
+    x_ptw_bridge_token: str = Header(default=""),
+) -> dict:
+    if not hmac.compare_digest(x_ptw_bridge_token, secrets.get("TELEGRAM_BOT_TOKEN")):
+        raise HTTPException(status_code=403, detail="invalid bridge token")
+    return structured_llm_capabilities()
+
 
 @app.get("/internal/llm/structured/{job_id}")
 def structured_llm_result(job_id: int, x_ptw_bridge_token: str = Header(default="")) -> dict:

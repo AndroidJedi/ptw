@@ -3,6 +3,8 @@ from pathlib import Path
 import json
 import subprocess
 
+import pytest
+
 from worker.main import codex_available, command_available, execute_job, execute_structured_llm
 
 
@@ -123,3 +125,48 @@ def test_structured_llm_cli_default_omits_model_override(monkeypatch) -> None:
     })
     assert "--model" not in observed["command"]
     assert result["invocation"]["model"] == "codex-cli-default"
+
+
+@pytest.mark.parametrize("mode", [
+    "laval_youtube_observation",
+    "laval_mechanism_extraction",
+    "laval_thesis_synthesis",
+    "laval_thesis_falsification",
+])
+def test_new_laval_modes_reach_fresh_schema_bound_worker(monkeypatch, mode: str) -> None:
+    observed = {}
+
+    def fake_run(command, **kwargs):
+        observed["command"] = command
+        observed["input"] = kwargs["input"]
+        schema_path = Path(command[command.index("--output-schema") + 1])
+        observed["schema"] = json.loads(schema_path.read_text(encoding="utf-8"))
+        output_path = Path(command[command.index("--output-last-message") + 1])
+        output_path.write_text('{"items": []}', encoding="utf-8")
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout=f'{{"type":"thread.started","thread_id":"fresh-{mode}"}}\n',
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    schema = {
+        "type": "object",
+        "properties": {"items": {"type": "array", "items": {"type": "object"}}},
+        "required": ["items"],
+        "additionalProperties": False,
+    }
+    result = execute_structured_llm({
+        "mode": mode,
+        "system_prompt": "Return the supplied contract.",
+        "input_payload": {"mode": mode},
+        "output_schema": schema,
+        "model": "codex-cli-default",
+    })
+
+    assert observed["schema"] == schema
+    assert f'"mode": "{mode}"' in observed["input"]
+    assert "--ephemeral" in observed["command"]
+    assert observed["command"][observed["command"].index("--sandbox") + 1] == "read-only"
+    assert result["invocation"]["session_id"] == f"fresh-{mode}"
+    assert result["invocation"]["conversation_reused"] is False

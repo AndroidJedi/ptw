@@ -1,8 +1,8 @@
 import pytest
 
-from commander.main import (IDEA_COMMANDS, STRUCTURED_LLM_MODES, SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
+from commander.main import (IDEA_COMMANDS, MAX_STRUCTURED_LLM_REQUEST_BYTES, STRUCTURED_LLM_MODES, SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
                             bridge_target, engineering_task, normalized_command,
-                            public_health, safe_bridge_error, task_research_reference,
+                            get_structured_llm_capabilities, public_health, safe_bridge_error, structured_llm_capabilities, task_research_reference,
                             validate_structured_llm_request)
 
 
@@ -61,7 +61,7 @@ def test_task_can_consume_an_explicit_research_hypothesis() -> None:
 
 
 def test_structured_bridge_accepts_laval_modes_and_full_contract() -> None:
-    assert {
+    laval_modes = {
         "laval_owner_dna",
         "laval_query_plan",
         "laval_competitor_dossier",
@@ -69,15 +69,48 @@ def test_structured_bridge_accepts_laval_modes_and_full_contract() -> None:
         "laval_market_signal_relevance",
         "laval_idea_expansion",
         "laval_idea_evaluation",
-    } <= STRUCTURED_LLM_MODES
-    validate_structured_llm_request({
-        "mode": "laval_market_signal_relevance",
-        "system_prompt": "Classify evidence.",
-        "input_payload": {"evidence_ids": ["e-1"]},
+        "laval_youtube_observation",
+        "laval_mechanism_extraction",
+        "laval_thesis_synthesis",
+        "laval_thesis_falsification",
+    }
+    assert {mode for mode in STRUCTURED_LLM_MODES if mode.startswith("laval_")} == laval_modes
+    assert structured_llm_capabilities() == {
+        "laval_modes": sorted(laval_modes),
+        "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
+    }
+    for mode in laval_modes:
+        validate_structured_llm_request({
+            "mode": mode,
+            "system_prompt": "Return structured evidence.",
+            "input_payload": {"evidence_ids": ["e-1"]},
+            "output_schema": {"type": "object"},
+            "prompt_template_version": "contract-v1",
+            "context_hash": "sha256:abc",
+        })
+
+
+def test_structured_bridge_rejects_unknown_and_oversized_requests() -> None:
+    request = {
+        "mode": "laval_not_registered",
+        "system_prompt": "Return structured output.",
+        "input_payload": {},
         "output_schema": {"type": "object"},
-        "prompt_template_version": "market-signal-v1",
-        "context_hash": "sha256:abc",
-    })
+    }
+    with pytest.raises(ValueError, match="unsupported structured LLM mode"):
+        validate_structured_llm_request(request)
+    request["mode"] = "laval_owner_dna"
+    request["input_payload"] = {"content": "x" * MAX_STRUCTURED_LLM_REQUEST_BYTES}
+    with pytest.raises(ValueError, match="too large"):
+        validate_structured_llm_request(request)
+
+
+def test_structured_capabilities_require_the_bridge_token(monkeypatch) -> None:
+    monkeypatch.setattr("commander.main.secrets.get", lambda name: "bridge-token")
+    with pytest.raises(Exception) as rejected:
+        get_structured_llm_capabilities("wrong-token")
+    assert rejected.value.status_code == 403
+    assert get_structured_llm_capabilities("bridge-token") == structured_llm_capabilities()
 
 
 @pytest.mark.parametrize("missing", ["system_prompt", "input_payload", "output_schema"])

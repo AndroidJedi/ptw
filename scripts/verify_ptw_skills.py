@@ -41,6 +41,8 @@ def main() -> None:
             text=True,
         ).stdout.strip()
     )
+    if not hook.is_absolute():
+        hook = ROOT / hook
     require(hook.is_symlink(), "post-merge skill-sync hook is missing")
     require(hook.resolve() == (ROOT / "scripts" / "git-hooks" / "post-merge").resolve(), "wrong post-merge hook")
 

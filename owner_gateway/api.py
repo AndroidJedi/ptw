@@ -398,7 +398,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def export_laval_run(
         run_id: str,
         stage: str | None = None,
-        format: str = Query(default="json", pattern="^(json|md)$"),
+        format: str = Query(default="json", pattern="^(json|md|pdf)$"),
         _identity: OwnerIdentity = Depends(owner),
     ) -> Response:
         require_laval_id(run_id)

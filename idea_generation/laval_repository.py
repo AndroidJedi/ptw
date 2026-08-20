@@ -1089,9 +1089,15 @@ class LavalRepository:
             return []
         return json_safe(rows)
 
-    def export(self, run_id: str, *, stage: str | None = None, format: str = "json") -> tuple[str, str, str]:
-        if format not in {"json", "md"}:
-            raise ValueError("export format must be json or md")
+    def export(self, run_id: str, *, stage: str | None = None, format: str = "json") -> tuple[str, str, str | bytes]:
+        if format not in {"json", "md", "pdf"}:
+            raise ValueError("export format must be json, md, or pdf")
+        if format == "pdf":
+            if stage:
+                raise ValueError("PDF export is available only for the complete run")
+            from .laval_pdf import build_laval_pdf
+
+            return f"laval-{run_id}-report-uk.pdf", "application/pdf", build_laval_pdf(self, run_id)
         if stage:
             payload: Any = self.show(run_id, stage)["output"]
             stem = stage.lower()

@@ -86,6 +86,7 @@ test('exercises Laval mobile controls, demo gating, stage focus, and export fall
   await expect(page.locator('.laval-inspector')).toBeInViewport()
   await page.getByRole('button', { name: /Перезапустити/ }).click()
 
+  await expect(page.getByRole('button', { name: 'Завантажити PDF' })).toHaveCount(0)
   await page.getByRole('button', { name: 'MD' }).click()
   const preview = page.getByRole('dialog', { name: 'Перегляд експорту' })
   await expect(preview).toBeVisible()

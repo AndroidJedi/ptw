@@ -121,6 +121,32 @@ describe('LavalEngine', () => {
     expect(screen.queryByText('Артефакт ще не створено.')).not.toBeInTheDocument()
   })
 
+  it('offers a one-click Ukrainian PDF only for a completed run', async () => {
+    const run = {
+      id: '01234567-89ab-7def-8123-456789abcdef', owner_idea_id: '11234567-89ab-7def-8123-456789abcdef',
+      status: 'completed', current_stage: 'THESIS_SHORTLIST', approval_mode: 'automatic', approval_gates: [],
+      owner_preview: 'Completed report', completed_stages: 22, processed_stages: 22, partial_stages: 0, variant_count: 24,
+      config: {}, evidence_mode: 'live_market_signals', pipeline_version: 'mechanism_thesis_v1',
+      provider_snapshot: { search: 'dataforseo', youtube: 'youtube_data_api' },
+      max_spend_usd: .05, reserved_spend_usd: .04, created_at: '', updated_at: '',
+    }
+    const status = { run, stages: [], cost: { items: [], total_usd: .0372 } }
+    const blob = vi.fn(() => Promise.reject(new Error('test download stop')))
+    const api = {
+      get: vi.fn((path: string) => {
+        if (path.includes('/providers')) return Promise.resolve(readiness)
+        if (path.includes('/theses')) return Promise.resolve({ run_id: run.id, status: 'ready', items: [], mechanisms: [] })
+        if (path.includes(run.id)) return Promise.resolve(status)
+        return Promise.resolve({ items: [run] })
+      }),
+      post: vi.fn(), blob,
+    } as unknown as ApiClient
+    render(<LavalEngine api={api} language="uk" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Завантажити PDF' }))
+    await waitFor(() => expect(blob).toHaveBeenCalledWith(`/api/v1/laval/runs/${run.id}/export?format=pdf`))
+  })
+
   it('edits a competitor directly in its readable list without asking for a UUID', async () => {
     const run = {
       id: '01234567-89ab-7def-8123-456789abcdef', owner_idea_id: '11234567-89ab-7def-8123-456789abcdef',

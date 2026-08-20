@@ -200,15 +200,16 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
     catch (cause) { const message = (cause as Error).message; setStageLoadError(message); setError(message) }
     finally { setStageLoading(false) }
   }
-  const download = async (format: 'json' | 'md') => {
+  const download = async (format: 'json' | 'md' | 'pdf') => {
     if (!selected) return
-    setBusy(true); setError(''); setNotice(`Підготовка ${format.toUpperCase()} експорту…`)
+    setBusy(true); setBusyAction(`download-${format}`); setError(''); setNotice(format === 'pdf' ? 'Формуємо український PDF-звіт…' : `Підготовка ${format.toUpperCase()} експорту…`)
     try {
       const params = new URLSearchParams({ format })
-      if (stageName) params.set('stage', stageName)
+      if (stageName && format !== 'pdf') params.set('stage', stageName)
       const blob = await api.blob(`/api/v1/laval/runs/${selected}/export?${params}`)
-      const filename = `laval-${selected}-${stageName || 'all'}.${format}`
-      const file = typeof File === 'function' ? new File([blob], filename, { type: blob.type || (format === 'md' ? 'text/markdown' : 'application/json') }) : null
+      const filename = format === 'pdf' ? `laval-${selected}-report-uk.pdf` : `laval-${selected}-${stageName || 'all'}.${format}`
+      const mediaType = format === 'pdf' ? 'application/pdf' : format === 'md' ? 'text/markdown' : 'application/json'
+      const file = typeof File === 'function' ? new File([blob], filename, { type: blob.type || mediaType }) : null
       const shareNavigator = navigator as Navigator & { canShare?: (data: ShareData) => boolean }
       if (file && shareNavigator.canShare?.({ files: [file] }) && navigator.share) {
         try {
@@ -223,10 +224,14 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
       const anchor = document.createElement('a')
       anchor.href = href; anchor.download = filename; anchor.rel = 'noopener'; document.body.append(anchor); anchor.click(); anchor.remove()
       window.setTimeout(() => URL.revokeObjectURL(href), 60_000)
-      setExportPreview({ filename, text: await blob.text() })
-      setNotice('Файл підготовлено. Якщо Safari не зберіг його, використайте перегляд нижче.')
+      if (format === 'pdf') {
+        setNotice('Український PDF-звіт завантажено. На iPhone він також доступний через меню Поділитися / Зберегти у Файли.')
+      } else {
+        setExportPreview({ filename, text: await blob.text() })
+        setNotice('Файл підготовлено. Якщо Safari не зберіг його, використайте перегляд нижче.')
+      }
     } catch (cause) { setError((cause as Error).message) }
-    finally { setBusy(false) }
+    finally { setBusy(false); setBusyAction('') }
   }
   const copyExport = async () => {
     if (!exportPreview) return
@@ -298,6 +303,7 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
               {status.resume_with_market_signals_available && <button className="primary" disabled={busy} onClick={() => act('resume-market-signals')}><Play />{busyAction === 'resume-market-signals' ? 'Продовжуємо…' : 'Продовжити дослідження'}</button>}
               {status.run.awaiting_reason && !status.resume_with_market_signals_available && <button className="secondary" disabled><CirclePause />Очікує провайдера</button>}
               {approval && current && <button className="primary" disabled={busy} onClick={() => act('approve', { stage: current.stage })}><Check />Схвалити й продовжити</button>}
+              {status.run.status === 'completed' && <button className="primary" disabled={busy} onClick={() => download('pdf')}><Download />{busyAction === 'download-pdf' ? 'Формуємо PDF…' : 'Завантажити PDF'}</button>}
               <button className="secondary" disabled={busy} onClick={() => download('json')}><Download />JSON</button>
               <button className="secondary" disabled={busy} onClick={() => download('md')}>MD</button>
             </div>

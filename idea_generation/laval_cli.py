@@ -84,7 +84,7 @@ def parser() -> argparse.ArgumentParser:
     export.add_argument("run_id")
     export.add_argument("--stage")
     export.add_argument("--all", action="store_true")
-    export.add_argument("--format", choices=("json", "md"), default="json")
+    export.add_argument("--format", choices=("json", "md", "pdf"), default="json")
     export.add_argument("--output", type=Path)
 
     rerun = commands.add_parser("rerun")
@@ -158,7 +158,10 @@ def main() -> None:
         elif args.command == "export":
             filename, _media, content = repository.export(args.run_id, stage=None if args.all else args.stage, format=args.format)
             destination = args.output or Path(filename)
-            destination.write_text(content, encoding="utf-8")
+            if isinstance(content, bytes):
+                destination.write_bytes(content)
+            else:
+                destination.write_text(content, encoding="utf-8")
             print(destination)
         elif args.command == "rerun":
             stage = args.stage.upper()

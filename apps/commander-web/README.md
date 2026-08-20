@@ -30,3 +30,7 @@ or C01–C10 ideas are displayed as owner data. Laval runs are created and
 operated through the authenticated gateway; the browser
 can inspect every stage, approve checkpoints, pause/resume, rerun a stage or
 country, apply audited overrides, and download JSON/Markdown exports.
+Completed runs also expose one primary `Завантажити PDF` action. The server
+generates a concise Ukrainian report with visual summaries and bounded,
+clickable HTTP(S) references; unfinished runs do not present it as a final
+report.

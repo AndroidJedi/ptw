@@ -172,6 +172,12 @@ mechanisms, support diversity, dangerous assumptions, falsification verdict,
 and recommendation reason. Only survivors expose `Вибрати для валідації`.
 Ukrainian is the default display language; English source fields and raw JSON
 remain under progressive disclosure.
+For a completed run the owner can generate one server-side Ukrainian PDF from
+the Research header. It summarizes the five phases, competitors,
+opportunities, market signals, YouTube observations, mechanism support,
+falsification outcomes, and every stage status. Useful HTTP(S) evidence links
+are clickable and bounded; JSON and Markdown remain the full technical exports.
+The final PDF endpoint rejects runs that have not reached `completed`.
 
 ## Provider setup and acceptance
 

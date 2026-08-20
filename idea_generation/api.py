@@ -288,7 +288,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def laval_export(
         run_id: str,
         stage: str | None = None,
-        format: str = Query(default="json", pattern="^(json|md)$"),
+        format: str = Query(default="json", pattern="^(json|md|pdf)$"),
         x_ptw_owner_gateway_token: str = Header(default=""),
     ) -> Response:
         require_owner_gateway(x_ptw_owner_gateway_token)
@@ -296,6 +296,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             filename, media_type, content = laval_repository.export(run_id, stage=stage.upper() if stage else None, format=format)
         except KeyError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
         return Response(content, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store, private"})
 
     @app.post("/internal/web/laval/runs/{run_id}/{action}")

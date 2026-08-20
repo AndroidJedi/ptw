@@ -1,9 +1,12 @@
 import pytest
+from pathlib import Path
 
 from commander.main import (IDEA_COMMANDS, MAX_STRUCTURED_LLM_REQUEST_BYTES, STRUCTURED_LLM_MODES, SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
                             bridge_target, engineering_task, normalized_command,
                             get_structured_llm_capabilities, public_health, safe_bridge_error, structured_llm_capabilities, task_research_reference,
                             validate_structured_llm_request)
+
+SOURCE_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_command_routing_is_deterministic() -> None:
@@ -111,6 +114,13 @@ def test_structured_capabilities_require_the_bridge_token(monkeypatch) -> None:
         get_structured_llm_capabilities("wrong-token")
     assert rejected.value.status_code == 403
     assert get_structured_llm_capabilities("bridge-token") == structured_llm_capabilities()
+
+
+def test_platform_api_release_is_explicitly_tagged_and_never_built_on_production() -> None:
+    compose = (SOURCE_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    api = compose.split("  commander-api:", 1)[1].split("  commander-worker:", 1)[0]
+    assert "image: ptw-agent-platform-commander-api:${PTW_PLATFORM_IMAGE_TAG:-latest}" in api
+    assert "pull_policy: never" in api
 
 
 @pytest.mark.parametrize("missing", ["system_prompt", "input_payload", "output_schema"])

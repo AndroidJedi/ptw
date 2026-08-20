@@ -67,6 +67,8 @@ services:
     networks: [backend]
 
   commander-api:
+    image: ptw-agent-platform-commander-api:${PTW_PLATFORM_IMAGE_TAG:-latest}
+    pull_policy: never
     build:
       context: .
       dockerfile: commander/Dockerfile

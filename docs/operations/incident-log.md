@@ -24,10 +24,18 @@ Canonical record of deployment gaps and prevention rules. Do not store secrets.
   the owner resume proxy. The production dependency audit now fails closed on
   contract drift and release acceptance requires an out-of-run canary for the
   previously rejected mode before saved work is resumed.
-- Verification: platform tests pass 26 checks; the disposable PostgreSQL Laval
+- Verification: platform tests pass 27 checks; the disposable PostgreSQL Laval
   suite passes 55 checks including complete 22-stage and S07 recovery paths;
-  Owner Gateway passes 20 checks; Vitest passes 17 checks; production release,
-  canary, and saved-run recovery remain to be recorded.
+  Owner Gateway passes 20 checks; Vitest passes 17 checks. Production runs PTW
+  release `laval-contract-6015d71` and platform release
+  `laval-contract-6b0c860`. A schema-bound out-of-run S07 canary completed in a
+  fresh ephemeral session before recovery. The same saved run then completed
+  through S21 with all 11 modes successful and S07 at stage attempt 2. Its 98
+  provider tasks, 52 paid remote IDs, USD 0.0372 cost, 26 YouTube videos and
+  snapshots, and 533 evidence rows remained unchanged. Two failed S07
+  invocations, the authenticated resume actor, and the successful retry remain
+  append-only. Recreating only Idea afterward preserved the complete run
+  snapshot and passed bridge, gateway, loopback, and public health checks.
 
 ## 2026-08-19 — Opportunity Matrix rejected evidence that its own context supplied
 

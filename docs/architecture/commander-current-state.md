@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Idea Laval mechanism/thesis V2 deployed on a verified clean production state
+Status: Idea Laval V2 bridge contract repaired; first live 22-stage run completed
 Updated: 2026-08-20
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -32,14 +32,24 @@ phases, thesis cards without percentage-like success scores, server-side UUID
 resolution, manual probe evidence capture, explicit mechanism selection for
 Mutate, and a materially different loop requirement for Pivot.
 
-Production runs release `laval-v2-40f9f2d` at commit `40f9f2d`. The owner
-confirmed the irreversible clean reset; Commander/Idea runtime state, platform
-jobs/sessions/events, generated assets, and bounded workspaces were removed and
-reseeded to the canonical empty checkpoint. DataForSEO, YouTube Data API, and
-the LLM bridge report live-ready. Commander, Idea, Owner Gateway, the platform
-bridges, Caddy, the public Hosting bundle, and one-at-a-time restart recovery
-passed acceptance. The remaining acceptance is the authenticated owner-browser
-creation of the first real V2 run.
+Production runs PTW release `laval-contract-6015d71` at commit `6015d71` and
+independent platform release `laval-contract-6b0c860` at commit `6b0c860`. The
+platform advertises exactly the 11 active Laval modes and a 1000000-byte request
+limit through its authenticated capabilities endpoint; Idea startup and release
+verification fail closed on either missing or unexpected modes. DataForSEO,
+YouTube Data API, and the LLM bridge report live-ready.
+
+The first real `mechanism_thesis_v1` run
+`01a01de0-4980-7ab4-aa91-0cebb8aab3c8` recovered in place from its S07 bridge
+rejection and completed S21. S00-S06 were reused, S07 completed on stage attempt
+2, and all 11 structured modes recorded a successful invocation. Its 98
+provider tasks, 52 paid remote IDs, USD 0.0372 actual provider cost, 26 YouTube
+videos and snapshots, and 533 evidence rows did not change during recovery.
+Append-only history retains the two failed S07 calls, the authenticated recovery
+actor, and the successful retry. An out-of-run S07 canary proved a fresh
+ephemeral platform job before resume; a one-service Idea restart afterward
+preserved the complete database snapshot and passed loopback, public, bridge,
+and Owner Gateway dependency checks.
 
 The reset rehearsal exposed two runbook defects before its final checkpoint:
 the helper did not inherit the deployed image tag and its platform owner seed
@@ -48,10 +58,10 @@ under the maintenance lock on the verified V2 images. The reset now resolves a
 matching non-`latest` tag from all three deployed application containers,
 forbids builds, injects the bounded owner value, and recreates Owner Gateway.
 
-Local verification: the Commander built-image suite passes 102 tests with 33
+Local verification: the Commander built-image suite passes 107 tests with 35
 expected external/dependency skips; the disposable PostgreSQL Laval suite passes
-26 tests; the Owner Gateway built image passes 19 tests; Vitest passes 17 tests;
-Playwright passes nine desktop/mobile/WebKit checks. Commander demo generation,
+55 tests; the Owner Gateway built image passes 20 tests; Vitest passes 17 tests;
+and the independent platform suite passes 27 tests. Commander demo generation,
 both migration families on disposable PostgreSQL, skill verification, production
 web build verification, shell syntax validation, and `git diff --check` pass.
 

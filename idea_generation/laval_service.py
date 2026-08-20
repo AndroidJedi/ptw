@@ -97,6 +97,8 @@ class LavalService:
             raise ValueError("mode must be demo or live")
         if requested_mode == "demo" and not self.readiness.get("demo_available", True):
             raise RuntimeError("Demo mode is unavailable while live providers are active")
+        if requested_mode == "live" and not self.readiness.get("llm_live_ready", False):
+            raise RuntimeError("Live research requires a complete Idea Laval LLM bridge contract")
         if requested_mode == "live" and not self.readiness.get("search_live_ready"):
             raise RuntimeError("Live research requires verified DataForSEO credentials")
         if requested_mode == "live" and not self.readiness.get("youtube_live_ready"):

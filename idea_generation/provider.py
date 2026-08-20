@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import re
 import time
+import urllib.error
 import urllib.request
 from typing import Any, Protocol
 
@@ -349,6 +351,27 @@ class BridgeProvider:
             "context_hash": context_hash,
         }
 
+    def capabilities(self) -> dict[str, Any]:
+        payload = self._request(
+            f"{self.url}/capabilities",
+            None,
+            {"X-PTW-Bridge-Token": self.token},
+            timeout_seconds=5,
+        )
+        modes = payload.get("laval_modes")
+        max_request_bytes = payload.get("max_request_bytes")
+        if (
+            not isinstance(modes, list)
+            or not all(isinstance(mode, str) for mode in modes)
+            or not isinstance(max_request_bytes, int)
+            or max_request_bytes < 1
+        ):
+            raise ValueError("LLM bridge returned invalid capabilities")
+        return {
+            "laval_modes": sorted(set(modes)),
+            "max_request_bytes": max_request_bytes,
+        }
+
     def generate_structured(
         self, mode: str, system_prompt: str, input_payload: dict[str, Any], output_schema: dict[str, Any]
     ) -> dict[str, Any]:
@@ -380,13 +403,35 @@ class BridgeProvider:
         raise TimeoutError(f"LLM bridge job {request_id} timed out")
 
     @staticmethod
-    def _request(url: str, payload: dict[str, Any] | None, headers: dict[str, str]) -> dict[str, Any]:
+    def _request(
+        url: str,
+        payload: dict[str, Any] | None,
+        headers: dict[str, str],
+        *,
+        timeout_seconds: int = 30,
+    ) -> dict[str, Any]:
         body = None if payload is None else json.dumps(payload, ensure_ascii=False, default=str).encode()
         request = urllib.request.Request(
             url, data=body, headers={**headers, "Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(request, timeout=30) as response:
-            result = json.loads(response.read())
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+                result = json.loads(response.read())
+        except urllib.error.HTTPError as error:
+            raw = error.read(4097)[:4096]
+            detail = "request rejected"
+            try:
+                decoded = json.loads(raw.decode("utf-8", errors="replace"))
+                if isinstance(decoded, dict) and isinstance(decoded.get("detail"), str):
+                    detail = decoded["detail"]
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                pass
+            detail = re.sub(
+                r"(?i)(token|password|secret|api[_-]?key|authorization)(\s*[:=]\s*)(\S+)",
+                r"\1\2[REDACTED]",
+                detail[:1000],
+            )
+            raise RuntimeError(f"LLM bridge HTTP {error.code}: {detail}") from error
         if not isinstance(result, dict):
             raise ValueError("LLM bridge returned invalid JSON")
         return result

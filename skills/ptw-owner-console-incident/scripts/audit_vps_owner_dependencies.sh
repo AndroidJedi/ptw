@@ -72,4 +72,6 @@ items = response.json()["items"]
 print(f"Owner Gateway -> Idea Laval ready; runs={len(items)}")
 '
 
+docker exec "$idea_container" python -m idea_generation.verify_bridge_contract
+
 echo "Owner Gateway and Idea Laval dependency audit passed."

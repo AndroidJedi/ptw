@@ -211,6 +211,17 @@ hashes, prompt version, model, independent session ID, and truthful result
 status. A deterministic stage artifact alone does not prove Codex executed;
 check the invocation audit.
 
+An immediate bridge HTTP 400 with two failed Laval invocation rows, no
+`provider_session_id`, and no platform `llm_structured` job means the request
+was rejected before execution. Compare the authenticated bridge capabilities
+against every mode in `idea_generation.laval_schemas.SCHEMAS`; do not assume a
+successful canary for one Laval mode covers later stages. The production
+dependency audit must fail closed when any required mode is missing or any
+unexpected Laval mode is exposed. Confirm the exact request is below the bridge
+byte limit before attributing the rejection to mode drift. After correction,
+run an out-of-run canary for the previously rejected mode before resuming saved
+work.
+
 For ChatGPT-authenticated Codex CLI, keep `LLM_MODEL=codex-cli-default` unless
 a named model has passed a live CLI canary. The sentinel must omit `--model`;
 an API model name such as `gpt-5` can be rejected by Codex subscription auth.

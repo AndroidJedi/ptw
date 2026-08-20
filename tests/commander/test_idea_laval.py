@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import importlib.util
 import inspect
+import io
+import json
 import os
+import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 import unittest
@@ -24,7 +27,7 @@ from idea_generation.laval_domain import (
     opportunity_score,
     trend_score,
 )
-from idea_generation.laval_pipeline import LavalPipeline, _opportunity_validation_error, independent_publisher_support
+from idea_generation.laval_pipeline import LAVAL_STAGE_LLM_MODES, LavalPipeline, _opportunity_validation_error, independent_publisher_support
 from idea_generation.laval_fresh_stage import FreshStageRunner
 from idea_generation.laval_notifications import LavalTelegramNotifier, format_laval_status_message
 from idea_generation.laval_providers import (
@@ -39,7 +42,7 @@ from idea_generation.laval_providers import (
 from idea_generation.laval_repository import LavalRepository
 from idea_generation.laval_schemas import SCHEMAS, output_schema, strictly_describes_nested_values
 from idea_generation.laval_service import LavalRunner, LavalService
-from idea_generation.provider import MockLLMProvider
+from idea_generation.provider import BridgeProvider, MockLLMProvider
 from idea_generation.store import PostgresStore
 
 
@@ -69,7 +72,16 @@ class LavalDomainTests(unittest.TestCase):
         self.assertEqual(1.0, independent_publisher_support(independent))
 
     def test_every_laval_language_schema_is_strict_at_every_nested_value(self) -> None:
-        self.assertEqual(11, len(SCHEMAS))
+        expected = {
+            "laval_owner_dna", "laval_query_plan", "laval_competitor_dossier",
+            "laval_opportunity_matrix", "laval_market_signal_relevance",
+            "laval_idea_expansion", "laval_idea_evaluation",
+            "laval_youtube_observation", "laval_mechanism_extraction",
+            "laval_thesis_synthesis", "laval_thesis_falsification",
+        }
+        self.assertEqual(expected, set(SCHEMAS))
+        self.assertEqual(expected, set(LAVAL_STAGE_LLM_MODES.values()))
+        self.assertEqual(len(expected), len(LAVAL_STAGE_LLM_MODES))
         for mode, schema in SCHEMAS.items():
             with self.subTest(mode=mode):
                 self.assertTrue(strictly_describes_nested_values(schema))
@@ -390,8 +402,6 @@ class LavalDomainTests(unittest.TestCase):
         self.assertIn("unknown evidence IDs=1", error)
 
     def test_bridge_default_model_uses_codex_cli_default_without_model_override(self) -> None:
-        from idea_generation.provider import BridgeProvider
-
         provider = BridgeProvider("http://bridge", "token")
         captured = {}
 
@@ -414,6 +424,72 @@ class LavalDomainTests(unittest.TestCase):
         self.assertEqual({"classifications": []}, result)
         self.assertNotIn("model", captured)
         self.assertEqual("codex-cli-default", provider.model_name)
+
+    def test_bridge_capabilities_are_validated_and_http_errors_are_bounded_and_scrubbed(self) -> None:
+        provider = BridgeProvider("http://bridge", "token")
+        provider._request = lambda *_args, **_kwargs: {
+            "laval_modes": list(reversed(sorted(SCHEMAS))),
+            "max_request_bytes": 1_000_000,
+        }
+        self.assertEqual(sorted(SCHEMAS), provider.capabilities()["laval_modes"])
+
+        error = urllib.error.HTTPError(
+            "http://bridge", 400, "Bad Request", {},
+            io.BytesIO(json.dumps({
+                "detail": "unsupported structured LLM mode token=hidden",
+            }).encode()),
+        )
+        with patch("urllib.request.urlopen", side_effect=error):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                r"LLM bridge HTTP 400: unsupported structured LLM mode token=\[REDACTED\]",
+            ):
+                BridgeProvider._request("http://bridge", {}, {})
+
+    def test_live_creation_fails_before_run_persistence_when_bridge_contract_is_incomplete(self) -> None:
+        class Repository:
+            store = object()
+            def create_run(self, *_args, **_kwargs):
+                raise AssertionError("a blocked live run must not be persisted")
+
+        service = LavalService(
+            Repository(), object(),
+            readiness={
+                "llm_live_ready": False,
+                "search_live_ready": True,
+                "youtube_live_ready": True,
+                "demo_available": False,
+            },
+        )
+        with self.assertRaisesRegex(RuntimeError, "complete Idea Laval LLM bridge contract"):
+            service.create("blocked", {}, actor="owner", requested_mode="live")
+
+    @unittest.skipUnless(importlib.util.find_spec("fastapi"), "FastAPI is required")
+    def test_bridge_readiness_requires_an_exact_laval_mode_contract(self) -> None:
+        from idea_generation.api import _llm_contract_readiness
+
+        provider = BridgeProvider("http://bridge", "token")
+        provider.capabilities = lambda: {
+            "laval_modes": sorted(set(SCHEMAS) - {"laval_youtube_observation"}),
+            "max_request_bytes": 1_000_000,
+        }
+        missing = _llm_contract_readiness(provider)
+        self.assertFalse(missing["llm_live_ready"])
+        self.assertEqual(["laval_youtube_observation"], missing["llm_missing_modes"])
+
+        provider.capabilities = lambda: {
+            "laval_modes": sorted(set(SCHEMAS) | {"laval_unexpected"}),
+            "max_request_bytes": 1_000_000,
+        }
+        unexpected = _llm_contract_readiness(provider)
+        self.assertFalse(unexpected["llm_live_ready"])
+        self.assertEqual(["laval_unexpected"], unexpected["llm_unexpected_modes"])
+
+        provider.capabilities = lambda: {
+            "laval_modes": sorted(SCHEMAS),
+            "max_request_bytes": 1_000_000,
+        }
+        self.assertTrue(_llm_contract_readiness(provider)["llm_live_ready"])
 
     def test_context_compiler_enforces_synthesis_limits(self) -> None:
         config = LavalConfig.from_mapping({"synthesis": {"max_opportunities": 2, "max_trend_scores": 1, "max_trend_discoveries": 1}})
@@ -550,14 +626,146 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         self.assertEqual(0, self.store.fetchone("SELECT count(*) n FROM laval_evidence WHERE run_id=%s AND source_type='trend'", (created["run_id"],))["n"])
 
         invocations = self.store.fetchall(
-            "SELECT stage,session_id,provider_session_id FROM laval_llm_invocations WHERE run_id=%s ORDER BY created_at,id",
+            "SELECT stage,mode,session_id,provider_session_id FROM laval_llm_invocations WHERE run_id=%s ORDER BY created_at,id",
             (created["run_id"],),
         )
         generator = next(item for item in invocations if item["stage"] == "IDEA_EXPANSION")
         evaluator = next(item for item in invocations if item["stage"] == "IDEA_EVALUATION")
         self.assertNotEqual(generator["session_id"], evaluator["session_id"])
         self.assertNotEqual(generator["provider_session_id"], evaluator["provider_session_id"])
+        self.assertEqual(set(SCHEMAS), {item["mode"] for item in invocations})
+        self.assertEqual(set(SCHEMAS), {mode for mode, _payload in self.pipeline.providers.llm.calls})
         self.assertTrue(all("history" not in payload and "messages" not in payload for _, payload in self.pipeline.providers.llm.calls))
+
+    def test_s07_bridge_failure_resumes_without_repeating_discovery_or_paid_work(self) -> None:
+        class FailS07Once:
+            model_name = "codex-cli-default"
+            last_invocation = {}
+            def __init__(self):
+                self.delegate = MockLLMProvider()
+                self.s07_calls = 0
+            def generate_structured(self, mode, prompt, payload, schema):
+                if mode == "laval_youtube_observation" and self.s07_calls < 2:
+                    self.s07_calls += 1
+                    raise RuntimeError("LLM bridge HTTP 400: unsupported structured LLM mode")
+                result = self.delegate.generate_structured(mode, prompt, payload, schema)
+                self.last_invocation = self.delegate.last_invocation
+                return result
+
+        llm = FailS07Once()
+        pipeline = LavalPipeline(
+            self.repository,
+            ProviderBundle(
+                llm=llm, search=FixtureSearchProvider(), web=FixtureWebPageProvider(),
+                trends=FixtureTrendProvider(), research=NullResearchSink(),
+            ),
+        )
+        created = self.repository.create_run(
+            "Recover the exact failed YouTube observation stage.", self._config(), actor="test",
+            evidence_mode="live_market_signals",
+            provider_snapshot={"search": "fixture", "youtube": "fixture", "llm": "bridge"},
+        )
+        run_id = created["run_id"]
+        with self.assertRaisesRegex(RuntimeError, "unsupported structured LLM mode"):
+            pipeline.run(run_id)
+
+        failed = self.repository.stage(run_id, "YOUTUBE_OBSERVATION")
+        self.assertEqual("failed", failed["status"])
+        self.assertEqual(1, failed["attempt"])
+        self.assertEqual("codex-cli-default", failed["provider"])
+        before = {
+            "tasks": self.store.fetchone("SELECT count(*) n FROM laval_provider_tasks WHERE run_id=%s", (run_id,))["n"],
+            "videos": self.store.fetchone("SELECT count(*) n FROM laval_youtube_videos WHERE run_id=%s", (run_id,))["n"],
+            "snapshots": self.store.fetchone("SELECT count(*) n FROM laval_youtube_snapshots WHERE run_id=%s", (run_id,))["n"],
+            "evidence": self.store.fetchone("SELECT count(*) n FROM laval_evidence WHERE run_id=%s", (run_id,))["n"],
+            "provider_actual": self.repository.cost(run_id)["provider_actual_usd"],
+        }
+        service = LavalService(
+            self.repository,
+            type("RecordingRunner", (), {"start": lambda _self, *_args, **_kwargs: True})(),
+        )
+        self.assertTrue(service.resume(run_id, actor="firebase:owner")["started"])
+        resumed = pipeline.run(run_id, through_stage="YOUTUBE_OBSERVATION")
+
+        self.assertEqual("paused", resumed["run"]["status"])
+        self.assertEqual("completed", self.repository.stage(run_id, "YOUTUBE_OBSERVATION")["status"])
+        self.assertEqual(2, self.repository.stage(run_id, "YOUTUBE_OBSERVATION")["attempt"])
+        after = {
+            "tasks": self.store.fetchone("SELECT count(*) n FROM laval_provider_tasks WHERE run_id=%s", (run_id,))["n"],
+            "videos": self.store.fetchone("SELECT count(*) n FROM laval_youtube_videos WHERE run_id=%s", (run_id,))["n"],
+            "snapshots": self.store.fetchone("SELECT count(*) n FROM laval_youtube_snapshots WHERE run_id=%s", (run_id,))["n"],
+            "evidence": self.store.fetchone("SELECT count(*) n FROM laval_evidence WHERE run_id=%s", (run_id,))["n"],
+            "provider_actual": self.repository.cost(run_id)["provider_actual_usd"],
+        }
+        self.assertEqual(before, after)
+        audits = self.store.fetchall(
+            "SELECT result_status,provider_session_id FROM laval_llm_invocations "
+            "WHERE run_id=%s AND stage='YOUTUBE_OBSERVATION' ORDER BY created_at,id",
+            (run_id,),
+        )
+        self.assertEqual(["failed", "failed", "success"], [row["result_status"] for row in audits])
+        self.assertIsNone(audits[0]["provider_session_id"])
+        self.assertIsNone(audits[1]["provider_session_id"])
+        self.assertTrue(audits[2]["provider_session_id"])
+        actions = self.store.fetchall(
+            "SELECT action FROM laval_run_actions WHERE run_id=%s ORDER BY created_at,id",
+            (run_id,),
+        )
+        self.assertIn("resume_requested", {row["action"] for row in actions})
+        self.assertIn("stage_retry_completed", {row["action"] for row in actions})
+
+        self.repository.ready(run_id)
+        completed = pipeline.run(run_id)
+        self.assertEqual("completed", completed["run"]["status"])
+        self.assertEqual(set(SCHEMAS), {
+            row["mode"] for row in self.store.fetchall(
+                "SELECT DISTINCT mode FROM laval_llm_invocations WHERE run_id=%s", (run_id,)
+            )
+        })
+
+    def test_s07_rejects_invented_ids_twice_and_persists_no_observation(self) -> None:
+        class InventedS07Ids:
+            model_name = "codex-cli-default"
+            last_invocation = {}
+            def __init__(self):
+                self.delegate = MockLLMProvider()
+            def generate_structured(self, mode, prompt, payload, schema):
+                if mode == "laval_youtube_observation":
+                    return {"observations": [{
+                        "observation_type": "workaround",
+                        "statement": "Invented evidence must be rejected.",
+                        "video_ids": [str(new_uuid7())],
+                        "evidence_ids": [str(new_uuid7())],
+                        "confidence": .5,
+                    }]}
+                result = self.delegate.generate_structured(mode, prompt, payload, schema)
+                self.last_invocation = self.delegate.last_invocation
+                return result
+
+        pipeline = LavalPipeline(
+            self.repository,
+            ProviderBundle(
+                llm=InventedS07Ids(), search=FixtureSearchProvider(),
+                web=FixtureWebPageProvider(), trends=FixtureTrendProvider(),
+                research=NullResearchSink(),
+            ),
+        )
+        created = self.repository.create_run(
+            "Reject invented YouTube evidence IDs.", self._config(), actor="test",
+            evidence_mode="live_market_signals",
+            provider_snapshot={"search": "fixture", "youtube": "fixture", "llm": "bridge"},
+        )
+        with self.assertRaisesRegex(ValueError, "valid 'observations'"):
+            pipeline.run(created["run_id"])
+        self.assertEqual(0, self.store.fetchone(
+            "SELECT count(*) n FROM laval_behavior_observations WHERE run_id=%s",
+            (created["run_id"],),
+        )["n"])
+        self.assertEqual(2, self.store.fetchone(
+            "SELECT count(*) n FROM laval_llm_invocations "
+            "WHERE run_id=%s AND stage='YOUTUBE_OBSERVATION' AND result_status='failed'",
+            (created["run_id"],),
+        )["n"])
 
     def test_live_language_failure_stops_before_paid_search_and_is_visible_as_invalid(self) -> None:
         pipeline = LavalPipeline(

@@ -2,6 +2,33 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-20 — Laval V2 YouTube observation mode was absent from the platform bridge contract
+
+- Impact: the first real `mechanism_thesis_v1` run stopped safely at
+  `YOUTUBE_OBSERVATION` after preserving 52 paid DataForSEO task IDs, 26
+  YouTube videos, 25 independent channels, and USD 0.0372 actual cost. Both S07
+  attempts received HTTP 400 before a platform job or provider session existed.
+- Cause: Idea Laval defined 11 structured language modes, while the independent
+  platform explicitly allowed only the seven pre-V2 modes. The missing S07 mode
+  was rejected by request validation; the later mechanism extraction, thesis
+  synthesis, and thesis falsification modes would have failed the same way.
+  The exact S07 request was 138843 bytes, below the 1000000-byte limit.
+- Correction: expose authenticated platform capabilities, allow all 11 modes,
+  compare the bridge contract at Idea startup, block new live runs on any
+  missing or unexpected mode, preserve bounded HTTP rejection detail, and
+  attribute S07 execution to the LLM bridge instead of the YouTube evidence
+  provider.
+- Prevention: unit tests cover the exact 11-mode sets, all four V2 worker paths,
+  malformed/unknown/oversized rejection, fail-closed live creation, invented
+  S07 identifiers, recovery without repeated discovery or provider spend, and
+  the owner resume proxy. The production dependency audit now fails closed on
+  contract drift and release acceptance requires an out-of-run canary for the
+  previously rejected mode before saved work is resumed.
+- Verification: platform tests pass 26 checks; the disposable PostgreSQL Laval
+  suite passes 55 checks including complete 22-stage and S07 recovery paths;
+  Owner Gateway passes 20 checks; Vitest passes 17 checks; production release,
+  canary, and saved-run recovery remain to be recorded.
+
 ## 2026-08-19 — Opportunity Matrix rejected evidence that its own context supplied
 
 - Impact: live run `01a01a93-e248-7615-942a-f7e0ef1c780b` safely stopped at

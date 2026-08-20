@@ -81,6 +81,12 @@ becomes a measured count delta after the second; retrieval time is never used
 as publication time. Provider calls and estimated quota units are appended to
 the cost/audit ledger even when monetary cost is zero.
 
+The independent structured-LLM bridge must advertise exactly every mode in the
+Idea Laval schema registry. Idea startup records missing and unexpected modes,
+the provider endpoint exposes that bounded readiness, and new live runs fail
+before persistence or paid search when the contract is incomplete. A release
+dependency audit checks the same authenticated capabilities contract.
+
 ## Mechanisms and theses
 
 Mechanism extraction receives all 24 variants, including lower-ranked rows,

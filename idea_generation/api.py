@@ -16,6 +16,7 @@ from .laval_pipeline import LavalPipeline
 from .laval_notifications import LavalTelegramNotifier
 from .laval_providers import providers_from_settings
 from .laval_repository import LavalRepository
+from .laval_schemas import SCHEMAS
 from .laval_service import LavalRunner, LavalService
 from .provider import BridgeProvider, MockLLMProvider, OpenAIProvider
 from .store import PostgresStore
@@ -29,6 +30,41 @@ def _provider(settings: Settings):
     if settings.llm_provider == "bridge":
         return BridgeProvider(settings.llm_bridge_url, settings.telegram_token, settings.llm_model)
     raise RuntimeError("LLM_PROVIDER must be mock, openai, or bridge")
+
+
+def _llm_contract_readiness(llm: Any) -> dict[str, Any]:
+    required_modes = set(SCHEMAS)
+    if not isinstance(llm, BridgeProvider):
+        return {
+            "llm_live_ready": True,
+            "llm_required_modes": sorted(required_modes),
+            "llm_missing_modes": [],
+            "llm_unexpected_modes": [],
+            "llm_max_request_bytes": None,
+            "llm_contract_error": None,
+        }
+    try:
+        capabilities = llm.capabilities()
+        actual_modes = set(capabilities["laval_modes"])
+    except Exception as error:
+        return {
+            "llm_live_ready": False,
+            "llm_required_modes": sorted(required_modes),
+            "llm_missing_modes": sorted(required_modes),
+            "llm_unexpected_modes": [],
+            "llm_max_request_bytes": None,
+            "llm_contract_error": type(error).__name__,
+        }
+    missing = sorted(required_modes - actual_modes)
+    unexpected = sorted(actual_modes - required_modes)
+    return {
+        "llm_live_ready": not missing and not unexpected,
+        "llm_required_modes": sorted(required_modes),
+        "llm_missing_modes": missing,
+        "llm_unexpected_modes": unexpected,
+        "llm_max_request_bytes": capabilities["max_request_bytes"],
+        "llm_contract_error": None,
+    }
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -52,6 +88,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     laval_runner = LavalRunner(laval_pipeline, laval_notifier)
     readiness = {
+        **_llm_contract_readiness(llm),
         "llm_provider": settings.llm_provider,
         "search_provider": settings.search_provider,
         "trend_provider": settings.trend_provider,
@@ -111,6 +148,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             missing.append("dataforseo_credentials")
         if not readiness["youtube_live_ready"] and settings.search_provider != "fixture":
             missing.append("youtube_api_key")
+        if not readiness["llm_live_ready"] and settings.search_provider != "fixture":
+            missing.append("llm_bridge_contract")
         return {
             **readiness,
             "demo_available": readiness["demo_available"],
@@ -122,7 +161,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "required": False,
                 }
             },
-            "required_sources": {"youtube": {"ready": readiness["youtube_live_ready"]}},
+            "required_sources": {
+                "youtube": {"ready": readiness["youtube_live_ready"]},
+                "llm_bridge": {
+                    "ready": readiness["llm_live_ready"],
+                    "missing_modes": readiness["llm_missing_modes"],
+                    "unexpected_modes": readiness["llm_unexpected_modes"],
+                },
+            },
         }
 
     @app.get("/internal/web/laval/activity")

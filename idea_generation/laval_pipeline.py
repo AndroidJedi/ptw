@@ -114,6 +114,21 @@ def _opportunity_validation_error(
     return None
 
 
+LAVAL_STAGE_LLM_MODES = {
+    "OWNER_DNA": "laval_owner_dna",
+    "QUERY_PLAN": "laval_query_plan",
+    "YOUTUBE_OBSERVATION": "laval_youtube_observation",
+    "COMPETITOR_DOSSIERS": "laval_competitor_dossier",
+    "OPPORTUNITY_MATRIX": "laval_opportunity_matrix",
+    "MARKET_SIGNAL_COLLECTION": "laval_market_signal_relevance",
+    "IDEA_EXPANSION": "laval_idea_expansion",
+    "IDEA_EVALUATION": "laval_idea_evaluation",
+    "MECHANISM_EXTRACTION": "laval_mechanism_extraction",
+    "THESIS_SYNTHESIS": "laval_thesis_synthesis",
+    "THESIS_FALSIFICATION": "laval_thesis_falsification",
+}
+
+
 class LavalPipeline:
     def __init__(self, repository: LavalRepository, providers: ProviderBundle) -> None:
         self.repository = repository
@@ -213,7 +228,7 @@ class LavalPipeline:
     def _provider_for_stage(self, stage: str) -> str:
         if stage in {"SERP_DISCOVERY", "COMPETITOR_EVIDENCE"}:
             return self.providers.search.name
-        if stage in {"YOUTUBE_DISCOVERY", "YOUTUBE_OBSERVATION"}:
+        if stage == "YOUTUBE_DISCOVERY":
             return self.providers.youtube.name
         if stage == "GOOGLE_TRENDS_RESEARCH":
             return self.providers.trends.name
@@ -368,7 +383,7 @@ class LavalPipeline:
         result = self._llm(
             run_id,
             "OWNER_DNA",
-            "laval_owner_dna",
+            LAVAL_STAGE_LLM_MODES["OWNER_DNA"],
             "Extract Owner DNA from the English source. Preserve must-preserve constraints and explicitly list assumptions and unknowns. Return JSON only.",
             compiler.build_owner_dna_context(owner["raw_text"]),
             "owner_dna",
@@ -455,7 +470,7 @@ class LavalPipeline:
         generated = self._llm(
             run_id,
             "QUERY_PLAN",
-            "laval_query_plan",
+            LAVAL_STAGE_LLM_MODES["QUERY_PLAN"],
             "Create compact product-discovery search intents for the four supplied families. Return query_intents with family, base_query in English, and translations as {language, query} rows for every requested non-English language. A translation must retain the exact semantic intent and must not introduce a new category.",
             {
                 "owner_dna": dna,
@@ -1095,7 +1110,7 @@ class LavalPipeline:
         llm = self._llm(
             run_id,
             "YOUTUBE_OBSERVATION",
-            "laval_youtube_observation",
+            LAVAL_STAGE_LLM_MODES["YOUTUBE_OBSERVATION"],
             "Extract only observable behavior from supplied titles, descriptions, and bounded comments. Cite exact video and evidence IDs. Prefer repetition across independent creators over popularity. Never infer transcript content or identities.",
             {"videos": videos, "owner_supplied_transcripts": manual_transcripts},
             "observations",
@@ -1160,7 +1175,7 @@ class LavalPipeline:
             llm = self._llm(
                 run_id,
                 "COMPETITOR_DOSSIERS",
-                "laval_competitor_dossier",
+                LAVAL_STAGE_LLM_MODES["COMPETITOR_DOSSIERS"],
                 "Extract only evidence-supported product positioning, audience, features, pricing, distribution, hooks, strengths, complaints, gaps, and keywords. Every claim must cite supplied evidence IDs.",
                 compiler.build_competitor_extraction_context(competitor, evidence),
                 "dossier",
@@ -1245,7 +1260,7 @@ class LavalPipeline:
         llm = self._llm(
             run_id,
             "OPPORTUNITY_MATRIX",
-            "laval_opportunity_matrix",
+            LAVAL_STAGE_LLM_MODES["OPPORTUNITY_MATRIX"],
             "Compress dossiers and YouTube behavior observations into evidence-backed opportunity vectors. Preserve all rows, cite only exact evidence IDs visible anywhere in the supplied context, including complaint and behavior clusters, and return normalized component scores from 0 to 1.",
             compiler.build_opportunity_context(dna, dossiers),
             "opportunities",
@@ -1436,7 +1451,7 @@ class LavalPipeline:
         llm = self._llm(
             run_id,
             "MARKET_SIGNAL_COLLECTION",
-            "laval_market_signal_relevance",
+            LAVAL_STAGE_LLM_MODES["MARKET_SIGNAL_COLLECTION"],
             "Classify each supplied opportunity/evidence pair only as relevant or not relevant. Preserve every exact opportunity_id and evidence_id. Do not estimate, score, infer dates, or add evidence.",
             {"pairs": pairs},
             "classifications",
@@ -1707,7 +1722,7 @@ class LavalPipeline:
         llm = self._llm(
             run_id,
             "IDEA_EXPANSION",
-            "laval_idea_expansion",
+            LAVAL_STAGE_LLM_MODES["IDEA_EXPANSION"],
             "Generate broad, non-duplicate idea variants. Use every transformation operator. Each variant must reference valid owner, opportunity, market-signal or legacy trend, and evidence IDs from the synthesis packet. Every owner-facing field must have exact en and uk keys.",
             {**packet, "generation_requirements": {"variants_per_operator": config.variants_per_operator}},
             "variants",
@@ -1865,7 +1880,7 @@ class LavalPipeline:
         llm = self._llm(
             run_id,
             "IDEA_EVALUATION",
-            "laval_idea_evaluation",
+            LAVAL_STAGE_LLM_MODES["IDEA_EVALUATION"],
             "Independently score every supplied idea in fresh context. Return each exact idea ID once, normalized 0..1 dimensions, an overall score, strengths, critique, and fatal flaw. Do not generate new ideas.",
             context,
             "evaluations",
@@ -1949,7 +1964,7 @@ class LavalPipeline:
         llm = self._llm(
             run_id,
             "MECHANISM_EXTRACTION",
-            "laval_mechanism_extraction",
+            LAVAL_STAGE_LLM_MODES["MECHANISM_EXTRACTION"],
             "Extract 6-20 reusable product mechanisms from every supplied variant, including lower-ranked variants. Mechanisms are behaviors or loops, not feature lists. Cite exact variant, opportunity, market-signal, behavior-observation, and evidence IDs; cover every variant at least once.",
             {"variants": variants, "behavior_observations": observations},
             "mechanisms",
@@ -2050,7 +2065,7 @@ class LavalPipeline:
         llm = self._llm(
             run_id,
             "THESIS_SYNTHESIS",
-            "laval_thesis_synthesis",
+            LAVAL_STAGE_LLM_MODES["THESIS_SYNTHESIS"],
             "Compress mechanisms into 1-3 smallest coherent product theses. Each thesis must be a complete acquisition, action, value/proof, return, and distribution loop rather than a feature list. Cite exact mechanism and evidence IDs and declare dangerous assumptions plus a measurable criterion.",
             {"owner_dna": dna, "mechanisms": mechanisms},
             "theses",
@@ -2118,7 +2133,7 @@ class LavalPipeline:
         llm = self._llm(
             run_id,
             "THESIS_FALSIFICATION",
-            "laval_thesis_falsification",
+            LAVAL_STAGE_LLM_MODES["THESIS_FALSIFICATION"],
             "Try to disprove every product thesis. Test core behavior, arrival, return, zero-audience utility, substitutes, scale failure, and dangerous assumptions. Cite only exact evidence and mechanism IDs. A lack of evidence is unsupported, never proof.",
             {"theses": theses, "mechanisms": list(mechanisms.values())},
             "reports",

@@ -1,12 +1,12 @@
 # Commander current state
 
-Status: Idea Laval V2 bridge contract repaired; owner review UX streamlined locally
+Status: Idea Laval owner review UX streamlined and deployed
 Updated: 2026-08-20
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
 ## Current implementation milestone
 
-The next local Owner UI revision makes stage inspection and correction
+The deployed Owner UI makes stage inspection and correction
 item-local. Every stage card explicitly opens details; selected competitors,
 opportunities, and legacy trend rows expose their permitted audited action
 beside the readable item, with the reason requested only after the owner acts.
@@ -15,8 +15,9 @@ target form is removed, while the existing server-resolved UUID, required
 reason, actor audit, and downstream invalidation contracts remain unchanged.
 Run summaries now report processed stages separately from strict completion and
 show partial-stage count, so a 21-complete plus one-partial run no longer
-conflicts with a 22-of-22 processed header. This revision is verified locally
-but is not yet deployed.
+conflicts with a 22-of-22 processed header. This revision is deployed as PTW
+release `laval-review-acc03a2` and Firebase Hosting version
+`3ea404fd83205aca`.
 
 New Idea Laval runs use immutable pipeline version `mechanism_thesis_v1` and a
 22-stage evidence -> mechanism -> product-thesis topology. The pipeline retains
@@ -44,7 +45,7 @@ phases, thesis cards without percentage-like success scores, server-side UUID
 resolution, manual probe evidence capture, explicit mechanism selection for
 Mutate, and a materially different loop requirement for Pivot.
 
-Production runs PTW release `laval-contract-6015d71` at commit `6015d71` and
+Production runs PTW release `laval-review-acc03a2` at commit `acc03a2` and
 independent platform release `laval-contract-6b0c860` at commit `6b0c860`. The
 platform advertises exactly the 11 active Laval modes and a 1000000-byte request
 limit through its authenticated capabilities endpoint; Idea startup and release
@@ -70,7 +71,7 @@ under the maintenance lock on the verified V2 images. The reset now resolves a
 matching non-`latest` tag from all three deployed application containers,
 forbids builds, injects the bounded owner value, and recreates Owner Gateway.
 
-Local verification: the Commander built-image suite passes 107 tests with 35
+Local verification: the Commander suite passes 107 tests with 50
 expected external/dependency skips; the disposable PostgreSQL Laval suite passes
 55 tests; the Owner Gateway built image passes 20 tests; Vitest passes 18 tests;
 and the independent platform suite passes 27 tests. Commander demo generation,
@@ -267,6 +268,24 @@ verified Google Firebase user.
 
 ## Verification
 
+- PTW release `laval-review-acc03a2` at commit `acc03a2` is live in all three
+  healthy application services. Firebase Hosting version `3ea404fd83205aca`
+  serves `index-DYdpqXmf.js`, `App-DtIiyHPO.js`, and `ptw-shell-v14`; the
+  deployed application bundle contains the item-local detail, remove, disable,
+  processed-stage, and partial-stage labels. Public gateway health returns HTTP
+  200, an unauthenticated Overview request returns HTTP 401, and the production
+  CORS preflight returns HTTP 200. The authenticated internal dependency audit
+  reports all 11 expected Laval modes and the 1000000-byte request limit. Its
+  read-only run-list check reports one preserved run with 22 processed stages,
+  21 strictly completed stages, and one partial stage, proving the previously
+  conflicting counters now describe different states explicitly. Deployment
+  did not start, resume, rerun, rewrite, or charge any research run. Commander
+  passes 107 tests with 50 expected local dependency skips, Owner Gateway passes
+  20 tests with four expected skips, Vitest passes 18 tests, and Playwright
+  passes nine checks across desktop and mobile browsers. The production build,
+  Commander demo, skill verification, and `git diff --check` pass. Final
+  authenticated interaction acceptance remains an owner-browser reload and
+  click-through of the inline controls.
 - Laval reliability release `976d46a` is live in the healthy Commander, Idea,
   and Owner Gateway services; follow-up `60cd43d` stabilizes the UI recovery
   regression test without changing runtime code. Firebase Hosting version

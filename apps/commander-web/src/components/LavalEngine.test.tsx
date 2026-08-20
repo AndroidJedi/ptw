@@ -21,7 +21,7 @@ describe('LavalEngine', () => {
     render(<LavalEngine api={api} language="uk" />)
     expect(await screen.findByText('Ще немає Laval-запусків.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Нова Laval-ідея/ })).toBeInTheDocument()
-    expect(screen.getByText('Evidence → opportunity → market signals → ideas')).toBeInTheDocument()
+    expect(screen.getByText('Evidence → mechanisms → product theses')).toBeInTheDocument()
   })
 
   it('creates and starts the owner idea in one click with automatic progression by default', async () => {

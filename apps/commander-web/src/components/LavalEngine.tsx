@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { local, type Language } from '../i18n'
 import type { I18n, LavalEvidenceMode, LavalProviderReadiness, LavalQualityCount, LavalRun, LavalRunQuality, LavalStage, LavalStatus } from '../types'
+import { ThesisResults } from './ThesisResults'
 
 const DEFAULT_COUNTRIES = 'US:en, GB:en, DE:de:en, NO:no:en, DK:da:en'
 
@@ -19,16 +20,27 @@ const STAGE_LABELS: Record<string, string> = {
   OWNER_CAPTURE: 'Початкова ідея', OWNER_DNA: 'Суть ідеї', QUERY_PLAN: 'План пошуку',
   SERP_DISCOVERY: 'Результати пошуку', COMPETITOR_SELECTION: 'Відбір конкурентів',
   COMPETITOR_EVIDENCE: 'Докази про конкурентів', COMPETITOR_DOSSIERS: 'Досьє конкурентів',
+  YOUTUBE_DISCOVERY: 'Пошук YouTube', YOUTUBE_OBSERVATION: 'Поведінкові спостереження',
   OPPORTUNITY_MATRIX: 'Матриця можливостей', MARKET_SIGNAL_PLAN: 'План ринкових сигналів',
   MARKET_SIGNAL_COLLECTION: 'Релевантність доказів', MARKET_SIGNAL_GATE: 'Оцінка ринкових сигналів',
   TREND_QUERY_PLAN: 'План тренд-запитів', GOOGLE_TRENDS_RESEARCH: 'Дослідження Google Trends',
   TREND_GATE: 'Оцінка трендів', SYNTHESIS_PACKET: 'Пакет синтезу',
   IDEA_EXPANSION: 'Варіанти ідей', IDEA_CLUSTERING: 'Дедуплікація ідей',
   IDEA_EVALUATION: 'Оцінка ідей', FINAL_SHORTLIST: 'Фінальний список',
+  MECHANISM_EXTRACTION: 'Виділення механізмів', MECHANISM_SCORING: 'Підтримка механізмів',
+  THESIS_SYNTHESIS: 'Синтез продуктових тез', THESIS_FALSIFICATION: 'Фальсифікація тез',
+  THESIS_SHORTLIST: 'Рекомендація тези',
   cross_country_recurrence: 'Повторюваність між країнами', query_family_recurrence: 'Повторюваність типів запитів',
   recent_content_activity: 'Свіжа активність', community_activity: 'Активність спільнот',
   negative_pain_recurrence: 'Повторювані скарги', semantic_relevance: 'Семантична релевантність',
 }
+const STAGE_PHASES = [
+  { title: 'Намір власника', stages: ['OWNER_CAPTURE', 'OWNER_DNA', 'QUERY_PLAN'] },
+  { title: 'Польові докази', stages: ['SERP_DISCOVERY', 'COMPETITOR_SELECTION', 'COMPETITOR_EVIDENCE', 'YOUTUBE_DISCOVERY', 'YOUTUBE_OBSERVATION', 'COMPETITOR_DOSSIERS', 'OPPORTUNITY_MATRIX'] },
+  { title: 'Ринкові сигнали', stages: ['MARKET_SIGNAL_PLAN', 'MARKET_SIGNAL_COLLECTION', 'MARKET_SIGNAL_GATE', 'TREND_QUERY_PLAN', 'GOOGLE_TRENDS_RESEARCH', 'TREND_GATE', 'SYNTHESIS_PACKET'] },
+  { title: 'Варіанти та механізми', stages: ['IDEA_EXPANSION', 'IDEA_CLUSTERING', 'IDEA_EVALUATION', 'MECHANISM_EXTRACTION', 'MECHANISM_SCORING'] },
+  { title: 'Тези та фальсифікація', stages: ['THESIS_SYNTHESIS', 'THESIS_FALSIFICATION', 'THESIS_SHORTLIST', 'FINAL_SHORTLIST'] },
+]
 function humanStage(value: string) { return STAGE_LABELS[value] || value.replaceAll('_', ' ') }
 function isI18n(value: unknown): value is I18n { return Boolean(value && typeof value === 'object' && 'en' in value && 'uk' in value) }
 function runStatusLabel(status: LavalRun['status']) {
@@ -246,7 +258,7 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
 
   return <section className="laval-engine">
     <div className="laval-toolbar">
-      <div><small>IDEA LAVAL ENGINE</small><h2>Evidence → opportunity → market signals → ideas</h2></div>
+      <div><small>IDEA LAVAL ENGINE</small><h2>Evidence → mechanisms → product theses</h2></div>
       <button className="primary" disabled={!providers} onClick={() => setShowCreate(true)}><Plus />Нова Laval-ідея</button>
     </div>
     {error && <div className="laval-error" role="alert"><span>{error}</span><button onClick={() => { setError(''); void loadProviders(); void loadRuns(); void loadStatus() }} aria-label="Повторити"><RefreshCcw /> Повторити</button><button onClick={() => setError('')} aria-label="Закрити"><X /></button></div>}
@@ -257,22 +269,23 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
       <label>Країна:мова[:друга мова]<input value={countryText} onChange={(event) => setCountryText(event.target.value)} /></label>
       <fieldset className="laval-mode"><legend>Режим доказів</legend>
         <label><input type="radio" name="evidence-mode" value="demo" checked={requestedMode === 'demo'} disabled={!providers?.demo_available} onChange={() => setRequestedMode('demo')} /><span><strong>Демо</strong> — deterministic fixture, не ринкове дослідження</span></label>
-        <label><input type="radio" name="evidence-mode" value="live" checked={requestedMode === 'live'} disabled={!providers?.search_live_ready} onChange={() => setRequestedMode('live')} /><span><strong>Живе дослідження</strong> — DataForSEO, максимум ${(providers?.max_spend_usd ?? .05).toFixed(2)}</span></label>
+        <label><input type="radio" name="evidence-mode" value="live" checked={requestedMode === 'live'} disabled={!providers?.search_live_ready || !providers?.youtube_live_ready} onChange={() => setRequestedMode('live')} /><span><strong>Живе дослідження</strong> — DataForSEO + official YouTube API, максимум ${(providers?.max_spend_usd ?? .05).toFixed(2)}</span></label>
         {!providers?.search_live_ready && <p>DataForSEO ще не налаштовано. Живий запуск заблоковано.</p>}
+        {providers?.search_live_ready && !providers?.youtube_live_ready && <p>Офіційний YouTube API ще не налаштовано або не перевірено. Живий V2 запуск заблоковано.</p>}
         {providers?.search_live_ready && !providers.trends_live_ready && <p>Google Trends не підключено — це необов’язкове джерело і запуск продовжиться без нього.</p>}
       </fieldset>
       <fieldset className="laval-mode"><legend>Проходження етапів</legend>
-        <label><input type="radio" name="approval-mode" value="automatic" checked={approvalMode === 'automatic'} onChange={() => setApprovalMode('automatic')} /><span><strong>Автоматично · рекомендовано</strong> — пройти всі 16 етапів без зупинок</span></label>
+        <label><input type="radio" name="approval-mode" value="automatic" checked={approvalMode === 'automatic'} onChange={() => setApprovalMode('automatic')} /><span><strong>Автоматично · рекомендовано</strong> — пройти всі 22 етапи без зупинок</span></label>
         <label><input type="radio" name="approval-mode" value="manual" checked={approvalMode === 'manual'} onChange={() => setApprovalMode('manual')} /><span><strong>З перевіркою</strong> — пауза на трьох контрольних точках</span></label>
       </fieldset>
-      <button className="primary large" disabled={busy || !idea.trim() || (requestedMode === 'demo' ? !providers?.demo_available : !providers?.search_live_ready)} onClick={create}><FlaskConical />{busyAction === 'create' ? 'Запускаємо…' : requestedMode === 'demo' ? 'Запустити демо' : 'Запустити живе дослідження'}</button>
+      <button className="primary large" disabled={busy || !idea.trim() || (requestedMode === 'demo' ? !providers?.demo_available : !providers?.search_live_ready || !providers?.youtube_live_ready)} onClick={create}><FlaskConical />{busyAction === 'create' ? 'Запускаємо…' : requestedMode === 'demo' ? 'Запустити демо' : 'Запустити живе дослідження'}</button>
     </div>}
     <div className="laval-layout">
       <aside className="laval-runs" aria-label="Laval-запуски">
         {runs === null && <p className="muted">Завантаження…</p>}
         {runs?.length === 0 && <p className="muted">Ще немає Laval-запусків.</p>}
         {runs?.map((run) => <button key={run.id} className={selected === run.id ? 'selected' : ''} aria-current={selected === run.id ? 'true' : undefined} onClick={() => setSelected(run.id)}>
-          <span><StatusDot status={run.status} />{runStatusLabel(run.status)}</span><div className="laval-run-badges"><em className={`evidence-badge ${run.evidence_mode || 'demo_fixture'}`}>{evidenceLabel(run.evidence_mode)}</em><em className={`run-mode-badge ${run.approval_mode}`}>{runModeLabel(run.approval_mode)}</em></div><strong>{run.owner_preview || 'Owner idea'}</strong><small>{short(run.id)} · {run.completed_stages ?? 0}/16{runCreatedLabel(run.created_at) ? ` · ${runCreatedLabel(run.created_at)}` : ''}</small>
+          <span><StatusDot status={run.status} />{runStatusLabel(run.status)}</span><div className="laval-run-badges"><em className={`evidence-badge ${run.evidence_mode || 'demo_fixture'}`}>{evidenceLabel(run.evidence_mode)}</em><em className={`run-mode-badge ${run.approval_mode}`}>{runModeLabel(run.approval_mode)}</em></div><strong>{run.owner_preview || 'Owner idea'}</strong><small>{short(run.id)} · {run.completed_stages ?? 0}/{run.pipeline_version === 'mechanism_thesis_v1' ? 22 : 16}{runCreatedLabel(run.created_at) ? ` · ${runCreatedLabel(run.created_at)}` : ''}</small>
         </button>)}
       </aside>
       <div className="laval-workspace">
@@ -280,7 +293,7 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
         {!selected && <div className="state"><FlaskConical /><h2>Створіть перший запуск</h2><p>Кожний етап буде видимим, відновлюваним і пов’язаним із доказами.</p></div>}
         {status && <>
           <header className="laval-run-head">
-            <div><small>ВИБРАНИЙ RUN {short(status.run.id)} · OWNER {short(status.run.owner_idea_id)}</small><div className="laval-run-badges"><em className={`evidence-badge ${status.run.evidence_mode}`}>{evidenceLabel(status.run.evidence_mode)}</em><em className={`run-mode-badge ${status.run.approval_mode}`}>{runModeLabel(status.run.approval_mode)}</em></div><h3>{status.run.current_stage ? humanStage(status.run.current_stage) : 'CREATED'}</h3><p><StatusDot status={status.run.status} />{runStatusLabel(status.run.status)} · {status.stages.filter((item) => ['completed', 'partial'].includes(item.status)).length}/16</p>{status.run.status === 'pending' && <p className="laval-pending-note">Цей запуск створено, але він ще не почався.</p>}<p className="laval-cost">projected ${(status.cost.provider_projected_usd ?? 0).toFixed(4)} · reserved ${(status.cost.provider_reserved_usd ?? 0).toFixed(4)} · actual ${(status.cost.provider_actual_usd ?? status.cost.total_usd).toFixed(4)} · max ${(status.cost.max_spend_usd ?? .05).toFixed(2)}</p>{status.run.awaiting_reason && <p className="laval-waiting">{status.resume_with_market_signals_available ? 'Готово до продовження через Market Signals. Google Trends не потрібен; всі вже оплачені дані будуть збережені.' : 'Запуск очікує дії провайдера.'}</p>}</div>
+            <div><small>ВИБРАНИЙ RUN {short(status.run.id)} · OWNER {short(status.run.owner_idea_id)}</small><div className="laval-run-badges"><em className={`evidence-badge ${status.run.evidence_mode}`}>{evidenceLabel(status.run.evidence_mode)}</em><em className={`run-mode-badge ${status.run.approval_mode}`}>{runModeLabel(status.run.approval_mode)}</em></div><h3>{status.run.current_stage ? humanStage(status.run.current_stage) : 'CREATED'}</h3><p><StatusDot status={status.run.status} />{runStatusLabel(status.run.status)} · {status.stages.filter((item) => ['completed', 'partial'].includes(item.status)).length}/{status.stages.length}</p>{status.run.status === 'pending' && <p className="laval-pending-note">Цей запуск створено, але він ще не почався.</p>}<p className="laval-cost">projected ${(status.cost.provider_projected_usd ?? 0).toFixed(4)} · reserved ${(status.cost.provider_reserved_usd ?? 0).toFixed(4)} · actual ${(status.cost.provider_actual_usd ?? status.cost.total_usd).toFixed(4)} · max ${(status.cost.max_spend_usd ?? .05).toFixed(2)}</p>{status.run.awaiting_reason && <p className="laval-waiting">{status.resume_with_market_signals_available ? 'Готово до продовження через Market Signals. Google Trends не потрібен; всі вже оплачені дані будуть збережені.' : 'Запуск очікує дії провайдера.'}</p>}</div>
             <div className="laval-actions">
               {status.run.status === 'pending' && <button className="primary" disabled={busy} onClick={() => act('run')}><Play />{busyAction === 'run' ? 'Запускаємо…' : 'Почати дослідження'}</button>}
               {status.run.status === 'running' && <button className="secondary" disabled={busy} onClick={() => act('pause')}><CirclePause />Пауза</button>}
@@ -293,6 +306,7 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
             </div>
           </header>
           {status.quality && <RunQuality quality={status.quality} runStatus={status.run.status} />}
+          <ThesisResults api={api} runId={status.run.id} language={language} ready={status.run.pipeline_version === 'mechanism_thesis_v1' && status.run.status === 'completed'} />
           {status.run.status === 'failed' && status.recovery && <section className="laval-recovery" role="alert">
             <small>ЗВІТ ПРО ПОМИЛКУ ТА ВІДНОВЛЕННЯ</small>
             <h4>{humanStage(status.recovery.stage || status.run.current_stage || 'UNKNOWN')} · спроба #{status.recovery.attempt}</h4>
@@ -314,11 +328,13 @@ export function LavalEngine({ api, language, initialRunId }: { api: ApiClient; l
             {status.recovery.failure && <p>Останній збій: {humanStage(status.recovery.stage || 'UNKNOWN')} · {status.recovery.failure.type || 'StageError'} · provider tasks {status.recovery.provider_tasks.completed}/{status.recovery.provider_tasks.total} · ${status.recovery.provider_tasks.actual_cost_usd.toFixed(4)}</p>}
             <ol>{status.recovery.history.map((item, index) => <li key={`${item.created_at}-${index}`}><strong>{humanStage(item.action)}</strong> · {item.stage ? humanStage(item.stage) : 'RUN'} · {item.outcome}<small>{new Date(item.created_at).toLocaleString()} · {item.actor}</small></li>)}</ol>
           </details>}
-          <div className="laval-stages">
-            {status.stages.map((stage) => <button key={stage.stage} className={`${stage.status} ${stageName === stage.stage ? 'selected' : ''}`} onClick={() => inspect(stage)}>
+          <div className="laval-stage-phases">{STAGE_PHASES.map((phase) => {
+            const phaseStages = status.stages.filter((stage) => phase.stages.includes(stage.stage))
+            if (!phaseStages.length) return null
+            return <section key={phase.title}><h4>{phase.title}</h4><div className="laval-stages">{phaseStages.map((stage) => <button key={stage.stage} className={`${stage.status} ${stageName === stage.stage ? 'selected' : ''}`} onClick={() => inspect(stage)}>
               <span>S{String(stage.ordinal).padStart(2, '0')}</span><strong>{humanStage(stage.stage)}</strong><small>{stage.stage.replaceAll('_', ' ')} · {stage.status} · #{stage.attempt}{stage.provider ? ` · ${stage.provider}` : ''}{stageTrustLabel(status.quality, stage.stage)}</small>
-            </button>)}
-          </div>
+            </button>)}</div></section>
+          })}</div>
           {stageName && <section className="laval-inspector" ref={inspectorRef} tabIndex={-1}>
             <div className="laval-inspector-head"><div><small>РЕЗУЛЬТАТ ЕТАПУ</small><h3>{humanStage(stageName)}</h3></div><div>
               {stageName === 'TREND_GATE' && <select aria-label="Trend view" value={view} onChange={(event) => { const value = event.target.value; const stage = status.stages.find((item) => item.stage === stageName); if (stage) void inspect(stage, value, countryFilter) }}><option value="">Усе</option><option value="scores">Trend Scores</option><option value="discoveries">Trend Discoveries</option></select>}
@@ -407,6 +423,8 @@ function ReadableArtifact({ stage, output, language, quality }: { stage: string;
   if (stage === 'SERP_DISCOVERY') return <div className="artifact-readable"><h4>Що повернув пошук</h4><p>Провайдер: {String(data.provider || '—')}. Невдалих запитів: {rows(data.failures).length}.</p><div className="artifact-stats">{Object.entries(record(data.countries)).map(([country, searches]) => <div key={country}><strong>{Array.isArray(searches) ? searches.reduce((total, item) => total + rows(record(item).results).length, 0) : 0}</strong><span>{country} результатів</span></div>)}</div></div>
   if (stage === 'COMPETITOR_SELECTION') return <RankedEvidence title="Відібрані кандидати в конкуренти" items={rows(data.global_deduplicated)} language={language} />
   if (stage === 'COMPETITOR_EVIDENCE') return <div className="artifact-readable"><h4>Покриття доказами</h4><p>{rows(data.competitors).length} конкурентів · {rows(data.failures).length} збоїв джерел.</p><div className="artifact-list">{rows(data.competitors).map((item) => <article key={String(item.competitor_id)}><h5>{String(item.name || 'Конкурент')}</h5><p>{Array.isArray(item.evidence_ids) ? item.evidence_ids.length : 0} evidence items</p></article>)}</div></div>
+  if (stage === 'YOUTUBE_DISCOVERY') return <div className="artifact-readable"><h4>YouTube: незалежні творці</h4><p>Офіційний API · без scraping captions. Відео: {rows(data.videos).length}; канали: {rows(data.channels).length}.</p><p>Velocity: {String(data.velocity_status || 'insufficient_history')} — потрібні щонайменше два append-only snapshots.</p></div>
+  if (stage === 'YOUTUBE_OBSERVATION') return <div className="artifact-readable"><h4>Поведінкові спостереження</h4><div className="artifact-list">{rows(data.observations).map((item) => <article key={String(item.id)}><small>{String(item.observation_type)} · {String(item.independent_creator_count || 0)} незалежних creators</small><h5>{String(item.statement || '—')}</h5><p>{Array.isArray(item.evidence_ids) ? item.evidence_ids.length : 0} evidence IDs</p></article>)}</div></div>
   if (stage === 'COMPETITOR_DOSSIERS') return <div className="artifact-readable"><h4>Досьє конкурентів</h4><div className="artifact-list">{rows(data.competitors).map((item) => <article key={String(item.competitor_id)}><small>{String(item.type || 'competitor')} · confidence {(Number(item.confidence || 0) * 100).toFixed(0)}%</small><h5>{String(item.name || item.url || 'Конкурент')}</h5><NamedList title="Позиціонування" values={item.positioning} compact /><NamedList title="Скарги" values={item.complaints} compact /><NamedList title="Прогалини" values={item.gaps} compact /></article>)}</div></div>
   if (stage === 'OPPORTUNITY_MATRIX') return <Opportunities items={rows(data.opportunities)} />
   if (stage === 'MARKET_SIGNAL_PLAN') return <div className="artifact-readable"><h4>План Market Signals</h4><p>Нових платних пошуків: {record(data.additional_search).executed === true ? 'так' : '0'}. Використано вже збережені докази.</p><Opportunities items={rows(data.opportunities)} /></div>
@@ -418,6 +436,10 @@ function ReadableArtifact({ stage, output, language, quality }: { stage: string;
   if (stage === 'IDEA_EXPANSION') return <IdeaRows title="Згенеровані варіанти" items={rows(data.variants)} language={language} trusted={quality.run?.verdict !== 'invalid'} />
   if (stage === 'IDEA_CLUSTERING') return <div className="artifact-readable"><h4>Дедуплікація ідей</h4><div className="artifact-stats"><div><strong>{rows(data.clusters).length}</strong><span>унікальних кластерів</span></div><div><strong>{Array.isArray(data.representative_ids) ? data.representative_ids.length : 0}</strong><span>представників</span></div></div></div>
   if (stage === 'IDEA_EVALUATION') return <IdeaScores items={rows(data.scores)} language={language} />
+  if (stage === 'MECHANISM_EXTRACTION' || stage === 'MECHANISM_SCORING') return <div className="artifact-readable"><h4>Повторно використовувані механізми</h4><div className="artifact-list">{rows(data.mechanisms).map((item) => <article key={String(item.id)}><small>{String(item.mechanism_type)}</small><h5>{text(item.name, language)}</h5><p>{text(item.description, language)}</p><p>{Object.entries(record(item.support_dimensions)).map(([name, score]) => `${humanStage(name)}: ${String(score)}`).join(' · ')}</p></article>)}</div></div>
+  if (stage === 'THESIS_SYNTHESIS') return <div className="artifact-readable"><h4>Продуктові тези</h4><div className="artifact-list">{rows(data.theses).map((item) => <article key={String(item.id)}><h5>{text(item.title, language)}</h5><p>{text(item.problem, language)}</p><NamedList title="Петля" values={item.loop_steps} compact /></article>)}</div></div>
+  if (stage === 'THESIS_FALSIFICATION') return <div className="artifact-readable"><h4>Спроба спростування</h4><div className="artifact-list">{rows(data.reports).map((item) => <article key={String(item.thesis_id)}><small>{String(item.verdict)}</small><h5>{String(item.fatal_objection || 'Фатального заперечення немає')}</h5><p>Непідтриманих high-severity: {String(item.unsupported_high_severity_count || 0)}</p></article>)}</div></div>
+  if (stage === 'THESIS_SHORTLIST') return <div className="artifact-readable"><h4>Рекомендація без відсотка успіху</h4><p>{String(data.status || '—')}</p><p>{String(data.recommendation_reason || '')}</p></div>
   if (stage === 'FINAL_SHORTLIST') return <Shortlist items={rows(data.shortlist)} language={language} verdict={quality.run?.verdict} />
   if (stage === 'TREND_GATE') return <div className="artifact-readable"><h4>Trend Gate</h4><ArtifactCounts data={data} /></div>
   return <div className="artifact-readable"><h4>Короткий огляд</h4><ArtifactCounts data={data} /></div>

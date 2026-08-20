@@ -25,12 +25,91 @@ export interface LavalProviderReadiness {
   trend_provider: string
   search_live_ready: boolean
   trends_live_ready: boolean
+  youtube_provider?: string
+  youtube_live_ready?: boolean
   demo_available: boolean
   default_evidence_mode: LavalEvidenceMode
   max_spend_usd: number
   reserved_spend_usd: number
   missing: string[]
   optional_sources?: { google_trends: { ready: boolean; required: false } }
+  required_sources?: { youtube: { ready: boolean } }
+}
+
+export interface ProductMechanism {
+  id: string
+  name: I18n
+  description: I18n
+  mechanism_type: 'value' | 'behavior' | 'trust' | 'retention' | 'distribution' | 'proof'
+  support_dimensions: Record<string, number>
+  evidence_ids: string[]
+}
+
+export interface FalsificationReport {
+  risks: Array<{ assumption_id: string; severity: 'low' | 'medium' | 'high'; supported: boolean; objection: string; counterargument: string; fatal: boolean }>
+  fatal_objection?: string | null
+  unsupported_high_severity_count: number
+  weakest_mechanism_coverage: number
+}
+
+export interface ProductThesis extends FalsificationReport {
+  id: string
+  title: I18n
+  target_user: I18n
+  problem: I18n
+  loop_steps: I18n[]
+  value_moment: I18n
+  zero_audience_behavior: I18n
+  substitutes: I18n[]
+  dangerous_assumptions: Array<{ id: string; statement: I18n; severity: 'low' | 'medium' | 'high' }>
+  success_criterion: { metric: string; operator: '>='; threshold: number; sample_target: number }
+  mechanism_ids: string[]
+  evidence_ids: string[]
+  verdict: 'survives' | 'weak' | 'rejected'
+  recommended: boolean
+  recommendation_reason?: string
+  commander_hypothesis_id?: string
+  validation_workspace_id?: string
+  validation_stale?: boolean
+}
+
+export interface ThesisCollection {
+  run_id: string
+  status: 'ready' | 'no_surviving_thesis'
+  items: ProductThesis[]
+  mechanisms: ProductMechanism[]
+  recommended_thesis_id?: string | null
+}
+
+export interface GraphEntity<T extends Record<string, unknown> = Record<string, unknown>> {
+  id: string
+  kind: string
+  created_at: string
+  attributes: T
+}
+
+export interface MarketProbe extends GraphEntity<{
+  experiment_type: 'market_probe'
+  probe_type: string
+  assumption_id: string
+  assumption: string
+  procedure: string
+  target_segment: string
+  success_criterion: { metric: string; operator: '>='; threshold: number }
+  sample_target: number
+  duration_days: number
+  budget_minor: number
+  external_execution: 'manual_owner_only'
+}> { status: 'proposed' | 'running' | 'completed' | 'evaluated' | 'cancelled' | 'superseded' }
+
+export interface ValidationWorkspace {
+  workspace: GraphEntity<{ hypothesis_id: string; idea_laval_run_id: string; idea_laval_thesis_id: string; status: string; external_actions_automatic: false }>
+  hypothesis: GraphEntity<{ claim: string; success_criterion: { metric: string; operator: '>='; threshold: number } }>
+  probes: MarketProbe[]
+  observations: GraphEntity[]
+  insights: GraphEntity[]
+  decisions: GraphEntity<{ action: 'continue' | 'mutate' | 'pivot' | 'reject'; reasoning_summary: string }>[]
+  mechanisms: GraphEntity<{ name: I18n; description: I18n; mechanism_type: string }>[]
 }
 
 export interface LavalRun {

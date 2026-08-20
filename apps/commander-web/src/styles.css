@@ -158,6 +158,9 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; color: #fff; background: var(--black); resize: vertical; }
 
 .idea-mode { max-width: 520px; }
+.idea-subviews { margin-bottom: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.idea-subviews button { border: 0; border-radius: 11px; color: var(--muted); background: transparent; font-weight: 850; }
+.idea-subviews button.selected { color: #fff; background: #351020; box-shadow: inset 0 0 0 1px #6b173c; }
 .laval-engine { margin-top: 16px; }
 .laval-toolbar { display: flex; gap: 12px; align-items: end; justify-content: space-between; margin-bottom: 14px; }
 .laval-toolbar small, .laval-run-head small, .laval-inspector-head small { color: var(--pink); font-size: 10px; font-weight: 900; letter-spacing: .12em; }
@@ -308,6 +311,55 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-override label > span { display: block; margin: -1px 0 8px; font-weight: 500; }
 .laval-override input, .laval-override select { margin-bottom: 5px; }
 .laval-override button { min-height: 48px; margin-top: 4px; }
+.laval-stage-phases { display: grid; gap: 16px; }
+.laval-stage-phases > section > h4 { margin: 0 0 7px; color: var(--muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.thesis-results { margin: 14px 0 20px; padding: 16px; border: 1px solid #6d1a40; border-radius: 18px; background: #180c12; }
+.thesis-results > header, .validation-panel > header { display: flex; gap: 12px; align-items: start; justify-content: space-between; }
+.thesis-results > header small, .validation-panel > header small { color: var(--pink); font-size: 10px; font-weight: 900; letter-spacing: .13em; }
+.thesis-results > header h3, .validation-panel > header h2 { margin: 4px 0 7px; }
+.thesis-results > header p, .validation-panel > header p { max-width: 720px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.thesis-grid { display: grid; gap: 12px; }
+.thesis-grid > article { padding: 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--panel); }
+.thesis-grid > article.recommended { border-color: var(--pink); box-shadow: inset 4px 0 var(--pink); }
+.thesis-grid > article.rejected { opacity: .72; }
+.thesis-grid > article > header { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }
+.thesis-grid > article > header span { color: var(--pink); font-weight: 900; text-transform: uppercase; }
+.thesis-grid > article > p, .thesis-loop, .thesis-risks { font-size: 12px; line-height: 1.5; }
+.thesis-loop ol { padding-left: 22px; }
+.thesis-mechanisms { display: grid; gap: 7px; }
+.thesis-mechanisms > div { padding: 10px; border-radius: 10px; background: #0b0b0d; }
+.thesis-mechanisms span, .thesis-risks em { margin-right: 7px; color: var(--pink); font: 9px ui-monospace, monospace; text-transform: uppercase; }
+.thesis-mechanisms h4 { margin: 3px 0; }
+.thesis-mechanisms p, .thesis-mechanisms small { margin: 0; color: var(--muted); font-size: 10px; }
+.thesis-risks ul { padding-left: 20px; }
+.thesis-grid details pre, .validation-workspace details pre { max-height: 300px; overflow: auto; white-space: pre-wrap; font: 9px/1.4 ui-monospace, monospace; }
+.thesis-grid .primary { width: 100%; margin-top: 12px; }
+.thesis-empty { padding: 20px; text-align: center; color: var(--muted); }
+.validation-panel { margin-top: 16px; }
+.laval-notice-inline, .manual-boundary { padding: 12px; border: 1px solid #297f54; border-radius: 12px; color: #bfffd9; background: #0c281a; font-size: 12px; }
+.validation-layout { display: grid; gap: 12px; }
+.validation-layout > aside { display: flex; gap: 7px; overflow-x: auto; }
+.validation-layout > aside button { min-width: 210px; padding: 12px; display: grid; gap: 5px; text-align: left; border: 1px solid var(--line); border-radius: 12px; color: #fff; background: var(--panel); }
+.validation-layout > aside button.selected { border-color: var(--pink); }
+.validation-layout > aside small { color: var(--muted); }
+.validation-workspace { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); }
+.probe-grid { display: grid; gap: 10px; }
+.probe { padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #0b0b0d; }
+.probe > header { display: flex; justify-content: space-between; color: var(--pink); font: 9px ui-monospace, monospace; text-transform: uppercase; }
+.probe h4 { margin: 10px 0 6px; }
+.probe p, .probe dl { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.probe dl div { display: grid; grid-template-columns: 95px 1fr; }
+.probe dd { margin: 0; color: #fff; }
+.probe-actions { display: flex; gap: 7px; }
+.probe-actions button { flex: 1; }
+.probe-observation { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.probe-observation label, .validation-decision label { color: var(--muted); font-size: 11px; font-weight: 750; }
+.validation-decision { margin: 18px 0; padding-top: 14px; border-top: 1px solid var(--line); }
+.validation-decision p { color: var(--muted); font-size: 11px; }
+.mechanism-picker { margin-bottom: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.mechanism-picker legend { color: var(--muted); font-size: 11px; }
+.mechanism-picker label { min-height: 40px; display: flex; gap: 9px; align-items: center; color: #fff; }
+.mechanism-picker input { width: auto; margin: 0; }
 
 .command-pane { padding: 16px; border: 1px solid var(--line); border-radius: 20px; background: var(--panel); }
 .mode-switch { margin-bottom: 18px; display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }

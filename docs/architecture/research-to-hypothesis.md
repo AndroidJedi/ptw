@@ -4,10 +4,10 @@ Research is evidence, not knowledge by itself. Commander preserves the stages:
 
 ```text
 ResearchFinding (Source entities)
-        |
-        | derived_from
-        v
-Proposed Hypothesis + predeclared success criterion
+        |                         \
+        | derived_from             -> ProductMechanism
+        v                                   |
+Proposed Product Thesis Hypothesis <--------+ contains
         |
         v
 Experiment -> Observation -> Insight -> Decision -> KnowledgeAssertion
@@ -19,6 +19,19 @@ credibility, and optional external ID. A hypothesis may derive from multiple
 sources; each source has its own relationship edge. The hypothesis remains
 `proposed` and does not become accepted knowledge until tested and adopted by an
 explicit decision.
+
+Idea Laval V2 treats candidate variants as intermediate research material.
+Every published `product_mechanism` derives from permanent Sources. A surviving
+product thesis contains 3-7 mechanisms and independently derives from its
+permanent Sources. Weak/rejected theses and `no_surviving_thesis` runs publish
+no selectable Hypothesis.
+
+Owner selection creates one idempotent `validation_workspace`. Manual market
+probe Experiments produce factual Observations and separate supporting or
+contradicting Insights. Continue/Mutate/Pivot/Reject Decisions are append-only;
+revision Hypotheses use `supersedes`. Continue injects bounded graph context
+into Plan mode and records `RESEARCH_CONTEXT_CONSUMED` without asking the owner
+to copy any UUID.
 
 Automated research is owned by explicit agents: `/research creative`,
 `/research product`, `/research design`, and `/research engineering`. Each

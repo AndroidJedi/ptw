@@ -99,22 +99,39 @@ class LavalService:
             raise RuntimeError("Demo mode is unavailable while live providers are active")
         if requested_mode == "live" and not self.readiness.get("search_live_ready"):
             raise RuntimeError("Live research requires verified DataForSEO credentials")
+        if requested_mode == "live" and not self.readiness.get("youtube_live_ready"):
+            raise RuntimeError("Live mechanism/thesis research requires verified YouTube Data API access")
         evidence_mode = "demo_fixture" if requested_mode == "demo" else "live_market_signals"
         snapshot = {
             "search": "fixture" if evidence_mode == "demo_fixture" else self.readiness.get("search_provider", "unavailable"),
             "web": "fixture" if evidence_mode == "demo_fixture" else "http",
             "trends": "fixture" if evidence_mode == "demo_fixture" else self.readiness.get("trend_provider", "unavailable"),
             "llm": self.readiness.get("llm_provider", "unknown"),
+            "youtube": "fixture" if evidence_mode == "demo_fixture" else self.readiness.get("youtube_provider", "unavailable"),
         }
         result = self.repository.create_run(
             text, parsed, actor=actor, evidence_mode=evidence_mode, provider_snapshot=snapshot,
             max_spend_usd=float(self.readiness.get("max_spend_usd", .05)),
             reserved_spend_usd=float(self.readiness.get("reserved_spend_usd", .04)),
+            pipeline_version="mechanism_thesis_v1",
         )
         return {**result, "status": "pending", "config": parsed.to_dict()}
 
     def list(self, limit: int = 30) -> dict[str, Any]:
         return {"items": self.repository.list_runs(limit), "next_cursor": None}
+
+    def theses(self, run_id: str) -> dict[str, Any]:
+        return self.repository.theses(run_id)
+
+    def select_thesis(self, run_id: str, thesis_id: str, workspace_id: str, *, actor: str) -> dict[str, Any]:
+        return self.repository.select_thesis(run_id, thesis_id, workspace_id, actor=actor)
+
+    def add_manual_youtube_transcript(
+        self, run_id: str, *, video_url: str, title: str, transcript: str, actor: str,
+    ) -> dict[str, Any]:
+        return self.repository.add_manual_youtube_transcript(
+            run_id, video_url=video_url, title=title, transcript=transcript, actor=actor,
+        )
 
     def start(self, run_id: str, *, through_stage: str | None = None) -> dict[str, Any]:
         self.repository.run(run_id)

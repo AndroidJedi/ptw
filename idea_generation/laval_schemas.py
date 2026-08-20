@@ -137,6 +137,80 @@ IDEA_EVALUATION = _object({
     })),
 })
 
+YOUTUBE_OBSERVATION = _object({
+    "observations": _array(_object({
+        "observation_type": {"type": "string", "enum": [
+            "workaround", "challenge_format", "motivation", "repeated_question",
+            "complaint", "transformation_narrative", "audience_vocabulary",
+            "creator_distribution", "substitute",
+        ]},
+        "statement": STRING,
+        "video_ids": STRING_ARRAY,
+        "evidence_ids": STRING_ARRAY,
+        "confidence": NUMBER,
+    })),
+})
+
+MECHANISM_EXTRACTION = _object({
+    "mechanisms": _array(_object({
+        "name": I18N,
+        "description": I18N,
+        "mechanism_type": {"type": "string", "enum": [
+            "value", "behavior", "trust", "retention", "distribution", "proof",
+        ]},
+        "source_variant_ids": STRING_ARRAY,
+        "opportunity_ids": STRING_ARRAY,
+        "market_signal_ids": STRING_ARRAY,
+        "behavior_observation_ids": STRING_ARRAY,
+        "evidence_ids": STRING_ARRAY,
+    }), minItems=6, maxItems=20),
+})
+
+ASSUMPTION = _object({
+    "id": STRING,
+    "statement": I18N,
+    "severity": {"type": "string", "enum": ["low", "medium", "high"]},
+})
+
+THESIS_SYNTHESIS = _object({
+    "theses": _array(_object({
+        "title": I18N,
+        "target_user": I18N,
+        "problem": I18N,
+        "loop_steps": _array(I18N, minItems=5, maxItems=8),
+        "value_moment": I18N,
+        "zero_audience_behavior": I18N,
+        "substitutes": _array(I18N),
+        "dangerous_assumptions": _array(ASSUMPTION, minItems=1),
+        "success_criterion": _object({
+            "metric": STRING,
+            "operator": {"type": "string", "enum": [">="]},
+            "threshold": {"type": "number"},
+            "sample_target": {"type": "integer", "minimum": 1},
+        }),
+        "mechanism_ids": _array(STRING, minItems=3, maxItems=7),
+        "evidence_ids": STRING_ARRAY,
+    }), minItems=1, maxItems=3),
+})
+
+THESIS_FALSIFICATION = _object({
+    "reports": _array(_object({
+        "thesis_id": STRING,
+        "verdict": {"type": "string", "enum": ["survives", "weak", "rejected"]},
+        "risks": _array(_object({
+            "assumption_id": STRING,
+            "severity": {"type": "string", "enum": ["low", "medium", "high"]},
+            "supported": {"type": "boolean"},
+            "objection": STRING,
+            "counterargument": STRING,
+            "evidence_ids": STRING_ARRAY,
+            "mechanism_ids": STRING_ARRAY,
+            "fatal": {"type": "boolean"},
+        }), minItems=1),
+        "fatal_objection": {"type": ["string", "null"]},
+    })),
+})
+
 
 SCHEMAS = {
     "laval_owner_dna": OWNER_DNA,
@@ -146,6 +220,10 @@ SCHEMAS = {
     "laval_market_signal_relevance": MARKET_SIGNAL_RELEVANCE,
     "laval_idea_expansion": IDEA_EXPANSION,
     "laval_idea_evaluation": IDEA_EVALUATION,
+    "laval_youtube_observation": YOUTUBE_OBSERVATION,
+    "laval_mechanism_extraction": MECHANISM_EXTRACTION,
+    "laval_thesis_synthesis": THESIS_SYNTHESIS,
+    "laval_thesis_falsification": THESIS_FALSIFICATION,
 }
 
 

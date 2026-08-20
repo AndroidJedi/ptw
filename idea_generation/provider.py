@@ -154,6 +154,98 @@ class MockLLMProvider:
                 }
                 for item in input_payload.get("variants") or []
             ]}
+        if mode == "laval_youtube_observation":
+            kinds = (
+                "workaround", "challenge_format", "motivation", "repeated_question",
+                "complaint", "transformation_narrative", "audience_vocabulary",
+                "creator_distribution", "substitute",
+            )
+            videos = input_payload.get("videos") or []
+            return {"observations": [
+                {
+                    "observation_type": kinds[index % len(kinds)],
+                    "statement": f"Independent creators repeatedly show behavior pattern {index + 1}.",
+                    "video_ids": [str(video.get("id"))],
+                    "evidence_ids": [str(video.get("evidence_id"))],
+                    "confidence": .68,
+                }
+                for index, video in enumerate(videos[:12])
+                if video.get("id") and video.get("evidence_id")
+            ]}
+        if mode == "laval_mechanism_extraction":
+            variants = input_payload.get("variants") or []
+            observations = input_payload.get("behavior_observations") or []
+            mechanism_types = ("value", "behavior", "trust", "retention", "distribution", "proof")
+            mechanisms = []
+            for index, mechanism_type in enumerate(mechanism_types):
+                parents = [item for offset, item in enumerate(variants) if offset % len(mechanism_types) == index]
+                selected = parents or variants[:1]
+                evidence_ids = list(dict.fromkeys(
+                    str(value) for item in selected for value in item.get("evidence_ids") or []
+                ))
+                mechanisms.append({
+                    "name": {"en": f"{mechanism_type.title()} loop", "uk": f"Механізм: {mechanism_type}"},
+                    "description": {"en": f"Reusable {mechanism_type} mechanism extracted across candidate variants.", "uk": f"Повторно використовуваний механізм {mechanism_type}."},
+                    "mechanism_type": mechanism_type,
+                    "source_variant_ids": [str(item["id"]) for item in selected if item.get("id")],
+                    "opportunity_ids": list(dict.fromkeys(str(value) for item in selected for value in item.get("opportunity_ids") or [])),
+                    "market_signal_ids": list(dict.fromkeys(str(value) for item in selected for value in item.get("market_signal_ids") or [])),
+                    "behavior_observation_ids": [str(item["id"]) for item in observations[index::len(mechanism_types)] if item.get("id")],
+                    "evidence_ids": evidence_ids,
+                })
+            return {"mechanisms": mechanisms}
+        if mode == "laval_thesis_synthesis":
+            mechanisms = input_payload.get("mechanisms") or []
+            owner = input_payload.get("owner_dna") or {}
+            groups = [mechanisms[:5], mechanisms[1:6], mechanisms[-5:]]
+            theses = []
+            for index, group in enumerate(groups):
+                group = list({str(item.get("id")): item for item in group if item.get("id")}.values())
+                if len(group) < 3:
+                    continue
+                evidence = list(dict.fromkeys(str(value) for item in group for value in item.get("evidence_ids") or []))
+                theses.append({
+                    "title": {"en": f"Evidence loop {index + 1}", "uk": f"Доказовий цикл {index + 1}"},
+                    "target_user": {"en": str(owner.get("target_user") or "Target users"), "uk": "Цільові користувачі"},
+                    "problem": {"en": str(owner.get("problem") or "Unmet behavior"), "uk": "Непідтверджена потреба"},
+                    "loop_steps": [
+                        {"en": value, "uk": f"Крок: {value}"}
+                        for value in ("Arrive", "Commit", "Act", "Create proof", "Share result", "Return")
+                    ],
+                    "value_moment": {"en": "The user produces credible proof of progress.", "uk": "Користувач створює достовірний доказ прогресу."},
+                    "zero_audience_behavior": {"en": "The commitment remains useful as a private proof log.", "uk": "Зобов’язання корисне як приватний журнал доказів."},
+                    "substitutes": [{"en": "Spreadsheets and accountability groups", "uk": "Таблиці та групи підзвітності"}],
+                    "dangerous_assumptions": [
+                        {"id": f"assumption-{index + 1}-behavior", "statement": {"en": "Users repeat the core behavior.", "uk": "Користувачі повторюють основну поведінку."}, "severity": "high"},
+                        {"id": f"assumption-{index + 1}-sharing", "statement": {"en": "Proof creates qualified sharing.", "uk": "Доказ створює релевантне поширення."}, "severity": "medium"},
+                    ],
+                    "success_criterion": {"metric": "validated_demand_signal", "operator": ">=", "threshold": .1, "sample_target": 10},
+                    "mechanism_ids": [str(item["id"]) for item in group],
+                    "evidence_ids": evidence,
+                })
+            return {"theses": theses[:3]}
+        if mode == "laval_thesis_falsification":
+            return {"reports": [
+                {
+                    "thesis_id": str(thesis["id"]),
+                    "verdict": "survives" if index == 0 else "weak",
+                    "risks": [
+                        {
+                            "assumption_id": str(assumption["id"]),
+                            "severity": str(assumption["severity"]),
+                            "supported": index == 0,
+                            "objection": "Behavioral demand is not yet proven by a real market probe.",
+                            "counterargument": "Independent observations provide enough support to justify a bounded probe.",
+                            "evidence_ids": list(thesis.get("evidence_ids") or [])[:3],
+                            "mechanism_ids": list(thesis.get("mechanism_ids") or [])[:3],
+                            "fatal": False,
+                        }
+                        for assumption in thesis.get("dangerous_assumptions") or []
+                    ],
+                    "fatal_objection": None,
+                }
+                for index, thesis in enumerate(input_payload.get("theses") or [])
+            ]}
         if mode == "evaluate":
             evaluations = []
             evaluator = input_payload["context"]["code"]

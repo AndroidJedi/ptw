@@ -74,10 +74,10 @@ git diff --check
 The Idea service reads Laval provider settings from explicitly passed VPS
 environment files. The fixture
 providers are safe for orchestration acceptance but do not constitute live
-market evidence. For live operation set `LAVAL_SEARCH_PROVIDER=dataforseo` with
-its two credentials and set `LAVAL_TREND_PROVIDER=google_trends` with the
-owner-controlled Trends bridge URL/token. Do not put these values in Git or the
-web application.
+market evidence. For live V2 operation set
+`LAVAL_SEARCH_PROVIDER=dataforseo` with its two credentials and configure an
+official YouTube Data API key. Google Trends is optional. Do not put these
+values in Git or the web application.
 
 Obtain the DataForSEO API login and API password from
 <https://app.dataforseo.com/api-access>; the API password is distinct from the
@@ -90,10 +90,13 @@ cd /root/ptw
 scripts/configure_laval_providers.sh
 ```
 
-The script validates the free sandbox, writes `DATAFORSEO_VERIFIED=1`, and fixes
-the run maximum at USD 0.05 with only USD 0.04 reservable. It does not configure Google Trends. Apply for
-the restricted official alpha at <https://developers.google.com/search/apis/trends>;
-until access and its bridge are ready, live runs pause after Opportunity Matrix.
+The script validates the DataForSEO sandbox and an official YouTube
+`videos.list` canary, writes `DATAFORSEO_VERIFIED=1` and `YOUTUBE_VERIFIED=1`,
+and fixes the run maximum at USD 0.05 with only USD 0.04 reservable. It does not
+configure Google Trends; missing Trends access does not block V2 completion.
+When DataForSEO is already configured, use
+`scripts/configure_laval_providers.sh --youtube-only`; this prompts for and
+replaces only the canary-verified YouTube key and readiness marker.
 
 Build Linux/amd64 images locally, publish them through the single locked SSH
 session, then deploy Hosting after all API checks pass:

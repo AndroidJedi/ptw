@@ -17,6 +17,8 @@ def utc_now() -> datetime:
 class EntityKind(StrEnum):
     SOURCE = "source"
     HYPOTHESIS = "hypothesis"
+    PRODUCT_MECHANISM = "product_mechanism"
+    VALIDATION_WORKSPACE = "validation_workspace"
     CREATIVE_COMPONENT = "creative_component"
     CREATIVE = "creative"
     CAMPAIGN = "campaign"

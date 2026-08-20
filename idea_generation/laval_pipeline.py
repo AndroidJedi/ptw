@@ -20,6 +20,7 @@ from .laval_domain import (
     OPERATORS,
     QUERY_FAMILIES,
     STAGES,
+    stages_for_version,
     canonical_domain,
     canonical_evidence_url,
     canonical_url,
@@ -42,6 +43,17 @@ from .laval_fresh_stage import FreshStageRunner
 
 class RunPaused(RuntimeError):
     pass
+
+
+def independent_publisher_support(evidence: Sequence[Mapping[str, Any]]) -> float:
+    """Count unique publishers/channels; popularity and duplicate videos add nothing."""
+
+    publishers = {
+        str((row.get("metadata") or {}).get("youtube_channel_id") or row.get("publisher") or "")
+        for row in evidence
+        if str((row.get("metadata") or {}).get("youtube_channel_id") or row.get("publisher") or "")
+    }
+    return clamp(len(publishers) / 10)
 
 
 def _supplied_evidence_ids(value: Any) -> set[str]:
@@ -120,7 +132,7 @@ class LavalPipeline:
     ) -> dict[str, Any]:
         run = self.repository.run(run_id)
         config = LavalConfig.from_mapping(run["config"])
-        stages = STAGES if run.get("pipeline_version") == "market_signals_v2" else LEGACY_STAGES
+        stages = stages_for_version(str(run.get("pipeline_version") or ""))
         through = (through_stage or run.get("through_stage") or "").upper() or None
         if through and through not in stages:
             raise ValueError(f"stage {through} is not part of {run.get('pipeline_version')}")
@@ -131,6 +143,8 @@ class LavalPipeline:
             "SERP_DISCOVERY": self._serp_discovery,
             "COMPETITOR_SELECTION": self._competitor_selection,
             "COMPETITOR_EVIDENCE": self._competitor_evidence,
+            "YOUTUBE_DISCOVERY": self._youtube_discovery,
+            "YOUTUBE_OBSERVATION": self._youtube_observation,
             "COMPETITOR_DOSSIERS": self._competitor_dossiers,
             "OPPORTUNITY_MATRIX": self._opportunity_matrix,
             "TREND_QUERY_PLAN": self._trend_query_plan,
@@ -143,6 +157,11 @@ class LavalPipeline:
             "IDEA_EXPANSION": self._idea_expansion,
             "IDEA_CLUSTERING": self._idea_clustering,
             "IDEA_EVALUATION": self._idea_evaluation,
+            "MECHANISM_EXTRACTION": self._mechanism_extraction,
+            "MECHANISM_SCORING": self._mechanism_scoring,
+            "THESIS_SYNTHESIS": self._thesis_synthesis,
+            "THESIS_FALSIFICATION": self._thesis_falsification,
+            "THESIS_SHORTLIST": self._thesis_shortlist,
             "FINAL_SHORTLIST": self._final_shortlist,
         }
         for ordinal, stage in enumerate(stages[1:], 1):
@@ -194,6 +213,8 @@ class LavalPipeline:
     def _provider_for_stage(self, stage: str) -> str:
         if stage in {"SERP_DISCOVERY", "COMPETITOR_EVIDENCE"}:
             return self.providers.search.name
+        if stage in {"YOUTUBE_DISCOVERY", "YOUTUBE_OBSERVATION"}:
+            return self.providers.youtube.name
         if stage == "GOOGLE_TRENDS_RESEARCH":
             return self.providers.trends.name
         if stage == "MARKET_SIGNAL_COLLECTION":
@@ -864,6 +885,258 @@ class LavalPipeline:
         except Exception as error:
             return {"sources": {}, "error": type(error).__name__, "message": str(error)[:500], "sink": self.providers.research.name}
 
+    def _youtube_discovery(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        plan = self.repository.stage(run_id, "QUERY_PLAN")["artifact"]
+        intents = plan.get("query_intents") or []
+        queries: list[dict[str, str]] = []
+        for country in config.countries:
+            for intent in intents:
+                base = str(intent.get("base_query") or "").strip()
+                if base:
+                    queries.append({
+                        "query": f"{base} challenge tutorial review",
+                        "country": country["code"],
+                        "language": country["language"],
+                    })
+        # Preserve query diversity while keeping the official API boundary bounded.
+        unique_queries = deduplicate_queries(queries)[: max(4, min(20, len(queries)))]
+        collected: list[dict[str, Any]] = []
+        failures: list[dict[str, str]] = []
+        seen_video_ids: set[str] = set()
+        limit = min(self.providers.youtube_results_per_query, max(3, config.youtube_items_per_competitor))
+        search_calls = 0
+        comment_calls = 0
+        for query in unique_queries:
+            self._ensure_active(run_id)
+            query_key = "search:" + input_hash(query["query"], query["country"], query["language"], limit)
+            task = self.repository.provider_task(run_id, "YOUTUBE_DISCOVERY", query_key)
+            if task is None:
+                task = self.repository.reserve_provider_task(
+                    run_id, "YOUTUBE_DISCOVERY", query_key, self.providers.youtube.name,
+                    {"operation": "search.list", **query, "limit": limit}, 0,
+                )
+            try:
+                if task["status"] == "completed" and isinstance(task.get("response"), Mapping):
+                    videos = list(task["response"].get("results") or [])
+                else:
+                    videos = self._retry(lambda: self.providers.youtube.search(
+                        query["query"], country=query["country"], language=query["language"], limit=limit
+                    ))
+                    search_calls += 1
+                    self.repository.complete_provider_task(str(task["id"]), {"results": videos})
+            except Exception as error:
+                self.repository.fail_provider_task(str(task["id"]), error)
+                failures.append({"query": query["query"], "error": type(error).__name__})
+                continue
+            for raw in videos:
+                external_video_id = str(raw.get("video_id") or "").strip()
+                external_channel_id = str(raw.get("channel_id") or "").strip()
+                if not external_video_id or not external_channel_id or external_video_id in seen_video_ids:
+                    continue
+                seen_video_ids.add(external_video_id)
+                channel = self.store.fetchone(
+                    "SELECT id FROM laval_youtube_channels WHERE run_id=%s AND youtube_channel_id=%s",
+                    (run_id, external_channel_id),
+                )
+                channel_id = str(channel["id"]) if channel else new_uuid7()
+                if not channel:
+                    self.store.execute(
+                        "INSERT INTO laval_youtube_channels(id,run_id,youtube_channel_id,title) VALUES(%s,%s,%s,%s) RETURNING 1",
+                        (channel_id, run_id, external_channel_id, str(raw.get("channel_title") or "")[:1000]),
+                    )
+                existing = self.store.fetchone(
+                    "SELECT id,evidence_id FROM laval_youtube_videos WHERE run_id=%s AND youtube_video_id=%s",
+                    (run_id, external_video_id),
+                )
+                comment_limit = self.providers.youtube_comments_per_video
+                comment_key = f"comments:{external_video_id}:{comment_limit}"
+                comment_task = self.repository.provider_task(run_id, "YOUTUBE_DISCOVERY", comment_key)
+                if comment_task is None:
+                    comment_task = self.repository.reserve_provider_task(
+                        run_id, "YOUTUBE_DISCOVERY", comment_key, self.providers.youtube.name,
+                        {"operation": "commentThreads.list", "video_id": external_video_id, "limit": comment_limit}, 0,
+                    )
+                if comment_task["status"] == "completed" and isinstance(comment_task.get("response"), Mapping):
+                    comments = list(comment_task["response"].get("results") or [])
+                else:
+                    comments = self.providers.youtube.comments(external_video_id, limit=comment_limit)
+                    comment_calls += 1
+                    self.repository.complete_provider_task(str(comment_task["id"]), {"results": comments})
+                safe_comments = [
+                    {
+                        "text": str(item.get("text") or "")[:2000],
+                        "published_at": item.get("published_at"),
+                        "like_count": int(item.get("like_count") or 0),
+                    }
+                    for item in comments[:comment_limit]
+                    if str(item.get("text") or "").strip()
+                ]
+                video_id = str(existing["id"]) if existing else new_uuid7()
+                fixture = bool(raw.get("fixture")) or self.providers.youtube.name == "fixture"
+                evidence_id = str(existing["evidence_id"]) if existing and existing.get("evidence_id") else self.repository.add_evidence(run_id, {
+                    "source_type": "fixture" if fixture else "youtube",
+                    "source_url": str(raw.get("url") or f"https://www.youtube.com/watch?v={external_video_id}"),
+                    "source_title": str(raw.get("title") or external_video_id)[:2000],
+                    "publisher": str(raw.get("channel_title") or external_channel_id)[:1000],
+                    "country": query["country"],
+                    "excerpt": (str(raw.get("description") or "") + "\n" + "\n".join(item["text"] for item in safe_comments))[:10_000],
+                    "claim": f"YouTube observation candidate from an independent creator: {str(raw.get('title') or '')}"[:10_000],
+                    "confidence": .5 if fixture else .72,
+                    "metadata": {
+                        "provider": self.providers.youtube.name,
+                        "youtube_video_id": external_video_id,
+                        "youtube_channel_id": external_channel_id,
+                        "published_at": raw.get("published_at"),
+                        "query": query["query"],
+                        "comments": safe_comments,
+                        "fixture": fixture,
+                    },
+                })
+                if not existing:
+                    self.store.execute(
+                        """INSERT INTO laval_youtube_videos(
+                               id,run_id,channel_id,youtube_video_id,url,title,description,published_at,
+                               country,language,evidence_id,metadata
+                           ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb) RETURNING 1""",
+                        (
+                            video_id, run_id, channel_id, external_video_id,
+                            str(raw.get("url") or f"https://www.youtube.com/watch?v={external_video_id}"),
+                            str(raw.get("title") or external_video_id)[:2000],
+                            str(raw.get("description") or "")[:10_000], raw.get("published_at"),
+                            query["country"], query["language"], evidence_id,
+                            self.store.json({"duration": raw.get("duration"), "comments": safe_comments, "fixture": fixture}),
+                        ),
+                    )
+                elif not existing.get("evidence_id"):
+                    self.store.execute(
+                        "UPDATE laval_youtube_videos SET evidence_id=%s WHERE id=%s RETURNING 1",
+                        (evidence_id, video_id),
+                    )
+                snapshot_id = new_uuid7()
+                self.store.execute(
+                    """INSERT INTO laval_youtube_snapshots(
+                           id,run_id,video_id,view_count,like_count,comment_count,provider,raw
+                       ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s::jsonb) RETURNING 1""",
+                    (
+                        snapshot_id, run_id, video_id, int(raw.get("view_count") or 0),
+                        int(raw.get("like_count") or 0), int(raw.get("comment_count") or 0),
+                        self.providers.youtube.name, self.store.json({"query": query, "fixture": fixture}),
+                    ),
+                )
+                snapshots = json_safe(self.store.fetchall(
+                    """SELECT observed_at,view_count,like_count,comment_count
+                       FROM laval_youtube_snapshots WHERE video_id=%s
+                       ORDER BY observed_at DESC,id DESC LIMIT 2""",
+                    (video_id,),
+                ))
+                velocity: dict[str, Any] = {"status": "insufficient_history"}
+                if len(snapshots) >= 2:
+                    latest, previous = snapshots[0], snapshots[1]
+                    velocity = {
+                        "status": "measured_delta",
+                        "from_observed_at": previous["observed_at"],
+                        "to_observed_at": latest["observed_at"],
+                        "view_delta": int(latest["view_count"]) - int(previous["view_count"]),
+                        "like_delta": int(latest["like_count"]) - int(previous["like_count"]),
+                        "comment_delta": int(latest["comment_count"]) - int(previous["comment_count"]),
+                    }
+                self.repository.add_lineage(run_id, "youtube_video", video_id, "derived_from", "evidence", evidence_id)
+                collected.append({
+                    "id": video_id, "evidence_id": evidence_id, "channel_id": channel_id,
+                    "youtube_video_id": external_video_id, "title": str(raw.get("title") or ""),
+                    "description": str(raw.get("description") or "")[:4000], "comments": safe_comments,
+                    "published_at": raw.get("published_at"), "country": query["country"],
+                    "language": query["language"], "velocity": velocity,
+                })
+        if not collected:
+            raise RuntimeError("required YouTube discovery produced no observable videos")
+        self.repository.record_provider_usage(
+            run_id, "YOUTUBE_DISCOVERY", self.providers.youtube.name, "search.list", search_calls,
+            metadata={"quota_units_estimated": search_calls * 100, "result_limit": limit},
+        )
+        self.repository.record_provider_usage(
+            run_id, "YOUTUBE_DISCOVERY", self.providers.youtube.name, "commentThreads.list", comment_calls,
+            metadata={"quota_units_estimated": comment_calls, "comment_limit": self.providers.youtube_comments_per_video},
+        )
+        independent = len({item["channel_id"] for item in collected})
+        artifact = {
+            "provider": self.providers.youtube.name,
+            "queries": unique_queries,
+            "videos": collected,
+            "independent_creator_count": independent,
+            "failures": failures,
+            "captions_required": False,
+        }
+        return artifact, {"queries": len(unique_queries), "videos": len(collected), "independent_creators": independent, "failures": len(failures)}, bool(failures)
+
+    def _youtube_observation(self, run_id: str, _config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        discovery = self.repository.stage(run_id, "YOUTUBE_DISCOVERY")["artifact"]
+        videos = discovery.get("videos") or []
+        valid_videos = {str(item["id"]): item for item in videos}
+        manual_transcripts = json_safe(self.store.fetchall(
+            """SELECT id,source_url,source_title,excerpt,claim,metadata
+               FROM laval_evidence WHERE run_id=%s AND source_type='manual'
+                 AND metadata->>'source_kind'='owner_supplied_transcript' ORDER BY retrieved_at,id""",
+            (run_id,),
+        ))
+        valid_evidence = {str(item["evidence_id"]) for item in videos} | {str(item["id"]) for item in manual_transcripts}
+
+        def validate(result: dict[str, Any]) -> bool:
+            observations = result.get("observations")
+            return isinstance(observations, list) and all(
+                isinstance(item, Mapping)
+                and set(map(str, item.get("video_ids") or [])).issubset(valid_videos)
+                and bool(item.get("video_ids"))
+                and set(map(str, item.get("evidence_ids") or [])).issubset(valid_evidence)
+                and bool(item.get("evidence_ids"))
+                for item in observations
+            )
+
+        llm = self._llm(
+            run_id,
+            "YOUTUBE_OBSERVATION",
+            "laval_youtube_observation",
+            "Extract only observable behavior from supplied titles, descriptions, and bounded comments. Cite exact video and evidence IDs. Prefer repetition across independent creators over popularity. Never infer transcript content or identities.",
+            {"videos": videos, "owner_supplied_transcripts": manual_transcripts},
+            "observations",
+            validate,
+        )
+        raw = llm.get("observations") if llm else []
+        observations = []
+        for item in raw:
+            video_ids = list(dict.fromkeys(str(value) for value in item.get("video_ids") or [] if str(value) in valid_videos))
+            evidence_ids = list(dict.fromkeys(str(value) for value in item.get("evidence_ids") or [] if str(value) in valid_evidence))
+            if not video_ids or not evidence_ids:
+                continue
+            channel_ids = list(dict.fromkeys(str(valid_videos[value]["channel_id"]) for value in video_ids))
+            observation_id = new_uuid7()
+            observation = {
+                "id": observation_id,
+                "observation_type": str(item["observation_type"]),
+                "statement": str(item["statement"])[:4000],
+                "video_ids": video_ids,
+                "channel_ids": channel_ids,
+                "evidence_ids": evidence_ids,
+                "independent_creator_count": len(channel_ids),
+                "confidence": clamp(item.get("confidence", .5)),
+            }
+            self.store.execute(
+                """INSERT INTO laval_behavior_observations(
+                       id,run_id,observation_type,statement,video_ids,channel_ids,evidence_ids,
+                       independent_creator_count,confidence
+                   ) VALUES(%s,%s,%s,%s,%s::uuid[],%s::uuid[],%s::uuid[],%s,%s) RETURNING 1""",
+                (
+                    observation_id, run_id, observation["observation_type"], observation["statement"],
+                    video_ids, channel_ids, evidence_ids, len(channel_ids), observation["confidence"],
+                ),
+            )
+            for evidence_id in evidence_ids:
+                self.repository.add_lineage(run_id, "behavior_observation", observation_id, "derived_from", "evidence", evidence_id)
+            observations.append(observation)
+        if not observations:
+            raise RuntimeError("YouTube observation produced no evidence-cited behavior")
+        return {"observations": observations, "independent_creator_count": discovery["independent_creator_count"]}, {"observations": len(observations), "independent_creators": discovery["independent_creator_count"]}, False
+
     def _competitor_dossiers(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
         competitors = self.store.fetchall("SELECT * FROM laval_competitors WHERE run_id=%s AND selected ORDER BY score DESC LIMIT %s", (run_id, config.max_unique_competitors))
         compiler = ContextCompiler(config)
@@ -958,6 +1231,12 @@ class LavalPipeline:
     def _opportunity_matrix(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
         dna = self.repository.stage(run_id, "OWNER_DNA")["artifact"]["owner_dna"]
         dossiers = [row["dossier"] for row in self.store.fetchall("SELECT dossier FROM laval_competitor_dossiers WHERE run_id=%s ORDER BY confidence DESC", (run_id,))]
+        behavior = json_safe(self.store.fetchall(
+            "SELECT * FROM laval_behavior_observations WHERE run_id=%s ORDER BY independent_creator_count DESC,confidence DESC",
+            (run_id,),
+        )) if self.repository.run(run_id).get("pipeline_version") == "mechanism_thesis_v1" else []
+        if dossiers and behavior:
+            dossiers[0] = {**dossiers[0], "youtube_behavior_observations": behavior}
         compiler = ContextCompiler(config)
         def valid_opportunities(value: dict[str, Any]) -> bool | str:
             error = _opportunity_validation_error(value, dossiers)
@@ -967,7 +1246,7 @@ class LavalPipeline:
             run_id,
             "OPPORTUNITY_MATRIX",
             "laval_opportunity_matrix",
-            "Compress dossiers into evidence-backed opportunity vectors. Preserve all rows, cite only exact evidence IDs visible anywhere in the supplied dossiers, including complaint clusters, and return normalized component scores from 0 to 1.",
+            "Compress dossiers and YouTube behavior observations into evidence-backed opportunity vectors. Preserve all rows, cite only exact evidence IDs visible anywhere in the supplied context, including complaint and behavior clusters, and return normalized component scores from 0 to 1.",
             compiler.build_opportunity_context(dna, dossiers),
             "opportunities",
             valid_opportunities,
@@ -1332,7 +1611,7 @@ class LavalPipeline:
         dna = self.repository.stage(run_id, "OWNER_DNA")["artifact"]["owner_dna"]
         run = self.repository.run(run_id)
         opportunities = json_safe(self.store.fetchall("SELECT * FROM laval_opportunities WHERE run_id=%s AND enabled ORDER BY aggregate_score DESC", (run_id,)))
-        if run.get("pipeline_version") == "market_signals_v2":
+        if run.get("pipeline_version") in {"market_signals_v2", "mechanism_thesis_v1"}:
             scores = []
             discoveries = []
             market_scores = json_safe(self.store.fetchall(
@@ -1356,6 +1635,16 @@ class LavalPipeline:
         distribution = [str(value) for dossier in dossiers for value in dossier.get("distribution", [])]
         packet = ContextCompiler(config).build_synthesis_context(dna, opportunities, scores, discoveries, pains, distribution, OPERATORS, market_scores)
         evidence_ids = list(dict.fromkeys(str(value) for group in (packet["opportunities"], packet["trend_scores"], packet["trend_discoveries"], packet["market_signal_scores"]) for item in group for value in item.get("evidence_ids", [])))
+        if run.get("pipeline_version") == "mechanism_thesis_v1":
+            behavior = json_safe(self.store.fetchall(
+                "SELECT * FROM laval_behavior_observations WHERE run_id=%s ORDER BY independent_creator_count DESC,confidence DESC",
+                (run_id,),
+            ))
+            packet["behavior_observations"] = behavior
+            evidence_ids = list(dict.fromkeys([
+                *evidence_ids,
+                *(str(value) for item in behavior for value in item.get("evidence_ids") or []),
+            ]))
         packet["selected_evidence_ids"] = evidence_ids
         return packet, {"opportunities": len(packet["opportunities"]), "trend_scores": len(packet["trend_scores"]), "trend_discoveries": len(packet["trend_discoveries"]), "market_signal_scores": len(packet["market_signal_scores"]), "evidence_ids": len(evidence_ids)}, False
 
@@ -1622,6 +1911,346 @@ class LavalPipeline:
             results.append({"score_id": score_id, "idea_id": variant["id"], "title": variant["title"], "deterministic": dimensions, "deterministic_score": deterministic, "evaluator": evaluator, "evaluator_score": evaluator_score, "final_score": final})
         results.sort(key=lambda item: (-item["final_score"], str(item["idea_id"])))
         return {"scores": results}, {"evaluated": len(results), "independent_evaluator_results": len(by_id)}, len(by_id) != len(results)
+
+    def _mechanism_extraction(self, run_id: str, _config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        variants = json_safe(self.store.fetchall(
+            "SELECT * FROM laval_idea_variants WHERE run_id=%s ORDER BY created_at,id", (run_id,)
+        ))
+        observations = json_safe(self.store.fetchall(
+            "SELECT * FROM laval_behavior_observations WHERE run_id=%s ORDER BY created_at,id", (run_id,)
+        ))
+        valid_variants = {str(item["id"]) for item in variants}
+        valid_opportunities = {str(item["id"]) for item in self.store.fetchall("SELECT id FROM laval_opportunities WHERE run_id=%s", (run_id,))}
+        valid_market = {str(item["id"]) for item in self.store.fetchall("SELECT id FROM laval_market_signal_scores WHERE run_id=%s", (run_id,))}
+        valid_observations = {str(item["id"]) for item in observations}
+        valid_evidence = {str(item["id"]) for item in self.store.fetchall("SELECT id FROM laval_evidence WHERE run_id=%s", (run_id,))}
+
+        def validate(result: dict[str, Any]) -> bool:
+            mechanisms = result.get("mechanisms")
+            if not isinstance(mechanisms, list) or not 6 <= len(mechanisms) <= 20:
+                return False
+            covered: set[str] = set()
+            for item in mechanisms:
+                if not isinstance(item, Mapping):
+                    return False
+                parent_ids = set(map(str, item.get("source_variant_ids") or []))
+                evidence_ids = set(map(str, item.get("evidence_ids") or []))
+                if not parent_ids or not evidence_ids or not parent_ids.issubset(valid_variants) or not evidence_ids.issubset(valid_evidence):
+                    return False
+                if not set(map(str, item.get("opportunity_ids") or [])).issubset(valid_opportunities):
+                    return False
+                if not set(map(str, item.get("market_signal_ids") or [])).issubset(valid_market):
+                    return False
+                if not set(map(str, item.get("behavior_observation_ids") or [])).issubset(valid_observations):
+                    return False
+                covered.update(parent_ids)
+            return covered == valid_variants
+
+        llm = self._llm(
+            run_id,
+            "MECHANISM_EXTRACTION",
+            "laval_mechanism_extraction",
+            "Extract 6-20 reusable product mechanisms from every supplied variant, including lower-ranked variants. Mechanisms are behaviors or loops, not feature lists. Cite exact variant, opportunity, market-signal, behavior-observation, and evidence IDs; cover every variant at least once.",
+            {"variants": variants, "behavior_observations": observations},
+            "mechanisms",
+            validate,
+        )
+        raw = llm.get("mechanisms") if llm else []
+        opportunity_scores = {str(item["id"]): float(item["aggregate_score"]) for item in self.store.fetchall("SELECT id,aggregate_score FROM laval_opportunities WHERE run_id=%s", (run_id,))}
+        market_scores = {str(item["id"]): float(item["aggregate_score"]) for item in self.store.fetchall("SELECT id,aggregate_score FROM laval_market_signal_scores WHERE run_id=%s", (run_id,))}
+        idea_rows = self.store.fetchall(
+            "SELECT idea_id,deterministic FROM laval_idea_scores WHERE run_id=%s", (run_id,)
+        )
+        owner_fit = {str(item["idea_id"]): float((item.get("deterministic") or {}).get("owner_fit", 0)) for item in idea_rows}
+        mechanisms = []
+        for item in raw:
+            variant_ids = list(dict.fromkeys(str(value) for value in item["source_variant_ids"]))
+            opportunity_ids = list(dict.fromkeys(str(value) for value in item["opportunity_ids"]))
+            market_ids = list(dict.fromkeys(str(value) for value in item["market_signal_ids"]))
+            observation_ids = list(dict.fromkeys(str(value) for value in item["behavior_observation_ids"]))
+            evidence_ids = list(dict.fromkeys(str(value) for value in item["evidence_ids"]))
+            evidence = self.store.fetchall(
+                "SELECT publisher,metadata FROM laval_evidence WHERE id=ANY(%s::uuid[])", (evidence_ids,)
+            ) if evidence_ids else []
+            dimensions = {
+                "source_diversity": independent_publisher_support(evidence),
+                "cross_variant_recurrence": clamp(len(variant_ids) / 5),
+                "opportunity_support": max((opportunity_scores.get(value, 0) for value in opportunity_ids), default=0),
+                "market_signal_support": max((market_scores.get(value, 0) for value in market_ids), default=0),
+                "owner_dna_fit": sum(owner_fit.get(value, 0) for value in variant_ids) / max(1, len(variant_ids)),
+            }
+            mechanism_id = new_uuid7()
+            mechanism = {
+                "id": mechanism_id,
+                "name": json_safe(item["name"]),
+                "description": json_safe(item["description"]),
+                "mechanism_type": str(item["mechanism_type"]),
+                "source_variant_ids": variant_ids,
+                "opportunity_ids": opportunity_ids,
+                "market_signal_ids": market_ids,
+                "behavior_observation_ids": observation_ids,
+                "evidence_ids": evidence_ids,
+                "support_dimensions": dimensions,
+                "coverage_floor": min(dimensions.values()),
+            }
+            self.store.execute(
+                """INSERT INTO laval_product_mechanisms(
+                       id,run_id,name,description,mechanism_type,source_variant_ids,opportunity_ids,
+                       market_signal_ids,behavior_observation_ids,evidence_ids,support_dimensions
+                   ) VALUES(%s,%s,%s::jsonb,%s::jsonb,%s,%s::uuid[],%s::uuid[],%s::uuid[],%s::uuid[],%s::uuid[],%s::jsonb) RETURNING 1""",
+                (
+                    mechanism_id, run_id, self.store.json(mechanism["name"]), self.store.json(mechanism["description"]),
+                    mechanism["mechanism_type"], variant_ids, opportunity_ids, market_ids, observation_ids,
+                    evidence_ids, self.store.json(dimensions),
+                ),
+            )
+            for variant_id in variant_ids:
+                self.repository.add_lineage(run_id, "product_mechanism", mechanism_id, "derived_from", "idea_variant", variant_id)
+            for evidence_id in evidence_ids:
+                self.repository.add_lineage(run_id, "product_mechanism", mechanism_id, "derived_from", "evidence", evidence_id)
+            mechanisms.append(mechanism)
+        return {"mechanisms": mechanisms, "variant_coverage": len(valid_variants)}, {"mechanisms": len(mechanisms), "covered_variants": len(valid_variants)}, False
+
+    def _mechanism_scoring(self, run_id: str, _config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        mechanisms = json_safe(self.store.fetchall(
+            "SELECT * FROM laval_product_mechanisms WHERE run_id=%s ORDER BY mechanism_type,id", (run_id,)
+        ))
+        for item in mechanisms:
+            values = [clamp(value) for value in (item.get("support_dimensions") or {}).values()]
+            item["coverage_floor"] = min(values) if values else 0
+            item["support_interpretation"] = "dimension vector; not a probability of success"
+        return {"mechanisms": mechanisms, "aggregate_winner_score": None}, {"mechanisms": len(mechanisms)}, False
+
+    def _thesis_synthesis(self, run_id: str, _config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        mechanisms = json_safe(self.store.fetchall(
+            "SELECT * FROM laval_product_mechanisms WHERE run_id=%s ORDER BY mechanism_type,id", (run_id,)
+        ))
+        dna = self.repository.stage(run_id, "OWNER_DNA")["artifact"]["owner_dna"]
+        valid_mechanisms = {str(item["id"]): item for item in mechanisms}
+        valid_evidence = {str(item["id"]) for item in self.store.fetchall("SELECT id FROM laval_evidence WHERE run_id=%s", (run_id,))}
+
+        def validate(result: dict[str, Any]) -> bool:
+            theses = result.get("theses")
+            if not isinstance(theses, list) or not 1 <= len(theses) <= 3:
+                return False
+            for item in theses:
+                mechanism_ids = list(map(str, item.get("mechanism_ids") or []))
+                assumptions = item.get("dangerous_assumptions") or []
+                assumption_ids = [str(value.get("id") or "") for value in assumptions if isinstance(value, Mapping)]
+                if not 3 <= len(mechanism_ids) <= 7 or not set(mechanism_ids).issubset(valid_mechanisms):
+                    return False
+                if not 5 <= len(item.get("loop_steps") or []) <= 8:
+                    return False
+                if not assumption_ids or len(set(assumption_ids)) != len(assumption_ids):
+                    return False
+                if not set(map(str, item.get("evidence_ids") or [])).issubset(valid_evidence):
+                    return False
+            return True
+
+        llm = self._llm(
+            run_id,
+            "THESIS_SYNTHESIS",
+            "laval_thesis_synthesis",
+            "Compress mechanisms into 1-3 smallest coherent product theses. Each thesis must be a complete acquisition, action, value/proof, return, and distribution loop rather than a feature list. Cite exact mechanism and evidence IDs and declare dangerous assumptions plus a measurable criterion.",
+            {"owner_dna": dna, "mechanisms": mechanisms},
+            "theses",
+            validate,
+        )
+        theses = []
+        for raw in llm.get("theses") if llm else []:
+            thesis_id = new_uuid7()
+            thesis = {
+                "id": thesis_id,
+                "title": json_safe(raw["title"]), "target_user": json_safe(raw["target_user"]),
+                "problem": json_safe(raw["problem"]), "loop_steps": json_safe(raw["loop_steps"]),
+                "value_moment": json_safe(raw["value_moment"]),
+                "zero_audience_behavior": json_safe(raw["zero_audience_behavior"]),
+                "substitutes": json_safe(raw["substitutes"]),
+                "dangerous_assumptions": json_safe(raw["dangerous_assumptions"]),
+                "success_criterion": json_safe(raw["success_criterion"]),
+                "mechanism_ids": list(dict.fromkeys(str(value) for value in raw["mechanism_ids"])),
+                "evidence_ids": list(dict.fromkeys(str(value) for value in raw.get("evidence_ids") or [])),
+            }
+            self.store.execute(
+                """INSERT INTO laval_product_theses(
+                       id,run_id,title,target_user,problem,loop_steps,value_moment,zero_audience_behavior,
+                       substitutes,dangerous_assumptions,success_criterion,mechanism_ids,evidence_ids
+                   ) VALUES(%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s::uuid[],%s::uuid[]) RETURNING 1""",
+                (
+                    thesis_id, run_id, self.store.json(thesis["title"]), self.store.json(thesis["target_user"]),
+                    self.store.json(thesis["problem"]), self.store.json(thesis["loop_steps"]), self.store.json(thesis["value_moment"]),
+                    self.store.json(thesis["zero_audience_behavior"]), self.store.json(thesis["substitutes"]),
+                    self.store.json(thesis["dangerous_assumptions"]), self.store.json(thesis["success_criterion"]),
+                    thesis["mechanism_ids"], thesis["evidence_ids"],
+                ),
+            )
+            for mechanism_id in thesis["mechanism_ids"]:
+                self.repository.add_lineage(run_id, "product_thesis", thesis_id, "contains", "product_mechanism", mechanism_id)
+            for evidence_id in thesis["evidence_ids"]:
+                self.repository.add_lineage(run_id, "product_thesis", thesis_id, "derived_from", "evidence", evidence_id)
+            theses.append(thesis)
+        return {"theses": theses}, {"theses": len(theses)}, False
+
+    def _thesis_falsification(self, run_id: str, _config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        theses = json_safe(self.store.fetchall(
+            "SELECT * FROM laval_product_theses WHERE run_id=%s AND validation_stale=FALSE ORDER BY id", (run_id,)
+        ))
+        mechanisms = {str(item["id"]): item for item in json_safe(self.store.fetchall("SELECT * FROM laval_product_mechanisms WHERE run_id=%s", (run_id,)))}
+        thesis_by_id = {str(item["id"]): item for item in theses}
+        valid_evidence = {str(item["id"]) for item in self.store.fetchall("SELECT id FROM laval_evidence WHERE run_id=%s", (run_id,))}
+
+        def validate(result: dict[str, Any]) -> bool:
+            reports = result.get("reports")
+            if not isinstance(reports, list) or {str(item.get("thesis_id") or "") for item in reports} != set(thesis_by_id):
+                return False
+            for report in reports:
+                thesis = thesis_by_id[str(report["thesis_id"])]
+                assumptions = {str(item["id"]) for item in thesis.get("dangerous_assumptions") or []}
+                risks = report.get("risks") or []
+                if not risks or not set(str(item.get("assumption_id") or "") for item in risks).issubset(assumptions):
+                    return False
+                if any(not set(map(str, item.get("evidence_ids") or [])).issubset(valid_evidence) for item in risks):
+                    return False
+                if any(not set(map(str, item.get("mechanism_ids") or [])).issubset(set(map(str, thesis["mechanism_ids"]))) for item in risks):
+                    return False
+            return True
+
+        llm = self._llm(
+            run_id,
+            "THESIS_FALSIFICATION",
+            "laval_thesis_falsification",
+            "Try to disprove every product thesis. Test core behavior, arrival, return, zero-audience utility, substitutes, scale failure, and dangerous assumptions. Cite only exact evidence and mechanism IDs. A lack of evidence is unsupported, never proof.",
+            {"theses": theses, "mechanisms": list(mechanisms.values())},
+            "reports",
+            validate,
+        )
+        reports = []
+        for raw in llm.get("reports") if llm else []:
+            thesis = thesis_by_id[str(raw["thesis_id"])]
+            risks = json_safe(raw["risks"])
+            unsupported_high = sum(item["severity"] == "high" and not item["supported"] for item in risks)
+            fatal = next((str(item["objection"]) for item in risks if item.get("fatal")), None) or raw.get("fatal_objection")
+            coverages = []
+            for mechanism_id in thesis["mechanism_ids"]:
+                dimensions = (mechanisms[mechanism_id].get("support_dimensions") or {}).values()
+                coverages.append(min((clamp(value) for value in dimensions), default=0))
+            weakest = min(coverages, default=0)
+            verdict = "rejected" if fatal or unsupported_high >= 2 else "weak" if unsupported_high or raw["verdict"] == "weak" else str(raw["verdict"])
+            report_id = new_uuid7()
+            report = {
+                "id": report_id, "thesis_id": str(thesis["id"]), "risks": risks,
+                "fatal_objection": fatal, "unsupported_high_severity_count": unsupported_high,
+                "weakest_mechanism_coverage": weakest, "verdict": verdict,
+            }
+            self.store.execute(
+                """INSERT INTO laval_thesis_falsifications(
+                       id,run_id,thesis_id,risks,fatal_objection,unsupported_high_severity_count,
+                       weakest_mechanism_coverage,verdict
+                   ) VALUES(%s,%s,%s,%s::jsonb,%s,%s,%s,%s) RETURNING 1""",
+                (report_id, run_id, thesis["id"], self.store.json(risks), fatal, unsupported_high, weakest, verdict),
+            )
+            self.store.execute("UPDATE laval_product_theses SET verdict=%s WHERE id=%s RETURNING 1", (verdict, thesis["id"]))
+            self.repository.add_lineage(run_id, "thesis_falsification", report_id, "evaluates", "product_thesis", str(thesis["id"]))
+            reports.append(report)
+        return {"reports": reports}, {"reports": len(reports), "survivors": sum(item["verdict"] == "survives" for item in reports)}, False
+
+    def _thesis_shortlist(self, run_id: str, _config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        rows = json_safe(self.store.fetchall(
+            """SELECT t.*,f.risks,f.fatal_objection,f.unsupported_high_severity_count,f.weakest_mechanism_coverage
+               FROM laval_product_theses t
+               JOIN laval_thesis_falsifications f ON f.thesis_id=t.id
+               WHERE t.run_id=%s AND t.validation_stale=FALSE ORDER BY t.id""",
+            (run_id,),
+        ))
+        survivors = [item for item in rows if item["verdict"] == "survives"]
+        survivors.sort(key=lambda item: (
+            int(item["unsupported_high_severity_count"]),
+            -float(item["weakest_mechanism_coverage"]),
+            len(item.get("mechanism_ids") or []),
+            str(item["id"]),
+        ))
+        recommended_id = str(survivors[0]["id"]) if survivors else None
+        for item in rows:
+            item["recommended"] = str(item["id"]) == recommended_id
+            item["recommendation_reason"] = (
+                "No fatal objection; fewest unsupported high-severity assumptions; strongest weakest-mechanism coverage; smallest coherent loop."
+                if item["recommended"] else None
+            )
+            self.store.execute(
+                "UPDATE laval_product_theses SET recommended=%s,recommendation_reason=%s WHERE id=%s RETURNING 1",
+                (item["recommended"], item["recommendation_reason"], item["id"]),
+            )
+        graph = self._publish_thesis_hypotheses(run_id, survivors)
+        for item in rows:
+            hypothesis_id = (graph.get("hypotheses") or {}).get(str(item["id"]))
+            if hypothesis_id:
+                item["commander_hypothesis_id"] = hypothesis_id
+                self.store.execute(
+                    "UPDATE laval_product_theses SET commander_hypothesis_id=%s WHERE id=%s RETURNING 1",
+                    (hypothesis_id, item["id"]),
+                )
+        status = "ready" if survivors else "no_surviving_thesis"
+        return {"status": status, "theses": rows, "recommended_thesis_id": recommended_id, "graph_sync": graph}, {"theses": len(rows), "survivors": len(survivors), "recommended": 1 if recommended_id else 0}, bool(graph.get("error"))
+
+    def _publish_thesis_hypotheses(self, run_id: str, theses: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+        if not theses:
+            return {"sources": {}, "mechanisms": {}, "hypotheses": {}}
+        evidence_ids = list(dict.fromkeys(str(value) for item in theses for value in item.get("evidence_ids") or []))
+        evidence = self.store.fetchall(
+            "SELECT * FROM laval_evidence WHERE run_id=%s AND id=ANY(%s::uuid[]) AND source_type<>'fixture'",
+            (run_id, evidence_ids),
+        ) if evidence_ids else []
+        by_id = {str(item["id"]): item for item in evidence}
+        findings = [
+            {
+                "external_id": str(item["id"]), "title": item["source_title"], "source_uri": item["source_url"],
+                "finding_summary": item["claim"] or item["excerpt"], "publisher": item["publisher"],
+                "credibility": float(item["confidence"]), "research_type": "product_discovery",
+            }
+            for item in evidence if item["commander_source_id"] is None
+        ]
+        mechanism_ids = list(dict.fromkeys(str(value) for item in theses for value in item.get("mechanism_ids") or []))
+        mechanism_rows = json_safe(self.store.fetchall(
+            "SELECT * FROM laval_product_mechanisms WHERE id=ANY(%s::uuid[])", (mechanism_ids,)
+        )) if mechanism_ids else []
+        mechanisms = []
+        for item in mechanism_rows:
+            ids = [str(value) for value in item.get("evidence_ids") or [] if str(value) in by_id]
+            mechanisms.append({
+                "external_id": str(item["id"]), "name": item["name"], "description": item["description"],
+                "mechanism_type": item["mechanism_type"], "support_dimensions": item["support_dimensions"],
+                "evidence_external_ids": [value for value in ids if by_id[value]["commander_source_id"] is None],
+                "source_ids": [str(by_id[value]["commander_source_id"]) for value in ids if by_id[value]["commander_source_id"]],
+                "attributes": {"idea_laval_run_id": run_id, "idea_laval_mechanism_id": str(item["id"])},
+            })
+        hypotheses = []
+        for item in theses:
+            ids = [str(value) for value in item.get("evidence_ids") or [] if str(value) in by_id]
+            criterion = item.get("success_criterion") or {}
+            hypotheses.append({
+                "external_id": str(item["id"]),
+                "claim": str((item.get("title") or {}).get("en") or "Product thesis") + ": " + " → ".join(str(step.get("en") or "") for step in item.get("loop_steps") or []),
+                "success_metric": str(criterion.get("metric") or "validated_demand_signal"),
+                "threshold": float(criterion.get("threshold") or .1),
+                "scope": f"idea_laval:{run_id}:thesis:{item['id']}",
+                "evidence_external_ids": [value for value in ids if by_id[value]["commander_source_id"] is None],
+                "source_ids": [str(by_id[value]["commander_source_id"]) for value in ids if by_id[value]["commander_source_id"]],
+                "mechanism_external_ids": list(map(str, item.get("mechanism_ids") or [])),
+                "attributes": {
+                    "research_type": "product_discovery", "owner_agent": "product.strategy",
+                    "knowledge_domain": "product.strategy", "idea_laval_run_id": run_id,
+                    "idea_laval_thesis_id": str(item["id"]), "product_loop": item.get("loop_steps"),
+                    "dangerous_assumptions": item.get("dangerous_assumptions"),
+                },
+            })
+        try:
+            result = self.providers.research.record(findings, hypotheses, mechanisms)
+            self.repository.link_commander_sources({str(key): str(value) for key, value in (result.get("sources") or {}).items()})
+            for mechanism_id, entity_id in (result.get("mechanisms") or {}).items():
+                self.store.execute("UPDATE laval_product_mechanisms SET commander_entity_id=%s WHERE id=%s RETURNING 1", (entity_id, mechanism_id))
+            return result
+        except Exception as error:
+            return {"sources": {}, "mechanisms": {}, "hypotheses": {}, "error": type(error).__name__, "message": str(error)[:500], "sink": self.providers.research.name}
 
     def _final_shortlist(self, run_id: str, config: LavalConfig, _country: str | None) -> tuple[dict[str, Any], dict[str, Any], bool]:
         run = self.repository.run(run_id)

@@ -11,7 +11,7 @@ from fastapi import FastAPI, Header, HTTPException
 
 from .model import EntityKind
 from .model import RelationType
-from .policy import CommanderPolicy
+from .policy import CommanderPolicy, PolicyDenied
 from .postgres_store import PostgresKnowledgeStore, connect_postgres
 from .service import Commander
 from .settings import Settings
@@ -279,10 +279,13 @@ def create_app(
             raise HTTPException(status_code=403, detail="invalid bridge token")
         raw_findings = request.get("findings") or []
         raw_hypotheses = request.get("hypotheses") or []
+        raw_mechanisms = request.get("mechanisms") or []
         if not isinstance(raw_findings, list) or len(raw_findings) > 500:
             raise HTTPException(status_code=400, detail="findings must be a list of at most 500 items")
         if not isinstance(raw_hypotheses, list) or len(raw_hypotheses) > 50:
             raise HTTPException(status_code=400, detail="hypotheses must be a list of at most 50 items")
+        if not isinstance(raw_mechanisms, list) or len(raw_mechanisms) > 100:
+            raise HTTPException(status_code=400, detail="mechanisms must be a list of at most 100 items")
         research = ResearchKnowledgeService(commander)
         product_agent = RESEARCH_AGENTS["product"]
         existing_sources = {
@@ -291,12 +294,18 @@ def create_app(
             if item.attributes.get("external_id")
         }
         existing_hypotheses = {
-            str(item.attributes.get("idea_laval_variant_id")): item
+            str(item.attributes.get("idea_laval_thesis_id") or item.attributes.get("idea_laval_variant_id")): item
             for item in store.entities(EntityKind.HYPOTHESIS)
-            if item.attributes.get("idea_laval_variant_id")
+            if item.attributes.get("idea_laval_thesis_id") or item.attributes.get("idea_laval_variant_id")
+        }
+        existing_mechanisms = {
+            str(item.attributes.get("idea_laval_mechanism_id")): item
+            for item in store.entities(EntityKind.PRODUCT_MECHANISM)
+            if item.attributes.get("idea_laval_mechanism_id")
         }
         sources: dict[str, Any] = {}
         hypotheses: dict[str, Any] = {}
+        mechanisms: dict[str, Any] = {}
         try:
             with store.transaction():
                 for raw in raw_findings:
@@ -324,6 +333,46 @@ def create_app(
                         )
                         existing_sources[external_id] = source
                     sources[external_id] = source.id
+                for raw in raw_mechanisms:
+                    if not isinstance(raw, Mapping):
+                        raise ValueError("each mechanism must be an object")
+                    external_id = str(raw.get("external_id") or "").strip()
+                    if not external_id:
+                        raise ValueError("mechanism external_id is required")
+                    mechanism = existing_mechanisms.get(external_id)
+                    if mechanism is None:
+                        evidence = []
+                        for source_external_id in raw.get("evidence_external_ids") or []:
+                            source = existing_sources.get(str(source_external_id))
+                            if source is None:
+                                raise ValueError("mechanism references an unknown finding external_id")
+                            evidence.append(source)
+                        for source_id in raw.get("source_ids") or []:
+                            source = store.get_entity(str(source_id))
+                            if source.kind != EntityKind.SOURCE:
+                                raise ValueError("mechanism source_ids must identify Source entities")
+                            evidence.append(source)
+                        unique_evidence = tuple({item.id: item for item in evidence}.values())
+                        attributes = dict(raw.get("attributes") or {})
+                        attributes.update({
+                            "name": raw.get("name") or {},
+                            "description": raw.get("description") or {},
+                            "mechanism_type": str(raw.get("mechanism_type") or "behavior"),
+                            "support_dimensions": raw.get("support_dimensions") or {},
+                            "idea_laval_mechanism_id": external_id,
+                            "research_type": "product_discovery",
+                        })
+                        mechanism = commander.create_entity(
+                            EntityKind.PRODUCT_MECHANISM,
+                            attributes,
+                            actor="idea-laval",
+                            reasoning_summary="Extracted a reusable product mechanism from sourced Laval variants.",
+                            evidence_ids=tuple(item.id for item in unique_evidence),
+                        )
+                        for source in unique_evidence:
+                            commander.relate(mechanism, RelationType.DERIVED_FROM, source)
+                        existing_mechanisms[external_id] = mechanism
+                    mechanisms[external_id] = mechanism.id
                 for raw in raw_hypotheses:
                     if not isinstance(raw, Mapping):
                         raise ValueError("each hypothesis must be an object")
@@ -345,11 +394,12 @@ def create_app(
                             evidence.append(source)
                         unique_evidence = tuple({item.id: item for item in evidence}.values())
                         attributes = dict(raw.get("attributes") or {})
+                        is_thesis = bool(attributes.get("idea_laval_thesis_id"))
                         attributes.update({
                             "research_type": "product_discovery",
                             "owner_agent": product_agent.owner_agent,
                             "knowledge_domain": product_agent.knowledge_domain,
-                            "idea_laval_variant_id": external_id,
+                            ("idea_laval_thesis_id" if is_thesis else "idea_laval_variant_id"): external_id,
                         })
                         hypothesis = research.propose_hypothesis(
                             claim=str(raw.get("claim") or "")[:10_000],
@@ -361,10 +411,185 @@ def create_app(
                             attributes=attributes,
                         )
                         existing_hypotheses[external_id] = hypothesis
+                        for mechanism_external_id in raw.get("mechanism_external_ids") or []:
+                            mechanism = existing_mechanisms.get(str(mechanism_external_id))
+                            if mechanism is None:
+                                raise ValueError("hypothesis references an unknown product mechanism")
+                            commander.relate(hypothesis, RelationType.CONTAINS, mechanism)
                     hypotheses[external_id] = hypothesis.id
         except (KeyError, TypeError, ValueError) as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
-        return {"sources": sources, "hypotheses": hypotheses}
+        return {"sources": sources, "mechanisms": mechanisms, "hypotheses": hypotheses}
+
+    def require_internal_bridge(token: str) -> None:
+        if not hmac.compare_digest(token, settings.telegram_bot_token):
+            raise HTTPException(status_code=403, detail="invalid bridge token")
+
+    @app.post("/internal/validations/select")
+    def select_validation(
+        request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, object]:
+        require_internal_bridge(x_ptw_bridge_token)
+        try:
+            hypothesis = store.get_entity(str(request.get("hypothesis_id") or ""))
+            workspace = commander.select_product_thesis(
+                hypothesis=hypothesis,
+                laval_run_id=str(request.get("run_id") or ""),
+                thesis_id=str(request.get("thesis_id") or ""),
+                actor=str(request.get("actor") or "owner-gateway"),
+            )
+            return dict(commander.validation_snapshot(workspace))
+        except (KeyError, TypeError, ValueError, PolicyDenied) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.get("/internal/validations")
+    def list_validations(x_ptw_bridge_token: str = Header(default="")) -> dict[str, object]:
+        require_internal_bridge(x_ptw_bridge_token)
+        values = sorted(
+            store.entities(EntityKind.VALIDATION_WORKSPACE),
+            key=lambda item: item.created_at,
+            reverse=True,
+        )[:100]
+        return {"items": [dict(commander.validation_snapshot(item)) for item in values]}
+
+    @app.get("/internal/validations/{workspace_id}")
+    def show_validation(
+        workspace_id: str, x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, object]:
+        require_internal_bridge(x_ptw_bridge_token)
+        try:
+            return dict(commander.validation_snapshot(store.get_entity(workspace_id)))
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.post("/internal/validations/{workspace_id}/probes")
+    def create_validation_probe(
+        workspace_id: str,
+        request: Mapping[str, Any],
+        x_ptw_bridge_token: str = Header(default=""),
+    ) -> dict[str, object]:
+        require_internal_bridge(x_ptw_bridge_token)
+        try:
+            workspace = store.get_entity(workspace_id)
+            hypothesis = store.get_entity(str(workspace.attributes["hypothesis_id"]))
+            probe = commander.create_market_probe(
+                workspace=workspace,
+                hypothesis=hypothesis,
+                probe_type=str(request.get("probe_type") or ""),
+                assumption_id=str(request.get("assumption_id") or "manual"),
+                assumption=str(request.get("assumption") or ""),
+                procedure=str(request.get("procedure") or ""),
+                target_segment=str(request.get("target_segment") or ""),
+                metric=str(request.get("metric") or ""),
+                threshold=float(request.get("threshold", 0)),
+                sample_target=int(request.get("sample_target", 0)),
+                duration_days=int(request.get("duration_days", 0)),
+                budget_minor=int(request.get("budget_minor", 0)),
+                actor=str(request.get("actor") or "owner-gateway"),
+                supersedes_probe=(
+                    store.get_entity(str(request.get("supersedes_probe_id")))
+                    if request.get("supersedes_probe_id") else None
+                ),
+            )
+            return probe.to_dict()
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/internal/probes/{probe_id}/start")
+    def start_validation_probe(
+        probe_id: str,
+        request: Mapping[str, Any],
+        x_ptw_bridge_token: str = Header(default=""),
+    ) -> dict[str, object]:
+        require_internal_bridge(x_ptw_bridge_token)
+        try:
+            probe = store.get_entity(probe_id)
+            state = commander.start_market_probe(probe, actor=str(request.get("actor") or "owner-gateway"))
+            return {"probe_id": probe_id, "state": state.to_dict(), "external_action_started": False}
+        except (KeyError, TypeError, ValueError, PolicyDenied) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/internal/probes/{probe_id}/observations")
+    def complete_validation_probe(
+        probe_id: str,
+        request: Mapping[str, Any],
+        x_ptw_bridge_token: str = Header(default=""),
+    ) -> dict[str, object]:
+        require_internal_bridge(x_ptw_bridge_token)
+        try:
+            values = request.get("values") or {}
+            if not isinstance(values, Mapping):
+                raise ValueError("values must be an aggregate metric object")
+            observation, insight, metrics = commander.complete_market_probe(
+                probe=store.get_entity(probe_id),
+                values={str(key): float(value) for key, value in values.items()},
+                sample_size=int(request.get("sample_size", 0)),
+                timeframe=str(request.get("timeframe") or ""),
+                notes=str(request.get("notes") or ""),
+                limitations=str(request.get("limitations") or ""),
+                source_url=str(request.get("source_url") or "") or None,
+                actor=str(request.get("actor") or "owner-gateway"),
+            )
+            return {"observation": observation.to_dict(), "insight": insight.to_dict(), "metrics": metrics.to_dict()}
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/internal/validations/{workspace_id}/decision")
+    def decide_validation(
+        workspace_id: str,
+        request: Mapping[str, Any],
+        x_ptw_bridge_token: str = Header(default=""),
+    ) -> dict[str, object]:
+        require_internal_bridge(x_ptw_bridge_token)
+        try:
+            decision, replacement = commander.decide_validation(
+                workspace=store.get_entity(workspace_id),
+                action=str(request.get("action") or ""),
+                rationale=str(request.get("rationale") or ""),
+                actor=str(request.get("actor") or "owner-gateway"),
+                selected_mechanism_ids=tuple(map(str, request.get("selected_mechanism_ids") or [])),
+                product_loop=tuple(map(str, request.get("product_loop") or [])),
+            )
+            return {"decision": decision.to_dict(), "replacement_hypothesis": replacement.to_dict() if replacement else None}
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/internal/validations/{workspace_id}/consume-context")
+    def consume_validation_context(
+        workspace_id: str,
+        request: Mapping[str, Any],
+        x_ptw_bridge_token: str = Header(default=""),
+    ) -> dict[str, object]:
+        require_internal_bridge(x_ptw_bridge_token)
+        try:
+            workspace = store.get_entity(workspace_id)
+            snapshot = dict(commander.validation_snapshot(workspace))
+            decisions = list(snapshot.get("decisions") or [])
+            latest_decision = max(decisions, key=lambda item: str(item.get("created_at") or "")) if decisions else None
+            if not latest_decision or (latest_decision.get("attributes") or {}).get("action") != "continue":
+                raise ValueError("product planning requires the latest owner decision to be continue")
+            hypothesis = store.get_entity(str(workspace.attributes["hypothesis_id"]))
+            relationships = store.relationships()
+            mechanism_ids = [edge.target_id for edge in relationships if edge.source_id == hypothesis.id and edge.relation == RelationType.CONTAINS]
+            source_ids = [edge.target_id for edge in relationships if edge.source_id == hypothesis.id and edge.relation == RelationType.DERIVED_FROM]
+            audit = commander.create_entity(
+                EntityKind.AUDIT_EVENT,
+                {
+                    "action": "RESEARCH_CONTEXT_CONSUMED",
+                    "workspace_id": workspace_id,
+                    "hypothesis_id": hypothesis.id,
+                    "actor": str(request.get("actor") or "owner-gateway"),
+                },
+                actor=str(request.get("actor") or "owner-gateway"),
+                reasoning_summary="Injected bounded thesis, mechanism, source, and probe context into a Plan job.",
+                evidence_ids=(workspace.id, hypothesis.id, *mechanism_ids, *source_ids),
+            )
+            snapshot["mechanisms"] = [store.get_entity(value).to_dict() for value in mechanism_ids]
+            snapshot["sources"] = [store.get_entity(value).to_dict() for value in source_ids]
+            snapshot["context_audit_id"] = audit.id
+            return snapshot
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
 
     def _process_update(update: Mapping[str, Any]) -> dict[str, object]:
         result: dict[str, object] = {}

@@ -30,7 +30,7 @@ LEGACY_STAGES = (
     "FINAL_SHORTLIST",
 )
 
-STAGES = (
+MARKET_SIGNAL_STAGES = (
     "OWNER_CAPTURE",
     "OWNER_DNA",
     "QUERY_PLAN",
@@ -48,6 +48,43 @@ STAGES = (
     "IDEA_EVALUATION",
     "FINAL_SHORTLIST",
 )
+
+MECHANISM_THESIS_STAGES = (
+    "OWNER_CAPTURE",
+    "OWNER_DNA",
+    "QUERY_PLAN",
+    "SERP_DISCOVERY",
+    "COMPETITOR_SELECTION",
+    "COMPETITOR_EVIDENCE",
+    "YOUTUBE_DISCOVERY",
+    "YOUTUBE_OBSERVATION",
+    "COMPETITOR_DOSSIERS",
+    "OPPORTUNITY_MATRIX",
+    "MARKET_SIGNAL_PLAN",
+    "MARKET_SIGNAL_COLLECTION",
+    "MARKET_SIGNAL_GATE",
+    "SYNTHESIS_PACKET",
+    "IDEA_EXPANSION",
+    "IDEA_CLUSTERING",
+    "IDEA_EVALUATION",
+    "MECHANISM_EXTRACTION",
+    "MECHANISM_SCORING",
+    "THESIS_SYNTHESIS",
+    "THESIS_FALSIFICATION",
+    "THESIS_SHORTLIST",
+)
+
+# New runs use the mechanism/thesis pipeline. Keep the old explicit constant so
+# persisted market_signals_v2 rows never inherit a changed stage topology.
+STAGES = MECHANISM_THESIS_STAGES
+
+
+def stages_for_version(version: str | None) -> tuple[str, ...]:
+    if version == "mechanism_thesis_v1":
+        return MECHANISM_THESIS_STAGES
+    if version == "market_signals_v2":
+        return MARKET_SIGNAL_STAGES
+    return LEGACY_STAGES
 
 QUERY_FAMILIES = ("category", "problem", "alternative", "behavioral")
 OPERATORS = (
@@ -129,7 +166,7 @@ class LavalConfig:
     approval_gates: tuple[str, ...] = (
         "COMPETITOR_SELECTION",
         "OPPORTUNITY_MATRIX",
-        "FINAL_SHORTLIST",
+        "THESIS_SHORTLIST",
     )
     competitor_weights: dict[str, float] = field(default_factory=lambda: {
         "query_recurrence": .30,
@@ -205,9 +242,10 @@ class LavalConfig:
         if approval_mode not in {"manual", "automatic"}:
             raise ValueError("approval_mode must be manual or automatic")
         gates = tuple(str(item).upper() for item in raw.get(
-            "approval_gates", ("COMPETITOR_SELECTION", "OPPORTUNITY_MATRIX", "FINAL_SHORTLIST")
+            "approval_gates", ("COMPETITOR_SELECTION", "OPPORTUNITY_MATRIX", "THESIS_SHORTLIST")
         ))
-        if not set(gates).issubset(STAGES):
+        allowed_gates = set(MECHANISM_THESIS_STAGES) | set(MARKET_SIGNAL_STAGES) | set(LEGACY_STAGES)
+        if not set(gates).issubset(allowed_gates):
             raise ValueError("approval gates must name Laval stages")
         shortlist = _bounded_int(final.get("shortlist", 10), "shortlist", 1, 50)
         finalists = _bounded_int(final.get("finalists", 3), "finalists", 1, 10)
@@ -507,7 +545,7 @@ def deduplicate_queries(values: Sequence[Mapping[str, Any]]) -> list[dict[str, A
 
 def stage_index(stage: str) -> int:
     normalized = stage.upper()
-    for stages in (STAGES, LEGACY_STAGES):
+    for stages in (MECHANISM_THESIS_STAGES, MARKET_SIGNAL_STAGES, LEGACY_STAGES):
         if normalized in stages:
             return stages.index(normalized)
     raise ValueError(f"unknown Laval stage: {stage}")

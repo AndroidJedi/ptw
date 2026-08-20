@@ -39,9 +39,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     llm = _provider(settings)
     laval_repository = LavalRepository(store)
-    laval_pipeline = LavalPipeline(
-        laval_repository, providers_from_settings(settings, llm)
-    )
+    provider_bundle = providers_from_settings(settings, llm)
+    laval_pipeline = LavalPipeline(laval_repository, provider_bundle)
     laval_notifier = (
         LavalTelegramNotifier(
             laval_repository,
@@ -58,6 +57,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "trend_provider": settings.trend_provider,
         "search_live_ready": settings.search_provider == "dataforseo" and settings.dataforseo_verified and bool(settings.dataforseo_login and settings.dataforseo_password),
         "trends_live_ready": settings.trend_provider == "google_trends" and bool(settings.trend_bridge_url),
+        "youtube_provider": provider_bundle.youtube.name,
+        "youtube_live_ready": bool(settings.youtube_api_key and settings.youtube_verified),
         "demo_available": settings.search_provider == "fixture" and settings.trend_provider in {"fixture", "manual"},
         "max_spend_usd": settings.max_spend_usd,
         "reserved_spend_usd": settings.reserved_spend_usd,
@@ -108,6 +109,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         missing = []
         if not readiness["search_live_ready"]:
             missing.append("dataforseo_credentials")
+        if not readiness["youtube_live_ready"] and settings.search_provider != "fixture":
+            missing.append("youtube_api_key")
         return {
             **readiness,
             "demo_available": readiness["demo_available"],
@@ -119,6 +122,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "required": False,
                 }
             },
+            "required_sources": {"youtube": {"ready": readiness["youtube_live_ready"]}},
         }
 
     @app.get("/internal/web/laval/activity")
@@ -169,6 +173,54 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return {"items": laval_repository.stages(run_id)}
         except KeyError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/internal/web/laval/runs/{run_id}/theses")
+    def laval_theses(
+        run_id: str, x_ptw_owner_gateway_token: str = Header(default="")
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return laval.theses(run_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.post("/internal/web/laval/runs/{run_id}/theses/{thesis_id}/select")
+    def select_laval_thesis(
+        run_id: str,
+        thesis_id: str,
+        request: Mapping[str, Any],
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return laval.select_thesis(
+                run_id, thesis_id, str(request.get("workspace_id") or ""),
+                actor=str(request.get("actor") or "owner-gateway"),
+            )
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/internal/web/laval/runs/{run_id}/youtube-transcripts")
+    def add_youtube_transcript(
+        run_id: str,
+        request: Mapping[str, Any],
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return laval.add_manual_youtube_transcript(
+                run_id,
+                video_url=str(request.get("video_url") or ""),
+                title=str(request.get("title") or ""),
+                transcript=str(request.get("transcript") or ""),
+                actor=str(request.get("actor") or "owner-gateway"),
+            )
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.get("/internal/web/laval/runs/{run_id}/show")
     def laval_show(

@@ -22,9 +22,11 @@ are exposed only through the authenticated Owner Gateway.
 Idea Laval is operated through the authenticated Ideas web view.
 `LAVAL_SEARCH_PROVIDER=fixture` and
 `LAVAL_TREND_PROVIDER=fixture` are safe deterministic defaults. Live localized
-search uses `dataforseo` plus `DATAFORSEO_LOGIN`/`DATAFORSEO_PASSWORD`; live
-Trends uses `google_trends` plus the owner-provided alpha/API bridge URL and
-token. Provider credentials stay in VPS environment files, never Git or the
+search uses `dataforseo` plus `DATAFORSEO_LOGIN`/`DATAFORSEO_PASSWORD`. Live V2
+also requires the official YouTube Data API through `YOUTUBE_API_KEY` and the
+canary-written `YOUTUBE_VERIFIED=1`; caption scraping is forbidden. Live Trends
+is optional and uses `google_trends` plus the owner-provided alpha/API bridge.
+Provider credentials stay in root-owned VPS environment files, never Git or the
 browser. The `lav` CLI inside the image calls the same PostgreSQL services.
 
 PostgreSQL owns domain entities, relationship edges, feedback, jobs, and

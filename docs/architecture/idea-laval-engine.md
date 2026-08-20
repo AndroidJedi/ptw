@@ -1,243 +1,185 @@
 # Idea Laval Engine
 
-Status: Market Signals v2 and fresh-session audit implemented
-Updated: 2026-08-19
+Status: mechanism/thesis V2 implemented locally; production cutover pending
+Updated: 2026-08-20
 
 ## Purpose
 
-Idea Laval turns an Owner Idea into an inspectable chain:
+Idea Laval V2 separates research from validation:
 
 ```text
 Owner Idea
-  -> localized search plan and raw SERPs
-  -> country-ranked, globally deduplicated competitors
-  -> website, YouTube, review, forum, and complaint evidence
-  -> competitor dossiers
-  -> Opportunity Matrix
-  -> deterministic MarketSignalScore from persisted evidence
-  -> bounded Synthesis Packet
-  -> explicit transformation operators
-  -> clustered variants
-  -> deterministic + independent evaluation
-  -> shortlist and finalists
+  -> official search + website + official YouTube observations
+  -> opportunities + deterministic MarketSignalScore
+  -> 24 operator-balanced candidate variants
+  -> 6-20 reusable mechanisms from every variant
+  -> 1-3 complete product theses
+  -> strict evidence-cited falsification
+  -> owner selects one survivor
+  -> durable manual validation workspace
+  -> Observation -> Insight -> Continue / Mutate / Pivot / Reject
 ```
 
-This is the only supported Ideas subsystem. Legacy C01-C10 generations, seeded
-idea rankings, generation controls, idea contexts, and idea-to-post batch
-bridges are retired and must not be exposed or seeded. An empty Laval run list
-means that the owner has not submitted an idea; fixtures may exercise providers
-in tests but must never appear as owner-created production data.
+Candidate variants are intermediate material. V2 publishes surviving product
+theses, not ranked variants, to Commander. No scalar probability of success is
+computed or displayed.
 
-PostgreSQL owns the run, stages, child items, artifacts, evidence, normalized
-entities, approvals, overrides, costs, and lineage. JSON and Markdown exports
-are derivatives generated from database state.
+Each run has an immutable `pipeline_version`. New runs use
+`mechanism_thesis_v1`. Historical `market_signals_v2` and
+`legacy-trends-v2` rows retain their topology, artifacts, rerun behavior,
+exports, and graph links. A clean production reset may remove runtime data, but
+the code contract remains version-aware.
 
-Every run has one durable pipeline version and evidence mode. `demo_fixture` is
-an inspectable orchestration demo and must display `DEMO — NO LIVE RESEARCH`
-everywhere. New live runs use `market_signals_v2` plus
-`live_market_signals`; Google Trends is optional and its absence never blocks
-synthesis or finalists. Historical `legacy-trends-v2`,
-`live_search_pending_trends`, and `live_complete` rows remain readable and are
-not rewritten. Provider names, score configuration, and spend cap are
-snapshotted when the run is created.
+## Research stages
 
-## Stages and restart behavior
-
-The canonical Market Signals v2 stages are `OWNER_CAPTURE`, `OWNER_DNA`, `QUERY_PLAN`,
-`SERP_DISCOVERY`, `COMPETITOR_SELECTION`, `COMPETITOR_EVIDENCE`,
-`COMPETITOR_DOSSIERS`, `OPPORTUNITY_MATRIX`, `MARKET_SIGNAL_PLAN`,
-`MARKET_SIGNAL_COLLECTION`, `MARKET_SIGNAL_GATE`, `SYNTHESIS_PACKET`, `IDEA_EXPANSION`,
-`IDEA_CLUSTERING`, `IDEA_EVALUATION`, and `FINAL_SHORTLIST`.
-
-An eligible incomplete legacy run exposes **Resume with Market Signals** only
-in the owner web console. That explicit action changes its three unstarted
-ordinal 8-10 rows to the Market Signal stages and preserves paid task IDs,
-recorded spend, evidence, lineage, and all earlier artifacts. It refuses
-completed legacy Trends history and never starts automatically.
-
-Every stage stores an input hash, status, attempt, provider/model, metrics,
-bounded error, and current artifact. Country/query/competitor/signal operations
-also have independent child states. A restart resumes `pending` or `running`
-runs; a failed run remains visible until the owner resumes it. Reusing the same
-input hash skips paid calls. Reruns mark every downstream stage stale before
-new work begins.
-
-Resume and rerun are deliberately different owner actions. Resume appends a
-`laval_run_actions` audit row with the Firebase actor and continues from saved
-stage/provider state. A submitted DataForSEO remote task is fetched by its
-persisted ID and is never reposted or billed twice. Rerun invalidates the chosen
-stage and its downstream artifacts for deliberate reconstruction. The status
-API exposes the bounded error, attempt, failed time, provider-task counts,
-recorded cost, exact resume semantics, and recent recovery history.
-
-Manual mode pauses after competitor selection, the Opportunity Matrix, and the
-final shortlist. Automatic mode skips those gates. Both modes can be paused at
-safe item/stage boundaries. Platform emergency stop also pauses active Laval
-runs; full resume remains web-only.
-
-## Evidence and learning graph
-
-`laval_evidence` retains source URI/title, retrieval time, source class,
-country, claim/excerpt, confidence, provider metadata, and optional competitor.
-Every opportunity, market/trend signal, idea, and evaluation keeps stable
-evidence/parent IDs plus explicit `laval_lineage_edges`.
-
-`MarketSignalScore` is code-owned and uses only persisted evidence IDs. Laval
-stores the exact formula, `market-signal-v1` normalization version, weights,
-six components, raw counters, per-component data status, score timestamp, and
-deduplicated evidence IDs. Missing confirmed data contributes zero and is
-separately displayed as `no_data`; there is no coverage multiplier. The exact
-formula is:
+The 22 V2 stages are:
 
 ```text
-0.20 × cross_country_recurrence
-+ 0.20 × query_family_recurrence
-+ 0.15 × recent_content_activity
-+ 0.15 × community_activity
-+ 0.15 × negative_pain_recurrence
-+ 0.15 × semantic_relevance
+OWNER_CAPTURE, OWNER_DNA, QUERY_PLAN,
+SERP_DISCOVERY, COMPETITOR_SELECTION, COMPETITOR_EVIDENCE,
+YOUTUBE_DISCOVERY, YOUTUBE_OBSERVATION,
+COMPETITOR_DOSSIERS, OPPORTUNITY_MATRIX,
+MARKET_SIGNAL_PLAN, MARKET_SIGNAL_COLLECTION, MARKET_SIGNAL_GATE,
+SYNTHESIS_PACKET,
+IDEA_EXPANSION, IDEA_CLUSTERING, IDEA_EVALUATION,
+MECHANISM_EXTRACTION, MECHANISM_SCORING,
+THESIS_SYNTHESIS, THESIS_FALSIFICATION, THESIS_SHORTLIST
 ```
 
-Only a real provider `published_at` value may contribute to the 365-day
-counter; retrieval time is never substituted. Canonical duplicate URLs count
-once. A fresh LLM invocation may only classify supplied
-opportunity/evidence-ID pairs as relevant or not relevant. It never supplies a
-numeric component or final score.
+Every stage persists input hash, status, attempt, provider/model, metrics,
+bounded error, and artifact. Remote paid task IDs are restart-safe. Rerunning
+an evidence stage invalidates downstream opportunities, mechanisms, theses, and
+falsification. A selected validation workspace is never rewritten; its source
+thesis is flagged stale when newer research supersedes it.
 
-With live research configured, evidence is sent through Commander's internal
-bridge, which calls `ResearchKnowledgeService` with the product research agent.
-Finalists become proposed product-discovery Hypotheses derived from permanent
-Source UUIDs. Fixture mode deliberately does not write demo evidence into the
-Commander learning graph and is labelled `fixture` in artifacts and the UI.
-Fixture records are also excluded when live and fixture providers are mixed.
+Manual mode pauses at configured gates; automatic mode traverses all 22 stages.
+Platform emergency stop and owner pause remain safe-boundary controls.
 
-## Providers
+## YouTube observation contract
 
-Business logic depends on `SearchProvider`, `WebPageProvider`, an optional `TrendProvider`,
-the existing structured LLM provider, the PostgreSQL repository, and the
-Commander research sink.
+Live V2 requires a configured and canary-verified `YOUTUBE_API_KEY`. Only the
+official YouTube Data API is used: `search.list`, `videos.list`, and bounded
+top-level `commentThreads.list`. Region and language targeting are explicit.
+Caption scraping is forbidden; official public transcript retrieval is not a
+completion dependency because caption access requires authorization.
 
-- `LAVAL_SEARCH_PROVIDER=fixture` is deterministic and makes no network calls.
-- `LAVAL_SEARCH_PROVIDER=dataforseo` uses DataForSEO's Standard normal-priority
-  task queue with explicit country/language/depth. Remote task IDs are persisted
-  before polling so restart does not repost paid work. Polling allows up to one
-  hour for queue outliers; a later Retry fetches the same paid task rather than
-  posting it again. The internal reservation ceiling is USD 0.04 and the
-  absolute per-run cap is USD 0.05.
-- `LAVAL_TREND_PROVIDER=google_trends` remains an optional supplemental source;
-  it is not required for Market Signals v2 completion.
+An owner may submit bounded transcript text manually. It is persisted as a
+permanent `manual` Source, explicitly labelled owner-supplied and unverified,
+then included in the observation context. Missing manual or official captions
+never fail a run.
 
-Every Laval language stage uses a bounded context packet and a separate fresh
-model invocation. The VPS bridge accepts explicit `laval_*` modes, passes the
-caller's JSON Schema to `codex exec --output-schema`, supplies the prompt on
-stdin, and runs `--ephemeral --sandbox read-only`. It never uses `resume` or a
-dangerous sandbox bypass. `codex-cli-default` deliberately omits `--model`, so
-ChatGPT-authenticated Codex selects its supported default instead of receiving
-an API-only model name. `laval_llm_invocations` is append-only and records
-context/schema hashes, prompt version, model, independent session IDs, and
-`success`, `fallback`, or `failed`.
+Behavior observations use one of: workaround, challenge format, motivation,
+repeated question, complaint, transformation narrative, audience vocabulary,
+creator distribution, or substitute. Every observation cites supplied video
+and evidence IDs. Independent confirmation counts unique creator channels;
+duplicate or viral videos from one channel add one creator confirmation.
+Comment-author identity is discarded.
 
-All seven `laval_*` output contracts are complete strict schemas: every nested
-object declares its properties, required fields, and
-`additionalProperties=false`, while every array declares its item schema.
-Semantic validators additionally require exact query families, supplied IDs,
-24 operator-balanced variants, and one independent evaluation per surviving
-idea. The supplied-ID universe is computed from the complete bounded context,
-including nested complaint-cluster evidence, rather than only a dossier's
-top-level citations. A live semantic/provider failure receives exactly one
-automatic retry in a new ephemeral session; both attempts remain append-only
-audit rows, and a recovered retry is reported separately from an unresolved
-failure. Deterministic fallback remains available only in visibly labelled
-fixture mode. A live language failure after retry fails the stage and run before
-downstream work; it cannot synthesize opportunities, variants, evaluations, or
-finalists. Final hypothesis publication has a second guard that requires every
-mandatory live language stage to be model-backed.
+Video/channel remote IDs are cached. Count snapshots are append-only with an
+observation timestamp. Velocity is `insufficient_history` for one snapshot and
+becomes a measured count delta after the second; retrieval time is never used
+as publication time. Provider calls and estimated quota units are appended to
+the cost/audit ledger even when monetary cost is zero.
 
-No Google Custom Search dependency exists. Provider failures are persisted per
-item; the stage continues when remaining evidence is sufficient and applies a
-partial status/confidence penalty.
+## Mechanisms and theses
 
-DataForSEO credentials come from Dashboard -> API Access and are an API login
-plus a separately generated API password. Configure them only through
-`scripts/configure_laval_providers.sh` on the VPS; the script hides input,
-validates against DataForSEO's free sandbox, writes the non-secret
-`DATAFORSEO_VERIFIED=1` readiness marker, and updates only the root-owned
-environment file. Google Trends remains a limited alpha; apply at
-<https://developers.google.com/search/apis/trends>. Never use unofficial Trends
-scraping as a production substitute.
+Mechanism extraction receives all 24 variants, including lower-ranked rows,
+and must return 6-20 mechanisms covering every variant. A mechanism stores
+localized name/description, one typed class (`value`, `behavior`, `trust`,
+`retention`, `distribution`, or `proof`), source variants, opportunities,
+market signals, behavioral observations, evidence, and independent publisher
+support.
 
-## Web and CLI operation
+Support is a code-owned vector, never one aggregate probability:
 
-The mobile-first Ideas view is the normal VPS interface. It creates runs with a
-configurable country/language list, starts or pauses work, polls durable state,
-shows all 16 stages as readable Ukrainian summaries, filters SERP/selection
-output by country, displays the
-MarketSignalScore formula, components, raw counters, data status, and evidence
-IDs, approves gates, reruns stages/countries, writes
-audited overrides, and exports JSON or Markdown. New-run manual corrections
-appear on Competitor Selection and Opportunity Matrix; historical legacy runs
-retain their Trend Gate correction alias. The API returns the currently
-selected/enabled rows so the owner chooses a human-readable competitor,
-opportunity, or legacy trend row; the web UI supplies
-the target UUID internally and requires a reason. The actor and reason are
-appended to the audit log, and the affected downstream stages become stale for
-deliberate reconstruction. All calls pass Firebase Auth, App Check, exact-owner
-verification, and the Owner Gateway bridge.
+- source diversity;
+- cross-variant recurrence;
+- opportunity support;
+- market-signal support;
+- owner-DNA fit.
 
-Pipeline completion and model provenance are separate API facts. `status`
-returns a run-level quality verdict and per-stage success/fallback/failed
-counts; `show` returns both run and selected-stage quality. A historical live
-artifact containing fallback output is preserved but prominently labelled
-invalid, finalist language is suppressed, and the owner is told not to use its
-scores. Raw JSON remains available only through progressive disclosure after
-the readable stage result.
+Each of at most three theses contains target user, problem, 3-7 mechanisms, a
+5-8 step acquisition-to-return/distribution loop, value moment, zero-audience
+behavior, substitutes, dangerous assumptions, and a falsifiable success
+criterion.
 
-Creating a run from the web is a one-click create-and-start flow. Automatic
-progression through all 16 stages is the recommended default; checkpoint review
-is a separate, explicit mode. A persisted historical `pending` run remains
-recoverable but is labelled as not started. An eligible legacy Trends run shows
-one continuation action only: it upgrades to Market Signals while preserving
-paid work. Telegram status projections deep-link to that exact run rather than
-opening whichever run the browser would otherwise select.
+Falsification runs in a fresh strict-schema session, retries once in another
+fresh session, and has no live fallback. Objections and counterarguments must
+cite exact supplied evidence and mechanism IDs. Verdicts are `survives`,
+`weak`, and `rejected`. Recommendation among survivors is lexicographic: no
+fatal objection, fewest unsupported high-severity assumptions, strongest
+weakest-mechanism coverage, then smallest mechanism count. If none survives,
+the run completes as `no_surviving_thesis` and publishes nothing.
 
-Failed runs show an in-page recovery report and a distinct **Resume saved
-work** action. On the 1 GB production profile, automatic and owner-triggered
-Telegram status notifications are retired. The notifier is not constructed,
-the web action is hidden, and cached notification calls receive HTTP 410;
-historical outbox rows remain preserved.
+## Commander graph and validation
 
-The same services are available through the `lav` CLI inside the Idea service:
+Live research enters Commander through the authenticated typed research bridge:
 
-```sh
-lav idea new --text "OWNER IDEA"
-lav run RUN_UUID --through COMPETITOR_SELECTION
-lav status RUN_UUID --watch
-lav show RUN_UUID MARKET_SIGNAL_GATE --view scores --json
-lav resume-market-signals RUN_UUID
-lav approve RUN_UUID COMPETITOR_SELECTION
-lav rerun RUN_UUID SERP_DISCOVERY --country DE
-lav competitor reject RUN_UUID --competitor UUID --reason "not a product"
-lav opportunity disable RUN_UUID UUID
-lav trend disable RUN_UUID UUID
-lav export RUN_UUID --stage FINAL_SHORTLIST --format md
-lav cost RUN_UUID --json
+```text
+Source <- derived_from - ProductMechanism
+Source <- derived_from - Hypothesis(ProductThesis)
+Hypothesis - contains -> ProductMechanism
+ValidationWorkspace - contains -> Experiment(MarketProbe)
+ValidationWorkspace - contains -> Observation -> Insight -> Decision
 ```
 
-## Production acceptance
+Fixture evidence is visibly non-live and is never published to Commander.
+Selecting a surviving thesis resolves all UUIDs server-side and idempotently
+creates exactly one `validation_workspace` plus three editable proposed probes.
+Editing creates a superseding proposal so the original plan remains append-only.
 
-Before calling live research ready, configure providers, migrate the shared Idea
-database, rebuild the Idea API/Commander API/Owner Gateway/Web images, and run:
+Supported manual probe types are `landing_page`, `fake_door`, `outreach`,
+`mock_flow`, `creator_feedback`, `community_test`, and `concierge`. Every probe
+predeclares procedure, segment, metric and threshold, sample target, duration,
+optional budget, and evidence-capture instructions. PTW never publishes a page,
+contacts a person, spends money, or starts external execution. Explicit owner
+start only records that the owner began the probe manually.
 
-1. exact-owner login and negative authentication checks;
-2. one manual run through all three gates and one automatic run;
-3. five-country top-three inspection and a Germany-only rerun;
-4. raw Market Signal components, counters, data status, and evidence IDs;
-5. one competitor rejection and one opportunity disable;
-6. process restart during SERP and Market Signal work;
-7. Source -> proposed Hypothesis graph persistence for finalists;
-8. JSON/Markdown export and user-facing provider failure behavior;
-9. emergency stop and web-only resume;
-10. completion without Google Trends and no repeated paid task submission.
+Completion stores aggregate metrics, sample size, timeframe, bounded factual
+notes, limitations, and an optional artifact URL as Source/MetricSet and
+Observation. Interpretation is a separate supporting or contradicting Insight.
+Secrets and personal contact data are rejected.
 
-Fixture acceptance proves orchestration, persistence, UI, and lineage but is not
-evidence that a live external provider is ready.
+Decisions are append-only:
+
+- `continue` requires an evaluated probe and enables a Plan job;
+- `mutate` requires an explicit subset of current mechanisms and creates a
+  superseding thesis revision;
+- `pivot` requires a materially different 5-8 step loop and creates a linked
+  thesis;
+- `reject` closes the thesis with owner rationale.
+
+Later decisions supersede earlier decisions. Plan context is injected from the
+selected hypothesis, Sources, mechanisms, probes, observations, and insights;
+Commander appends `RESEARCH_CONTEXT_CONSUMED`. The owner never copies UUIDs.
+
+## Owner APIs and UI
+
+The Owner Gateway exposes the bounded thesis, selection, validation, probe,
+decision, and Plan routes under `/api/v1`. It also accepts optional manual
+transcript Sources at
+`POST /api/v1/laval/runs/{run_id}/youtube-transcripts`.
+
+Ideas has `Дослідження` and `Валідація` subviews. Research groups technical
+stages into five readable phases. Thesis cards show the complete loop,
+mechanisms, support diversity, dangerous assumptions, falsification verdict,
+and recommendation reason. Only survivors expose `Вибрати для валідації`.
+Ukrainian is the default display language; English source fields and raw JSON
+remain under progressive disclosure.
+
+## Provider setup and acceptance
+
+Fixture mode remains a deterministic orchestration demo. Live mode requires
+verified DataForSEO and official YouTube credentials; Google Trends is optional.
+Run `scripts/configure_laval_providers.sh` only as root on the VPS. It hides both
+credentials, validates DataForSEO and a YouTube `videos.list` canary, and writes
+readiness markers only to the root-owned environment file.
+If DataForSEO is already configured, pass `--youtube-only` to validate and
+replace only the YouTube key and its readiness marker.
+
+Before production cutover, run the Commander suites, disposable PostgreSQL V2
+pipeline tests, built-image tests, web Vitest/build/Playwright checks, demo
+generation, skill verification, and `git diff --check`. On the 1 GB VPS, apply
+the established maintenance lock and recreate one service at a time. The
+irreversible clean reset remains confirmation-gated through
+`scripts/reset_ptw.sh`; never infer its target or run it without owner approval.

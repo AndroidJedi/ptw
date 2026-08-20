@@ -9,7 +9,7 @@ from typing import Any, Mapping, Sequence
 
 from commander.ids import new_uuid7
 
-from .laval_domain import LEGACY_STAGES, LavalConfig, STAGES, json_safe, stage_index
+from .laval_domain import LavalConfig, json_safe, stage_index, stages_for_version
 from .store import PostgresStore
 
 
@@ -37,7 +37,7 @@ class LavalRepository:
         self, raw_text: str, config: LavalConfig, *, actor: str = "owner",
         evidence_mode: str = "demo_fixture", provider_snapshot: Mapping[str, Any] | None = None,
         max_spend_usd: float = .05, reserved_spend_usd: float = .04,
-        pipeline_version: str = "market_signals_v2",
+        pipeline_version: str = "mechanism_thesis_v1",
     ) -> dict[str, Any]:
         raw_text = raw_text.strip()
         if not raw_text or len(raw_text) > 100_000:
@@ -75,7 +75,7 @@ class LavalRepository:
             connection.execute(
                 "UPDATE laval_runs SET owner_idea_id=%s WHERE id=%s", (owner_id, run_id)
             )
-            stages = STAGES if pipeline_version == "market_signals_v2" else LEGACY_STAGES
+            stages = stages_for_version(pipeline_version)
             for ordinal, stage in enumerate(stages):
                 status = "completed" if ordinal == 0 else "pending"
                 artifact = {"owner_idea_id": owner_id, "raw_text": raw_text} if ordinal == 0 else None
@@ -147,6 +147,78 @@ class LavalRepository:
             "recovery": self.recovery(run_id),
             "resume_with_market_signals_available": self.market_signal_upgrade_available(run_id),
         }
+
+    def theses(self, run_id: str) -> dict[str, Any]:
+        self.run(run_id)
+        rows = json_safe(self.store.fetchall(
+            """SELECT t.*,f.risks,f.fatal_objection,f.unsupported_high_severity_count,
+                      f.weakest_mechanism_coverage
+               FROM laval_product_theses t
+               LEFT JOIN laval_thesis_falsifications f ON f.thesis_id=t.id
+               WHERE t.run_id=%s
+               ORDER BY t.recommended DESC,t.created_at,t.id""",
+            (run_id,),
+        ))
+        mechanism_ids = list(dict.fromkeys(str(value) for item in rows for value in item.get("mechanism_ids") or []))
+        mechanisms = json_safe(self.store.fetchall(
+            "SELECT * FROM laval_product_mechanisms WHERE id=ANY(%s::uuid[]) ORDER BY mechanism_type,id",
+            (mechanism_ids,),
+        )) if mechanism_ids else []
+        return {
+            "run_id": run_id,
+            "status": "no_surviving_thesis" if rows and not any(item.get("verdict") == "survives" and not item.get("validation_stale") for item in rows) else "ready",
+            "items": rows,
+            "mechanisms": mechanisms,
+            "recommended_thesis_id": next((str(item["id"]) for item in rows if item.get("recommended") and not item.get("validation_stale")), None),
+        }
+
+    def select_thesis(self, run_id: str, thesis_id: str, workspace_id: str, *, actor: str) -> dict[str, Any]:
+        thesis = self.store.fetchone(
+            "SELECT * FROM laval_product_theses WHERE run_id=%s AND id=%s", (run_id, thesis_id)
+        )
+        if not thesis:
+            raise KeyError("product thesis not found")
+        if thesis["verdict"] != "survives" or not thesis["commander_hypothesis_id"]:
+            raise ValueError("only a published surviving thesis can enter validation")
+        if thesis["validation_workspace_id"] and str(thesis["validation_workspace_id"]) != workspace_id:
+            raise ValueError("thesis already belongs to another validation workspace")
+        self.store.execute(
+            """UPDATE laval_product_theses
+               SET validation_workspace_id=%s,selected_at=COALESCE(selected_at,NOW()),selected_by=COALESCE(selected_by,%s)
+               WHERE id=%s RETURNING 1""",
+            (workspace_id, actor, thesis_id),
+        )
+        return {"run_id": run_id, "thesis_id": thesis_id, "workspace_id": workspace_id, "hypothesis_id": str(thesis["commander_hypothesis_id"])}
+
+    def add_manual_youtube_transcript(
+        self, run_id: str, *, video_url: str, title: str, transcript: str, actor: str,
+    ) -> dict[str, Any]:
+        """Persist optional owner-supplied text as a permanent manual Source."""
+
+        run = self.run(run_id)
+        if run.get("pipeline_version") != "mechanism_thesis_v1":
+            raise ValueError("manual YouTube transcript sources are available only for V2 runs")
+        if run.get("status") == "running":
+            raise ValueError("pause the Laval run before adding a manual transcript source")
+        if not video_url.startswith(("https://www.youtube.com/", "https://youtube.com/", "https://youtu.be/")):
+            raise ValueError("video_url must be an HTTPS YouTube URL")
+        if not transcript.strip() or len(transcript) > 10_000:
+            raise ValueError("transcript must contain 1-10000 characters")
+        evidence_id = self.add_evidence(run_id, {
+            "source_type": "manual",
+            "source_url": video_url,
+            "source_title": (title.strip() or "Owner-supplied YouTube transcript")[:2000],
+            "publisher": "Owner supplied",
+            "excerpt": transcript.strip(),
+            "claim": "Owner-supplied transcript text; not retrieved or verified by PTW.",
+            "confidence": .5,
+            "metadata": {"source_kind": "owner_supplied_transcript", "actor": actor, "official_caption_api": False},
+        })
+        stage_status = {item["stage"]: item["status"] for item in self.stages(run_id)}
+        requires_rerun = stage_status.get("YOUTUBE_DISCOVERY") in {"completed", "partial"}
+        if requires_rerun:
+            self.invalidate_from(run_id, "YOUTUBE_OBSERVATION")
+        return {"evidence_id": evidence_id, "source_type": "manual", "requires_rerun": requires_rerun}
 
     def llm_quality(self, run_id: str) -> dict[str, Any]:
         """Expose model provenance separately from pipeline completion state.
@@ -222,8 +294,15 @@ class LavalRepository:
             "IDEA_EXPANSION",
             "IDEA_EVALUATION",
         }
-        if run.get("pipeline_version") == "market_signals_v2":
+        if run.get("pipeline_version") in {"market_signals_v2", "mechanism_thesis_v1"}:
             expected.add("MARKET_SIGNAL_COLLECTION")
+        if run.get("pipeline_version") == "mechanism_thesis_v1":
+            expected.update({
+                "YOUTUBE_OBSERVATION",
+                "MECHANISM_EXTRACTION",
+                "THESIS_SYNTHESIS",
+                "THESIS_FALSIFICATION",
+            })
         successful_stages = {
             stage for stage, item in grouped.items() if item["verdict"] == "verified"
         }
@@ -257,7 +336,7 @@ class LavalRepository:
 
     def market_signal_upgrade_available(self, run_id: str) -> bool:
         run = self.run(run_id)
-        if run.get("pipeline_version") == "market_signals_v2" or run["status"] in {"completed", "cancelled"}:
+        if run.get("pipeline_version") in {"market_signals_v2", "mechanism_thesis_v1"} or run["status"] in {"completed", "cancelled"}:
             return False
         opportunity = self.store.fetchone(
             """SELECT status FROM laval_stage_runs
@@ -650,6 +729,19 @@ class LavalRepository:
             )
         return True
 
+    def record_provider_usage(
+        self, run_id: str, stage: str, provider: str, operation: str, request_count: int,
+        *, metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Append a zero-cost provider/quota audit for non-billed official APIs."""
+
+        self.store.execute(
+            """INSERT INTO laval_cost_events(
+                   id,run_id,stage,provider,operation,request_count,amount_usd,cached,metadata
+               ) VALUES(%s,%s,%s,%s,%s,%s,0,FALSE,%s::jsonb) RETURNING 1""",
+            (new_uuid7(), run_id, stage, provider, operation, max(0, request_count), self.store.json(dict(metadata or {}))),
+        )
+
     def save_artifact(self, run_id: str, stage: str, name: str, value: Any) -> str:
         artifact_id = new_uuid7()
         is_text = isinstance(value, str)
@@ -837,42 +929,68 @@ class LavalRepository:
         return override_id
 
     def invalidate_from(self, run_id: str, stage: str, *, country: str | None = None) -> None:
-        index = stage_index(stage)
         run = self.run(run_id)
-        market_pipeline = run.get("pipeline_version") == "market_signals_v2"
-        if index <= stage_index("SERP_DISCOVERY"):
+        pipeline_version = str(run.get("pipeline_version") or "")
+        market_pipeline = pipeline_version in {"market_signals_v2", "mechanism_thesis_v1"}
+        stages_for_run = stages_for_version(pipeline_version)
+        index = stages_for_run.index(stage.upper())
+        def pos(name: str) -> int:
+            return stages_for_run.index(name) if name in stages_for_run else len(stages_for_run) + 1
+
+        if index <= pos("SERP_DISCOVERY"):
             if country:
                 self.store.execute("DELETE FROM laval_stage_items WHERE run_id=%s AND stage='SERP_DISCOVERY' AND country=%s RETURNING 1", (run_id, country))
                 self.store.execute("DELETE FROM laval_evidence WHERE run_id=%s AND source_type='serp' AND country=%s RETURNING 1", (run_id, country))
             else:
                 self.store.execute("DELETE FROM laval_stage_items WHERE run_id=%s AND stage='SERP_DISCOVERY' RETURNING 1", (run_id,))
                 self.store.execute("DELETE FROM laval_evidence WHERE run_id=%s AND source_type='serp' RETURNING 1", (run_id,))
-        if index <= stage_index("COMPETITOR_SELECTION"):
+        if index <= pos("COMPETITOR_SELECTION"):
             self.store.execute("DELETE FROM laval_competitor_country_rankings WHERE run_id=%s RETURNING 1", (run_id,))
             self.store.execute("DELETE FROM laval_competitors WHERE run_id=%s RETURNING 1", (run_id,))
-        if index <= stage_index("COMPETITOR_EVIDENCE"):
+        if index <= pos("COMPETITOR_EVIDENCE"):
             self.store.execute("DELETE FROM laval_stage_items WHERE run_id=%s AND stage='COMPETITOR_EVIDENCE' RETURNING 1", (run_id,))
             self.store.execute("DELETE FROM laval_evidence WHERE run_id=%s AND source_type<>'serp' RETURNING 1", (run_id,))
-        if index <= stage_index("COMPETITOR_DOSSIERS"):
+        if index <= pos("COMPETITOR_DOSSIERS"):
             self.store.execute("DELETE FROM laval_competitor_dossiers WHERE run_id=%s RETURNING 1", (run_id,))
-        if index <= stage_index("OPPORTUNITY_MATRIX"):
+        if index <= pos("OPPORTUNITY_MATRIX"):
             self.store.execute("DELETE FROM laval_opportunities WHERE run_id=%s RETURNING 1", (run_id,))
-        if index <= 8 and not market_pipeline:
+        if index <= pos("TREND_QUERY_PLAN") and not market_pipeline:
             self.store.execute("DELETE FROM laval_trend_queries WHERE run_id=%s RETURNING 1", (run_id,))
-        if index <= 9 and not market_pipeline:
+        if index <= pos("GOOGLE_TRENDS_RESEARCH") and not market_pipeline:
             self.store.execute("DELETE FROM laval_stage_items WHERE run_id=%s AND stage='GOOGLE_TRENDS_RESEARCH' RETURNING 1", (run_id,))
             self.store.execute("DELETE FROM laval_evidence WHERE run_id=%s AND source_type='trend' RETURNING 1", (run_id,))
-        if index <= 10:
+        if index <= (pos("MARKET_SIGNAL_GATE") if market_pipeline else pos("TREND_GATE")):
             if market_pipeline:
                 self.store.execute("DELETE FROM laval_market_signal_scores WHERE run_id=%s RETURNING 1", (run_id,))
             else:
                 self.store.execute("DELETE FROM laval_trend_scores WHERE run_id=%s RETURNING 1", (run_id,))
                 self.store.execute("DELETE FROM laval_trend_discoveries WHERE run_id=%s RETURNING 1", (run_id,))
-        if index <= stage_index("IDEA_EXPANSION"):
+        if index <= pos("IDEA_EXPANSION"):
             self.store.execute("DELETE FROM laval_idea_variants WHERE run_id=%s RETURNING 1", (run_id,))
-        if index <= stage_index("IDEA_EVALUATION"):
+        if index <= pos("IDEA_EVALUATION"):
             self.store.execute("DELETE FROM laval_idea_scores WHERE run_id=%s RETURNING 1", (run_id,))
-        stages = (STAGES if market_pipeline else LEGACY_STAGES)[index:]
+        if pipeline_version == "mechanism_thesis_v1":
+            # YouTube remote IDs and measured snapshots are append-only cache/history.
+            # Reruns append observations; they never erase prior count measurements.
+            if index <= stages_for_run.index("YOUTUBE_DISCOVERY"):
+                self.store.execute(
+                    "DELETE FROM laval_provider_tasks WHERE run_id=%s AND stage='YOUTUBE_DISCOVERY' RETURNING 1",
+                    (run_id,),
+                )
+            if index <= stages_for_run.index("YOUTUBE_OBSERVATION"):
+                self.store.execute("DELETE FROM laval_behavior_observations WHERE run_id=%s RETURNING 1", (run_id,))
+            if index <= stages_for_run.index("MECHANISM_EXTRACTION"):
+                self.store.execute("DELETE FROM laval_product_mechanisms WHERE run_id=%s RETURNING 1", (run_id,))
+            if index <= stages_for_run.index("THESIS_SYNTHESIS"):
+                self.store.execute(
+                    "DELETE FROM laval_product_theses WHERE run_id=%s AND validation_workspace_id IS NULL RETURNING 1",
+                    (run_id,),
+                )
+                self.store.execute(
+                    "UPDATE laval_product_theses SET validation_stale=TRUE,recommended=FALSE,recommendation_reason=COALESCE(recommendation_reason,'') || ' [source run became stale]' WHERE run_id=%s AND validation_workspace_id IS NOT NULL RETURNING 1",
+                    (run_id,),
+                )
+        stages = stages_for_run[index:]
         self.store.execute(
             """UPDATE laval_stage_runs SET status=CASE WHEN stage=%s THEN 'pending' ELSE 'stale' END,
                       artifact=NULL,error=NULL,completed_at=NULL,updated_at=NOW()

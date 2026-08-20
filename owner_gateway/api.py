@@ -102,6 +102,29 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             raise HTTPException(status_code=response.status_code, detail=detail or "Idea Laval request failed")
         return response
 
+    async def commander_bridge(
+        method: str, path: str, *, body: Mapping[str, Any] | None = None
+    ) -> httpx.Response:
+        if not settings.telegram_bot_token:
+            raise HTTPException(status_code=503, detail="Commander validation bridge is not configured")
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                response = await client.request(
+                    method,
+                    f"{settings.commander_service_url}{path}",
+                    headers={"X-PTW-Bridge-Token": settings.telegram_bot_token},
+                    json=dict(body) if body is not None else None,
+                )
+        except httpx.HTTPError as error:
+            raise HTTPException(status_code=503, detail="Commander validation service is unavailable") from error
+        if response.status_code >= 400:
+            try:
+                detail = response.json().get("detail")
+            except (ValueError, AttributeError):
+                detail = None
+            raise HTTPException(status_code=response.status_code, detail=detail or "Commander validation request failed")
+        return response
+
     async def active_laval() -> Mapping[str, Any] | None:
         response = await laval_bridge("GET", "/internal/web/laval/activity")
         activity = response.json()
@@ -204,6 +227,158 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     ) -> dict[str, Any]:
         require_laval_id(run_id)
         return (await laval_bridge("GET", f"/internal/web/laval/runs/{run_id}/stages")).json()
+
+    @app.get("/api/v1/laval/runs/{run_id}/theses")
+    async def laval_theses(
+        run_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        return (await laval_bridge("GET", f"/internal/web/laval/runs/{run_id}/theses")).json()
+
+    @app.post("/api/v1/laval/runs/{run_id}/theses/{thesis_id}/select")
+    async def select_laval_thesis(
+        run_id: str,
+        thesis_id: str,
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        require_laval_id(thesis_id)
+        require_running()
+        theses = (await laval_bridge("GET", f"/internal/web/laval/runs/{run_id}/theses")).json()
+        thesis = next((item for item in theses.get("items") or [] if str(item.get("id")) == thesis_id), None)
+        if not thesis:
+            raise HTTPException(status_code=404, detail="product thesis not found")
+        if thesis.get("verdict") != "survives" or not thesis.get("commander_hypothesis_id"):
+            raise HTTPException(status_code=409, detail="only a published surviving thesis can enter validation")
+        actor = f"firebase:{identity.uid}"
+        validation = (await commander_bridge("POST", "/internal/validations/select", body={
+            "hypothesis_id": thesis["commander_hypothesis_id"],
+            "run_id": run_id,
+            "thesis_id": thesis_id,
+            "actor": actor,
+        })).json()
+        workspace_id = str((validation.get("workspace") or {}).get("id") or "")
+        if not workspace_id:
+            raise HTTPException(status_code=502, detail="Commander did not return a validation workspace")
+        selection = (await laval_bridge(
+            "POST", f"/internal/web/laval/runs/{run_id}/theses/{thesis_id}/select",
+            body={"workspace_id": workspace_id, "actor": actor},
+        )).json()
+        return {**validation, "selection": selection}
+
+    @app.post("/api/v1/laval/runs/{run_id}/youtube-transcripts")
+    async def add_laval_youtube_transcript(
+        run_id: str,
+        request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        require_running()
+        return (await laval_bridge(
+            "POST", f"/internal/web/laval/runs/{run_id}/youtube-transcripts",
+            body={**dict(request), "actor": f"firebase:{identity.uid}"},
+        )).json()
+
+    @app.get("/api/v1/validations")
+    async def validations(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await commander_bridge("GET", "/internal/validations")).json()
+
+    @app.get("/api/v1/validations/{workspace_id}")
+    async def validation(
+        workspace_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_laval_id(workspace_id)
+        return (await commander_bridge("GET", f"/internal/validations/{workspace_id}")).json()
+
+    @app.post("/api/v1/validations/{workspace_id}/probes")
+    async def create_probe(
+        workspace_id: str,
+        request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(workspace_id)
+        require_running()
+        return (await commander_bridge(
+            "POST", f"/internal/validations/{workspace_id}/probes",
+            body={**dict(request), "actor": f"firebase:{identity.uid}"},
+        )).json()
+
+    @app.post("/api/v1/probes/{probe_id}/start")
+    async def start_probe(
+        probe_id: str, identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_laval_id(probe_id)
+        require_running()
+        return (await commander_bridge(
+            "POST", f"/internal/probes/{probe_id}/start",
+            body={"actor": f"firebase:{identity.uid}"},
+        )).json()
+
+    async def record_probe_result(
+        probe_id: str, request: Mapping[str, Any], identity: OwnerIdentity
+    ) -> dict[str, Any]:
+        require_laval_id(probe_id)
+        require_running()
+        return (await commander_bridge(
+            "POST", f"/internal/probes/{probe_id}/observations",
+            body={**dict(request), "actor": f"firebase:{identity.uid}"},
+        )).json()
+
+    @app.post("/api/v1/probes/{probe_id}/observations")
+    async def probe_observation(
+        probe_id: str,
+        request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return await record_probe_result(probe_id, request, identity)
+
+    @app.post("/api/v1/probes/{probe_id}/complete")
+    async def complete_probe(
+        probe_id: str,
+        request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return await record_probe_result(probe_id, request, identity)
+
+    @app.post("/api/v1/validations/{workspace_id}/decision")
+    async def validation_decision(
+        workspace_id: str,
+        request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(workspace_id)
+        require_running()
+        return (await commander_bridge(
+            "POST", f"/internal/validations/{workspace_id}/decision",
+            body={**dict(request), "actor": f"firebase:{identity.uid}"},
+        )).json()
+
+    @app.post("/api/v1/validations/{workspace_id}/plan")
+    async def plan_validation(
+        workspace_id: str,
+        request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(workspace_id)
+        require_running()
+        actor = f"firebase:{identity.uid}"
+        context = (await commander_bridge(
+            "POST", f"/internal/validations/{workspace_id}/consume-context", body={"actor": actor}
+        )).json()
+        requested = str(request.get("request") or "Create a product implementation plan from the validated thesis. Do not execute it.").strip()
+        instruction = (
+            f"{requested}\n\nUse this bounded PTW validation context. Treat recorded observations as facts and insights as interpretations. "
+            "Do not request UUID copying and do not broaden into external execution.\n\n"
+            + json.dumps(context, ensure_ascii=False, default=str)[:16_000]
+        )
+        async with operation_start_lock:
+            await require_no_active_laval()
+            try:
+                command = store.create_command("plan", instruction)
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
+            background(build_plan(command["id"], instruction))
+            return command
 
     @app.get("/api/v1/laval/runs/{run_id}/show")
     async def laval_stage_output(

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '../api'
 import { IdeasView } from './IdeasView'
@@ -18,5 +18,8 @@ describe('IdeasView', () => {
     expect(screen.queryByRole('button', { name: /Нове покоління/ })).not.toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith('/api/v1/laval/runs?limit=30')
     expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/api/v1/ideas'))
+    fireEvent.click(screen.getByRole('button', { name: 'Валідація' }))
+    expect(await screen.findByText('Ще немає workspace')).toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith('/api/v1/validations')
   })
 })

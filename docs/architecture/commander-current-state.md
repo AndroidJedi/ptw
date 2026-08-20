@@ -1,8 +1,48 @@
 # Commander current state
 
-Status: Laval S07 evidence validation and automatic retry fix deployed; saved live run recovered and verified
-Updated: 2026-08-19
+Status: Idea Laval mechanism/thesis V2 implemented and locally verified; production cutover/reset pending
+Updated: 2026-08-20
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
+
+## Current implementation milestone
+
+New Idea Laval runs use immutable pipeline version `mechanism_thesis_v1` and a
+22-stage evidence -> mechanism -> product-thesis topology. The pipeline retains
+24 candidate variants only as intermediate material, extracts 6-20 mechanisms
+with code-owned support vectors, synthesizes at most three complete product
+loops, and runs fresh-session strict-schema falsification with one retry and no
+live fallback. Only surviving theses publish to Commander; an all-weak/rejected
+run completes truthfully as `no_surviving_thesis`.
+
+Live V2 requires canary-verified DataForSEO and the official YouTube Data API.
+YouTube behavior support is counted by unique creator channel, comments omit
+author identity, captions are never scraped, optional owner transcript text is
+stored as a manual Source, and count snapshots are append-only. Velocity remains
+`insufficient_history` until a second observed snapshot.
+
+Commander now owns `product_mechanism` and `validation_workspace` entities.
+Selecting a survivor creates one idempotent workspace and three proposed manual
+market probes. Explicit owner start records state but performs no publication,
+contact, spend, or other external action. Probe facts, Insights, and append-only
+Continue/Mutate/Pivot/Reject decisions remain separate. Continue alone exposes
+a Plan job with bounded graph context and a `RESEARCH_CONTEXT_CONSUMED` audit.
+
+The owner UI has Research and Validation subviews, five readable research
+phases, thesis cards without percentage-like success scores, server-side UUID
+resolution, manual probe evidence capture, explicit mechanism selection for
+Mutate, and a materially different loop requirement for Pivot.
+
+This milestone is not deployed. The next operational step is an owner-confirmed
+clean production reset through `scripts/reset_ptw.sh`, root-only provider
+configuration, then the established one-service-at-a-time 1 GB release and live
+acceptance. No production database or service was changed during implementation.
+
+Local verification: the Commander built-image suite passes 102 tests with 33
+expected external/dependency skips; the disposable PostgreSQL Laval suite passes
+26 tests; the Owner Gateway built image passes 19 tests; Vitest passes 17 tests;
+Playwright passes nine desktop/mobile/WebKit checks. Commander demo generation,
+both migration families on disposable PostgreSQL, skill verification, production
+web build verification, shell syntax validation, and `git diff --check` pass.
 
 ## Completed milestone
 

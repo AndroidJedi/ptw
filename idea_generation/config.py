@@ -40,6 +40,10 @@ class Settings:
     trend_bridge_url: str = ""
     trend_bridge_token: str = ""
     research_bridge_url: str = ""
+    youtube_api_key: str = ""
+    youtube_verified: bool = False
+    youtube_results_per_query: int = 10
+    youtube_comments_per_video: int = 20
     max_spend_usd: float = 0.05
     reserved_spend_usd: float = 0.04
     outbound_notifications_enabled: bool = False
@@ -85,6 +89,10 @@ class Settings:
                 "LAVAL_RESEARCH_BRIDGE_URL",
                 "http://ptw-commander-api:8080/internal/research/laval",
             ).strip(),
+            youtube_api_key=os.environ.get("YOUTUBE_API_KEY", "").strip(),
+            youtube_verified=os.environ.get("YOUTUBE_VERIFIED", "").strip() == "1",
+            youtube_results_per_query=min(25, max(3, int(os.environ.get("YOUTUBE_RESULTS_PER_QUERY", "10")))),
+            youtube_comments_per_video=min(50, max(0, int(os.environ.get("YOUTUBE_COMMENTS_PER_VIDEO", "20")))),
             max_spend_usd=max_spend_usd,
             reserved_spend_usd=reserved_spend_usd,
             outbound_notifications_enabled=_enabled("OUTBOUND_NOTIFICATIONS_ENABLED"),

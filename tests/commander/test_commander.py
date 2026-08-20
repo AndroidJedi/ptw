@@ -279,6 +279,15 @@ class ResearchKnowledgeTests(unittest.TestCase):
                     "publisher": "Example",
                     "credibility": .8,
                 }],
+                "mechanisms": [{
+                    "external_id": "018f0000-0000-7000-8000-000000000003",
+                    "name": {"en": "Portable proof", "uk": "Переносний доказ"},
+                    "description": {"en": "A reusable proof loop.", "uk": "Повторно використовуваний цикл доказу."},
+                    "mechanism_type": "proof",
+                    "support_dimensions": {"source_diversity": .7},
+                    "evidence_external_ids": ["018f0000-0000-7000-8000-000000000001"],
+                    "attributes": {"idea_laval_run_id": "run"},
+                }],
                 "hypotheses": [{
                     "external_id": "018f0000-0000-7000-8000-000000000002",
                     "claim": "Portable proof history increases activation.",
@@ -286,7 +295,8 @@ class ResearchKnowledgeTests(unittest.TestCase):
                     "threshold": .1,
                     "scope": "idea_laval:test",
                     "evidence_external_ids": ["018f0000-0000-7000-8000-000000000001"],
-                    "attributes": {"idea_laval_run_id": "run"},
+                    "mechanism_external_ids": ["018f0000-0000-7000-8000-000000000003"],
+                    "attributes": {"idea_laval_run_id": "run", "idea_laval_thesis_id": "018f0000-0000-7000-8000-000000000002"},
                 }],
             }
             self.assertEqual(403, client.post("/internal/research/laval", json=payload).status_code)
@@ -297,6 +307,8 @@ class ResearchKnowledgeTests(unittest.TestCase):
             )
         self.assertEqual(200, response.status_code, response.text)
         self.assertEqual(1, len(store.entities(EntityKind.SOURCE)))
+        mechanisms = store.entities(EntityKind.PRODUCT_MECHANISM)
+        self.assertEqual(1, len(mechanisms))
         hypotheses = store.entities(EntityKind.HYPOTHESIS)
         self.assertEqual(1, len(hypotheses))
         self.assertEqual("proposed", hypotheses[0].attributes["status"])
@@ -304,6 +316,15 @@ class ResearchKnowledgeTests(unittest.TestCase):
         self.assertEqual(1, len([
             edge for edge in store.relationships()
             if edge.source_id == hypotheses[0].id and edge.relation == RelationType.DERIVED_FROM
+        ]))
+        self.assertEqual(1, len([
+            edge for edge in store.relationships()
+            if edge.source_id == mechanisms[0].id and edge.relation == RelationType.DERIVED_FROM
+        ]))
+        self.assertEqual(1, len([
+            edge for edge in store.relationships()
+            if edge.source_id == hypotheses[0].id and edge.relation == RelationType.CONTAINS
+            and edge.target_id == mechanisms[0].id
         ]))
 
 
@@ -343,6 +364,148 @@ class VerticalLoopTests(unittest.TestCase):
             if entity["kind"] == "experiment_state"
         ]
         self.assertEqual(state_values, ["running", "completed", "evaluated"])
+
+
+class ProductValidationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.store = MemoryKnowledgeStore()
+        self.commander = Commander(
+            self.store, CommanderPolicy.load(ROOT / "config/commander/policies.json")
+        )
+        self.hypothesis = self.commander.create_entity(
+            EntityKind.HYPOTHESIS,
+            {
+                "claim": "Creators return to exchange bounded proof of progress.",
+                "scope": "independent creators",
+                "idea_laval_thesis_id": "thesis-1",
+                "success_criterion": {"metric": "qualified_interest", "operator": ">=", "threshold": .25},
+                "dangerous_assumptions": [
+                    {"id": "a1", "statement": {"en": "Visitors opt in", "uk": "Відвідувачі реєструються"}},
+                    {"id": "a2", "statement": {"en": "Creators reply", "uk": "Автори відповідають"}},
+                    {"id": "a3", "statement": {"en": "Proof retains", "uk": "Доказ утримує"}},
+                ],
+            },
+            actor="test-owner",
+            reasoning_summary="Test a product thesis validation lifecycle.",
+        )
+
+    def test_selection_is_idempotent_and_probes_require_explicit_start(self) -> None:
+        workspace = self.commander.select_product_thesis(
+            hypothesis=self.hypothesis, laval_run_id="run-1", thesis_id="thesis-1", actor="owner"
+        )
+        same = self.commander.select_product_thesis(
+            hypothesis=self.hypothesis, laval_run_id="run-1", thesis_id="thesis-1", actor="owner"
+        )
+        self.assertEqual(workspace.id, same.id)
+        snapshot = self.commander.validation_snapshot(workspace)
+        self.assertEqual(len(snapshot["probes"]), 3)
+        self.assertTrue(all(item["status"] == "proposed" for item in snapshot["probes"]))
+        self.assertTrue(all(item["attributes"]["external_execution"] == "manual_owner_only" for item in snapshot["probes"]))
+        self.assertEqual(self.store.entities(EntityKind.EXPERIMENT_STATE), ())
+        original = self.store.get_entity(snapshot["probes"][0]["id"])
+        revised = self.commander.create_market_probe(
+            workspace=workspace, hypothesis=self.hypothesis, probe_type="mock_flow",
+            assumption_id="a1", assumption="Visitors complete a mock flow.",
+            procedure="Owner runs the revised mock flow manually.", target_segment="creators",
+            metric="qualified_interest", threshold=.25, sample_target=12, duration_days=5,
+            budget_minor=0, actor="owner", supersedes_probe=original,
+        )
+        revised_snapshot = self.commander.validation_snapshot(workspace)
+        statuses = {item["id"]: item["status"] for item in revised_snapshot["probes"]}
+        self.assertEqual("superseded", statuses[original.id])
+        self.assertEqual("proposed", statuses[revised.id])
+
+    def test_observation_insight_and_decisions_are_append_only(self) -> None:
+        workspace = self.commander.select_product_thesis(
+            hypothesis=self.hypothesis, laval_run_id="run-1", thesis_id="thesis-1", actor="owner"
+        )
+        probe = next(iter(self.store.entities(EntityKind.EXPERIMENT)))
+        self.commander.start_market_probe(probe, actor="owner")
+        observation, insight, _metrics = self.commander.complete_market_probe(
+            probe=probe,
+            values={"qualified_interest": .4},
+            sample_size=20,
+            timeframe="2026-08-01/2026-08-07",
+            notes="Eight of twenty participants recorded qualified interest.",
+            limitations="Convenience sample.",
+            source_url=None,
+            actor="owner",
+        )
+        self.assertTrue(observation.attributes["factual"])
+        self.assertNotIn("interpretation", observation.attributes)
+        self.assertIn("interpretation", insight.attributes)
+        continued, replacement = self.commander.decide_validation(
+            workspace=workspace, action="continue", rationale="Threshold met in the declared scope.", actor="owner"
+        )
+        self.assertIsNone(replacement)
+        rejected, _ = self.commander.decide_validation(
+            workspace=workspace, action="reject", rationale="Later evidence invalidated the behavior.", actor="owner"
+        )
+        self.assertNotEqual(continued.id, rejected.id)
+        supersedes = [edge for edge in self.store.relationships() if edge.relation == RelationType.SUPERSEDES]
+        self.assertTrue(any(edge.source_id == rejected.id and edge.target_id == continued.id for edge in supersedes))
+
+    def test_observations_reject_secrets_and_personal_contact_data(self) -> None:
+        workspace = self.commander.select_product_thesis(
+            hypothesis=self.hypothesis, laval_run_id="run-1", thesis_id="thesis-1", actor="owner"
+        )
+        probe = next(iter(self.store.entities(EntityKind.EXPERIMENT)))
+        self.commander.start_market_probe(probe, actor="owner")
+        with self.assertRaisesRegex(ValueError, "must not contain"):
+            self.commander.complete_market_probe(
+                probe=probe, values={"qualified_interest": .4}, sample_size=1,
+                timeframe="one day", notes="Contact person@example.com", limitations="", source_url=None, actor="owner",
+            )
+
+    def test_mutate_selects_mechanisms_and_pivot_requires_a_new_loop(self) -> None:
+        mechanisms = [
+            self.commander.create_entity(
+                EntityKind.PRODUCT_MECHANISM,
+                {"name": {"en": f"Mechanism {index}", "uk": f"Механізм {index}"}, "mechanism_type": "behavior"},
+                actor="test-owner", reasoning_summary="Test mechanism.",
+            )
+            for index in range(3)
+        ]
+        for mechanism in mechanisms:
+            self.commander.relate(self.hypothesis, RelationType.CONTAINS, mechanism)
+        workspace = self.commander.select_product_thesis(
+            hypothesis=self.hypothesis, laval_run_id="run-1", thesis_id="thesis-1", actor="owner"
+        )
+        _decision, mutated = self.commander.decide_validation(
+            workspace=workspace, action="mutate", rationale="Keep only the strongest behavior.", actor="owner",
+            selected_mechanism_ids=(mechanisms[1].id,),
+        )
+        self.assertIsNotNone(mutated)
+        selected = {
+            edge.target_id for edge in self.store.relationships()
+            if edge.source_id == mutated.id and edge.relation == RelationType.CONTAINS
+        }
+        self.assertEqual({mechanisms[1].id}, selected)
+        with self.assertRaisesRegex(ValueError, "5-8 step"):
+            self.commander.decide_validation(
+                workspace=workspace, action="pivot", rationale="Change the core loop.", actor="owner",
+                product_loop=("Arrive", "Act"),
+            )
+        _decision, pivoted = self.commander.decide_validation(
+            workspace=workspace, action="pivot", rationale="Change the core loop.", actor="owner",
+            product_loop=("Discover", "Invite", "Try", "Prove", "Return"),
+        )
+        self.assertEqual(["Discover", "Invite", "Try", "Prove", "Return"], pivoted.attributes["product_loop"])
+
+    def test_every_manual_probe_type_is_supported_without_external_execution(self) -> None:
+        workspace = self.commander.select_product_thesis(
+            hypothesis=self.hypothesis, laval_run_id="run-1", thesis_id="thesis-1", actor="owner"
+        )
+        for probe_type in sorted(self.commander.MARKET_PROBE_TYPES):
+            probe = self.commander.create_market_probe(
+                workspace=workspace, hypothesis=self.hypothesis, probe_type=probe_type,
+                assumption_id=f"{probe_type}-assumption", assumption="The declared behavior occurs.",
+                procedure="The owner executes this probe manually.", target_segment="creators",
+                metric="qualified_interest", threshold=.25, sample_target=10, duration_days=7,
+                budget_minor=0, actor="owner",
+            )
+            self.assertEqual("manual_owner_only", probe.attributes["external_execution"])
+            self.assertIsNone(self.commander._experiment_status(probe))
 
 
 class TelegramControlPlaneTests(unittest.TestCase):

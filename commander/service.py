@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Mapping
+import re
+from typing import Any, Iterable, Mapping, Sequence
 
 from .model import Entity, EntityKind, RelationType, Relationship
 from .policy import CommanderPolicy, PolicyDenied
@@ -10,6 +11,15 @@ from .store import KnowledgeStore
 
 
 class Commander:
+    MARKET_PROBE_TYPES = frozenset({
+        "landing_page", "fake_door", "outreach", "mock_flow",
+        "creator_feedback", "community_test", "concierge",
+    })
+    THESIS_DECISIONS = frozenset({"continue", "mutate", "pivot", "reject"})
+    SENSITIVE_OBSERVATION = re.compile(
+        r"-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:api[_ -]?key|password|secret|token)\s*[:=]|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}",
+        re.IGNORECASE,
+    )
     def __init__(self, store: KnowledgeStore, policy: CommanderPolicy) -> None:
         self.store = store
         self.policy = policy
@@ -133,6 +143,325 @@ class Commander:
         self.relate(experiment, RelationType.TESTED_IN, audience)
         self.transition_experiment(experiment, "running", actor=approved_by or "commander")
         return experiment
+
+    def select_product_thesis(
+        self,
+        *,
+        hypothesis: Entity,
+        laval_run_id: str,
+        thesis_id: str,
+        actor: str,
+    ) -> Entity:
+        """Idempotently open a validation workspace without executing a probe."""
+
+        self._require_kind(hypothesis, EntityKind.HYPOTHESIS)
+        if str(hypothesis.attributes.get("idea_laval_thesis_id") or "") != thesis_id:
+            raise ValueError("hypothesis does not represent the selected Laval thesis")
+        existing = next((
+            item for item in self.store.entities(EntityKind.VALIDATION_WORKSPACE)
+            if str(item.attributes.get("hypothesis_id")) == hypothesis.id
+        ), None)
+        if existing is not None:
+            return existing
+        try:
+            workspace = self.create_entity(
+                EntityKind.VALIDATION_WORKSPACE,
+                {
+                    "hypothesis_id": hypothesis.id,
+                    "idea_laval_run_id": laval_run_id,
+                    "idea_laval_thesis_id": thesis_id,
+                    "selected_by": actor,
+                    "status": "probe_planning",
+                    "external_actions_automatic": False,
+                },
+                actor=actor,
+                reasoning_summary="Owner selected a surviving product thesis for bounded validation.",
+                evidence_ids=(hypothesis.id,),
+            )
+        except Exception:
+            # The database uniqueness constraint closes a concurrent double-click
+            # race; return the winner as the same idempotent selection.
+            existing = next((
+                item for item in self.store.entities(EntityKind.VALIDATION_WORKSPACE)
+                if str(item.attributes.get("hypothesis_id")) == hypothesis.id
+            ), None)
+            if existing is not None:
+                return existing
+            raise
+        self.relate(workspace, RelationType.DERIVED_FROM, hypothesis)
+        assumptions = list(hypothesis.attributes.get("dangerous_assumptions") or [])
+        defaults = ("landing_page", "outreach", "concierge")
+        for index, probe_type in enumerate(defaults):
+            raw = assumptions[index % len(assumptions)] if assumptions else {}
+            statement = raw.get("statement") if isinstance(raw, Mapping) else raw
+            if isinstance(statement, Mapping):
+                statement = statement.get("en")
+            self.create_market_probe(
+                workspace=workspace,
+                hypothesis=hypothesis,
+                probe_type=probe_type,
+                assumption_id=str(raw.get("id") or f"assumption-{index + 1}") if isinstance(raw, Mapping) else f"assumption-{index + 1}",
+                assumption=str(statement or "Test the thesis's riskiest behavior assumption."),
+                procedure=f"Manually run a bounded {probe_type.replace('_', ' ')} probe; PTW records results but performs no external action.",
+                target_segment=str(hypothesis.attributes.get("scope") or "target segment"),
+                metric=str((hypothesis.attributes.get("success_criterion") or {}).get("metric") or "validated_demand_signal"),
+                threshold=float((hypothesis.attributes.get("success_criterion") or {}).get("threshold") or .1),
+                sample_target=10,
+                duration_days=7,
+                budget_minor=0,
+                actor=actor,
+            )
+        return workspace
+
+    def create_market_probe(
+        self,
+        *,
+        workspace: Entity,
+        hypothesis: Entity,
+        probe_type: str,
+        assumption_id: str,
+        assumption: str,
+        procedure: str,
+        target_segment: str,
+        metric: str,
+        threshold: float,
+        sample_target: int,
+        duration_days: int,
+        budget_minor: int,
+        actor: str,
+        supersedes_probe: Entity | None = None,
+    ) -> Entity:
+        self._require_kind(workspace, EntityKind.VALIDATION_WORKSPACE)
+        self._require_kind(hypothesis, EntityKind.HYPOTHESIS)
+        if probe_type not in self.MARKET_PROBE_TYPES:
+            raise ValueError("unsupported market probe type")
+        if not assumption.strip() or not procedure.strip() or not metric.strip():
+            raise ValueError("probe assumption, procedure, and metric are required")
+        if sample_target < 1 or not 1 <= duration_days <= 90 or budget_minor < 0:
+            raise ValueError("probe sample, duration, or budget is outside the bounded range")
+        if supersedes_probe is not None:
+            self._require_kind(supersedes_probe, EntityKind.EXPERIMENT)
+            if (
+                supersedes_probe.attributes.get("experiment_type") != "market_probe"
+                or supersedes_probe.attributes.get("workspace_id") != workspace.id
+                or self._experiment_status(supersedes_probe) is not None
+            ):
+                raise ValueError("only a proposed probe in this workspace can be revised")
+        probe = self.create_entity(
+            EntityKind.EXPERIMENT,
+            {
+                "experiment_type": "market_probe",
+                "workspace_id": workspace.id,
+                "hypothesis_id": hypothesis.id,
+                "probe_type": probe_type,
+                "assumption_id": assumption_id,
+                "assumption": assumption[:4000],
+                "procedure": procedure[:10_000],
+                "target_segment": target_segment[:4000],
+                "success_criterion": {"metric": metric, "operator": ">=", "threshold": float(threshold)},
+                "sample_target": sample_target,
+                "duration_days": duration_days,
+                "budget_minor": budget_minor,
+                "approved_by": None,
+                "policy_version": self.policy.version,
+                "policy_digest": self.policy.digest,
+                "external_execution": "manual_owner_only",
+                "evidence_capture": "Record aggregate metrics, sample size, timeframe, bounded notes, limitations, and optional source URL.",
+            },
+            actor=actor,
+            reasoning_summary="Prepared a manual market probe; no external action was started.",
+            evidence_ids=(workspace.id, hypothesis.id),
+        )
+        self.relate(workspace, RelationType.CONTAINS, probe)
+        self.relate(probe, RelationType.TESTS, hypothesis)
+        if supersedes_probe is not None:
+            self.relate(probe, RelationType.SUPERSEDES, supersedes_probe)
+        return probe
+
+    def start_market_probe(self, probe: Entity, *, actor: str) -> Entity:
+        self._require_kind(probe, EntityKind.EXPERIMENT)
+        if probe.attributes.get("experiment_type") != "market_probe":
+            raise ValueError("experiment is not a manual market probe")
+        if self._experiment_status(probe) is not None:
+            raise ValueError("market probe has already been started")
+        running = sum(
+            self._experiment_status(entity) == "running"
+            for entity in self.store.entities(EntityKind.EXPERIMENT)
+        )
+        self.policy.check_experiment(
+            approved=True,
+            budget_minor=int(probe.attributes.get("budget_minor") or 0),
+            running=running,
+        )
+        return self.transition_experiment(probe, "running", actor=actor)
+
+    def complete_market_probe(
+        self,
+        *,
+        probe: Entity,
+        values: Mapping[str, float],
+        sample_size: int,
+        timeframe: str,
+        notes: str,
+        limitations: str,
+        source_url: str | None,
+        actor: str,
+    ) -> tuple[Entity, Entity, Entity]:
+        self._require_kind(probe, EntityKind.EXPERIMENT)
+        if probe.attributes.get("experiment_type") != "market_probe" or self._experiment_status(probe) != "running":
+            raise ValueError("only a running market probe can be completed")
+        if sample_size < 0 or not values:
+            raise ValueError("aggregate probe values are required")
+        if self.SENSITIVE_OBSERVATION.search(f"{notes}\n{limitations}"):
+            raise ValueError("probe observations must not contain secrets or personal contact data")
+        hypothesis = self.store.get_entity(str(probe.attributes["hypothesis_id"]))
+        source = self.create_entity(
+            EntityKind.SOURCE,
+            {
+                "title": f"Manual {probe.attributes['probe_type']} probe result",
+                "source_uri": (source_url or f"ptw://market-probe/{probe.id}")[:4000],
+                "finding_summary": notes[:10_000],
+                "publisher": "PTW owner validation",
+                "credibility": .8,
+                "research_type": "product_validation",
+                "factual": True,
+                "sample_size": sample_size,
+                "timeframe": timeframe[:500],
+                "limitations": limitations[:4000],
+            },
+            actor=actor,
+            reasoning_summary="Recorded owner-supplied aggregate probe evidence separately from interpretation.",
+            evidence_ids=(probe.id,),
+        )
+        metrics = self.ingest_metrics(
+            experiment=probe,
+            source=source,
+            values={str(key): float(value) for key, value in values.items()},
+            attribution_window=timeframe[:500],
+        )
+        observation, insight = self.evaluate(experiment=probe, hypothesis=hypothesis, metric_set=metrics)
+        workspace = self.store.get_entity(str(probe.attributes["workspace_id"]))
+        self.relate(workspace, RelationType.CONTAINS, observation)
+        self.relate(workspace, RelationType.CONTAINS, insight)
+        return observation, insight, metrics
+
+    def decide_validation(
+        self,
+        *,
+        workspace: Entity,
+        action: str,
+        rationale: str,
+        actor: str,
+        selected_mechanism_ids: Sequence[str] = (),
+        product_loop: Sequence[str] = (),
+    ) -> tuple[Entity, Entity | None]:
+        self._require_kind(workspace, EntityKind.VALIDATION_WORKSPACE)
+        if action not in self.THESIS_DECISIONS or not rationale.strip():
+            raise ValueError("decision action and rationale are required")
+        hypothesis = self.store.get_entity(str(workspace.attributes["hypothesis_id"]))
+        hypothesis_edges = [edge for edge in self.store.relationships() if edge.source_id == hypothesis.id]
+        mechanism_ids = {
+            edge.target_id for edge in hypothesis_edges
+            if edge.relation == RelationType.CONTAINS
+            and self.store.get_entity(edge.target_id).kind == EntityKind.PRODUCT_MECHANISM
+        }
+        selected_ids = tuple(dict.fromkeys(str(value) for value in selected_mechanism_ids))
+        if action == "mutate" and (not selected_ids or not set(selected_ids).issubset(mechanism_ids)):
+            raise ValueError("mutate requires an explicit subset of the thesis mechanisms")
+        cleaned_loop = tuple(str(value).strip() for value in product_loop if str(value).strip())
+        if action == "pivot":
+            if not 5 <= len(cleaned_loop) <= 8:
+                raise ValueError("pivot requires a materially different 5-8 step product loop")
+            if list(cleaned_loop) == list(hypothesis.attributes.get("product_loop") or []):
+                raise ValueError("pivot product loop must differ from the current thesis")
+        contained_ids = {
+            edge.target_id for edge in self.store.relationships()
+            if edge.source_id == workspace.id and edge.relation == RelationType.CONTAINS
+        }
+        insights = [item for item in self.store.entities(EntityKind.INSIGHT) if item.id in contained_ids]
+        if action == "continue" and not insights:
+            raise ValueError("continue requires at least one evaluated market probe")
+        if insights:
+            insight = max(insights, key=lambda item: item.created_at)
+        else:
+            insight = self.create_entity(
+                EntityKind.INSIGHT,
+                {"interpretation": rationale[:10_000], "scope": hypothesis.attributes.get("scope"), "owner_override": True},
+                actor=actor,
+                reasoning_summary="Owner recorded a scoped thesis decision before another probe.",
+                evidence_ids=(hypothesis.id,),
+            )
+            self.relate(workspace, RelationType.CONTAINS, insight)
+        prior_decisions = [item for item in self.store.entities(EntityKind.DECISION) if item.id in contained_ids]
+        previous = max(prior_decisions, key=lambda item: item.created_at) if prior_decisions else None
+        decision = self.decide(
+            insight=insight,
+            hypothesis=hypothesis,
+            decision_key=f"validation:{workspace.id}",
+            action=action,
+            confidence=1.0,
+            previous_decision=previous,
+            approved_by=actor,
+            rationale=rationale,
+        )
+        self.relate(workspace, RelationType.CONTAINS, decision)
+        replacement = None
+        if action in {"mutate", "pivot"}:
+            replacement = self.create_entity(
+                EntityKind.HYPOTHESIS,
+                {
+                    **dict(hypothesis.attributes),
+                    "claim": f"{action.title()} of {hypothesis.attributes.get('claim', '')}: {rationale[:4000]}",
+                    "status": "proposed",
+                    "revision_reason": rationale[:4000],
+                    "revision_action": action,
+                    **({"product_loop": list(cleaned_loop)} if action == "pivot" else {}),
+                },
+                actor=actor,
+                reasoning_summary=f"Created an append-only thesis {action} revision.",
+                evidence_ids=(decision.id, hypothesis.id),
+            )
+            self.relate(replacement, RelationType.SUPERSEDES, hypothesis)
+            for edge in hypothesis_edges:
+                if edge.relation == RelationType.DERIVED_FROM:
+                    self.relate(replacement, edge.relation, self.store.get_entity(edge.target_id))
+                elif edge.relation == RelationType.CONTAINS and (
+                    action == "pivot" or edge.target_id in selected_ids
+                ):
+                    self.relate(replacement, edge.relation, self.store.get_entity(edge.target_id))
+        return decision, replacement
+
+    def validation_snapshot(self, workspace: Entity) -> Mapping[str, Any]:
+        self._require_kind(workspace, EntityKind.VALIDATION_WORKSPACE)
+        contained = [
+            self.store.get_entity(edge.target_id)
+            for edge in self.store.relationships()
+            if edge.source_id == workspace.id and edge.relation == RelationType.CONTAINS
+        ]
+        hypothesis = self.store.get_entity(str(workspace.attributes["hypothesis_id"]))
+        mechanisms = [
+            self.store.get_entity(edge.target_id).to_dict()
+            for edge in self.store.relationships()
+            if edge.source_id == hypothesis.id and edge.relation == RelationType.CONTAINS
+            and self.store.get_entity(edge.target_id).kind == EntityKind.PRODUCT_MECHANISM
+        ]
+        superseded_probe_ids = {
+            edge.target_id for edge in self.store.relationships()
+            if edge.relation == RelationType.SUPERSEDES
+            and self.store.get_entity(edge.source_id).kind == EntityKind.EXPERIMENT
+        }
+        return {
+            "workspace": workspace.to_dict(),
+            "hypothesis": hypothesis.to_dict(),
+            "mechanisms": mechanisms,
+            "probes": [
+                {**item.to_dict(), "status": "superseded" if item.id in superseded_probe_ids else self._experiment_status(item) or "proposed"}
+                for item in contained if item.kind == EntityKind.EXPERIMENT
+            ],
+            "observations": [item.to_dict() for item in contained if item.kind == EntityKind.OBSERVATION],
+            "insights": [item.to_dict() for item in contained if item.kind == EntityKind.INSIGHT],
+            "decisions": [item.to_dict() for item in contained if item.kind == EntityKind.DECISION],
+        }
 
     def request_experiment_approval(
         self,
@@ -583,6 +912,7 @@ class Commander:
         confidence: float,
         previous_decision: Entity | None = None,
         approved_by: str | None = None,
+        rationale: str | None = None,
     ) -> Entity:
         if not 0 <= confidence <= 1:
             raise ValueError("confidence must be between 0 and 1")
@@ -602,7 +932,7 @@ class Commander:
                 "confidence": confidence,
                 "version": version,
                 "approved_by": approved_by,
-                "reasoning_summary": "Decision follows the scoped insight and recorded evidence.",
+                "reasoning_summary": (rationale or "Decision follows the scoped insight and recorded evidence.")[:10_000],
             },
             actor=approved_by or "commander",
             reasoning_summary="Created an append-only decision version.",

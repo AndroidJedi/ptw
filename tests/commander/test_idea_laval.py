@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from commander.ids import new_uuid7
 from idea_generation.laval_context import ContextCompiler
+from idea_generation.config import Settings
 from idea_generation.laval_domain import (
     LavalConfig,
     canonical_domain,
@@ -23,7 +24,7 @@ from idea_generation.laval_domain import (
     opportunity_score,
     trend_score,
 )
-from idea_generation.laval_pipeline import LavalPipeline, _opportunity_validation_error
+from idea_generation.laval_pipeline import LavalPipeline, _opportunity_validation_error, independent_publisher_support
 from idea_generation.laval_fresh_stage import FreshStageRunner
 from idea_generation.laval_notifications import LavalTelegramNotifier, format_laval_status_message
 from idea_generation.laval_providers import (
@@ -33,6 +34,7 @@ from idea_generation.laval_providers import (
     FixtureWebPageProvider,
     NullResearchSink,
     ProviderBundle,
+    providers_from_settings,
 )
 from idea_generation.laval_repository import LavalRepository
 from idea_generation.laval_schemas import SCHEMAS, output_schema, strictly_describes_nested_values
@@ -42,8 +44,32 @@ from idea_generation.store import PostgresStore
 
 
 class LavalDomainTests(unittest.TestCase):
+    def test_missing_youtube_key_is_visible_as_unavailable_instead_of_crashing_startup(self) -> None:
+        settings = Settings(
+            database_url="postgres://unused", telegram_token="test",
+            allowed_chat_ids=frozenset({1}), allowed_user_ids=frozenset({1}),
+            search_provider="dataforseo", dataforseo_login="login", dataforseo_password="password",
+            dataforseo_verified=True, trend_provider="manual",
+        )
+        bundle = providers_from_settings(settings, MockLLMProvider())
+        self.assertEqual("unavailable", bundle.youtube.name)
+        with self.assertRaisesRegex(RuntimeError, "not configured"):
+            bundle.youtube.search("query", country="US", language="en", limit=3)
+
+    def test_independent_creators_outweigh_duplicate_or_viral_videos(self) -> None:
+        duplicates = [
+            {"publisher": "viral", "metadata": {"youtube_channel_id": "one-channel", "view_count": 100_000_000}}
+            for _ in range(100)
+        ]
+        independent = [
+            {"publisher": f"creator-{index}", "metadata": {"youtube_channel_id": f"channel-{index}", "view_count": 10}}
+            for index in range(10)
+        ]
+        self.assertEqual(.1, independent_publisher_support(duplicates))
+        self.assertEqual(1.0, independent_publisher_support(independent))
+
     def test_every_laval_language_schema_is_strict_at_every_nested_value(self) -> None:
-        self.assertEqual(7, len(SCHEMAS))
+        self.assertEqual(11, len(SCHEMAS))
         for mode, schema in SCHEMAS.items():
             with self.subTest(mode=mode):
                 self.assertTrue(strictly_describes_nested_values(schema))
@@ -61,6 +87,8 @@ class LavalDomainTests(unittest.TestCase):
             LavalConfig.from_mapping({"countries": ["CA"]})
         configured = LavalConfig.from_mapping({"trends": {"max_terms": 7, "windows": ["90d"]}})
         self.assertEqual(configured, LavalConfig.from_mapping(configured.to_dict()))
+        historical = LavalConfig.from_mapping({"approval_gates": ["FINAL_SHORTLIST"]})
+        self.assertEqual(("FINAL_SHORTLIST",), historical.approval_gates)
 
     def test_query_deduplication_preserves_country_and_language_variants(self) -> None:
         values = deduplicate_queries([
@@ -459,7 +487,7 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         result = self.pipeline.run(created["run_id"])
         self.assertEqual("completed", result["run"]["status"])
         self.assertEqual("demo_fixture", result["run"]["evidence_mode"])
-        self.assertEqual(16, len(result["stages"]))
+        self.assertEqual(22, len(result["stages"]))
         self.assertTrue(all(item["status"] in {"completed", "partial"} for item in result["stages"]))
         country_slots = self.store.fetchone("SELECT count(*) n FROM laval_competitor_country_rankings WHERE run_id=%s", (created["run_id"],))["n"]
         self.assertEqual(15, country_slots)
@@ -488,9 +516,31 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         self.assertGreater(self.store.fetchone("SELECT count(*) n FROM laval_lineage_edges WHERE run_id=%s", (created["run_id"],))["n"], 50)
         query_stage = self.repository.stage(created["run_id"], "QUERY_PLAN")
         self.assertGreater(query_stage["cost"]["input_tokens"], 0)
-        final = self.repository.show(created["run_id"], "FINAL_SHORTLIST")["output"]
-        self.assertEqual(10, len(final["shortlist"]))
-        self.assertEqual(3, len(final["finalists"]))
+        final = self.repository.show(created["run_id"], "THESIS_SHORTLIST")["output"]
+        self.assertEqual("ready", final["status"])
+        self.assertLessEqual(len(final["theses"]), 3)
+        self.assertEqual(1, sum(bool(item["recommended"]) for item in final["theses"]))
+        self.assertTrue(all(item["verdict"] in {"survives", "weak", "rejected"} for item in final["theses"]))
+        self.assertGreaterEqual(self.store.fetchone(
+            "SELECT count(*) n FROM laval_product_mechanisms WHERE run_id=%s", (created["run_id"],)
+        )["n"], 6)
+        self.assertEqual(24, self.store.fetchone(
+            """SELECT count(DISTINCT variant_id) n
+               FROM laval_product_mechanisms m, unnest(m.source_variant_ids) variant_id
+               WHERE m.run_id=%s""", (created["run_id"],)
+        )["n"])
+        self.assertGreater(self.store.fetchone(
+            """WITH ranked AS (
+                   SELECT idea_id,row_number() OVER (ORDER BY final_score DESC,idea_id) AS rank
+                   FROM laval_idea_scores WHERE run_id=%s
+               )
+               SELECT count(*) n
+               FROM laval_product_theses t
+               JOIN laval_product_mechanisms m ON m.id=ANY(t.mechanism_ids)
+               JOIN ranked r ON r.idea_id=ANY(m.source_variant_ids)
+               WHERE t.run_id=%s AND t.recommended=TRUE AND r.rank>10""",
+            (created["run_id"], created["run_id"]),
+        )["n"], 0)
         opportunity_targets = self.repository.show(created["run_id"], "OPPORTUNITY_MATRIX")["override_targets"]
         self.assertTrue(opportunity_targets)
         self.assertEqual({"opportunity"}, {item["kind"] for item in opportunity_targets})
@@ -542,6 +592,77 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         self.assertEqual(0, self.store.fetchone(
             "SELECT count(*) n FROM laval_provider_tasks WHERE run_id=%s",
             (created["run_id"],),
+        )["n"])
+
+    def test_youtube_velocity_is_append_only_and_requires_two_snapshots(self) -> None:
+        created = self.repository.create_run("Measure creator behavior twice.", self._config(), actor="test")
+        run_id = created["run_id"]
+        self.pipeline.run(run_id, through_stage="YOUTUBE_DISCOVERY")
+        first = self.repository.show(run_id, "YOUTUBE_DISCOVERY")["output"]
+        self.assertTrue(all(item["velocity"]["status"] == "insufficient_history" for item in first["videos"]))
+        snapshot_count = self.store.fetchone(
+            "SELECT count(*) n FROM laval_youtube_snapshots WHERE run_id=%s", (run_id,)
+        )["n"]
+        self.repository.invalidate_from(run_id, "YOUTUBE_DISCOVERY")
+        self.pipeline.run(run_id, through_stage="YOUTUBE_DISCOVERY")
+        second = self.repository.show(run_id, "YOUTUBE_DISCOVERY")["output"]
+        self.assertTrue(all(item["velocity"]["status"] == "measured_delta" for item in second["videos"]))
+        self.assertEqual(snapshot_count * 2, self.store.fetchone(
+            "SELECT count(*) n FROM laval_youtube_snapshots WHERE run_id=%s", (run_id,)
+        )["n"])
+
+    def test_owner_transcript_is_manual_source_and_never_required(self) -> None:
+        created = self.repository.create_run("Use optional owner context.", self._config(), actor="test")
+        run_id = created["run_id"]
+        self.pipeline.run(run_id, through_stage="YOUTUBE_DISCOVERY")
+        source = self.repository.add_manual_youtube_transcript(
+            run_id,
+            video_url="https://www.youtube.com/watch?v=owner-context",
+            title="Owner transcript",
+            transcript="Owner supplied this bounded transcript; Laval did not retrieve captions.",
+            actor="owner",
+        )
+        self.assertEqual("manual", source["source_type"])
+        evidence = self.store.fetchone("SELECT * FROM laval_evidence WHERE id=%s", (source["evidence_id"],))
+        self.assertEqual("owner_supplied_transcript", evidence["metadata"]["source_kind"])
+        self.pipeline.run(run_id, through_stage="YOUTUBE_OBSERVATION")
+        self.assertEqual("completed", self.repository.stage(run_id, "YOUTUBE_OBSERVATION")["status"])
+
+    def test_no_survivor_completion_does_not_manufacture_recommendation(self) -> None:
+        created = self.repository.create_run("Reject unsupported thesis loops.", self._config(), actor="test")
+        run_id = created["run_id"]
+        self.pipeline.run(run_id)
+        self.store.execute("UPDATE laval_product_theses SET verdict='weak',recommended=FALSE WHERE run_id=%s RETURNING 1", (run_id,))
+        self.store.execute("UPDATE laval_thesis_falsifications SET verdict='weak' WHERE run_id=%s RETURNING 1", (run_id,))
+        self.repository.invalidate_from(run_id, "THESIS_SHORTLIST")
+        result = self.pipeline.run(run_id)
+        shortlist = self.repository.show(run_id, "THESIS_SHORTLIST")["output"]
+        self.assertEqual("completed", result["run"]["status"])
+        self.assertEqual("no_surviving_thesis", shortlist["status"])
+        self.assertIsNone(shortlist["recommended_thesis_id"])
+
+    def test_rerun_flags_selected_workspace_and_builds_a_fresh_recommendation(self) -> None:
+        created = self.repository.create_run("Preserve selected validation history.", self._config(), actor="test")
+        run_id = created["run_id"]
+        self.pipeline.run(run_id)
+        selected = self.store.fetchone(
+            "SELECT id FROM laval_product_theses WHERE run_id=%s AND recommended=TRUE", (run_id,)
+        )
+        hypothesis_id, workspace_id = new_uuid7(), new_uuid7()
+        self.store.execute(
+            "UPDATE laval_product_theses SET commander_hypothesis_id=%s WHERE id=%s RETURNING 1",
+            (hypothesis_id, selected["id"]),
+        )
+        self.repository.select_thesis(run_id, str(selected["id"]), workspace_id, actor="owner")
+        self.repository.invalidate_from(run_id, "MECHANISM_EXTRACTION")
+        self.pipeline.run(run_id)
+        historical = self.store.fetchone("SELECT * FROM laval_product_theses WHERE id=%s", (selected["id"],))
+        self.assertTrue(historical["validation_stale"])
+        self.assertEqual(workspace_id, str(historical["validation_workspace_id"]))
+        self.assertFalse(historical["recommended"])
+        self.assertEqual(1, self.store.fetchone(
+            "SELECT count(*) n FROM laval_product_theses WHERE run_id=%s AND recommended=TRUE AND validation_stale=FALSE",
+            (run_id,),
         )["n"])
 
     def test_historical_live_fallback_is_not_presented_as_a_valid_artifact(self) -> None:
@@ -881,7 +1002,7 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         self.assertEqual(0, result["queued"])
         self.assertEqual(123, telegram.calls[0][0])
         self.assertIn("S00 OWNER_CAPTURE — completed", telegram.calls[0][1])
-        self.assertIn("S15 FINAL_SHORTLIST — pending", telegram.calls[0][1])
+        self.assertIn("S21 THESIS_SHORTLIST — pending", telegram.calls[0][1])
         row = self.store.fetchone(
             "SELECT action,outcome,details FROM laval_run_actions "
             "WHERE run_id=%s AND action='telegram_status_sent' ORDER BY created_at DESC LIMIT 1",
@@ -938,7 +1059,7 @@ class LavalPostgresIntegrationTests(unittest.TestCase):
         stages = {item["stage"]: item["status"] for item in self.repository.stages(created["run_id"])}
         self.assertEqual("pending", stages["SERP_DISCOVERY"])
         self.assertEqual("stale", stages["COMPETITOR_SELECTION"])
-        self.assertEqual("stale", stages["FINAL_SHORTLIST"])
+        self.assertEqual("stale", stages["THESIS_SHORTLIST"])
 
     def test_manual_competitor_add_and_reject_are_audited_and_invalidate_downstream(self) -> None:
         created = self.repository.create_run("Visible progress proof.", self._config(), actor="test")

@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: iOS Safari owner-login recovery fix ready for Hosting rollout
+Status: iOS Safari owner-login recovery fix deployed
 Updated: 2026-08-21
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -15,7 +15,8 @@ separate bounded ID-token/App-Check wait turn browser storage stalls into a
 visible retry path instead of an indefinite loading screen. The service worker
 also bypasses all Firebase `/__/auth/` helper and callback traffic, and the
 production build/live audit requires these Safari safeguards. The shell cache
-is bumped to `ptw-shell-v16`.
+is bumped to `ptw-shell-v16`. Firebase Hosting version `bca9633a185d6218`
+serves `index-4XLnhkNC.js` and `App-Cix7w3By.js` from source commit `feeaf8f`.
 
 The incident was isolated before the Owner Gateway: the live shell, lazy App
 chunk, App Check marker, gateway health, negative authentication, CORS, VPS
@@ -24,8 +25,12 @@ attempt produced no API preflight or request after Google sign-in. New unit
 coverage proves a redirect result opens the console even when the Auth observer
 never fires and a completely stalled boot becomes recoverable. Vitest passes
 24 tests, Playwright passes nine checks across desktop, mobile Chrome, and
-iPhone WebKit, and the production web build gate passes. Hosting rollout and a
-physical authenticated iPhone reload remain outstanding.
+iPhone WebKit, and the production web build gate passes. The post-deploy live
+audit confirms the exact chunks, Auth persistence marker, App Check header/site
+key, `/__/auth/` worker bypass, gateway health, negative authentication, and
+CORS. A controlled production iPhone WebKit client under `ptw-shell-v16`
+reaches the Google account page. A physical authenticated iPhone return and
+Overview response remain the only owner-only acceptance.
 
 Completed Idea Laval cases now expose one primary `Завантажити PDF` action in
 the Research header. The Idea service generates a concise Ukrainian report with
@@ -297,6 +302,18 @@ verified Google Firebase user.
 
 ## Verification
 
+- Safari recovery Hosting version `bca9633a185d6218` serves
+  `index-4XLnhkNC.js`, `App-Cix7w3By.js`, and `ptw-shell-v16`. The live audit
+  proves the compiled local-storage Auth marker, App Check header/site key,
+  Firebase Auth helper worker bypass, gateway health, negative authentication,
+  and CORS. A controlled iPhone WebKit session loaded the login screen under
+  the active worker and reached the first-party Google sign-in flow. Vitest
+  passes 24 checks, Playwright passes nine cross-browser checks, Owner Gateway
+  passes 20 tests, Commander passes 109 tests with 52 expected local dependency
+  skips, Firebase Functions type-checks, the Commander demo and production
+  build gate pass, and skill verification plus `git diff --check` pass. The
+  remaining acceptance is a physical owner-authenticated iPhone return and
+  successful Overview response.
 - PTW release `laval-review-acc03a2` at commit `acc03a2` is live in all three
   healthy application services. Firebase Hosting version `3ea404fd83205aca`
   serves `index-DYdpqXmf.js`, `App-DtIiyHPO.js`, and `ptw-shell-v14`; the

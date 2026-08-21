@@ -73,6 +73,7 @@ def main() -> None:
         "Commander API origin": args.api,
         "App Check header": "X-Firebase-AppCheck",
         "reCAPTCHA Enterprise site key": args.site_key,
+        "Safari-safe Auth persistence": "ptw-auth-local-storage-v1",
     }.items():
         require(marker in app_bundle, f"Live App bundle is missing {label}")
 
@@ -80,6 +81,10 @@ def main() -> None:
     require(status == 200, f"Service worker returned HTTP {status}")
     cache_match = re.search(r"const CACHE = '([^']+)'", worker_bytes.decode())
     require(cache_match is not None, "Unable to resolve service-worker cache")
+    require(
+        "url.pathname.startsWith('/__/auth/')" in worker_bytes.decode(),
+        "Live service worker does not bypass Firebase Auth helper traffic",
+    )
 
     health_status, _, health_bytes = fetch(f"{args.api}/healthz")
     require(health_status == 200, f"Gateway health returned HTTP {health_status}")

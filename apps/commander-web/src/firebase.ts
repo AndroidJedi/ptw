@@ -1,6 +1,11 @@
 import { initializeApp } from 'firebase/app'
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, type AppCheck } from 'firebase/app-check'
-import { browserLocalPersistence, getAuth, GoogleAuthProvider, setPersistence } from 'firebase/auth'
+import {
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
+  GoogleAuthProvider,
+  initializeAuth,
+} from 'firebase/auth'
 
 const firebaseConfig = {
   apiKey: 'AIzaSyAQT3Qju_9XOn0FMnW2_oU5QrN40Zx1Srw',
@@ -18,8 +23,15 @@ const firebaseConfig = {
 const productionAppCheckKey = '6LfFjYstAAAAAJaFuUPZYS9U17vROLcN7Fx6iOQL'
 
 export const firebaseApp = initializeApp(firebaseConfig)
-export const auth = getAuth(firebaseApp)
-void setPersistence(auth, browserLocalPersistence)
+// Safari can leave Firebase's default IndexedDB persistence waiting forever,
+// especially after a redirect or when another PTW tab has been open for a long
+// time. Select localStorage before Auth initializes instead of migrating the
+// session asynchronously after getAuth().
+export const AUTH_PERSISTENCE_MARKER = 'ptw-auth-local-storage-v1'
+export const auth = initializeAuth(firebaseApp, {
+  persistence: browserLocalPersistence,
+  popupRedirectResolver: browserPopupRedirectResolver,
+})
 export const googleProvider = new GoogleAuthProvider()
 googleProvider.setCustomParameters({ prompt: 'select_account', login_hint: 'sgolovaschuk@gmail.com' })
 

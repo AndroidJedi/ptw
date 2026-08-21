@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchWithDeadline, resolveApiBaseUrl } from './api'
+
+vi.mock('./firebase', () => ({ appCheck: {} }))
+
+import { fetchWithDeadline, resolveApiBaseUrl, resolveFirebaseTokens } from './api'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -28,6 +31,18 @@ describe('API deadline', () => {
     })))
     const request = fetchWithDeadline('/api/v1/overview', {}, 25)
     const rejected = expect(request).rejects.toThrow(/Сервер може бути перевантажений.*Повторити/)
+    await vi.advanceTimersByTimeAsync(25)
+    await rejected
+  })
+
+  it('turns stalled Firebase credentials into a retryable error before fetch', async () => {
+    vi.useFakeTimers()
+    const tokens = resolveFirebaseTokens(
+      new Promise<string>(() => undefined),
+      new Promise<{ token: string }>(() => undefined),
+      25,
+    )
+    const rejected = expect(tokens).rejects.toThrow(/Firebase ID token \/ App Check.*Повторити/)
     await vi.advanceTimersByTimeAsync(25)
     await rejected
   })

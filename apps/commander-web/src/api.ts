@@ -4,6 +4,7 @@ import { appCheck } from './firebase'
 
 const PRODUCTION_API_URL = 'https://commander.proove-them-wrong.com'
 export const API_DEADLINE_MS = 15_000
+export const FIREBASE_TOKEN_DEADLINE_MS = 10_000
 
 export function resolveApiBaseUrl(configured: string | undefined, production: boolean) {
   return (configured || (production ? PRODUCTION_API_URL : '')).replace(/\/$/, '')
@@ -35,6 +36,25 @@ export async function fetchWithDeadline(
   }
 }
 
+export async function resolveFirebaseTokens(
+  idTokenRequest: Promise<string>,
+  appCheckTokenRequest: Promise<{ token: string }>,
+  deadlineMs = FIREBASE_TOKEN_DEADLINE_MS,
+): Promise<[string, string]> {
+  let timeout = 0
+  const seconds = Math.ceil(deadlineMs / 1000)
+  try {
+    return await Promise.race([
+      Promise.all([idTokenRequest, appCheckTokenRequest]).then(([idToken, appCheckToken]) => [idToken, appCheckToken.token] as [string, string]),
+      new Promise<never>((_resolve, reject) => {
+        timeout = window.setTimeout(() => reject(new Error(`Firebase ID token / App Check не готові протягом ${seconds} секунд. Оновіть сторінку й натисніть «Повторити».`)), deadlineMs)
+      }),
+    ])
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+
 async function jsonBody(response: Response): Promise<unknown> {
   const contentType = response.headers.get('content-type') || ''
   if (!contentType.toLowerCase().includes('application/json')) {
@@ -47,13 +67,13 @@ export class ApiClient {
   constructor(private readonly user: User) {}
 
   private async headers(json = false): Promise<HeadersInit> {
-    const token = await this.user.getIdToken()
+    const e2eMode = import.meta.env.DEV && (import.meta.env.VITE_E2E === 'true' || new URLSearchParams(window.location.search).has('e2e'))
+    const [token, appCheckToken] = e2eMode
+      ? [await this.user.getIdToken(), 'e2e-app-check']
+      : await resolveFirebaseTokens(this.user.getIdToken(), getToken(appCheck, false))
     const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
     if (json) headers['Content-Type'] = 'application/json'
-    const e2eMode = import.meta.env.DEV && (import.meta.env.VITE_E2E === 'true' || new URLSearchParams(window.location.search).has('e2e'))
-    headers['X-Firebase-AppCheck'] = e2eMode
-      ? 'e2e-app-check'
-      : (await getToken(appCheck, false)).token
+    headers['X-Firebase-AppCheck'] = appCheckToken
     return headers
   }
 

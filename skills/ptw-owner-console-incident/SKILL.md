@@ -53,7 +53,7 @@ Then inspect every applicable boundary:
    and `password_present`; never print the DSN. Run `PlatformRepository.summary()`
    inside the gateway container to verify the exact failing read path.
 6. **PWA:** inspect the active worker version and caches. API, image, WebSocket,
-   and terminal traffic must never enter a cache.
+   terminal, and Firebase `/__/auth/` helper traffic must never enter a cache.
 7. **Deployment state:** compare Git HEAD, VPS HEAD, build hashes, Compose
    interpolation inputs, and live assets. A healthy shallow endpoint or clean
    source tree does not prove dependencies are usable.
@@ -176,10 +176,25 @@ key was absent at build time. In the subsequent Overview load regression, auth
 and App Check succeeded but the gateway had been recreated without the platform
 PostgreSQL password and returned HTTP 500.
 
+If iOS Safari returns from Google but the Owner Gateway receives no CORS
+preflight or authenticated API request, keep diagnosis in the browser boundary.
+Initialize Firebase Auth once with `initializeAuth`, explicit
+`browserLocalPersistence`, and `browserPopupRedirectResolver`; do not call
+`getAuth()` and then fire-and-forget `setPersistence()`, which can migrate the
+session through IndexedDB during the redirect/pagehide lifecycle. Consume
+`getRedirectResult()` from the mounted auth boot path independently of
+`onAuthStateChanged()`, and bound both the boot wait and the ID-token/App-Check
+wait so Safari displays a retryable error instead of an indefinite loading
+screen. The service worker must return without handling every `/__/auth/`
+request, including the top-level OAuth callback.
+
 ## Prevent recurrence
 
 - Keep public browser configuration deterministic in source and App Check
   non-nullable in the API client.
+- Keep Auth persistence deterministic before initialization, consume redirect
+  results even when the Auth observer stalls, and give Firebase credential
+  acquisition its own deadline before the HTTP request deadline begins.
 - Make the production build fail if compiled assets omit the API origin, App
   Check header, or site key. Make Hosting predeploy rebuild and run that gate.
 - Require `${POSTGRES_PASSWORD:?...}` for Compose interpolation and validate
@@ -198,7 +213,8 @@ PostgreSQL password and returned HTTP 500.
 - Exercise strict Laval schemas against the real bridge contract. A generic
   top-level object/array test does not prove nested Codex output schemas are
   accepted, and a deterministic artifact does not prove a model call occurred.
-- Bump the shell cache when behavior must reach already-controlled clients.
+- Bump the shell cache when behavior must reach already-controlled clients, and
+  make the build/live audit fail if the worker handles `/__/auth/` traffic.
 - Update this skill and the current-state checkpoint with reusable evidence.
 - On a 1 GB stall, use one locked serial SSH session after provider recovery.
   Inspect bounded process age/RSS, OOM history, swap, containers, and both

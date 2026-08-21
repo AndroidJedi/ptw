@@ -12,6 +12,14 @@ remains first-party in Safari and other storage-partitioned browsers. The
 parallel `web.app` URL forwards to the canonical origin before Auth is
 initialized.
 
+Browser Auth selects local-storage persistence as part of `initializeAuth`;
+it neither starts with IndexedDB nor asynchronously migrates persistence during
+a redirect. The mounted boot path consumes the redirect result independently of
+the Auth observer, has a bounded Safari recovery path, and the service worker
+never handles `/__/auth/` helper or callback traffic. ID-token and App Check
+acquisition is also bounded separately from the API request deadline so a
+stalled browser credential store becomes a visible retryable failure.
+
 ## Authentication boundary
 
 Identity Platform Google Sign-In is guarded by `beforeUserCreated` and

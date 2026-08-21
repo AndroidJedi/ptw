@@ -1,10 +1,31 @@
 # Commander current state
 
-Status: Idea Laval Ukrainian completed-run PDF deployed
-Updated: 2026-08-20
+Status: iOS Safari owner-login recovery fix ready for Hosting rollout
+Updated: 2026-08-21
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
 ## Current implementation milestone
+
+The Owner Console now restores Firebase redirect sign-in from the mounted boot
+path instead of waiting for the Auth observer to render the login screen first.
+Firebase Auth selects local-storage persistence before initialization, avoiding
+the previous `getAuth()` plus asynchronous persistence migration through
+IndexedDB during Safari redirect/pagehide. A ten-second boot fallback and a
+separate bounded ID-token/App-Check wait turn browser storage stalls into a
+visible retry path instead of an indefinite loading screen. The service worker
+also bypasses all Firebase `/__/auth/` helper and callback traffic, and the
+production build/live audit requires these Safari safeguards. The shell cache
+is bumped to `ptw-shell-v16`.
+
+The incident was isolated before the Owner Gateway: the live shell, lazy App
+chunk, App Check marker, gateway health, negative authentication, CORS, VPS
+dependencies, and authenticated desktop requests were healthy, while the iOS
+attempt produced no API preflight or request after Google sign-in. New unit
+coverage proves a redirect result opens the console even when the Auth observer
+never fires and a completely stalled boot becomes recoverable. Vitest passes
+24 tests, Playwright passes nine checks across desktop, mobile Chrome, and
+iPhone WebKit, and the production web build gate passes. Hosting rollout and a
+physical authenticated iPhone reload remain outstanding.
 
 Completed Idea Laval cases now expose one primary `Завантажити PDF` action in
 the Research header. The Idea service generates a concise Ukrainian report with

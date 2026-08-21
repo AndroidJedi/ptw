@@ -1,4 +1,4 @@
-const CACHE = 'ptw-shell-v15'
+const CACHE = 'ptw-shell-v16'
 const CACHE_PREFIX = 'ptw-shell-'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/ptw.svg']
 
@@ -27,7 +27,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request
   const url = new URL(request.url)
-  if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return
+  if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/__/auth/')) return
   if (!['document', 'script', 'style', 'font', 'manifest'].includes(request.destination)) return
 
   if (request.destination === 'document') {

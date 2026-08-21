@@ -35,7 +35,11 @@ creates its conclusion. Only after that conclusion commits may the next image
 enter review. A single post uses rating/comment without batch advancement.
 Review history is bounded in the API but the PostgreSQL graph remains complete.
 
-Branding is a text-only review specialization. A non-empty owner comment is
-sufficient; rating and annotations are omitted, the immutable Creative and
-artifact are still resolved server-side, and append-only feedback plus
-zero-delta WeightUpdates retain lineage without fabricating preference strength.
+Branding is a text-only review specialization with two unambiguous outcomes.
+A non-empty owner comment is a change request: rating and annotations are
+omitted, the immutable Creative and Artifact are resolved server-side, and
+append-only feedback plus zero-delta WeightUpdates retain lineage without
+fabricating preference strength. The BrandRunner then creates a new immutable
+Creative derived from that feedback and linked to the old Creative through
+`supersedes`. An empty field is an explicit approval of the current Creative.
+A change request never counts as approval and never advances to the next logo.

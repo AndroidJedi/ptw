@@ -303,9 +303,10 @@ class BrandingGraphTests(unittest.TestCase):
     def publish_reviewed_run(self, run_id: str) -> list[dict[str, str]]:
         published = []
         for manifest in self.manifests:
+            external_direction_id = new_uuid7()
             result = self.publisher.publish_direction({
                 "run_id": run_id,
-                "direction_id": new_uuid7(),
+                "direction_id": external_direction_id,
                 "source_laval_run_id": new_uuid7(),
                 "hypothesis_ids": [self.hypothesis.id],
                 "source_ids": [self.source.id],
@@ -324,17 +325,19 @@ class BrandingGraphTests(unittest.TestCase):
                 for edge in self.store.relationships()
                 if edge.source_id == creative.id and edge.relation == RelationType.GENERATED
             )
-            feedback, updates = self.commander.record_text_feedback(
+            feedback, updates = self.commander.record_logo_approval(
                 creative=creative,
                 artifact_digest=str(artifact.attributes["sha256"]),
-                comment="Distinct and clear",
                 actor="firebase:owner",
             )
             self.assertTrue(updates)
             self.assertIsNone(feedback.attributes["rating"])
             self.assertTrue(all(item.attributes["delta"] == 0 for item in updates))
-            self.assertTrue(all(item.attributes["algorithm"] == "owner_text_feedback_v1" for item in updates))
-            published.append({**result, "feedback_id": feedback.id})
+            self.assertEqual("owner_logo_approval", feedback.attributes["feedback_type"])
+            published.append({
+                **result, "feedback_id": feedback.id,
+                "external_direction_id": external_direction_id,
+            })
         return published
 
     def test_three_reviews_approval_and_later_kit_supersedes_without_deletion(self) -> None:
@@ -351,6 +354,9 @@ class BrandingGraphTests(unittest.TestCase):
             "source_laval_run_id": idea_run_id,
             "source_snapshot_hash": "a" * 64,
             "manifest": self.manifests[0],
+            "current_creative_ids": {
+                item["external_direction_id"]: item["creative_id"] for item in first
+            },
             "actor": "firebase:owner",
             "artifact": {"sha256": "b" * 64, "storage_uri": "/var/lib/ptw/assets/first.zip"},
         })
@@ -367,6 +373,9 @@ class BrandingGraphTests(unittest.TestCase):
             "source_laval_run_id": idea_run_id,
             "source_snapshot_hash": "c" * 64,
             "manifest": self.manifests[1],
+            "current_creative_ids": {
+                item["external_direction_id"]: item["creative_id"] for item in second
+            },
             "actor": "firebase:owner",
             "artifact": {"sha256": "d" * 64, "storage_uri": "/var/lib/ptw/assets/second.zip"},
         })
@@ -376,6 +385,53 @@ class BrandingGraphTests(unittest.TestCase):
             edge.source_id == second_kit["brand_kit_id"]
             and edge.target_id == first_kit["brand_kit_id"]
             and edge.relation == RelationType.SUPERSEDES
+            for edge in self.store.relationships()
+        ))
+
+    def test_logo_revision_supersedes_the_creative_and_uses_owner_feedback(self) -> None:
+        run_id = new_uuid7()
+        external_direction_id = new_uuid7()
+        manifest = self.manifests[0]
+        original = self.publisher.publish_direction({
+            "run_id": run_id, "direction_id": external_direction_id,
+            "source_laval_run_id": new_uuid7(), "hypothesis_ids": [self.hypothesis.id],
+            "source_ids": [self.source.id], "manifest": manifest,
+            "evaluation": {"passed": True},
+            "artifact": {
+                "sha256": __import__("hashlib").sha256(b"original").hexdigest(),
+                "storage_uri": "/var/lib/ptw/assets/original.png",
+                "width": 1024, "height": 1024,
+            },
+        })
+        feedback, updates = self.commander.record_text_feedback(
+            creative=self.store.get_entity(original["creative_id"]),
+            artifact_digest=__import__("hashlib").sha256(b"original").hexdigest(),
+            comment="Make the symbol much simpler", actor="firebase:owner",
+        )
+        self.assertTrue(updates)
+        revision_id = new_uuid7()
+        revised = self.publisher.publish_logo_revision({
+            "run_id": run_id, "direction_id": external_direction_id,
+            "revision_id": revision_id, "revision": 2,
+            "previous_creative_id": original["creative_id"],
+            "feedback_id": feedback.id,
+            "artifact": {
+                "sha256": __import__("hashlib").sha256(b"revised").hexdigest(),
+                "storage_uri": "/var/lib/ptw/assets/revised.png",
+                "width": 1024, "height": 1024,
+            },
+        })
+        self.assertNotEqual(original["creative_id"], revised["creative_id"])
+        self.assertTrue(any(
+            edge.source_id == revised["creative_id"]
+            and edge.target_id == original["creative_id"]
+            and edge.relation == RelationType.SUPERSEDES
+            for edge in self.store.relationships()
+        ))
+        self.assertTrue(any(
+            edge.source_id == revised["creative_id"]
+            and edge.target_id == feedback.id
+            and edge.relation == RelationType.DERIVED_FROM
             for edge in self.store.relationships()
         ))
 
@@ -447,7 +503,8 @@ class BrandingPostgresPipelineTests(unittest.TestCase):
         names = {item["tablename"] for item in tables}
         self.assertTrue({
             "brand_runs", "brand_stage_runs", "brand_sources", "brand_directions",
-            "brand_kits", "brand_provider_tasks", "brand_cost_events", "brand_run_actions",
+            "brand_logo_revisions", "brand_kits", "brand_provider_tasks",
+            "brand_cost_events", "brand_run_actions",
         }.issubset(names))
         self.assertEqual("branding_v1", self.store.fetchone(
             "SELECT column_default FROM information_schema.columns WHERE table_name='brand_runs' AND column_name='pipeline_version'"
@@ -483,13 +540,16 @@ class BrandingPostgresPipelineTests(unittest.TestCase):
             def direction(self, payload):
                 return publisher.publish_direction(payload)
 
+            def logo_revision(self, payload):
+                return publisher.publish_logo_revision(payload)
+
             def approve(self, payload):
                 return publisher.approve(payload)
 
         with self.store.transaction() as connection:
             for table in (
                 "brand_run_actions", "brand_cost_events", "brand_provider_tasks", "brand_kits",
-                "brand_directions", "brand_sources", "brand_stage_runs", "brand_runs",
+                "brand_logo_revisions", "brand_directions", "brand_sources", "brand_stage_runs", "brand_runs",
                 "laval_llm_invocations", "laval_product_theses", "laval_product_mechanisms",
                 "laval_evidence", "laval_competitors", "laval_owner_ideas", "laval_runs",
             ):
@@ -662,23 +722,61 @@ class BrandingPostgresPipelineTests(unittest.TestCase):
                 )
 
             review_repository = PostgresAdWorkflowRepository(commander_store)
+            original = repository.directions(brand_run_id)[0]
+            original_creative = commander_store.get_entity(str(original["creative_id"]))
+            with commander_store.transaction():
+                correction, updates = commander.record_text_feedback(
+                    creative=original_creative,
+                    artifact_digest=str(original["artifact_digest"]),
+                    comment="Make the symbol simpler", actor="firebase:owner",
+                )
+                review_repository.save_review_projection(
+                    feedback_id=correction.id, creative_id=original_creative.id,
+                    artifact_digest=str(original["artifact_digest"]), rating=None,
+                    comment="Make the symbol simpler", predicted_ctr=None, annotations=(),
+                )
+            self.assertTrue(updates)
+            revision = repository.queue_logo_revision(
+                brand_run_id, str(original["id"]), correction.id,
+                actor="firebase:owner", provider=provider.name,
+                model=provider.image_model,
+            )
+            first_start = repository.start_logo_revision(str(revision["id"]))
+            restart_start = repository.start_logo_revision(str(revision["id"]))
+            self.assertEqual(1, first_start["attempt"])
+            self.assertEqual(1, restart_start["attempt"])
+            revised = pipeline.regenerate_logo(str(revision["id"]))
+            self.assertEqual(2, revised["revision"])
+            current = repository.direction(brand_run_id, str(original["id"]))
+            self.assertNotEqual(original["creative_id"], current["creative_id"])
+            self.assertNotEqual(original["artifact_digest"], current["artifact_digest"])
+            self.assertEqual("pending", current["review_state"])
+            self.assertEqual("completed", current["regeneration_status"])
+
             for item in repository.directions(brand_run_id):
                 creative = commander_store.get_entity(str(item["creative_id"]))
                 with commander_store.transaction():
-                    feedback, updates = commander.record_text_feedback(
+                    feedback, updates = commander.record_logo_approval(
                         creative=creative,
                         artifact_digest=str(item["artifact_digest"]),
-                        comment="Current owner review", actor="firebase:owner",
+                        actor="firebase:owner",
                     )
                     review_repository.save_review_projection(
                         feedback_id=feedback.id, creative_id=creative.id,
                         artifact_digest=str(item["artifact_digest"]), rating=None,
-                        comment="Current owner review", predicted_ctr=None, annotations=(),
+                        comment="Approved without changes.", predicted_ctr=None, annotations=(),
                     )
                 self.assertTrue(updates)
             selected = repository.directions(brand_run_id)[0]
             kit = pipeline.approve(brand_run_id, str(selected["id"]), actor="firebase:owner")
             self.assertEqual("approved", kit["status"])
+            kit_contains = {
+                edge.target_id for edge in commander_store.relationships()
+                if edge.source_id == kit["commander_brand_kit_id"]
+                and edge.relation == RelationType.CONTAINS
+            }
+            self.assertIn(str(selected["creative_id"]), kit_contains)
+            self.assertNotIn(str(original["creative_id"]), kit_contains)
             self.assertEqual(
                 kit["commander_brand_kit_id"],
                 pipeline.approve(

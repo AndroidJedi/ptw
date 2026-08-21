@@ -103,6 +103,21 @@ class BrandingGatewayProxyTests(unittest.TestCase):
         creative_id = "21234567-89ab-7def-8123-456789abcdef"
         feedback_id = "31234567-89ab-7def-8123-456789abcdef"
         captured: dict[str, object] = {}
+        bridge_calls: list[str] = []
+
+        class Client:
+            async def __aenter__(self): return self
+            async def __aexit__(self, *_args): return None
+            async def request(self, method: str, url: str, **_kwargs):
+                bridge_calls.append(f"{method} {url}")
+                if url.endswith("/activity"):
+                    return httpx.Response(200, json={"active": False})
+                if url.endswith("/regenerate"):
+                    return httpx.Response(200, json={
+                        "revision_id": "51234567-89ab-7def-8123-456789abcdef",
+                        "status": "running", "started": True,
+                    })
+                return httpx.Response(404, json={"detail": "unexpected"})
 
         def target(*_args):
             return {
@@ -118,6 +133,7 @@ class BrandingGatewayProxyTests(unittest.TestCase):
             patch("owner_gateway.api.PlatformRepository.emergency_stop", return_value=False),
             patch("owner_gateway.api.DomainReadModels.brand_review_target", side_effect=target),
             patch("owner_gateway.api.DomainReadModels.review", new=review),
+            patch("owner_gateway.api.httpx.AsyncClient", return_value=Client()),
             TestClient(create_app(self.settings, self.Verifier())) as client,
         ):
             response = client.post(
@@ -132,8 +148,38 @@ class BrandingGatewayProxyTests(unittest.TestCase):
         self.assertEqual("firebase:owner", captured["actor"])
         self.assertIsNone(captured["rating"])
         self.assertEqual((), captured["annotations"])
+        self.assertEqual("changes", captured["decision"])
+        self.assertEqual("running", response.json()["regeneration"]["status"])
+        self.assertTrue(any(item.endswith("/regenerate") for item in bridge_calls))
 
-    def test_text_only_brand_review_rejects_an_empty_comment(self) -> None:
+    def test_empty_comment_is_an_explicit_approval_and_does_not_regenerate(self) -> None:
+        run_id = "01234567-89ab-7def-8123-456789abcdef"
+        direction_id = "11234567-89ab-7def-8123-456789abcdef"
+        captured: dict[str, object] = {}
+
+        def review(_self, **kwargs):
+            captured.update(kwargs)
+            return {"feedback_id": "41234567-89ab-7def-8123-456789abcdef", "weight_update_ids": []}
+
+        with (
+            patch("owner_gateway.api.PlatformRepository.emergency_stop", return_value=False),
+            patch("owner_gateway.api.DomainReadModels.brand_review_target", return_value={
+                "run_id": run_id, "direction_id": direction_id,
+                "creative_id": "21234567-89ab-7def-8123-456789abcdef",
+                "artifact_digest": "b" * 64, "latest_feedback_id": None,
+            }),
+            patch("owner_gateway.api.DomainReadModels.review", new=review),
+            TestClient(create_app(self.settings, self.Verifier())) as client,
+        ):
+            response = client.post(
+                f"/api/v1/branding/runs/{run_id}/directions/{direction_id}/review",
+                headers=self.headers, json={"decision": "approve", "comment": ""},
+            )
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual("approve", captured["decision"])
+        self.assertEqual("approve", response.json()["decision"])
+
+    def test_change_request_rejects_an_empty_comment(self) -> None:
         run_id = "01234567-89ab-7def-8123-456789abcdef"
         direction_id = "11234567-89ab-7def-8123-456789abcdef"
         with (
@@ -147,7 +193,7 @@ class BrandingGatewayProxyTests(unittest.TestCase):
         ):
             response = client.post(
                 f"/api/v1/branding/runs/{run_id}/directions/{direction_id}/review",
-                headers=self.headers, json={"comment": "   "},
+                headers=self.headers, json={"decision": "changes", "comment": "   "},
             )
         self.assertEqual(409, response.status_code)
         self.assertIn("must not be empty", response.json()["detail"])

@@ -217,6 +217,7 @@ class DomainReadModels:
         comment: str,
         predicted_ctr: float | None,
         annotations: tuple[Mapping[str, Any], ...],
+        decision: str = "changes",
         actor: str,
         policy_path: Path,
         asset_directory: Path,
@@ -233,10 +234,22 @@ class DomainReadModels:
         try:
             commander = Commander(store, CommanderPolicy.load(policy_path))
             repository = PostgresAdWorkflowRepository(store)
+            if decision not in {"changes", "approve"}:
+                raise ValueError("review decision must be changes or approve")
+            if decision == "approve":
+                if predicted_ctr is not None or rating is not None or annotations:
+                    raise ValueError("logo approval cannot include rating, estimate, or annotations")
+                comment = "Approved without changes."
             if supersedes_feedback_id:
                 creative = store.get_entity(creative_id)
                 with store.transaction():
-                    if predicted_ctr is None and rating is None:
+                    if decision == "approve":
+                        feedback, updates = commander.record_logo_approval(
+                            creative=creative, artifact_digest=artifact_digest,
+                            actor=actor,
+                            supersedes_feedback_id=supersedes_feedback_id,
+                        )
+                    elif predicted_ctr is None and rating is None:
                         feedback, updates = commander.record_text_feedback(
                             creative=creative, artifact_digest=artifact_digest,
                             comment=comment, actor=actor,
@@ -272,7 +285,12 @@ class DomainReadModels:
             except KeyError:
                 creative = store.get_entity(creative_id)
                 with store.transaction():
-                    if rating is None:
+                    if decision == "approve":
+                        feedback, updates = commander.record_logo_approval(
+                            creative=creative, artifact_digest=artifact_digest,
+                            actor=actor,
+                        )
+                    elif rating is None:
                         feedback, updates = commander.record_text_feedback(
                             creative=creative, artifact_digest=artifact_digest,
                             comment=comment, actor=actor,

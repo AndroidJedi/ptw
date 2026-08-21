@@ -109,12 +109,12 @@ describe('BrandingView', () => {
     expect(alert).toHaveTextContent('API не відповідає')
     fireEvent.click(screen.getByRole('button', { name: 'Повторити' }))
 
-    expect(await screen.findByText(/0 з 3 відгуків збережено/)).toBeInTheDocument()
+    expect(await screen.findByText(/0 з 3 логотипів схвалено/)).toBeInTheDocument()
     expect(screen.getByText(/Чекає на ваш відгук · спроба 1/)).toBeInTheDocument()
     expect(statusRequests).toBe(2)
   })
 
-  it('submits text-only feedback and advances to the next logo with one primary action', async () => {
+  it('turns text feedback into visible regeneration and stays on the same logo', async () => {
     const run = {
       id: 'brand-run', source_laval_run_id: 'idea-run', status: 'awaiting_review', current_stage: 'OWNER_REVIEW',
       source_snapshot: { owner_idea: 'Зробити прогрес видимим.', theses: [], mechanisms: [] },
@@ -129,11 +129,16 @@ describe('BrandingView', () => {
         design_principles: [], retention_patterns: [], ui_system: {},
       },
       evaluation: { passed: true, checks: {} }, latest_feedback_id: null,
+      review_state: 'pending', revision: 1,
     }))
     const post = vi.fn().mockImplementation(() => {
       directions[0].latest_feedback_id = 'feedback-1'
       directions[0].overall_comment = 'Зробіть знак простішим'
-      return Promise.resolve({ feedback_id: 'feedback-1' })
+      directions[0].review_state = 'changes_requested'
+      directions[0].regeneration_feedback_id = 'feedback-1'
+      directions[0].regeneration_status = 'running'
+      run.status = 'running'
+      return Promise.resolve({ feedback_id: 'feedback-1', decision: 'changes', regeneration: { status: 'running' } })
     })
     const api = {
       get: vi.fn().mockImplementation((path: string) => {
@@ -149,16 +154,64 @@ describe('BrandingView', () => {
     } as unknown as ApiClient
 
     const { container } = render(<BrandingView api={api} language="uk" />)
-    fireEvent.change(await screen.findByLabelText('Що змінити або зберегти?'), { target: { value: 'Зробіть знак простішим' } })
+    fireEvent.change(await screen.findByLabelText('Що змінити?'), { target: { value: 'Зробіть знак простішим' } })
     expect(container.querySelectorAll('.brand-review-step .brand-single-cta')).toHaveLength(1)
     expect(screen.queryByText('Оцінка лого')).not.toBeInTheDocument()
     expect(container.querySelector('.annotation-editor')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Зберегти й далі' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Переробити за коментарем' }))
 
     await waitFor(() => expect(post).toHaveBeenCalledWith(
       '/api/v1/branding/runs/brand-run/directions/direction-0/review',
-      { comment: 'Зробіть знак простішим' },
+      { decision: 'changes', comment: 'Зробіть знак простішим' },
     ))
-    expect(await screen.findByText('ЛОГО 2 З 3')).toBeInTheDocument()
+    expect(await screen.findByText(/Створюю нову версію за вашим коментарем/)).toBeInTheDocument()
+    expect(screen.getByText(/ЛОГО 1 З 3 · ВЕРСІЯ 1/)).toBeInTheDocument()
+    expect(container.querySelectorAll('.brand-review-step .brand-single-cta')).toHaveLength(0)
+  })
+
+  it('approves with an empty field and advances with one CTA', async () => {
+    const run = {
+      id: 'brand-run', source_laval_run_id: 'idea-run', status: 'awaiting_review', current_stage: 'OWNER_REVIEW',
+      source_snapshot: { owner_idea: 'Зробити прогрес видимим.', theses: [], mechanisms: [] },
+      source_stale: false, constraints_text: '', provider_snapshot: {}, created_at: '', updated_at: '', completed_stages: 8,
+    }
+    const directions = ['Перший', 'Другий', 'Третій'].map((name, index) => ({
+      id: `direction-${index}`, ordinal: index + 1, revision: 1, name, status: 'awaiting_review',
+      review_state: 'pending' as const, latest_feedback_id: null,
+      manifest: {
+        name, tagline: { uk: `Слоган ${index + 1}`, en: `Tagline ${index + 1}` },
+        positioning: { uk: 'Позиціонування', en: 'Positioning' }, personality: [],
+        palette: { light: {}, dark: {} }, typography: { display: 'Inter', body: 'Inter', mono: 'IBM Plex Mono' },
+        design_principles: [], retention_patterns: [], ui_system: {},
+      },
+      evaluation: { passed: true, checks: {} },
+    })) as BrandDirection[]
+    const post = vi.fn().mockImplementation(() => {
+      directions[0].review_state = 'approved'
+      directions[0].latest_feedback_id = 'approval-1'
+      return Promise.resolve({ feedback_id: 'approval-1', decision: 'approve' })
+    })
+    const api = {
+      get: vi.fn().mockImplementation((path: string) => {
+        if (path === '/api/v1/branding/cases?limit=50') return Promise.resolve({ items: [] })
+        if (path === '/api/v1/branding/runs?limit=50') return Promise.resolve({ items: [run] })
+        if (path === '/api/v1/branding/providers') return Promise.resolve({ ready: true, provider: 'codex_brand_bridge' })
+        if (path === '/api/v1/branding/runs/brand-run') return Promise.resolve({
+          run, stages: [], directions: [...directions], cost: { items: [], total_usd: 0 },
+        })
+        return Promise.resolve({})
+      }),
+      post, blob: vi.fn(),
+    } as unknown as ApiClient
+
+    const { container } = render(<BrandingView api={api} language="uk" />)
+    expect(await screen.findByRole('button', { name: 'Схвалити й далі' })).toBeEnabled()
+    expect(container.querySelectorAll('.brand-review-step .brand-single-cta')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Схвалити й далі' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(
+      '/api/v1/branding/runs/brand-run/directions/direction-0/review',
+      { decision: 'approve', comment: '' },
+    ))
+    expect(await screen.findByText(/ЛОГО 2 З 3/)).toBeInTheDocument()
   })
 })

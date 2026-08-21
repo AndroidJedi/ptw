@@ -127,6 +127,7 @@ BEGIN
       ('brand_stages', (SELECT count(*) FROM brand_stage_runs)),
       ('brand_sources', (SELECT count(*) FROM brand_sources)),
       ('brand_directions', (SELECT count(*) FROM brand_directions)),
+      ('brand_logo_revisions', (SELECT count(*) FROM brand_logo_revisions)),
       ('brand_kits', (SELECT count(*) FROM brand_kits)),
       ('brand_provider_tasks', (SELECT count(*) FROM brand_provider_tasks)),
       ('brand_cost_events', (SELECT count(*) FROM brand_cost_events)),

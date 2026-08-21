@@ -639,6 +639,28 @@ class Commander:
             supersedes_feedback_id=supersedes_feedback_id,
         )
 
+    def record_logo_approval(
+        self,
+        *,
+        creative: Entity,
+        artifact_digest: str,
+        actor: str,
+        supersedes_feedback_id: str | None = None,
+    ) -> tuple[Entity, tuple[Entity, ...]]:
+        return self._record_creative_feedback(
+            creative=creative,
+            rating=None,
+            comment="Approved without changes.",
+            actor=actor,
+            feedback_type="owner_logo_approval",
+            extra_attributes={
+                "artifact_digest": artifact_digest,
+                "annotations": [],
+                "decision": "approve",
+            },
+            supersedes_feedback_id=supersedes_feedback_id,
+        )
+
     def _record_creative_feedback(
         self,
         *,

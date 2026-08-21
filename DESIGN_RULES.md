@@ -63,16 +63,19 @@ remains available in stage and review details.
 - A candidate leads with the original Idea, recommended thesis, target user,
   evidence quality, and prior Brand Kit state. Optional research context stays
   behind disclosure.
-- The primary review flow shows one logo at a time and accepts one required
+- The primary review flow shows one logo at a time and accepts one optional
   text comment. Branding does not show annotation tools, numeric rating,
   palette, type specimens, or raw principles in this path.
-- Each primary state has one CTA: save and advance, approve the selected
-  direction, recover saved work, or download the finished kit. Run switching,
+- Each primary state has one CTA. A non-empty comment changes it to **Regenerate
+  from comment** and keeps the owner on the same logo until the replacement is
+  ready. An empty field changes it to **Approve and next**. Later states approve
+  the selected direction, recover saved work, or download the finished kit. Run switching,
   provider/cost details, stages, artifacts, and deliberate rerun remain behind
   progressive disclosure.
 - Fetch and render only the currently reviewed or selected logo. Do not request
   a second copy for an annotation surface or preload all three full PNGs.
-- Do not enable approval until all three current logos have feedback. Direction
+- Do not enable final direction approval until all three current logos have
+  explicit approvals. Change-request feedback never satisfies approval. Direction
   choice and approval are one explicit owner action.
 - Always show the trademark/domain-clearance warning. Never translate or vary
   the exact brand name.

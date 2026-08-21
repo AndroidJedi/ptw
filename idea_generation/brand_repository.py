@@ -380,7 +380,13 @@ class BrandRepository:
         rows = self.store.fetchall(
             """SELECT d.*,
                       r.feedback_id latest_feedback_id,r.rating,r.overall_comment,
-                      r.annotations,r.created_at reviewed_at,
+                      r.annotations,r.created_at reviewed_at,r.feedback_type,
+                      revision.id regeneration_id,
+                      revision.status regeneration_status,
+                      revision.feedback_id regeneration_feedback_id,
+                      revision.error regeneration_error,
+                      revision.created_at regeneration_requested_at,
+                      revision.completed_at regeneration_completed_at,
                       CASE WHEN t.id IS NULL THEN NULL ELSE jsonb_build_object(
                         'provider',t.provider,
                         'requested_model',t.response->>'requested_model',
@@ -390,25 +396,46 @@ class BrandRepository:
                       ) END generation_provenance
                FROM brand_directions d
                LEFT JOIN LATERAL (
-                 SELECT feedback_id,rating,overall_comment,annotations,created_at
-                 FROM commander_creative_reviews WHERE creative_id=d.creative_id
-                 ORDER BY created_at DESC LIMIT 1
+                 SELECT review.feedback_id,review.rating,review.overall_comment,
+                        review.annotations,review.created_at,
+                        feedback.attributes->>'feedback_type' feedback_type
+                 FROM commander_creative_reviews review
+                 JOIN commander_entities feedback ON feedback.id=review.feedback_id
+                 WHERE review.creative_id=d.creative_id
+                 ORDER BY review.created_at DESC LIMIT 1
                ) r ON TRUE
+               LEFT JOIN LATERAL (
+                 SELECT id,status,feedback_id,error,created_at,completed_at
+                 FROM brand_logo_revisions WHERE direction_id=d.id
+                 ORDER BY revision DESC LIMIT 1
+               ) revision ON TRUE
                LEFT JOIN brand_provider_tasks t
                  ON t.run_id=d.run_id AND t.stage='LOGO_GENERATION'
-                AND t.item_key=('logo:' || d.id::text) AND t.status='completed'
+                AND t.response_digest=d.artifact_digest AND t.status='completed'
                WHERE d.run_id=%s ORDER BY d.ordinal""",
             (run_id,),
         )
         for row in rows:
-            if row.get("latest_feedback_id") and not row.get("reviewed_at"):
-                continue
+            row["review_state"] = (
+                "approved"
+                if row.get("feedback_type") == "owner_logo_approval"
+                else "changes_requested"
+                if row.get("latest_feedback_id")
+                else "pending"
+            )
             if row.get("latest_feedback_id"):
                 self.store.execute(
                     """UPDATE brand_directions SET latest_feedback_id=%s,reviewed_at=%s,
-                              status=CASE WHEN status='approved' THEN status ELSE 'reviewed' END,updated_at=NOW()
+                              status=CASE
+                                WHEN status='approved' THEN status
+                                WHEN %s='owner_logo_approval' THEN 'reviewed'
+                                ELSE 'awaiting_review'
+                              END,updated_at=NOW()
                        WHERE id=%s RETURNING 1""",
-                    (row["latest_feedback_id"], row["reviewed_at"], row["id"]),
+                    (
+                        row["latest_feedback_id"], row["reviewed_at"],
+                        row.get("feedback_type"), row["id"],
+                    ),
                 )
         return json_safe(rows)
 
@@ -420,7 +447,228 @@ class BrandRepository:
 
     def reviewed(self, run_id: str) -> bool:
         directions = self.directions(run_id)
-        return len(directions) == 3 and all(item.get("latest_feedback_id") for item in directions)
+        return len(directions) == 3 and all(
+            item.get("review_state") == "approved" for item in directions
+        )
+
+    def feedback_context(self, feedback_id: str, creative_id: str) -> dict[str, Any]:
+        row = self.store.fetchone(
+            """SELECT review.feedback_id,review.creative_id,review.rating,
+                      review.overall_comment,review.annotations,
+                      feedback.attributes->>'feedback_type' feedback_type
+               FROM commander_creative_reviews review
+               JOIN commander_entities feedback ON feedback.id=review.feedback_id
+               WHERE review.feedback_id=%s AND review.creative_id=%s""",
+            (feedback_id, creative_id),
+        )
+        if not row:
+            raise KeyError("logo feedback is not attached to the current Creative")
+        if row.get("feedback_type") == "owner_logo_approval":
+            raise ValueError("approved logos require new correction feedback before regeneration")
+        comments = [str(row.get("overall_comment") or "").strip()]
+        for annotation in row.get("annotations") or []:
+            if isinstance(annotation, Mapping):
+                comments.append(str(annotation.get("comment") or "").strip())
+        comments = [value for value in comments if value]
+        rating = row.get("rating")
+        instruction = "\n".join(comments)
+        if rating is not None:
+            instruction = (
+                f"Legacy owner rating: {int(rating)}/5. "
+                + (instruction or "Create a materially stronger and clearer alternative.")
+            )
+        if not instruction:
+            raise ValueError("logo correction feedback has no actionable text")
+        return {**json_safe(row), "instruction": instruction[:2000]}
+
+    def queue_logo_revision(
+        self, run_id: str, direction_id: str, feedback_id: str, *,
+        actor: str, provider: str, model: str,
+    ) -> dict[str, Any]:
+        run = self.run(run_id)
+        if run["status"] != "awaiting_review":
+            raise ValueError("logo regeneration is available only during owner review")
+        direction = self.direction(run_id, direction_id)
+        if direction.get("review_state") != "changes_requested":
+            raise ValueError("the current logo has no unapplied correction feedback")
+        if str(direction.get("latest_feedback_id") or "") != feedback_id:
+            raise ValueError("only the latest current-logo feedback can regenerate it")
+        feedback = self.feedback_context(feedback_id, str(direction["creative_id"]))
+        existing = self.store.fetchone(
+            "SELECT * FROM brand_logo_revisions WHERE feedback_id=%s", (feedback_id,)
+        )
+        if existing:
+            if existing["status"] == "failed":
+                self.store.execute(
+                    """UPDATE brand_logo_revisions SET status='pending',error=NULL,
+                              started_at=NULL,completed_at=NULL,updated_at=NOW()
+                       WHERE id=%s RETURNING 1""",
+                    (existing["id"],),
+                )
+                existing = self.store.fetchone(
+                    "SELECT * FROM brand_logo_revisions WHERE id=%s", (existing["id"],)
+                )
+            if existing["status"] in {"pending", "running"}:
+                self.store.execute(
+                    """UPDATE brand_runs SET status='running',current_stage='OWNER_REVIEW',
+                              error_text=NULL,updated_at=NOW() WHERE id=%s RETURNING 1""",
+                    (run_id,),
+                )
+            return json_safe(existing)
+        active = self.store.fetchone(
+            """SELECT id FROM brand_logo_revisions
+               WHERE direction_id=%s AND status IN ('pending','running') LIMIT 1""",
+            (direction_id,),
+        )
+        if active:
+            raise ValueError("this logo is already being regenerated")
+        revision_id = new_uuid7()
+        revision = int(direction.get("revision") or 1) + 1
+        input_hash = stable_hash(
+            direction["manifest"], direction["artifact_digest"], feedback["instruction"]
+        )
+        with self.store.transaction() as connection:
+            connection.execute(
+                """INSERT INTO brand_logo_revisions(
+                       id,run_id,direction_id,revision,feedback_id,
+                       source_creative_id,source_artifact_id,source_artifact_digest,
+                       source_logo_path,status,input_hash,provider,model,actor
+                   ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s,%s,%s)""",
+                (
+                    revision_id, run_id, direction_id, revision, feedback_id,
+                    direction["creative_id"], direction["artifact_id"],
+                    direction["artifact_digest"], direction["logo_path"],
+                    input_hash, provider, model, actor,
+                ),
+            )
+            connection.execute(
+                """INSERT INTO brand_run_actions(id,run_id,action,actor,details)
+                   VALUES(%s,%s,'logo_revision_requested',%s,%s::jsonb)""",
+                (
+                    new_uuid7(), run_id, actor,
+                    self.store.json({
+                        "direction_id": direction_id,
+                        "revision_id": revision_id,
+                        "feedback_id": feedback_id,
+                    }),
+                ),
+            )
+            connection.execute(
+                """UPDATE brand_runs SET status='running',current_stage='OWNER_REVIEW',
+                          error_text=NULL,updated_at=NOW() WHERE id=%s""",
+                (run_id,),
+            )
+        return json_safe(self.store.fetchone(
+            "SELECT * FROM brand_logo_revisions WHERE id=%s", (revision_id,)
+        ))
+
+    def logo_revision(self, revision_id: str) -> dict[str, Any]:
+        row = self.store.fetchone(
+            "SELECT * FROM brand_logo_revisions WHERE id=%s", (revision_id,)
+        )
+        if not row:
+            raise KeyError("Brand logo revision not found")
+        return json_safe(row)
+
+    def pending_logo_revision(self, run_id: str | None = None) -> dict[str, Any] | None:
+        row = self.store.fetchone(
+            """SELECT * FROM brand_logo_revisions
+               WHERE status IN ('pending','running')
+                 AND (%s::uuid IS NULL OR run_id=%s::uuid)
+               ORDER BY created_at LIMIT 1""",
+            (run_id, run_id),
+        )
+        return json_safe(row) if row else None
+
+    def start_logo_revision(self, revision_id: str) -> dict[str, Any]:
+        self.store.execute(
+            """UPDATE brand_logo_revisions SET status='running',
+                      attempt=attempt+CASE WHEN status='pending' THEN 1 ELSE 0 END,error=NULL,
+                      started_at=COALESCE(started_at,NOW()),updated_at=NOW()
+               WHERE id=%s AND status IN ('pending','running') RETURNING 1""",
+            (revision_id,),
+        )
+        return self.logo_revision(revision_id)
+
+    def complete_logo_revision(
+        self, revision_id: str, *, path: Path, digest: str,
+        graph: Mapping[str, str],
+    ) -> None:
+        revision = self.logo_revision(revision_id)
+        with self.store.transaction() as connection:
+            connection.execute(
+                """UPDATE brand_logo_revisions SET status='completed',creative_id=%s,
+                          artifact_id=%s,artifact_digest=%s,logo_path=%s,error=NULL,
+                          completed_at=NOW(),updated_at=NOW()
+                   WHERE id=%s""",
+                (
+                    graph["creative_id"], graph["artifact_id"], digest,
+                    str(path), revision_id,
+                ),
+            )
+            connection.execute(
+                """UPDATE brand_directions SET revision=%s,creative_id=%s,artifact_id=%s,
+                          artifact_digest=%s,logo_path=%s,latest_feedback_id=NULL,
+                          reviewed_at=NULL,status='awaiting_review',updated_at=NOW()
+                   WHERE id=%s""",
+                (
+                    revision["revision"], graph["creative_id"], graph["artifact_id"],
+                    digest, str(path), revision["direction_id"],
+                ),
+            )
+            connection.execute(
+                """INSERT INTO brand_run_actions(id,run_id,action,actor,details)
+                   VALUES(%s,%s,'logo_regenerated','brand-runner',%s::jsonb)""",
+                (
+                    new_uuid7(), revision["run_id"],
+                    self.store.json({
+                        "direction_id": str(revision["direction_id"]),
+                        "revision_id": revision_id,
+                        "revision": revision["revision"],
+                    }),
+                ),
+            )
+            connection.execute(
+                """UPDATE brand_runs SET status='awaiting_review',current_stage='OWNER_REVIEW',
+                          error_text=NULL,updated_at=NOW() WHERE id=%s""",
+                (revision["run_id"],),
+            )
+
+    def fail_logo_revision(self, revision_id: str, error: Exception) -> None:
+        revision = self.logo_revision(revision_id)
+        bounded = {"type": type(error).__name__, "message": str(error)[:1000]}
+        with self.store.transaction() as connection:
+            connection.execute(
+                """UPDATE brand_logo_revisions SET status='failed',error=%s::jsonb,
+                          completed_at=NOW(),updated_at=NOW() WHERE id=%s""",
+                (self.store.json(bounded), revision_id),
+            )
+            connection.execute(
+                """INSERT INTO brand_run_actions(id,run_id,action,actor,details)
+                   VALUES(%s,%s,'logo_revision_failed','brand-runner',%s::jsonb)""",
+                (
+                    new_uuid7(), revision["run_id"],
+                    self.store.json({
+                        "direction_id": str(revision["direction_id"]),
+                        "revision_id": revision_id,
+                        **bounded,
+                    }),
+                ),
+            )
+            connection.execute(
+                """UPDATE brand_runs SET status='awaiting_review',current_stage='OWNER_REVIEW',
+                          error_text=%s,updated_at=NOW()
+                   WHERE id=%s AND status<>'paused'""",
+                (bounded["message"], revision["run_id"]),
+            )
+
+    def pause_logo_revision(self, revision_id: str) -> None:
+        self.store.execute(
+            """UPDATE brand_logo_revisions SET status='pending',
+                      attempt=GREATEST(attempt-1,0),updated_at=NOW()
+               WHERE id=%s AND status='running' RETURNING 1""",
+            (revision_id,),
+        )
 
     def save_kit(
         self, run_id: str, direction_id: str, *, kit_id: str, commander_kit_id: str,
@@ -462,9 +710,15 @@ class BrandRepository:
         row = self.store.fetchone(
             """SELECT logo_path path,'image/png' mime FROM brand_directions WHERE artifact_digest=%s
                UNION ALL
+               SELECT source_logo_path path,'image/png' mime
+                 FROM brand_logo_revisions WHERE source_artifact_digest=%s
+               UNION ALL
+               SELECT logo_path path,'image/png' mime
+                 FROM brand_logo_revisions WHERE artifact_digest=%s
+               UNION ALL
                SELECT zip_path path,'application/zip' mime FROM brand_kits WHERE zip_digest=%s
                LIMIT 1""",
-            (digest, digest),
+            (digest, digest, digest, digest),
         )
         if not row:
             raise KeyError("Branding artifact not found")

@@ -199,6 +199,108 @@ class BrandPublishingService:
             self.commander.relate(direction, RelationType.GENERATED, logo_artifact)
         return {"direction_id": direction.id, "creative_id": creative.id, "artifact_id": logo_artifact.id}
 
+    def publish_logo_revision(self, request: Mapping[str, Any]) -> dict[str, str]:
+        run_id = self._uuid(request.get("run_id"), "run_id")
+        external_direction_id = self._uuid(
+            request.get("direction_id"), "direction_id"
+        )
+        revision_id = self._uuid(request.get("revision_id"), "revision_id")
+        previous_creative_id = self._uuid(
+            request.get("previous_creative_id"), "previous_creative_id"
+        )
+        feedback_id = self._uuid(request.get("feedback_id"), "feedback_id")
+        artifact = request.get("artifact")
+        if not isinstance(artifact, Mapping):
+            raise ValueError("artifact must be an object")
+        digest = str(artifact.get("sha256") or "")
+        if not DIGEST_RE.fullmatch(digest):
+            raise ValueError("logo revision artifact sha256 is invalid")
+        existing = next((
+            item for item in self.store.entities(EntityKind.CREATIVE)
+            if item.attributes.get("brand_logo_revision_id") == revision_id
+        ), None)
+        if existing is not None:
+            generated = next(
+                self.store.get_entity(edge.target_id)
+                for edge in self.store.relationships()
+                if edge.source_id == existing.id
+                and edge.relation == RelationType.GENERATED
+                and self.store.get_entity(edge.target_id).kind == EntityKind.ARTIFACT
+            )
+            return {"creative_id": existing.id, "artifact_id": generated.id}
+
+        direction = next((
+            item for item in self.store.entities(EntityKind.BRAND_DIRECTION)
+            if item.attributes.get("brand_direction_external_id") == external_direction_id
+            and item.attributes.get("brand_run_id") == run_id
+        ), None)
+        if direction is None:
+            raise KeyError("brand direction is not published")
+        previous = self.store.get_entity(previous_creative_id)
+        feedback = self.store.get_entity(feedback_id)
+        if previous.kind != EntityKind.CREATIVE:
+            raise ValueError("previous_creative_id must resolve to a Creative")
+        if feedback.kind != EntityKind.HUMAN_FEEDBACK:
+            raise ValueError("feedback_id must resolve to HumanFeedback")
+        if feedback.attributes.get("creative_id") != previous.id:
+            raise ValueError("logo revision feedback must evaluate the previous Creative")
+        if feedback.attributes.get("feedback_type") == "owner_logo_approval":
+            raise ValueError("approved logos cannot be regenerated without new feedback")
+        if not any(
+            edge.source_id == direction.id
+            and edge.relation == RelationType.CONTAINS
+            and edge.target_id == previous.id
+            for edge in self.store.relationships()
+        ):
+            raise ValueError("previous Creative does not belong to the brand direction")
+
+        with self.store.transaction():
+            creative = self.commander.create_entity(
+                EntityKind.CREATIVE,
+                {
+                    "creative_type": "brand_logo",
+                    "brand_run_id": run_id,
+                    "brand_direction_id": direction.id,
+                    "brand_logo_revision_id": revision_id,
+                    "revision": int(request.get("revision") or 0),
+                    "previous_creative_id": previous.id,
+                    "name": direction.attributes.get("name"),
+                    "status": "generated",
+                },
+                actor="brand-runner",
+                reasoning_summary="Regenerated a logo from explicit owner correction feedback.",
+                evidence_ids=(direction.id, previous.id, feedback.id),
+            )
+            self.commander.relate(direction, RelationType.CONTAINS, creative)
+            self.commander.relate(creative, RelationType.SUPERSEDES, previous)
+            self.commander.relate(creative, RelationType.DERIVED_FROM, feedback)
+            for edge in self.store.relationships():
+                if edge.source_id != previous.id or edge.relation != RelationType.CONTAINS:
+                    continue
+                component = self.store.get_entity(edge.target_id)
+                if component.kind == EntityKind.CREATIVE_COMPONENT:
+                    self.commander.relate(creative, RelationType.CONTAINS, component)
+            logo_artifact = self.commander.create_entity(
+                EntityKind.ARTIFACT,
+                {
+                    "artifact_type": "brand_logo_png",
+                    "sha256": digest,
+                    "storage_uri": str(artifact.get("storage_uri") or ""),
+                    "mime_type": "image/png",
+                    "width": int(artifact.get("width") or 0),
+                    "height": int(artifact.get("height") or 0),
+                    "generation": dict(artifact.get("generation") or {}),
+                    "brand_logo_revision_id": revision_id,
+                },
+                actor="brand-runner",
+                reasoning_summary="Registered an immutable owner-directed logo revision.",
+                evidence_ids=(direction.id, creative.id, feedback.id),
+            )
+            self.commander.relate(creative, RelationType.GENERATED, logo_artifact)
+            self.commander.relate(direction, RelationType.GENERATED, logo_artifact)
+            self.commander.relate(logo_artifact, RelationType.DERIVED_FROM, feedback)
+        return {"creative_id": creative.id, "artifact_id": logo_artifact.id}
+
     def approve(self, request: Mapping[str, Any]) -> dict[str, str | None]:
         run_id = self._uuid(request.get("run_id"), "run_id")
         external_direction_id = self._uuid(request.get("direction_id"), "direction_id")
@@ -226,24 +328,34 @@ class BrandPublishingService:
         ]
         if len(run_directions) != 3:
             raise ValueError("Brand Kit approval requires exactly three published directions")
+        requested_creatives = request.get("current_creative_ids")
+        if not isinstance(requested_creatives, Mapping):
+            raise ValueError("Brand Kit approval requires current_creative_ids")
         current_feedback: list[Entity] = []
         for item in run_directions:
-            creative = next((
-                self.store.get_entity(edge.target_id)
-                for edge in self.store.relationships()
-                if edge.source_id == item.id
+            external_id = str(item.attributes.get("brand_direction_external_id") or "")
+            requested_id = self._uuid(
+                requested_creatives.get(external_id), "current_creative_id"
+            )
+            creative = self.store.get_entity(requested_id)
+            belongs = any(
+                edge.source_id == item.id
                 and edge.relation == RelationType.CONTAINS
-                and self.store.get_entity(edge.target_id).kind == EntityKind.CREATIVE
-            ), None)
-            if creative is None:
-                raise ValueError("every brand direction requires a logo Creative")
+                and edge.target_id == creative.id
+                for edge in self.store.relationships()
+            )
+            if creative.kind != EntityKind.CREATIVE or not belongs:
+                raise ValueError("current Creative does not belong to its brand direction")
             reviews = [
                 review for review in self.store.entities(EntityKind.HUMAN_FEEDBACK)
                 if review.attributes.get("creative_id") == creative.id
             ]
             if not reviews:
-                raise ValueError("current owner feedback is required for all three logos")
-            current_feedback.append(max(reviews, key=lambda review: review.created_at))
+                raise ValueError("explicit approval is required for all three current logos")
+            latest = max(reviews, key=lambda review: review.created_at)
+            if latest.attributes.get("feedback_type") != "owner_logo_approval":
+                raise ValueError("explicit approval is required for all three current logos")
+            current_feedback.append(latest)
         zip_artifact = request.get("artifact")
         if not isinstance(zip_artifact, Mapping) or not DIGEST_RE.fullmatch(str(zip_artifact.get("sha256") or "")):
             raise ValueError("Brand Kit artifact is invalid")
@@ -275,9 +387,16 @@ class BrandPublishingService:
                 self.commander.relate(kit, RelationType.SUPERSEDES, previous)
             for item in current_feedback:
                 self.commander.relate(kit, RelationType.DERIVED_FROM, item)
+            selected_creative_id = self._uuid(
+                requested_creatives.get(external_direction_id),
+                "current_creative_id",
+            )
             for edge in self.store.relationships():
                 if edge.source_id == direction.id and edge.relation == RelationType.CONTAINS:
-                    self.commander.relate(kit, RelationType.CONTAINS, self.store.get_entity(edge.target_id))
+                    contained = self.store.get_entity(edge.target_id)
+                    if contained.kind == EntityKind.CREATIVE and contained.id != selected_creative_id:
+                        continue
+                    self.commander.relate(kit, RelationType.CONTAINS, contained)
             artifact = self.commander.create_entity(
                 EntityKind.ARTIFACT,
                 {

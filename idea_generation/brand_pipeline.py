@@ -533,6 +533,87 @@ class BrandPipeline:
             raise RuntimeError("Branding must persist exactly three logo artifacts")
         return {"items": artifacts, "successful_logos": 3}, {"successful_logos": 3, "image_calls_max": 3}
 
+    def regenerate_logo(self, revision_id: str) -> dict[str, Any]:
+        revision = self.repository.start_logo_revision(revision_id)
+        run_id = str(revision["run_id"])
+        if self.repository.run(run_id)["status"] != "running":
+            raise BrandRunPaused("Branding logo regeneration is paused")
+        direction = self.repository.direction(run_id, str(revision["direction_id"]))
+        if str(direction.get("creative_id") or "") != str(revision["source_creative_id"]):
+            raise ValueError("logo revision no longer targets the current Creative")
+        feedback = self.repository.feedback_context(
+            str(revision["feedback_id"]), str(revision["source_creative_id"])
+        )
+        manifest = dict(direction["manifest"])
+        base_prompt = str(manifest.get("logo_prompt") or "").strip()
+        manifest["logo_prompt"] = (
+            f"{base_prompt}\n\nRevise the current concept using this explicit owner feedback: "
+            f"{feedback['instruction']}\nCreate a meaningfully corrected new symbol, not a copy of "
+            "the previous pixels. Preserve the brand direction, text-free requirement, transparency, "
+            "originality, and favicon-size clarity."
+        )[:4000]
+        task_payload = {
+            "direction": manifest,
+            "feedback_id": revision["feedback_id"],
+            "feedback": feedback["instruction"],
+            "source_artifact_digest": revision["source_artifact_digest"],
+            "revision": revision["revision"],
+        }
+        generated = self._provider_task(
+            run_id, "LOGO_GENERATION",
+            f"logo-revision:{revision_id}:attempt:{revision['attempt']}", task_payload,
+            lambda: self.provider.logo(manifest),
+        )
+        if self.repository.run(run_id)["status"] != "running":
+            raise BrandRunPaused("Branding logo regeneration is paused")
+        from PIL import Image
+        import io
+
+        with Image.open(io.BytesIO(generated.content)) as image:
+            if image.size != (1024, 1024) or image.format != "PNG":
+                raise ValueError("brand logo revision must be a 1024x1024 PNG")
+        digest = hashlib.sha256(generated.content).hexdigest()
+        run_directory = self.asset_directory / run_id
+        run_directory.mkdir(parents=True, exist_ok=True)
+        path = run_directory / (
+            f"direction-{direction['ordinal']}-r{revision['revision']}-{digest[:16]}.png"
+        )
+        if not path.exists():
+            path.write_bytes(generated.content)
+        graph = self.bridge.logo_revision({
+            "run_id": run_id,
+            "direction_id": direction["id"],
+            "revision_id": revision_id,
+            "revision": revision["revision"],
+            "previous_creative_id": revision["source_creative_id"],
+            "feedback_id": revision["feedback_id"],
+            "artifact": {
+                "sha256": digest,
+                "storage_uri": str(path),
+                "width": generated.width,
+                "height": generated.height,
+                "generation": {
+                    "provider": self.provider.name,
+                    "requested_model": generated.requested_model,
+                    "resolved_model": generated.resolved_model,
+                    "prompt": generated.prompt,
+                    "request_id": generated.request_id,
+                    "revision": revision["revision"],
+                    "feedback_id": revision["feedback_id"],
+                },
+            },
+        })
+        self.repository.complete_logo_revision(
+            revision_id, path=path, digest=digest, graph=graph
+        )
+        return {
+            "run_id": run_id,
+            "direction_id": str(direction["id"]),
+            "revision_id": revision_id,
+            "revision": int(revision["revision"]),
+            "artifact_digest": digest,
+        }
+
     def approve(self, run_id: str, direction_id: str, *, actor: str) -> dict[str, Any]:
         run = self.repository.run(run_id)
         if run["status"] == "completed" and run.get("commander_brand_kit_id"):
@@ -555,6 +636,10 @@ class BrandPipeline:
             "source_laval_run_id": run["source_laval_run_id"],
             "source_snapshot_hash": run["source_snapshot_hash"],
             "manifest": kit_manifest,
+            "current_creative_ids": {
+                str(item["id"]): str(item["creative_id"])
+                for item in self.repository.directions(run_id)
+            },
             "actor": actor,
             "artifact": {"sha256": zip_digest, "storage_uri": str(zip_path), "size_bytes": zip_path.stat().st_size},
         })

@@ -494,13 +494,24 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .brand-step-progress i { width: 28px; height: 4px; border-radius: 4px; background: #333338; }
 .brand-step-progress i.current { background: var(--pink); }
 .brand-step-progress i.done { background: var(--green); }
-.brand-focused-logo { width: min(100%, 440px); margin: 0 auto; }
+.brand-focused-logo { position: relative; width: min(100%, 440px); margin: 0 auto; }
 .brand-focused-logo img, .brand-focused-logo .brand-logo-loading, .brand-focused-logo .brand-logo-error { width: 100%; aspect-ratio: 1; display: grid; place-items: center; object-fit: contain; border-radius: 18px; background: #0d0d0e; color: #fff; font-weight: 950; }
+.brand-focused-logo.is-regenerating img { opacity: .28; }
+.brand-logo-regenerating { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; border-radius: 18px; background: #09090ba8; color: #fff; }
+.brand-logo-regenerating strong { font-size: 12px; }
 .brand-focused-copy { text-align: center; }
 .brand-focused-copy h2 { margin: 2px 0 5px; font-size: clamp(25px, 8vw, 38px); }
 .brand-text-feedback { color: #fff; font-size: 13px; font-weight: 850; }
 .brand-text-feedback textarea { min-height: 112px; margin-bottom: 5px; font-size: 16px; line-height: 1.4; }
 .brand-text-feedback small { display: block; color: var(--muted); font-size: 10px; font-weight: 500; }
+.brand-regeneration-state { padding: 14px; border: 1px solid #553247; border-radius: 14px; background: #1d1017; }
+.brand-regeneration-state h3 { margin: 0 0 5px; font-size: 15px; }
+.brand-regeneration-state p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.brand-regeneration-state blockquote { margin: 10px 0 0; padding: 9px 11px; border-left: 3px solid var(--pink); border-radius: 0 8px 8px 0; color: #f7dce8; background: #0d0a0c; font-size: 11px; line-height: 1.45; }
+.brand-regeneration-state .brand-single-cta { margin-top: 12px; }
+.brand-regeneration-failed { border-color: #7d3030; background: #250d0d; }
+.brand-regenerated { margin: 0; padding: 10px 12px; display: flex; align-items: center; gap: 8px; border-radius: 11px; color: #bfffd9; background: #102219; font-size: 11px; }
+.brand-regenerated svg { width: 17px; }
 .brand-single-cta { width: 100%; margin-top: 2px; }
 .brand-choice-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .brand-choice-tabs button { min-width: 0; min-height: 48px; padding: 7px; overflow-wrap: anywhere; border: 1px solid var(--line); border-radius: 11px; color: var(--muted); background: var(--panel); font-size: 10px; font-weight: 800; }

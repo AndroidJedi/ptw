@@ -35,9 +35,12 @@ completed work and never resubmits an unknown image request; an owner-authorized
 pre-review rerun is required for an unknown result.
 
 The runner automatically reaches `OWNER_REVIEW`. Exactly three independently
-evaluated directions and three symbol logos are required. Kit assembly is
-blocked until all three current logo Creatives have append-only feedback and
-the owner explicitly chooses one direction.
+evaluated directions and three symbol logos are required. A non-empty comment
+is a change request, not an approval: it immediately queues a durable revision
+of that same logo, keeps the owner on that logo, and replaces the review target
+only after the new immutable Creative is ready. An empty comment is the explicit
+approval action. Kit assembly is blocked until all three current logo Creatives
+have explicit approvals and the owner chooses one direction.
 
 ## Research boundary
 
@@ -73,12 +76,16 @@ Idea hypotheses and permanent Sources. Reusable `creative_component` entities
 and one logo `creative` are connected through `contains`; immutable artifact
 files are connected through `generated`. Owner Gateway resolves the Creative
 UUID and artifact digest from the selected direction, so the browser never
-chooses graph identities. Corrected reviews append `supersedes` feedback and
-new WeightUpdates. Branding's owner flow accepts a required text comment
-without inventing a numeric rating. The projection stores `rating=NULL` and
-appends zero-delta `owner_text_feedback_v1` WeightUpdates because text alone
-does not truthfully imply preference magnitude. The legacy annotated/rated
-contract remains readable and accepted for historical reviews.
+chooses graph identities. A change request appends text feedback and zero-delta
+WeightUpdates without inventing a numeric rating, then creates a new Creative
+that `supersedes` the previous Creative and is `derived_from` the exact feedback.
+The replaced Creative and Artifact remain readable. Revision rows persist the
+input hash, attempt, provider/model, source and result identities, bounded error,
+and immutable asset path. Restart recovery reuses the same completed provider
+task; a failed revision requires one explicit retry and a fresh attempt key.
+Approval is a distinct append-only `owner_logo_approval` feedback entity on the
+current Creative. The legacy annotated/rated contract remains readable and is
+treated as a change request until its correction is regenerated and approved.
 
 Approval creates an immutable `brand_kit` and an `adopted_as` edge. A later kit
 for the same Idea supersedes the earlier kit without deletion. Material Idea
@@ -119,11 +126,14 @@ assets, and ZIP download. Asset responses are private and `no-store`.
 Candidate cards show readable case content and kit state; UUIDs stay internal.
 Ukrainian is the default UI/sample language and the naming-clearance disclosure
 is English as well. Review is a sequential one-logo wizard with one primary CTA
-per state. It fetches only the active logo; stage/provider/cost inspection,
-history, and deliberate rerun are collapsed outside the primary path.
+per state. Typing changes that CTA to **Переробити за коментарем**; leaving the
+field empty makes it **Схвалити й далі**. Regeneration visibly stays on the same
+logo and the new version appears automatically. It fetches only the active logo;
+stage/provider/cost inspection, history, and deliberate rerun are collapsed
+outside the primary path.
 
-Production acceptance requires one real completed live Idea case, three logo
-reviews, an approved/downloaded kit, fixture compilation, graph-edge audit,
+Production acceptance requires one real completed live Idea case, three current
+logo approvals, an approved/downloaded kit, fixture compilation, graph-edge audit,
 one-service restart persistence, and the established 1 GB memory audit.
 
 Production does not require a second OpenAI API key. It uses the established

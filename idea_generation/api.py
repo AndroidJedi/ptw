@@ -390,6 +390,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except KeyError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
+    @app.post(
+        "/internal/web/branding/runs/{run_id}/directions/{direction_id}/regenerate"
+    )
+    def regenerate_branding_logo(
+        run_id: str,
+        direction_id: str,
+        request: Mapping[str, Any],
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return branding.regenerate_logo(
+                run_id, direction_id, str(request.get("feedback_id") or ""),
+                actor=str(request.get("actor") or "owner-gateway"),
+            )
+        except OperationConflict as error:
+            raise HTTPException(
+                status_code=409, detail={"active_operation": error.active}
+            ) from error
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (TypeError, ValueError, RuntimeError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
     @app.post("/internal/web/branding/runs/{run_id}/{action}")
     def control_branding_run(
         run_id: str,

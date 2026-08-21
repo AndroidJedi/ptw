@@ -180,6 +180,13 @@ class CommanderBrandBridge:
     def direction(self, payload: Mapping[str, Any]) -> dict[str, str]:
         return {str(key): str(value) for key, value in self.post("directions", payload).items() if value}
 
+    def logo_revision(self, payload: Mapping[str, Any]) -> dict[str, str]:
+        return {
+            str(key): str(value)
+            for key, value in self.post("logo-revisions", payload).items()
+            if value
+        }
+
     def approve(self, payload: Mapping[str, Any]) -> dict[str, str | None]:
         result = self.post("approve", payload)
         return {str(key): (None if value is None else str(value)) for key, value in result.items()}
@@ -255,7 +262,9 @@ class DeterministicBrandProvider:
         accent = palette["accent"]
         image = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
-        digest = hashlib.sha256(str(direction["name"]).encode()).digest()
+        digest = hashlib.sha256(
+            f"{direction['name']}|{direction.get('logo_prompt') or ''}".encode()
+        ).digest()
         inset = 170 + digest[0] % 50
         draw.rounded_rectangle((inset, inset, 1024 - inset, 1024 - inset), radius=150, fill=primary)
         draw.polygon([(320, 590), (480, 745), (750, 325), (640, 275), (470, 570), (390, 500)], fill=accent)

@@ -118,14 +118,19 @@ missing or unexpected Telegram message from the run transition.
 
 For Branding review complexity or mobile lag, count visible primary actions and
 logo asset requests before changing provider/runtime state. The normal review
-screen renders one logo, one text area, and one **Save and next** CTA; it does
+screen renders one logo, one text area, and one dynamic CTA; it does
 not mount the annotation canvas, request the same immutable PNG twice, require
 a numeric rating, or preload all three logos. Store text-only feedback as a
 truthful nullable rating and append a zero-delta text-feedback WeightUpdate;
-never synthesize a neutral owner rating. Keep run switching, ten stages,
-provider/cost facts, artifacts, and deliberate rerun behind disclosure. After
-the third text review, show direction selection with one approval CTA, then one
-download CTA after assembly. Cover the sequence at 360 px and iPhone WebKit.
+never synthesize a neutral owner rating. A non-empty comment is a correction:
+the CTA must say that it regenerates, stay on the same logo, visibly show work,
+and replace the current immutable Creative only when the new revision completes.
+An empty field is explicit approval and advances. A comment must never silently
+count as approval or expose final direction selection. Keep run switching, ten
+stages, provider/cost facts, artifacts, and deliberate rerun behind disclosure.
+After all three current logos have explicit approval, show direction selection
+with one approval CTA, then one download CTA after assembly. Cover correction,
+restart/retry, and approval at 360 px and iPhone WebKit.
 
 For a failed Laval run, the owner must not need SSH or an agent to recover it.
 Verify the visible error report includes the exact stage/attempt, bounded error,

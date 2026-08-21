@@ -266,6 +266,7 @@ export interface BrandAsset {
 export interface BrandDirection {
   id: string
   ordinal: number
+  revision?: number
   name: string
   status: string
   manifest: {
@@ -283,6 +284,14 @@ export interface BrandDirection {
   artifact_digest?: string
   logo_asset?: BrandAsset
   latest_feedback_id?: string | null
+  feedback_type?: string | null
+  review_state?: 'pending' | 'changes_requested' | 'approved'
+  regeneration_id?: string | null
+  regeneration_status?: 'pending' | 'running' | 'completed' | 'failed' | null
+  regeneration_feedback_id?: string | null
+  regeneration_error?: { type?: string; message?: string } | null
+  regeneration_requested_at?: string | null
+  regeneration_completed_at?: string | null
   rating?: number | null
   overall_comment?: string | null
   annotations?: Region[]

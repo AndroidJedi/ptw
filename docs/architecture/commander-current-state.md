@@ -12,8 +12,9 @@ Owner Console has five-item responsive navigation with Branding between Ideas
 and Jobs, a readable eligible-case picker, a sequential text-only review for
 each of the three logos, explicit direction approval, and private Brand Kit ZIP
 download. The primary mobile flow shows one logo, one text field, and one CTA at
-a time; stage inspection and technical controls remain available only through
-collapsed disclosures. Posts remain retired at HTTP 410.
+a time. A comment regenerates that same logo; an empty field explicitly approves
+it and advances. Stage inspection and technical controls remain available only
+through collapsed disclosures. Posts remain retired at HTTP 410.
 
 The durable worker snapshots the whole Idea case, uses no paid SEO, bounds
 public pages/official YouTube/owner references, makes exactly three symbol-image
@@ -76,10 +77,8 @@ A follow-up mobile review incident showed that the annotation canvas, rating
 row, technical direction specimens, and duplicate logo loads made the owner
 workflow slow and needlessly complex. Branding feedback is now genuinely
 text-only: a comment creates append-only HumanFeedback plus a zero-delta
-WeightUpdate without inventing a neutral rating. The next unreviewed logo opens
-automatically, and the final review leads directly to one direction choice and
-one approval CTA. The legacy rated/annotated API remains readable and accepted
-for historical compatibility.
+WeightUpdate without inventing a neutral rating. The legacy rated/annotated API
+remains readable and accepted for historical compatibility.
 
 PTW release `branding-simple-d5cca7a` from commit `d5cca7a` is deployed
 serially on Commander, Idea, and Owner Gateway. Migration 014 makes only the
@@ -90,6 +89,18 @@ The live bundle contains the text-only/next-step markers, gateway health is
 200, unauthenticated access remains 401, CORS preflight is 200, and the latest
 real run remains at `OWNER_REVIEW` with two of three reviews preserved. The
 release memory audit finished with 347 MiB available and no deployment OOM.
+
+A subsequent owner review exposed a contract error in that simplification:
+storing any comment was treated as completed review, so the console advanced to
+final direction selection without applying the requested changes. The corrected
+contract distinguishes correction from approval. A non-empty comment queues an
+immutable, restart-safe logo revision for the same direction and keeps the owner
+on that logo with visible progress. The new Creative `supersedes` the previous
+one and is `derived_from` the exact feedback. An empty field appends an explicit
+approval of the current Creative and advances. Final direction selection is
+unavailable until all three current Creatives have explicit approvals. Existing
+legacy comments remain actionable change requests and can be replayed without
+losing append-only feedback or asset history.
 
 Release verification passes 123 Commander/Idea tests in the tagged Idea image
 against disposable PostgreSQL (five intentional retirement skips), 23 tagged

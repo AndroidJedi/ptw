@@ -325,7 +325,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         return result
 
     @app.post("/api/v1/branding/runs/{run_id}/directions/{direction_id}/review")
-    def review_brand_logo(
+    async def review_brand_logo(
         run_id: str,
         direction_id: str,
         request: Mapping[str, Any],
@@ -336,6 +336,9 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         require_running()
         try:
             target = read.brand_review_target(run_id, direction_id)
+            decision = str(request.get("decision") or "changes").strip().lower()
+            if decision not in {"changes", "approve"}:
+                raise ValueError("review decision must be changes or approve")
             raw_annotations = request.get("annotations", request.get("regions", [])) or []
             if not isinstance(raw_annotations, list) or len(raw_annotations) > 100:
                 raise ValueError("reviews support at most 100 annotations")
@@ -345,21 +348,90 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             if rating is not None and rating not in range(1, 6):
                 raise ValueError("rating must be 1..5")
             comment = str(request.get("comment") or "").strip()
-            if rating is None and not comment:
+            if decision == "changes" and rating is None and not comment:
                 raise ValueError("text feedback must not be empty")
-            result = read.review(
-                creative_id=target["creative_id"],
-                artifact_digest=target["artifact_digest"],
-                rating=rating,
-                comment=comment,
-                predicted_ctr=None,
-                annotations=annotations,
-                actor=f"firebase:{identity.uid}",
-                policy_path=settings.commander_policy_path,
-                asset_directory=settings.commander_asset_root,
-                supersedes_feedback_id=target["latest_feedback_id"],
-            )
-            return {**result, "direction_id": direction_id}
+            if decision == "approve" and (comment or rating is not None or annotations):
+                raise ValueError("approval must not include correction feedback")
+            async with operation_start_lock:
+                if decision == "changes":
+                    require_no_active_codex()
+                    active = await active_heavy_operation()
+                    if active is not None:
+                        raise HTTPException(
+                            status_code=409,
+                            detail=(
+                                f"{active.get('operation') or 'Heavy'} run "
+                                f"{active['run_id']} is active"
+                            ),
+                        )
+                result = read.review(
+                    creative_id=target["creative_id"],
+                    artifact_digest=target["artifact_digest"],
+                    rating=rating,
+                    comment=comment,
+                    predicted_ctr=None,
+                    annotations=annotations,
+                    decision=decision,
+                    actor=f"firebase:{identity.uid}",
+                    policy_path=settings.commander_policy_path,
+                    asset_directory=settings.commander_asset_root,
+                    supersedes_feedback_id=target["latest_feedback_id"],
+                )
+                if decision == "changes":
+                    regeneration = (
+                        await laval_bridge(
+                            "POST",
+                            f"/internal/web/branding/runs/{run_id}/directions/{direction_id}/regenerate",
+                            body={
+                                "feedback_id": result["feedback_id"],
+                                "actor": f"firebase:{identity.uid}",
+                            },
+                        )
+                    ).json()
+                    return {
+                        **result, "direction_id": direction_id,
+                        "decision": decision, "regeneration": regeneration,
+                    }
+            return {**result, "direction_id": direction_id, "decision": decision}
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post(
+        "/api/v1/branding/runs/{run_id}/directions/{direction_id}/regenerate"
+    )
+    async def retry_brand_logo_regeneration(
+        run_id: str,
+        direction_id: str,
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        require_laval_id(direction_id)
+        require_running()
+        try:
+            target = read.brand_review_target(run_id, direction_id)
+            if not target["latest_feedback_id"]:
+                raise ValueError("the current logo has no correction feedback")
+            async with operation_start_lock:
+                require_no_active_codex()
+                active = await active_heavy_operation()
+                if active is not None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"{active.get('operation') or 'Heavy'} run "
+                            f"{active['run_id']} is active"
+                        ),
+                    )
+                return (
+                    await laval_bridge(
+                        "POST",
+                        f"/internal/web/branding/runs/{run_id}/directions/{direction_id}/regenerate",
+                        body={
+                            "feedback_id": target["latest_feedback_id"],
+                            "actor": f"firebase:{identity.uid}",
+                        },
+                    )
+                ).json()
         except (KeyError, TypeError, ValueError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 

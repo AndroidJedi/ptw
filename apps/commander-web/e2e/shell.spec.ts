@@ -16,7 +16,14 @@ const stages = [
 
 test.beforeEach(async ({ page }) => {
   let brandApproved = false
-  const brandFeedback = new Map<string, string>()
+  const brandState = new Map<string, {
+    revision: number
+    reviewState: 'pending' | 'changes_requested' | 'approved'
+    feedback: string
+    feedbackId: string | null
+    regenerationStatus: 'running' | 'completed' | null
+    regenerationPolls: number
+  }>()
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
     Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined })
@@ -53,27 +60,73 @@ test.beforeEach(async ({ page }) => {
     }
     const directions = ['Proofrise', 'Momentum', 'Verity Loop'].map((name, index) => {
       const id = `${index + 3}1234567-89ab-7def-8123-456789abcdef`
-      const comment = brandFeedback.get(id)
+      const state = brandState.get(id) || {
+        revision: 1, reviewState: 'pending' as const, feedback: '', feedbackId: null,
+        regenerationStatus: null, regenerationPolls: 0,
+      }
+      brandState.set(id, state)
       return {
-      id, ordinal: index + 1, name, status: comment ? 'reviewed' : 'awaiting_review',
+      id, ordinal: index + 1, revision: state.revision, name,
+      status: state.reviewState === 'approved' ? 'reviewed' : 'awaiting_review',
       manifest: { name, tagline: { en: 'Make progress visible.', uk: 'Зробіть прогрес видимим.' }, positioning: { en: 'Credible momentum.', uk: 'Достовірний прогрес.' }, personality: ['credible'], palette, typography: { display: 'Manrope', body: 'Inter', mono: 'IBM Plex Mono' }, design_principles: ['Visible momentum', 'Earned anticipation', 'Calm action'], retention_patterns: ['proof timeline'], ui_system: {} },
       evaluation: { passed: true, checks: { contrast: { passed: true }, font_coverage: { passed: true }, evidence_lineage: { passed: true } } },
-      artifact_digest: `${index + 1}`.repeat(64), logo_asset: { digest: `${index + 1}`.repeat(64), mime_type: 'image/png', width: 1024, height: 1024, url: `/api/v1/branding/assets/${`${index + 1}`.repeat(64)}`, cache: 'private, no-store' },
-      latest_feedback_id: comment ? `${index + 6}1234567-89ab-7def-8123-456789abcdef` : null,
-      rating: null, overall_comment: comment || null, reviewed_at: comment ? '2026-08-20T00:00:00Z' : null,
+      artifact_digest: `${state.revision}${index + 1}`.repeat(32), logo_asset: { digest: `${state.revision}${index + 1}`.repeat(32), mime_type: 'image/png', width: 1024, height: 1024, url: `/api/v1/branding/assets/${`${state.revision}${index + 1}`.repeat(32)}`, cache: 'private, no-store' },
+      latest_feedback_id: state.feedbackId, feedback_type: state.reviewState === 'approved' ? 'owner_logo_approval' : state.feedbackId ? 'owner_text_review' : null,
+      review_state: state.reviewState, regeneration_feedback_id: state.feedbackId,
+      regeneration_status: state.regenerationStatus, overall_comment: state.feedback || null,
+      rating: null, reviewed_at: state.feedbackId ? '2026-08-20T00:00:00Z' : null,
     }})
-    if (url.pathname === `/api/v1/branding/runs/${brandRunId}`) return json({
-      run: { id: brandRunId, source_laval_run_id: runId, status: brandApproved ? 'completed' : 'awaiting_review', current_stage: brandApproved ? 'KIT_ASSEMBLY' : 'OWNER_REVIEW', source_snapshot: { owner_idea: 'Make credible progress visible.', theses: [], mechanisms: [] }, source_stale: false, constraints_text: '', provider_snapshot: {}, commander_brand_kit_id: brandApproved ? brandKitId : null, created_at: '', updated_at: '' },
+    if (url.pathname === `/api/v1/branding/runs/${brandRunId}`) {
+      for (const state of brandState.values()) {
+        if (state.regenerationStatus !== 'running') continue
+        if (state.regenerationPolls > 0) state.regenerationPolls -= 1
+        else {
+          state.revision += 1
+          state.reviewState = 'pending'
+          state.feedbackId = null
+          state.feedback = ''
+          state.regenerationStatus = 'completed'
+        }
+      }
+      const freshDirections = directions.map((direction) => {
+        const state = brandState.get(direction.id)!
+        const digest = `${state.revision}${direction.ordinal}`.repeat(32)
+        return {
+          ...direction, revision: state.revision, review_state: state.reviewState,
+          latest_feedback_id: state.feedbackId,
+          feedback_type: state.reviewState === 'approved' ? 'owner_logo_approval' : state.feedbackId ? 'owner_text_review' : null,
+          overall_comment: state.feedback || null,
+          regeneration_feedback_id: state.feedbackId,
+          regeneration_status: state.regenerationStatus,
+          artifact_digest: digest,
+          logo_asset: { ...direction.logo_asset, digest, url: `/api/v1/branding/assets/${digest}` },
+        }
+      })
+      const regenerationActive = [...brandState.values()].some((state) => state.regenerationStatus === 'running')
+      return json({
+      run: { id: brandRunId, source_laval_run_id: runId, status: brandApproved ? 'completed' : regenerationActive ? 'running' : 'awaiting_review', current_stage: brandApproved ? 'KIT_ASSEMBLY' : 'OWNER_REVIEW', source_snapshot: { owner_idea: 'Make credible progress visible.', theses: [], mechanisms: [] }, source_stale: false, constraints_text: '', provider_snapshot: {}, commander_brand_kit_id: brandApproved ? brandKitId : null, created_at: '', updated_at: '' },
       stages: brandStages.map((stage, ordinal) => ({ stage, ordinal, status: ordinal < 8 || brandApproved ? 'completed' : ordinal === 8 ? 'paused' : 'pending', attempt: ordinal < 8 ? 1 : 0, metrics: ordinal === 2 ? { paid_seo_calls: 0 } : {} })),
-      directions, cost: { items: [], total_usd: 0 }, runner_active: false,
+      directions: freshDirections, cost: { items: [], total_usd: 0 }, runner_active: regenerationActive,
     })
+    }
     if (url.pathname === `/api/v1/branding/runs/${brandRunId}/show`) return json({ stage: url.searchParams.get('stage'), artifact: { paid_seo_calls: 0 } })
     if (url.pathname.includes(`/api/v1/branding/runs/${brandRunId}/directions/`) && url.pathname.endsWith('/review') && route.request().method() === 'POST') {
       const directionId = url.pathname.split('/').at(-2) || ''
       const body = route.request().postDataJSON() as Record<string, unknown>
-      expect(body).toEqual({ comment: expect.any(String) })
-      brandFeedback.set(directionId, String(body.comment))
-      return json({ feedback_id: '71234567-89ab-7def-8123-456789abcdef', weight_update_ids: [], direction_id: directionId })
+      const state = brandState.get(directionId)!
+      if (body.decision === 'changes') {
+        expect(body).toEqual({ decision: 'changes', comment: expect.any(String) })
+        state.reviewState = 'changes_requested'
+        state.feedback = String(body.comment)
+        state.feedbackId = `7${directionId.slice(1)}`
+        state.regenerationStatus = 'running'
+        state.regenerationPolls = 1
+        return json({ feedback_id: state.feedbackId, decision: 'changes', regeneration: { status: 'running' } })
+      }
+      expect(body).toEqual({ decision: 'approve', comment: '' })
+      state.reviewState = 'approved'
+      state.feedbackId = `8${directionId.slice(1)}`
+      return json({ feedback_id: state.feedbackId, decision: 'approve' })
     }
     if (url.pathname === `/api/v1/branding/runs/${brandRunId}/approve` && route.request().method() === 'POST') {
       brandApproved = true
@@ -123,16 +176,20 @@ test('renders the authenticated owner console without horizontal overflow', asyn
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('reviews Branding with one text CTA per logo, then approves and downloads', async ({ page }) => {
+test('regenerates each commented logo, explicitly approves it, then builds the kit', async ({ page }) => {
   await page.goto(`/?e2e=1&page=branding&run=${brandRunId}`)
   await expect(page.getByRole('heading', { name: 'Брендинг' })).toBeVisible()
   await expect(page.locator('.annotation-editor')).toHaveCount(0)
   await expect(page.getByText('Оцінка лого')).toHaveCount(0)
   await expect(page.locator('.brand-review-step .brand-single-cta')).toHaveCount(1)
   for (const [index, comment] of ['Спростіть форму', 'Посильте контраст', 'Збережіть ритм'].entries()) {
-    await expect(page.getByText(`ЛОГО ${index + 1} З 3`)).toBeVisible()
-    await page.getByLabel('Що змінити або зберегти?').fill(comment)
-    await page.getByRole('button', { name: index === 2 ? 'Зберегти й обрати бренд' : 'Зберегти й далі' }).click()
+    await expect(page.getByText(`ЛОГО ${index + 1} З 3 · ВЕРСІЯ 1`)).toBeVisible()
+    await page.getByLabel('Що змінити?').fill(comment)
+    await page.getByRole('button', { name: 'Переробити за коментарем' }).click()
+    await expect(page.getByText(/Створюю нову версію за вашим коментарем/)).toBeVisible()
+    await expect(page.getByText(`ЛОГО ${index + 1} З 3 · ВЕРСІЯ 2`)).toBeVisible()
+    await expect(page.getByText(/Оновлено за вашим коментарем/)).toBeVisible()
+    await page.getByRole('button', { name: index === 2 ? 'Схвалити й обрати бренд' : 'Схвалити й далі' }).click()
   }
   await expect(page.getByText(/Domain and trademark clearance are not performed/)).toBeVisible()
   await page.getByRole('radio', { name: /Proofrise/ }).click()

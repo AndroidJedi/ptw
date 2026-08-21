@@ -174,10 +174,14 @@ failure-path, and emergency stop/resume checks in
 [`idea-laval-engine.md`](../architecture/idea-laval-engine.md).
 
 Branding cutover additionally requires an eligible completed live Idea,
-automatic progression through eight pre-review stages, current feedback on all
-three logos, one explicit direction approval, authenticated asset/ZIP access,
+automatic progression through eight pre-review stages, explicit approval of all
+three current logos, one explicit direction approval, authenticated asset/ZIP access,
 consumer compilation, graph lineage inspection, stale-kit enforcement, and an
 Idea one-service restart. See [`branding-v1.md`](../architecture/branding-v1.md).
+During review, a non-empty comment must queue a durable same-direction logo
+revision and must not advance. Only an empty-field approval advances. Restart
+recovery must reuse the same revision attempt/provider task, while a failed
+revision exposes one owner retry action.
 Branding reuses the existing ChatGPT-authenticated Codex bridge for strict text
 and `$imagegen`; do not configure or copy a second API key. The compatibility
 `scripts/configure_brand_provider.sh` command now runs the non-mutating release

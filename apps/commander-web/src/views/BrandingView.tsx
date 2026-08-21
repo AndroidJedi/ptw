@@ -101,9 +101,14 @@ export function BrandingView({ api, language, initialRunId }: {
       setStatus(data)
       setKit(null)
       setSelectedDirection((current) => {
-        const nextUnreviewed = data.directions.find((item) => !item.latest_feedback_id)
-        if (data.run.status === 'awaiting_review' && nextUnreviewed) return nextUnreviewed.id
-        return current && data.directions.some((item) => item.id === current) ? current : data.directions[0]?.id || ''
+        const currentItem = data.directions.find((item) => item.id === current)
+        if (currentItem && currentItem.review_state !== 'approved') return currentItem.id
+        const activeRevision = data.directions.find((item) => ['pending', 'running'].includes(item.regeneration_status || ''))
+        const nextRequired = data.directions.find((item) => item.review_state !== 'approved')
+        if (['awaiting_review', 'running'].includes(data.run.status) && (activeRevision || nextRequired)) {
+          return (activeRevision || nextRequired)!.id
+        }
+        return currentItem?.id || data.directions[0]?.id || ''
       })
       if (data.run.commander_brand_kit_id) {
         void api.get<BrandKit>(`/api/v1/branding/kits/${data.run.commander_brand_kit_id}`).then(setKit).catch(() => undefined)
@@ -132,8 +137,8 @@ export function BrandingView({ api, language, initialRunId }: {
   )
 
   useEffect(() => {
-    setComment(direction?.latest_feedback_id ? direction.overall_comment || '' : '')
-  }, [direction?.id, direction?.latest_feedback_id, direction?.overall_comment])
+    setComment(direction?.review_state === 'changes_requested' ? direction.overall_comment || '' : '')
+  }, [direction?.id, direction?.review_state, direction?.overall_comment, direction?.revision])
 
   const create = async () => {
     if (!selectedCandidate) return
@@ -165,13 +170,26 @@ export function BrandingView({ api, language, initialRunId }: {
   }
 
   const review = async () => {
-    if (!direction || !comment.trim()) return
+    if (!direction) return
+    const correction = comment.trim()
+    const decision = correction ? 'changes' : 'approve'
     setBusy(true); setError('')
     try {
-      await api.post(`/api/v1/branding/runs/${selectedRun}/directions/${direction.id}/review`, { comment: comment.trim() })
+      await api.post(`/api/v1/branding/runs/${selectedRun}/directions/${direction.id}/review`, {
+        decision, comment: correction,
+      })
       setComment('')
       await loadRun()
       await loadLists()
+    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+  }
+
+  const retryRegeneration = async () => {
+    if (!direction) return
+    setBusy(true); setError('')
+    try {
+      await api.post(`/api/v1/branding/runs/${selectedRun}/directions/${direction.id}/regenerate`, {})
+      await loadRun(); await loadLists()
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
 
@@ -196,8 +214,14 @@ export function BrandingView({ api, language, initialRunId }: {
   }
 
   if (!candidates || !runs) return error ? <ErrorState message={error} retry={loadLists} /> : <Loading />
-  const reviewed = status?.directions.filter((item) => item.latest_feedback_id).length || 0
-  const allReviewed = reviewed === 3
+  const approved = status?.directions.filter((item) => item.review_state === 'approved').length || 0
+  const allApproved = approved === 3
+  const reviewMode = status?.run.current_stage === 'OWNER_REVIEW'
+    && ['awaiting_review', 'running'].includes(status.run.status)
+  const regenerating = direction?.regeneration_feedback_id === direction?.latest_feedback_id
+    && ['pending', 'running'].includes(direction?.regeneration_status || '')
+  const regenerationFailed = direction?.regeneration_feedback_id === direction?.latest_feedback_id
+    && direction?.regeneration_status === 'failed'
   const providerReady = readiness?.ready === true
   const providerLabel = providerReady
     ? String(readiness?.provider || 'готовий')
@@ -226,18 +250,24 @@ export function BrandingView({ api, language, initialRunId }: {
       <details className="brand-switcher"><summary>Інший запуск</summary><label>Запуск<select value={selectedRun} onChange={(event) => setSelectedRun(event.target.value)}>{runs.map((run) => <option key={run.id} value={run.id}>{statusLabel(run.status)} · {run.owner_preview || 'Branding'}</option>)}</select></label><button className="secondary" onClick={() => setCreateOpen(true)} disabled={!candidates.length}><Plus />Створити новий</button></details>
 
       {!status ? <Loading /> : <>
-        <header className="brand-flow-head"><small>{statusLabel(status.run.status)}</small><h2>{status.run.source_snapshot.owner_idea}</h2>{status.run.status === 'awaiting_review' && <p>{allReviewed ? 'Відгуки збережено. Оберіть фінальний напрям.' : `${reviewed} з 3 відгуків збережено.`}</p>}</header>
+        <header className="brand-flow-head"><small>{reviewMode ? 'ПЕРЕГЛЯД ЛОГО' : statusLabel(status.run.status)}</small><h2>{status.run.source_snapshot.owner_idea}</h2>{reviewMode && <p>{allApproved ? 'Усі три логотипи схвалено. Оберіть фінальний напрям.' : `${approved} з 3 логотипів схвалено.`}</p>}</header>
         {status.run.source_stale && <p className="brand-warning"><ShieldAlert />Idea справа змінилась. Цей Kit можна завантажити лише як історичний.</p>}
 
-        {status.run.status === 'awaiting_review' && !allReviewed && direction && <section className="brand-review-step">
-          <div className="brand-step-progress"><span>ЛОГО {direction.ordinal} З 3</span><div>{status.directions.map((item) => <i key={item.id} className={item.latest_feedback_id ? 'done' : item.id === direction.id ? 'current' : ''} />)}</div></div>
-          <div className="brand-focused-logo"><Logo api={api} direction={direction} /></div>
+        {reviewMode && !allApproved && direction && <section className="brand-review-step">
+          <div className="brand-step-progress"><span>ЛОГО {direction.ordinal} З 3 · ВЕРСІЯ {direction.revision || 1}</span><div>{status.directions.map((item) => <i key={item.id} className={item.review_state === 'approved' ? 'done' : item.id === direction.id ? 'current' : ''} />)}</div></div>
+          <div className={`brand-focused-logo ${regenerating ? 'is-regenerating' : ''}`}><Logo api={api} direction={direction} />{regenerating && <div className="brand-logo-regenerating"><div className="brand-spinner" /><strong>Переробляю…</strong></div>}</div>
           <div className="brand-focused-copy"><h2>{direction.name}</h2><p>{text(direction.manifest.tagline, language)}</p></div>
-          <label className="brand-text-feedback" htmlFor="brand-feedback">Що змінити або зберегти?<textarea id="brand-feedback" aria-label="Що змінити або зберегти?" rows={4} maxLength={1000} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Наприклад: символ сильний, але зробіть його простішим…" /><small>Одного текстового відгуку достатньо.</small></label>
-          <button className="primary large brand-single-cta" disabled={!comment.trim() || busy} onClick={() => void review()}>{busy ? 'Збереження…' : reviewed === 2 ? 'Зберегти й обрати бренд' : 'Зберегти й далі'}</button>
+          {regenerating ? <div className="brand-regeneration-state" role="status"><h3>Створюю нову версію за вашим коментарем</h3><p>Ви залишитеся на цьому логотипі. Коли нова версія буде готова, вона з’явиться тут автоматично.</p>{direction.overall_comment && <blockquote>{direction.overall_comment}</blockquote>}</div>
+            : regenerationFailed ? <div className="brand-regeneration-state brand-regeneration-failed"><h3>Не вдалося завершити нову версію</h3><p>{direction.regeneration_error?.message || 'Збережений коментар не втрачено.'}</p><button className="primary large brand-single-cta" disabled={busy} onClick={() => void retryRegeneration()}>{busy ? 'Запуск…' : 'Спробувати переробити ще раз'}</button></div>
+              : direction.review_state === 'changes_requested' ? <div className="brand-regeneration-state"><h3>Коментар збережено, але ще не застосовано</h3>{direction.overall_comment && <blockquote>{direction.overall_comment}</blockquote>}<button className="primary large brand-single-cta" disabled={busy} onClick={() => void retryRegeneration()}>{busy ? 'Запуск…' : 'Переробити за коментарем'}</button></div>
+                : <>
+                  {direction.regeneration_status === 'completed' && <p className="brand-regenerated"><Check />Оновлено за вашим коментарем. Перевірте нову версію.</p>}
+                  <label className="brand-text-feedback" htmlFor="brand-feedback">Що змінити?<textarea id="brand-feedback" aria-label="Що змінити?" rows={4} maxLength={1000} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Залиште порожнім, якщо лого підходить" /><small>{comment.trim() ? 'Коментар створить нову версію цього самого лого.' : 'Без коментаря — схвалити й перейти далі.'}</small></label>
+                  <button className="primary large brand-single-cta" disabled={busy} onClick={() => void review()}>{busy ? (comment.trim() ? 'Запускаю переробку…' : 'Схвалюю…') : comment.trim() ? 'Переробити за коментарем' : approved === 2 ? 'Схвалити й обрати бренд' : 'Схвалити й далі'}</button>
+                </>}
         </section>}
 
-        {status.run.status === 'awaiting_review' && allReviewed && direction && <section className="brand-choice-step">
+        {status.run.status === 'awaiting_review' && allApproved && direction && <section className="brand-choice-step">
           <div className="brand-choice-tabs" role="radiogroup" aria-label="Фінальний напрям">{status.directions.map((item) => <button key={item.id} role="radio" aria-checked={item.id === direction.id} className={item.id === direction.id ? 'selected' : ''} onClick={() => setSelectedDirection(item.id)}><Check />{item.name}</button>)}</div>
           <div className="brand-focused-logo"><Logo api={api} direction={direction} /></div>
           <div className="brand-focused-copy"><small>ФІНАЛЬНИЙ НАПРЯМ</small><h2>{direction.name}</h2><p>{text(direction.manifest.positioning, language)}</p></div>
@@ -245,7 +275,7 @@ export function BrandingView({ api, language, initialRunId }: {
           <button className="primary large brand-single-cta" disabled={busy || status.run.source_stale} onClick={() => void approve()}>{busy ? 'Збирання Kit…' : `Затвердити ${direction.name}`}</button>
         </section>}
 
-        {['pending', 'running'].includes(status.run.status) && <section className="brand-wait-step"><div className="brand-spinner" /><h2>Створюємо три напрями</h2><p>{status.run.current_stage.replaceAll('_', ' ')} · {status.stages.filter((item) => item.status === 'completed').length}/10</p>{status.run.status === 'running' && <button className="secondary brand-single-cta" disabled={busy} onClick={() => void control('pause')}><Pause />Призупинити</button>}</section>}
+        {['pending', 'running'].includes(status.run.status) && !reviewMode && <section className="brand-wait-step"><div className="brand-spinner" /><h2>Створюємо три напрями</h2><p>{status.run.current_stage.replaceAll('_', ' ')} · {status.stages.filter((item) => item.status === 'completed').length}/10</p>{status.run.status === 'running' && <button className="secondary brand-single-cta" disabled={busy} onClick={() => void control('pause')}><Pause />Призупинити</button>}</section>}
 
         {status.run.status === 'paused' && <section className="brand-recovery-step"><h2>Запуск призупинено</h2><p>Уся завершена робота збережена.</p><button className="primary large brand-single-cta" disabled={busy} onClick={() => void control('resume')}><Play />Продовжити</button></section>}
         {status.run.status === 'failed' && <section className="brand-recovery-step"><h2>Потрібне відновлення</h2><p>Продовжимо зі збереженого етапу без повтору завершеної роботи.</p><button className="primary large brand-single-cta" disabled={busy} onClick={() => void control('resume')}><Play />Продовжити зі збереженого</button></section>}

@@ -49,6 +49,34 @@ class BrandRunner:
                 raise
             return True
 
+    def start_revision(
+        self, run_id: str, revision_id: str, *, guard_acquired: bool = False,
+    ) -> bool:
+        with self._guard:
+            current = self._threads.get(run_id)
+            if current and current.is_alive():
+                return False
+            if not guard_acquired:
+                self.operation_guard.acquire("branding", run_id)
+            elif self.operation_guard.snapshot() != {
+                "active": True, "operation": "branding", "run_id": run_id
+            }:
+                raise RuntimeError("Branding operation guard reservation was lost")
+            thread = threading.Thread(
+                target=self._execute_revision,
+                kwargs={"run_id": run_id, "revision_id": revision_id},
+                name=f"branding-logo-revision-{revision_id}",
+                daemon=True,
+            )
+            self._threads[run_id] = thread
+            try:
+                thread.start()
+            except Exception:
+                self._threads.pop(run_id, None)
+                self.operation_guard.release("branding", run_id)
+                raise
+            return True
+
     def _execute(self, *, run_id: str, start_stage: str | None) -> None:
         try:
             self.pipeline.run(run_id, start_stage=start_stage)
@@ -70,12 +98,52 @@ class BrandRunner:
                     # must not rewrite the completed run's state.
                     pass
 
+    def _execute_revision(self, *, run_id: str, revision_id: str) -> None:
+        try:
+            self.pipeline.regenerate_logo(revision_id)
+        except Exception as error:
+            from .brand_pipeline import BrandRunPaused
+
+            if isinstance(error, BrandRunPaused):
+                self.pipeline.repository.pause_logo_revision(revision_id)
+            else:
+                self.pipeline.repository.fail_logo_revision(revision_id, error)
+        finally:
+            with self._guard:
+                self._threads.pop(run_id, None)
+            self.operation_guard.release("branding", run_id)
+            if self.on_idle is not None:
+                try:
+                    self.on_idle()
+                except Exception:
+                    pass
+
     def active(self, run_id: str) -> bool:
         with self._guard:
             thread = self._threads.get(run_id)
             return bool(thread and thread.is_alive())
 
     def resume_incomplete(self) -> None:
+        revision = self.pipeline.repository.pending_logo_revision()
+        if revision:
+            run_id = str(revision["run_id"])
+            try:
+                self.operation_guard.acquire("branding", run_id)
+            except OperationConflict:
+                return
+            try:
+                self.pipeline.store.execute(
+                    """UPDATE brand_runs SET status='running',current_stage='OWNER_REVIEW',
+                              error_text=NULL,updated_at=NOW() WHERE id=%s RETURNING 1""",
+                    (run_id,),
+                )
+                self.start_revision(
+                    run_id, str(revision["id"]), guard_acquired=True
+                )
+            except Exception:
+                self.operation_guard.release("branding", run_id)
+                raise
+            return
         row = self.pipeline.store.fetchone(
             """SELECT id FROM brand_runs
                WHERE status IN ('pending','running') ORDER BY created_at LIMIT 1"""
@@ -139,6 +207,25 @@ class BrandService:
     def resume(self, run_id: str, *, actor: str) -> dict[str, Any]:
         self.runner.operation_guard.acquire("branding", run_id)
         try:
+            revision = self.repository.pending_logo_revision(run_id)
+            if revision:
+                self.repository.store.execute(
+                    """UPDATE brand_runs SET status='running',current_stage='OWNER_REVIEW',
+                              error_text=NULL,updated_at=NOW() WHERE id=%s RETURNING 1""",
+                    (run_id,),
+                )
+                self.repository.record_action(
+                    run_id, "logo_revision_resumed", actor=actor,
+                    details={"revision_id": str(revision["id"])},
+                )
+                return {
+                    "run_id": run_id,
+                    "revision_id": str(revision["id"]),
+                    "started": self.runner.start_revision(
+                        run_id, str(revision["id"]), guard_acquired=True
+                    ),
+                    "status": "running",
+                }
             self.repository.ready(run_id)
             self.repository.record_action(run_id, "resumed", actor=actor)
             return {
@@ -180,3 +267,40 @@ class BrandService:
             return self.pipeline.approve(run_id, direction_id, actor=actor)
         finally:
             self.runner.operation_guard.release("branding", run_id)
+
+    def regenerate_logo(
+        self, run_id: str, direction_id: str, feedback_id: str, *, actor: str,
+    ) -> dict[str, Any]:
+        self.runner.operation_guard.acquire("branding", run_id)
+        try:
+            revision = self.repository.queue_logo_revision(
+                run_id, direction_id, feedback_id, actor=actor,
+                provider=self.pipeline.provider.name,
+                model=self.pipeline.provider.image_model,
+            )
+            if revision["status"] == "completed":
+                self.runner.operation_guard.release("branding", run_id)
+                return {
+                    "run_id": run_id,
+                    "direction_id": direction_id,
+                    "revision_id": str(revision["id"]),
+                    "status": "completed",
+                    "started": False,
+                }
+            started = self.runner.start_revision(
+                run_id, str(revision["id"]), guard_acquired=True
+            )
+            return {
+                "run_id": run_id,
+                "direction_id": direction_id,
+                "revision_id": str(revision["id"]),
+                "status": "running",
+                "started": started,
+            }
+        except Exception:
+            snapshot = self.runner.operation_guard.snapshot()
+            if snapshot == {
+                "active": True, "operation": "branding", "run_id": run_id
+            }:
+                self.runner.operation_guard.release("branding", run_id)
+            raise

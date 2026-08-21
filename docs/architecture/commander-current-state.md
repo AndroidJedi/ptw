@@ -102,6 +102,26 @@ unavailable until all three current Creatives have explicit approvals. Existing
 legacy comments remain actionable change requests and can be replayed without
 losing append-only feedback or asset history.
 
+PTW release `branding-review-ba24714` from commit `ba24714` is deployed
+serially on Commander, Idea, and Owner Gateway. Idea migration 013 adds durable
+logo-revision attempts and immutable source/result references. Firebase Hosting
+version `d1733984e7f1d6e8` serves `index-CfMCr_ii.js`,
+`App-BmBF0zt5.js`, and `ptw-shell-v21` on both hostnames. The live audit passes
+gateway health 200, unauthenticated denial 401, CORS preflight 200, and exact
+bundle/service-worker markers.
+
+All three non-approval signals preserved on the first real Branding run were
+replayed serially after cutover. Each produced a distinct version-2 Creative and
+immutable Artifact; all three current logos are back at pending explicit
+approval, and none is counted as approved. Graph inspection verifies three
+`supersedes` and three feedback `derived_from` edges, all asset digests match,
+the operation guard is idle, and no Branding Telegram action exists. Restarting
+only Idea preserved every revision and the owner-review state. Verification
+passes 124 built-image Commander/Idea tests, 25 built-image Owner Gateway tests,
+two disposable-PostgreSQL Branding migration/pipeline tests, 29 Vitest checks,
+and all 12 desktop/360 px/iPhone WebKit flows. The established 1 GB audit passes
+after regeneration and restart with 399 MiB available and no new OOM evidence.
+
 Release verification passes 123 Commander/Idea tests in the tagged Idea image
 against disposable PostgreSQL (five intentional retirement skips), 23 tagged
 Owner Gateway tests, 26 Vitest checks, 12 Playwright checks, the deterministic

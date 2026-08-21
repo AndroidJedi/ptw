@@ -64,6 +64,11 @@ run look stuck. The corrected UI provides a safe read-only state refresh,
 warns that a timed-out mutation may already have committed, labels
 `OWNER_REVIEW` as waiting for owner feedback, and explicitly says generation is
 complete. The recovery path never repeats a review or approval mutation.
+Fix commit `1a5e93a` is live as Firebase Hosting version
+`fbeae76963a882d6`, serving `index-BQJjjAPQ.js`, `App-De-t_Yar.js`, and
+`ptw-shell-v19` on both Firebase hostnames. The public post-deploy audit passes
+gateway health, negative authentication, CORS, and exact live-bundle markers;
+27 Vitest checks and all 12 desktop/mobile/iPhone WebKit scenarios pass.
 
 Release verification passes 123 Commander/Idea tests in the tagged Idea image
 against disposable PostgreSQL (five intentional retirement skips), 23 tagged

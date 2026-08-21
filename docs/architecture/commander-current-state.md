@@ -81,6 +81,16 @@ automatically, and the final review leads directly to one direction choice and
 one approval CTA. The legacy rated/annotated API remains readable and accepted
 for historical compatibility.
 
+PTW release `branding-simple-d5cca7a` from commit `d5cca7a` is deployed
+serially on Commander, Idea, and Owner Gateway. Migration 014 makes only the
+review rating projection nullable; existing rated reviews and immutable assets
+are unchanged. Firebase Hosting version `decb85b0c00234d7` serves
+`index-Dm3k7Nlv.js`, `App-CH1_eIWW.js`, and `ptw-shell-v20` on both hostnames.
+The live bundle contains the text-only/next-step markers, gateway health is
+200, unauthenticated access remains 401, CORS preflight is 200, and the latest
+real run remains at `OWNER_REVIEW` with two of three reviews preserved. The
+release memory audit finished with 347 MiB available and no deployment OOM.
+
 Release verification passes 123 Commander/Idea tests in the tagged Idea image
 against disposable PostgreSQL (five intentional retirement skips), 23 tagged
 Owner Gateway tests, 26 Vitest checks, 12 Playwright checks, the deterministic

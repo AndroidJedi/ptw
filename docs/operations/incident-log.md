@@ -2,6 +2,29 @@
 
 Canonical record of deployment gaps and prevention rules. Do not store secrets.
 
+## 2026-08-21 — Branding shipped with its primary action unavailable
+
+- Impact: the authenticated Branding tab loaded, but showed `provider
+  unavailable`, disabled creation, and listed no completed Idea cases even
+  though two live cases existed.
+- Cause: release acceptance checked health, auth, migrations, and deterministic
+  fixtures but did not fail on live Branding readiness. No OpenAI API key had
+  been configured for the Idea process. Independently, the candidate query
+  required a surviving, non-stale thesis, contradicting the owner contract that
+  any completed live Idea case is selectable without a validation prerequisite;
+  all five assessed production theses had verdict `rejected`.
+- Correction: select every completed live mechanism/thesis case, retain and
+  label all assessed verdicts, allow source-only graph lineage only when the
+  case truthfully has no surviving thesis, expose the exact missing provider
+  requirement, and add root-only hidden-input OpenAI onboarding that validates
+  both pinned model IDs before atomically updating configuration.
+- Prevention: Branding acceptance uses
+  `PTW_REQUIRE_BRANDING_READY=1` with the VPS dependency audit and requires both
+  a ready generation provider and a selectable case. A release with a disabled
+  primary action is not functionally available even when its shallow health and
+  authentication checks pass. Fixture execution cannot satisfy live-provider
+  acceptance.
+
 ## 2026-08-20 — Laval V2 YouTube observation mode was absent from the platform bridge contract
 
 - Impact: the first real `mechanism_thesis_v1` run stopped safely at

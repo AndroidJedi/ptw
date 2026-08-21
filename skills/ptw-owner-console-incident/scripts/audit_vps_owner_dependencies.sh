@@ -74,4 +74,34 @@ print(f"Owner Gateway -> Idea Laval ready; runs={len(items)}")
 
 docker exec "$idea_container" python -m idea_generation.verify_bridge_contract
 
+if [ "${PTW_REQUIRE_BRANDING_READY:-0}" = "1" ]; then
+  docker exec "$owner_container" python -c '
+import httpx
+from owner_gateway.settings import Settings
+
+settings = Settings.from_environment()
+headers = {"X-PTW-Owner-Gateway-Token": settings.idea_service_token}
+provider = httpx.get(
+    settings.idea_service_url + "/internal/web/branding/providers",
+    headers=headers,
+    timeout=5,
+)
+provider.raise_for_status()
+readiness = provider.json()
+if readiness.get("ready") is not True:
+    missing = ",".join(str(item) for item in readiness.get("missing") or []) or "unknown"
+    raise SystemExit(f"Branding provider is not ready; missing={missing}")
+cases = httpx.get(
+    settings.idea_service_url + "/internal/web/branding/cases?limit=1",
+    headers=headers,
+    timeout=5,
+)
+cases.raise_for_status()
+count = len(cases.json().get("items") or [])
+if count < 1:
+    raise SystemExit("Branding has no selectable completed live Idea case")
+print(f"Branding provider and candidate contract ready; sampled_cases={count}")
+'
+fi
+
 echo "Owner Gateway and Idea Laval dependency audit passed."

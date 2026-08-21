@@ -454,8 +454,10 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .brand-candidate h3 { margin: 9px 0; font-size: 16px; line-height: 1.35; overflow-wrap: anywhere; }
 .brand-candidate strong { color: #ff8dbc; font-size: 11px; }
 .brand-candidate p { margin: 4px 0 11px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.brand-candidate .brand-candidate-note { padding: 9px; border: 1px solid #7f5a22; border-radius: 10px; color: #f6d28a; background: #241b0e; }
 .brand-candidate-theses { display: grid !important; gap: 8px !important; margin: 8px 0 12px; }
 .brand-candidate-theses section { padding: 9px; border: 1px solid var(--line); border-radius: 10px; background: #0e0e10; }
+.brand-candidate-theses section > small { display: block; margin-top: 4px; color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .08em; }
 .brand-candidate-theses p { margin-bottom: 5px; }
 .brand-candidate-theses p b { color: #fff; }
 .brand-candidate-theses ol { margin: 0; padding-left: 18px; color: #d1c8ce; font-size: 10px; line-height: 1.45; }

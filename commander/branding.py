@@ -106,8 +106,15 @@ class BrandPublishingService:
 
         hypotheses = [self.store.get_entity(self._uuid(value, "hypothesis_id")) for value in request.get("hypothesis_ids") or []]
         sources = [self.store.get_entity(self._uuid(value, "source_id")) for value in request.get("source_ids") or []]
-        if not hypotheses or any(item.kind != EntityKind.HYPOTHESIS for item in hypotheses):
-            raise ValueError("brand direction requires published source hypotheses")
+        if any(item.kind != EntityKind.HYPOTHESIS for item in hypotheses):
+            raise ValueError("brand direction hypothesis IDs must resolve to hypotheses")
+        source_has_surviving_thesis = (
+            bool(request.get("source_has_surviving_thesis"))
+            if "source_has_surviving_thesis" in request
+            else bool(hypotheses)
+        )
+        if source_has_surviving_thesis and not hypotheses:
+            raise ValueError("a surviving Idea thesis requires its published hypothesis")
         if not sources or any(item.kind != EntityKind.SOURCE for item in sources):
             raise ValueError("brand direction requires permanent source entities")
 
@@ -121,6 +128,7 @@ class BrandPublishingService:
                     "name": name,
                     "manifest": dict(manifest),
                     "evaluation": dict(request.get("evaluation") or {}),
+                    "source_had_no_surviving_thesis": not source_has_surviving_thesis,
                     "status": "awaiting_review",
                 },
                 actor="brand-runner",

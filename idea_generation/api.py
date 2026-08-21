@@ -148,8 +148,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     brand_readiness = {
         "ready": settings.brand_provider == "fixture" or bool(settings.openai_api_key),
         "provider": brand_provider.name,
+        "configured_provider": settings.brand_provider,
         "text_model": brand_provider.text_model,
         "image_model": brand_provider.image_model,
+        "text_ready": settings.brand_provider == "fixture" or bool(settings.openai_api_key),
+        "image_ready": settings.brand_provider == "fixture" or bool(settings.openai_api_key),
+        "missing": [] if settings.brand_provider == "fixture" or settings.openai_api_key else ["openai_api_key"],
         "web_provider": brand_web.name,
         "youtube_provider": brand_youtube.name,
         "youtube_ready": brand_youtube.name != "unavailable",

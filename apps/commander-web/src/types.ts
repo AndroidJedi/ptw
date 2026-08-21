@@ -207,6 +207,7 @@ export interface BrandCandidate {
   mechanisms: ProductMechanism[]
   quality: { successful: number; attempted: number }
   recommended_thesis_id?: string | null
+  surviving_thesis_count: number
   active_brand_kit?: { name: string; status: 'approved' | 'superseded' | 'stale'; approved_at: string } | null
 }
 

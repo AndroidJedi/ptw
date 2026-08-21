@@ -178,6 +178,15 @@ automatic progression through eight pre-review stages, current feedback on all
 three logos, one explicit direction approval, authenticated asset/ZIP access,
 consumer compilation, graph lineage inspection, stale-kit enforcement, and an
 Idea one-service restart. See [`branding-v1.md`](../architecture/branding-v1.md).
+Configure its OpenAI credential only through the root-terminal interactive
+`scripts/configure_brand_provider.sh`; never paste the key into chat, Git, or a
+browser form. A completed live case remains selectable even if all assessed
+theses were rejected. The release gate is:
+
+```sh
+PTW_REQUIRE_BRANDING_READY=1 \
+  skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh
+```
 
 After deploy, verify exact-owner login, negative auth/App Check, one Plan and
 one approved Execute, cancellation, root `id`/`pwd`, emergency stop/resume,

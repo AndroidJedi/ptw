@@ -26,6 +26,12 @@ DataForSEO. Its public-page and optional official YouTube collection remain
 bounded, and provider readiness truthfully reports unavailable optional
 YouTube access without blocking a run.
 
+Configure the live provider with the root-only interactive
+`scripts/configure_brand_provider.sh`. It validates `gpt-5-mini` and
+`gpt-image-2` access without exposing the key, then updates only the root-owned
+Owner/Idea environment. The Idea service must be recreated on its already
+pinned release image before readiness changes.
+
 Idea Laval is operated through the authenticated Ideas web view.
 `LAVAL_SEARCH_PROVIDER=fixture` and
 `LAVAL_TREND_PROVIDER=fixture` are safe deterministic defaults. Live localized

@@ -31,12 +31,12 @@ class BrandRepository:
         owner = self.store.fetchone("SELECT * FROM laval_owner_ideas WHERE run_id=%s", (laval_run_id,))
         theses = self.store.fetchall(
             """SELECT * FROM laval_product_theses
-               WHERE run_id=%s AND verdict='survives' AND validation_stale=FALSE
-               ORDER BY recommended DESC,created_at,id""",
+               WHERE run_id=%s
+               ORDER BY recommended DESC,
+                        CASE verdict WHEN 'survives' THEN 0 WHEN 'weak' THEN 1 ELSE 2 END,
+                        created_at,id""",
             (laval_run_id,),
         )
-        if not theses:
-            raise ValueError("completed Idea case has no surviving thesis")
         mechanism_ids = list(dict.fromkeys(str(value) for thesis in theses for value in thesis.get("mechanism_ids") or []))
         mechanisms = self.store.fetchall(
             "SELECT * FROM laval_product_mechanisms WHERE id=ANY(%s::uuid[]) ORDER BY mechanism_type,id",
@@ -78,6 +78,7 @@ class BrandRepository:
             "behavior_observations": observations,
             "quality": quality,
             "recommended_thesis_id": next((str(item["id"]) for item in theses if item.get("recommended")), None),
+            "surviving_thesis_ids": [str(item["id"]) for item in theses if item.get("verdict") == "survives"],
             "hypothesis_ids": [str(item["commander_hypothesis_id"]) for item in theses if item.get("commander_hypothesis_id")],
             "commander_source_ids": list(dict.fromkeys(
                 str(item["commander_source_id"]) for item in evidence if item.get("commander_source_id")
@@ -90,10 +91,6 @@ class BrandRepository:
                FROM laval_runs r JOIN laval_owner_ideas o ON o.run_id=r.id
                WHERE r.status='completed' AND r.evidence_mode<>'demo_fixture'
                  AND r.pipeline_version='mechanism_thesis_v1'
-                 AND EXISTS (
-                   SELECT 1 FROM laval_product_theses t
-                   WHERE t.run_id=r.id AND t.verdict='survives' AND t.validation_stale=FALSE
-                 )
                ORDER BY r.completed_at DESC NULLS LAST,r.created_at DESC LIMIT %s""",
             (min(max(limit, 1), 100),),
         )
@@ -116,6 +113,7 @@ class BrandRepository:
                 "mechanisms": snapshot["mechanisms"],
                 "quality": snapshot["quality"],
                 "recommended_thesis_id": snapshot["recommended_thesis_id"],
+                "surviving_thesis_count": len(snapshot["surviving_thesis_ids"]),
                 "active_brand_kit": json_safe(kit) if kit else None,
             })
         return {"items": items, "next_cursor": None}

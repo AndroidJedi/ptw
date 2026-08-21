@@ -113,7 +113,11 @@ class BrandService:
 
     def create(self, request: Mapping[str, Any], *, actor: str) -> dict[str, Any]:
         if not self.readiness.get("ready"):
-            raise RuntimeError("Branding providers are not ready")
+            missing = ", ".join(str(item) for item in self.readiness.get("missing") or [])
+            raise RuntimeError(
+                "Branding generation provider is not configured"
+                + (f"; missing: {missing}" if missing else "")
+            )
         run_id = new_uuid7()
         self.runner.operation_guard.acquire("branding", run_id)
         try:

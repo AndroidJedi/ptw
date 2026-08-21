@@ -23,9 +23,11 @@ container and the retired creative worker remains disabled.
 9. `OWNER_REVIEW`
 10. `KIT_ASSEMBLY`
 
-Creation snapshots the original idea, every surviving thesis, mechanisms,
-selected competitors, evidence, and permanent Commander UUIDs. Validation and
-estimate state are not prerequisites. Stage input hashes, attempts,
+Creation snapshots the original idea, every assessed thesis with its verdict,
+mechanisms, selected competitors, evidence, and permanent Commander UUIDs.
+A completed live case remains selectable when no thesis survived; the owner UI
+states that Branding will use the original idea, mechanisms, and evidence.
+Validation and estimate state are not prerequisites. Stage input hashes, attempts,
 provider/model, bounded errors, artifacts, provider tasks, action history, and
 cost rows are durable PostgreSQL projections. Completed provider tasks cache
 their structured response or immutable logo digest. A process restart reuses
@@ -112,3 +114,9 @@ is English as well.
 Production acceptance requires one real completed live Idea case, three logo
 reviews, an approved/downloaded kit, fixture compilation, graph-edge audit,
 one-service restart persistence, and the established 1 GB memory audit.
+
+Production OpenAI onboarding is interactive and never accepts a key through the
+browser or chat. Run `scripts/configure_brand_provider.sh` from the root-only
+VPS terminal; it verifies access to the pinned text and image model IDs before
+atomically updating the root-owned environment. Recreate only the Idea service,
+then run the dependency audit with `PTW_REQUIRE_BRANDING_READY=1`.

@@ -71,8 +71,10 @@ function CandidateCard({ item, language, selected, onSelect }: {
   return <button className={`brand-candidate ${selected ? 'selected' : ''}`} onClick={onSelect} type="button">
     <div><span>{item.active_brand_kit ? `KIT · ${item.active_brand_kit.name} · ${item.active_brand_kit.status}` : 'ГОТОВА ІДЕЯ'}</span><time>{new Date(item.created_at).toLocaleDateString('uk-UA')}</time></div>
     <h3>{item.owner_idea}</h3>
+    {item.surviving_thesis_count === 0 && <p className="brand-candidate-note">Жодна теза не пройшла оцінювання. Брендинг використає оригінальну ідею, механізми та докази; відхилені тези лишаються видимим контекстом.</p>}
     <div className="brand-candidate-theses">{item.theses.map((thesis) => <section key={thesis.id}>
       <strong>{thesis.recommended ? '★ РЕКОМЕНДОВАНО · ' : ''}{text(thesis.title, language)}</strong>
+      <small>{thesis.verdict === 'survives' ? 'ВИЖИЛА' : thesis.verdict === 'weak' ? 'СЛАБКА' : 'ВІДХИЛЕНА'}</small>
       <p><b>Для кого:</b> {text(thesis.target_user, language)}</p>
       <ol>{thesis.loop_steps.map((step, index) => <li key={index}>{text(step, language)}</li>)}</ol>
     </section>)}</div>
@@ -230,23 +232,25 @@ export function BrandingView({ api, language, initialRunId }: {
 
   if (!candidates || !runs) return error ? <ErrorState message={error} retry={loadLists} /> : <Loading />
   const reviewed = status?.directions.filter((item) => item.latest_feedback_id).length || 0
+  const providerReady = readiness?.ready === true
   return <>
     <PageHeader eyebrow="BRANDING V1" title="Брендинг" />
     {error && <div className="laval-error" role="alert"><span>{error}</span><button onClick={() => setError('')} aria-label="Закрити"><X /></button></div>}
     <div className="brand-toolbar">
-      <div><small>ПРОВАЙДЕР</small><strong>{String(readiness?.provider || '—')} · SEO вимкнено</strong></div>
+      <div><small>ПРОВАЙДЕР</small><strong>{providerReady ? String(readiness?.provider || 'готовий') : 'Потрібен OpenAI API key'} · SEO вимкнено</strong></div>
       <button className="primary" onClick={() => setCreateOpen(true)} disabled={!candidates.length}><Plus />Новий бренд</button>
     </div>
     {createOpen && <section className="brand-create" role="dialog" aria-modal="true" aria-label="Новий Branding запуск">
       <header><div><small>КРОК 1</small><h2>Оберіть завершену ідею</h2></div><button onClick={() => setCreateOpen(false)} aria-label="Закрити"><X /></button></header>
       <div className="brand-candidates">{candidates.map((item) => <CandidateCard key={item.idea_run_id} item={item} language={language} selected={selectedCandidate === item.idea_run_id} onSelect={() => setSelectedCandidate(item.idea_run_id)} />)}</div>
-      {candidates.length === 0 && <Empty><h2>Немає готових live-ідей</h2><p>Завершіть Idea Laval із хоча б однією тезою, що вижила.</p></Empty>}
+      {candidates.length === 0 && <Empty><h2>Немає завершених live-ідей</h2><p>Завершіть хоча б одну Idea Laval справу.</p></Empty>}
+      {!providerReady && <p className="brand-warning"><ShieldAlert />Генерація ще не налаштована: потрібен захищено введений OpenAI API key для `gpt-5-mini` і трьох викликів `gpt-image-2`. Ключ не передається браузеру.</p>}
       <label>Вільні обмеження бренду<textarea rows={3} maxLength={4000} value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Тон, заборонені асоціації, аудиторні нюанси…" /></label>
       <label>Референсні HTTPS URL — один на рядок<textarea rows={3} value={referenceUrls} onChange={(event) => setReferenceUrls(event.target.value)} placeholder="https://…" /></label>
       <div className="brand-transcripts"><div><strong>Ручні YouTube-транскрипти</strong><button type="button" className="secondary" disabled={transcripts.length >= 5} onClick={() => setTranscripts([...transcripts, { title: '', video_url: '', transcript: '' }])}><Plus />Додати</button></div>
         {transcripts.map((item, index) => <article key={index}><input value={item.title} onChange={(event) => setTranscripts(transcripts.map((value, itemIndex) => itemIndex === index ? { ...value, title: event.target.value } : value))} placeholder="Назва відео" /><input value={item.video_url} onChange={(event) => setTranscripts(transcripts.map((value, itemIndex) => itemIndex === index ? { ...value, video_url: event.target.value } : value))} placeholder="https://youtube.com/watch?v=…" /><textarea rows={3} maxLength={10_000} value={item.transcript} onChange={(event) => setTranscripts(transcripts.map((value, itemIndex) => itemIndex === index ? { ...value, transcript: event.target.value } : value))} placeholder="Неперевірений текст власника" /><button type="button" onClick={() => setTranscripts(transcripts.filter((_value, itemIndex) => itemIndex !== index))}>Видалити</button></article>)}
       </div>
-      <button className="primary large" disabled={!selectedCandidate || busy} onClick={() => void create()}>{busy ? 'Запуск…' : 'Створити й запустити'}</button>
+      <button className="primary large" disabled={!selectedCandidate || busy || !providerReady} onClick={() => void create()}>{busy ? 'Запуск…' : providerReady ? 'Створити й запустити' : 'Спочатку налаштуйте провайдер'}</button>
     </section>}
     {runs.length === 0 ? <Empty><h2>Ще немає Branding-запусків</h2><p>Оберіть завершену Idea справу — перевірка оцінок не потрібна.</p></Empty> : <div className="brand-layout">
       <nav className="brand-runs" aria-label="Branding запуски">{runs.map((run) => <button key={run.id} className={selectedRun === run.id ? 'selected' : ''} onClick={() => setSelectedRun(run.id)}><span><i className={`status-dot ${run.status}`} />{statusLabel(run.status)}</span><strong>{run.owner_preview || 'Branding run'}</strong><small>{run.completed_stages || 0}/10 етапів</small></button>)}</nav>

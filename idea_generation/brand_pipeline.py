@@ -504,6 +504,9 @@ class BrandPipeline:
                 "direction_id": direction["id"],
                 "source_laval_run_id": run["source_laval_run_id"],
                 "hypothesis_ids": run["source_snapshot"].get("hypothesis_ids") or [],
+                "source_has_surviving_thesis": bool(
+                    run["source_snapshot"].get("surviving_thesis_ids")
+                ),
                 "source_ids": source_ids,
                 "manifest": direction["manifest"],
                 "evaluation": direction["evaluation"],

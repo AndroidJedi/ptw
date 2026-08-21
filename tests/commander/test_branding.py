@@ -260,6 +260,46 @@ class BrandingGraphTests(unittest.TestCase):
             for edge in self.store.relationships()
         ))
 
+    def test_completed_case_without_survivor_derives_direction_from_sources_only(self) -> None:
+        manifest = self.manifests[0]
+        with self.assertRaisesRegex(ValueError, "surviving Idea thesis"):
+            self.publisher.publish_direction({
+                "run_id": new_uuid7(), "direction_id": new_uuid7(),
+                "source_laval_run_id": new_uuid7(), "hypothesis_ids": [],
+                "source_has_surviving_thesis": True,
+                "source_ids": [self.source.id], "manifest": manifest,
+                "evaluation": {"passed": True},
+                "artifact": {
+                    "sha256": __import__("hashlib").sha256(b"invalid-source-only").hexdigest(),
+                    "storage_uri": "/var/lib/ptw/assets/invalid-source-only.png",
+                },
+            })
+        result = self.publisher.publish_direction({
+            "run_id": new_uuid7(),
+            "direction_id": new_uuid7(),
+            "source_laval_run_id": new_uuid7(),
+            "hypothesis_ids": [],
+            "source_has_surviving_thesis": False,
+            "source_ids": [self.source.id],
+            "manifest": manifest,
+            "evaluation": {"passed": True},
+            "artifact": {
+                "sha256": __import__("hashlib").sha256(b"source-only").hexdigest(),
+                "storage_uri": "/var/lib/ptw/assets/source-only.png",
+                "width": 1024,
+                "height": 1024,
+                "generation": {"provider": "fixture", "model": "deterministic"},
+            },
+        })
+        direction = self.store.get_entity(result["direction_id"])
+        self.assertTrue(direction.attributes["source_had_no_surviving_thesis"])
+        self.assertTrue(any(
+            edge.source_id == direction.id
+            and edge.target_id == self.source.id
+            and edge.relation == RelationType.DERIVED_FROM
+            for edge in self.store.relationships()
+        ))
+
 
 @unittest.skipUnless(POSTGRES_AVAILABLE and PIL_AVAILABLE, "BRANDING_TEST_DATABASE_URL, psycopg, and Pillow are required")
 class BrandingPostgresPipelineTests(unittest.TestCase):
@@ -560,6 +600,16 @@ class BrandingPostgresPipelineTests(unittest.TestCase):
                 "stale",
                 commander_store.get_entity(str(kit["commander_brand_kit_id"])).attributes["status"],
             )
+            self.store.execute(
+                "UPDATE laval_product_theses SET verdict='rejected',recommended=FALSE WHERE id=%s RETURNING 1",
+                (thesis_id,),
+            )
+            candidates = repository.candidates()
+            rejected_case = next(
+                item for item in candidates["items"] if item["idea_run_id"] == run_id
+            )
+            self.assertEqual(0, rejected_case["surviving_thesis_count"])
+            self.assertEqual("rejected", rejected_case["theses"][0]["verdict"])
 
 
 if __name__ == "__main__":

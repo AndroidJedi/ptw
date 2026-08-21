@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Branding v1 deployed; live Brand Kit acceptance awaits provider and eligible case
+Status: Branding v1 launch repaired; live Brand Kit acceptance awaits provider credential
 Updated: 2026-08-21
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -26,22 +26,25 @@ with full OFL files and checksums; generated wordmarks use the selected font.
 The deterministic PostgreSQL pipeline, three-review approval, kit superseding,
 strict retry, provider-task reuse, graph lineage, URL safety, authenticated
 gateway proxy, web unit/build, and desktop/mobile/iPhone WebKit flows pass.
-PTW release `branding-v1-5db0451` at commit `5db0451` is deployed serially on
-all three application services. Firebase Hosting version `1f6fff783984b8c0`
-serves `index-re3KvY4g.js`, `App-ApHl6rll.js`, and `ptw-shell-v16`. The live
-dependency and security audit passed, as did the 1 GB follow-up audit with 317
-MiB available memory and no OOM evidence in the preceding 24 hours.
+PTW release `branding-fix-6c9258a` at commit `6c9258a` is deployed serially on
+all three application services. Firebase Hosting serves `index-DvbBooTI.js`,
+`App-DXAo0Iov.js`, and `ptw-shell-v17`. The live dependency and security audit
+passes, and all three containers report the exact pinned release tag.
 
 Production Branding readiness currently reports the YouTube provider ready,
 paid SEO and caption scraping disabled, but the generation provider unavailable
-because the Idea process has no approved OpenAI API key. There are also zero
-eligible completed Idea cases. No production run was fabricated: one real
-owner-reviewed Brand Kit remains the acceptance checkpoint after both
-prerequisites exist.
+because the Idea process has no approved OpenAI API key. The launch repair
+removed the hidden requirement that a completed case must contain a surviving
+thesis: both live completed cases are now selectable, and their rejected thesis
+verdicts remain visible rather than being rewritten. A root-only hidden-input
+setup command validates both configured OpenAI models before atomically changing
+the provider environment. No production run was fabricated: one real
+owner-reviewed Brand Kit remains the acceptance checkpoint after the credential
+is configured.
 
-Release verification passes 119 Commander/Idea tests in the tagged Idea image
+Release verification passes 120 Commander/Idea tests in the tagged Idea image
 against disposable PostgreSQL (seven intentional ad/Telegram retirement
-skips), 23 tagged Owner Gateway tests, 25 Vitest checks, 12 Playwright checks,
+skips), 23 tagged Owner Gateway tests, 26 Vitest checks, 12 Playwright checks,
 the deterministic ZIP checksum/font/license/Ukrainian-glyph/contrast checks,
 and compilation of all ten generated TypeScript components.
 
@@ -118,7 +121,7 @@ phases, thesis cards without percentage-like success scores, server-side UUID
 resolution, manual probe evidence capture, explicit mechanism selection for
 Mutate, and a materially different loop requirement for Pivot.
 
-Production runs PTW release `branding-v1-5db0451` at commit `5db0451` and
+Production runs PTW release `branding-fix-6c9258a` at commit `6c9258a` and
 independent platform release `laval-contract-6b0c860` at commit `6b0c860`. The
 platform advertises exactly the 11 active Laval modes and a 1000000-byte request
 limit through its authenticated capabilities endpoint; Idea startup and release

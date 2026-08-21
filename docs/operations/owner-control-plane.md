@@ -178,10 +178,11 @@ automatic progression through eight pre-review stages, current feedback on all
 three logos, one explicit direction approval, authenticated asset/ZIP access,
 consumer compilation, graph lineage inspection, stale-kit enforcement, and an
 Idea one-service restart. See [`branding-v1.md`](../architecture/branding-v1.md).
-Configure its OpenAI credential only through the root-terminal interactive
-`scripts/configure_brand_provider.sh`; never paste the key into chat, Git, or a
-browser form. A completed live case remains selectable even if all assessed
-theses were rejected. The release gate is:
+Branding reuses the existing ChatGPT-authenticated Codex bridge for strict text
+and `$imagegen`; do not configure or copy a second API key. The compatibility
+`scripts/configure_brand_provider.sh` command now runs the non-mutating release
+audit. A completed live case remains selectable even if all assessed theses
+were rejected. The release gate is:
 
 ```sh
 PTW_REQUIRE_BRANDING_READY=1 \

@@ -23,7 +23,12 @@ from idea_generation.brand_domain import (
     normalize_direction,
     public_https_url,
 )
-from idea_generation.brand_providers import BRAND_OUTPUT_SCHEMAS, DeterministicBrandProvider
+from idea_generation.brand_providers import (
+    BRAND_BRIDGE_MODES,
+    BRAND_OUTPUT_SCHEMAS,
+    CodexBridgeBrandProvider,
+    DeterministicBrandProvider,
+)
 from idea_generation.operation_guard import HeavyOperationGuard, OperationConflict
 
 
@@ -150,6 +155,118 @@ class BrandingDomainTests(unittest.TestCase):
                 ):
                     self.assertIn(f"function {component}", components)
                 self.assertIn("data-brand-theme", archive.read("README.md").decode())
+
+
+class BrandingBridgeProviderTests(unittest.TestCase):
+    def capabilities(self) -> dict[str, object]:
+        return {
+            "laval_modes": [],
+            "branding_modes": sorted(BRAND_BRIDGE_MODES.values()),
+            "branding_image": {
+                "ready": True,
+                "model": "gpt-image-2",
+                "provider": "codex_chatgpt_imagegen",
+                "max_images_per_request": 1,
+                "asset_transport": "commander_asset_volume",
+            },
+            "max_request_bytes": 1_000_000,
+        }
+
+    def provider(self, asset_root: Path) -> CodexBridgeBrandProvider:
+        provider = CodexBridgeBrandProvider(
+            "http://bridge/internal/llm/structured",
+            "bridge-token",
+            "codex-cli-default",
+            "gpt-image-2",
+            asset_root,
+        )
+        provider.bridge.capabilities = self.capabilities
+        return provider
+
+    def test_exact_bridge_contract_uses_existing_codex_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            provider = self.provider(Path(directory))
+            self.assertEqual(
+                sorted(BRAND_BRIDGE_MODES.values()),
+                provider.capabilities()["branding_modes"],
+            )
+            provider.bridge.capabilities = lambda: {
+                **self.capabilities(),
+                "branding_modes": ["branding_reference_plan"],
+            }
+            with self.assertRaisesRegex(RuntimeError, "contract mismatch"):
+                provider.capabilities()
+
+    def test_structured_brand_stage_is_fresh_schema_bound_bridge_work(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            provider = self.provider(Path(directory))
+            captured = {}
+
+            def generate(mode, prompt, payload, schema):
+                captured.update({"mode": mode, "prompt": prompt, "payload": payload, "schema": schema})
+                provider.bridge.last_invocation = {
+                    "session_id": "fresh-brand-text",
+                    "input_tokens": 21,
+                    "output_tokens": 8,
+                }
+                return {"competitors": [], "youtube_queries": [], "principle_questions": []}
+
+            provider.bridge.generate_structured = generate
+            result = provider.structured("REFERENCE_PLAN", {"evidence_ids": ["e-1"]})
+            self.assertEqual([], result["competitors"])
+            self.assertEqual("branding_reference_plan", captured["mode"])
+            self.assertEqual(BRAND_OUTPUT_SCHEMAS["REFERENCE_PLAN"], captured["schema"])
+            self.assertIn("Do not request SEO", captured["prompt"])
+            self.assertEqual({"input_tokens": 21, "output_tokens": 8}, provider.consume_usage())
+            self.assertEqual("codex_included_usage", provider.cost_metadata()["billing_mode"])
+
+    @unittest.skipUnless(PIL_AVAILABLE, "Pillow is required")
+    def test_logo_reads_one_immutable_bridge_asset_and_normalizes_to_1024(self) -> None:
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            provider = self.provider(root)
+            raw = __import__("io").BytesIO()
+            image = Image.new("RGBA", (1254, 1254), (255, 0, 128, 0))
+            image.paste((15, 15, 20, 255), (300, 300, 954, 954))
+            image.save(raw, "PNG")
+            content = raw.getvalue()
+            digest = __import__("hashlib").sha256(content).hexdigest()
+            path = root / "brand-provider" / digest[:2] / f"{digest}.png"
+            path.parent.mkdir(parents=True)
+            path.write_bytes(content)
+            captured = {}
+
+            def execute(mode, prompt, payload, schema):
+                captured.update({"mode": mode, "prompt": prompt, "payload": payload, "schema": schema})
+                return {
+                    "response": '{"generated":true}',
+                    "invocation": {"session_id": "brand-image-session", "input_tokens": 5, "output_tokens": 2},
+                    "image": {
+                        "digest": digest,
+                        "path": str(path),
+                        "mime_type": "image/png",
+                        "width": 1254,
+                        "height": 1254,
+                        "requested_model": "gpt-image-2",
+                        "resolved_model": "gpt-image-2",
+                        "provider": "codex_chatgpt_imagegen",
+                        "request_id": "brand-image-session",
+                    },
+                }
+
+            provider.bridge.execute_contract = execute
+            logo = provider.logo({"logo_prompt": "Original proof symbol"})
+            with Image.open(__import__("io").BytesIO(logo.content)) as normalized:
+                self.assertEqual((1024, 1024), normalized.size)
+                self.assertEqual("PNG", normalized.format)
+            self.assertEqual("branding_logo_generation", captured["mode"])
+            self.assertIn("$imagegen", captured["prompt"])
+            self.assertIn("exactly once", captured["prompt"])
+            self.assertEqual("gpt-image-2", logo.resolved_model)
+            self.assertEqual("brand-image-session", logo.request_id)
+            self.assertEqual({"input_tokens": 5, "output_tokens": 2}, provider.consume_usage())
 
 
 class BrandingGraphTests(unittest.TestCase):

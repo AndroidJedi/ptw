@@ -23,7 +23,7 @@ describe('BrandingView', () => {
           recommended_thesis_id: 'internal-thesis', active_brand_kit: null,
         }] })
         if (path.startsWith('/api/v1/branding/runs')) return Promise.resolve({ items: [] })
-        if (path === '/api/v1/branding/providers') return Promise.resolve({ ready: true, provider: 'openai_brand', paid_seo_enabled: false })
+        if (path === '/api/v1/branding/providers') return Promise.resolve({ ready: true, provider: 'codex_brand_bridge', configured_provider: 'bridge', paid_seo_enabled: false })
         return Promise.resolve({})
       }),
       post: vi.fn(), blob: vi.fn(),
@@ -58,8 +58,8 @@ describe('BrandingView', () => {
         }] })
         if (path.startsWith('/api/v1/branding/runs')) return Promise.resolve({ items: [] })
         if (path === '/api/v1/branding/providers') return Promise.resolve({
-          ready: false, configured_provider: 'openai', provider: 'unavailable',
-          missing: ['openai_api_key'], paid_seo_enabled: false,
+          ready: false, configured_provider: 'bridge', provider: 'codex_brand_bridge',
+          missing: ['codex_brand_bridge_contract'], paid_seo_enabled: false,
         })
         return Promise.resolve({})
       }),
@@ -72,6 +72,6 @@ describe('BrandingView', () => {
     expect(screen.getByText(/Жодна теза не пройшла оцінювання/)).toBeInTheDocument()
     expect(screen.getByText('ВІДХИЛЕНА')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Спочатку налаштуйте провайдер' })).toBeDisabled()
-    expect(screen.getByText(/Ключ не передається браузеру/)).toBeInTheDocument()
+    expect(screen.getByText(/Окремий OpenAI API key не потрібен/)).toBeInTheDocument()
   })
 })

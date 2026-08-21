@@ -14,6 +14,7 @@ from commander.telegram_api import TelegramBotClient
 from .config import Settings
 from .brand_pipeline import BrandPipeline
 from .brand_providers import (
+    CodexBridgeBrandProvider,
     CommanderBrandBridge,
     DeterministicBrandProvider,
     FixtureBrandPageProvider,
@@ -121,10 +122,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     }
     laval = LavalService(laval_repository, laval_runner, readiness=readiness, notifier=laval_notifier)
 
+    brand_contract_error = None
     if settings.brand_provider == "fixture":
         brand_provider = DeterministicBrandProvider()
         brand_web = FixtureBrandPageProvider()
         brand_youtube = FixtureYouTubeObservationProvider()
+        brand_ready = True
+    elif settings.brand_provider == "bridge":
+        brand_provider = CodexBridgeBrandProvider(
+            settings.llm_bridge_url,
+            settings.telegram_token,
+            settings.brand_text_model,
+            settings.brand_image_model,
+            settings.brand_asset_directory.parent,
+        )
+        brand_web = PublicBrandPageProvider()
+        brand_youtube = (
+            OfficialYouTubeObservationProvider(settings.youtube_api_key)
+            if settings.youtube_api_key and settings.youtube_verified
+            else UnavailableYouTubeObservationProvider()
+        )
+        try:
+            brand_provider.capabilities()
+            brand_ready = True
+        except Exception as error:
+            brand_ready = False
+            brand_contract_error = type(error).__name__
     elif settings.brand_provider == "openai":
         brand_provider = (
             OpenAIBrandProvider(
@@ -143,17 +166,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if settings.youtube_api_key and settings.youtube_verified
             else UnavailableYouTubeObservationProvider()
         )
+        brand_ready = bool(settings.openai_api_key)
     else:
-        raise RuntimeError("BRAND_PROVIDER must be fixture or openai")
+        raise RuntimeError("BRAND_PROVIDER must be fixture, bridge, or openai")
     brand_readiness = {
-        "ready": settings.brand_provider == "fixture" or bool(settings.openai_api_key),
+        "ready": brand_ready,
         "provider": brand_provider.name,
         "configured_provider": settings.brand_provider,
         "text_model": brand_provider.text_model,
         "image_model": brand_provider.image_model,
-        "text_ready": settings.brand_provider == "fixture" or bool(settings.openai_api_key),
-        "image_ready": settings.brand_provider == "fixture" or bool(settings.openai_api_key),
-        "missing": [] if settings.brand_provider == "fixture" or settings.openai_api_key else ["openai_api_key"],
+        "text_ready": brand_ready,
+        "image_ready": brand_ready,
+        "missing": (
+            []
+            if brand_ready
+            else ["openai_api_key"]
+            if settings.brand_provider == "openai"
+            else ["codex_brand_bridge_contract"]
+        ),
+        "contract_error": brand_contract_error,
+        "credential_source": (
+            "existing_codex_chatgpt_auth"
+            if settings.brand_provider == "bridge"
+            else "openai_api_key"
+            if settings.brand_provider == "openai"
+            else "fixture"
+        ),
         "web_provider": brand_web.name,
         "youtube_provider": brand_youtube.name,
         "youtube_ready": brand_youtube.name != "unavailable",

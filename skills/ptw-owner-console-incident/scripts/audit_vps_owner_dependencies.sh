@@ -91,6 +91,12 @@ readiness = provider.json()
 if readiness.get("ready") is not True:
     missing = ",".join(str(item) for item in readiness.get("missing") or []) or "unknown"
     raise SystemExit(f"Branding provider is not ready; missing={missing}")
+if readiness.get("configured_provider") != "bridge":
+    raise SystemExit("Production Branding is not using the established Codex bridge")
+if readiness.get("credential_source") != "existing_codex_chatgpt_auth":
+    raise SystemExit("Production Branding credential source is not the established Codex authentication")
+if readiness.get("text_ready") is not True or readiness.get("image_ready") is not True:
+    raise SystemExit("Branding text/image bridge contract is incomplete")
 cases = httpx.get(
     settings.idea_service_url + "/internal/web/branding/cases?limit=1",
     headers=headers,

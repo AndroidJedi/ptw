@@ -256,6 +256,15 @@ canary, and only then mark the generated issue resolved with the real cause and
 acceptance evidence. An out-of-run canary has no `laval_llm_invocations` row;
 that audit begins only when a Laval stage calls `FreshStageRunner`.
 
+Branding uses this same ChatGPT-authenticated worker for strict text stages and
+the built-in `$imagegen` capability. Do not add or copy a second API key merely
+because the Idea container has no `OPENAI_API_KEY`. Require exact advertised
+Branding modes, `gpt-image-2`, one image per request, and SHA-256 artifact
+transport through the external `ptw_commander-assets` volume. The platform
+worker must delete its temporary per-session generated-image directory after
+the immutable asset is verified. A capability canary must report exactly one
+bounded square PNG; multiple images fail without fallback.
+
 Do not leave a production recovery as an invisible agent-only action. Normal
 recovery must be available through the Ideas view's **Resume saved work**
 control. If emergency diagnosis requires an authenticated internal resume,

@@ -84,10 +84,15 @@ the retained batch contract accepts only an active approved non-stale
 
 ## Images and kit
 
-The approved image provider makes exactly one text-free symbol call per
-direction. Exact wordmarks, light/dark variants, favicon, and app icon are
-deterministic Pillow renders using the selected bundled font. Large files live
-in the existing Commander asset volume under SHA-256-addressed paths.
+The live provider reuses PTW's existing ChatGPT-authenticated Codex bridge for
+all strict text stages and makes exactly one built-in `$imagegen` text-free
+symbol call per direction. The bridge requires `gpt-image-2`, writes the raw
+result immutably into the existing Commander asset volume, returns only bounded
+digest/provenance metadata, and deletes its temporary session image directory.
+Idea verifies and normalizes the symbol to 1024 px. Exact wordmarks, light/dark
+variants, favicon, and app icon are deterministic Pillow renders using the
+selected bundled font. Included Codex usage is recorded without inventing a USD
+cost.
 
 React source is emitted only from code-owned templates. The model supplies a
 validated design manifest, never executable code. The ZIP contract is defined
@@ -115,8 +120,9 @@ Production acceptance requires one real completed live Idea case, three logo
 reviews, an approved/downloaded kit, fixture compilation, graph-edge audit,
 one-service restart persistence, and the established 1 GB memory audit.
 
-Production OpenAI onboarding is interactive and never accepts a key through the
-browser or chat. Run `scripts/configure_brand_provider.sh` from the root-only
-VPS terminal; it verifies access to the pinned text and image model IDs before
-atomically updating the root-owned environment. Recreate only the Idea service,
-then run the dependency audit with `PTW_REQUIRE_BRANDING_READY=1`.
+Production does not require a second OpenAI API key. It uses the established
+Codex ChatGPT authentication already mounted read-only into the independent
+platform worker. `scripts/configure_brand_provider.sh` is now a non-mutating
+compatibility audit: it verifies the exact Branding modes, image model, asset
+transport, and selectable-case contract through
+`PTW_REQUIRE_BRANDING_READY=1`.

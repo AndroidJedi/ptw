@@ -145,6 +145,15 @@ class BrandPipeline:
                 if task_provider == self.provider.name else None
             )
             usage = dict(consume_usage() if callable(consume_usage) else {})
+            provider_cost_metadata = (
+                getattr(self.provider, "cost_metadata", None)
+                if task_provider == self.provider.name else None
+            )
+            recorded_cost_metadata = dict(
+                cost_metadata
+                or (provider_cost_metadata() if callable(provider_cost_metadata) else {})
+                or {"monetary_cost_status": "provider_not_reported"}
+            )
             if isinstance(result, GeneratedLogo):
                 content = result.content
                 response_digest = hashlib.sha256(content).hexdigest()
@@ -179,7 +188,7 @@ class BrandPipeline:
                 run_id, stage, task_provider, item_key,
                 input_tokens=int(usage.get("input_tokens") or 0),
                 output_tokens=int(usage.get("output_tokens") or 0),
-                metadata=dict(cost_metadata or {"monetary_cost_status": "provider_not_reported"}),
+                metadata=recorded_cost_metadata,
             )
             return result
         except Exception as error:

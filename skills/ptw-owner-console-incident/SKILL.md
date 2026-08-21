@@ -90,15 +90,18 @@ show an invalid run warning, per-stage model state, a readable summary first,
 and raw JSON behind disclosure. Never relabel fallback candidates as finalists.
 
 For a Branding tab that shows `provider unavailable` and no selectable case,
-inspect the two boundaries independently. Provider readiness requires an
-approved image credential in the Idea process; never substitute fixture output
-or copy a Telegram/Codex credential. Case selection is based on a completed live
-Idea case, not on its evaluation verdict: a case with zero surviving theses
-must remain selectable, show every assessed thesis and verdict, and state that
-Branding will use the original idea, mechanisms, and sourced evidence. Before
-claiming Branding usable, run the VPS dependency audit with
-`PTW_REQUIRE_BRANDING_READY=1`; it must require both provider readiness and at
-least one selectable case.
+inspect the two boundaries independently. Production Branding reuses the
+existing ChatGPT-authenticated Codex bridge; do not require a second
+`OPENAI_API_KEY`, copy its refresh tokens, or substitute fixture output. The
+bridge contract must expose the exact Branding structured modes plus one
+`gpt-image-2` `$imagegen` call transported through the immutable Commander asset
+volume. Case selection is based on a completed live Idea case, not on its
+evaluation verdict: a case with zero surviving theses must remain selectable,
+show every assessed thesis and verdict, and state that Branding will use the
+original idea, mechanisms, and sourced evidence. Before claiming Branding
+usable, run the VPS dependency audit with `PTW_REQUIRE_BRANDING_READY=1`; it
+must require provider readiness, the established bridge credential source, and
+at least one selectable case.
 
 For a failed Laval run, the owner must not need SSH or an agent to recover it.
 Verify the visible error report includes the exact stage/attempt, bounded error,
@@ -222,8 +225,10 @@ request, including the top-level OAuth callback.
 - Add coverage at the failed layer. Source mocks and shallow health alone do
   not catch tree-shaken config, stale output, or missing runtime credentials.
 - Treat a release with a disabled primary action as unavailable. Branding
-  cutover must fail its readiness gate when the generation provider is missing,
-  even if health, auth, Hosting, and database migrations pass.
+  cutover must fail its readiness gate when the authenticated Codex text/image
+  contract is missing, even if health, auth, Hosting, and database migrations
+  pass. A working Laval bridge is not proof that its Branding modes and image
+  artifact transport are exposed.
 - Exercise strict Laval schemas against the real bridge contract. A generic
   top-level object/array test does not prove nested Codex output schemas are
   accepted, and a deterministic artifact does not prove a model call occurred.

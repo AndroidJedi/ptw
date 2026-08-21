@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 import re
+from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence
 
 from .brand_domain import FONT_CATALOG, public_https_url, safe_redirect
@@ -362,6 +363,182 @@ BRAND_OUTPUT_SCHEMAS = {
     }),
 }
 
+BRAND_BRIDGE_MODES = {
+    "REFERENCE_PLAN": "branding_reference_plan",
+    "DESIGN_PRINCIPLES": "branding_design_principles",
+    "BRAND_BRIEF": "branding_brand_brief",
+    "DIRECTION_SYNTHESIS": "branding_direction_synthesis",
+    "LOGO_GENERATION": "branding_logo_generation",
+}
+
+
+def _brand_instruction(stage: str) -> str:
+    instructions = {
+        "REFERENCE_PLAN": "Plan bounded direct competitor-page and official YouTube design research. Do not request SEO search or captions.",
+        "DESIGN_PRINCIPLES": "Derive evidence-cited visual, hype-without-deception, and retention design principles. Never copy trade dress.",
+        "BRAND_BRIEF": "Create a concise bilingual brand brief faithful to the completed product case.",
+        "DIRECTION_SYNTHESIS": "Create exactly three distinct complete brand directions and twelve internal candidate names. Use only allowed fonts and supplied evidence IDs. Include accessible light/dark semantic colors and a text-free symbol prompt.",
+    }
+    return instructions[stage]
+
+
+class CodexBridgeBrandProvider:
+    """Brand text and symbols through PTW's existing ChatGPT-authenticated Codex worker."""
+
+    name = "codex_brand_bridge"
+
+    def __init__(
+        self,
+        bridge_url: str,
+        token: str,
+        text_model: str,
+        image_model: str,
+        asset_root: Path,
+        *,
+        timeout_seconds: int = 360,
+    ) -> None:
+        if image_model != "gpt-image-2":
+            raise RuntimeError("BRAND_IMAGE_MODEL must be gpt-image-2; fallback is forbidden")
+        from .provider import BridgeProvider
+
+        self.bridge = BridgeProvider(bridge_url, token, text_model, timeout_seconds)
+        self.text_model = text_model or "codex-cli-default"
+        self.image_model = image_model
+        self.asset_root = asset_root.resolve()
+        self._usage: dict[str, int] = {}
+
+    def capabilities(self) -> dict[str, Any]:
+        capabilities = self.bridge.capabilities()
+        required = set(BRAND_BRIDGE_MODES.values())
+        actual = set(capabilities.get("branding_modes") or [])
+        if actual != required:
+            raise RuntimeError(
+                "Branding bridge contract mismatch: "
+                f"missing_modes={len(required - actual)} unexpected_modes={len(actual - required)}"
+            )
+        image = capabilities.get("branding_image") or {}
+        if (
+            image.get("ready") is not True
+            or image.get("model") != self.image_model
+            or image.get("provider") != "codex_chatgpt_imagegen"
+            or image.get("max_images_per_request") != 1
+            or image.get("asset_transport") != "commander_asset_volume"
+        ):
+            raise RuntimeError("Branding bridge image contract is unavailable")
+        return capabilities
+
+    def consume_usage(self) -> dict[str, int]:
+        usage, self._usage = self._usage, {}
+        return usage
+
+    @staticmethod
+    def cost_metadata() -> dict[str, Any]:
+        return {
+            "billing_mode": "codex_included_usage",
+            "monetary_cost_status": "no_usd_amount_reported",
+        }
+
+    def _capture_usage(self, invocation: Mapping[str, Any]) -> None:
+        self._usage = {
+            "input_tokens": int(invocation.get("input_tokens") or 0),
+            "output_tokens": int(invocation.get("output_tokens") or 0),
+        }
+
+    def structured(self, stage: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+        mode = BRAND_BRIDGE_MODES[stage]
+        allowed = ", ".join(FONT_CATALOG)
+        system_prompt = (
+            f"{_brand_instruction(stage)} English is source; provide faithful Ukrainian where requested. "
+            "Reject fake urgency, scarcity, rankings, testimonials, adoption claims, and unsupported numbers. "
+            f"Allowed fonts: {allowed}."
+        )
+        context_hash = hashlib.sha256(
+            json.dumps(dict(payload), ensure_ascii=False, sort_keys=True, default=str).encode()
+        ).hexdigest()
+        self.bridge.prepare_invocation("branding_v1", context_hash)
+        result = self.bridge.generate_structured(
+            mode,
+            system_prompt,
+            dict(payload),
+            BRAND_OUTPUT_SCHEMAS[stage],
+        )
+        self._capture_usage(self.bridge.last_invocation)
+        return result
+
+    def logo(self, direction: Mapping[str, Any]) -> GeneratedLogo:
+        symbol_prompt = str(direction.get("logo_prompt") or "").strip()
+        system_prompt = (
+            "$imagegen Use built-in image generation exactly once to create one premium original brand symbol "
+            "on a transparent background. No words, letters, numbers, monograms, watermarks, badges, "
+            "app-interface text, copied logos, or claims. Use a simple square composition and silhouette that "
+            "remains recognizable at favicon size. Do not use shell tools, do not save or copy the image, and "
+            "do not invoke image generation a second time. After the image tool completes, return the required "
+            "JSON acknowledgement."
+        )
+        payload = {"logo_prompt": symbol_prompt}
+        context_hash = hashlib.sha256(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()
+        ).hexdigest()
+        self.bridge.prepare_invocation("branding_v1", context_hash)
+        result = self.bridge.execute_contract(
+            BRAND_BRIDGE_MODES["LOGO_GENERATION"],
+            system_prompt,
+            payload,
+            {
+                "type": "object",
+                "properties": {"generated": {"type": "boolean", "const": True}},
+                "required": ["generated"],
+                "additionalProperties": False,
+            },
+        )
+        invocation = dict(result.get("invocation") or {})
+        self._capture_usage(invocation)
+        image_result = result.get("image")
+        if not isinstance(image_result, Mapping):
+            raise RuntimeError("Branding bridge returned no image artifact")
+        if (
+            image_result.get("mime_type") != "image/png"
+            or image_result.get("requested_model") != self.image_model
+            or image_result.get("resolved_model") != self.image_model
+            or image_result.get("provider") != "codex_chatgpt_imagegen"
+        ):
+            raise RuntimeError("Branding bridge returned invalid image provenance")
+        path = Path(str(image_result.get("path") or "")).resolve()
+        provider_root = (self.asset_root / "brand-provider").resolve()
+        if provider_root not in path.parents or path.suffix.lower() != ".png":
+            raise RuntimeError("Branding bridge image path is outside the immutable asset root")
+        content = path.read_bytes() if path.is_file() else b""
+        source_digest = hashlib.sha256(content).hexdigest() if content else ""
+        if not content or source_digest != image_result.get("digest") or path.stem != source_digest:
+            raise RuntimeError("Branding bridge image digest does not match its immutable asset")
+
+        from PIL import Image
+
+        with Image.open(io.BytesIO(content)) as source:
+            source.load()
+            if (
+                source.format != "PNG"
+                or source.width != source.height
+                or source.width < 512
+                or source.width > 2048
+            ):
+                raise RuntimeError("Branding bridge image must be a bounded square PNG")
+            rgba = source.convert("RGBA")
+            if rgba.getchannel("A").getextrema()[0] == 255:
+                raise RuntimeError("Branding bridge image must preserve a transparent background")
+            normalized = rgba.resize((1024, 1024), Image.Resampling.LANCZOS)
+            stream = io.BytesIO()
+            normalized.save(stream, format="PNG", compress_level=9)
+        return GeneratedLogo(
+            stream.getvalue(),
+            self.image_model,
+            self.image_model,
+            symbol_prompt,
+            1024,
+            1024,
+            str(image_result.get("request_id") or invocation.get("session_id") or ""),
+        )
+
 
 class OpenAIBrandProvider:
     name = "openai_brand"
@@ -383,15 +560,9 @@ class OpenAIBrandProvider:
         return usage
 
     def structured(self, stage: str, payload: Mapping[str, Any]) -> dict[str, Any]:
-        instructions = {
-            "REFERENCE_PLAN": "Plan bounded direct competitor-page and official YouTube design research. Do not request SEO search or captions.",
-            "DESIGN_PRINCIPLES": "Derive evidence-cited visual, hype-without-deception, and retention design principles. Never copy trade dress.",
-            "BRAND_BRIEF": "Create a concise bilingual brand brief faithful to the completed product case.",
-            "DIRECTION_SYNTHESIS": "Create exactly three distinct complete brand directions and twelve internal candidate names. Use only allowed fonts and supplied evidence IDs. Include accessible light/dark semantic colors and a text-free symbol prompt.",
-        }
         allowed = ", ".join(FONT_CATALOG)
         prompt = (
-            f"{instructions[stage]} Return one JSON object only. English is source; provide faithful Ukrainian where requested. "
+            f"{_brand_instruction(stage)} Return one JSON object only. English is source; provide faithful Ukrainian where requested. "
             "Reject fake urgency, scarcity, rankings, testimonials, adoption claims, and unsupported numbers. "
             f"Allowed fonts: {allowed}.\n\nInput:\n{json.dumps(dict(payload), ensure_ascii=False, default=str)}"
         )

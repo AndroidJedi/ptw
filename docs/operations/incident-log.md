@@ -8,22 +8,24 @@ Canonical record of deployment gaps and prevention rules. Do not store secrets.
   unavailable`, disabled creation, and listed no completed Idea cases even
   though two live cases existed.
 - Cause: release acceptance checked health, auth, migrations, and deterministic
-  fixtures but did not fail on live Branding readiness. No OpenAI API key had
-  been configured for the Idea process. Independently, the candidate query
+  fixtures but did not fail on live Branding readiness. Branding bypassed the
+  already-authenticated Codex bridge and incorrectly required a second
+  `OPENAI_API_KEY` in the Idea process. Independently, the candidate query
   required a surviving, non-stale thesis, contradicting the owner contract that
   any completed live Idea case is selectable without a validation prerequisite;
   all five assessed production theses had verdict `rejected`.
 - Correction: select every completed live mechanism/thesis case, retain and
   label all assessed verdicts, allow source-only graph lineage only when the
-  case truthfully has no surviving thesis, expose the exact missing provider
-  requirement, and add root-only hidden-input OpenAI onboarding that validates
-  both pinned model IDs before atomically updating configuration.
+  case truthfully has no surviving thesis, and route strict Branding text plus
+  exactly one `$imagegen` call per direction through the existing
+  ChatGPT-authenticated worker. Raw images cross the boundary only as immutable
+  SHA-256 Commander-volume assets; no second key is requested or copied.
 - Prevention: Branding acceptance uses
   `PTW_REQUIRE_BRANDING_READY=1` with the VPS dependency audit and requires both
-  a ready generation provider and a selectable case. A release with a disabled
-  primary action is not functionally available even when its shallow health and
-  authentication checks pass. Fixture execution cannot satisfy live-provider
-  acceptance.
+  the exact authenticated Branding text/image contract and a selectable case.
+  A release with a disabled primary action is not functionally available even
+  when its shallow health and authentication checks pass. Laval-only bridge
+  readiness and fixture execution cannot satisfy live-provider acceptance.
 
 ## 2026-08-20 — Laval V2 YouTube observation mode was absent from the platform bridge contract
 

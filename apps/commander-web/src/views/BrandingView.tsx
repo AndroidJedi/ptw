@@ -233,18 +233,23 @@ export function BrandingView({ api, language, initialRunId }: {
   if (!candidates || !runs) return error ? <ErrorState message={error} retry={loadLists} /> : <Loading />
   const reviewed = status?.directions.filter((item) => item.latest_feedback_id).length || 0
   const providerReady = readiness?.ready === true
+  const providerLabel = providerReady
+    ? String(readiness?.provider || 'готовий')
+    : readiness?.configured_provider === 'bridge'
+      ? 'Codex ImageGen недоступний'
+      : 'Провайдер недоступний'
   return <>
     <PageHeader eyebrow="BRANDING V1" title="Брендинг" />
     {error && <div className="laval-error" role="alert"><span>{error}</span><button onClick={() => setError('')} aria-label="Закрити"><X /></button></div>}
     <div className="brand-toolbar">
-      <div><small>ПРОВАЙДЕР</small><strong>{providerReady ? String(readiness?.provider || 'готовий') : 'Потрібен OpenAI API key'} · SEO вимкнено</strong></div>
+      <div><small>ПРОВАЙДЕР</small><strong>{providerLabel} · SEO вимкнено</strong></div>
       <button className="primary" onClick={() => setCreateOpen(true)} disabled={!candidates.length}><Plus />Новий бренд</button>
     </div>
     {createOpen && <section className="brand-create" role="dialog" aria-modal="true" aria-label="Новий Branding запуск">
       <header><div><small>КРОК 1</small><h2>Оберіть завершену ідею</h2></div><button onClick={() => setCreateOpen(false)} aria-label="Закрити"><X /></button></header>
       <div className="brand-candidates">{candidates.map((item) => <CandidateCard key={item.idea_run_id} item={item} language={language} selected={selectedCandidate === item.idea_run_id} onSelect={() => setSelectedCandidate(item.idea_run_id)} />)}</div>
       {candidates.length === 0 && <Empty><h2>Немає завершених live-ідей</h2><p>Завершіть хоча б одну Idea Laval справу.</p></Empty>}
-      {!providerReady && <p className="brand-warning"><ShieldAlert />Генерація ще не налаштована: потрібен захищено введений OpenAI API key для `gpt-5-mini` і трьох викликів `gpt-image-2`. Ключ не передається браузеру.</p>}
+      {!providerReady && <p className="brand-warning"><ShieldAlert />Автентифікований Codex bridge не підтвердив Branding-контракт. Окремий OpenAI API key не потрібен; повторіть після відновлення bridge.</p>}
       <label>Вільні обмеження бренду<textarea rows={3} maxLength={4000} value={constraints} onChange={(event) => setConstraints(event.target.value)} placeholder="Тон, заборонені асоціації, аудиторні нюанси…" /></label>
       <label>Референсні HTTPS URL — один на рядок<textarea rows={3} value={referenceUrls} onChange={(event) => setReferenceUrls(event.target.value)} placeholder="https://…" /></label>
       <div className="brand-transcripts"><div><strong>Ручні YouTube-транскрипти</strong><button type="button" className="secondary" disabled={transcripts.length >= 5} onClick={() => setTranscripts([...transcripts, { title: '', video_url: '', transcript: '' }])}><Plus />Додати</button></div>

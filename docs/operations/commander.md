@@ -20,17 +20,17 @@ The Idea API's default loopback port is `8093`; its browser-facing Laval routes
 are exposed only through the authenticated Owner Gateway.
 
 The same Idea process hosts the restartable Branding runner and mounts the
-existing Commander asset volume. `BRAND_PROVIDER=openai` requires the approved
-text/image configuration; `fixture` is test-only. Branding never consumes
+existing Commander asset volume. Production uses `BRAND_PROVIDER=bridge`, the
+existing `codex-cli-default` ChatGPT authentication, and the bridge's exact
+`gpt-image-2` image contract; `fixture` is test-only. Branding never consumes
 DataForSEO. Its public-page and optional official YouTube collection remain
 bounded, and provider readiness truthfully reports unavailable optional
 YouTube access without blocking a run.
 
-Configure the live provider with the root-only interactive
-`scripts/configure_brand_provider.sh`. It validates `gpt-5-mini` and
-`gpt-image-2` access without exposing the key, then updates only the root-owned
-Owner/Idea environment. The Idea service must be recreated on its already
-pinned release image before readiness changes.
+`scripts/configure_brand_provider.sh` no longer prompts for or changes a key.
+It verifies that the live platform exposes all strict Branding modes, one
+`gpt-image-2` image per request, immutable Commander-volume transport, and at
+least one selectable completed case.
 
 Idea Laval is operated through the authenticated Ideas web view.
 `LAVAL_SEARCH_PROVIDER=fixture` and

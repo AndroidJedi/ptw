@@ -49,8 +49,8 @@ class Settings:
     reserved_spend_usd: float = 0.04
     outbound_notifications_enabled: bool = False
     laval_telegram_notifications_enabled: bool = False
-    brand_provider: str = "fixture"
-    brand_text_model: str = "gpt-5-mini"
+    brand_provider: str = "bridge"
+    brand_text_model: str = "codex-cli-default"
     brand_image_model: str = "gpt-image-2"
     brand_asset_directory: Path = Path("/var/lib/ptw/assets/brands")
     brand_commander_bridge_url: str = "http://ptw-commander-api:8080/internal/branding"
@@ -105,8 +105,8 @@ class Settings:
             laval_telegram_notifications_enabled=_enabled(
                 "LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED"
             ),
-            brand_provider=os.environ.get("BRAND_PROVIDER", "fixture").strip().lower(),
-            brand_text_model=os.environ.get("BRAND_TEXT_MODEL", "gpt-5-mini").strip(),
+            brand_provider=os.environ.get("BRAND_PROVIDER", "bridge").strip().lower(),
+            brand_text_model=os.environ.get("BRAND_TEXT_MODEL", "codex-cli-default").strip(),
             brand_image_model=os.environ.get("BRAND_IMAGE_MODEL", "gpt-image-2").strip(),
             brand_asset_directory=Path(os.environ.get("BRAND_ASSET_DIR", "/var/lib/ptw/assets/brands")),
             brand_commander_bridge_url=os.environ.get(

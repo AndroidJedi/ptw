@@ -359,22 +359,35 @@ class BridgeProvider:
             timeout_seconds=5,
         )
         modes = payload.get("laval_modes")
+        branding_modes = payload.get("branding_modes", [])
+        branding_image = payload.get("branding_image", {})
         max_request_bytes = payload.get("max_request_bytes")
         if (
             not isinstance(modes, list)
             or not all(isinstance(mode, str) for mode in modes)
+            or not isinstance(branding_modes, list)
+            or not all(isinstance(mode, str) for mode in branding_modes)
+            or not isinstance(branding_image, dict)
             or not isinstance(max_request_bytes, int)
             or max_request_bytes < 1
         ):
             raise ValueError("LLM bridge returned invalid capabilities")
         return {
             "laval_modes": sorted(set(modes)),
+            "branding_modes": sorted(set(branding_modes)),
+            "branding_image": dict(branding_image),
             "max_request_bytes": max_request_bytes,
         }
 
-    def generate_structured(
-        self, mode: str, system_prompt: str, input_payload: dict[str, Any], output_schema: dict[str, Any]
+    def execute_contract(
+        self,
+        mode: str,
+        system_prompt: str,
+        input_payload: dict[str, Any],
+        output_schema: dict[str, Any],
     ) -> dict[str, Any]:
+        """Run one fresh authenticated bridge contract and return its full result."""
+
         headers = {"X-PTW-Bridge-Token": self.token}
         request = {
             "mode": mode,
@@ -391,16 +404,24 @@ class BridgeProvider:
             payload = self._request(f"{self.url}/{request_id}", None, headers)
             if payload["status"] == "completed":
                 result = payload.get("result") or {}
-                self.last_invocation = dict(result.get("invocation") or {}) if isinstance(result, dict) else {}
-                body = result.get("response") if isinstance(result, dict) else None
-                decoded = json.loads(body) if isinstance(body, str) else body
-                if not isinstance(decoded, dict):
-                    raise ValueError("LLM bridge response must contain one JSON object")
-                return decoded
+                if not isinstance(result, dict):
+                    raise ValueError("LLM bridge result must be one object")
+                self.last_invocation = dict(result.get("invocation") or {})
+                return result
             if payload["status"] in {"failed", "cancelled"}:
                 raise RuntimeError(f"LLM bridge job {request_id} {payload['status']}")
             time.sleep(1)
         raise TimeoutError(f"LLM bridge job {request_id} timed out")
+
+    def generate_structured(
+        self, mode: str, system_prompt: str, input_payload: dict[str, Any], output_schema: dict[str, Any]
+    ) -> dict[str, Any]:
+        result = self.execute_contract(mode, system_prompt, input_payload, output_schema)
+        body = result.get("response")
+        decoded = json.loads(body) if isinstance(body, str) else body
+        if not isinstance(decoded, dict):
+            raise ValueError("LLM bridge response must contain one JSON object")
+        return decoded
 
     @staticmethod
     def _request(

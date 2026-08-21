@@ -38,8 +38,8 @@ services:
       LAVAL_RESEARCH_BRIDGE_URL: ${LAVAL_RESEARCH_BRIDGE_URL:-http://ptw-commander-api:8080/internal/research/laval}
       OUTBOUND_NOTIFICATIONS_ENABLED: ${OUTBOUND_NOTIFICATIONS_ENABLED:-false}
       LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED: ${LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED:-true}
-      BRAND_PROVIDER: ${BRAND_PROVIDER:-openai}
-      BRAND_TEXT_MODEL: ${BRAND_TEXT_MODEL:-gpt-5-mini}
+      BRAND_PROVIDER: ${BRAND_PROVIDER:-bridge}
+      BRAND_TEXT_MODEL: ${BRAND_TEXT_MODEL:-codex-cli-default}
       BRAND_IMAGE_MODEL: ${BRAND_IMAGE_MODEL:-gpt-image-2}
       BRAND_ASSET_DIR: /var/lib/ptw/assets/brands
       BRAND_COMMANDER_BRIDGE_URL: http://ptw-commander-api:8080/internal/branding

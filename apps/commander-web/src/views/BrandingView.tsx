@@ -26,6 +26,11 @@ function statusLabel(status: string) {
   } as Record<string, string>)[status] || status
 }
 
+function stageStatusLabel(stage: string, status: string) {
+  if (stage === 'OWNER_REVIEW' && status === 'paused') return 'Чекає на ваш відгук'
+  return statusLabel(status)
+}
+
 function Logo({ api, direction }: { api: ApiClient; direction: BrandDirection }) {
   const [src, setSrc] = useState('')
   const [error, setError] = useState('')
@@ -147,6 +152,12 @@ export function BrandingView({ api, language, initialRunId }: {
     }).catch((cause: Error) => setError(cause.message))
   }
 
+  const retryRefresh = () => {
+    setError('')
+    void loadLists()
+    void loadRun()
+  }
+
   useEffect(() => { void loadLists() }, [api])
   useEffect(() => { void loadRun() }, [api, selectedRun])
   useEffect(() => {
@@ -240,7 +251,7 @@ export function BrandingView({ api, language, initialRunId }: {
       : 'Провайдер недоступний'
   return <>
     <PageHeader eyebrow="BRANDING V1" title="Брендинг" />
-    {error && <div className="laval-error" role="alert"><span>{error}</span><button onClick={() => setError('')} aria-label="Закрити"><X /></button></div>}
+    {error && <div className="laval-error brand-error" role="alert"><span>{error}</span><div className="brand-error-actions"><button onClick={retryRefresh} aria-label="Повторити"><RefreshCw />Повторити</button><button onClick={() => setError('')} aria-label="Закрити"><X /></button></div></div>}
     <div className="brand-toolbar">
       <div><small>ПРОВАЙДЕР</small><strong>{providerLabel} · SEO вимкнено</strong></div>
       <button className="primary" onClick={() => setCreateOpen(true)} disabled={!candidates.length}><Plus />Новий бренд</button>
@@ -267,8 +278,9 @@ export function BrandingView({ api, language, initialRunId }: {
             {status.run.status === 'failed' && <button className="secondary" disabled={busy} onClick={() => void control('rerun')}><RotateCcw />Перезапустити етап</button>}
             <button className="secondary" disabled={busy} onClick={() => { void loadRun(); void loadLists() }}><RefreshCw />Оновити</button>
           </div></header>
+          {status.run.status === 'awaiting_review' && <p className="brand-review-ready"><Check />Генерацію завершено — запуск не завис. Перегляньте й оцініть усі три лого, потім оберіть напрям і затвердьте Brand Kit.</p>}
           {status.run.source_stale && <p className="brand-warning"><ShieldAlert />Idea справа змінилась. Kit лишається доступним в історії, але не може створювати нові пости.</p>}
-          <div className="brand-stages">{status.stages.map((stage) => <button key={stage.stage} className={`${stage.status} ${selectedStage === stage.stage ? 'selected' : ''}`} onClick={() => void inspect(stage.stage)}><span>{String(stage.ordinal + 1).padStart(2, '0')}</span><strong>{stage.stage.replaceAll('_', ' ')}</strong><small>{statusLabel(stage.status)} · спроба {stage.attempt}</small></button>)}</div>
+          <div className="brand-stages">{status.stages.map((stage) => <button key={stage.stage} className={`${stage.status} ${selectedStage === stage.stage ? 'selected' : ''}`} onClick={() => void inspect(stage.stage)}><span>{String(stage.ordinal + 1).padStart(2, '0')}</span><strong>{stage.stage.replaceAll('_', ' ')}</strong><small>{stageStatusLabel(stage.stage, stage.status)} · спроба {stage.attempt}</small></button>)}</div>
           {selectedStage && <details className="brand-inspector" open><summary>{selectedStage} · вхід та артефакт</summary><pre>{stageOutput ? JSON.stringify(stageOutput, null, 2) : 'Завантаження…'}</pre></details>}
           {status.directions.length > 0 && <>
             <div className="brand-section-head"><div><small>ТРИ НЕЗАЛЕЖНІ НАПРЯМИ</small><h2>Оберіть і перевірте кожне лого</h2></div><div className="brand-theme"><button className={theme === 'light' ? 'selected' : ''} onClick={() => setTheme('light')}>Світла</button><button className={theme === 'dark' ? 'selected' : ''} onClick={() => setTheme('dark')}>Темна</button></div></div>

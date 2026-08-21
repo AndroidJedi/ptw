@@ -74,4 +74,42 @@ describe('BrandingView', () => {
     expect(screen.getByRole('button', { name: 'Спочатку налаштуйте провайдер' })).toBeDisabled()
     expect(screen.getByText(/Окремий OpenAI API key не потрібен/)).toBeInTheDocument()
   })
+
+  it('offers a real safe retry and explains that owner review is not a stuck run', async () => {
+    const run = {
+      id: 'brand-run', source_laval_run_id: 'idea-run', status: 'awaiting_review', current_stage: 'OWNER_REVIEW',
+      source_snapshot: { owner_idea: 'Зробити прогрес видимим.', theses: [], mechanisms: [] },
+      source_stale: false, constraints_text: '', provider_snapshot: {}, created_at: '2026-08-21T12:45:00Z',
+      updated_at: '2026-08-21T12:52:00Z', completed_stages: 8,
+    }
+    let statusRequests = 0
+    const api = {
+      get: vi.fn().mockImplementation((path: string) => {
+        if (path === '/api/v1/branding/cases?limit=50') return Promise.resolve({ items: [] })
+        if (path === '/api/v1/branding/runs?limit=50') return Promise.resolve({ items: [run] })
+        if (path === '/api/v1/branding/providers') return Promise.resolve({ ready: true, provider: 'codex_brand_bridge' })
+        if (path === '/api/v1/branding/runs/brand-run') {
+          statusRequests += 1
+          if (statusRequests === 1) return Promise.reject(new Error('API не відповідає протягом 15 секунд.'))
+          return Promise.resolve({
+            run,
+            stages: [{ stage: 'OWNER_REVIEW', ordinal: 8, status: 'paused', attempt: 1, metrics: {} }],
+            directions: [], cost: { items: [], total_usd: 0 },
+          })
+        }
+        return Promise.resolve({})
+      }),
+      post: vi.fn(), blob: vi.fn(),
+    } as unknown as ApiClient
+
+    render(<BrandingView api={api} language="uk" />)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('API не відповідає')
+    fireEvent.click(screen.getByRole('button', { name: 'Повторити' }))
+
+    expect(await screen.findByText(/Генерацію завершено — запуск не завис/)).toBeInTheDocument()
+    expect(screen.getByText(/Чекає на ваш відгук · спроба 1/)).toBeInTheDocument()
+    expect(statusRequests).toBe(2)
+  })
 })

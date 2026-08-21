@@ -27,7 +27,7 @@ export async function fetchWithDeadline(
     return await fetch(input, { ...init, signal: controller.signal })
   } catch (cause) {
     if (controller.signal.aborted && !callerSignal?.aborted) {
-      throw new Error('API не відповідає протягом 15 секунд. Сервер може бути перевантажений — натисніть «Повторити».')
+      throw new Error('API не відповідає протягом 15 секунд. Стан на сервері міг уже змінитися — натисніть «Повторити», щоб безпечно оновити екран.')
     }
     throw cause
   } finally {

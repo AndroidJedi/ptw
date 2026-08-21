@@ -175,6 +175,10 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .laval-error span { flex: 1; }
 .laval-error button, .laval-notice button { min-width: 44px; min-height: 44px; display: inline-flex; gap: 5px; align-items: center; justify-content: center; border: 0; color: inherit; background: transparent; }
 .laval-error button svg, .laval-notice button svg { width: 18px; }
+.brand-error { flex-wrap: wrap; }
+.brand-error > span { flex: 1 1 220px; }
+.brand-error-actions { display: flex; gap: 4px; margin-left: auto; }
+.brand-error-actions button:first-child { width: auto; padding: 0 10px; border: 1px solid currentColor; border-radius: 9px; }
 .laval-notice { position: fixed; z-index: 59; right: 10px; bottom: calc(82px + env(safe-area-inset-bottom)); left: 10px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #297f54; border-radius: 12px; color: #bfffd9; background: #0c281a; font-size: 12px; box-shadow: 0 12px 40px #000b; }
 .laval-mode { margin: 10px 0 16px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
 .laval-mode legend { color: #fff; font-size: 12px; font-weight: 850; }
@@ -483,6 +487,8 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .brand-actions svg { width: 15px; }
 .brand-warning { margin: 10px 0; padding: 12px; display: flex; gap: 8px; border: 1px solid #9b6c23; border-radius: 12px; color: #ffe1a6; background: #281c0d; font-size: 11px; line-height: 1.4; }
 .brand-warning svg { width: 18px; flex: 0 0 auto; }
+.brand-review-ready { margin: 10px 0; padding: 12px; display: flex; gap: 8px; align-items: flex-start; border: 1px solid #267149; border-radius: 12px; color: #bfffd9; background: #0c2418; font-size: 11px; line-height: 1.4; }
+.brand-review-ready svg { width: 18px; flex: 0 0 auto; }
 .brand-stages { margin-top: 10px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 .brand-stages button { min-width: 0; min-height: 84px; padding: 10px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 7px; text-align: left; border: 1px solid var(--line); border-radius: 12px; color: #fff; background: var(--panel); }
 .brand-stages button > span { grid-row: span 2; color: var(--pink); font: 10px ui-monospace, monospace; }

@@ -103,6 +103,19 @@ usable, run the VPS dependency audit with `PTW_REQUIRE_BRANDING_READY=1`; it
 must require provider readiness, the established bridge credential source, and
 at least one selectable case.
 
+For a Branding timeout after logos are already visible, inspect the persisted
+run, stages, provider tasks, and active-operation guard before calling it stuck.
+`awaiting_review` with `OWNER_REVIEW` paused is the intentional owner boundary,
+not a failed worker: label it as waiting for all three logo reviews. Distinguish
+the pipeline's one fresh structured-output retry from the browser's HTTP
+deadline. Never automatically repeat a timed-out review, approval, or other
+mutation because it may already have committed. The timeout banner must include
+a working action that safely reloads the run/list projections and must say the
+server state may already have changed; a message that tells the owner to retry
+while rendering only a dismiss button is a release blocker. Branding emits no
+general Telegram notification, so verify its web state instead of inferring a
+missing or unexpected Telegram message from the run transition.
+
 For a failed Laval run, the owner must not need SSH or an agent to recover it.
 Verify the visible error report includes the exact stage/attempt, bounded error,
 failure time, provider-task counts, persisted remote-ID count, recorded cost,

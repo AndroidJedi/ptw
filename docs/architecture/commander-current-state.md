@@ -53,6 +53,18 @@ and 352 MiB remained available after the canary. No owner case was selected or
 Branding run fabricated during deployment; approval of a real Brand Kit remains
 an explicit owner action.
 
+The first real Branding run `01a0245a-d070-7207-af07-3bd68506ffc9` completed
+all eight automatic stages and all three `gpt-image-2` logo jobs, then entered
+the intentional `OWNER_REVIEW` boundary. Every structured provider task
+succeeded on its first fresh session, no heavy operation remains active, and no
+Branding Telegram action was emitted. An iPhone API-deadline banner during
+review exposed an Owner UI defect: its copy told the owner to select Retry but
+rendered only Dismiss, while the generic paused stage label made the completed
+run look stuck. The corrected UI provides a safe read-only state refresh,
+warns that a timed-out mutation may already have committed, labels
+`OWNER_REVIEW` as waiting for owner feedback, and explicitly says generation is
+complete. The recovery path never repeats a review or approval mutation.
+
 Release verification passes 123 Commander/Idea tests in the tagged Idea image
 against disposable PostgreSQL (five intentional retirement skips), 23 tagged
 Owner Gateway tests, 26 Vitest checks, 12 Playwright checks, the deterministic

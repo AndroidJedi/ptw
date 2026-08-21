@@ -24,13 +24,13 @@ describe('API origin', () => {
 })
 
 describe('API deadline', () => {
-  it('turns a stalled request into an explicit overload error', async () => {
+  it('turns a stalled request into an explicit safe-refresh error', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
     })))
     const request = fetchWithDeadline('/api/v1/overview', {}, 25)
-    const rejected = expect(request).rejects.toThrow(/Сервер може бути перевантажений.*Повторити/)
+    const rejected = expect(request).rejects.toThrow(/Стан на сервері міг уже змінитися.*Повторити/)
     await vi.advanceTimersByTimeAsync(25)
     await rejected
   })

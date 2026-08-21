@@ -60,11 +60,18 @@ remains available in stage and review details.
 
 ## Branding
 
-- A candidate shows the original Idea, readable surviving theses, recommended
-  thesis, users, loop, evidence quality, and prior Brand Kit state.
-- Keep the ten-stage progress and evidence/provider state visible. Each of the
-  three direction cards owns its logo, annotations, current review/history,
-  palette, type specimen, and light/dark preview.
+- A candidate leads with the original Idea, recommended thesis, target user,
+  evidence quality, and prior Brand Kit state. Optional research context stays
+  behind disclosure.
+- The primary review flow shows one logo at a time and accepts one required
+  text comment. Branding does not show annotation tools, numeric rating,
+  palette, type specimens, or raw principles in this path.
+- Each primary state has one CTA: save and advance, approve the selected
+  direction, recover saved work, or download the finished kit. Run switching,
+  provider/cost details, stages, artifacts, and deliberate rerun remain behind
+  progressive disclosure.
+- Fetch and render only the currently reviewed or selected logo. Do not request
+  a second copy for an annotation surface or preload all three full PNGs.
 - Do not enable approval until all three current logos have feedback. Direction
   choice and approval are one explicit owner action.
 - Always show the trademark/domain-clearance warning. Never translate or vary

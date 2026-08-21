@@ -324,14 +324,16 @@ class BrandingGraphTests(unittest.TestCase):
                 for edge in self.store.relationships()
                 if edge.source_id == creative.id and edge.relation == RelationType.GENERATED
             )
-            feedback, updates = self.commander.record_annotated_feedback(
+            feedback, updates = self.commander.record_text_feedback(
                 creative=creative,
                 artifact_digest=str(artifact.attributes["sha256"]),
-                rating=4,
                 comment="Distinct and clear",
-                annotations=(), actor="firebase:owner",
+                actor="firebase:owner",
             )
             self.assertTrue(updates)
+            self.assertIsNone(feedback.attributes["rating"])
+            self.assertTrue(all(item.attributes["delta"] == 0 for item in updates))
+            self.assertTrue(all(item.attributes["algorithm"] == "owner_text_feedback_v1" for item in updates))
             published.append({**result, "feedback_id": feedback.id})
         return published
 
@@ -453,6 +455,10 @@ class BrandingPostgresPipelineTests(unittest.TestCase):
         self.assertEqual("YES", self.store.fetchone(
             """SELECT is_nullable FROM information_schema.columns
                 WHERE table_name='commander_ad_batches' AND column_name='brand_kit_id'"""
+        )["is_nullable"])
+        self.assertEqual("YES", self.store.fetchone(
+            """SELECT is_nullable FROM information_schema.columns
+                WHERE table_name='commander_creative_reviews' AND column_name='rating'"""
         )["is_nullable"])
 
     def test_deterministic_pipeline_reviews_and_approved_zip_end_to_end(self) -> None:
@@ -659,15 +665,14 @@ class BrandingPostgresPipelineTests(unittest.TestCase):
             for item in repository.directions(brand_run_id):
                 creative = commander_store.get_entity(str(item["creative_id"]))
                 with commander_store.transaction():
-                    feedback, updates = commander.record_annotated_feedback(
+                    feedback, updates = commander.record_text_feedback(
                         creative=creative,
                         artifact_digest=str(item["artifact_digest"]),
-                        rating=4, comment="Current owner review", annotations=(),
-                        actor="firebase:owner",
+                        comment="Current owner review", actor="firebase:owner",
                     )
                     review_repository.save_review_projection(
                         feedback_id=feedback.id, creative_id=creative.id,
-                        artifact_digest=str(item["artifact_digest"]), rating=4,
+                        artifact_digest=str(item["artifact_digest"]), rating=None,
                         comment="Current owner review", predicted_ctr=None, annotations=(),
                     )
                 self.assertTrue(updates)

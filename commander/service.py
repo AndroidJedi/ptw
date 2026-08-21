@@ -620,11 +620,30 @@ class Commander:
             supersedes_feedback_id=supersedes_feedback_id,
         )
 
+    def record_text_feedback(
+        self,
+        *,
+        creative: Entity,
+        artifact_digest: str,
+        comment: str,
+        actor: str,
+        supersedes_feedback_id: str | None = None,
+    ) -> tuple[Entity, tuple[Entity, ...]]:
+        return self._record_creative_feedback(
+            creative=creative,
+            rating=None,
+            comment=comment,
+            actor=actor,
+            feedback_type="owner_text_review",
+            extra_attributes={"artifact_digest": artifact_digest, "annotations": []},
+            supersedes_feedback_id=supersedes_feedback_id,
+        )
+
     def _record_creative_feedback(
         self,
         *,
         creative: Entity,
-        rating: int,
+        rating: int | None,
         comment: str,
         actor: str,
         feedback_type: str,
@@ -632,8 +651,10 @@ class Commander:
         supersedes_feedback_id: str | None = None,
     ) -> tuple[Entity, tuple[Entity, ...]]:
         self._require_kind(creative, EntityKind.CREATIVE)
-        if rating not in range(1, 6):
+        if rating is not None and rating not in range(1, 6):
             raise ValueError("feedback rating must be an integer from 1 to 5")
+        if rating is None and not comment.strip():
+            raise ValueError("text feedback must not be empty")
         previous = tuple(
             item
             for item in self.store.entities(EntityKind.HUMAN_FEEDBACK)
@@ -673,7 +694,7 @@ class Commander:
                 if edge.source_id == creative.id and edge.relation == RelationType.CONTAINS
             )
             updates: list[Entity] = []
-            delta = (rating - 3) * 0.05
+            delta = (rating - 3) * 0.05 if rating is not None else 0.0
             for component in components:
                 previous = self.component_weight(component)
                 current = max(0.0, min(1.0, previous + delta))
@@ -684,7 +705,7 @@ class Commander:
                         "previous_weight": previous,
                         "delta": delta,
                         "new_weight": current,
-                        "algorithm": "owner_rating_linear_v1",
+                        "algorithm": "owner_rating_linear_v1" if rating is not None else "owner_text_feedback_v1",
                         "rating": rating,
                     },
                     actor=actor,

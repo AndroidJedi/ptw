@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '../api'
+import type { BrandDirection } from '../types'
 import { BrandingView } from './BrandingView'
 
 describe('BrandingView', () => {
@@ -33,10 +34,10 @@ describe('BrandingView', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Новий бренд/ }))
 
     expect(await screen.findByText('Зробити щоденний прогрес видимим і достовірним.')).toBeInTheDocument()
-    expect(screen.getByText(/★ РЕКОМЕНДОВАНО · Шлях доказів/)).toBeInTheDocument()
+    expect(screen.getByText(/★ Шлях доказів/)).toBeInTheDocument()
     expect(screen.getByText('Люди з метою, у яку не вірять')).toBeInTheDocument()
-    expect(screen.getByText('Додати достовірний доказ')).toBeInTheDocument()
-    expect(screen.getByText('Якість доказів 90%')).toBeInTheDocument()
+    expect(screen.queryByText('Додати достовірний доказ')).not.toBeInTheDocument()
+    expect(screen.getByText('Докази 90%')).toBeInTheDocument()
     expect(screen.queryByText(ideaRunId)).not.toBeInTheDocument()
     expect(screen.getByText(/SEO вимкнено/)).toBeInTheDocument()
   })
@@ -69,9 +70,9 @@ describe('BrandingView', () => {
     render(<BrandingView api={api} language="uk" />)
     fireEvent.click(await screen.findByRole('button', { name: /Новий бренд/ }))
 
-    expect(screen.getByText(/Жодна теза не пройшла оцінювання/)).toBeInTheDocument()
-    expect(screen.getByText('ВІДХИЛЕНА')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Спочатку налаштуйте провайдер' })).toBeDisabled()
+    expect(screen.getByText(/Використаємо оригінальну ідею/)).toBeInTheDocument()
+    expect(screen.queryByText('ВІДХИЛЕНА')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Створити бренд' })).toBeDisabled()
     expect(screen.getByText(/Окремий OpenAI API key не потрібен/)).toBeInTheDocument()
   })
 
@@ -108,8 +109,56 @@ describe('BrandingView', () => {
     expect(alert).toHaveTextContent('API не відповідає')
     fireEvent.click(screen.getByRole('button', { name: 'Повторити' }))
 
-    expect(await screen.findByText(/Генерацію завершено — запуск не завис/)).toBeInTheDocument()
+    expect(await screen.findByText(/0 з 3 відгуків збережено/)).toBeInTheDocument()
     expect(screen.getByText(/Чекає на ваш відгук · спроба 1/)).toBeInTheDocument()
     expect(statusRequests).toBe(2)
+  })
+
+  it('submits text-only feedback and advances to the next logo with one primary action', async () => {
+    const run = {
+      id: 'brand-run', source_laval_run_id: 'idea-run', status: 'awaiting_review', current_stage: 'OWNER_REVIEW',
+      source_snapshot: { owner_idea: 'Зробити прогрес видимим.', theses: [], mechanisms: [] },
+      source_stale: false, constraints_text: '', provider_snapshot: {}, created_at: '', updated_at: '', completed_stages: 8,
+    }
+    const directions: BrandDirection[] = ['Перший', 'Другий', 'Третій'].map((name, index) => ({
+      id: `direction-${index}`, ordinal: index + 1, name, status: 'awaiting_review',
+      manifest: {
+        name, tagline: { uk: `Слоган ${index + 1}`, en: `Tagline ${index + 1}` },
+        positioning: { uk: 'Позиціонування', en: 'Positioning' }, personality: [],
+        palette: { light: {}, dark: {} }, typography: { display: 'Inter', body: 'Inter', mono: 'IBM Plex Mono' },
+        design_principles: [], retention_patterns: [], ui_system: {},
+      },
+      evaluation: { passed: true, checks: {} }, latest_feedback_id: null,
+    }))
+    const post = vi.fn().mockImplementation(() => {
+      directions[0].latest_feedback_id = 'feedback-1'
+      directions[0].overall_comment = 'Зробіть знак простішим'
+      return Promise.resolve({ feedback_id: 'feedback-1' })
+    })
+    const api = {
+      get: vi.fn().mockImplementation((path: string) => {
+        if (path === '/api/v1/branding/cases?limit=50') return Promise.resolve({ items: [] })
+        if (path === '/api/v1/branding/runs?limit=50') return Promise.resolve({ items: [run] })
+        if (path === '/api/v1/branding/providers') return Promise.resolve({ ready: true, provider: 'codex_brand_bridge' })
+        if (path === '/api/v1/branding/runs/brand-run') return Promise.resolve({
+          run, stages: [], directions: [...directions], cost: { items: [], total_usd: 0 },
+        })
+        return Promise.resolve({})
+      }),
+      post, blob: vi.fn(),
+    } as unknown as ApiClient
+
+    const { container } = render(<BrandingView api={api} language="uk" />)
+    fireEvent.change(await screen.findByLabelText('Що змінити або зберегти?'), { target: { value: 'Зробіть знак простішим' } })
+    expect(container.querySelectorAll('.brand-review-step .brand-single-cta')).toHaveLength(1)
+    expect(screen.queryByText('Оцінка лого')).not.toBeInTheDocument()
+    expect(container.querySelector('.annotation-editor')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти й далі' }))
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith(
+      '/api/v1/branding/runs/brand-run/directions/direction-0/review',
+      { comment: 'Зробіть знак простішим' },
+    ))
+    expect(await screen.findByText('ЛОГО 2 З 3')).toBeInTheDocument()
   })
 })

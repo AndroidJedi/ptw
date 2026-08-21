@@ -16,6 +16,7 @@ const stages = [
 
 test.beforeEach(async ({ page }) => {
   let brandApproved = false
+  const brandFeedback = new Map<string, string>()
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'share', { configurable: true, value: undefined })
     Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined })
@@ -50,21 +51,30 @@ test.beforeEach(async ({ page }) => {
       light: { primary: '#1457d9', secondary: '#6938b8', accent: '#d34100', background: '#ffffff', surface: '#f1f5fb', text: '#111827', muted: '#566174', success: '#087a55', warning: '#855400', error: '#b42336' },
       dark: { primary: '#79a7ff', secondary: '#c3a6ff', accent: '#ff9564', background: '#08101e', surface: '#121d31', text: '#f8faff', muted: '#b0bdd2', success: '#58d9aa', warning: '#ffd16e', error: '#ff7b8b' },
     }
-    const directions = ['Proofrise', 'Momentum', 'Verity Loop'].map((name, index) => ({
-      id: `${index + 3}1234567-89ab-7def-8123-456789abcdef`, ordinal: index + 1, name, status: 'reviewed',
+    const directions = ['Proofrise', 'Momentum', 'Verity Loop'].map((name, index) => {
+      const id = `${index + 3}1234567-89ab-7def-8123-456789abcdef`
+      const comment = brandFeedback.get(id)
+      return {
+      id, ordinal: index + 1, name, status: comment ? 'reviewed' : 'awaiting_review',
       manifest: { name, tagline: { en: 'Make progress visible.', uk: 'Зробіть прогрес видимим.' }, positioning: { en: 'Credible momentum.', uk: 'Достовірний прогрес.' }, personality: ['credible'], palette, typography: { display: 'Manrope', body: 'Inter', mono: 'IBM Plex Mono' }, design_principles: ['Visible momentum', 'Earned anticipation', 'Calm action'], retention_patterns: ['proof timeline'], ui_system: {} },
       evaluation: { passed: true, checks: { contrast: { passed: true }, font_coverage: { passed: true }, evidence_lineage: { passed: true } } },
       artifact_digest: `${index + 1}`.repeat(64), logo_asset: { digest: `${index + 1}`.repeat(64), mime_type: 'image/png', width: 1024, height: 1024, url: `/api/v1/branding/assets/${`${index + 1}`.repeat(64)}`, cache: 'private, no-store' },
-      latest_feedback_id: `${index + 6}1234567-89ab-7def-8123-456789abcdef`, rating: 4, overall_comment: 'Current review', reviewed_at: '2026-08-20T00:00:00Z',
-    }))
+      latest_feedback_id: comment ? `${index + 6}1234567-89ab-7def-8123-456789abcdef` : null,
+      rating: null, overall_comment: comment || null, reviewed_at: comment ? '2026-08-20T00:00:00Z' : null,
+    }})
     if (url.pathname === `/api/v1/branding/runs/${brandRunId}`) return json({
       run: { id: brandRunId, source_laval_run_id: runId, status: brandApproved ? 'completed' : 'awaiting_review', current_stage: brandApproved ? 'KIT_ASSEMBLY' : 'OWNER_REVIEW', source_snapshot: { owner_idea: 'Make credible progress visible.', theses: [], mechanisms: [] }, source_stale: false, constraints_text: '', provider_snapshot: {}, commander_brand_kit_id: brandApproved ? brandKitId : null, created_at: '', updated_at: '' },
       stages: brandStages.map((stage, ordinal) => ({ stage, ordinal, status: ordinal < 8 || brandApproved ? 'completed' : ordinal === 8 ? 'paused' : 'pending', attempt: ordinal < 8 ? 1 : 0, metrics: ordinal === 2 ? { paid_seo_calls: 0 } : {} })),
       directions, cost: { items: [], total_usd: 0 }, runner_active: false,
     })
     if (url.pathname === `/api/v1/branding/runs/${brandRunId}/show`) return json({ stage: url.searchParams.get('stage'), artifact: { paid_seo_calls: 0 } })
-    if (url.pathname.includes(`/api/v1/branding/runs/${brandRunId}/directions/`) && url.pathname.endsWith('/reviews')) return json({ items: [{ feedback_id: '61234567-89ab-7def-8123-456789abcdef', rating: 4, overall_comment: 'Current review', annotations: [], created_at: '2026-08-20T00:00:00Z' }] })
-    if (url.pathname.includes(`/api/v1/branding/runs/${brandRunId}/directions/`) && url.pathname.endsWith('/review') && route.request().method() === 'POST') return json({ feedback_id: '71234567-89ab-7def-8123-456789abcdef', weight_update_ids: [], direction_id: directions[0].id })
+    if (url.pathname.includes(`/api/v1/branding/runs/${brandRunId}/directions/`) && url.pathname.endsWith('/review') && route.request().method() === 'POST') {
+      const directionId = url.pathname.split('/').at(-2) || ''
+      const body = route.request().postDataJSON() as Record<string, unknown>
+      expect(body).toEqual({ comment: expect.any(String) })
+      brandFeedback.set(directionId, String(body.comment))
+      return json({ feedback_id: '71234567-89ab-7def-8123-456789abcdef', weight_update_ids: [], direction_id: directionId })
+    }
     if (url.pathname === `/api/v1/branding/runs/${brandRunId}/approve` && route.request().method() === 'POST') {
       brandApproved = true
       return json({ id: brandKitId, commander_brand_kit_id: brandKitId, name: 'Proofrise', status: 'approved', source_stale: false, zip_digest: 'a'.repeat(64), approved_at: '2026-08-20T00:00:00Z', manifest: directions[0].manifest, download: { digest: 'a'.repeat(64), mime_type: 'application/zip', url: `/api/v1/branding/kits/${brandKitId}/download`, cache: 'private, no-store' } })
@@ -113,25 +123,23 @@ test('renders the authenticated owner console without horizontal overflow', asyn
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('reviews all Branding UI states, annotations, approval, and download', async ({ page }) => {
+test('reviews Branding with one text CTA per logo, then approves and downloads', async ({ page }) => {
   await page.goto(`/?e2e=1&page=branding&run=${brandRunId}`)
   await expect(page.getByRole('heading', { name: 'Брендинг' })).toBeVisible()
-  await expect(page.locator('.brand-stages button')).toHaveCount(10)
-  await expect(page.locator('.brand-directions > button')).toHaveCount(3)
+  await expect(page.locator('.annotation-editor')).toHaveCount(0)
+  await expect(page.getByText('Оцінка лого')).toHaveCount(0)
+  await expect(page.locator('.brand-review-step .brand-single-cta')).toHaveCount(1)
+  for (const [index, comment] of ['Спростіть форму', 'Посильте контраст', 'Збережіть ритм'].entries()) {
+    await expect(page.getByText(`ЛОГО ${index + 1} З 3`)).toBeVisible()
+    await page.getByLabel('Що змінити або зберегти?').fill(comment)
+    await page.getByRole('button', { name: index === 2 ? 'Зберегти й обрати бренд' : 'Зберегти й далі' }).click()
+  }
   await expect(page.getByText(/Domain and trademark clearance are not performed/)).toBeVisible()
-
-  await page.locator('.brand-review-panel .image-stage svg').click({ position: { x: 120, y: 120 } })
-  await page.getByLabel('Що саме треба змінити?').fill('Зробити символ щільнішим')
-  await page.getByRole('button', { name: 'Додати область' }).click()
-  await page.locator('.brand-review-panel .rating button').nth(4).click()
-  await page.getByLabel('Загальний коментар').fill('Добре працює у favicon')
-  await page.getByRole('button', { name: /Зберегти виправлення/ }).click()
-  await expect(page.getByText(/Історія відгуків/)).toBeVisible()
-
+  await page.getByRole('radio', { name: /Proofrise/ }).click()
   await page.getByRole('button', { name: /Затвердити Proofrise/ }).click()
-  await expect(page.getByText('React/TypeScript UI kit готовий')).toBeVisible()
+  await expect(page.getByText(/React\/TypeScript UI kit/)).toBeVisible()
   const download = page.waitForEvent('download')
-  await page.getByRole('button', { name: /Завантажити ZIP/ }).click()
+  await page.getByRole('button', { name: /Завантажити Brand Kit/ }).click()
   await download
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

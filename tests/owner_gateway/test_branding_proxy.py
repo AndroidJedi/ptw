@@ -123,17 +123,34 @@ class BrandingGatewayProxyTests(unittest.TestCase):
             response = client.post(
                 f"/api/v1/branding/runs/{run_id}/directions/{direction_id}/review",
                 headers=self.headers,
-                json={
-                    "rating": 5, "comment": "Keep the symbol",
-                    "artifact_digest": "f" * 64,
-                    "annotations": [{"id": "pin-1", "kind": "pin", "x": .3, "y": .4, "comment": "Tighten"}],
-                },
+                json={"comment": "Keep the symbol"},
             )
         self.assertEqual(200, response.status_code, response.text)
         self.assertEqual(creative_id, captured["creative_id"])
         self.assertEqual("b" * 64, captured["artifact_digest"])
         self.assertEqual(feedback_id, captured["supersedes_feedback_id"])
         self.assertEqual("firebase:owner", captured["actor"])
+        self.assertIsNone(captured["rating"])
+        self.assertEqual((), captured["annotations"])
+
+    def test_text_only_brand_review_rejects_an_empty_comment(self) -> None:
+        run_id = "01234567-89ab-7def-8123-456789abcdef"
+        direction_id = "11234567-89ab-7def-8123-456789abcdef"
+        with (
+            patch("owner_gateway.api.PlatformRepository.emergency_stop", return_value=False),
+            patch("owner_gateway.api.DomainReadModels.brand_review_target", return_value={
+                "run_id": run_id, "direction_id": direction_id,
+                "creative_id": "21234567-89ab-7def-8123-456789abcdef",
+                "artifact_digest": "b" * 64, "latest_feedback_id": None,
+            }),
+            TestClient(create_app(self.settings, self.Verifier())) as client,
+        ):
+            response = client.post(
+                f"/api/v1/branding/runs/{run_id}/directions/{direction_id}/review",
+                headers=self.headers, json={"comment": "   "},
+            )
+        self.assertEqual(409, response.status_code)
+        self.assertIn("must not be empty", response.json()["detail"])
 
     def test_bridge_timeout_is_bounded_and_reported_as_unavailable(self) -> None:
         class TimeoutClient:

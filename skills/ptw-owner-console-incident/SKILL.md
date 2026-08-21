@@ -116,6 +116,17 @@ while rendering only a dismiss button is a release blocker. Branding emits no
 general Telegram notification, so verify its web state instead of inferring a
 missing or unexpected Telegram message from the run transition.
 
+For Branding review complexity or mobile lag, count visible primary actions and
+logo asset requests before changing provider/runtime state. The normal review
+screen renders one logo, one text area, and one **Save and next** CTA; it does
+not mount the annotation canvas, request the same immutable PNG twice, require
+a numeric rating, or preload all three logos. Store text-only feedback as a
+truthful nullable rating and append a zero-delta text-feedback WeightUpdate;
+never synthesize a neutral owner rating. Keep run switching, ten stages,
+provider/cost facts, artifacts, and deliberate rerun behind disclosure. After
+the third text review, show direction selection with one approval CTA, then one
+download CTA after assembly. Cover the sequence at 360 px and iPhone WebKit.
+
 For a failed Laval run, the owner must not need SSH or an agent to recover it.
 Verify the visible error report includes the exact stage/attempt, bounded error,
 failure time, provider-task counts, persisted remote-ID count, recorded cost,

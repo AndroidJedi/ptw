@@ -291,7 +291,7 @@ export interface BrandDirection {
 
 export interface BrandReview {
   feedback_id: string
-  rating: number
+  rating?: number | null
   overall_comment: string
   annotations: Region[]
   supersedes_feedback_id?: string | null

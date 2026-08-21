@@ -213,7 +213,7 @@ class DomainReadModels:
         *,
         creative_id: str,
         artifact_digest: str,
-        rating: int,
+        rating: int | None,
         comment: str,
         predicted_ctr: float | None,
         annotations: tuple[Mapping[str, Any], ...],
@@ -236,7 +236,13 @@ class DomainReadModels:
             if supersedes_feedback_id:
                 creative = store.get_entity(creative_id)
                 with store.transaction():
-                    if predicted_ctr is None:
+                    if predicted_ctr is None and rating is None:
+                        feedback, updates = commander.record_text_feedback(
+                            creative=creative, artifact_digest=artifact_digest,
+                            comment=comment, actor=actor,
+                            supersedes_feedback_id=supersedes_feedback_id,
+                        )
+                    elif predicted_ctr is None:
                         feedback, updates = commander.record_annotated_feedback(
                             creative=creative, artifact_digest=artifact_digest, rating=rating,
                             comment=comment, annotations=annotations, actor=actor,
@@ -266,10 +272,16 @@ class DomainReadModels:
             except KeyError:
                 creative = store.get_entity(creative_id)
                 with store.transaction():
-                    feedback, updates = commander.record_annotated_feedback(
-                        creative=creative, artifact_digest=artifact_digest, rating=rating,
-                        comment=comment, annotations=annotations, actor=actor,
-                    )
+                    if rating is None:
+                        feedback, updates = commander.record_text_feedback(
+                            creative=creative, artifact_digest=artifact_digest,
+                            comment=comment, actor=actor,
+                        )
+                    else:
+                        feedback, updates = commander.record_annotated_feedback(
+                            creative=creative, artifact_digest=artifact_digest, rating=rating,
+                            comment=comment, annotations=annotations, actor=actor,
+                        )
                     repository.save_review_projection(
                         feedback_id=feedback.id, creative_id=creative_id, artifact_digest=artifact_digest,
                         rating=rating, comment=comment, predicted_ctr=None, annotations=annotations,
@@ -277,6 +289,8 @@ class DomainReadModels:
                 return {"feedback_id": feedback.id, "weight_update_ids": [item.id for item in updates], "next": None}
             if predicted_ctr is None:
                 raise ValueError("10-variant reviews require predicted_ctr")
+            if rating is None:
+                raise ValueError("10-variant reviews require rating")
             engine = AdGenerationEngine(
                 commander, repository, UnavailableAdProvider("review-only gateway"), asset_directory,
             )

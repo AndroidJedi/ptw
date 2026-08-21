@@ -74,7 +74,11 @@ and one logo `creative` are connected through `contains`; immutable artifact
 files are connected through `generated`. Owner Gateway resolves the Creative
 UUID and artifact digest from the selected direction, so the browser never
 chooses graph identities. Corrected reviews append `supersedes` feedback and
-new WeightUpdates.
+new WeightUpdates. Branding's owner flow accepts a required text comment
+without inventing a numeric rating. The projection stores `rating=NULL` and
+appends zero-delta `owner_text_feedback_v1` WeightUpdates because text alone
+does not truthfully imply preference magnitude. The legacy annotated/rated
+contract remains readable and accepted for historical reviews.
 
 Approval creates an immutable `brand_kit` and an `adopted_as` edge. A later kit
 for the same Idea supersedes the earlier kit without deletion. Material Idea
@@ -114,7 +118,9 @@ stages, directions, review/history, approval, kit metadata, authenticated
 assets, and ZIP download. Asset responses are private and `no-store`.
 Candidate cards show readable case content and kit state; UUIDs stay internal.
 Ukrainian is the default UI/sample language and the naming-clearance disclosure
-is English as well.
+is English as well. Review is a sequential one-logo wizard with one primary CTA
+per state. It fetches only the active logo; stage/provider/cost inspection,
+history, and deliberate rerun are collapsed outside the primary path.
 
 Production acceptance requires one real completed live Idea case, three logo
 reviews, an approved/downloaded kit, fixture compilation, graph-edge audit,

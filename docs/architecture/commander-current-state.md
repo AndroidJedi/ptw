@@ -9,9 +9,11 @@ Architecture authority: [`commander-architecture-review.md`](commander-architect
 Branding v1 now runs inside the existing Idea process as the evidence-backed
 stage between a completed live Idea case and future visual-post generation. The
 Owner Console has five-item responsive navigation with Branding between Ideas
-and Jobs, a readable eligible-case picker, ten-stage inspection and controls,
-three annotated logo reviews, light/dark design previews, explicit direction
-approval, and private Brand Kit ZIP download. Posts remain retired at HTTP 410.
+and Jobs, a readable eligible-case picker, a sequential text-only review for
+each of the three logos, explicit direction approval, and private Brand Kit ZIP
+download. The primary mobile flow shows one logo, one text field, and one CTA at
+a time; stage inspection and technical controls remain available only through
+collapsed disclosures. Posts remain retired at HTTP 410.
 
 The durable worker snapshots the whole Idea case, uses no paid SEO, bounds
 public pages/official YouTube/owner references, makes exactly three symbol-image
@@ -69,6 +71,15 @@ Fix commit `1a5e93a` is live as Firebase Hosting version
 `ptw-shell-v19` on both Firebase hostnames. The public post-deploy audit passes
 gateway health, negative authentication, CORS, and exact live-bundle markers;
 27 Vitest checks and all 12 desktop/mobile/iPhone WebKit scenarios pass.
+
+A follow-up mobile review incident showed that the annotation canvas, rating
+row, technical direction specimens, and duplicate logo loads made the owner
+workflow slow and needlessly complex. Branding feedback is now genuinely
+text-only: a comment creates append-only HumanFeedback plus a zero-delta
+WeightUpdate without inventing a neutral rating. The next unreviewed logo opens
+automatically, and the final review leads directly to one direction choice and
+one approval CTA. The legacy rated/annotated API remains readable and accepted
+for historical compatibility.
 
 Release verification passes 123 Commander/Idea tests in the tagged Idea image
 against disposable PostgreSQL (five intentional retirement skips), 23 tagged

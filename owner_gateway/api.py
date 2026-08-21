@@ -340,14 +340,18 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             if not isinstance(raw_annotations, list) or len(raw_annotations) > 100:
                 raise ValueError("reviews support at most 100 annotations")
             annotations = tuple(region(item) for item in raw_annotations)
-            rating = int(request.get("rating"))
-            if rating not in range(1, 6):
+            raw_rating = request.get("rating")
+            rating = None if raw_rating in (None, "") else int(raw_rating)
+            if rating is not None and rating not in range(1, 6):
                 raise ValueError("rating must be 1..5")
+            comment = str(request.get("comment") or "").strip()
+            if rating is None and not comment:
+                raise ValueError("text feedback must not be empty")
             result = read.review(
                 creative_id=target["creative_id"],
                 artifact_digest=target["artifact_digest"],
                 rating=rating,
-                comment=str(request.get("comment") or ""),
+                comment=comment,
                 predicted_ctr=None,
                 annotations=annotations,
                 actor=f"firebase:{identity.uid}",

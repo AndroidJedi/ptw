@@ -6,8 +6,9 @@
   `commander.proove-them-wrong.com` and publishes only `GET /health`.
 - **Commander API** owns Telegram long polling, deterministic authorization and
   routing, migrations, and internal health endpoints.
-- **Commander worker** atomically claims PostgreSQL jobs, runs the four bounded
-  command types, and sends Telegram replies.
+- **Commander worker** atomically claims PostgreSQL jobs, runs bounded commands,
+  fresh schema-bound Laval/Branding model calls, and built-in Branding image
+  generation, then sends Telegram replies where the command contract requires.
 - **PostgreSQL 16** stores users, sessions, jobs, heartbeats, and append-oriented
   events. It has no host-published port.
 - **Git watcher** separates deterministic remote-SHA detection, change
@@ -24,6 +25,8 @@
 Telegram API -> Commander API -> PostgreSQL <- Commander worker -> Telegram API
 Internet -> Caddy /health -> Commander API
 Host Codex check -> read-only metadata -> Commander worker /status
+Idea Branding -> authenticated structured bridge -> Codex `$imagegen`
+Codex image -> SHA-256 immutable `ptw_commander-assets` entry -> Idea Branding
 Future job -> per-job /opt/ptw/workspaces/jobs/<job-id> -> tests/commit/PR -> cleanup
 GitHub main -> ls-remote -> PostgreSQL state/outbox -> authorized Telegram users
 ```
@@ -32,6 +35,13 @@ The Internet-to-Caddy boundary exposes no administration. Telegram identity is
 trusted only after exact numeric allowlist matching. The backend Compose network
 is internal; API and worker additionally use an outbound edge network. Host state
 is not mounted broadly into containers.
+
+The internal bridge advertises exact Laval and Branding mode sets. Branding
+image jobs may invoke built-in image generation once, require `gpt-image-2`,
+persist one bounded square PNG into the external Commander asset volume, and
+return digest/provenance metadata instead of binary database payloads. The
+worker removes the temporary per-session Codex image directory after the asset
+is verified.
 
 Future engineering jobs must receive a unique workspace, cloned repository or
 Git worktree, bounded credentials, and explicit cleanup. They must not modify the

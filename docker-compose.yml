@@ -19,6 +19,7 @@ x-app-environment: &app-environment
   CODEX_HOME: /tmp/ptw-codex
   CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
   CODEX_MAX_RETRIES: ${CODEX_MAX_RETRIES:-2}
+  BRAND_PROVIDER_ASSET_DIR: /var/lib/ptw/assets/brand-provider
   ATTACHMENT_INBOX_ROOT: /opt/ptw/workspaces/incoming
   CREATIVE_SERVICE_URL: http://ptw-creative-api:8080/internal/telegram/update
   GIT_MAIN_WATCH_INTERVAL_SECONDS: ${GIT_MAIN_WATCH_INTERVAL_SECONDS:-300}
@@ -93,6 +94,8 @@ services:
     networks: [backend, edge]
 
   commander-worker:
+    image: ptw-agent-platform-commander-worker:${PTW_PLATFORM_IMAGE_TAG:-latest}
+    pull_policy: never
     build:
       context: .
       dockerfile: worker/Dockerfile
@@ -126,6 +129,7 @@ services:
       - /root/.config/gh:/run/ptw-gh:ro
       - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
       - /root/.codex/auth.json:/run/ptw-codex-auth/auth.json:ro
+      - commander-assets:/var/lib/ptw/assets
     security_opt:
       - no-new-privileges:true
     networks: [backend, edge]
@@ -193,3 +197,6 @@ networks:
 
 volumes:
   git-agent-socket:
+  commander-assets:
+    external: true
+    name: ptw_commander-assets

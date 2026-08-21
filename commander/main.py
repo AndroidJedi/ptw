@@ -54,8 +54,14 @@ STRUCTURED_LLM_MODES = frozenset({
     "laval_mechanism_extraction",
     "laval_thesis_synthesis",
     "laval_thesis_falsification",
+    "branding_reference_plan",
+    "branding_design_principles",
+    "branding_brand_brief",
+    "branding_direction_synthesis",
+    "branding_logo_generation",
 })
 MAX_STRUCTURED_LLM_REQUEST_BYTES = 1_000_000
+BRANDING_IMAGE_MODEL = "gpt-image-2"
 
 
 def validate_structured_llm_request(request: dict) -> None:
@@ -72,16 +78,31 @@ def validate_structured_llm_request(request: dict) -> None:
     for field in ("prompt_template_version", "context_hash", "model"):
         if field in request and not isinstance(request[field], str):
             raise ValueError("invalid structured LLM request")
+    if (
+        request.get("mode") == "branding_logo_generation"
+        and "$imagegen" not in request["system_prompt"]
+    ):
+        raise ValueError("Branding logo generation must explicitly invoke $imagegen")
     if len(json.dumps(request, ensure_ascii=False).encode("utf-8")) > MAX_STRUCTURED_LLM_REQUEST_BYTES:
         raise ValueError("structured LLM request is too large")
 
 
 def structured_llm_capabilities() -> dict:
-    """Expose the authenticated Laval contract without queueing a model job."""
+    """Expose authenticated structured and image contracts without queueing work."""
     return {
         "laval_modes": sorted(
             mode for mode in STRUCTURED_LLM_MODES if mode.startswith("laval_")
         ),
+        "branding_modes": sorted(
+            mode for mode in STRUCTURED_LLM_MODES if mode.startswith("branding_")
+        ),
+        "branding_image": {
+            "ready": True,
+            "model": BRANDING_IMAGE_MODEL,
+            "provider": "codex_chatgpt_imagegen",
+            "max_images_per_request": 1,
+            "asset_transport": "commander_asset_volume",
+        },
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
     }
 

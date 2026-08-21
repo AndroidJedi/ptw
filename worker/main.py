@@ -6,6 +6,9 @@ import subprocess
 import time
 import json
 import tempfile
+import hashlib
+import re
+import struct
 from pathlib import Path
 
 import httpx
@@ -132,6 +135,73 @@ def _codex_session_id(stdout: str) -> str:
     raise RuntimeError("structured model execution did not report a session ID")
 
 
+def _codex_usage(stdout: str) -> dict[str, int]:
+    usage: dict[str, int] = {}
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        candidate = event.get("usage")
+        if event.get("type") == "turn.completed" and isinstance(candidate, dict):
+            for key in ("input_tokens", "cached_input_tokens", "output_tokens"):
+                if isinstance(candidate.get(key), int) and candidate[key] >= 0:
+                    usage[key] = candidate[key]
+    return usage
+
+
+def _persist_brand_image(codex_home: Path, session_id: str) -> dict:
+    if not re.fullmatch(r"[A-Za-z0-9-]{1,100}", session_id):
+        raise RuntimeError("image generation returned an invalid session ID")
+    generated_root = (codex_home / "generated_images").resolve()
+    session_directory = (generated_root / session_id).resolve()
+    if generated_root not in session_directory.parents:
+        raise RuntimeError("image generation resolved outside its temporary root")
+    try:
+        images = sorted(path for path in session_directory.glob("*.png") if path.is_file())
+        if len(images) != 1:
+            raise RuntimeError("Branding image generation must return exactly one PNG")
+        content = images[0].read_bytes()
+        if len(content) < 33 or len(content) > 10_000_000 or not content.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise RuntimeError("Branding image generation returned an invalid PNG")
+        width = struct.unpack(">I", content[16:20])[0]
+        height = struct.unpack(">I", content[20:24])[0]
+        if width != height or not 512 <= width <= 2048:
+            raise RuntimeError("Branding image generation must return a bounded square image")
+        digest = hashlib.sha256(content).hexdigest()
+        asset_root = Path(
+            os.environ.get("BRAND_PROVIDER_ASSET_DIR", "/var/lib/ptw/assets/brand-provider")
+        ).resolve()
+        destination_directory = asset_root / digest[:2]
+        destination_directory.mkdir(mode=0o750, parents=True, exist_ok=True)
+        destination = destination_directory / f"{digest}.png"
+        if destination.exists():
+            if hashlib.sha256(destination.read_bytes()).hexdigest() != digest:
+                raise RuntimeError("immutable Branding provider asset digest collision")
+        else:
+            with tempfile.NamedTemporaryFile(
+                mode="wb", dir=destination_directory, prefix=f".{digest}.", delete=False
+            ) as temporary:
+                temporary.write(content)
+                temporary_path = Path(temporary.name)
+            temporary_path.chmod(0o640)
+            os.replace(temporary_path, destination)
+        return {
+            "digest": digest,
+            "path": str(destination),
+            "mime_type": "image/png",
+            "width": width,
+            "height": height,
+            "requested_model": "gpt-image-2",
+            "resolved_model": "gpt-image-2",
+            "provider": "codex_chatgpt_imagegen",
+            "request_id": session_id,
+        }
+    finally:
+        if session_directory.is_dir():
+            shutil.rmtree(session_directory)
+
+
 def execute_structured_llm(parameters: dict) -> dict:
     """Run one schema-bound Codex invocation with no reusable conversation state."""
     codex_home = Path(os.environ.get("CODEX_HOME", "/tmp/ptw-codex"))
@@ -190,16 +260,21 @@ def execute_structured_llm(parameters: dict) -> dict:
             raise RuntimeError("structured model execution failed")
         data = json.loads(output.read_text(encoding="utf-8"))
         session_id = _codex_session_id(completed.stdout)
-        return {
-            "response": json.dumps(data, ensure_ascii=False),
-            "invocation": {
-                "session_id": session_id,
-                "session_mode": "fresh",
-                "ephemeral": True,
-                "conversation_reused": False,
-                "model": requested_model or "codex-cli-default",
-            },
+        invocation = {
+            "session_id": session_id,
+            "session_mode": "fresh",
+            "ephemeral": True,
+            "conversation_reused": False,
+            "model": requested_model or "codex-cli-default",
         }
+        invocation.update(_codex_usage(completed.stdout))
+        result = {
+            "response": json.dumps(data, ensure_ascii=False),
+            "invocation": invocation,
+        }
+        if parameters.get("mode") == "branding_logo_generation":
+            result["image"] = _persist_brand_image(codex_home, session_id)
+        return result
 
 
 def send_telegram(parameters: dict, text: str) -> None:

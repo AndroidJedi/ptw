@@ -24,6 +24,13 @@ curl -fsS http://127.0.0.1:8080/health/ready
 curl -fsS https://commander.proove-them-wrong.com/health
 ```
 
+The authenticated structured capabilities response must expose the exact Laval
+and Branding modes plus `branding_image.ready=true`, model `gpt-image-2`, one
+image per request, and `commander_asset_volume` transport. The Commander API and
+worker images are both prebuilt and pinned with `PTW_PLATFORM_IMAGE_TAG`; never
+build either on the 1 GB production host. Recreate them one at a time and run
+the PTW Owner Gateway dependency audit before starting a Branding run.
+
 ## Migrations
 
 Add an immutable, numbered SQL file under `migrations/`. Commander applies new

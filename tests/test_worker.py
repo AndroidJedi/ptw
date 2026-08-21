@@ -8,6 +8,17 @@ import pytest
 from worker.main import codex_available, command_available, execute_job, execute_structured_llm
 
 
+def png_header(width: int = 1254, height: int = 1254) -> bytes:
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + b"\x00\x00\x00\x0dIHDR"
+        + width.to_bytes(4, "big")
+        + height.to_bytes(4, "big")
+        + b"\x08\x06\x00\x00\x00"
+        + b"test-png-payload"
+    )
+
+
 def test_installed_command_detection() -> None:
     assert command_available("python") is True
     assert command_available("ptw-command-that-does-not-exist") is False
@@ -125,6 +136,91 @@ def test_structured_llm_cli_default_omits_model_override(monkeypatch) -> None:
     })
     assert "--model" not in observed["command"]
     assert result["invocation"]["model"] == "codex-cli-default"
+
+
+def test_branding_logo_uses_one_builtin_image_and_persists_digest_asset(
+    monkeypatch, tmp_path: Path
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    asset_root = tmp_path / "assets" / "brand-provider"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("BRAND_PROVIDER_ASSET_DIR", str(asset_root))
+    observed = {}
+
+    def fake_run(command, **kwargs):
+        observed["command"] = command
+        observed["input"] = kwargs["input"]
+        output_path = Path(command[command.index("--output-last-message") + 1])
+        output_path.write_text('{"generated":true}', encoding="utf-8")
+        generated = codex_home / "generated_images" / "brand-session-1"
+        generated.mkdir(parents=True)
+        (generated / "symbol.png").write_bytes(png_header())
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=(
+                '{"type":"thread.started","thread_id":"brand-session-1"}\n'
+                '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input_tokens":3,"output_tokens":4}}\n'
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    result = execute_structured_llm({
+        "mode": "branding_logo_generation",
+        "system_prompt": "$imagegen Generate exactly one original symbol.",
+        "input_payload": {"logo_prompt": "A text-free mark"},
+        "output_schema": {
+            "type": "object",
+            "properties": {"generated": {"type": "boolean"}},
+            "required": ["generated"],
+            "additionalProperties": False,
+        },
+        "model": "codex-cli-default",
+    })
+
+    image = result["image"]
+    persisted = Path(image["path"])
+    assert persisted.is_file()
+    assert persisted.read_bytes() == png_header()
+    assert image["digest"] in persisted.name
+    assert image["width"] == image["height"] == 1254
+    assert image["provider"] == "codex_chatgpt_imagegen"
+    assert image["resolved_model"] == "gpt-image-2"
+    assert not (codex_home / "generated_images" / "brand-session-1").exists()
+    assert result["invocation"]["input_tokens"] == 12
+    assert result["invocation"]["output_tokens"] == 4
+    assert "$imagegen" in observed["input"]
+    assert observed["command"][observed["command"].index("--sandbox") + 1] == "read-only"
+    assert "--model" not in observed["command"]
+
+
+def test_branding_logo_rejects_multiple_generated_images(monkeypatch, tmp_path: Path) -> None:
+    codex_home = tmp_path / "codex-home"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("BRAND_PROVIDER_ASSET_DIR", str(tmp_path / "assets"))
+
+    def fake_run(command, **_kwargs):
+        output_path = Path(command[command.index("--output-last-message") + 1])
+        output_path.write_text('{"generated":true}', encoding="utf-8")
+        generated = codex_home / "generated_images" / "brand-session-many"
+        generated.mkdir(parents=True)
+        (generated / "one.png").write_bytes(png_header())
+        (generated / "two.png").write_bytes(png_header())
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout='{"type":"thread.started","thread_id":"brand-session-many"}\n',
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    with pytest.raises(RuntimeError, match="exactly one PNG"):
+        execute_structured_llm({
+            "mode": "branding_logo_generation",
+            "system_prompt": "$imagegen Generate exactly one original symbol.",
+            "input_payload": {},
+            "output_schema": {"type": "object"},
+        })
 
 
 @pytest.mark.parametrize("mode", [

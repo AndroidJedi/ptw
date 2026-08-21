@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from commander.main import (IDEA_COMMANDS, MAX_STRUCTURED_LLM_REQUEST_BYTES, STRUCTURED_LLM_MODES, SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
+from commander.main import (BRANDING_IMAGE_MODEL, IDEA_COMMANDS, MAX_STRUCTURED_LLM_REQUEST_BYTES, STRUCTURED_LLM_MODES, SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
                             bridge_target, engineering_task, normalized_command,
                             get_structured_llm_capabilities, public_health, safe_bridge_error, structured_llm_capabilities, task_research_reference,
                             validate_structured_llm_request)
@@ -78,14 +78,34 @@ def test_structured_bridge_accepts_laval_modes_and_full_contract() -> None:
         "laval_thesis_falsification",
     }
     assert {mode for mode in STRUCTURED_LLM_MODES if mode.startswith("laval_")} == laval_modes
+    branding_modes = {
+        "branding_reference_plan",
+        "branding_design_principles",
+        "branding_brand_brief",
+        "branding_direction_synthesis",
+        "branding_logo_generation",
+    }
+    assert {mode for mode in STRUCTURED_LLM_MODES if mode.startswith("branding_")} == branding_modes
     assert structured_llm_capabilities() == {
         "laval_modes": sorted(laval_modes),
+        "branding_modes": sorted(branding_modes),
+        "branding_image": {
+            "ready": True,
+            "model": BRANDING_IMAGE_MODEL,
+            "provider": "codex_chatgpt_imagegen",
+            "max_images_per_request": 1,
+            "asset_transport": "commander_asset_volume",
+        },
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
     }
-    for mode in laval_modes:
+    for mode in laval_modes | branding_modes:
         validate_structured_llm_request({
             "mode": mode,
-            "system_prompt": "Return structured evidence.",
+            "system_prompt": (
+                "$imagegen Return structured evidence."
+                if mode == "branding_logo_generation"
+                else "Return structured evidence."
+            ),
             "input_payload": {"evidence_ids": ["e-1"]},
             "output_schema": {"type": "object"},
             "prompt_template_version": "contract-v1",
@@ -108,6 +128,19 @@ def test_structured_bridge_rejects_unknown_and_oversized_requests() -> None:
         validate_structured_llm_request(request)
 
 
+def test_branding_logo_contract_requires_explicit_builtin_image_generation() -> None:
+    request = {
+        "mode": "branding_logo_generation",
+        "system_prompt": "Create one logo.",
+        "input_payload": {},
+        "output_schema": {"type": "object"},
+    }
+    with pytest.raises(ValueError, match=r"\$imagegen"):
+        validate_structured_llm_request(request)
+    request["system_prompt"] = "$imagegen Create exactly one original symbol."
+    validate_structured_llm_request(request)
+
+
 def test_structured_capabilities_require_the_bridge_token(monkeypatch) -> None:
     monkeypatch.setattr("commander.main.secrets.get", lambda name: "bridge-token")
     with pytest.raises(Exception) as rejected:
@@ -121,6 +154,10 @@ def test_platform_api_release_is_explicitly_tagged_and_never_built_on_production
     api = compose.split("  commander-api:", 1)[1].split("  commander-worker:", 1)[0]
     assert "image: ptw-agent-platform-commander-api:${PTW_PLATFORM_IMAGE_TAG:-latest}" in api
     assert "pull_policy: never" in api
+    worker = compose.split("  commander-worker:", 1)[1].split("  git-watcher:", 1)[0]
+    assert "image: ptw-agent-platform-commander-worker:${PTW_PLATFORM_IMAGE_TAG:-latest}" in worker
+    assert "pull_policy: never" in worker
+    assert "commander-assets:/var/lib/ptw/assets" in worker
 
 
 @pytest.mark.parametrize("missing", ["system_prompt", "input_payload", "output_schema"])

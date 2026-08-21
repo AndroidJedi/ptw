@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Branding v1 launch repaired; live Brand Kit acceptance awaits provider credential
+Status: Branding v1 live through the existing ChatGPT-authenticated Codex bridge
 Updated: 2026-08-21
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -26,27 +26,39 @@ with full OFL files and checksums; generated wordmarks use the selected font.
 The deterministic PostgreSQL pipeline, three-review approval, kit superseding,
 strict retry, provider-task reuse, graph lineage, URL safety, authenticated
 gateway proxy, web unit/build, and desktop/mobile/iPhone WebKit flows pass.
-PTW release `branding-fix-6c9258a` at commit `6c9258a` is deployed serially on
-all three application services. Firebase Hosting serves `index-DvbBooTI.js`,
-`App-DXAo0Iov.js`, and `ptw-shell-v17`. The live dependency and security audit
-passes, and all three containers report the exact pinned release tag.
+PTW release `branding-codex-cad4264` from commit `cad4264` is deployed serially
+on all three application services. Independent platform binaries
+`branding-bridge-36c2c23` run from platform source `d9f1498`; the follow-up
+source change reserves a 64 MiB demand-backed worker tmpfs for Codex cache and
+image transport. Firebase Hosting serves `index-dPkiaUdM.js`,
+`App-NVMs-4jm.js`, and `ptw-shell-v18`. Both Firebase hostnames, live dependency
+and security checks, and all pinned-container checks pass.
 
-Production Branding readiness currently reports the YouTube provider ready,
-paid SEO and caption scraping disabled, but the generation provider unavailable
-because the Idea process has no approved OpenAI API key. The launch repair
-removed the hidden requirement that a completed case must contain a surviving
-thesis: both live completed cases are now selectable, and their rejected thesis
-verdicts remain visible rather than being rewritten. A root-only hidden-input
-setup command validates both configured OpenAI models before atomically changing
-the provider environment. No production run was fabricated: one real
-owner-reviewed Brand Kit remains the acceptance checkpoint after the credential
-is configured.
+Production Branding reuses the existing `auth_mode=chatgpt` Codex worker; its
+auth projection has refresh tokens and no literal API key. The authenticated
+bridge exposes the exact five Branding modes and one `gpt-image-2` image call,
+while paid SEO and caption scraping remain disabled. Both completed live Idea
+cases are selectable even though they have no surviving thesis; rejected
+verdicts remain visible rather than being rewritten. The strict readiness audit
+passes with `PTW_REQUIRE_BRANDING_READY=1` and identifies the credential source
+as the established Codex ChatGPT session.
 
-Release verification passes 120 Commander/Idea tests in the tagged Idea image
-against disposable PostgreSQL (seven intentional ad/Telegram retirement
-skips), 23 tagged Owner Gateway tests, 26 Vitest checks, 12 Playwright checks,
-the deterministic ZIP checksum/font/license/Ukrainian-glyph/contrast checks,
-and compilation of all ten generated TypeScript components.
+A production out-of-run logo canary completed as platform job 41 and fresh
+session `01a02454-cc62-7d91-a362-b6291fb2bfb6`. The bridge retained one
+SHA-256-addressed 1254×1254 raw PNG, Idea verified its digest and normalized it
+to a transparent 1024×1024 PNG, and cost metadata truthfully reports Codex
+included usage with no USD amount. The worker removed the temporary image
+session, no platform job remained queued/running, no new OOM evidence appeared,
+and 352 MiB remained available after the canary. No owner case was selected or
+Branding run fabricated during deployment; approval of a real Brand Kit remains
+an explicit owner action.
+
+Release verification passes 123 Commander/Idea tests in the tagged Idea image
+against disposable PostgreSQL (five intentional retirement skips), 23 tagged
+Owner Gateway tests, 26 Vitest checks, 12 Playwright checks, the deterministic
+ZIP checksum/font/license/Ukrainian-glyph/contrast checks, and compilation of
+all ten generated TypeScript components. The independent platform suite passes
+76 tests in its exact amd64 worker image.
 
 The Owner Console now restores Firebase redirect sign-in from the mounted boot
 path instead of waiting for the Auth observer to render the login screen first.
@@ -121,12 +133,14 @@ phases, thesis cards without percentage-like success scores, server-side UUID
 resolution, manual probe evidence capture, explicit mechanism selection for
 Mutate, and a materially different loop requirement for Pivot.
 
-Production runs PTW release `branding-fix-6c9258a` at commit `6c9258a` and
-independent platform release `laval-contract-6b0c860` at commit `6b0c860`. The
-platform advertises exactly the 11 active Laval modes and a 1000000-byte request
-limit through its authenticated capabilities endpoint; Idea startup and release
-verification fail closed on either missing or unexpected modes. DataForSEO,
-YouTube Data API, and the LLM bridge report live-ready.
+Production runs PTW release `branding-codex-cad4264` at commit `cad4264` and
+independent platform images `branding-bridge-36c2c23` from source `d9f1498`.
+The platform advertises exactly the 11 active Laval modes, five Branding modes,
+one `gpt-image-2` request per logo, immutable Commander-volume transport, and a
+1000000-byte request limit through its authenticated capabilities endpoint;
+Idea startup and release verification fail closed on any contract drift.
+DataForSEO, YouTube Data API, and both the Laval and Branding bridge contracts
+report live-ready.
 
 The first real `mechanism_thesis_v1` run
 `01a01de0-4980-7ab4-aa91-0cebb8aab3c8` recovered in place from its S07 bridge

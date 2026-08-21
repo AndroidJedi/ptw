@@ -26,6 +26,15 @@ Canonical record of deployment gaps and prevention rules. Do not store secrets.
   A release with a disabled primary action is not functionally available even
   when its shallow health and authentication checks pass. Laval-only bridge
   readiness and fixture execution cannot satisfy live-provider acceptance.
+- Verification: PTW release `branding-codex-cad4264` and platform images
+  `branding-bridge-36c2c23` are live; platform source is `d9f1498`. The worker
+  reports `auth_mode=chatgpt`, tokens present, and no API key. The strict live
+  dependency audit passes with five Branding modes, `gpt-image-2`, immutable
+  asset transport, and an eligible case. Platform job 41 generated one
+  SHA-256-addressed 1254×1254 PNG; Idea verified the digest, transparency, and
+  1024×1024 normalization through the production provider. The temporary image
+  session was removed, active platform jobs returned to zero, no new OOM event
+  appeared, and Firebase Hosting serves `ptw-shell-v18` on both hostnames.
 
 ## 2026-08-20 — Laval V2 YouTube observation mode was absent from the platform bridge contract
 

@@ -265,6 +265,13 @@ worker must delete its temporary per-session generated-image directory after
 the immutable asset is verified. A capability canary must report exactly one
 bounded square PNG; multiple images fail without fallback.
 
+Codex's normal remote-plugin cache can consume about 40 MiB after image
+generation. Keep the platform worker's demand-backed `/tmp` tmpfs at no less
+than 64 MiB, inspect its actual Compose mount after recreation, and require
+remaining headroom plus zero generated-image session directories after a live
+canary. A healthy container before the canary does not prove enough temporary
+space for `$imagegen` artifact transport.
+
 Do not leave a production recovery as an invisible agent-only action. Normal
 recovery must be available through the Ideas view's **Resume saved work**
 control. If emergency diagnosis requires an authenticated internal resume,

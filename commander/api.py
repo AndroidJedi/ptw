@@ -23,6 +23,7 @@ import re
 from .research import CreativeIdeationResearchService, ResearchFinding, ResearchKnowledgeService
 from .research_agents import RESEARCH_AGENTS
 from .checkpoint import checkpoint_response, startup_checkpoint_canary
+from .branding import BrandPublishingService
 if TYPE_CHECKING:
     from .ad_generation import AdGenerationEngine
 
@@ -129,11 +130,15 @@ def create_app(
             chat_id = int(request.get("chat_id"))
             if chat_id not in settings.allowed_chat_ids:
                 raise HTTPException(status_code=403, detail="unauthorized Telegram chat")
+            brand_kit_id = str(request.get("brand_kit_id") or "")
+            if not re.fullmatch(r"[0-9a-fA-F-]{36}", brand_kit_id):
+                raise ValueError("brand_kit_id is required")
             batch = ad_engine.enqueue_batch(
                 idea_snapshot=dict(request["idea"]),
                 chat_id=chat_id,
                 requested_by=str(request.get("requested_by") or "idea-evolution"),
                 idempotency_key=str(request["idempotency_key"]),
+                brand_kit_id=brand_kit_id,
             )
         except HTTPException:
             raise
@@ -424,6 +429,39 @@ def create_app(
     def require_internal_bridge(token: str) -> None:
         if not hmac.compare_digest(token, settings.telegram_bot_token):
             raise HTTPException(status_code=403, detail="invalid bridge token")
+
+    @app.post("/internal/branding/sources")
+    def record_brand_sources(
+        request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, object]:
+        require_internal_bridge(x_ptw_bridge_token)
+        findings = request.get("findings") or []
+        if not isinstance(findings, list):
+            raise HTTPException(status_code=400, detail="findings must be a list")
+        try:
+            return {"sources": BrandPublishingService(commander, store).record_sources(findings)}
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.post("/internal/branding/directions")
+    def publish_brand_direction(
+        request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, object]:
+        require_internal_bridge(x_ptw_bridge_token)
+        try:
+            return dict(BrandPublishingService(commander, store).publish_direction(request))
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/internal/branding/approve")
+    def approve_brand_kit(
+        request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, object]:
+        require_internal_bridge(x_ptw_bridge_token)
+        try:
+            return dict(BrandPublishingService(commander, store).approve(request))
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.post("/internal/validations/select")
     def select_validation(

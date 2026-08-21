@@ -1,7 +1,7 @@
 # Commander runtime operations
 
 Status: web-only runtime
-Updated: 2026-08-17
+Updated: 2026-08-21
 
 Run the deterministic learning-domain demonstration and unit tests from the
 repository root:
@@ -18,6 +18,13 @@ Owner Gateway, and reset-independent control storage. Idea Laval runs from
 `docker-compose.idea-generation.yml` on the shared platform backend network.
 The Idea API's default loopback port is `8093`; its browser-facing Laval routes
 are exposed only through the authenticated Owner Gateway.
+
+The same Idea process hosts the restartable Branding runner and mounts the
+existing Commander asset volume. `BRAND_PROVIDER=openai` requires the approved
+text/image configuration; `fixture` is test-only. Branding never consumes
+DataForSEO. Its public-page and optional official YouTube collection remain
+bounded, and provider readiness truthfully reports unavailable optional
+YouTube access without blocking a run.
 
 Idea Laval is operated through the authenticated Ideas web view.
 `LAVAL_SEARCH_PROVIDER=fixture` and
@@ -58,6 +65,11 @@ and ad-generation modules are not imported by the Commander API, pending
 Telegram deliveries are cancelled append-only, and retired endpoints return
 HTTP 410. `LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED=true` is independent of that
 retired outbox runtime and enables only direct terminal Laval messages.
+
+Branding does not reactivate either retired worker. It creates logo Creative
+and feedback graph records synchronously through the internal Commander bridge,
+and uses no Telegram commands or general notifications. The retained future
+batch API requires an approved active non-stale Brand Kit.
 
 See [`owner-control-plane.md`](owner-control-plane.md) for authentication,
 Plan/Execute, root terminal, deployment, and production acceptance. See

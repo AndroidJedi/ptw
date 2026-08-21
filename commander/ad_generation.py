@@ -50,6 +50,7 @@ class AdGenerationEngine:
         chat_id: int,
         requested_by: str,
         idempotency_key: str,
+        brand_kit_id: str,
     ) -> AdBatchRecord:
         idea = self._validate_idea(idea_snapshot)
         key = idempotency_key.strip()
@@ -58,6 +59,20 @@ class AdGenerationEngine:
         existing = self.repository.idempotent_batch(key)
         if existing:
             return self.repository.batch(existing)
+        brand_kit = self.commander.store.get_entity(brand_kit_id)
+        superseded = any(
+            edge.relation == RelationType.SUPERSEDES
+            and edge.target_id == brand_kit_id
+            for edge in self.commander.store.relationships()
+        )
+        if (
+            brand_kit.kind != EntityKind.BRAND_KIT
+            or brand_kit.attributes.get("status") != "approved"
+            or superseded
+        ):
+            raise ValueError(
+                "ad generation requires an active, approved, non-stale Brand Kit"
+            )
         contexts = self.repository.active_contexts()
         if len(contexts) != 10 or [item.code for item in contexts] != [
             f"A{index:02d}" for index in range(1, 11)
@@ -84,12 +99,14 @@ class AdGenerationEngine:
                     "concept_brand": idea["title"],
                     "context_count": 10,
                     "requested_by": requested_by,
+                    "brand_kit_id": brand_kit.id,
                 },
                 actor=requested_by,
                 reasoning_summary="Created a durable ten-context ad estimation campaign.",
                 evidence_ids=(source.id,),
             )
             self.commander.relate(campaign, RelationType.DERIVED_FROM, source)
+            self.commander.relate(campaign, RelationType.DERIVED_FROM, brand_kit)
             batch = AdBatchRecord(
                 campaign_id=campaign.id,
                 source_id=source.id,
@@ -97,6 +114,7 @@ class AdGenerationEngine:
                 requested_by=requested_by,
                 external_idea_id=int(idea["id"]),
                 status="queued",
+                brand_kit_id=brand_kit.id,
             )
             self.repository.create_batch(batch, key, contexts)
         return self.repository.batch(campaign.id)

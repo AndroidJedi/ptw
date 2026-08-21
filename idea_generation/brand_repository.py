@@ -1,0 +1,533 @@
+"""Durable projections for restartable Branding v1 runs."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
+from commander.ids import new_uuid7
+
+from .brand_domain import BRAND_PIPELINE_VERSION, BRAND_STAGES, public_https_url, stable_hash
+from .laval_domain import json_safe
+from .store import PostgresStore
+
+
+class BrandRepository:
+    def __init__(self, store: PostgresStore) -> None:
+        self.store = store
+
+    def _snapshot(self, laval_run_id: str) -> dict[str, Any]:
+        run = self.store.fetchone(
+            "SELECT * FROM laval_runs WHERE id=%s", (laval_run_id,)
+        )
+        if not run:
+            raise KeyError("completed Idea case not found")
+        if run["status"] != "completed" or run["evidence_mode"] == "demo_fixture":
+            raise ValueError("Branding requires a completed live Idea case")
+        if run.get("pipeline_version") != "mechanism_thesis_v1":
+            raise ValueError("Branding requires a completed mechanism/thesis Idea case")
+        owner = self.store.fetchone("SELECT * FROM laval_owner_ideas WHERE run_id=%s", (laval_run_id,))
+        theses = self.store.fetchall(
+            """SELECT * FROM laval_product_theses
+               WHERE run_id=%s AND verdict='survives' AND validation_stale=FALSE
+               ORDER BY recommended DESC,created_at,id""",
+            (laval_run_id,),
+        )
+        if not theses:
+            raise ValueError("completed Idea case has no surviving thesis")
+        mechanism_ids = list(dict.fromkeys(str(value) for thesis in theses for value in thesis.get("mechanism_ids") or []))
+        mechanisms = self.store.fetchall(
+            "SELECT * FROM laval_product_mechanisms WHERE id=ANY(%s::uuid[]) ORDER BY mechanism_type,id",
+            (mechanism_ids,),
+        ) if mechanism_ids else []
+        competitors = self.store.fetchall(
+            """SELECT id,name,domain,url,result_type,score,components
+               FROM laval_competitors WHERE run_id=%s AND selected
+               ORDER BY score DESC,id""",
+            (laval_run_id,),
+        )
+        evidence = self.store.fetchall(
+            """SELECT id,source_type,source_url,source_title,publisher,claim,excerpt,
+                      confidence,metadata,commander_source_id
+               FROM laval_evidence WHERE run_id=%s
+               ORDER BY confidence DESC,retrieved_at,id""",
+            (laval_run_id,),
+        )
+        observations = self.store.fetchall(
+            """SELECT id,observation_type,statement,video_ids,evidence_ids,confidence,
+                      independent_creator_count
+               FROM laval_behavior_observations WHERE run_id=%s
+               ORDER BY confidence DESC,id""",
+            (laval_run_id,),
+        )
+        quality = self.store.fetchone(
+            """SELECT count(*) FILTER (WHERE result_status='success')::int successful,
+                      count(*)::int attempted
+               FROM laval_llm_invocations WHERE run_id=%s""",
+            (laval_run_id,),
+        ) or {"successful": 0, "attempted": 0}
+        return json_safe({
+            "idea_run_id": laval_run_id,
+            "owner_idea": str((owner or {}).get("raw_text") or ""),
+            "theses": theses,
+            "mechanisms": mechanisms,
+            "competitors": competitors,
+            "evidence": evidence,
+            "behavior_observations": observations,
+            "quality": quality,
+            "recommended_thesis_id": next((str(item["id"]) for item in theses if item.get("recommended")), None),
+            "hypothesis_ids": [str(item["commander_hypothesis_id"]) for item in theses if item.get("commander_hypothesis_id")],
+            "commander_source_ids": list(dict.fromkeys(
+                str(item["commander_source_id"]) for item in evidence if item.get("commander_source_id")
+            )),
+        })
+
+    def candidates(self, limit: int = 30) -> dict[str, Any]:
+        rows = self.store.fetchall(
+            """SELECT r.id,r.created_at,left(o.raw_text,500) owner_idea
+               FROM laval_runs r JOIN laval_owner_ideas o ON o.run_id=r.id
+               WHERE r.status='completed' AND r.evidence_mode<>'demo_fixture'
+                 AND r.pipeline_version='mechanism_thesis_v1'
+                 AND EXISTS (
+                   SELECT 1 FROM laval_product_theses t
+                   WHERE t.run_id=r.id AND t.verdict='survives' AND t.validation_stale=FALSE
+                 )
+               ORDER BY r.completed_at DESC NULLS LAST,r.created_at DESC LIMIT %s""",
+            (min(max(limit, 1), 100),),
+        )
+        items = []
+        for row in rows:
+            snapshot = self._snapshot(str(row["id"]))
+            kit = self.store.fetchone(
+                """SELECT k.commander_brand_kit_id,k.status,k.approved_at,d.name
+                   FROM brand_kits k JOIN brand_runs b ON b.id=k.run_id
+                   JOIN brand_directions d ON d.id=k.direction_id
+                   WHERE b.source_laval_run_id=%s
+                   ORDER BY k.approved_at DESC LIMIT 1""",
+                (row["id"],),
+            )
+            items.append({
+                "idea_run_id": str(row["id"]),
+                "owner_idea": row["owner_idea"],
+                "created_at": row["created_at"].isoformat(),
+                "theses": snapshot["theses"],
+                "mechanisms": snapshot["mechanisms"],
+                "quality": snapshot["quality"],
+                "recommended_thesis_id": snapshot["recommended_thesis_id"],
+                "active_brand_kit": json_safe(kit) if kit else None,
+            })
+        return {"items": items, "next_cursor": None}
+
+    @staticmethod
+    def _manual_transcripts(values: object) -> list[dict[str, str]]:
+        if values is None:
+            return []
+        if not isinstance(values, list) or len(values) > 5:
+            raise ValueError("manual_transcripts must contain at most five items")
+        result = []
+        for raw in values:
+            if not isinstance(raw, Mapping):
+                raise ValueError("each manual transcript must be an object")
+            url = str(raw.get("video_url") or "").strip()
+            if not url.startswith(("https://www.youtube.com/", "https://youtube.com/", "https://youtu.be/")):
+                raise ValueError("manual transcript video_url must be an HTTPS YouTube URL")
+            transcript = str(raw.get("transcript") or "").strip()
+            if not 1 <= len(transcript) <= 10_000:
+                raise ValueError("manual transcript text must contain 1-10000 characters")
+            result.append({"video_url": url, "title": str(raw.get("title") or "Owner transcript")[:1000], "transcript": transcript})
+        return result
+
+    def create(
+        self,
+        laval_run_id: str,
+        *,
+        run_id: str | None = None,
+        constraints_text: str,
+        reference_urls: object,
+        manual_transcripts: object,
+        actor: str,
+        provider_snapshot: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        snapshot = self._snapshot(laval_run_id)
+        if not isinstance(reference_urls, list) or len(reference_urls) > 10:
+            raise ValueError("reference_urls must contain at most ten items")
+        references = list(dict.fromkeys(public_https_url(str(value), resolve=False) for value in reference_urls))
+        transcripts = self._manual_transcripts(manual_transcripts)
+        constraints = constraints_text.strip()
+        if len(constraints) > 4000:
+            raise ValueError("brand constraints must contain at most 4000 characters")
+        run_id = run_id or new_uuid7()
+        snapshot_hash = stable_hash(snapshot)
+        with self.store.transaction() as connection:
+            connection.execute(
+                """INSERT INTO brand_runs(
+                       id,source_laval_run_id,status,current_stage,source_snapshot_hash,
+                       source_snapshot,constraints_text,reference_urls,manual_transcripts,
+                       provider_snapshot,created_by
+                   ) VALUES(%s,%s,'pending','REFERENCE_PLAN',%s,%s::jsonb,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s)""",
+                (run_id, laval_run_id, snapshot_hash, self.store.json(snapshot), constraints,
+                 self.store.json(references), self.store.json(transcripts),
+                 self.store.json(provider_snapshot), actor),
+            )
+            now = datetime.now(timezone.utc)
+            for ordinal, stage in enumerate(BRAND_STAGES):
+                completed = stage == "CASE_SNAPSHOT"
+                artifact = snapshot if completed else None
+                connection.execute(
+                    """INSERT INTO brand_stage_runs(
+                           run_id,stage,ordinal,status,input_hash,attempt,artifact,started_at,completed_at
+                       ) VALUES(%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s)""",
+                    (run_id, stage, ordinal, "completed" if completed else "pending",
+                     snapshot_hash if completed else None, 1 if completed else 0,
+                     self.store.json(artifact) if artifact else None,
+                     now if completed else None, now if completed else None),
+                )
+            connection.execute(
+                "INSERT INTO brand_run_actions(id,run_id,action,actor,details) VALUES(%s,%s,'created',%s,%s::jsonb)",
+                (new_uuid7(), run_id, actor, self.store.json({"source_laval_run_id": laval_run_id})),
+            )
+        return {"run_id": run_id, "status": "pending"}
+
+    def run(self, run_id: str) -> dict[str, Any]:
+        row = self.store.fetchone("SELECT * FROM brand_runs WHERE id=%s", (run_id,))
+        if not row:
+            raise KeyError("Branding run not found")
+        return json_safe(row)
+
+    def list(self, limit: int = 30) -> dict[str, Any]:
+        rows = self.store.fetchall(
+            """SELECT b.*,left(o.raw_text,240) owner_preview,
+                      (SELECT count(*) FROM brand_stage_runs s WHERE s.run_id=b.id AND s.status='completed') completed_stages,
+                      (SELECT count(*) FROM brand_directions d WHERE d.run_id=b.id) direction_count
+               FROM brand_runs b JOIN laval_owner_ideas o ON o.run_id=b.source_laval_run_id
+               ORDER BY b.created_at DESC LIMIT %s""",
+            (min(max(limit, 1), 100),),
+        )
+        return {"items": json_safe(rows), "next_cursor": None}
+
+    def stages(self, run_id: str) -> list[dict[str, Any]]:
+        self.run(run_id)
+        return json_safe(self.store.fetchall(
+            "SELECT * FROM brand_stage_runs WHERE run_id=%s ORDER BY ordinal", (run_id,)
+        ))
+
+    def stage(self, run_id: str, stage: str) -> dict[str, Any]:
+        row = self.store.fetchone(
+            "SELECT * FROM brand_stage_runs WHERE run_id=%s AND stage=%s", (run_id, stage.upper())
+        )
+        if not row:
+            raise KeyError("Branding stage not found")
+        return json_safe(row)
+
+    def status(self, run_id: str) -> dict[str, Any]:
+        self.refresh_source_staleness(run_id)
+        return {
+            "run": self.run(run_id),
+            "stages": self.stages(run_id),
+            "directions": self.directions(run_id),
+            "cost": self.cost(run_id),
+        }
+
+    def refresh_source_staleness(self, run_id: str) -> bool:
+        run = self.run(run_id)
+        try:
+            stale = stable_hash(self._snapshot(str(run["source_laval_run_id"]))) != run["source_snapshot_hash"]
+        except (KeyError, ValueError):
+            stale = True
+        if stale and not run.get("source_stale"):
+            with self.store.transaction() as connection:
+                connection.execute("UPDATE brand_runs SET source_stale=TRUE,updated_at=NOW() WHERE id=%s", (run_id,))
+                connection.execute("UPDATE brand_kits SET status='stale' WHERE run_id=%s AND status='approved'", (run_id,))
+                if connection.execute(
+                    "SELECT to_regclass('commander_entities')"
+                ).fetchone()[0] is not None:
+                    connection.execute(
+                        """UPDATE commander_entities e
+                           SET attributes=jsonb_set(e.attributes,'{status}','\"stale\"'::jsonb,TRUE)
+                           FROM brand_kits k WHERE k.run_id=%s
+                             AND e.id=k.commander_brand_kit_id""",
+                        (run_id,),
+                    )
+        return stale
+
+    def ready(self, run_id: str) -> None:
+        run = self.run(run_id)
+        if run["status"] not in {"pending", "paused", "failed"}:
+            raise ValueError("Branding run cannot be started from its current state")
+        self.store.execute(
+            "UPDATE brand_runs SET status='running',error_text=NULL,updated_at=NOW() WHERE id=%s RETURNING 1",
+            (run_id,),
+        )
+
+    def ready_after_restart(self, run_id: str) -> None:
+        self.run(run_id)
+        self.store.execute(
+            """UPDATE brand_runs SET status='running',error_text=NULL,updated_at=NOW()
+               WHERE id=%s AND status IN ('pending','running') RETURNING 1""",
+            (run_id,),
+        )
+
+    def record_action(
+        self, run_id: str, action: str, *, actor: str, details: Mapping[str, Any] | None = None
+    ) -> None:
+        self.store.execute(
+            """INSERT INTO brand_run_actions(id,run_id,action,actor,details)
+               VALUES(%s,%s,%s,%s,%s::jsonb) RETURNING 1""",
+            (new_uuid7(), run_id, action, actor, self.store.json(details or {})),
+        )
+
+    def pause(self, run_id: str, *, actor: str = "owner") -> None:
+        self.run(run_id)
+        with self.store.transaction() as connection:
+            connection.execute("UPDATE brand_runs SET status='paused',updated_at=NOW() WHERE id=%s AND status IN ('pending','running','failed')", (run_id,))
+            connection.execute("INSERT INTO brand_run_actions(id,run_id,action,actor) VALUES(%s,%s,'paused',%s)", (new_uuid7(), run_id, actor))
+
+    def pause_all(self, *, actor: str = "emergency-stop") -> None:
+        rows = self.store.fetchall(
+            "SELECT id FROM brand_runs WHERE status IN ('pending','running')"
+        )
+        for row in rows:
+            self.pause(str(row["id"]), actor=actor)
+
+    def prepare_stage(self, run_id: str, stage: str, input_hash: str, *, provider: str, model: str) -> int:
+        with self.store.transaction() as connection:
+            row = connection.execute(
+                """UPDATE brand_stage_runs SET status='running',input_hash=%s,attempt=attempt+1,
+                          provider=%s,model=%s,error=NULL,started_at=NOW(),updated_at=NOW()
+                   WHERE run_id=%s AND stage=%s RETURNING attempt""",
+                (input_hash, provider, model, run_id, stage),
+            ).fetchone()
+            if not row:
+                raise KeyError("Branding stage not found")
+            connection.execute("UPDATE brand_runs SET status='running',current_stage=%s,updated_at=NOW() WHERE id=%s", (stage, run_id))
+            return int(row[0])
+
+    def complete_stage(self, run_id: str, stage: str, artifact: Any, metrics: Mapping[str, Any] | None = None) -> None:
+        with self.store.transaction() as connection:
+            connection.execute(
+                """UPDATE brand_stage_runs SET status='completed',artifact=%s::jsonb,metrics=%s::jsonb,
+                          error=NULL,completed_at=NOW(),updated_at=NOW()
+                   WHERE run_id=%s AND stage=%s""",
+                (self.store.json(artifact), self.store.json(metrics or {}), run_id, stage),
+            )
+            ordinal = BRAND_STAGES.index(stage)
+            next_stage = BRAND_STAGES[min(ordinal + 1, len(BRAND_STAGES) - 1)]
+            connection.execute("UPDATE brand_runs SET current_stage=%s,updated_at=NOW() WHERE id=%s", (next_stage, run_id))
+
+    def fail_stage(self, run_id: str, stage: str, error: Exception) -> None:
+        bounded = {"type": type(error).__name__, "message": str(error)[:1000]}
+        with self.store.transaction() as connection:
+            connection.execute("UPDATE brand_stage_runs SET status='failed',error=%s::jsonb,updated_at=NOW() WHERE run_id=%s AND stage=%s", (self.store.json(bounded), run_id, stage))
+            connection.execute("UPDATE brand_runs SET status='failed',current_stage=%s,error_text=%s,updated_at=NOW() WHERE id=%s", (stage, bounded["message"], run_id))
+            connection.execute("INSERT INTO brand_run_actions(id,run_id,action,actor,details) VALUES(%s,%s,'failed','brand-runner',%s::jsonb)", (new_uuid7(), run_id, self.store.json({"stage": stage, **bounded})))
+
+    def await_review(self, run_id: str) -> None:
+        with self.store.transaction() as connection:
+            connection.execute("UPDATE brand_runs SET status='awaiting_review',current_stage='OWNER_REVIEW',updated_at=NOW() WHERE id=%s", (run_id,))
+            connection.execute("UPDATE brand_stage_runs SET status='paused',updated_at=NOW() WHERE run_id=%s AND stage='OWNER_REVIEW'", (run_id,))
+
+    def add_source(self, run_id: str, source_type: str, source_url: str, title: str, excerpt: str, metadata: Mapping[str, Any]) -> str:
+        existing = self.store.fetchone("SELECT id FROM brand_sources WHERE run_id=%s AND source_type=%s AND source_url=%s", (run_id, source_type, source_url))
+        if existing:
+            return str(existing["id"])
+        source_id = new_uuid7()
+        self.store.execute(
+            """INSERT INTO brand_sources(id,run_id,source_type,source_url,title,excerpt,metadata)
+               VALUES(%s,%s,%s,%s,%s,%s,%s::jsonb) RETURNING 1""",
+            (source_id, run_id, source_type, source_url[:4000], title[:1000], excerpt[:30_000], self.store.json(metadata)),
+        )
+        return source_id
+
+    def sources(self, run_id: str) -> list[dict[str, Any]]:
+        return json_safe(self.store.fetchall("SELECT * FROM brand_sources WHERE run_id=%s ORDER BY created_at,id", (run_id,)))
+
+    def link_sources(self, mapping: Mapping[str, str]) -> None:
+        for external_id, commander_id in mapping.items():
+            self.store.execute("UPDATE brand_sources SET commander_source_id=%s WHERE id=%s RETURNING 1", (commander_id, external_id))
+
+    def replace_directions(self, run_id: str, values: Sequence[Mapping[str, Any]]) -> None:
+        if len(values) != 3:
+            raise ValueError("Branding must produce exactly three directions")
+        with self.store.transaction() as connection:
+            if connection.execute("SELECT 1 FROM brand_directions WHERE run_id=%s AND creative_id IS NOT NULL LIMIT 1", (run_id,)).fetchone():
+                raise ValueError("published logo directions cannot be replaced; create a new Branding run")
+            connection.execute("DELETE FROM brand_directions WHERE run_id=%s", (run_id,))
+            for ordinal, value in enumerate(values, 1):
+                connection.execute(
+                    """INSERT INTO brand_directions(id,run_id,ordinal,name,manifest,status)
+                       VALUES(%s,%s,%s,%s,%s::jsonb,'draft')""",
+                    (new_uuid7(), run_id, ordinal, str(value["name"]), self.store.json(value)),
+                )
+
+    def save_evaluations(self, run_id: str, evaluations: Mapping[str, Mapping[str, Any]]) -> None:
+        with self.store.transaction() as connection:
+            for direction in connection.execute("SELECT id,name FROM brand_directions WHERE run_id=%s", (run_id,)).fetchall():
+                evaluation = evaluations.get(str(direction[1]))
+                if not evaluation:
+                    raise ValueError("every brand direction requires evaluation")
+                connection.execute("UPDATE brand_directions SET evaluation=%s::jsonb,status='evaluated',updated_at=NOW() WHERE id=%s", (self.store.json(evaluation), direction[0]))
+
+    def save_logo(self, direction_id: str, *, path: Path, digest: str, graph: Mapping[str, str]) -> None:
+        self.store.execute(
+            """UPDATE brand_directions SET status='awaiting_review',logo_path=%s,artifact_digest=%s,
+                      commander_direction_id=%s,creative_id=%s,artifact_id=%s,updated_at=NOW()
+               WHERE id=%s RETURNING 1""",
+            (str(path), digest, graph["direction_id"], graph["creative_id"], graph["artifact_id"], direction_id),
+        )
+
+    def directions(self, run_id: str) -> list[dict[str, Any]]:
+        self.run(run_id)
+        rows = self.store.fetchall(
+            """SELECT d.*,
+                      r.feedback_id latest_feedback_id,r.rating,r.overall_comment,
+                      r.annotations,r.created_at reviewed_at,
+                      CASE WHEN t.id IS NULL THEN NULL ELSE jsonb_build_object(
+                        'provider',t.provider,
+                        'requested_model',t.response->>'requested_model',
+                        'resolved_model',t.response->>'resolved_model',
+                        'request_id',t.response->>'request_id',
+                        'prompt',t.response->>'prompt'
+                      ) END generation_provenance
+               FROM brand_directions d
+               LEFT JOIN LATERAL (
+                 SELECT feedback_id,rating,overall_comment,annotations,created_at
+                 FROM commander_creative_reviews WHERE creative_id=d.creative_id
+                 ORDER BY created_at DESC LIMIT 1
+               ) r ON TRUE
+               LEFT JOIN brand_provider_tasks t
+                 ON t.run_id=d.run_id AND t.stage='LOGO_GENERATION'
+                AND t.item_key=('logo:' || d.id::text) AND t.status='completed'
+               WHERE d.run_id=%s ORDER BY d.ordinal""",
+            (run_id,),
+        )
+        for row in rows:
+            if row.get("latest_feedback_id") and not row.get("reviewed_at"):
+                continue
+            if row.get("latest_feedback_id"):
+                self.store.execute(
+                    """UPDATE brand_directions SET latest_feedback_id=%s,reviewed_at=%s,
+                              status=CASE WHEN status='approved' THEN status ELSE 'reviewed' END,updated_at=NOW()
+                       WHERE id=%s RETURNING 1""",
+                    (row["latest_feedback_id"], row["reviewed_at"], row["id"]),
+                )
+        return json_safe(rows)
+
+    def direction(self, run_id: str, direction_id: str) -> dict[str, Any]:
+        item = next((item for item in self.directions(run_id) if item["id"] == direction_id), None)
+        if not item:
+            raise KeyError("Brand direction not found")
+        return item
+
+    def reviewed(self, run_id: str) -> bool:
+        directions = self.directions(run_id)
+        return len(directions) == 3 and all(item.get("latest_feedback_id") for item in directions)
+
+    def save_kit(
+        self, run_id: str, direction_id: str, *, kit_id: str, commander_kit_id: str,
+        previous_kit_id: str | None, manifest: Mapping[str, Any], zip_path: Path,
+        zip_digest: str, actor: str,
+    ) -> None:
+        with self.store.transaction() as connection:
+            connection.execute(
+                """INSERT INTO brand_kits(
+                       id,run_id,direction_id,commander_brand_kit_id,previous_commander_brand_kit_id,
+                       manifest,zip_digest,zip_path,status,approved_by
+                   ) VALUES(%s,%s,%s,%s,%s,%s::jsonb,%s,%s,'approved',%s)
+                   ON CONFLICT(run_id) DO NOTHING""",
+                (kit_id, run_id, direction_id, commander_kit_id, previous_kit_id,
+                 self.store.json(manifest), zip_digest, str(zip_path), actor),
+            )
+            if previous_kit_id:
+                connection.execute("UPDATE brand_kits SET status='superseded' WHERE commander_brand_kit_id=%s", (previous_kit_id,))
+            connection.execute("UPDATE brand_directions SET status='approved',updated_at=NOW() WHERE id=%s", (direction_id,))
+            connection.execute("UPDATE brand_directions SET status='superseded',updated_at=NOW() WHERE run_id=%s AND id<>%s", (run_id, direction_id))
+            connection.execute("UPDATE brand_runs SET selected_direction_id=%s,commander_brand_kit_id=%s,status='completed',current_stage='KIT_ASSEMBLY',completed_at=NOW(),updated_at=NOW() WHERE id=%s", (direction_id, commander_kit_id, run_id))
+            connection.execute("UPDATE brand_stage_runs SET status='completed',artifact=%s::jsonb,completed_at=NOW(),updated_at=NOW() WHERE run_id=%s AND stage='OWNER_REVIEW'", (self.store.json({"selected_direction_id": direction_id}), run_id))
+            connection.execute("UPDATE brand_stage_runs SET status='completed',artifact=%s::jsonb,completed_at=NOW(),updated_at=NOW() WHERE run_id=%s AND stage='KIT_ASSEMBLY'", (self.store.json({"brand_kit_id": commander_kit_id, "zip_digest": zip_digest}), run_id))
+            connection.execute("INSERT INTO brand_run_actions(id,run_id,action,actor,details) VALUES(%s,%s,'approved',%s,%s::jsonb)", (new_uuid7(), run_id, actor, self.store.json({"direction_id": direction_id, "brand_kit_id": commander_kit_id})))
+
+    def kit(self, kit_id: str) -> dict[str, Any]:
+        row = self.store.fetchone(
+            """SELECT k.*,d.name,d.manifest direction_manifest,b.source_stale
+               FROM brand_kits k JOIN brand_directions d ON d.id=k.direction_id
+               JOIN brand_runs b ON b.id=k.run_id
+               WHERE k.commander_brand_kit_id=%s OR k.id=%s""",
+            (kit_id, kit_id),
+        )
+        if not row:
+            raise KeyError("Brand Kit not found")
+        return json_safe(row)
+
+    def artifact_path(self, digest: str, asset_root: Path) -> tuple[Path, str]:
+        row = self.store.fetchone(
+            """SELECT logo_path path,'image/png' mime FROM brand_directions WHERE artifact_digest=%s
+               UNION ALL
+               SELECT zip_path path,'application/zip' mime FROM brand_kits WHERE zip_digest=%s
+               LIMIT 1""",
+            (digest, digest),
+        )
+        if not row:
+            raise KeyError("Branding artifact not found")
+        path = Path(str(row["path"])).resolve()
+        root = asset_root.resolve()
+        if path != root and root not in path.parents:
+            raise PermissionError("Branding artifact path is outside asset root")
+        return path, str(row["mime"])
+
+    def cost(self, run_id: str) -> dict[str, Any]:
+        rows = self.store.fetchall(
+            """SELECT stage,provider,operation,sum(request_count)::int request_count,
+                      sum(input_tokens)::int input_tokens,sum(output_tokens)::int output_tokens,
+                      sum(amount_usd)::float amount_usd
+               FROM brand_cost_events WHERE run_id=%s GROUP BY stage,provider,operation
+               ORDER BY stage,provider,operation""",
+            (run_id,),
+        )
+        return {"items": json_safe(rows), "total_usd": round(sum(float(item["amount_usd"] or 0) for item in rows), 6)}
+
+    def record_cost(
+        self, run_id: str, stage: str, provider: str, operation: str, *,
+        requests: int = 1, input_tokens: int = 0, output_tokens: int = 0,
+        amount_usd: float = 0, metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        self.store.execute(
+            """INSERT INTO brand_cost_events(
+                   id,run_id,stage,provider,operation,request_count,input_tokens,
+                   output_tokens,amount_usd,metadata
+               ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb) RETURNING 1""",
+            (
+                new_uuid7(), run_id, stage, provider, operation, requests,
+                input_tokens, output_tokens, amount_usd,
+                self.store.json(metadata or {}),
+            ),
+        )
+
+    def invalidate_from(self, run_id: str, stage: str, *, actor: str) -> None:
+        stage = stage.upper()
+        if stage not in BRAND_STAGES[1:8]:
+            raise ValueError("only pre-review Branding stages may be rerun")
+        run = self.run(run_id)
+        if run["status"] == "completed":
+            raise ValueError("approved Brand Kits are immutable; create a new Branding run")
+        index = BRAND_STAGES.index(stage)
+        with self.store.transaction() as connection:
+            if connection.execute("SELECT 1 FROM brand_directions WHERE run_id=%s AND creative_id IS NOT NULL LIMIT 1", (run_id,)).fetchone():
+                raise ValueError("published logo history cannot be invalidated; create a new Branding run")
+            connection.execute(
+                """UPDATE brand_stage_runs SET status=CASE WHEN stage=%s THEN 'pending' ELSE 'stale' END,
+                          artifact=NULL,error=NULL,completed_at=NULL,updated_at=NOW()
+                   WHERE run_id=%s AND ordinal>=%s""",
+                (stage, run_id, index),
+            )
+            connection.execute("DELETE FROM brand_directions WHERE run_id=%s", (run_id,))
+            connection.execute(
+                """UPDATE brand_provider_tasks
+                      SET status='failed',response=NULL,response_digest=NULL,
+                          error_text='owner-authorized stage rerun',updated_at=NOW()
+                    WHERE run_id=%s AND stage=ANY(%s::text[])""",
+                (run_id, list(BRAND_STAGES[index:8])),
+            )
+            connection.execute("UPDATE brand_runs SET status='pending',current_stage=%s,error_text=NULL,updated_at=NOW() WHERE id=%s", (stage, run_id))
+            connection.execute("INSERT INTO brand_run_actions(id,run_id,action,actor,details) VALUES(%s,%s,'rerun',%s,%s::jsonb)", (new_uuid7(), run_id, actor, self.store.json({"stage": stage})))

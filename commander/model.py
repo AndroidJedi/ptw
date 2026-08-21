@@ -19,6 +19,8 @@ class EntityKind(StrEnum):
     HYPOTHESIS = "hypothesis"
     PRODUCT_MECHANISM = "product_mechanism"
     VALIDATION_WORKSPACE = "validation_workspace"
+    BRAND_DIRECTION = "brand_direction"
+    BRAND_KIT = "brand_kit"
     CREATIVE_COMPONENT = "creative_component"
     CREATIVE = "creative"
     CAMPAIGN = "campaign"

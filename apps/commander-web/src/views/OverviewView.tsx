@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, ArrowUpRight, BriefcaseBusiness, Clock, FlaskConical } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowUpRight, BriefcaseBusiness, Clock, FlaskConical, Palette } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api'
 import { local, type Language } from '../i18n'
@@ -18,6 +18,14 @@ export function OverviewView({ api, language }: { api: ApiClient; language: Lang
     <section className="mission-strip">
       <div><Clock /><span>До дедлайну</span><strong>{remaining} днів</strong></div>
       <div><Activity /><span>Система</span><strong>{Object.values(data.health).every((value) => value === 'ok') ? 'Здорова' : 'Увага'}</strong></div>
+    </section>
+    <section className="panel">
+      <div className="section-title"><div><p>BRANDING V1</p><h2>Бренд-напрями та кити</h2></div><Palette /></div>
+      <div className="metric-grid" aria-label="Статус Branding">
+        <article><span>Усього</span><strong>{data.branding_runs.total}</strong></article>
+        <article><span>Активні</span><strong>{data.branding_runs.active}</strong></article>
+        <article><span>Завершені</span><strong>{data.branding_runs.completed}</strong></article>
+      </div>
     </section>
     <section className="metric-grid" aria-label="Ключові показники">
       <article><BriefcaseBusiness /><span>Активні завдання</span><strong>{data.jobs.active}</strong></article>

@@ -1,0 +1,42 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import type { ApiClient } from '../api'
+import { BrandingView } from './BrandingView'
+
+describe('BrandingView', () => {
+  it('shows a friendly completed-Idea picker without exposing UUIDs', async () => {
+    const ideaRunId = '01234567-89ab-7def-8123-456789abcdef'
+    const api = {
+      get: vi.fn().mockImplementation((path: string) => {
+        if (path.startsWith('/api/v1/branding/cases')) return Promise.resolve({ items: [{
+          idea_run_id: ideaRunId,
+          owner_idea: 'Зробити щоденний прогрес видимим і достовірним.',
+          created_at: '2026-08-20T10:00:00Z',
+          theses: [{
+            id: 'internal-thesis', title: { en: 'Proof journey', uk: 'Шлях доказів' },
+            target_user: { en: 'People with doubted goals', uk: 'Люди з метою, у яку не вірять' },
+            loop_steps: [{ en: 'Log credible proof', uk: 'Додати достовірний доказ' }],
+            recommended: true, verdict: 'survives',
+          }],
+          mechanisms: [], quality: { successful: 9, attempted: 10 },
+          recommended_thesis_id: 'internal-thesis', active_brand_kit: null,
+        }] })
+        if (path.startsWith('/api/v1/branding/runs')) return Promise.resolve({ items: [] })
+        if (path === '/api/v1/branding/providers') return Promise.resolve({ provider: 'openai_brand', paid_seo_enabled: false })
+        return Promise.resolve({})
+      }),
+      post: vi.fn(), blob: vi.fn(),
+    } as unknown as ApiClient
+
+    render(<BrandingView api={api} language="uk" />)
+    fireEvent.click(await screen.findByRole('button', { name: /Новий бренд/ }))
+
+    expect(await screen.findByText('Зробити щоденний прогрес видимим і достовірним.')).toBeInTheDocument()
+    expect(screen.getByText(/★ РЕКОМЕНДОВАНО · Шлях доказів/)).toBeInTheDocument()
+    expect(screen.getByText('Люди з метою, у яку не вірять')).toBeInTheDocument()
+    expect(screen.getByText('Додати достовірний доказ')).toBeInTheDocument()
+    expect(screen.getByText('Якість доказів 90%')).toBeInTheDocument()
+    expect(screen.queryByText(ideaRunId)).not.toBeInTheDocument()
+    expect(screen.getByText(/SEO вимкнено/)).toBeInTheDocument()
+  })
+})

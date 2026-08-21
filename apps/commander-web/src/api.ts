@@ -87,10 +87,11 @@ export class ApiClient {
     const body = await jsonBody(response).catch((cause) => {
       if (!response.ok) return {}
       throw cause
-    }) as { detail?: string } | T
-    const detail = body && typeof body === 'object' && 'detail' in body
-      ? String(body.detail || '')
-      : ''
+    }) as { detail?: unknown } | T
+    const rawDetail = body && typeof body === 'object' && 'detail' in body ? body.detail : ''
+    const detail = typeof rawDetail === 'string'
+      ? rawDetail
+      : rawDetail ? JSON.stringify(rawDetail) : ''
     if (!response.ok) throw new Error(detail || `HTTP ${response.status}`)
     return body as T
   }

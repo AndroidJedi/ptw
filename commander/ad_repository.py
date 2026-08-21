@@ -19,6 +19,7 @@ class AdBatchRecord:
     requested_by: str
     external_idea_id: int
     status: str
+    brand_kit_id: str | None = None
     current_position: int | None = None
     last_error: str | None = None
 
@@ -182,11 +183,12 @@ class PostgresAdWorkflowRepository:
                 cursor.execute(
                     """INSERT INTO commander_ad_batches
                        (campaign_id,source_id,chat_id,requested_by,external_idea_id,
-                        idempotency_key,status)
-                       VALUES (%s,%s,%s,%s,%s,%s,'queued')""",
+                        idempotency_key,status,brand_kit_id)
+                       VALUES (%s,%s,%s,%s,%s,%s,'queued',%s)""",
                     (
                         batch.campaign_id, batch.source_id, batch.chat_id,
                         batch.requested_by, batch.external_idea_id, key,
+                        batch.brand_kit_id,
                     ),
                 )
                 for position, context in enumerate(contexts, 1):
@@ -203,7 +205,7 @@ class PostgresAdWorkflowRepository:
     def batch(self, batch_id: str) -> AdBatchRecord:
         rows = self._rows(
             """SELECT campaign_id,source_id,chat_id,requested_by,external_idea_id,
-                      status,current_position,last_error
+                      status,brand_kit_id,current_position,last_error
                FROM commander_ad_batches WHERE campaign_id=%s""",
             (batch_id,),
         )
@@ -212,8 +214,9 @@ class PostgresAdWorkflowRepository:
         row = rows[0]
         return AdBatchRecord(
             str(row[0]), str(row[1]), int(row[2]), str(row[3]), int(row[4]),
-            str(row[5]), None if row[6] is None else int(row[6]),
-            None if row[7] is None else str(row[7]),
+            str(row[5]), None if row[6] is None else str(row[6]),
+            None if row[7] is None else int(row[7]),
+            None if row[8] is None else str(row[8]),
         )
 
     def latest_batch(self, chat_id: int) -> AdBatchRecord:

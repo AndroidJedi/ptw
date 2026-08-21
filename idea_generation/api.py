@@ -7,17 +7,35 @@ from contextlib import asynccontextmanager
 from typing import Any, Mapping
 
 from fastapi import FastAPI, Header, HTTPException, Query, Response
+from fastapi.responses import FileResponse
 
 from commander.telegram_api import TelegramBotClient
 
 from .config import Settings
+from .brand_pipeline import BrandPipeline
+from .brand_providers import (
+    CommanderBrandBridge,
+    DeterministicBrandProvider,
+    FixtureBrandPageProvider,
+    OpenAIBrandProvider,
+    PublicBrandPageProvider,
+    UnavailableBrandProvider,
+)
+from .brand_repository import BrandRepository
+from .brand_service import BrandRunner, BrandService
 from .manage import ROOT
 from .laval_pipeline import LavalPipeline
 from .laval_notifications import LavalTelegramNotifier
-from .laval_providers import providers_from_settings
+from .laval_providers import (
+    FixtureYouTubeObservationProvider,
+    OfficialYouTubeObservationProvider,
+    UnavailableYouTubeObservationProvider,
+    providers_from_settings,
+)
 from .laval_repository import LavalRepository
 from .laval_schemas import SCHEMAS
 from .laval_service import LavalRunner, LavalService
+from .operation_guard import HeavyOperationGuard, OperationConflict
 from .provider import BridgeProvider, MockLLMProvider, OpenAIProvider
 from .store import PostgresStore
 
@@ -86,7 +104,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.laval_telegram_notifications_enabled
         else None
     )
-    laval_runner = LavalRunner(laval_pipeline, laval_notifier)
+    operation_guard = HeavyOperationGuard()
+    laval_runner = LavalRunner(laval_pipeline, laval_notifier, operation_guard)
     readiness = {
         **_llm_contract_readiness(llm),
         "llm_provider": settings.llm_provider,
@@ -102,15 +121,71 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     }
     laval = LavalService(laval_repository, laval_runner, readiness=readiness, notifier=laval_notifier)
 
+    if settings.brand_provider == "fixture":
+        brand_provider = DeterministicBrandProvider()
+        brand_web = FixtureBrandPageProvider()
+        brand_youtube = FixtureYouTubeObservationProvider()
+    elif settings.brand_provider == "openai":
+        brand_provider = (
+            OpenAIBrandProvider(
+                settings.openai_api_key,
+                settings.brand_text_model,
+                settings.brand_image_model,
+            )
+            if settings.openai_api_key
+            else UnavailableBrandProvider(
+                settings.brand_text_model, settings.brand_image_model
+            )
+        )
+        brand_web = PublicBrandPageProvider()
+        brand_youtube = (
+            OfficialYouTubeObservationProvider(settings.youtube_api_key)
+            if settings.youtube_api_key and settings.youtube_verified
+            else UnavailableYouTubeObservationProvider()
+        )
+    else:
+        raise RuntimeError("BRAND_PROVIDER must be fixture or openai")
+    brand_readiness = {
+        "ready": settings.brand_provider == "fixture" or bool(settings.openai_api_key),
+        "provider": brand_provider.name,
+        "text_model": brand_provider.text_model,
+        "image_model": brand_provider.image_model,
+        "web_provider": brand_web.name,
+        "youtube_provider": brand_youtube.name,
+        "youtube_ready": brand_youtube.name != "unavailable",
+        "paid_seo_enabled": False,
+        "caption_scraping_enabled": False,
+        "pipeline_version": "branding_v1",
+    }
+    brand_repository = BrandRepository(store)
+    brand_pipeline = BrandPipeline(
+        brand_repository,
+        brand_provider,
+        brand_web,
+        brand_youtube,
+        CommanderBrandBridge(settings.brand_commander_bridge_url, settings.telegram_token),
+        settings.brand_asset_directory,
+    )
+    brand_runner = BrandRunner(brand_pipeline, operation_guard)
+    branding = BrandService(
+        brand_repository,
+        brand_runner,
+        brand_pipeline,
+        readiness=brand_readiness,
+    )
+    laval_runner.on_idle = brand_runner.resume_incomplete
+    brand_runner.on_idle = laval_runner.resume_incomplete
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         laval_runner.resume_incomplete()
+        brand_runner.resume_incomplete()
         try:
             yield
         finally:
             store.close()
 
-    app = FastAPI(title="PTW Idea Laval", version="3.0.0", docs_url=None, redoc_url=None, lifespan=lifespan)
+    app = FastAPI(title="PTW Idea and Branding", version="4.0.0", docs_url=None, redoc_url=None, lifespan=lifespan)
 
     @app.get("/healthz")
     def health() -> dict[str, Any]:
@@ -122,6 +197,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "SELECT COUNT(*) n FROM laval_runs WHERE status IN ('pending','running')"
             )["n"],
             "laval_total_runs": store.fetchone("SELECT COUNT(*) n FROM laval_runs")["n"],
+            "branding_active_runs": store.fetchone(
+                "SELECT COUNT(*) n FROM brand_runs WHERE status IN ('pending','running')"
+            )["n"],
+            "branding_total_runs": store.fetchone("SELECT COUNT(*) n FROM brand_runs")["n"],
         }
 
     def require_owner_gateway(token: str) -> None:
@@ -176,12 +255,156 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         x_ptw_owner_gateway_token: str = Header(default=""),
     ) -> dict[str, Any]:
         require_owner_gateway(x_ptw_owner_gateway_token)
-        active_run_ids = laval_runner.active_run_ids()
-        return {
-            "active": bool(active_run_ids),
-            "operation": "laval",
-            "run_id": active_run_ids[0] if active_run_ids else None,
-        }
+        return operation_guard.snapshot()
+
+    @app.get("/internal/web/activity")
+    def heavy_activity(
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        return operation_guard.snapshot()
+
+    @app.get("/internal/web/branding/providers")
+    def branding_providers(
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        return brand_readiness
+
+    @app.get("/internal/web/branding/cases")
+    def branding_cases(
+        limit: int = Query(default=30, ge=1, le=100),
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        return brand_repository.candidates(limit)
+
+    @app.get("/internal/web/branding/runs")
+    def branding_runs(
+        limit: int = Query(default=30, ge=1, le=100),
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        return brand_repository.list(limit)
+
+    @app.post("/internal/web/branding/runs")
+    def create_branding_run(
+        request: Mapping[str, Any],
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return branding.create(
+                request, actor=str(request.get("actor") or "owner-gateway")
+            )
+        except OperationConflict as error:
+            raise HTTPException(status_code=409, detail={"active_operation": error.active}) from error
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (TypeError, ValueError, RuntimeError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.get("/internal/web/branding/runs/{run_id}")
+    def branding_status(
+        run_id: str, x_ptw_owner_gateway_token: str = Header(default="")
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            result = brand_repository.status(run_id)
+            result["runner_active"] = brand_runner.active(run_id)
+            return result
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/internal/web/branding/runs/{run_id}/stages")
+    def branding_stages(
+        run_id: str, x_ptw_owner_gateway_token: str = Header(default="")
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return {"items": brand_repository.stages(run_id)}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/internal/web/branding/runs/{run_id}/show")
+    def branding_show(
+        run_id: str,
+        stage: str,
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return brand_repository.stage(run_id, stage)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/internal/web/branding/runs/{run_id}/directions")
+    def branding_directions(
+        run_id: str, x_ptw_owner_gateway_token: str = Header(default="")
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return {"items": brand_repository.directions(run_id)}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.post("/internal/web/branding/runs/{run_id}/{action}")
+    def control_branding_run(
+        run_id: str,
+        action: str,
+        request: Mapping[str, Any],
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        actor = str(request.get("actor") or "owner-gateway")
+        try:
+            if action == "pause":
+                return branding.pause(run_id, actor=actor)
+            if action == "resume":
+                return branding.resume(run_id, actor=actor)
+            if action == "rerun":
+                return branding.rerun(run_id, str(request.get("stage") or ""), actor=actor)
+            if action == "approve":
+                return branding.approve(
+                    run_id, str(request.get("direction_id") or ""), actor=actor
+                )
+            raise HTTPException(status_code=404, detail="unknown Branding action")
+        except OperationConflict as error:
+            raise HTTPException(status_code=409, detail={"active_operation": error.active}) from error
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (TypeError, ValueError, RuntimeError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.get("/internal/web/branding/kits/{kit_id}")
+    def branding_kit(
+        kit_id: str, x_ptw_owner_gateway_token: str = Header(default="")
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return brand_repository.kit(kit_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/internal/web/branding/assets/{digest}")
+    def branding_asset(
+        digest: str, x_ptw_owner_gateway_token: str = Header(default="")
+    ) -> FileResponse:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            path, mime = brand_repository.artifact_path(
+                digest, settings.brand_asset_directory
+            )
+        except (KeyError, PermissionError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="Branding artifact file is missing")
+        return FileResponse(
+            path,
+            media_type=mime,
+            filename=path.name,
+            headers={"Cache-Control": "private, no-store"},
+        )
 
     @app.post("/internal/web/laval/runs")
     def create_laval_run(
@@ -332,6 +555,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     )
                 return laval.notify(run_id, actor=str(request.get("actor") or "owner-gateway"))
             raise HTTPException(status_code=404, detail="unknown Laval action")
+        except OperationConflict as error:
+            raise HTTPException(status_code=409, detail={"active_operation": error.active}) from error
         except KeyError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         except (TypeError, ValueError, RuntimeError) as error:
@@ -346,6 +571,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         active = request.get("active") is True
         if active:
             laval_repository.pause_all()
+            brand_repository.pause_all()
         store.update_mission(
             status="paused" if active else "active",
             auto_enabled=False,

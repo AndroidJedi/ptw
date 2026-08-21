@@ -3,21 +3,29 @@
 from __future__ import annotations
 
 import threading
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from commander.ids import new_uuid7
 
 from .laval_domain import LavalConfig, canonical_domain, canonical_url, stage_index
 from .laval_pipeline import LavalPipeline
 from .laval_repository import LavalRepository
+from .operation_guard import HeavyOperationGuard
 
 
 class LavalRunner:
-    def __init__(self, pipeline: LavalPipeline, notifier: Any | None = None) -> None:
+    def __init__(
+        self,
+        pipeline: LavalPipeline,
+        notifier: Any | None = None,
+        operation_guard: HeavyOperationGuard | None = None,
+    ) -> None:
         self.pipeline = pipeline
         self.notifier = notifier
         self._guard = threading.Lock()
         self._threads: dict[str, threading.Thread] = {}
+        self.operation_guard = operation_guard
+        self.on_idle: Callable[[], None] | None = None
 
     def start(
         self,
@@ -35,6 +43,8 @@ class LavalRunner:
             active = [key for key, value in self._threads.items() if value.is_alive()]
             if active:
                 raise RuntimeError(f"Laval run {active[0]} is already active")
+            if self.operation_guard is not None:
+                self.operation_guard.acquire("laval", run_id)
             thread = threading.Thread(
                 target=self._execute,
                 kwargs={"run_id": run_id, "through_stage": through_stage, "start_stage": start_stage, "force": force, "country": country},
@@ -42,7 +52,13 @@ class LavalRunner:
                 daemon=True,
             )
             self._threads[run_id] = thread
-            thread.start()
+            try:
+                thread.start()
+            except Exception:
+                self._threads.pop(run_id, None)
+                if self.operation_guard is not None:
+                    self.operation_guard.release("laval", run_id)
+                raise
             return True
 
     def _execute(self, **kwargs: Any) -> None:
@@ -63,6 +79,15 @@ class LavalRunner:
                     pass
             with self._guard:
                 self._threads.pop(run_id, None)
+            if self.operation_guard is not None:
+                self.operation_guard.release("laval", run_id)
+            if self.on_idle is not None:
+                try:
+                    self.on_idle()
+                except Exception:
+                    # A durable pending operation can be resumed explicitly or
+                    # after restart if another operation wins the handoff race.
+                    pass
 
     def active(self, run_id: str) -> bool:
         with self._guard:

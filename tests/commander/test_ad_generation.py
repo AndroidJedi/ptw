@@ -16,6 +16,7 @@ class AdGenerationEngineTests(unittest.TestCase):
     def setUp(self) -> None:
         from commander.ad_provider import DeterministicAdProvider
         from commander.ad_repository import MemoryAdWorkflowRepository
+        from commander.model import Entity, EntityKind
         from commander.policy import CommanderPolicy
         from commander.service import Commander
         from commander.store import MemoryKnowledgeStore
@@ -23,6 +24,11 @@ class AdGenerationEngineTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.store = MemoryKnowledgeStore()
+        self.brand_kit = Entity(
+            EntityKind.BRAND_KIT,
+            {"name": "Proof Sprint", "status": "approved", "immutable": True},
+        )
+        self.store.add_entity(self.brand_kit)
         self.commander = Commander(
             self.store, CommanderPolicy.load(Path("config/commander/policies.json"))
         )
@@ -53,7 +59,37 @@ class AdGenerationEngineTests(unittest.TestCase):
             chat_id=123,
             requested_by="telegram:456",
             idempotency_key=key,
+            brand_kit_id=self.brand_kit.id,
         )
+
+    def test_future_batch_rejects_stale_brand_kit(self) -> None:
+        from commander.model import Entity, EntityKind
+
+        stale = Entity(
+            EntityKind.BRAND_KIT,
+            {"name": "Historical Kit", "status": "stale", "immutable": True},
+        )
+        self.store.add_entity(stale)
+        with self.assertRaisesRegex(ValueError, "non-stale"):
+            self.engine.enqueue_batch(
+                idea_snapshot=self.idea,
+                chat_id=123,
+                requested_by="test",
+                idempotency_key="stale-kit",
+                brand_kit_id=stale.id,
+            )
+
+    def test_future_batch_rejects_superseded_brand_kit(self) -> None:
+        from commander.model import Entity, EntityKind, RelationType
+
+        replacement = Entity(
+            EntityKind.BRAND_KIT,
+            {"name": "Replacement", "status": "approved", "immutable": True},
+        )
+        self.store.add_entity(replacement)
+        self.commander.relate(replacement, RelationType.SUPERSEDES, self.brand_kit)
+        with self.assertRaisesRegex(ValueError, "non-stale"):
+            self._batch("superseded-kit")
 
     def test_generates_exact_ten_before_serialized_review(self) -> None:
         from commander.ad_provider import DeterministicAdProvider
@@ -334,6 +370,7 @@ class AdGenerationPostgresTests(unittest.TestCase):
         from commander.policy import CommanderPolicy
         from commander.postgres_store import connect_postgres
         from commander.service import Commander
+        from commander.model import Entity, EntityKind
 
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
@@ -349,6 +386,12 @@ class AdGenerationPostgresTests(unittest.TestCase):
         self.commander = Commander(
             self.store, CommanderPolicy.load(Path("config/commander/policies.json"))
         )
+        self.brand_kit = Entity(
+            EntityKind.BRAND_KIT,
+            {"name": "Proof Sprint", "status": "approved", "immutable": True},
+        )
+        with self.store.transaction():
+            self.store.add_entity(self.brand_kit)
         self.repository = PostgresAdWorkflowRepository(self.store)
         self.provider = DeterministicAdProvider()
         self.engine = AdGenerationEngine(
@@ -369,6 +412,7 @@ class AdGenerationPostgresTests(unittest.TestCase):
             chat_id=123,
             requested_by="telegram:456",
             idempotency_key="postgres-ad-contract-1",
+            brand_kit_id=self.brand_kit.id,
         )
         duplicate = self.engine.enqueue_batch(
             idea_snapshot={
@@ -380,6 +424,7 @@ class AdGenerationPostgresTests(unittest.TestCase):
             chat_id=123,
             requested_by="telegram:456",
             idempotency_key="postgres-ad-contract-1",
+            brand_kit_id=self.brand_kit.id,
         )
         self.assertEqual(batch.campaign_id, duplicate.campaign_id)
         self.engine.process_once()
@@ -426,6 +471,7 @@ class AdGenerationPostgresTests(unittest.TestCase):
             "chat_id": 123,
             "requested_by": "idea-evolution",
             "idempotency_key": "telegram-update:1001",
+            "brand_kit_id": self.brand_kit.id,
             "idea": {
                 "id": 10,
                 "title": "Visible Momentum",

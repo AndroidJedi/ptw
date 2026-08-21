@@ -1,7 +1,7 @@
 # Owner control plane operations
 
 Status: production cutover runbook
-Updated: 2026-08-18
+Updated: 2026-08-21
 
 Commander Web is deployed to `https://provethemwrong-86123.firebaseapp.com`; the API
 and WebSockets use `https://commander.proove-them-wrong.com`. Firebase stores
@@ -45,9 +45,10 @@ cancellation, validation, Git/PR, and deployment evidence are shown in Jobs.
 Destructive plans additionally require an exact owner confirmation. They do
 not require a backup by the owner's explicit decision.
 
-Laval and Codex planning/execution are intentionally serial on the 1 GB host.
+Laval, Branding, and Codex planning/execution are intentionally serial on the 1 GB host.
 A conflicting start returns HTTP 409 with the active operation ID. Waiting for
-plan approval is not active work; approving it rechecks Laval before execution.
+plan or logo approval is not active work; approval rechecks the shared guard
+before execution or kit assembly.
 
 ## Emergency control
 
@@ -171,6 +172,12 @@ Before declaring the feature live, complete the manual and automatic runs,
 five-country/rerun inspection, override, restart, graph-persistence, export,
 failure-path, and emergency stop/resume checks in
 [`idea-laval-engine.md`](../architecture/idea-laval-engine.md).
+
+Branding cutover additionally requires an eligible completed live Idea,
+automatic progression through eight pre-review stages, current feedback on all
+three logos, one explicit direction approval, authenticated asset/ZIP access,
+consumer compilation, graph lineage inspection, stale-kit enforcement, and an
+Idea one-service restart. See [`branding-v1.md`](../architecture/branding-v1.md).
 
 After deploy, verify exact-owner login, negative auth/App Check, one Plan and
 one approved Execute, cancellation, root `id`/`pwd`, emergency stop/resume,

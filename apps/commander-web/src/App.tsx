@@ -10,6 +10,7 @@ import { IdeasView } from './views/IdeasView'
 import { JobsView } from './views/JobsView'
 import { MoreView } from './views/MoreView'
 import { OverviewView } from './views/OverviewView'
+import { BrandingView } from './views/BrandingView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
 export const AUTH_BOOT_TIMEOUT_MS = 10_000
@@ -17,7 +18,7 @@ export const AUTH_BOOT_TIMEOUT_MS = 10_000
 function initialConsoleLocation(): { page: Page; runId?: string } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const page: Page = ['overview', 'ideas', 'jobs', 'more'].includes(requestedPage || '')
+  const page: Page = ['overview', 'ideas', 'branding', 'jobs', 'more'].includes(requestedPage || '')
     ? requestedPage as Page
     : 'overview'
   const runId = params.get('run') || undefined
@@ -84,7 +85,7 @@ function Console({ user }: { user: User }) {
     const params = new URLSearchParams(window.location.search)
     if (nextPage === 'overview') params.delete('page')
     else params.set('page', nextPage)
-    if (nextPage !== 'ideas') params.delete('run')
+    if (nextPage !== 'ideas' && nextPage !== 'branding') params.delete('run')
     const search = params.toString()
     window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
     setPage(nextPage)
@@ -93,6 +94,7 @@ function Console({ user }: { user: User }) {
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label="Вийти"><LogOut /></button></div>
     {page === 'overview' && <OverviewView api={api} language={language} />}
     {page === 'ideas' && <IdeasView api={api} language={language} initialRunId={initialLocation.runId} />}
+    {page === 'branding' && <BrandingView api={api} language={language} initialRunId={initialLocation.runId} />}
     {page === 'jobs' && <JobsView api={api} />}
     {page === 'more' && <MoreView api={api} />}
   </Shell>

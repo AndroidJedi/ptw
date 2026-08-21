@@ -125,8 +125,8 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             raise HTTPException(status_code=response.status_code, detail=detail or "Commander validation request failed")
         return response
 
-    async def active_laval() -> Mapping[str, Any] | None:
-        response = await laval_bridge("GET", "/internal/web/laval/activity")
+    async def active_heavy_operation() -> Mapping[str, Any] | None:
+        response = await laval_bridge("GET", "/internal/web/activity")
         activity = response.json()
         return activity if activity.get("active") else None
 
@@ -137,16 +137,19 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
                 status_code=409,
                 detail=(
                     f"Codex operation {active['id']} is active ({active['status']}); "
-                    "wait before starting Laval"
+                    "wait before starting another heavy operation"
                 ),
             )
 
     async def require_no_active_laval() -> None:
-        active = await active_laval()
+        active = await active_heavy_operation()
         if active is not None:
             raise HTTPException(
                 status_code=409,
-                detail=f"Laval run {active['run_id']} is active; wait before starting Codex",
+                detail=(
+                    f"{active.get('operation') or 'Heavy'} run {active['run_id']} is active; "
+                    "wait before starting Codex"
+                ),
             )
 
     def creative_gone() -> None:
@@ -205,6 +208,259 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         return (await laval_bridge("GET", "/internal/web/laval/providers")).json()
+
+    @app.get("/api/v1/branding/providers")
+    async def branding_providers(
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await laval_bridge("GET", "/internal/web/branding/providers")).json()
+
+    @app.get("/api/v1/branding/cases")
+    async def branding_cases(
+        limit: int = Query(default=30, ge=1, le=100),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (
+            await laval_bridge(
+                "GET", "/internal/web/branding/cases", params={"limit": limit}
+            )
+        ).json()
+
+    @app.get("/api/v1/branding/runs")
+    async def branding_runs(
+        limit: int = Query(default=30, ge=1, le=100),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (
+            await laval_bridge(
+                "GET", "/internal/web/branding/runs", params={"limit": limit}
+            )
+        ).json()
+
+    @app.post("/api/v1/branding/runs")
+    async def create_branding_run(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_running()
+        async with operation_start_lock:
+            require_no_active_codex()
+            return (
+                await laval_bridge(
+                    "POST",
+                    "/internal/web/branding/runs",
+                    body={**dict(request), "actor": f"firebase:{identity.uid}"},
+                )
+            ).json()
+
+    @app.get("/api/v1/branding/runs/{run_id}")
+    async def branding_run_status(
+        run_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        result = (
+            await laval_bridge("GET", f"/internal/web/branding/runs/{run_id}")
+        ).json()
+        for direction in result.get("directions") or []:
+            digest = direction.get("artifact_digest")
+            if digest:
+                direction["logo_asset"] = {
+                    "digest": digest,
+                    "mime_type": "image/png",
+                    "width": 1024,
+                    "height": 1024,
+                    "generation_provenance": direction.get("generation_provenance") or {},
+                    "url": f"/api/v1/branding/assets/{digest}",
+                    "cache": "private, no-store",
+                }
+        return result
+
+    @app.get("/api/v1/branding/runs/{run_id}/stages")
+    async def branding_run_stages(
+        run_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        return (
+            await laval_bridge(
+                "GET", f"/internal/web/branding/runs/{run_id}/stages"
+            )
+        ).json()
+
+    @app.get("/api/v1/branding/runs/{run_id}/show")
+    async def branding_stage_output(
+        run_id: str,
+        stage: str,
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        return (
+            await laval_bridge(
+                "GET",
+                f"/internal/web/branding/runs/{run_id}/show",
+                params={"stage": stage},
+            )
+        ).json()
+
+    @app.get("/api/v1/branding/runs/{run_id}/directions")
+    async def branding_directions(
+        run_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        result = (
+            await laval_bridge(
+                "GET", f"/internal/web/branding/runs/{run_id}/directions"
+            )
+        ).json()
+        for direction in result.get("items") or []:
+            digest = direction.get("artifact_digest")
+            if digest:
+                direction["logo_asset"] = {
+                    "digest": digest,
+                    "mime_type": "image/png",
+                    "width": 1024,
+                    "height": 1024,
+                    "generation_provenance": direction.get("generation_provenance") or {},
+                    "url": f"/api/v1/branding/assets/{digest}",
+                    "cache": "private, no-store",
+                }
+        return result
+
+    @app.post("/api/v1/branding/runs/{run_id}/directions/{direction_id}/review")
+    def review_brand_logo(
+        run_id: str,
+        direction_id: str,
+        request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        require_laval_id(direction_id)
+        require_running()
+        try:
+            target = read.brand_review_target(run_id, direction_id)
+            raw_annotations = request.get("annotations", request.get("regions", [])) or []
+            if not isinstance(raw_annotations, list) or len(raw_annotations) > 100:
+                raise ValueError("reviews support at most 100 annotations")
+            annotations = tuple(region(item) for item in raw_annotations)
+            rating = int(request.get("rating"))
+            if rating not in range(1, 6):
+                raise ValueError("rating must be 1..5")
+            result = read.review(
+                creative_id=target["creative_id"],
+                artifact_digest=target["artifact_digest"],
+                rating=rating,
+                comment=str(request.get("comment") or ""),
+                predicted_ctr=None,
+                annotations=annotations,
+                actor=f"firebase:{identity.uid}",
+                policy_path=settings.commander_policy_path,
+                asset_directory=settings.commander_asset_root,
+                supersedes_feedback_id=target["latest_feedback_id"],
+            )
+            return {**result, "direction_id": direction_id}
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.get("/api/v1/branding/runs/{run_id}/directions/{direction_id}/reviews")
+    def brand_logo_reviews(
+        run_id: str,
+        direction_id: str,
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        require_laval_id(direction_id)
+        try:
+            target = read.brand_review_target(run_id, direction_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return {"items": read.creative_reviews(target["creative_id"])}
+
+    @app.post("/api/v1/branding/runs/{run_id}/{action}")
+    async def control_branding_run(
+        run_id: str,
+        action: str,
+        request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(run_id)
+        if action not in {"pause", "resume", "rerun", "approve"}:
+            raise HTTPException(status_code=404, detail="unknown Branding action")
+        if action != "pause":
+            require_running()
+        payload = {**dict(request), "actor": f"firebase:{identity.uid}"}
+        if action in {"resume", "rerun", "approve"}:
+            async with operation_start_lock:
+                require_no_active_codex()
+                return (
+                    await laval_bridge(
+                        "POST",
+                        f"/internal/web/branding/runs/{run_id}/{action}",
+                        body=payload,
+                    )
+                ).json()
+        return (
+            await laval_bridge(
+                "POST",
+                f"/internal/web/branding/runs/{run_id}/{action}",
+                body=payload,
+            )
+        ).json()
+
+    @app.get("/api/v1/branding/kits/{kit_id}")
+    async def brand_kit(
+        kit_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_laval_id(kit_id)
+        result = (
+            await laval_bridge("GET", f"/internal/web/branding/kits/{kit_id}")
+        ).json()
+        digest = result.get("zip_digest")
+        if digest:
+            result["download"] = {
+                "digest": digest,
+                "mime_type": "application/zip",
+                "url": f"/api/v1/branding/kits/{kit_id}/download",
+                "cache": "private, no-store",
+            }
+        return result
+
+    @app.get("/api/v1/branding/assets/{digest}")
+    async def brand_asset(
+        digest: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> Response:
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise HTTPException(status_code=400, detail="invalid artifact digest")
+        response = await laval_bridge(
+            "GET", f"/internal/web/branding/assets/{digest}"
+        )
+        return Response(
+            response.content,
+            media_type=response.headers.get("content-type", "application/octet-stream"),
+            headers={"Cache-Control": "private, no-store"},
+        )
+
+    @app.get("/api/v1/branding/kits/{kit_id}/download")
+    async def download_brand_kit(
+        kit_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> Response:
+        require_laval_id(kit_id)
+        kit = (
+            await laval_bridge("GET", f"/internal/web/branding/kits/{kit_id}")
+        ).json()
+        digest = str(kit.get("zip_digest") or "")
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise HTTPException(status_code=404, detail="Brand Kit archive is unavailable")
+        response = await laval_bridge(
+            "GET", f"/internal/web/branding/assets/{digest}"
+        )
+        return Response(
+            response.content,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": response.headers.get(
+                    "content-disposition", 'attachment; filename="brand-kit.zip"'
+                ),
+                "Cache-Control": "private, no-store",
+            },
+        )
 
     @app.post("/api/v1/laval/runs")
     async def create_laval_run(

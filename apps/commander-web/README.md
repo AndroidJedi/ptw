@@ -34,3 +34,11 @@ Completed runs also expose one primary `Завантажити PDF` action. The 
 generates a concise Ukrainian report with visual summaries and bounded,
 clickable HTTP(S) references; unfinished runs do not present it as a final
 report.
+
+The Branding view accepts one completed live Idea case and automatically runs
+the fixed evidence-backed Branding pipeline to three reviewed directions. It
+shows authenticated immutable logo previews, normalized annotation review,
+light/dark palette and type specimens, then permits one explicit approval and
+private ZIP download. The browser never supplies Creative UUIDs or artifact
+digests; Owner Gateway resolves them from the direction. The generated React
+kit is code-owned and includes bundled licensed Cyrillic fonts.

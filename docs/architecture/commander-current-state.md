@@ -1,10 +1,33 @@
 # Commander current state
 
-Status: iOS Safari owner-login recovery fix deployed
+Status: Branding v1 implemented; production rollout pending
 Updated: 2026-08-21
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
 ## Current implementation milestone
+
+Branding v1 now runs inside the existing Idea process as the evidence-backed
+stage between a completed live Idea case and future visual-post generation. The
+Owner Console has five-item responsive navigation with Branding between Ideas
+and Jobs, a readable eligible-case picker, ten-stage inspection and controls,
+three annotated logo reviews, light/dark design previews, explicit direction
+approval, and private Brand Kit ZIP download. Posts remain retired at HTTP 410.
+
+The durable worker snapshots the whole Idea case, uses no paid SEO, bounds
+public pages/official YouTube/owner references, makes exactly three symbol-image
+requests, and deterministically renders wordmarks/icons and a code-owned
+React/TypeScript kit. It stores retry/restart/provider/cost history, serializes
+with Laval and Codex, and publishes UUID-linked BrandDirection, Creative,
+component, feedback/weight, artifact, and immutable BrandKit graph history.
+Stale/superseded kit enforcement is preserved for the future batch contract.
+
+The kit vendors pinned Inter, Manrope, Montserrat, and IBM Plex family binaries
+with full OFL files and checksums; generated wordmarks use the selected font.
+The deterministic PostgreSQL pipeline, three-review approval, kit superseding,
+strict retry, provider-task reuse, graph lineage, URL safety, authenticated
+gateway proxy, web unit/build, and desktop/mobile/iPhone WebKit flows pass
+locally. Production release and one real owner-reviewed Brand Kit remain the
+current rollout work.
 
 The Owner Console now restores Firebase redirect sign-in from the mounted boot
 path instead of waiting for the Auth observer to render the login screen first.

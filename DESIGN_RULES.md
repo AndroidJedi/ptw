@@ -1,7 +1,7 @@
 # PTW React operator-console rules
 
 Status: canonical
-Updated: 2026-08-17
+Updated: 2026-08-21
 
 ## Product language
 
@@ -15,7 +15,7 @@ Updated: 2026-08-17
 ## Mobile first
 
 - Design first for a 360 px viewport and one-hand use.
-- Primary navigation is Overview, Ideas, Posts, Jobs, More at the bottom on
+- Primary navigation is Overview, Ideas, Branding, Jobs, More at the bottom on
   mobile and a compact left rail on desktop.
 - Put the primary action inside thumb reach. Minimum interactive target is
   44x44 CSS pixels.
@@ -52,6 +52,25 @@ Updated: 2026-08-17
   current feedback and producing-context conclusion are persisted.
 - Never hide Creative UUID or artifact digest; show shortened values with a
   copy action and the full value in details.
+
+Branding is the owner-friendly exception to showing graph IDs in the primary
+flow: direction cards identify a readable name and ordinal, while the gateway
+resolves the immutable Creative UUID and digest server-side. Full provenance
+remains available in stage and review details.
+
+## Branding
+
+- A candidate shows the original Idea, readable surviving theses, recommended
+  thesis, users, loop, evidence quality, and prior Brand Kit state.
+- Keep the ten-stage progress and evidence/provider state visible. Each of the
+  three direction cards owns its logo, annotations, current review/history,
+  palette, type specimen, and light/dark preview.
+- Do not enable approval until all three current logos have feedback. Direction
+  choice and approval are one explicit owner action.
+- Always show the trademark/domain-clearance warning. Never translate or vary
+  the exact brand name.
+- Kit previews and samples default to Ukrainian and must fit at 360 px without
+  horizontal page overflow.
 
 ## Data presentation
 

@@ -44,13 +44,45 @@ class DomainReadModels:
                           count(*) FILTER (WHERE status='completed')::int completed
                    FROM laval_runs"""
             ).fetchone()
+            branding = connection.execute(
+                """SELECT count(*)::int total,
+                          count(*) FILTER (WHERE status IN ('pending','running','paused','awaiting_review'))::int active,
+                          count(*) FILTER (WHERE status='completed')::int completed
+                   FROM brand_runs"""
+            ).fetchone()
         with self._connect(self.commander_database_url) as connection:
             db_ok = connection.execute("SELECT 1 ok").fetchone()["ok"] == 1
         return {
             "mission": self.mission(),
             "health": {"idea_db": "ok", "commander_db": "ok" if db_ok else "error", "gateway": "ok"},
             "laval_runs": dict(laval),
+            "branding_runs": dict(branding),
             "jobs": jobs,
+        }
+
+    def brand_review_target(self, run_id: str, direction_id: str) -> dict[str, Any]:
+        with self._connect(self.idea_database_url) as connection:
+            row = connection.execute(
+                """SELECT d.id,d.run_id,d.creative_id,d.artifact_digest,
+                          review.feedback_id latest_feedback_id
+                   FROM brand_directions d
+                   LEFT JOIN LATERAL (
+                     SELECT feedback_id FROM commander_creative_reviews
+                     WHERE creative_id=d.creative_id ORDER BY created_at DESC LIMIT 1
+                   ) review ON TRUE
+                   WHERE d.run_id=%s AND d.id=%s""",
+                (run_id, direction_id),
+            ).fetchone()
+        if not row or not row["creative_id"] or not row["artifact_digest"]:
+            raise KeyError("Brand logo is not available for review")
+        return {
+            "direction_id": str(row["id"]),
+            "run_id": str(row["run_id"]),
+            "creative_id": str(row["creative_id"]),
+            "artifact_digest": str(row["artifact_digest"]),
+            "latest_feedback_id": str(row["latest_feedback_id"])
+            if row["latest_feedback_id"]
+            else None,
         }
 
     def posts(self, *, limit: int, review_status: str | None) -> dict[str, Any]:
@@ -284,6 +316,8 @@ class DomainReadModels:
             root / "README.md", root / "DESIGN_RULES.md", root / "docs/README.md",
             root / "docs/architecture/commander-architecture-review.md",
             root / "docs/architecture/commander-current-state.md",
+            root / "docs/architecture/branding-v1.md",
+            root / "docs/architecture/branding-kit-component-manifest.md",
             root / "docs/architecture/creative-feedback-learning.md",
             root / "docs/architecture/ad-image-estimation-loop.md",
             root / "docs/operations/owner-control-plane.md",

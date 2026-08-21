@@ -1,5 +1,5 @@
 export type I18n<T = string> = { en: T; uk: T }
-export type Page = 'overview' | 'ideas' | 'jobs' | 'more'
+export type Page = 'overview' | 'ideas' | 'branding' | 'jobs' | 'more'
 
 export interface Mission {
   code: string
@@ -13,6 +13,7 @@ export interface Overview {
   mission: Mission
   health: Record<string, string>
   laval_runs: { total: number; active: number; completed: number }
+  branding_runs: { total: number; active: number; completed: number }
   jobs: { active: number; blocked: number; last_deploy?: string }
 }
 
@@ -196,6 +197,124 @@ export interface LavalStatus {
   }
   runner_active?: boolean
   resume_with_market_signals_available?: boolean
+}
+
+export interface BrandCandidate {
+  idea_run_id: string
+  owner_idea: string
+  created_at: string
+  theses: ProductThesis[]
+  mechanisms: ProductMechanism[]
+  quality: { successful: number; attempted: number }
+  recommended_thesis_id?: string | null
+  active_brand_kit?: { name: string; status: 'approved' | 'superseded' | 'stale'; approved_at: string } | null
+}
+
+export type BrandRunStatus = 'pending' | 'running' | 'paused' | 'awaiting_review' | 'completed' | 'failed' | 'cancelled'
+
+export interface BrandRun {
+  id: string
+  source_laval_run_id: string
+  status: BrandRunStatus
+  current_stage: string
+  source_snapshot: { owner_idea: string; theses: ProductThesis[]; mechanisms: ProductMechanism[] }
+  source_stale: boolean
+  constraints_text: string
+  provider_snapshot: Record<string, unknown>
+  commander_brand_kit_id?: string | null
+  created_at: string
+  updated_at: string
+  owner_preview?: string
+  completed_stages?: number
+}
+
+export interface BrandStage {
+  stage: string
+  ordinal: number
+  status: LavalStageStatus
+  attempt: number
+  input_hash?: string
+  provider?: string
+  model?: string
+  artifact?: unknown
+  metrics: Record<string, unknown>
+  error?: { type?: string; message?: string }
+}
+
+export interface BrandEvaluation {
+  passed: boolean
+  checks: Record<string, { passed: boolean; [key: string]: unknown }>
+}
+
+export interface BrandAsset {
+  digest: string
+  mime_type: string
+  width?: number
+  height?: number
+  generation_provenance: {
+    provider?: string
+    requested_model?: string
+    resolved_model?: string
+    request_id?: string
+    prompt?: string
+  }
+  url: string
+  cache: 'private, no-store'
+}
+
+export interface BrandDirection {
+  id: string
+  ordinal: number
+  name: string
+  status: string
+  manifest: {
+    name: string
+    tagline: I18n
+    positioning: I18n
+    personality: string[]
+    palette: Record<'light' | 'dark', Record<string, string>>
+    typography: { display: string; body: string; mono: string }
+    design_principles: string[]
+    retention_patterns: string[]
+    ui_system: Record<string, unknown>
+  }
+  evaluation: BrandEvaluation
+  artifact_digest?: string
+  logo_asset?: BrandAsset
+  latest_feedback_id?: string | null
+  rating?: number | null
+  overall_comment?: string | null
+  annotations?: Region[]
+  reviewed_at?: string | null
+}
+
+export interface BrandReview {
+  feedback_id: string
+  rating: number
+  overall_comment: string
+  annotations: Region[]
+  supersedes_feedback_id?: string | null
+  created_at: string
+}
+
+export interface BrandKit {
+  id: string
+  commander_brand_kit_id: string
+  name: string
+  status: 'approved' | 'superseded' | 'stale'
+  zip_digest: string
+  source_stale: boolean
+  approved_at: string
+  manifest: BrandDirection['manifest'] & Record<string, unknown>
+  download?: { digest: string; mime_type: 'application/zip'; url: string; cache: 'private, no-store' }
+}
+
+export interface BrandStatus {
+  run: BrandRun
+  stages: BrandStage[]
+  directions: BrandDirection[]
+  cost: { items: Array<Record<string, unknown>>; total_usd: number }
+  runner_active?: boolean
 }
 
 export interface Creative {

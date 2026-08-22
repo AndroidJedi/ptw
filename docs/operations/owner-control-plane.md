@@ -199,10 +199,15 @@ one approved Execute, cancellation, root `id`/`pwd`, emergency stop/resume,
 restart persistence, and that the PWA service worker never caches API, image,
 WebSocket, or terminal traffic.
 
-The Landing tab is a test-artifact handoff into the existing Plan/Execute
-lifecycle. `GET /api/v1/landings/templates` serves the repository catalog,
-`GET /api/v1/landings/candidates` derives briefs from completed live Laval
-cases, and `POST /api/v1/landings/builder-jobs` resolves the source IDs again
-before creating a plan. Browser-provided source IDs and brand names are ignored.
-The resulting `$natal-landing-builder` task may write its unique local output
-under `output/landings/`; it has no implicit publication authority.
+The Landing tab owns its build lifecycle rather than handing the owner to the
+global Plan/Execute list. `GET /api/v1/landings/templates` serves the repository
+catalog, `GET /api/v1/landings/candidates` derives briefs from completed live
+Laval cases, and `POST /api/v1/landings/builds` resolves the source IDs again,
+persists a PostgreSQL `landing` entity with Idea lineage, starts the deterministic
+builder immediately, and publishes the successful result to the server-pinned
+dedicated Firebase Hosting site. Browser-provided source IDs, brand names,
+Firebase targets, credentials, and output paths are ignored. The UI polls
+`GET /api/v1/landings/builds/<uuid>` and lists only Landing-domain history;
+failed builds may be retried through the matching authenticated retry endpoint.
+The external release contains only allowlisted public static files, never the
+internal brief or build provenance JSON.

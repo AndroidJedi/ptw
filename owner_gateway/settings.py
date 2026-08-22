@@ -38,6 +38,9 @@ class Settings:
     commander_service_url: str = "http://ptw-commander-api:8080"
     creative_runtime_enabled: bool = False
     outbound_notifications_enabled: bool = False
+    firebase_landing_site_id: str = ""
+    firebase_landing_service_account_path: Path | None = None
+    landing_output_root: Path = Path("/var/lib/ptw-owner/landings")
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -84,4 +87,13 @@ class Settings:
             ).rstrip("/"),
             creative_runtime_enabled=_enabled("CREATIVE_RUNTIME_ENABLED"),
             outbound_notifications_enabled=_enabled("OUTBOUND_NOTIFICATIONS_ENABLED"),
+            firebase_landing_site_id=os.environ.get("FIREBASE_LANDING_SITE_ID", "").strip(),
+            firebase_landing_service_account_path=(
+                Path(os.environ["FIREBASE_LANDING_SERVICE_ACCOUNT_PATH"])
+                if os.environ.get("FIREBASE_LANDING_SERVICE_ACCOUNT_PATH", "").strip()
+                else None
+            ),
+            landing_output_root=Path(
+                os.environ.get("NATAL_LANDING_OUTPUT_ROOT", "/var/lib/ptw-owner/landings")
+            ),
         )

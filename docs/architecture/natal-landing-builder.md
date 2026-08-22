@@ -1,6 +1,6 @@
 # Natal landing builder
 
-Status: production deployment live; owner-browser interaction acceptance pending
+Status: one-click Firebase publication implementation complete; production verification pending
 Updated: 2026-08-22
 
 ## Purpose
@@ -37,29 +37,34 @@ Template recommendation is deterministic: community/event semantics choose
 `community`, product/system semantics choose `product`, and other early
 concepts choose `waitlist`. The owner may explicitly override the structure.
 
-Submitting the brief creates a normal Commander Plan command containing an
-explicit `$natal-landing-builder` invocation and a unique
-`output/landings/<run>-<template>-<build>` target. Plan approval remains the
-existing one-shot execution gate. The skill writes a temporary input brief and
-runs `python3 -m natal.builder`; it may generate and preview the local static
-site but may not deploy, publish, contact people, spend money, or invent proof.
+Submitting the brief calls `POST /api/v1/landings/builds` with a browser-created
+idempotency UUID. Under the shared heavy-operation lock, Owner Gateway resolves
+the completed case again, ignores browser-provided brand/source IDs, creates a
+PostgreSQL `landing` entity plus `derived_from` edge to the stable Idea Laval
+source alias, and commits the `queued` build before starting it. The deterministic
+builder then moves through `building` and `publishing` without a Commander plan
+or a Codex login dependency. The Landing tab polls that build directly and shows
+its Firebase URL or a retryable failure; it never redirects to unrelated Jobs.
 
-This first integration deliberately reuses durable command-session and platform
-job history. Generated pages are test artifacts; a future publishing milestone
-must add its own PostgreSQL landing entity/artifact lineage and explicit deploy
-contract before presenting published state as authoritative.
+Publication uses the Firebase Hosting REST deployment flow with a dedicated
+service account and the server-pinned `natal-landings-86123` site. Each complete
+release preserves recent published builds under `/builds/<build-id>/` and makes
+the newest build the site root. The publisher accepts only HTML, CSS,
+JavaScript, SVG, and PNG files, rejects symlinks and unexpected files, and does
+not stage the normalized `brief.json` or provenance-bearing `build.json`. The
+emergency stop is checked again immediately before the external release.
 
-Release `natal-landings-4c52f13` is deployed on the three PTW application
-services, and Firebase Hosting version `6e11f9d519157870` serves the Landings
-tab. The production dependency, skill-mount, bundle-marker, unauthenticated
-boundary, gateway health, and canonical-origin CORS audits pass. The remaining
-acceptance is an owner-authenticated creation and approval of one preview plan.
+The old `/api/v1/landings/builder-jobs` route remains as a rollout compatibility
+alias, but it starts the same real build and publish lifecycle. Existing failed
+Commander plans remain immutable audit history and are not rewritten as
+successful landing builds.
 
 ## Verification
 
 ```sh
 python3 -m unittest discover -s tests/commander -p 'test_natal_builder.py' -v
-python3 -m unittest discover -s tests/owner_gateway -p 'test_landing_builder_proxy.py' -v
+python3 -m unittest discover -s tests/owner_gateway -p 'test_*landing*.py' -v
+python3 -m unittest discover -s tests/owner_gateway -p 'test_firebase_hosting.py' -v
 npm --prefix apps/commander-web run check
 npm --prefix apps/commander-web run test:e2e
 python3 scripts/verify_ptw_skills.py

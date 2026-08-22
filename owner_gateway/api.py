@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 from typing import Any, Mapping
+from uuid import UUID, uuid4
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
@@ -18,18 +19,40 @@ from .annotations import region
 from .auth import FirebaseVerifier, OwnerDependency, OwnerIdentity
 from .control_store import ControlStore
 from .execution import CommandRunner
-from .landing import candidates_response, prepare_builder_job, templates_response
+from .firebase_hosting import FirebaseHostingPublisher
+from .landing import candidates_response, prepare_landing_build, templates_response
+from .landing_pipeline import LandingBuildCoordinator
+from .landing_repository import LandingBuildRepository
 from .platform import PlatformRepository
 from .read_models import DomainReadModels
 from .settings import Settings
 
 
-def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> FastAPI:
+def create_app(
+    settings: Settings,
+    verifier: FirebaseVerifier | None = None,
+    landing_coordinator: LandingBuildCoordinator | None = None,
+) -> FastAPI:
     store = ControlStore(settings.control_database_path)
     platform = PlatformRepository(settings.platform_database_url, settings.platform_owner_telegram_id)
     read = DomainReadModels(settings.idea_database_url, settings.commander_database_url)
     planner = AppServerPlanner(settings.codex_executable, settings.repository_path)
     runner = CommandRunner(settings.codex_executable, settings.repository_path, store, platform)
+    if (
+        landing_coordinator is None
+        and settings.firebase_landing_site_id
+        and settings.firebase_landing_service_account_path is not None
+    ):
+        landing_coordinator = LandingBuildCoordinator(
+            repository=LandingBuildRepository(settings.commander_database_url),
+            publisher=FirebaseHostingPublisher(
+                project_id=settings.firebase_project_id,
+                site_id=settings.firebase_landing_site_id,
+                credential_path=settings.firebase_landing_service_account_path,
+            ),
+            output_root=settings.landing_output_root,
+            stopped=platform.emergency_stop,
+        )
     owner = OwnerDependency(verifier or FirebaseVerifier(settings))
     tasks: set[asyncio.Task[Any]] = set()
     operation_start_lock = asyncio.Lock()
@@ -51,6 +74,8 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        if landing_coordinator is not None:
+            await asyncio.to_thread(landing_coordinator.recover_interrupted)
         yield
         for task in tasks:
             task.cancel()
@@ -132,6 +157,16 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         return activity if activity.get("active") else None
 
     def require_no_active_codex(*, exclude_id: str | None = None) -> None:
+        if landing_coordinator is not None:
+            active_landing = landing_coordinator.active()
+            if active_landing is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Natal landing build {active_landing['id']} is active "
+                        f"({active_landing['status']}); wait before starting another heavy operation"
+                    ),
+                )
         active = store.active_command(exclude_id=exclude_id)
         if active is not None:
             raise HTTPException(
@@ -152,6 +187,22 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
                     "wait before starting Codex"
                 ),
             )
+
+    def require_landing_builder() -> LandingBuildCoordinator:
+        if landing_coordinator is None:
+            raise HTTPException(status_code=503, detail="Natal Firebase publisher is not configured")
+        return landing_coordinator
+
+    def landing_response(build: Mapping[str, Any]) -> dict[str, Any]:
+        return {
+            key: build.get(key)
+            for key in (
+                "id", "request_id", "idea_run_id", "thesis_id", "template_id", "brief",
+                "status", "build_manifest", "artifact_sha256", "firebase_site_id",
+                "firebase_version", "public_url", "error_code", "error_message",
+                "created_at", "updated_at", "completed_at",
+            )
+        }
 
     def creative_gone() -> None:
         if not settings.creative_runtime_enabled:
@@ -234,11 +285,19 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         ).json()
         return candidates_response(cases.get("items") or [])
 
-    @app.post("/api/v1/landings/builder-jobs")
-    async def create_landing_builder_job(
+    async def start_landing_build(
         request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         require_running()
+        coordinator = require_landing_builder()
+        request_id = str(request.get("request_id") or uuid4())
+        try:
+            UUID(request_id)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="request_id must be a UUID") from error
+        existing = coordinator.by_request(request_id)
+        if existing is not None:
+            return landing_response(existing)
         idea_run_id = str(request.get("idea_run_id") or "").strip()
         require_laval_id(idea_run_id)
         template_id = str(request.get("template_id") or "auto").strip().lower()
@@ -255,7 +314,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
                 item for item in cases.get("items") or []
                 if str(item.get("idea_run_id")) == idea_run_id
             )
-            prepared = prepare_builder_job(candidate, template_id, overrides)
+            prepared = prepare_landing_build(candidate, template_id, overrides)
         except StopIteration as error:
             raise HTTPException(status_code=404, detail="completed Idea evaluation not found") from error
         except ValueError as error:
@@ -264,21 +323,83 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             await require_no_active_laval()
             require_no_active_codex()
             try:
-                command = store.create_command("plan", prepared["instruction"])
+                build, created = coordinator.create(
+                    prepared,
+                    request_id=request_id,
+                    requested_by=f"firebase:{identity.uid}",
+                )
             except ValueError as error:
                 raise HTTPException(status_code=409, detail=str(error)) from error
-            background(build_plan(command["id"], prepared["instruction"]))
+            if created:
+                background(coordinator.run(str(build["id"])))
+        return landing_response(build)
+
+    @app.post("/api/v1/landings/builds", status_code=202)
+    async def create_landing_build(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return await start_landing_build(request, identity)
+
+    @app.post("/api/v1/landings/builder-jobs", status_code=202)
+    async def create_landing_builder_job_compatibility(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        build = await start_landing_build(request, identity)
         return {
-            **command,
-            "landing": {
-                key: prepared[key]
-                for key in (
-                    "build_id", "idea_run_id", "template_id",
-                    "recommended_template_id", "output_path", "brief",
-                )
-            },
+            **build,
+            "mode": "execute",
+            "title": "Natal landing build and Firebase publish",
             "created_by": f"firebase:{identity.uid}",
+            "landing": {
+                "build_id": build["id"],
+                "idea_run_id": build["idea_run_id"],
+                "template_id": build["template_id"],
+                "recommended_template_id": build["template_id"],
+                "output_path": f"Firebase · {build['firebase_site_id']}",
+                "brief": build["brief"],
+            },
         }
+
+    @app.get("/api/v1/landings/builds")
+    def landing_builds(
+        limit: int = Query(default=30, ge=1, le=100),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        coordinator = require_landing_builder()
+        return {"items": [landing_response(item) for item in coordinator.list(limit)], "next_cursor": None}
+
+    @app.get("/api/v1/landings/builds/{build_id}")
+    def landing_build(
+        build_id: str, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        coordinator = require_landing_builder()
+        try:
+            UUID(build_id)
+            return landing_response(coordinator.get(build_id))
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=404, detail="Natal landing build not found") from error
+
+    @app.post("/api/v1/landings/builds/{build_id}/retry", status_code=202)
+    async def retry_landing_build(
+        build_id: str,
+        _request: Mapping[str, Any],
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_running()
+        coordinator = require_landing_builder()
+        try:
+            UUID(build_id)
+        except ValueError as error:
+            raise HTTPException(status_code=404, detail="Natal landing build not found") from error
+        async with operation_start_lock:
+            await require_no_active_laval()
+            require_no_active_codex()
+            try:
+                build = coordinator.retry(build_id)
+            except (KeyError, ValueError) as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
+            background(coordinator.run(build_id))
+        return landing_response(build)
 
     @app.get("/api/v1/branding/cases")
     async def branding_cases(
@@ -770,6 +891,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         )
         async with operation_start_lock:
             await require_no_active_laval()
+            require_no_active_codex()
             try:
                 command = store.create_command("plan", instruction)
             except ValueError as error:
@@ -915,6 +1037,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             raise HTTPException(status_code=400, detail="mode and 1-20000 character instruction are required")
         async with operation_start_lock:
             await require_no_active_laval()
+            require_no_active_codex()
             try:
                 command = store.create_command(mode, instruction)
             except ValueError as error:

@@ -16,6 +16,7 @@ const stages = [
 
 test.beforeEach(async ({ page }) => {
   let brandApproved = false
+  let landingBuild: Record<string, unknown> | null = null
   const brandState = new Map<string, {
     revision: number
     reviewState: 'pending' | 'changes_requested' | 'approved'
@@ -57,13 +58,44 @@ test.beforeEach(async ({ page }) => {
         proof_points: [], faq: [], cta: { label: 'Спробувати Natal', url: '#contact' },
       },
     }] })
-    if (url.pathname === '/api/v1/landings/builder-jobs' && route.request().method() === 'POST') {
+    if (url.pathname === '/api/v1/landings/builds' && route.request().method() === 'GET') {
+      return json({ items: landingBuild ? [landingBuild] : [] })
+    }
+    if (url.pathname === '/api/v1/landings/builds' && route.request().method() === 'POST') {
       const body = route.request().postDataJSON() as Record<string, unknown>
       expect(body).toMatchObject({ idea_run_id: runId, template_id: 'community' })
-      return json({
-        id: 'landing-job-1', mode: 'plan', title: 'Natal landing', status: 'planning', created_at: '', created_by: 'firebase:owner',
-        landing: { build_id: 'landing-build-1', idea_run_id: runId, template_id: 'community', recommended_template_id: 'product', output_path: 'output/landings/landing-build-1', brief: body.brief },
-      })
+      landingBuild = {
+        id: '21234567-89ab-7def-8123-456789abcdef',
+        request_id: body.request_id,
+        idea_run_id: runId,
+        thesis_id: runId,
+        template_id: 'community',
+        brief: body.brief,
+        status: 'queued',
+        build_manifest: null,
+        artifact_sha256: null,
+        firebase_site_id: 'natal-landings-86123',
+        firebase_version: null,
+        public_url: null,
+        error_code: null,
+        error_message: null,
+        created_at: '2026-08-22T00:00:00Z',
+        updated_at: '2026-08-22T00:00:00Z',
+        completed_at: null,
+      }
+      return json(landingBuild)
+    }
+    if (url.pathname === '/api/v1/landings/builds/21234567-89ab-7def-8123-456789abcdef') {
+      landingBuild = {
+        ...(landingBuild || {}),
+        status: 'published',
+        artifact_sha256: 'a'.repeat(64),
+        firebase_version: 'fixture-version-1',
+        public_url: 'https://natal-landings-86123.web.app/builds/21234567-89ab-7def-8123-456789abcdef/',
+        updated_at: '2026-08-22T00:00:01Z',
+        completed_at: '2026-08-22T00:00:01Z',
+      }
+      return json(landingBuild)
     }
     if (url.pathname === '/api/v1/branding/cases') return json({ items: [{
       idea_run_id: runId, owner_idea: 'Make credible progress visible.', created_at: '2026-08-20T00:00:00Z',
@@ -199,16 +231,20 @@ test('renders the authenticated owner console without horizontal overflow', asyn
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('creates a Natal builder plan from a completed Idea evaluation', async ({ page }) => {
+test('builds and publishes a Natal landing from a completed Idea evaluation', async ({ page }) => {
   await page.goto('/?e2e=1&page=landings')
   await expect(page.getByRole('heading', { name: 'Лендинги' })).toBeVisible()
   await expect(page.getByLabel('Бізнес-ідея')).toHaveValue('Make credible progress visible.')
   await expect(page.getByText('РЕКОМЕНДОВАНО')).toBeVisible()
   await page.getByLabel(/Спільнота \/ подія/).check()
   await page.getByLabel('Бізнес-ідея').fill('A sharper evidence-backed landing')
-  await page.getByRole('button', { name: /Передати Natal builder agent/ }).click()
-  await expect(page.getByText('Builder plan створено')).toBeVisible()
-  await expect(page.getByText(/output\/landings\/landing-build-1/)).toBeVisible()
+  await page.getByRole('button', { name: /Зібрати й опублікувати у Firebase/ }).click()
+  await expect(page.getByRole('heading', { name: 'Лендинг опубліковано' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /Відкрити лендинг/ })).toHaveAttribute(
+    'href', 'https://natal-landings-86123.web.app/builds/21234567-89ab-7def-8123-456789abcdef/',
+  )
+  await expect(page.getByText('Лише Natal лендинги')).toBeVisible()
+  await expect(page.getByText('Відкрити Завдання')).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 

@@ -365,16 +365,26 @@ export interface LandingCandidate {
   verdict?: 'survives' | 'weak' | 'rejected' | null
 }
 
-export interface LandingBuilderJob extends Job {
-  landing: {
-    build_id: string
-    idea_run_id: string
-    template_id: LandingTemplate['id']
-    recommended_template_id: LandingTemplate['id']
-    output_path: string
-    brief: LandingBrief
-  }
-  created_by: string
+export type LandingBuildStatus = 'queued' | 'building' | 'publishing' | 'published' | 'failed'
+
+export interface LandingBuild {
+  id: string
+  request_id: string
+  idea_run_id: string
+  thesis_id?: string | null
+  template_id: LandingTemplate['id']
+  brief: LandingBrief
+  status: LandingBuildStatus
+  build_manifest?: Record<string, unknown> | null
+  artifact_sha256?: string | null
+  firebase_site_id: string
+  firebase_version?: string | null
+  public_url?: string | null
+  error_code?: string | null
+  error_message?: string | null
+  created_at: string
+  updated_at: string
+  completed_at?: string | null
 }
 
 export interface Creative {

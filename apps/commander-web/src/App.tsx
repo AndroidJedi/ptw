@@ -96,7 +96,7 @@ function Console({ user }: { user: User }) {
     {page === 'overview' && <OverviewView api={api} language={language} />}
     {page === 'ideas' && <IdeasView api={api} language={language} initialRunId={initialLocation.runId} />}
     {page === 'branding' && <BrandingView api={api} language={language} initialRunId={initialLocation.runId} />}
-    {page === 'landings' && <LandingView api={api} language={language} onOpenJobs={() => navigate('jobs')} />}
+    {page === 'landings' && <LandingView api={api} language={language} />}
     {page === 'jobs' && <JobsView api={api} />}
     {page === 'more' && <MoreView api={api} />}
   </Shell>

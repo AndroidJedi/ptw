@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Natal landing builder deployed on live Branding v1
+Status: Natal one-click Firebase publisher ready for production deployment
 Updated: 2026-08-22
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -11,29 +11,30 @@ Natal logo and six SVG marks are digest-pinned, one mobile-first UI kit is share
 by product, community/event, and waitlist/concept templates adapted from the
 three supplied landing projects, and a deterministic Python builder produces a
 dependency-free static site with normalized brief and source provenance. The
-new `$natal-landing-builder` skill prevents brand drift, fabricated proof, and
-implicit publishing.
+`$natal-landing-builder` prevents brand drift and fabricated proof; its
+publication authority is narrowly limited to the owner-authenticated,
+server-pinned Firebase workflow.
 
 The Owner Console adds a sixth `Лендинги` destination. It loads completed live
 Idea Laval evaluations, maps the preferred thesis and mechanisms into editable
 business idea, target audience, pain, promise, features, steps, and CTA fields,
 and recommends a template with an explicit owner override. Submitting resolves
 the completed case again in Owner Gateway, preserves server-owned Laval/thesis
-IDs, and creates the existing approval-gated Commander plan with a unique local
-output target. This path generates a preview artifact and does not deploy or
-publish the resulting landing.
+IDs, and creates a PostgreSQL-backed Landing build with stable Idea Laval
+lineage. The gateway starts the deterministic builder immediately, publishes
+successful output to the dedicated `natal-landings-86123` Firebase Hosting
+site, and returns an exact public URL. The Landing tab polls and lists only
+Landing builds, with a safe retry for durable failures; it no longer sends the
+owner to unrelated global Jobs or depends on a Commander planning turn.
 
-PTW release `natal-landings-4c52f13` from commit `4c52f13` is deployed on all
-three healthy application services. Firebase Hosting version
-`6e11f9d519157870` serves `index-CDcMRHN_.js`, `App-r8x9ZynO.js`, and
-`ptw-shell-v22`. The live bundle contains all three Landing API paths and the
-Landing workbench marker; unauthenticated template, candidate, and builder-job
-requests each return HTTP 401. The strict production dependency audit sees two
-preserved Idea Laval runs, all 11 expected modes, all five Branding modes, and
-one sampled Branding-ready case. Canonical skill links, Commander and Owner
-Gateway skill mounts, and the three runtime templates pass on the VPS. Final
-interaction acceptance remains an owner-authenticated browser reload and one
-approval-gated preview build; no landing is published by this flow.
+This correction follows the first real owner click. Legacy command
+`71ff6c4e-53cd-47ca-8389-2fa1763729ba` created only a plan request and failed
+before planning because the mounted Codex refresh token could not be refreshed.
+The previous Firebase Auth service account also had no Hosting permission. The
+failed command remains audit history. The replacement uses a separate publisher
+identity, a server-pinned site, an explicit public-file allowlist, and never
+publishes `brief.json` or `build.json`. Production release evidence and the
+first real published landing will be recorded after deployment.
 
 Branding v1 now runs inside the existing Idea process as the evidence-backed
 stage between a completed live Idea case and future visual-post generation. The

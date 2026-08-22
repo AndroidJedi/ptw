@@ -1,9 +1,11 @@
-import { ArrowRight, Check, LayoutTemplate, Sparkles } from 'lucide-react'
+import { ArrowRight, Check, ExternalLink, LayoutTemplate, LoaderCircle, RotateCcw, Sparkles, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
 import { local, type Language } from '../i18n'
-import type { LandingBrief, LandingBuilderJob, LandingCandidate, LandingFeature, LandingTemplate } from '../types'
+import type { LandingBrief, LandingBuild, LandingCandidate, LandingFeature, LandingTemplate } from '../types'
+
+const activeStatuses = new Set(['queued', 'building', 'publishing'])
 
 function featureLines(items: LandingFeature[]) {
   return items.map((item) => `${item.title} — ${item.description}`).join('\n')
@@ -18,18 +20,32 @@ function parseFeatureLines(value: string): LandingFeature[] {
   })
 }
 
-export function LandingView({ api, language, onOpenJobs }: {
+function buildLabel(status: LandingBuild['status']) {
+  return ({
+    queued: 'Збірку поставлено в чергу',
+    building: 'Natal збирає сторінку',
+    publishing: 'Публікуємо у Firebase',
+    published: 'Лендинг опубліковано',
+    failed: 'Збірка не завершилась',
+  } as Record<LandingBuild['status'], string>)[status]
+}
+
+function upsertBuild(items: LandingBuild[], incoming: LandingBuild) {
+  return [incoming, ...items.filter((item) => item.id !== incoming.id)]
+}
+
+export function LandingView({ api, language }: {
   api: ApiClient
   language: Language
-  onOpenJobs: () => void
 }) {
   const [templates, setTemplates] = useState<LandingTemplate[] | null>(null)
   const [candidates, setCandidates] = useState<LandingCandidate[] | null>(null)
+  const [builds, setBuilds] = useState<LandingBuild[] | null>(null)
   const [selectedRun, setSelectedRun] = useState('')
   const [templateId, setTemplateId] = useState<LandingTemplate['id'] | ''>('')
   const [brief, setBrief] = useState<LandingBrief | null>(null)
   const [features, setFeatures] = useState('')
-  const [job, setJob] = useState<LandingBuilderJob | null>(null)
+  const [visibleBuildId, setVisibleBuildId] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -38,9 +54,11 @@ export function LandingView({ api, language, onOpenJobs }: {
     Promise.all([
       api.get<{ items: LandingTemplate[] }>('/api/v1/landings/templates'),
       api.get<{ items: LandingCandidate[] }>('/api/v1/landings/candidates?limit=30'),
-    ]).then(([templateData, candidateData]) => {
+      api.get<{ items: LandingBuild[] }>('/api/v1/landings/builds?limit=30'),
+    ]).then(([templateData, candidateData, buildData]) => {
       setTemplates(templateData.items)
       setCandidates(candidateData.items)
+      setBuilds(buildData.items)
       setSelectedRun((current) => current || candidateData.items[0]?.idea_run_id || '')
     }).catch((cause: Error) => setError(cause.message))
   }
@@ -50,13 +68,37 @@ export function LandingView({ api, language, onOpenJobs }: {
     () => candidates?.find((item) => item.idea_run_id === selectedRun) || null,
     [candidates, selectedRun],
   )
+  const visibleBuild = useMemo(
+    () => builds?.find((item) => item.id === visibleBuildId)
+      || builds?.find((item) => item.idea_run_id === selectedRun)
+      || null,
+    [builds, selectedRun, visibleBuildId],
+  )
+  const activeBuild = builds?.find((item) => activeStatuses.has(item.status)) || null
+
   useEffect(() => {
     if (!selected) return
     setBrief(structuredClone(selected.brief))
     setFeatures(featureLines(selected.brief.key_features))
     setTemplateId(selected.recommended_template_id)
-    setJob(null)
+    setVisibleBuildId('')
   }, [selected])
+
+  useEffect(() => {
+    if (!visibleBuild || !activeStatuses.has(visibleBuild.status)) return
+    let active = true
+    const refresh = async () => {
+      try {
+        const updated = await api.get<LandingBuild>(`/api/v1/landings/builds/${visibleBuild.id}`)
+        if (active) setBuilds((current) => upsertBuild(current || [], updated))
+      } catch (cause) {
+        if (active) setError((cause as Error).message)
+      }
+    }
+    void refresh()
+    const timer = window.setInterval(() => { void refresh() }, 1500)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [api, visibleBuild?.id, visibleBuild?.status])
 
   const update = (key: 'business_idea' | 'target_audience' | 'pain' | 'promise', value: string) => {
     setBrief((current) => current ? { ...current, [key]: value } : current)
@@ -71,18 +113,28 @@ export function LandingView({ api, language, onOpenJobs }: {
       setError('Додайте хоча б одну ключову перевагу.')
       return
     }
-    setBusy(true); setError(''); setJob(null)
+    setBusy(true); setError('')
     try {
-      const created = await api.post<LandingBuilderJob>('/api/v1/landings/builder-jobs', {
+      const created = await api.post<LandingBuild>('/api/v1/landings/builds', {
+        request_id: window.crypto.randomUUID(),
         idea_run_id: selected.idea_run_id,
         template_id: templateId,
         brief: { ...brief, key_features: keyFeatures },
       })
-      setJob(created)
+      setBuilds((current) => upsertBuild(current || [], created))
+      setVisibleBuildId(created.id)
+    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+  }
+  const retry = async (build: LandingBuild) => {
+    setBusy(true); setError('')
+    try {
+      const updated = await api.post<LandingBuild>(`/api/v1/landings/builds/${build.id}/retry`, {})
+      setBuilds((current) => upsertBuild(current || [], updated))
+      setVisibleBuildId(updated.id)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
 
-  if (!templates || !candidates) return error ? <ErrorState message={error} retry={load} /> : <Loading />
+  if (!templates || !candidates || !builds) return error ? <ErrorState message={error} retry={load} /> : <Loading />
   return <>
     <PageHeader eyebrow="NATAL LANDING BUILDER" title="Лендинги" />
     {error && <ErrorState message={error} retry={load} />}
@@ -109,7 +161,7 @@ export function LandingView({ api, language, onOpenJobs }: {
       </section>
 
       {brief && <section className="landing-brief panel">
-        <div className="landing-section-head"><div><small>03 · BRIEF ДЛЯ AGENT</small><h2>Перевірте зміст</h2></div><LayoutTemplate aria-hidden="true" /></div>
+        <div className="landing-section-head"><div><small>03 · ЗМІСТ ЛЕНДИНГУ</small><h2>Перевірте зміст</h2></div><LayoutTemplate aria-hidden="true" /></div>
         <p className="landing-brand-lock"><img src="/natal-logo-icon.svg" alt="" onError={(event) => { event.currentTarget.hidden = true }} />Назва й логотип зафіксовані: <strong>Natal</strong></p>
         <div className="landing-form-grid">
           <label>Бізнес-ідея<textarea rows={3} value={brief.business_idea} onChange={(event) => update('business_idea', event.target.value)} /></label>
@@ -122,11 +174,18 @@ export function LandingView({ api, language, onOpenJobs }: {
           <label>Текст CTA<input value={brief.cta.label} onChange={(event) => updateCta('label', event.target.value)} /></label>
           <label>Посилання CTA<input value={brief.cta.url} onChange={(event) => updateCta('url', event.target.value)} /></label>
         </div>
-        <button className="primary large" disabled={busy || !templateId} onClick={submit}>{busy ? 'Commander готує план…' : 'Передати Natal builder agent'}<ArrowRight aria-hidden="true" /></button>
-        <p className="landing-no-publish">Створюється план із source IDs. Публікація або deploy не запускаються.</p>
+        <button className="primary large" disabled={busy || !templateId || Boolean(activeBuild)} onClick={submit}>{busy ? 'Запускаємо…' : activeBuild ? 'Інша збірка вже виконується' : 'Зібрати й опублікувати у Firebase'}<ArrowRight aria-hidden="true" /></button>
+        <p className="landing-publish-note">Збірка стартує одразу. Після перевірки сторінка автоматично публікується на окремому Firebase Hosting site.</p>
       </section>}
 
-      {job && <section className="landing-job-ready" role="status"><Check aria-hidden="true" /><div><small>BUILD {job.landing.build_id}</small><h2>Builder plan створено</h2><p>{job.landing.template_id} · {job.landing.output_path}</p></div><button className="secondary" onClick={onOpenJobs}>Відкрити Завдання</button></section>}
+      {visibleBuild && <section className={`landing-build-state ${visibleBuild.status}`} role="status">
+        {activeStatuses.has(visibleBuild.status) ? <LoaderCircle className="spin" aria-hidden="true" /> : visibleBuild.status === 'failed' ? <TriangleAlert aria-hidden="true" /> : <Check aria-hidden="true" />}
+        <div><small>BUILD {visibleBuild.id}</small><h2>{buildLabel(visibleBuild.status)}</h2><p>{visibleBuild.template_id} · Firebase {visibleBuild.firebase_site_id}{visibleBuild.firebase_version ? ` · ${visibleBuild.firebase_version}` : ''}</p>{visibleBuild.error_message && <p className="landing-build-error">{visibleBuild.error_message}</p>}</div>
+        {visibleBuild.status === 'published' && visibleBuild.public_url && <a className="secondary" href={visibleBuild.public_url} target="_blank" rel="noreferrer">Відкрити лендинг <ExternalLink aria-hidden="true" /></a>}
+        {visibleBuild.status === 'failed' && <button className="secondary" disabled={busy || Boolean(activeBuild)} onClick={() => retry(visibleBuild)}>Повторити <RotateCcw aria-hidden="true" /></button>}
+      </section>}
+
+      {builds.length > 0 && <section className="landing-history panel"><div className="landing-section-head"><div><small>ІСТОРІЯ</small><h2>Лише Natal лендинги</h2></div></div>{builds.slice(0, 10).map((build) => <button key={build.id} className={visibleBuild?.id === build.id ? 'selected' : ''} onClick={() => setVisibleBuildId(build.id)}><span>{buildLabel(build.status)}</span><strong>{build.brief.business_idea}</strong><small>{build.template_id} · {build.id.slice(0, 8)}</small></button>)}</section>}
     </div>}
   </>
 }

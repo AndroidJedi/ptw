@@ -537,7 +537,7 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .landing-workbench { width: min(100%, 1040px); margin: 0 auto; display: grid; gap: 14px; }
 .landing-workbench .panel { margin: 0; }
 .landing-section-head { margin-bottom: 16px; display: flex; align-items: start; justify-content: space-between; gap: 16px; }
-.landing-section-head small, .landing-job-ready small { color: var(--pink); font-size: 9px; font-weight: 900; letter-spacing: .13em; }
+.landing-section-head small, .landing-build-state small { color: var(--pink); font-size: 9px; font-weight: 900; letter-spacing: .13em; }
 .landing-section-head h2 { margin: 5px 0 0; font-size: 22px; }
 .landing-section-head > svg { width: 24px; color: var(--pink); }
 .landing-source label, .landing-brief > label, .landing-form-grid label { display: block; color: #fff; font-size: 12px; font-weight: 800; }
@@ -556,12 +556,24 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .landing-form-grid { display: grid; gap: 0 12px; }
 .landing-brief label small { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; font-weight: 500; }
 .landing-brief textarea, .landing-brief input { font-size: 16px; line-height: 1.45; }
-.landing-no-publish { margin: 10px 0 0; color: var(--muted); text-align: center; font-size: 9px; }
-.landing-job-ready { padding: 16px; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 12px; align-items: center; border: 1px solid #38604a; border-radius: 18px; background: #102019; }
-.landing-job-ready > svg { width: 28px; padding: 6px; border-radius: 50%; color: #bfffd9; background: #1b4930; }
-.landing-job-ready h2 { margin: 4px 0; font-size: 18px; }
-.landing-job-ready p { margin: 0; color: var(--muted); overflow-wrap: anywhere; font: 9px/1.45 ui-monospace, monospace; }
-.landing-job-ready button { grid-column: 1 / -1; width: 100%; }
+.landing-publish-note { margin: 10px 0 0; color: var(--muted); text-align: center; font-size: 9px; }
+.landing-build-state { padding: 16px; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 12px; align-items: center; border: 1px solid #315864; border-radius: 18px; background: #0f2025; }
+.landing-build-state.published { border-color: #38604a; background: #102019; }
+.landing-build-state.failed { border-color: #703344; background: #281218; }
+.landing-build-state > svg { width: 28px; padding: 6px; border-radius: 50%; color: #c9f6fd; background: #183e47; }
+.landing-build-state.published > svg { color: #bfffd9; background: #1b4930; }
+.landing-build-state.failed > svg { color: #ffd0dc; background: #5a1e31; }
+.landing-build-state h2 { margin: 4px 0; font-size: 18px; }
+.landing-build-state p { margin: 0; color: var(--muted); overflow-wrap: anywhere; font: 9px/1.45 ui-monospace, monospace; }
+.landing-build-state .landing-build-error { margin-top: 7px; color: #ffd0dc; font-family: inherit; }
+.landing-build-state > button, .landing-build-state > a { grid-column: 1 / -1; width: 100%; }
+.landing-build-state .spin { animation: landing-spin .9s linear infinite; }
+.landing-history { display: grid; gap: 8px; }
+.landing-history > button { padding: 12px; display: grid; gap: 4px; border: 1px solid var(--line); border-radius: 13px; color: #fff; background: #0e0e10; text-align: left; }
+.landing-history > button.selected { border-color: var(--pink); background: #241018; }
+.landing-history > button span { color: var(--pink); font-size: 9px; font-weight: 900; }
+.landing-history > button small { color: var(--muted); font: 9px/1.4 ui-monospace, monospace; }
+@keyframes landing-spin { to { transform: rotate(360deg); } }
 
 @media (min-width: 840px) {
   .app-shell { display: grid; grid-template-columns: 104px 1fr; }
@@ -606,8 +618,8 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
   .brand-stages { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .landing-template-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .landing-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .landing-job-ready { grid-template-columns: 34px minmax(0,1fr) auto; }
-  .landing-job-ready button { grid-column: auto; width: auto; }
+  .landing-build-state { grid-template-columns: 34px minmax(0,1fr) auto; }
+  .landing-build-state > button, .landing-build-state > a { grid-column: auto; width: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }

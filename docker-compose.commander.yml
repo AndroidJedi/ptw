@@ -148,6 +148,9 @@ services:
       COMMANDER_ASSET_DIR: /var/lib/ptw/assets
       OWNER_CONTROL_DATABASE: /var/lib/ptw-owner/control.sqlite3
       FIREBASE_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-service-account.json
+      FIREBASE_LANDING_SITE_ID: natal-landings-86123
+      FIREBASE_LANDING_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-landing-service-account.json
+      NATAL_LANDING_OUTPUT_ROOT: /var/lib/ptw-owner/landings
       ROOT_BROKER_SOCKET: /run/ptw-root-broker/control.sock
       CODEX_HOME: /run/ptw-auth
       CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
@@ -162,6 +165,7 @@ services:
       - owner-control:/var/lib/ptw-owner
       - /run/ptw-root-broker:/run/ptw-root-broker
       - /opt/ptw/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
+      - /opt/ptw/secrets/firebase-landing-service-account.json:/run/secrets/firebase-landing-service-account.json:ro
       - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
       - /root/.codex/auth.json:/run/ptw-auth/auth.json:ro
       - ./skills:/run/ptw-auth/skills

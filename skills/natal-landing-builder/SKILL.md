@@ -1,6 +1,6 @@
 ---
 name: natal-landing-builder
-description: Build fast, dependency-free Natal landing pages from a structured brief or completed PTW Idea Laval evaluation. Use for selecting among the Natal product, community, and waitlist templates, preparing landing copy, generating a previewable static build, or updating an existing Natal landing. Do not use for unrelated brands or automatic publishing.
+description: Build fast, dependency-free Natal landing pages from a structured brief or completed PTW Idea Laval evaluation. Use for selecting among the Natal product, community, and waitlist templates, preparing landing copy, generating a previewable static build, updating an existing Natal landing, or running the authenticated PTW one-click Firebase landing workflow. Do not use for unrelated brands or arbitrary publishing targets.
 ---
 
 # Natal Landing Builder
@@ -27,8 +27,18 @@ template system canonical under `natal/`.
    deadlines, scarcity, launch availability, or integrations. If proof is not
    supplied, keep the builder's explicit no-proof state.
 6. Generate only within the output path named by the approved task. A normal
-   build is local static output, not authorization to deploy, publish, spend,
-   contact users, or change another app.
+   command-line or agent build is local static output, not authorization to
+   deploy, publish, spend, contact users, or change another app.
+7. Automatic publication is allowed only for the owner-authenticated
+   `POST /api/v1/landings/builds` workflow. The server must resolve the
+   dedicated Firebase site and source IDs; never accept a caller-supplied site,
+   project, credential, output path, or arbitrary file tree. Persist the build
+   and its `derived_from` Idea source before starting, and expose only its
+   landing-domain status and retry controls.
+8. Publish only allowlisted static HTML, CSS, JavaScript, SVG, and PNG files.
+   Keep `brief.json`, `build.json`, credentials, source IDs, and other internal
+   metadata private. Stop before the Firebase release if the PTW emergency stop
+   becomes active.
 
 ## Generate and verify
 
@@ -54,3 +64,11 @@ tokens, and no unsupported claims. Run:
 python3 -m unittest discover -s tests/commander -p 'test_natal_builder.py' -v
 git diff --check
 ```
+
+For the authenticated one-click workflow, also verify that one request creates
+one idempotent PostgreSQL build, starts it immediately, reaches `published`,
+returns the exact Firebase URL, survives an Owner Gateway restart, and appears
+only in the Landing tab history. Confirm the public URL serves the selected
+brief and that `/brief.json` and `/build.json` are not published. A Firebase or
+build failure must end in a durable `failed` state with a safe retry action; it
+must never look like a successful plan or redirect the owner to global Jobs.

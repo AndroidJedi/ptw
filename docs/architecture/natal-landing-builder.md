@@ -1,6 +1,6 @@
 # Natal landing builder
 
-Status: local implementation complete; production deployment not requested
+Status: production deployment live; owner-browser interaction acceptance pending
 Updated: 2026-08-22
 
 ## Purpose
@@ -48,6 +48,12 @@ This first integration deliberately reuses durable command-session and platform
 job history. Generated pages are test artifacts; a future publishing milestone
 must add its own PostgreSQL landing entity/artifact lineage and explicit deploy
 contract before presenting published state as authoritative.
+
+Release `natal-landings-4c52f13` is deployed on the three PTW application
+services, and Firebase Hosting version `6e11f9d519157870` serves the Landings
+tab. The production dependency, skill-mount, bundle-marker, unauthenticated
+boundary, gateway health, and canonical-origin CORS audits pass. The remaining
+acceptance is an owner-authenticated creation and approval of one preview plan.
 
 ## Verification
 

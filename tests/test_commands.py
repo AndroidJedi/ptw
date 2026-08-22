@@ -86,9 +86,12 @@ def test_structured_bridge_accepts_laval_modes_and_full_contract() -> None:
         "branding_logo_generation",
     }
     assert {mode for mode in STRUCTURED_LLM_MODES if mode.startswith("branding_")} == branding_modes
+    landing_modes = {"natal_landing_revision"}
+    assert {mode for mode in STRUCTURED_LLM_MODES if mode.startswith("natal_landing_")} == landing_modes
     assert structured_llm_capabilities() == {
         "laval_modes": sorted(laval_modes),
         "branding_modes": sorted(branding_modes),
+        "landing_modes": sorted(landing_modes),
         "branding_image": {
             "ready": True,
             "model": BRANDING_IMAGE_MODEL,
@@ -98,7 +101,7 @@ def test_structured_bridge_accepts_laval_modes_and_full_contract() -> None:
         },
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
     }
-    for mode in laval_modes | branding_modes:
+    for mode in laval_modes | branding_modes | landing_modes:
         validate_structured_llm_request({
             "mode": mode,
             "system_prompt": (

@@ -99,6 +99,7 @@ class FirebaseHostingPublisherTests(unittest.TestCase):
         decoded = {gzip.decompress(payload) for _url, payload, _kwargs in session.uploads}
         self.assertIn(b"<h1>Natal test landing</h1>", decoded)
         self.assertNotIn(b'{"private":"source brief"}', decoded)
+        self.assertEqual({"updateMask": "status"}, session.requests[3][2]["params"])
 
     def test_matching_current_release_is_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

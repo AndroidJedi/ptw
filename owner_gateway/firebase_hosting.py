@@ -180,7 +180,7 @@ class FirebaseHostingPublisher:
         self._request(
             "PATCH",
             f"{API_ROOT}/{version_name}",
-            params={"update_mask": "status"},
+            params={"updateMask": "status"},
             json={"status": "FINALIZED"},
         )
         self._request(

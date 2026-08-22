@@ -1,6 +1,6 @@
 # Natal landing builder
 
-Status: one-click Firebase publication live and production-verified
+Status: iterative three-template review workflow release candidate
 Updated: 2026-08-22
 
 ## Purpose
@@ -35,24 +35,48 @@ cannot change those source IDs or the Natal brand.
 
 Template recommendation is deterministic: community/event semantics choose
 `community`, product/system semantics choose `product`, and other early
-concepts choose `waitlist`. The owner may explicitly override the structure.
+concepts choose `waitlist`. It is only a default. All three templates remain
+selectable after every revision, and the owner may switch or reapply them in
+any order without replacing an earlier build.
 
 Submitting the brief calls `POST /api/v1/landings/builds` with a browser-created
 idempotency UUID. Under the shared heavy-operation lock, Owner Gateway resolves
-the completed case again, ignores browser-provided brand/source IDs, creates a
-PostgreSQL `landing` entity plus `derived_from` edge to the stable Idea Laval
-source alias, and commits the `queued` build before starting it. The deterministic
-builder then moves through `building` and `publishing` without a Commander plan
-or a Codex login dependency. The Landing tab polls that build directly and shows
-its Firebase URL or a retryable failure; it never redirects to unrelated Jobs.
+the completed case again, ignores browser-provided brand/source IDs, and first
+requires the independent bridge to advertise `natal_landing_revision`. It then
+creates a PostgreSQL `landing` entity plus `derived_from` edge to the stable Idea
+Laval source alias and commits the `queued` revision before starting it. A fresh,
+schema-bound builder-agent turn receives the selected template, current brief,
+canonical skill contract, and exact captured feedback IDs. It may rewrite the
+bounded copy, but code preserves the source IDs, CTA destination, and verified
+proof allowlist. The deterministic static builder then moves through `building`
+and `publishing`. The Landing tab polls that build directly and shows its
+embedded Firebase preview or a retryable failure; it never redirects to
+unrelated Jobs.
+
+Every revision has an increasing number within its Idea evaluation. A revision
+may `supersede` any published revision selected from that Idea's history, which
+keeps experimentation possible instead of forcing one template sequence. The
+input brief, agent-revised brief, application summary, invocation provenance,
+and consumed feedback UUIDs are immutable build facts.
+
+Feedback can be added only to a published revision with an artifact digest. It
+creates an append-only `HumanFeedback` entity that `evaluates` that exact
+Landing, plus a zero-delta `WeightUpdate` that `adjusts` the stable reviewed
+template component. PostgreSQL is the runtime skill-memory authority; browser
+feedback never dirties `SKILL.md`. The next revision snapshots the latest 100
+feedback records for that Idea in chronological order, while older records and
+their graph edges remain immutable history.
 
 Publication uses the Firebase Hosting REST deployment flow with a dedicated
 service account and the server-pinned `natal-landings-86123` site. Each complete
-release preserves recent published builds under `/builds/<build-id>/` and makes
+release preserves every published build under `/builds/<build-id>/` and makes
 the newest build the site root. The publisher accepts only HTML, CSS,
 JavaScript, SVG, and PNG files, rejects symlinks and unexpected files, and does
 not stage the normalized `brief.json` or provenance-bearing `build.json`. The
-emergency stop is checked again immediately before the external release.
+emergency stop is checked again immediately before the external release. The
+dedicated site's frame policy permits previews only from the two PTW Firebase
+owner origins, and the Owner Hosting policy explicitly permits the dedicated
+Natal site.
 
 The old `/api/v1/landings/builder-jobs` route remains as a rollout compatibility
 alias, but it starts the same real build and publish lifecycle. Existing failed

@@ -23,6 +23,7 @@ from .firebase_hosting import FirebaseHostingPublisher
 from .landing import candidates_response, prepare_landing_build, templates_response
 from .landing_pipeline import LandingBuildCoordinator
 from .landing_repository import LandingBuildRepository
+from .landing_revision import LandingRevisionProvider
 from .platform import PlatformRepository
 from .read_models import DomainReadModels
 from .settings import Settings
@@ -43,6 +44,14 @@ def create_app(
         and settings.firebase_landing_site_id
         and settings.firebase_landing_service_account_path is not None
     ):
+        reviser = None
+        if settings.landing_llm_bridge_url and settings.telegram_bot_token:
+            reviser = LandingRevisionProvider(
+                bridge_url=settings.landing_llm_bridge_url,
+                token=settings.telegram_bot_token,
+                skill_path=settings.repository_path / "skills/natal-landing-builder/SKILL.md",
+                model=settings.landing_llm_model,
+            )
         landing_coordinator = LandingBuildCoordinator(
             repository=LandingBuildRepository(settings.commander_database_url),
             publisher=FirebaseHostingPublisher(
@@ -52,6 +61,7 @@ def create_app(
             ),
             output_root=settings.landing_output_root,
             stopped=platform.emergency_stop,
+            reviser=reviser,
         )
     owner = OwnerDependency(verifier or FirebaseVerifier(settings))
     tasks: set[asyncio.Task[Any]] = set()
@@ -197,7 +207,9 @@ def create_app(
         return {
             key: build.get(key)
             for key in (
-                "id", "request_id", "idea_run_id", "thesis_id", "template_id", "brief",
+                "id", "request_id", "idea_run_id", "thesis_id", "template_id",
+                "parent_build_id", "revision_number", "input_brief", "brief",
+                "skill_memory_feedback_ids", "revision_summary", "revision_invocation",
                 "status", "build_manifest", "artifact_sha256", "firebase_site_id",
                 "firebase_version", "public_url", "error_code", "error_message",
                 "created_at", "updated_at", "completed_at",
@@ -301,6 +313,18 @@ def create_app(
         idea_run_id = str(request.get("idea_run_id") or "").strip()
         require_laval_id(idea_run_id)
         template_id = str(request.get("template_id") or "auto").strip().lower()
+        parent_build_id = str(request.get("parent_build_id") or "").strip() or None
+        parent = None
+        if parent_build_id:
+            try:
+                UUID(parent_build_id)
+                parent = coordinator.get(parent_build_id)
+            except (KeyError, ValueError) as error:
+                raise HTTPException(status_code=404, detail="parent Natal landing revision not found") from error
+            if parent["idea_run_id"] != idea_run_id:
+                raise HTTPException(status_code=400, detail="parent landing revision belongs to another Idea evaluation")
+            if parent["status"] != "published":
+                raise HTTPException(status_code=409, detail="only a published landing can be revised")
         overrides = request.get("brief") or {}
         if not isinstance(overrides, Mapping):
             raise HTTPException(status_code=400, detail="brief must be an object")
@@ -314,7 +338,11 @@ def create_app(
                 item for item in cases.get("items") or []
                 if str(item.get("idea_run_id")) == idea_run_id
             )
-            prepared = prepare_landing_build(candidate, template_id, overrides)
+            prepared = prepare_landing_build(
+                candidate, template_id, overrides,
+                base_brief=parent["brief"] if parent else None,
+                parent_build_id=parent_build_id,
+            )
         except StopIteration as error:
             raise HTTPException(status_code=404, detail="completed Idea evaluation not found") from error
         except ValueError as error:
@@ -322,6 +350,10 @@ def create_app(
         async with operation_start_lock:
             await require_no_active_laval()
             require_no_active_codex()
+            try:
+                await asyncio.to_thread(coordinator.verify_ready)
+            except RuntimeError as error:
+                raise HTTPException(status_code=503, detail=str(error)) from error
             try:
                 build, created = coordinator.create(
                     prepared,
@@ -363,10 +395,27 @@ def create_app(
     @app.get("/api/v1/landings/builds")
     def landing_builds(
         limit: int = Query(default=30, ge=1, le=100),
+        idea_run_id: str | None = Query(default=None),
         _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         coordinator = require_landing_builder()
-        return {"items": [landing_response(item) for item in coordinator.list(limit)], "next_cursor": None}
+        if idea_run_id:
+            require_laval_id(idea_run_id)
+        return {
+            "items": [
+                landing_response(item)
+                for item in coordinator.list(limit, idea_run_id=idea_run_id)
+            ],
+            "next_cursor": None,
+        }
+
+    @app.get("/api/v1/landings/skill-memory")
+    def landing_skill_memory(
+        idea_run_id: str,
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(idea_run_id)
+        return {"items": require_landing_builder().skill_memory(idea_run_id)}
 
     @app.get("/api/v1/landings/builds/{build_id}")
     def landing_build(
@@ -378,6 +427,25 @@ def create_app(
             return landing_response(coordinator.get(build_id))
         except (KeyError, ValueError) as error:
             raise HTTPException(status_code=404, detail="Natal landing build not found") from error
+
+    @app.post("/api/v1/landings/builds/{build_id}/feedback", status_code=201)
+    def record_landing_feedback(
+        build_id: str,
+        request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        try:
+            UUID(build_id)
+            comment = str(request.get("comment") or "")
+            return require_landing_builder().record_feedback(
+                build_id,
+                comment=comment,
+                requested_by=f"firebase:{identity.uid}",
+            )
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Natal landing build not found") from error
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
 
     @app.post("/api/v1/landings/builds/{build_id}/retry", status_code=202)
     async def retry_landing_build(
@@ -394,6 +462,10 @@ def create_app(
         async with operation_start_lock:
             await require_no_active_laval()
             require_no_active_codex()
+            try:
+                await asyncio.to_thread(coordinator.verify_ready)
+            except RuntimeError as error:
+                raise HTTPException(status_code=503, detail=str(error)) from error
             try:
                 build = coordinator.retry(build_id)
             except (KeyError, ValueError) as error:
@@ -730,7 +802,9 @@ def create_app(
     ) -> dict[str, Any]:
         require_running()
         payload = {"text": request.get("text"), "config": request.get("config") or {}, "mode": request.get("mode") or "demo", "actor": f"firebase:{identity.uid}"}
-        return (await laval_bridge("POST", "/internal/web/laval/runs", body=payload)).json()
+        async with operation_start_lock:
+            require_no_active_codex()
+            return (await laval_bridge("POST", "/internal/web/laval/runs", body=payload)).json()
 
     @app.get("/api/v1/laval/runs/{run_id}")
     async def laval_run_status(

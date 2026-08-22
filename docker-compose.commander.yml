@@ -151,6 +151,8 @@ services:
       FIREBASE_LANDING_SITE_ID: natal-landings-86123
       FIREBASE_LANDING_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-landing-service-account.json
       NATAL_LANDING_OUTPUT_ROOT: /var/lib/ptw-owner/landings
+      LANDING_LLM_BRIDGE_URL: ${LANDING_LLM_BRIDGE_URL:-http://ptw-agent-platform-commander-api-1:8000/internal/llm/structured}
+      LANDING_LLM_MODEL: ${LANDING_LLM_MODEL:-codex-cli-default}
       ROOT_BROKER_SOCKET: /run/ptw-root-broker/control.sock
       CODEX_HOME: /run/ptw-auth
       CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex

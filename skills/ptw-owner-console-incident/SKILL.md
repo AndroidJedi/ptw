@@ -103,6 +103,16 @@ usable, run the VPS dependency audit with `PTW_REQUIRE_BRANDING_READY=1`; it
 must require provider readiness, the established bridge credential source, and
 at least one selectable case.
 
+For a Natal landing action that creates a plan but does not build, or opens
+unrelated Commander tasks, verify the Landing tab is using the dedicated
+landing-build API rather than a Commander plan. A production build must fail
+before persistence unless the bridge advertises `natal_landing_revision`, then
+move through revising, building, publishing, and published. Feedback belongs to
+the exact immutable published artifact and must be append-only skill memory;
+every later revision snapshots the feedback UUIDs it consumes. Verify all three
+templates remain selectable after every publication and that switching or
+reapplying a template creates a new revision for the same Idea evaluation.
+
 For a Branding timeout after logos are already visible, inspect the persisted
 run, stages, provider tasks, and active-operation guard before calling it stuck.
 `awaiting_review` with `OWNER_REVIEW` paused is the intentional owner boundary,

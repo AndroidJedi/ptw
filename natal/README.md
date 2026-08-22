@@ -19,6 +19,9 @@ assets. The builder refuses a non-empty output directory unless `--overwrite`
 is explicit.
 
 `skills/natal-landing-builder/` is the Commander/Codex agent contract. The
-Owner Console Landing tab prepares that skill invocation from completed Idea
-Laval evaluations through the normal plan-and-approval job lifecycle. It does
-not publish or deploy a page.
+Owner Console Landing workspace prepares a fresh, schema-bound builder-agent
+turn from a completed Idea Laval evaluation and its append-only feedback
+memory. The owner may apply `product`, `community`, and `waitlist` repeatedly
+in any order. Every immutable revision is then published through the
+server-pinned Firebase workflow; no Commander plan or global Jobs redirect is
+involved.

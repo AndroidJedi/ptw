@@ -74,6 +74,21 @@ print(f"Owner Gateway -> Idea Laval ready; runs={len(items)}")
 
 docker exec "$idea_container" python -m idea_generation.verify_bridge_contract
 
+docker exec "$owner_container" python -c '
+from owner_gateway.landing_revision import LandingRevisionProvider
+from owner_gateway.settings import Settings
+
+settings = Settings.from_environment()
+provider = LandingRevisionProvider(
+    bridge_url=settings.landing_llm_bridge_url,
+    token=settings.telegram_bot_token,
+    skill_path=settings.repository_path / "skills/natal-landing-builder/SKILL.md",
+    model=settings.landing_llm_model,
+)
+provider.verify_ready()
+print("Owner Gateway -> Natal landing revision bridge ready")
+'
+
 if [ "${PTW_REQUIRE_BRANDING_READY:-0}" = "1" ]; then
   docker exec "$owner_container" python -c '
 import httpx

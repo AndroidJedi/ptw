@@ -365,7 +365,18 @@ export interface LandingCandidate {
   verdict?: 'survives' | 'weak' | 'rejected' | null
 }
 
-export type LandingBuildStatus = 'queued' | 'building' | 'publishing' | 'published' | 'failed'
+export type LandingBuildStatus = 'queued' | 'revising' | 'building' | 'publishing' | 'published' | 'failed'
+
+export interface LandingFeedback {
+  id: string
+  build_id: string
+  idea_run_id?: string
+  template_id: LandingTemplate['id']
+  revision_number: number
+  comment: string
+  weight_update_id?: string
+  created_at: string
+}
 
 export interface LandingBuild {
   id: string
@@ -373,7 +384,13 @@ export interface LandingBuild {
   idea_run_id: string
   thesis_id?: string | null
   template_id: LandingTemplate['id']
+  parent_build_id?: string | null
+  revision_number: number
+  input_brief: LandingBrief
   brief: LandingBrief
+  skill_memory_feedback_ids: string[]
+  revision_summary?: string | null
+  revision_invocation?: Record<string, unknown> | null
   status: LandingBuildStatus
   build_manifest?: Record<string, unknown> | null
   artifact_sha256?: string | null

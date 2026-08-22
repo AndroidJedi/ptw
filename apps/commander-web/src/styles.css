@@ -542,6 +542,7 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .landing-section-head > svg { width: 24px; color: var(--pink); }
 .landing-source label, .landing-brief > label, .landing-form-grid label { display: block; color: #fff; font-size: 12px; font-weight: 800; }
 .landing-source select { width: 100%; min-height: 52px; margin: 6px 0 12px; padding: 0 12px; border: 1px solid var(--line); border-radius: 13px; color: #fff; background: var(--black); font: inherit; }
+.landing-source > p, .landing-review > p, .landing-memory > p { margin: 0 0 12px; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .landing-source details { color: var(--muted); font-size: 10px; }
 .landing-source details p { margin: 8px 0 0; overflow-wrap: anywhere; font-family: ui-monospace, monospace; line-height: 1.5; }
 .landing-template-grid { display: grid; gap: 8px; }
@@ -551,12 +552,14 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .landing-template-grid span { color: var(--pink); font-size: 8px; font-weight: 900; letter-spacing: .12em; }
 .landing-template-grid strong { margin: 8px 0 5px; font-size: 17px; }
 .landing-template-grid p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.landing-template-grid label > small { margin-top: auto; padding-top: 10px; color: #d6bac7; font-size: 8px; }
 .landing-brand-lock { min-height: 48px; padding: 11px 13px; display: flex; align-items: center; gap: 9px; border: 1px solid #315864; border-radius: 13px; color: #c9f6fd; background: #0f2025; font-size: 11px; }
 .landing-brand-lock img { width: 28px; height: 22px; object-fit: contain; }
 .landing-form-grid { display: grid; gap: 0 12px; }
 .landing-brief label small { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; font-weight: 500; }
 .landing-brief textarea, .landing-brief input { font-size: 16px; line-height: 1.45; }
 .landing-publish-note { margin: 10px 0 0; color: var(--muted); text-align: center; font-size: 9px; }
+.landing-notice { width: min(100%, 1040px); margin: 0 auto 14px; padding: 12px 14px; border: 1px solid #38604a; border-radius: 13px; color: #caffdc; background: #102019; font-size: 11px; }
 .landing-build-state { padding: 16px; display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 12px; align-items: center; border: 1px solid #315864; border-radius: 18px; background: #0f2025; }
 .landing-build-state.published { border-color: #38604a; background: #102019; }
 .landing-build-state.failed { border-color: #703344; background: #281218; }
@@ -566,6 +569,7 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .landing-build-state h2 { margin: 4px 0; font-size: 18px; }
 .landing-build-state p { margin: 0; color: var(--muted); overflow-wrap: anywhere; font: 9px/1.45 ui-monospace, monospace; }
 .landing-build-state .landing-build-error { margin-top: 7px; color: #ffd0dc; font-family: inherit; }
+.landing-build-state .landing-revision-summary { margin-top: 8px; color: #d8e9ed; font-family: inherit; }
 .landing-build-state > button, .landing-build-state > a { grid-column: 1 / -1; width: 100%; }
 .landing-build-state .spin { animation: landing-spin .9s linear infinite; }
 .landing-history { display: grid; gap: 8px; }
@@ -573,6 +577,14 @@ input, textarea, select { width: 100%; margin: 5px 0 18px; padding: 13px; border
 .landing-history > button.selected { border-color: var(--pink); background: #241018; }
 .landing-history > button span { color: var(--pink); font-size: 9px; font-weight: 900; }
 .landing-history > button small { color: var(--muted); font: 9px/1.4 ui-monospace, monospace; }
+.landing-review iframe { width: 100%; height: min(72svh, 760px); margin-bottom: 16px; border: 1px solid var(--line); border-radius: 16px; background: #0c0e12; }
+.landing-review label { display: block; color: #fff; font-size: 12px; font-weight: 800; }
+.landing-review textarea { min-height: 120px; font-size: 16px; line-height: 1.45; }
+.landing-review .primary { width: 100%; }
+.landing-memory ol { margin: 0; padding: 0; display: grid; gap: 8px; list-style: none; }
+.landing-memory li { padding: 12px 14px; border: 1px solid var(--line); border-radius: 13px; background: #0e0e10; }
+.landing-memory li small { color: var(--pink); font-size: 8px; font-weight: 900; letter-spacing: .1em; }
+.landing-memory li p { margin: 6px 0 0; color: #e5e0e3; font-size: 11px; line-height: 1.5; white-space: pre-wrap; }
 @keyframes landing-spin { to { transform: rotate(360deg); } }
 
 @media (min-width: 840px) {

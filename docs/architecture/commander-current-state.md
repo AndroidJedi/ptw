@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Natal one-click Firebase publisher live in production
+Status: Natal iterative three-template review workflow release candidate
 Updated: 2026-08-22
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -15,17 +15,30 @@ dependency-free static site with normalized brief and source provenance. The
 publication authority is narrowly limited to the owner-authenticated,
 server-pinned Firebase workflow.
 
-The Owner Console adds a sixth `Лендинги` destination. It loads completed live
+The Owner Console has a sixth `Лендинги` workspace. It loads completed live
 Idea Laval evaluations, maps the preferred thesis and mechanisms into editable
 business idea, target audience, pain, promise, features, steps, and CTA fields,
-and recommends a template with an explicit owner override. Submitting resolves
-the completed case again in Owner Gateway, preserves server-owned Laval/thesis
-IDs, and creates a PostgreSQL-backed Landing build with stable Idea Laval
-lineage. The gateway starts the deterministic builder immediately, publishes
-successful output to the dedicated `natal-landings-86123` Firebase Hosting
-site, and returns an exact public URL. The Landing tab polls and lists only
-Landing builds, with a safe retry for durable failures; it no longer sends the
-owner to unrelated global Jobs or depends on a Commander planning turn.
+and shows all three templates on every round. Recommendation is only a default:
+`product`, `community`, and `waitlist` can be switched or reapplied repeatedly
+in any order. Each application creates an increasing immutable revision for
+that Idea, optionally `supersedes` the published version selected from history,
+and preserves every earlier public URL.
+
+Before persistence, Owner Gateway now fails closed unless the independent
+ChatGPT-authenticated bridge advertises `natal_landing_revision`. A fresh,
+strict-schema builder-agent turn reads the canonical Natal skill, selected
+template, current brief, and captured feedback memory; code keeps source IDs,
+CTA destination, and verified proof server-owned. The static builder then
+publishes the revision to the dedicated `natal-landings-86123` Firebase site.
+The Landing tab polls only Landing builds, embeds the exact published page, and
+offers durable retry without redirecting to global Jobs or Commander plans.
+
+Owner comments are append-only runtime skill memory. Each comment creates a
+`HumanFeedback` that `evaluates` the exact published Landing plus a zero-delta
+`WeightUpdate` that `adjusts` the reviewed template component. A new revision
+snapshots the latest 100 feedback UUIDs in chronological order and links each
+as `derived_from`; older memory remains immutable graph history. Browser review
+never mutates `SKILL.md` or rewrites an earlier artifact.
 
 This correction follows the first real owner click. Legacy command
 `71ff6c4e-53cd-47ca-8389-2fa1763729ba` created only a plan request and failed

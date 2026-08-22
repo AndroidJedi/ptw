@@ -1,0 +1,105 @@
+from __future__ import annotations
+
+import unittest
+
+from owner_gateway.landing_revision import LandingRevisionProvider, MODE
+
+
+RUN_ID = "01234567-89ab-7def-8123-456789abcdef"
+
+
+def brief() -> dict:
+    return {
+        "schema_version": 1,
+        "brand": "Natal",
+        "language": "uk",
+        "source": {"laval_run_id": RUN_ID},
+        "business_idea": "Початкова ідея",
+        "target_audience": "Власники сервісних бізнесів",
+        "pain": "Клієнти зникають непомітно",
+        "promise": "Наступна дія стає видимою",
+        "key_features": [{"title": "Сигнали", "description": "Показують ризик"}],
+        "steps": [
+            {"title": "01", "description": "Підключити дані"},
+            {"title": "02", "description": "Побачити ризик"},
+        ],
+        "proof_points": ["Перевірений доказ"],
+        "faq": [],
+        "cta": {"label": "Спробувати Natal", "url": "#contact"},
+    }
+
+
+class Bridge:
+    def __init__(self) -> None:
+        self.last_invocation = {
+            "session_id": "61234567-89ab-7def-8123-456789abcdef",
+            "session_mode": "fresh",
+            "conversation_reused": False,
+        }
+        self.prepared = None
+        self.call = None
+
+    def capabilities(self):
+        return {"landing_modes": [MODE]}
+
+    def prepare_invocation(self, version: str, context_hash: str):
+        self.prepared = (version, context_hash)
+
+    def generate_structured(self, mode, system_prompt, payload, schema):
+        self.call = (mode, system_prompt, payload, schema)
+        return {
+            "brief": {
+                "language": "uk",
+                "business_idea": "Коротша ідея",
+                "target_audience": "Власники сервісних бізнесів",
+                "pain": "Втрата клієнтів стає видимою надто пізно",
+                "promise": "Покажіть наступну дію раніше",
+                "key_features": [{"title": "Сигнал", "description": "Показує ризик раніше"}],
+                "steps": [
+                    {"title": "01", "description": "Підключіть дані"},
+                    {"title": "02", "description": "Оберіть дію"},
+                ],
+                "proof_points": ["Перевірений доказ", "Вигаданий доказ"],
+                "faq": [],
+                "cta": {"label": "Побачити наступну дію", "url": "https://malicious.test"},
+            },
+            "application_summary": "Скорочено hero й посилено CTA.",
+        }
+
+
+class LandingRevisionProviderTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.provider = LandingRevisionProvider.__new__(LandingRevisionProvider)
+        self.provider.skill_contract = "Keep the Natal brand and apply owner feedback."
+        self.provider.bridge = Bridge()
+
+    def test_requires_landing_bridge_mode(self) -> None:
+        self.provider.verify_ready()
+        self.provider.bridge.capabilities = lambda: {"landing_modes": []}
+        with self.assertRaisesRegex(RuntimeError, "mode is unavailable"):
+            self.provider.verify_ready()
+
+    def test_applies_skill_memory_but_preserves_source_cta_target_and_verified_proof(self) -> None:
+        revised, summary, invocation = self.provider.revise(
+            template_id="community",
+            brief=brief(),
+            skill_memory=[{
+                "id": "11234567-89ab-7def-8123-456789abcdef",
+                "template_id": "product",
+                "revision_number": 1,
+                "comment": "Shorten the hero and strengthen the CTA.",
+            }],
+        )
+        self.assertEqual("Коротша ідея", revised["business_idea"])
+        self.assertEqual({"laval_run_id": RUN_ID}, revised["source"])
+        self.assertEqual("#contact", revised["cta"]["url"])
+        self.assertEqual(["Перевірений доказ"], revised["proof_points"])
+        self.assertEqual("Скорочено hero й посилено CTA.", summary)
+        self.assertEqual(MODE, invocation["mode"])
+        self.assertEqual(["11234567-89ab-7def-8123-456789abcdef"], invocation["feedback_ids"])
+        self.assertEqual(MODE, self.provider.bridge.call[0])
+        self.assertEqual("community", self.provider.bridge.call[2]["target_template"]["id"])
+
+
+if __name__ == "__main__":
+    unittest.main()

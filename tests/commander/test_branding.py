@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import socket
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -28,6 +29,12 @@ from idea_generation.brand_providers import (
     BRAND_OUTPUT_SCHEMAS,
     CodexBridgeBrandProvider,
     DeterministicBrandProvider,
+)
+from idea_generation.brand_revisions import (
+    deterministic_revision_plan,
+    render_lettermark,
+    validate_logo_result,
+    validate_revision_plan,
 )
 from idea_generation.operation_guard import HeavyOperationGuard, OperationConflict
 
@@ -107,10 +114,68 @@ class BrandingDomainTests(unittest.TestCase):
                     inspect(item)
 
         self.assertEqual(
-            {"REFERENCE_PLAN", "DESIGN_PRINCIPLES", "BRAND_BRIEF", "DIRECTION_SYNTHESIS"},
+            {"REFERENCE_PLAN", "DESIGN_PRINCIPLES", "BRAND_BRIEF", "DIRECTION_SYNTHESIS", "REVISION_PLANNER"},
             set(BRAND_OUTPUT_SCHEMAS),
         )
         inspect(BRAND_OUTPUT_SCHEMAS)
+
+    def test_owner_literal_overrides_text_free_direction_and_conflicts_fail_closed(self) -> None:
+        plan = deterministic_revision_plan("use just letters PTW, play around them")
+        self.assertEqual("lettermark", plan["strategy"])
+        self.assertEqual("PTW", plan["literal_text"])
+        self.assertTrue(plan["structural_change"])
+        self.assertTrue(plan["owner_overrides_soft_constraints"])
+        with self.assertRaisesRegex(ValueError, "lost or changed"):
+            validate_revision_plan(
+                {**plan, "strategy": "lettermark", "literal_text": "PWT"},
+                instruction="use just letters PTW, play around them",
+            )
+
+    @unittest.skipUnless(PIL_AVAILABLE, "Pillow is required")
+    def test_lettermark_is_exact_transparent_and_structurally_changed(self) -> None:
+        import hashlib
+        import io
+        from PIL import Image
+
+        manifest = normalize_direction(self.synthesis["directions"][0], 1)
+        source = self.provider.logo(manifest).content
+        plan = deterministic_revision_plan("use just letters PTW, play around them")
+        with tempfile.TemporaryDirectory() as directory:
+            source_path = Path(directory) / "source.png"
+            source_path.write_bytes(source)
+            result = render_lettermark(
+                source_path, hashlib.sha256(source).hexdigest(), manifest, plan
+            )
+        compliance = validate_logo_result(
+            source, result, plan=plan, reference_used=True,
+            rendered_literal_text="PTW",
+        )
+        self.assertTrue(compliance.passed, compliance.details)
+        self.assertEqual("PTW", compliance.details["literal_text"])
+        with Image.open(io.BytesIO(result)) as image:
+            self.assertEqual("PNG", image.format)
+            self.assertLess(image.convert("RGBA").getchannel("A").getextrema()[0], 255)
+
+    @unittest.skipUnless(PIL_AVAILABLE, "Pillow is required")
+    def test_structural_revision_rejects_unchanged_or_color_only_result(self) -> None:
+        import io
+        from PIL import Image, ImageEnhance
+
+        manifest = normalize_direction(self.synthesis["directions"][0], 1)
+        source = self.provider.logo(manifest).content
+        plan = deterministic_revision_plan("replace the symbol geometry")
+        unchanged = validate_logo_result(
+            source, source, plan=plan, reference_used=True
+        )
+        self.assertFalse(unchanged.passed)
+        with Image.open(io.BytesIO(source)) as image:
+            recolored = ImageEnhance.Color(image.convert("RGBA")).enhance(0.2)
+            stream = io.BytesIO()
+            recolored.save(stream, "PNG")
+        color_only = validate_logo_result(
+            source, stream.getvalue(), plan=plan, reference_used=True
+        )
+        self.assertFalse(color_only.passed)
 
     @unittest.skipUnless(PIL_AVAILABLE, "Pillow is required")
     def test_brand_kit_is_immutable_digest_addressed_and_has_required_code(self) -> None:
@@ -168,6 +233,8 @@ class BrandingBridgeProviderTests(unittest.TestCase):
                 "provider": "codex_chatgpt_imagegen",
                 "max_images_per_request": 1,
                 "asset_transport": "commander_asset_volume",
+                "reference_edit": True,
+                "reference_trace": "exact_path_and_sha256",
             },
             "max_request_bytes": 1_000_000,
         }
@@ -435,6 +502,103 @@ class BrandingGraphTests(unittest.TestCase):
             for edge in self.store.relationships()
         ))
 
+    def test_approved_logo_revision_supersedes_kit_with_complete_lineage(self) -> None:
+        idea_run_id = new_uuid7()
+        brand_run_id = new_uuid7()
+        published = self.publish_reviewed_run(brand_run_id)
+        selected = published[0]
+        first_kit = self.publisher.approve({
+            "run_id": brand_run_id,
+            "direction_id": selected["external_direction_id"],
+            "source_laval_run_id": idea_run_id,
+            "source_snapshot_hash": "a" * 64,
+            "manifest": self.manifests[0],
+            "current_creative_ids": {
+                item["external_direction_id"]: item["creative_id"] for item in published
+            },
+            "actor": "firebase:owner",
+            "artifact": {
+                "sha256": "b" * 64,
+                "storage_uri": "/var/lib/ptw/assets/kit-v1.zip",
+            },
+        })
+        feedback, updates = self.commander.record_text_feedback(
+            creative=self.store.get_entity(selected["creative_id"]),
+            artifact_digest=__import__("hashlib").sha256(
+                self.manifests[0]["name"].encode()
+            ).hexdigest(),
+            comment="use just letters PTW, play around them",
+            actor="firebase:owner",
+            supersedes_feedback_id=selected["feedback_id"],
+        )
+        revision_id = new_uuid7()
+        revised = self.publisher.publish_logo_revision({
+            "run_id": brand_run_id,
+            "direction_id": selected["external_direction_id"],
+            "revision_id": revision_id,
+            "revision": 2,
+            "previous_creative_id": selected["creative_id"],
+            "feedback_id": feedback.id,
+            "artifact": {
+                "sha256": "c" * 64,
+                "storage_uri": "/var/lib/ptw/assets/ptw.png",
+                "width": 1024, "height": 1024,
+            },
+        })
+        second_kit = self.publisher.approve_logo_revision({
+            "run_id": brand_run_id,
+            "source_laval_run_id": idea_run_id,
+            "source_snapshot_hash": "a" * 64,
+            "revision_id": revision_id,
+            "feedback_id": feedback.id,
+            "previous_brand_kit_id": first_kit["brand_kit_id"],
+            "previous_creative_id": selected["creative_id"],
+            "creative_id": revised["creative_id"],
+            "manifest": self.manifests[0],
+            "project_version": 2,
+            "actor": "firebase:owner",
+            "artifact": {
+                "sha256": "d" * 64,
+                "storage_uri": "/var/lib/ptw/assets/kit-v2.zip",
+            },
+        })
+        relationships = self.store.relationships()
+        self.assertTrue(any(
+            edge.source_id == second_kit["brand_kit_id"]
+            and edge.relation == RelationType.SUPERSEDES
+            and edge.target_id == first_kit["brand_kit_id"]
+            for edge in relationships
+        ))
+        self.assertTrue(any(
+            edge.source_id == second_kit["brand_kit_id"]
+            and edge.relation == RelationType.CONTAINS
+            and edge.target_id == revised["creative_id"]
+            for edge in relationships
+        ))
+        self.assertTrue(any(
+            edge.source_id == feedback.id
+            and edge.relation == RelationType.EVALUATES
+            and edge.target_id == selected["creative_id"]
+            for edge in relationships
+        ))
+        self.assertTrue(any(
+            edge.source_id == revised["creative_id"]
+            and edge.relation == RelationType.DERIVED_FROM
+            and edge.target_id == feedback.id
+            for edge in relationships
+        ))
+        self.assertTrue(any(
+            edge.source_id == second_kit["brand_kit_id"]
+            and edge.relation == RelationType.GENERATED
+            for edge in relationships
+        ))
+        self.assertTrue(updates)
+        self.assertTrue(any(
+            edge.source_id in {item.id for item in updates}
+            and edge.relation == RelationType.ADJUSTS
+            for edge in relationships
+        ))
+
     def test_completed_case_without_survivor_derives_direction_from_sources_only(self) -> None:
         manifest = self.manifests[0]
         with self.assertRaisesRegex(ValueError, "surviving Idea thesis"):
@@ -503,7 +667,7 @@ class BrandingPostgresPipelineTests(unittest.TestCase):
         names = {item["tablename"] for item in tables}
         self.assertTrue({
             "brand_runs", "brand_stage_runs", "brand_sources", "brand_directions",
-            "brand_logo_revisions", "brand_kits", "brand_provider_tasks",
+            "brand_logo_revisions", "brand_kit_logo_revisions", "brand_kits", "brand_provider_tasks",
             "brand_cost_events", "brand_run_actions",
         }.issubset(names))
         self.assertEqual("branding_v1", self.store.fetchone(
@@ -546,9 +710,12 @@ class BrandingPostgresPipelineTests(unittest.TestCase):
             def approve(self, payload):
                 return publisher.approve(payload)
 
+            def approve_revision(self, payload):
+                return publisher.approve_logo_revision(payload)
+
         with self.store.transaction() as connection:
             for table in (
-                "brand_run_actions", "brand_cost_events", "brand_provider_tasks", "brand_kits",
+                "brand_run_actions", "brand_cost_events", "brand_provider_tasks", "brand_kit_logo_revisions", "brand_kits",
                 "brand_logo_revisions", "brand_directions", "brand_sources", "brand_stage_runs", "brand_runs",
                 "laval_llm_invocations", "laval_product_theses", "laval_product_mechanisms",
                 "laval_evidence", "laval_competitors", "laval_owner_ideas", "laval_runs",
@@ -665,8 +832,14 @@ class BrandingPostgresPipelineTests(unittest.TestCase):
                 }],
                 actor="firebase:owner",
                 provider_snapshot={"provider": provider.name, "paid_seo_enabled": False},
+                client_request_id="initial-build-1",
             )
             brand_run_id = str(created["run_id"])
+            same_initial = repository.existing_create(
+                run_id, intent="initial", client_request_id="initial-build-1"
+            )
+            self.assertTrue(same_initial["idempotent"])
+            self.assertEqual(brand_run_id, str(same_initial["id"]))
             snapshot = repository.run(brand_run_id)["source_snapshot"]
             self.assertEqual("An app that turns doubted goals into visible daily proof.", snapshot["owner_idea"])
             self.assertEqual(1, len(snapshot["theses"]))
@@ -806,6 +979,153 @@ class BrandingPostgresPipelineTests(unittest.TestCase):
                     WHERE run_id=%s AND stage='REFERENCE_COLLECTION'""",
                 (brand_run_id,),
             )["n"])
+
+            selected_creative = commander_store.get_entity(str(selected["creative_id"]))
+            with commander_store.transaction():
+                kit_correction, _updates = commander.record_text_feedback(
+                    creative=selected_creative,
+                    artifact_digest=str(selected["artifact_digest"]),
+                    comment="use just letters PTW, play around them",
+                    actor="firebase:owner",
+                    supersedes_feedback_id=str(selected["latest_feedback_id"]),
+                )
+                review_repository.save_review_projection(
+                    feedback_id=kit_correction.id,
+                    creative_id=selected_creative.id,
+                    artifact_digest=str(selected["artifact_digest"]), rating=None,
+                    comment="use just letters PTW, play around them",
+                    predicted_ctr=None, annotations=(),
+                )
+            kit_revision = repository.queue_kit_logo_revision(
+                run_id, kit_correction.id,
+                client_request_id="test-approved-logo-edit",
+                actor="firebase:owner", provider=provider.name,
+                model=provider.image_model,
+            )
+            revised_candidate = pipeline.revise_approved_kit(str(kit_revision["id"]))
+            self.assertEqual("completed", revised_candidate["status"])
+            self.assertEqual("lettermark", revised_candidate["strategy"])
+            self.assertEqual("PTW", revised_candidate["literal_text"])
+            self.assertTrue(revised_candidate["compliance"]["passed"])
+            self.assertEqual(
+                str(selected["artifact_digest"]),
+                str(revised_candidate["source_artifact_digest"]),
+            )
+            revision_project = repository.project(run_id)
+            self.assertEqual("revision_review", revision_project["status"])
+            self.assertEqual(kit["id"], revision_project["active_kit"]["id"])
+            rejected = repository.reject_kit_logo_revision(
+                str(kit_revision["id"]), actor="firebase:owner"
+            )
+            self.assertEqual("rejected", rejected["status"])
+            self.assertEqual(
+                kit["id"], repository.active_kit(run_id)["id"]
+            )
+
+            with commander_store.transaction():
+                approved_candidate_feedback, _updates = commander.record_text_feedback(
+                    creative=selected_creative,
+                    artifact_digest=str(selected["artifact_digest"]),
+                    comment="use just letters PTW, play around them",
+                    actor="firebase:owner",
+                    supersedes_feedback_id=kit_correction.id,
+                )
+                review_repository.save_review_projection(
+                    feedback_id=approved_candidate_feedback.id,
+                    creative_id=selected_creative.id,
+                    artifact_digest=str(selected["artifact_digest"]), rating=None,
+                    comment="use just letters PTW, play around them",
+                    predicted_ctr=None, annotations=(),
+                )
+            approved_revision = repository.queue_kit_logo_revision(
+                run_id, approved_candidate_feedback.id,
+                client_request_id="test-approved-logo-edit-2",
+                actor="firebase:owner", provider=provider.name,
+                model=provider.image_model,
+            )
+            pipeline.revise_approved_kit(str(approved_revision["id"]))
+
+            with self.assertRaisesRegex(ValueError, "Brand Project already exists"):
+                repository.create(
+                    run_id, constraints_text="", reference_urls=[], manual_transcripts=[],
+                    actor="firebase:owner", provider_snapshot={"provider": provider.name},
+                    intent="initial", client_request_id="duplicate-initial",
+                )
+            rebuild = repository.create(
+                run_id, constraints_text="", reference_urls=[], manual_transcripts=[],
+                actor="firebase:owner", provider_snapshot={"provider": provider.name},
+                intent="full_rebuild", client_request_id="full-rebuild-1",
+            )
+            repeated_rebuild = repository.create(
+                run_id, constraints_text="", reference_urls=[], manual_transcripts=[],
+                actor="firebase:owner", provider_snapshot={"provider": provider.name},
+                intent="full_rebuild", client_request_id="full-rebuild-1",
+            )
+            self.assertEqual(rebuild["run_id"], repeated_rebuild["run_id"])
+            self.assertEqual(2, rebuild["project_version"])
+
+            started = threading.Event()
+            release = threading.Event()
+
+            class PauseRaceProvider(DeterministicBrandProvider):
+                def __init__(self):
+                    self.design_calls = 0
+
+                def structured(self, stage, payload):
+                    if stage == "DESIGN_PRINCIPLES":
+                        self.design_calls += 1
+                        if self.design_calls == 1:
+                            started.set()
+                            if not release.wait(5):
+                                raise RuntimeError("pause-race test timed out")
+                    return super().structured(stage, payload)
+
+            pause_provider = PauseRaceProvider()
+            draft_run_id = str(rebuild["run_id"])
+            repository.ready(draft_run_id)
+            pause_pipeline = BrandPipeline(
+                repository, pause_provider, FixtureBrandPageProvider(),
+                FixtureYouTubeObservationProvider(), LocalBridge(), Path(asset_directory),
+            )
+            worker = threading.Thread(
+                target=pause_pipeline.run,
+                kwargs={"run_id": draft_run_id, "start_stage": "DESIGN_PRINCIPLES"},
+            )
+            worker.start()
+            self.assertTrue(started.wait(5))
+            repository.pause(draft_run_id, actor="firebase:owner")
+            release.set()
+            worker.join(10)
+            self.assertFalse(worker.is_alive())
+            paused_stage = repository.stage(draft_run_id, "DESIGN_PRINCIPLES")
+            self.assertEqual("paused", paused_stage["status"])
+            self.assertEqual(1, paused_stage["attempt"])
+            self.assertEqual("paused", repository.run(draft_run_id)["status"])
+            task_before_resume = self.store.fetchone(
+                """SELECT status,request_count FROM brand_provider_tasks
+                   WHERE run_id=%s AND stage='DESIGN_PRINCIPLES'""",
+                (draft_run_id,),
+            )
+            self.assertEqual("completed", task_before_resume["status"])
+            self.assertEqual(1, task_before_resume["request_count"])
+            repository.ready(draft_run_id)
+            pause_pipeline.run(draft_run_id, start_stage="DESIGN_PRINCIPLES")
+            self.assertEqual(1, pause_provider.design_calls)
+            resumed_stage = repository.stage(draft_run_id, "DESIGN_PRINCIPLES")
+            self.assertEqual("completed", resumed_stage["status"])
+            self.assertEqual(1, resumed_stage["attempt"])
+            project = repository.project(run_id)
+            self.assertEqual([1, 2], [item["project_version"] for item in project["runs"]])
+            self.assertEqual(kit["id"], project["active_kit"]["id"])
+            second_kit = pipeline.approve_kit_logo_revision(
+                str(approved_revision["id"]), actor="firebase:owner"
+            )
+            self.assertEqual(2, second_kit["project_version"])
+            self.assertEqual("approved", second_kit["status"])
+            self.assertEqual("superseded", repository.kit(kit["id"])["status"])
+            self.assertEqual(
+                second_kit["id"], repository.active_kit(run_id)["id"]
+            )
             self.store.execute(
                 """UPDATE laval_product_theses
                       SET recommendation_reason='Material owner correction'
@@ -814,7 +1134,7 @@ class BrandingPostgresPipelineTests(unittest.TestCase):
             )
             self.assertTrue(repository.status(brand_run_id)["run"]["source_stale"])
             self.assertEqual(
-                "stale", repository.kit(str(kit["commander_brand_kit_id"]))["status"]
+                "stale", repository.kit(str(second_kit["commander_brand_kit_id"]))["status"]
             )
             self.assertEqual(
                 "stale",

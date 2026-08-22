@@ -412,3 +412,115 @@ class BrandPublishingService:
             )
             self.commander.relate(kit, RelationType.GENERATED, artifact)
         return {"brand_kit_id": kit.id, "artifact_id": artifact.id, "previous_brand_kit_id": previous.id if previous else None}
+
+    def approve_logo_revision(self, request: Mapping[str, Any]) -> dict[str, str]:
+        revision_id = self._uuid(request.get("revision_id"), "revision_id")
+        existing = next((
+            item for item in self.store.entities(EntityKind.BRAND_KIT)
+            if item.attributes.get("brand_kit_logo_revision_id") == revision_id
+        ), None)
+        if existing is not None:
+            artifact_id = next(
+                edge.target_id for edge in self.store.relationships()
+                if edge.source_id == existing.id and edge.relation == RelationType.GENERATED
+            )
+            return {"brand_kit_id": existing.id, "artifact_id": artifact_id}
+
+        previous_kit = self.store.get_entity(
+            self._uuid(request.get("previous_brand_kit_id"), "previous_brand_kit_id")
+        )
+        previous_creative = self.store.get_entity(
+            self._uuid(request.get("previous_creative_id"), "previous_creative_id")
+        )
+        creative = self.store.get_entity(
+            self._uuid(request.get("creative_id"), "creative_id")
+        )
+        feedback = self.store.get_entity(
+            self._uuid(request.get("feedback_id"), "feedback_id")
+        )
+        if previous_kit.kind != EntityKind.BRAND_KIT:
+            raise ValueError("previous_brand_kit_id must resolve to a BrandKit")
+        if previous_creative.kind != EntityKind.CREATIVE or creative.kind != EntityKind.CREATIVE:
+            raise ValueError("Brand Kit logo revision requires Creative lineage")
+        if feedback.kind != EntityKind.HUMAN_FEEDBACK:
+            raise ValueError("Brand Kit logo revision requires HumanFeedback")
+        relationships = self.store.relationships()
+        if not any(
+            edge.source_id == creative.id and edge.relation == RelationType.SUPERSEDES
+            and edge.target_id == previous_creative.id for edge in relationships
+        ) or not any(
+            edge.source_id == creative.id and edge.relation == RelationType.DERIVED_FROM
+            and edge.target_id == feedback.id for edge in relationships
+        ):
+            raise ValueError("logo revision Creative lineage is incomplete")
+        if feedback.attributes.get("creative_id") != previous_creative.id:
+            raise ValueError("logo revision feedback must evaluate the approved Creative")
+        if not any(
+            edge.source_id == previous_kit.id
+            and edge.relation == RelationType.CONTAINS
+            and edge.target_id == previous_creative.id
+            for edge in relationships
+        ):
+            raise ValueError("approved Brand Kit does not contain the edited Creative")
+        artifact_request = request.get("artifact")
+        if not isinstance(artifact_request, Mapping) or not DIGEST_RE.fullmatch(
+            str(artifact_request.get("sha256") or "")
+        ):
+            raise ValueError("Brand Kit revision artifact is invalid")
+        direction = next((
+            self.store.get_entity(edge.target_id)
+            for edge in relationships
+            if edge.source_id == previous_kit.id
+            and edge.relation == RelationType.DERIVED_FROM
+            and self.store.get_entity(edge.target_id).kind == EntityKind.BRAND_DIRECTION
+        ), None)
+        if direction is None:
+            raise ValueError("previous Brand Kit has no direction lineage")
+
+        actor = str(request.get("actor") or "owner-gateway")
+        with self.store.transaction():
+            kit = self.commander.create_entity(
+                EntityKind.BRAND_KIT,
+                {
+                    "brand_run_id": str(request.get("run_id") or ""),
+                    "source_laval_run_id": str(request.get("source_laval_run_id") or ""),
+                    "source_snapshot_hash": str(request.get("source_snapshot_hash") or ""),
+                    "name": previous_kit.attributes.get("name"),
+                    "manifest": dict(request.get("manifest") or {}),
+                    "status": "approved", "approved_by": actor,
+                    "previous_brand_kit_id": previous_kit.id,
+                    "brand_kit_logo_revision_id": revision_id,
+                    "project_version": int(request.get("project_version") or 0),
+                },
+                actor=actor,
+                reasoning_summary="Approved an immutable owner-directed logo revision as the active Brand Kit.",
+                evidence_ids=(direction.id, previous_kit.id, creative.id, feedback.id),
+            )
+            self.commander.relate(kit, RelationType.SUPERSEDES, previous_kit)
+            self.commander.relate(kit, RelationType.DERIVED_FROM, direction)
+            self.commander.relate(kit, RelationType.DERIVED_FROM, feedback)
+            self.commander.relate(kit, RelationType.DERIVED_FROM, creative)
+            self.commander.relate(direction, RelationType.ADOPTED_AS, kit)
+            for edge in relationships:
+                if edge.source_id != previous_kit.id or edge.relation != RelationType.CONTAINS:
+                    continue
+                contained = self.store.get_entity(edge.target_id)
+                if contained.kind != EntityKind.CREATIVE:
+                    self.commander.relate(kit, RelationType.CONTAINS, contained)
+            self.commander.relate(kit, RelationType.CONTAINS, creative)
+            artifact = self.commander.create_entity(
+                EntityKind.ARTIFACT,
+                {
+                    "artifact_type": "brand_kit_zip",
+                    "sha256": str(artifact_request["sha256"]),
+                    "storage_uri": str(artifact_request.get("storage_uri") or ""),
+                    "mime_type": "application/zip",
+                    "size_bytes": int(artifact_request.get("size_bytes") or 0),
+                    "brand_kit_logo_revision_id": revision_id,
+                },
+                actor=actor,
+                reasoning_summary="Registered the immutable revised Brand Kit package.",
+                evidence_ids=(kit.id, direction.id, creative.id, feedback.id),
+            )
+            self.commander.relate(kit, RelationType.GENERATED, artifact)
+        return {"brand_kit_id": kit.id, "artifact_id": artifact.id}

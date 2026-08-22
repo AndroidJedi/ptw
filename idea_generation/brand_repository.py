@@ -147,7 +147,16 @@ class BrandRepository:
         manual_transcripts: object,
         actor: str,
         provider_snapshot: Mapping[str, Any],
+        intent: str = "initial",
+        client_request_id: str | None = None,
     ) -> dict[str, Any]:
+        if intent not in {"initial", "full_rebuild"}:
+            raise ValueError("Branding create intent must be initial or full_rebuild")
+        request_id = str(client_request_id or "").strip() or None
+        if request_id and len(request_id) > 200:
+            raise ValueError("client_request_id must contain at most 200 characters")
+        if intent == "full_rebuild" and not request_id:
+            raise ValueError("full_rebuild requires a retained client_request_id")
         snapshot = self._snapshot(laval_run_id)
         if not isinstance(reference_urls, list) or len(reference_urls) > 10:
             raise ValueError("reference_urls must contain at most ten items")
@@ -160,14 +169,42 @@ class BrandRepository:
         snapshot_hash = stable_hash(snapshot)
         with self.store.transaction() as connection:
             connection.execute(
+                "SELECT pg_advisory_xact_lock(hashtext(%s))", (laval_run_id,)
+            )
+            if request_id:
+                existing = connection.execute(
+                    """SELECT id,status,project_version FROM brand_runs
+                       WHERE source_laval_run_id=%s AND client_request_id=%s""",
+                    (laval_run_id, request_id),
+                ).fetchone()
+                if existing:
+                    return {
+                        "run_id": str(existing[0]), "status": str(existing[1]),
+                        "project_version": int(existing[2]), "existing": True,
+                    }
+            if intent == "initial":
+                existing = connection.execute(
+                    """SELECT id,status FROM brand_runs
+                       WHERE source_laval_run_id=%s ORDER BY project_version,created_at LIMIT 1""",
+                    (laval_run_id,),
+                ).fetchone()
+                if existing:
+                    raise ValueError(
+                        "Brand Project already exists; open its history or use intent=full_rebuild"
+                    )
+            version = int(connection.execute(
+                "SELECT COALESCE(max(project_version),0)+1 FROM brand_runs WHERE source_laval_run_id=%s",
+                (laval_run_id,),
+            ).fetchone()[0])
+            connection.execute(
                 """INSERT INTO brand_runs(
                        id,source_laval_run_id,status,current_stage,source_snapshot_hash,
                        source_snapshot,constraints_text,reference_urls,manual_transcripts,
-                       provider_snapshot,created_by
-                   ) VALUES(%s,%s,'pending','REFERENCE_PLAN',%s,%s::jsonb,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s)""",
+                       provider_snapshot,created_by,project_version,create_intent,client_request_id
+                   ) VALUES(%s,%s,'pending','REFERENCE_PLAN',%s,%s::jsonb,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s,%s,%s,%s)""",
                 (run_id, laval_run_id, snapshot_hash, self.store.json(snapshot), constraints,
                  self.store.json(references), self.store.json(transcripts),
-                 self.store.json(provider_snapshot), actor),
+                 self.store.json(provider_snapshot), actor, version, intent, request_id),
             )
             now = datetime.now(timezone.utc)
             for ordinal, stage in enumerate(BRAND_STAGES):
@@ -184,9 +221,38 @@ class BrandRepository:
                 )
             connection.execute(
                 "INSERT INTO brand_run_actions(id,run_id,action,actor,details) VALUES(%s,%s,'created',%s,%s::jsonb)",
-                (new_uuid7(), run_id, actor, self.store.json({"source_laval_run_id": laval_run_id})),
+                (new_uuid7(), run_id, actor, self.store.json({
+                    "source_laval_run_id": laval_run_id,
+                    "project_version": version,
+                    "intent": intent,
+                    "client_request_id": request_id,
+                })),
             )
-        return {"run_id": run_id, "status": "pending"}
+        return {
+            "run_id": run_id, "status": "pending", "existing": False,
+            "project_id": laval_run_id, "project_version": version,
+        }
+
+    def existing_create(
+        self, laval_run_id: str, *, intent: str, client_request_id: str | None,
+    ) -> dict[str, Any] | None:
+        request_id = str(client_request_id or "").strip() or None
+        if request_id:
+            row = self.store.fetchone(
+                """SELECT id,status,project_version FROM brand_runs
+                   WHERE source_laval_run_id=%s AND client_request_id=%s""",
+                (laval_run_id, request_id),
+            )
+            if row:
+                return {**json_safe(row), "idempotent": True}
+        if intent == "initial":
+            row = self.store.fetchone(
+                """SELECT id,status,project_version FROM brand_runs
+                   WHERE source_laval_run_id=%s ORDER BY project_version,created_at LIMIT 1""",
+                (laval_run_id,),
+            )
+            return {**json_safe(row), "project_exists": True} if row else None
+        return None
 
     def run(self, run_id: str) -> dict[str, Any]:
         row = self.store.fetchone("SELECT * FROM brand_runs WHERE id=%s", (run_id,))
@@ -204,6 +270,122 @@ class BrandRepository:
             (min(max(limit, 1), 100),),
         )
         return {"items": json_safe(rows), "next_cursor": None}
+
+    def active_kit(self, source_laval_run_id: str) -> dict[str, Any]:
+        row = self.store.fetchone(
+            """SELECT k.*,d.name,d.manifest direction_manifest
+               FROM brand_kits k JOIN brand_directions d ON d.id=k.direction_id
+               WHERE k.source_laval_run_id=%s AND k.status='approved'
+               ORDER BY k.project_version DESC,k.approved_at DESC LIMIT 1""",
+            (source_laval_run_id,),
+        )
+        if not row:
+            raise KeyError("Brand Project has no active approved kit")
+        return json_safe(row)
+
+    def project(self, source_laval_run_id: str) -> dict[str, Any]:
+        idea = self.store.fetchone(
+            """SELECT r.id,left(o.raw_text,4000) owner_idea,r.created_at idea_created_at
+               FROM laval_runs r JOIN laval_owner_ideas o ON o.run_id=r.id
+               WHERE r.id=%s""",
+            (source_laval_run_id,),
+        )
+        if not idea:
+            raise KeyError("Brand Project not found")
+        runs = self.store.fetchall(
+            """SELECT b.*,
+                      (SELECT count(*) FROM brand_stage_runs s WHERE s.run_id=b.id AND s.status='completed') completed_stages,
+                      (SELECT d.artifact_digest FROM brand_directions d WHERE d.run_id=b.id AND d.artifact_digest IS NOT NULL ORDER BY d.ordinal LIMIT 1) logo_thumbnail_digest
+               FROM brand_runs b WHERE b.source_laval_run_id=%s
+               ORDER BY b.project_version,b.created_at""",
+            (source_laval_run_id,),
+        )
+        kits = self.store.fetchall(
+            """SELECT k.*,d.name,d.manifest direction_manifest
+               FROM brand_kits k JOIN brand_directions d ON d.id=k.direction_id
+               WHERE k.source_laval_run_id=%s
+               ORDER BY k.project_version DESC,k.approved_at DESC""",
+            (source_laval_run_id,),
+        )
+        revisions = self.store.fetchall(
+            """SELECT revision.*,review.overall_comment feedback
+               FROM brand_kit_logo_revisions revision
+               LEFT JOIN commander_creative_reviews review
+                 ON review.feedback_id=revision.feedback_id
+               WHERE revision.source_laval_run_id=%s
+               ORDER BY revision.created_at DESC LIMIT 30""",
+            (source_laval_run_id,),
+        )
+        active = next((item for item in kits if item["status"] == "approved"), None)
+        versions = [
+            {
+                "kind": "run", "version": item["project_version"],
+                "run_id": item["id"], "status": item["status"],
+                "logo_thumbnail_digest": item.get("logo_thumbnail_digest"),
+                "created_at": item["created_at"], "updated_at": item["updated_at"],
+            }
+            for item in runs
+        ] + [
+            {
+                "kind": "kit", "version": item["project_version"],
+                "kit_id": item["id"], "status": item["status"],
+                "logo_thumbnail_digest": item.get("logo_artifact_digest"),
+                "created_at": item["approved_at"], "updated_at": item["approved_at"],
+            }
+            for item in kits
+        ] + [
+            {
+                "kind": "logo_revision", "version": item["proposed_project_version"],
+                "revision_id": item["id"], "status": item["status"],
+                "logo_thumbnail_digest": (
+                    item.get("artifact_digest") or item.get("source_artifact_digest")
+                ),
+                "created_at": item["created_at"], "updated_at": item["updated_at"],
+            }
+            for item in revisions
+        ]
+        return json_safe({
+            "id": source_laval_run_id,
+            "source_idea": {
+                "run_id": str(idea["id"]), "owner_idea": idea["owner_idea"],
+                "created_at": idea["idea_created_at"],
+            },
+            "status": (
+                "revision_review" if any(item["status"] == "completed" for item in revisions)
+                else "revision_running" if any(item["status"] in {"pending", "running"} for item in revisions)
+                else "active" if active else "draft"
+            ),
+            "active_kit": active,
+            "kits": kits,
+            "runs": runs,
+            "logo_revisions": revisions,
+            "versions": sorted(
+                versions,
+                key=lambda item: (
+                    int(item["version"]),
+                    {"run": 0, "logo_revision": 1, "kit": 2}[str(item["kind"])],
+                ),
+            )[-100:],
+            "created_at": runs[0]["created_at"] if runs else idea["idea_created_at"],
+            "updated_at": max(
+                [item["updated_at"] for item in runs]
+                + [item["updated_at"] for item in revisions]
+                + [item["approved_at"] for item in kits]
+                + [idea["idea_created_at"]]
+            ),
+        })
+
+    def projects(self, limit: int = 30) -> dict[str, Any]:
+        rows = self.store.fetchall(
+            """SELECT source_laval_run_id,max(updated_at) updated_at
+               FROM brand_runs GROUP BY source_laval_run_id
+               ORDER BY max(updated_at) DESC LIMIT %s""",
+            (min(max(limit, 1), 100),),
+        )
+        return {
+            "items": [self.project(str(row["source_laval_run_id"])) for row in rows],
+            "next_cursor": None,
+        }
 
     def stages(self, run_id: str) -> list[dict[str, Any]]:
         self.run(run_id)
@@ -280,7 +462,19 @@ class BrandRepository:
         self.run(run_id)
         with self.store.transaction() as connection:
             connection.execute("UPDATE brand_runs SET status='paused',updated_at=NOW() WHERE id=%s AND status IN ('pending','running','failed')", (run_id,))
+            connection.execute(
+                """UPDATE brand_stage_runs SET status='paused',updated_at=NOW()
+                   WHERE run_id=%s AND status='running'""",
+                (run_id,),
+            )
             connection.execute("INSERT INTO brand_run_actions(id,run_id,action,actor) VALUES(%s,%s,'paused',%s)", (new_uuid7(), run_id, actor))
+
+    def pause_stage(self, run_id: str, stage: str) -> None:
+        self.store.execute(
+            """UPDATE brand_stage_runs SET status='paused',updated_at=NOW()
+               WHERE run_id=%s AND stage=%s AND status IN ('running','paused') RETURNING 1""",
+            (run_id, stage),
+        )
 
     def pause_all(self, *, actor: str = "emergency-stop") -> None:
         rows = self.store.fetchall(
@@ -292,7 +486,8 @@ class BrandRepository:
     def prepare_stage(self, run_id: str, stage: str, input_hash: str, *, provider: str, model: str) -> int:
         with self.store.transaction() as connection:
             row = connection.execute(
-                """UPDATE brand_stage_runs SET status='running',input_hash=%s,attempt=attempt+1,
+                """UPDATE brand_stage_runs SET status='running',input_hash=%s,
+                          attempt=attempt+CASE WHEN status='paused' THEN 0 ELSE 1 END,
                           provider=%s,model=%s,error=NULL,started_at=NOW(),updated_at=NOW()
                    WHERE run_id=%s AND stage=%s RETURNING attempt""",
                 (input_hash, provider, model, run_id, stage),
@@ -385,6 +580,9 @@ class BrandRepository:
                       revision.status regeneration_status,
                       revision.feedback_id regeneration_feedback_id,
                       revision.error regeneration_error,
+                      revision.strategy regeneration_strategy,
+                      revision.reference_used regeneration_reference_used,
+                      revision.compliance regeneration_compliance,
                       revision.created_at regeneration_requested_at,
                       revision.completed_at regeneration_completed_at,
                       CASE WHEN t.id IS NULL THEN NULL ELSE jsonb_build_object(
@@ -405,7 +603,8 @@ class BrandRepository:
                  ORDER BY review.created_at DESC LIMIT 1
                ) r ON TRUE
                LEFT JOIN LATERAL (
-                 SELECT id,status,feedback_id,error,created_at,completed_at
+                 SELECT id,status,feedback_id,error,strategy,reference_used,
+                        compliance,created_at,completed_at
                  FROM brand_logo_revisions WHERE direction_id=d.id
                  ORDER BY revision DESC LIMIT 1
                ) revision ON TRUE
@@ -416,6 +615,13 @@ class BrandRepository:
             (run_id,),
         )
         for row in rows:
+            if row.get("regeneration_id"):
+                compliance = row.get("regeneration_compliance") or {}
+                row["regeneration_verification"] = (
+                    "verified" if compliance.get("passed") is True
+                    else "failed_compliance" if compliance.get("passed") is False
+                    else "legacy_unverified"
+                )
             row["review_state"] = (
                 "approved"
                 if row.get("feedback_type") == "owner_logo_approval"
@@ -590,20 +796,34 @@ class BrandRepository:
         )
         return self.logo_revision(revision_id)
 
+    def plan_logo_revision(self, revision_id: str, plan: Mapping[str, Any]) -> None:
+        self.store.execute(
+            """UPDATE brand_logo_revisions SET strategy=%s,requested_change=%s,
+                      literal_text=%s,invariants=%s::jsonb,updated_at=NOW()
+               WHERE id=%s RETURNING 1""",
+            (
+                plan["strategy"], plan["requested_change"], plan.get("literal_text"),
+                self.store.json(plan.get("invariants") or []), revision_id,
+            ),
+        )
+
     def complete_logo_revision(
         self, revision_id: str, *, path: Path, digest: str,
-        graph: Mapping[str, str],
+        graph: Mapping[str, str], compliance: Mapping[str, Any],
+        reference_used: bool, reference_trace: Mapping[str, Any],
     ) -> None:
         revision = self.logo_revision(revision_id)
         with self.store.transaction() as connection:
             connection.execute(
                 """UPDATE brand_logo_revisions SET status='completed',creative_id=%s,
                           artifact_id=%s,artifact_digest=%s,logo_path=%s,error=NULL,
+                          compliance=%s::jsonb,reference_used=%s,reference_trace=%s::jsonb,
                           completed_at=NOW(),updated_at=NOW()
                    WHERE id=%s""",
                 (
                     graph["creative_id"], graph["artifact_id"], digest,
-                    str(path), revision_id,
+                    str(path), self.store.json(compliance), reference_used,
+                    self.store.json(reference_trace), revision_id,
                 ),
             )
             connection.execute(
@@ -676,17 +896,43 @@ class BrandRepository:
         zip_digest: str, actor: str,
     ) -> None:
         with self.store.transaction() as connection:
+            run = connection.execute(
+                "SELECT source_laval_run_id FROM brand_runs WHERE id=%s FOR UPDATE",
+                (run_id,),
+            ).fetchone()
+            direction = connection.execute(
+                "SELECT creative_id,artifact_id,artifact_digest,logo_path FROM brand_directions WHERE id=%s",
+                (direction_id,),
+            ).fetchone()
+            if not run or not direction or not all(direction):
+                raise ValueError("selected Brand Kit logo is incomplete")
+            source_laval_run_id = str(run[0])
+            project_version = int(connection.execute(
+                "SELECT COALESCE(max(project_version),0)+1 FROM brand_kits WHERE source_laval_run_id=%s",
+                (source_laval_run_id,),
+            ).fetchone()[0])
+            previous_local = connection.execute(
+                """SELECT id FROM brand_kits
+                   WHERE source_laval_run_id=%s AND status='approved' FOR UPDATE""",
+                (source_laval_run_id,),
+            ).fetchone()
+            connection.execute(
+                "UPDATE brand_kits SET status='superseded' WHERE source_laval_run_id=%s AND status='approved'",
+                (source_laval_run_id,),
+            )
             connection.execute(
                 """INSERT INTO brand_kits(
                        id,run_id,direction_id,commander_brand_kit_id,previous_commander_brand_kit_id,
-                       manifest,zip_digest,zip_path,status,approved_by
-                   ) VALUES(%s,%s,%s,%s,%s,%s::jsonb,%s,%s,'approved',%s)
-                   ON CONFLICT(run_id) DO NOTHING""",
+                       manifest,zip_digest,zip_path,status,approved_by,source_laval_run_id,
+                       project_version,supersedes_kit_id,logo_creative_id,logo_artifact_id,
+                       logo_artifact_digest,logo_path
+                   ) VALUES(%s,%s,%s,%s,%s,%s::jsonb,%s,%s,'approved',%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (kit_id, run_id, direction_id, commander_kit_id, previous_kit_id,
-                 self.store.json(manifest), zip_digest, str(zip_path), actor),
+                 self.store.json(manifest), zip_digest, str(zip_path), actor,
+                 source_laval_run_id, project_version,
+                 str(previous_local[0]) if previous_local else None,
+                 direction[0], direction[1], direction[2], direction[3]),
             )
-            if previous_kit_id:
-                connection.execute("UPDATE brand_kits SET status='superseded' WHERE commander_brand_kit_id=%s", (previous_kit_id,))
             connection.execute("UPDATE brand_directions SET status='approved',updated_at=NOW() WHERE id=%s", (direction_id,))
             connection.execute("UPDATE brand_directions SET status='superseded',updated_at=NOW() WHERE run_id=%s AND id<>%s", (run_id, direction_id))
             connection.execute("UPDATE brand_runs SET selected_direction_id=%s,commander_brand_kit_id=%s,status='completed',current_stage='KIT_ASSEMBLY',completed_at=NOW(),updated_at=NOW() WHERE id=%s", (direction_id, commander_kit_id, run_id))
@@ -706,6 +952,201 @@ class BrandRepository:
             raise KeyError("Brand Kit not found")
         return json_safe(row)
 
+    def queue_kit_logo_revision(
+        self, source_laval_run_id: str, feedback_id: str, *, client_request_id: str,
+        actor: str, provider: str, model: str,
+    ) -> dict[str, Any]:
+        request_id = client_request_id.strip()
+        if not request_id or len(request_id) > 200:
+            raise ValueError("logo revision requires a retained client_request_id")
+        kit = self.active_kit(source_laval_run_id)
+        feedback = self.feedback_context(feedback_id, str(kit["logo_creative_id"]))
+        existing = self.store.fetchone(
+            """SELECT * FROM brand_kit_logo_revisions
+               WHERE source_laval_run_id=%s AND client_request_id=%s""",
+            (source_laval_run_id, request_id),
+        )
+        if existing:
+            return json_safe(existing)
+        active = self.store.fetchone(
+            """SELECT id FROM brand_kit_logo_revisions
+               WHERE source_laval_run_id=%s AND status IN ('pending','running','completed') LIMIT 1""",
+            (source_laval_run_id,),
+        )
+        if active:
+            raise ValueError("this Brand Project already has a logo revision awaiting review")
+        revision_id = new_uuid7()
+        proposed_version = int(kit["project_version"]) + 1
+        input_hash = stable_hash(
+            kit["id"], kit["logo_artifact_digest"], feedback["instruction"], request_id
+        )
+        self.store.execute(
+            """INSERT INTO brand_kit_logo_revisions(
+                   id,source_laval_run_id,base_kit_id,proposed_project_version,
+                   feedback_id,client_request_id,source_creative_id,source_artifact_id,
+                   source_artifact_digest,source_logo_path,status,input_hash,provider,model,actor
+               ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s,%s,%s) RETURNING 1""",
+            (
+                revision_id, source_laval_run_id, kit["id"], proposed_version,
+                feedback_id, request_id, kit["logo_creative_id"], kit["logo_artifact_id"],
+                kit["logo_artifact_digest"], kit["logo_path"], input_hash,
+                provider, model, actor,
+            ),
+        )
+        return self.kit_logo_revision(revision_id)
+
+    def kit_logo_revision(self, revision_id: str) -> dict[str, Any]:
+        row = self.store.fetchone(
+            """SELECT revision.*,review.overall_comment feedback
+               FROM brand_kit_logo_revisions revision
+               LEFT JOIN commander_creative_reviews review
+                 ON review.feedback_id=revision.feedback_id
+               WHERE revision.id=%s""",
+            (revision_id,),
+        )
+        if not row:
+            raise KeyError("Brand Kit logo revision not found")
+        return json_safe(row)
+
+    def pending_kit_logo_revision(self) -> dict[str, Any] | None:
+        row = self.store.fetchone(
+            """SELECT * FROM brand_kit_logo_revisions
+               WHERE status IN ('pending','running') ORDER BY created_at LIMIT 1"""
+        )
+        return json_safe(row) if row else None
+
+    def start_kit_logo_revision(self, revision_id: str) -> dict[str, Any]:
+        self.store.execute(
+            """UPDATE brand_kit_logo_revisions SET status='running',attempt=attempt+1,
+                      error=NULL,started_at=COALESCE(started_at,NOW()),updated_at=NOW()
+               WHERE id=%s AND status IN ('pending','running') AND attempt<2 RETURNING 1""",
+            (revision_id,),
+        )
+        return self.kit_logo_revision(revision_id)
+
+    def plan_kit_logo_revision(self, revision_id: str, plan: Mapping[str, Any]) -> None:
+        self.store.execute(
+            """UPDATE brand_kit_logo_revisions SET strategy=%s,requested_change=%s,
+                      literal_text=%s,invariants=%s::jsonb,structural_change=%s,updated_at=NOW()
+               WHERE id=%s RETURNING 1""",
+            (
+                plan["strategy"], plan["requested_change"], plan.get("literal_text"),
+                self.store.json(plan.get("invariants") or []),
+                bool(plan.get("structural_change")), revision_id,
+            ),
+        )
+
+    def retry_kit_logo_revision(self, revision_id: str, error: Exception) -> None:
+        bounded = {"type": type(error).__name__, "message": str(error)[:1000]}
+        self.store.execute(
+            """UPDATE brand_kit_logo_revisions SET status='pending',error=%s::jsonb,
+                      compliance=%s::jsonb,updated_at=NOW() WHERE id=%s RETURNING 1""",
+            (self.store.json(bounded), self.store.json({"passed": False, "reason": bounded["message"]}), revision_id),
+        )
+
+    def complete_kit_logo_revision(
+        self, revision_id: str, *, path: Path, digest: str,
+        graph: Mapping[str, str], compliance: Mapping[str, Any],
+        reference_used: bool, reference_trace: Mapping[str, Any],
+    ) -> None:
+        self.store.execute(
+            """UPDATE brand_kit_logo_revisions SET status='completed',creative_id=%s,
+                      artifact_id=%s,artifact_digest=%s,logo_path=%s,compliance=%s::jsonb,
+                      reference_used=%s,reference_trace=%s::jsonb,error=NULL,
+                      completed_at=NOW(),updated_at=NOW() WHERE id=%s RETURNING 1""",
+            (
+                graph["creative_id"], graph["artifact_id"], digest, str(path),
+                self.store.json(compliance), reference_used,
+                self.store.json(reference_trace), revision_id,
+            ),
+        )
+
+    def fail_kit_logo_revision(self, revision_id: str, error: Exception) -> None:
+        bounded = {"type": type(error).__name__, "message": str(error)[:1000]}
+        self.store.execute(
+            """UPDATE brand_kit_logo_revisions SET status='failed',error=%s::jsonb,
+                      compliance=jsonb_set(compliance,'{passed}','false'::jsonb,true),
+                      completed_at=NOW(),updated_at=NOW() WHERE id=%s RETURNING 1""",
+            (self.store.json(bounded), revision_id),
+        )
+
+    def requeue_kit_logo_revision(self, revision_id: str) -> dict[str, Any]:
+        revision = self.kit_logo_revision(revision_id)
+        if revision["status"] != "failed":
+            raise ValueError("only a failed logo revision can be retried")
+        with self.store.transaction() as connection:
+            connection.execute(
+                """UPDATE brand_kit_logo_revisions SET status='pending',attempt=0,error=NULL,
+                          compliance='{}'::jsonb,started_at=NULL,completed_at=NULL,updated_at=NOW()
+                   WHERE id=%s""",
+                (revision_id,),
+            )
+            # A user-authorized retry is a new generation cycle. Keep the
+            # original automatic attempts auditable, but force new provider
+            # calls instead of replaying their cached failed candidates.
+            connection.execute(
+                """UPDATE brand_provider_tasks
+                      SET status='failed',error_text='owner-authorized logo revision retry',
+                          updated_at=NOW()
+                    WHERE run_id=(
+                              SELECT k.run_id FROM brand_kits k WHERE k.id=%s
+                          )
+                      AND stage='LOGO_GENERATION'
+                      AND item_key LIKE %s""",
+                (
+                    revision["base_kit_id"],
+                    f"kit-logo-revision:{revision_id}:%",
+                ),
+            )
+        return self.kit_logo_revision(revision_id)
+
+    def reject_kit_logo_revision(self, revision_id: str, *, actor: str) -> dict[str, Any]:
+        revision = self.kit_logo_revision(revision_id)
+        if revision["status"] != "completed":
+            raise ValueError("only a completed logo candidate can be rejected")
+        self.store.execute(
+            """UPDATE brand_kit_logo_revisions SET status='rejected',reviewed_at=NOW(),
+                      updated_at=NOW() WHERE id=%s RETURNING 1""",
+            (revision_id,),
+        )
+        return self.kit_logo_revision(revision_id)
+
+    def approve_kit_logo_revision(
+        self, revision_id: str, *, kit_id: str, commander_kit_id: str,
+        zip_path: Path, zip_digest: str, manifest: Mapping[str, Any], actor: str,
+    ) -> dict[str, Any]:
+        revision = self.kit_logo_revision(revision_id)
+        if revision["status"] != "completed" or revision.get("compliance", {}).get("passed") is not True:
+            raise ValueError("only a compliant completed logo candidate can be approved")
+        base = self.kit(str(revision["base_kit_id"]))
+        with self.store.transaction() as connection:
+            connection.execute(
+                "UPDATE brand_kits SET status='superseded' WHERE id=%s AND status='approved'",
+                (base["id"],),
+            )
+            connection.execute(
+                """INSERT INTO brand_kits(
+                       id,run_id,direction_id,commander_brand_kit_id,previous_commander_brand_kit_id,
+                       manifest,zip_digest,zip_path,status,approved_by,source_laval_run_id,
+                       project_version,supersedes_kit_id,logo_creative_id,logo_artifact_id,
+                       logo_artifact_digest,logo_path
+                   ) VALUES(%s,%s,%s,%s,%s,%s::jsonb,%s,%s,'approved',%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (
+                    kit_id, base["run_id"], base["direction_id"], commander_kit_id,
+                    base["commander_brand_kit_id"], self.store.json(manifest), zip_digest,
+                    str(zip_path), actor, revision["source_laval_run_id"],
+                    revision["proposed_project_version"], base["id"],
+                    revision["creative_id"], revision["artifact_id"],
+                    revision["artifact_digest"], revision["logo_path"],
+                ),
+            )
+            connection.execute(
+                """UPDATE brand_kit_logo_revisions SET status='approved',approved_kit_id=%s,
+                          reviewed_at=NOW(),updated_at=NOW() WHERE id=%s""",
+                (kit_id, revision_id),
+            )
+        return self.kit(kit_id)
+
     def artifact_path(self, digest: str, asset_root: Path) -> tuple[Path, str]:
         row = self.store.fetchone(
             """SELECT logo_path path,'image/png' mime FROM brand_directions WHERE artifact_digest=%s
@@ -716,9 +1157,17 @@ class BrandRepository:
                SELECT logo_path path,'image/png' mime
                  FROM brand_logo_revisions WHERE artifact_digest=%s
                UNION ALL
+               SELECT source_logo_path path,'image/png' mime
+                 FROM brand_kit_logo_revisions WHERE source_artifact_digest=%s
+               UNION ALL
+               SELECT logo_path path,'image/png' mime
+                 FROM brand_kit_logo_revisions WHERE artifact_digest=%s
+               UNION ALL
+               SELECT logo_path path,'image/png' mime FROM brand_kits WHERE logo_artifact_digest=%s
+               UNION ALL
                SELECT zip_path path,'application/zip' mime FROM brand_kits WHERE zip_digest=%s
                LIMIT 1""",
-            (digest, digest, digest, digest),
+            (digest, digest, digest, digest, digest, digest, digest),
         )
         if not row:
             raise KeyError("Branding artifact not found")

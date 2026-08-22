@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test'
 const runId = '01234567-89ab-7def-8123-456789abcdef'
 const brandRunId = '11234567-89ab-7def-8123-456789abcdef'
 const brandKitId = '21234567-89ab-7def-8123-456789abcdef'
+const brandDraftRunId = '91234567-89ab-7def-8123-456789abcdef'
 const brandStages = [
   'CASE_SNAPSHOT', 'REFERENCE_PLAN', 'REFERENCE_COLLECTION', 'DESIGN_PRINCIPLES', 'BRAND_BRIEF',
   'DIRECTION_SYNTHESIS', 'DIRECTION_EVALUATION', 'LOGO_GENERATION', 'OWNER_REVIEW', 'KIT_ASSEMBLY',
@@ -41,7 +42,7 @@ test.beforeEach(async ({ page }) => {
       branding_runs: { total: 1, active: 1, completed: 0 },
     })
     if (url.pathname === '/api/v1/branding/providers') return json({
-      ready: true, provider: 'openai_brand', image_model: 'gpt-image-2', paid_seo_enabled: false,
+      ready: true, revision_ready: true, provider: 'openai_brand', image_model: 'gpt-image-2', paid_seo_enabled: false,
     })
     if (url.pathname === '/api/v1/landings/templates') return json({ items: [
       { id: 'product', version: 1, name: { en: 'Product', uk: 'Продукт' }, description: { en: 'Feature-led conversion.', uk: 'Функції та перша дія.' }, best_for: ['saas'], adapted_from: 'natal_landing' },
@@ -103,11 +104,32 @@ test.beforeEach(async ({ page }) => {
       mechanisms: [], quality: { successful: 9, attempted: 10 }, recommended_thesis_id: runId, active_brand_kit: null,
     }] })
     if (url.pathname === '/api/v1/branding/runs' && route.request().method() === 'POST') return json({ run_id: brandRunId, status: 'running' })
-    if (url.pathname === '/api/v1/branding/runs') return json({ items: [{
+    const canonicalRun = {
       id: brandRunId, source_laval_run_id: runId, status: brandApproved ? 'completed' : 'awaiting_review',
       current_stage: brandApproved ? 'KIT_ASSEMBLY' : 'OWNER_REVIEW', owner_preview: 'Make credible progress visible.',
       completed_stages: brandApproved ? 10 : 8, created_at: '', updated_at: '', source_stale: false,
       source_snapshot: { owner_idea: 'Make credible progress visible.', theses: [], mechanisms: [] }, constraints_text: '', provider_snapshot: {},
+      project_version: 1,
+    }
+    const pausedDraft = {
+      ...canonicalRun, id: brandDraftRunId, status: 'paused', current_stage: 'DESIGN_PRINCIPLES',
+      completed_stages: 3, commander_brand_kit_id: null, project_version: 2,
+    }
+    if (url.pathname === '/api/v1/branding/runs') return json({
+      items: brandApproved ? [pausedDraft, canonicalRun] : [canonicalRun],
+    })
+    if (url.pathname === '/api/v1/branding/projects') return json({ items: [{
+      id: runId, status: brandApproved ? 'active' : 'draft',
+      source_idea: { run_id: runId, owner_idea: 'Make credible progress visible.', created_at: '2026-08-20T00:00:00Z' },
+      active_kit: brandApproved ? {
+        id: brandKitId, commander_brand_kit_id: brandKitId, run_id: brandRunId,
+        name: 'Proofrise', status: 'approved', source_stale: false,
+        zip_digest: 'a'.repeat(64), approved_at: '2026-08-20T00:00:00Z',
+        project_version: 1, manifest: {}, logo_artifact_digest: '1'.repeat(64),
+        logo_asset: { digest: '1'.repeat(64), mime_type: 'image/png', width: 1024, height: 1024, url: `/api/v1/branding/assets/${'1'.repeat(64)}`, cache: 'private, no-store' },
+      } : null,
+      kits: [], runs: brandApproved ? [canonicalRun, pausedDraft] : [canonicalRun],
+      logo_revisions: [], versions: [], created_at: '2026-08-20T00:00:00Z', updated_at: '2026-08-20T00:00:00Z',
     }] })
     const palette = {
       light: { primary: '#1457d9', secondary: '#6938b8', accent: '#d34100', background: '#ffffff', surface: '#f1f5fb', text: '#111827', muted: '#566174', success: '#087a55', warning: '#855400', error: '#b42336' },
@@ -266,6 +288,9 @@ test('regenerates each commented logo, explicitly approves it, then builds the k
   await expect(page.getByText(/Domain and trademark clearance are not performed/)).toBeVisible()
   await page.getByRole('radio', { name: /Proofrise/ }).click()
   await page.getByRole('button', { name: /Затвердити Proofrise/ }).click()
+  await expect(page.getByText('КАНОНІЧНИЙ BRAND KIT')).toBeVisible()
+  await expect(page.getByRole('button', { name: /Draft v2/ })).toBeVisible()
+  await expect(page.getByText(/Призупинено · DESIGN PRINCIPLES · 3\/10/)).toBeVisible()
   await expect(page.getByText(/React\/TypeScript UI kit/)).toBeVisible()
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: /Завантажити Brand Kit/ }).click()

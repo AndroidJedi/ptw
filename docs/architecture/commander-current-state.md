@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Natal one-click Firebase publisher live in production
+Status: Brand Project continuity release verification; Natal publisher remains live
 Updated: 2026-08-22
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -48,6 +48,20 @@ It retains a `derived_from` edge to Idea Laval run
 Owner Gateway restart. Both the build URL and latest-root URL return the
 idea-specific Natal page, its sampled CSS/SVG/PNG assets return HTTP 200, and
 both private JSON paths return HTTP 404.
+
+Branding now projects one continuous Brand Project per Idea. The completed
+“Prove them wrong” kit remains canonical v1 and the later authenticated run is
+retained as paused Draft v2 in the same visible history. Initial creation is
+idempotent, deliberate full rebuilding is explicit, and post consumers resolve
+the single active kit without owner-managed IDs. Approved-logo editing skips
+research, plans `reference_edit`, `lettermark`, or `new_concept`, attaches and
+proves the exact immutable source PNG for image edits, and renders exact text
+such as `PTW` with bundled fonts. Immutable Before/After review and compliance
+must pass before explicit approval can supersede v1; generation never activates
+the candidate. Migration 014 also reconciles paused/running stage drift and
+retains late provider results for charge-free resume. Release, edit-canary, and
+authorized production-replay evidence will replace this paragraph after
+cutover; the existing kit stays active throughout.
 
 Branding v1 now runs inside the existing Idea process as the evidence-backed
 stage between a completed live Idea case and future visual-post generation. The

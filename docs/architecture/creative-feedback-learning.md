@@ -1,7 +1,7 @@
 # Creative feedback learning
 
 Status: web review contract
-Updated: 2026-08-17
+Updated: 2026-08-22
 
 Human feedback is an append-only signal, not an overwrite of knowledge. The
 owner selects a generated Creative in Commander Web and submits:
@@ -43,3 +43,13 @@ fabricating preference strength. The BrandRunner then creates a new immutable
 Creative derived from that feedback and linked to the old Creative through
 `supersedes`. An empty field is an explicit approval of the current Creative.
 A change request never counts as approval and never advances to the next logo.
+
+After a Brand Kit is approved, the same feedback contract powers a bounded
+post-kit logo revision. Owner Gateway resolves the active kit's current
+Creative and digest, appends feedback, and queues an immutable candidate. The
+candidate Creative `supersedes` the approved Creative and is `derived_from` the
+feedback, but does not become active merely because generation passed. Review
+exposes immutable Before/After assets and compliance. Rejection leaves the kit
+unchanged; explicit approval creates a new BrandKit that `supersedes` the old
+kit and `contains` the candidate Creative. Earlier Creatives, Artifacts,
+HumanFeedback, and WeightUpdates remain queryable.

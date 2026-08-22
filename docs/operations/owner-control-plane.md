@@ -183,6 +183,13 @@ During review, a non-empty comment must queue a durable same-direction logo
 revision and must not advance. Only an empty-field approval advances. Restart
 recovery must reuse the same revision attempt/provider task, while a failed
 revision exposes one owner retry action.
+The Branding landing must group by `source_laval_run_id`, visibly anchor the
+active kit beside paused drafts, and reject an implicit second initial build.
+Approved-logo corrections require the exact current PNG path/digest, actual
+reference-tool trace for `reference_edit`, immutable Before/After, compliance,
+and explicit approval. A paused run and its active stage remain paused even if
+a late provider result is retained; resume reuses that result without another
+provider call, attempt, or charge.
 Branding reuses the existing ChatGPT-authenticated Codex bridge for strict text
 and `$imagegen`; do not configure or copy a second API key. The compatibility
 `scripts/configure_brand_provider.sh` command now runs the non-mutating release

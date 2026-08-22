@@ -5,6 +5,64 @@ import type { BrandDirection } from '../types'
 import { BrandingView } from './BrandingView'
 
 describe('BrandingView', () => {
+  it('anchors the canonical kit beside paused Draft v2 and reviews immutable before/after', async () => {
+    const ideaId = '01234567-89ab-7def-8123-456789abcdef'
+    const kitRun = '11234567-89ab-7def-8123-456789abcdef'
+    const draftRun = '21234567-89ab-7def-8123-456789abcdef'
+    const revisionId = '31234567-89ab-7def-8123-456789abcdef'
+    const baseRun = {
+      source_laval_run_id: ideaId, source_snapshot: { owner_idea: 'Prove them wrong', theses: [], mechanisms: [] },
+      source_stale: false, constraints_text: '', provider_snapshot: {}, created_at: '2026-08-21T10:00:00Z',
+      updated_at: '2026-08-21T11:00:00Z',
+    }
+    const completed = { ...baseRun, id: kitRun, project_version: 1, status: 'completed', current_stage: 'KIT_ASSEMBLY', completed_stages: 10, commander_brand_kit_id: 'kit-graph-id' }
+    const paused = { ...baseRun, id: draftRun, project_version: 2, status: 'paused', current_stage: 'DESIGN_PRINCIPLES', completed_stages: 3 }
+    const project = {
+      id: ideaId, status: 'revision_review', source_idea: { run_id: ideaId, owner_idea: 'Prove them wrong', created_at: baseRun.created_at },
+      active_kit: { id: 'kit-local', commander_brand_kit_id: 'kit-graph-id', name: 'Proofrise', status: 'approved', zip_digest: 'a'.repeat(64), source_stale: false, approved_at: baseRun.updated_at, project_version: 1, run_id: kitRun, logo_asset: { digest: 'b'.repeat(64), mime_type: 'image/png', url: '/asset/before', cache: 'private, no-store', generation_provenance: {} }, manifest: {} },
+      kits: [], runs: [completed, paused], logo_revisions: [{
+        id: revisionId, source_laval_run_id: ideaId, base_kit_id: 'kit-local', proposed_project_version: 2,
+        client_request_id: 'recovery', status: 'completed', attempt: 1, strategy: 'lettermark', literal_text: 'PTW',
+        requested_change: 'use just letters PTW, play around them', feedback: 'use just letters PTW, play around them',
+        reference_used: true, reference_trace: { renderer: 'bundled-font-lettermark-v1' }, compliance: { passed: true },
+        before_asset: { digest: 'b'.repeat(64), mime_type: 'image/png', url: '/asset/before', cache: 'private, no-store', generation_provenance: {} },
+        after_asset: { digest: 'c'.repeat(64), mime_type: 'image/png', url: '/asset/after', cache: 'private, no-store', generation_provenance: {} },
+        created_at: baseRun.updated_at,
+      }], created_at: baseRun.created_at, updated_at: baseRun.updated_at,
+    }
+    const post = vi.fn().mockResolvedValue({ status: 'approved' })
+    const api = {
+      get: vi.fn().mockImplementation((path: string) => {
+        if (path === '/api/v1/branding/cases?limit=50') return Promise.resolve({ items: [] })
+        if (path === '/api/v1/branding/runs?limit=50') return Promise.resolve({ items: [paused, completed] })
+        if (path === '/api/v1/branding/projects?limit=50') return Promise.resolve({ items: [project] })
+        if (path === `/api/v1/branding/projects/${ideaId}`) return Promise.resolve(project)
+        if (path === '/api/v1/branding/providers') return Promise.resolve({ ready: true, revision_ready: true, provider: 'codex_brand_bridge' })
+        if (path === `/api/v1/branding/runs/${kitRun}`) return Promise.resolve({ run: completed, stages: [], directions: [], cost: { items: [], total_usd: 0 } })
+        if (path === '/api/v1/branding/kits/kit-graph-id') return Promise.resolve(project.active_kit)
+        return Promise.resolve({})
+      }),
+      post, blob: vi.fn().mockResolvedValue(new Blob(['png'], { type: 'image/png' })),
+    } as unknown as ApiClient
+
+    render(<BrandingView api={api} language="uk" />)
+
+    expect(await screen.findByText('КАНОНІЧНИЙ BRAND KIT')).toBeInTheDocument()
+    expect(screen.getByText('Draft v2')).toBeInTheDocument()
+    expect(screen.getByText(/Призупинено · DESIGN PRINCIPLES · 3\/10/)).toBeInTheDocument()
+    expect(screen.getByText('ДО · KIT V1')).toBeInTheDocument()
+    expect(screen.getByText('ПІСЛЯ · КАНДИДАТ V2')).toBeInTheDocument()
+    expect(api.blob).toHaveBeenCalledWith('/asset/before')
+    expect(api.blob).toHaveBeenCalledWith('/asset/after')
+    expect(screen.getByText('use just letters PTW, play around them')).toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith(`/api/v1/branding/runs/${kitRun}`)
+    fireEvent.click(screen.getByRole('button', { name: 'Схвалити новий Brand Kit' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(
+      `/api/v1/branding/projects/${ideaId}/logo-revisions/${revisionId}/decision`,
+      { decision: 'approve' },
+    ))
+  })
+
   it('shows a friendly completed-Idea picker without exposing UUIDs', async () => {
     const ideaRunId = '01234567-89ab-7def-8123-456789abcdef'
     const api = {

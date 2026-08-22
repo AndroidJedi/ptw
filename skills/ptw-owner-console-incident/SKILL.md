@@ -103,6 +103,16 @@ usable, run the VPS dependency audit with `PTW_REQUIRE_BRANDING_READY=1`; it
 must require provider readiness, the established bridge credential source, and
 at least one selectable case.
 
+For a Natal landing action that creates a plan but does not build, or opens
+unrelated Commander tasks, verify the Landing tab is using the dedicated
+landing-build API rather than a Commander plan. A production build must fail
+before persistence unless the bridge advertises `natal_landing_revision`, then
+move through revising, building, publishing, and published. Feedback belongs to
+the exact immutable published artifact and must be append-only skill memory;
+every later revision snapshots the feedback UUIDs it consumes. Verify all three
+templates remain selectable after every publication and that switching or
+reapplying a template creates a new revision for the same Idea evaluation.
+
 For a Branding timeout after logos are already visible, inspect the persisted
 run, stages, provider tasks, and active-operation guard before calling it stuck.
 `awaiting_review` with `OWNER_REVIEW` paused is the intentional owner boundary,
@@ -131,6 +141,46 @@ stages, provider/cost facts, artifacts, and deliberate rerun behind disclosure.
 After all three current logos have explicit approval, show direction selection
 with one approval CTA, then one download CTA after assembly. Cover correction,
 restart/retry, and approval at 360 px and iPhone WebKit.
+
+For a Branding screen that appears to have changed projects or lost history,
+do not infer project identity from the newest `brand_runs.created_at`. Group by
+the stable `source_laval_run_id` Brand Project identity and inspect its ordered
+run versions, kit versions, active approved kit, and post-kit logo revisions.
+The screen must anchor the source Idea and active kit/logo even when a direct
+link focuses a paused draft. Label completed v1 and paused Draft v2 as one
+history. Post-generation consumers resolve the single active approved kit by
+project; never ask the owner to manage its UUID. A second initial create with a
+new request ID is an error; only an exact idempotent replay may return the old
+run. A deliberate research rebuild requires `intent=full_rebuild`, explicit
+confirmation, and a retained request ID.
+
+For a logo correction that only changed colors or ignored requested letters,
+compare the persisted owner feedback, revision plan, source digest/path,
+provider task payload/result, reference trace, and compliance row. Owner
+corrections override soft direction constraints such as `text-free` or `no
+letters`; reject contradictory planner output before generation. Exact text
+such as `PTW` must use the code-owned bundled-font lettermark renderer, not
+probabilistic image typography. A `reference_edit` must digest-check the current
+immutable PNG under the shared asset root, pass that exact path as
+`referenced_image_paths`, and retain proof from the actual image-tool event.
+A prompt containing the path is not proof. Reject unchanged or color-only
+results for structural instructions, permit at most one fresh automatic retry,
+and keep the old Creative and kit active on failure.
+
+Post-kit review must render immutable Before and After assets plus the exact
+feedback, strategy, proposed version, and compliance status. Generation never
+approves or activates the candidate. Rejection leaves the prior kit active;
+approval creates a superseding kit only after graph and local persistence can
+prove `supersedes`, `derived_from`, `evaluates`, `contains`, `generated`, and
+`adjusts` lineage. Asset responses stay authenticated and `private, no-store`.
+
+For a paused Branding run whose active stage still says `running`, audit the
+timestamps of the run action, stage, and provider task. A result completed after
+pause is retained, but both run and stage projections must remain paused and
+startup must not resume them. Explicit resume must reuse the completed provider
+task with unchanged `request_count` and stage attempt; a second provider job or
+charge is an incident. Reconcile only the inconsistent stage projection—never
+resume the run as part of repair.
 
 For a failed Laval run, the owner must not need SSH or an agent to recover it.
 Verify the visible error report includes the exact stage/attempt, bounded error,
@@ -258,6 +308,12 @@ request, including the top-level OAuth callback.
   contract is missing, even if health, auth, Hosting, and database migrations
   pass. A working Laval bridge is not proof that its Branding modes and image
   artifact transport are exposed.
+- Branding initial readiness and logo-revision readiness are separate
+  compatibility levels during serial cutover. The compatibility release may
+  accept a legacy five-mode bridge, but approved-logo editing must fail closed
+  until the bridge advertises planner and reference-edit modes plus exact
+  path/SHA-256 trace support. Restart Idea after the platform edit release so it
+  re-reads capabilities before exposing the edit action.
 - Exercise strict Laval schemas against the real bridge contract. A generic
   top-level object/array test does not prove nested Codex output schemas are
   accepted, and a deterministic artifact does not prove a model call occurred.

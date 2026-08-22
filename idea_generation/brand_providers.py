@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 import io
 import json
@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence
 
 from .brand_domain import FONT_CATALOG, public_https_url, safe_redirect
+from .brand_revisions import deterministic_revision_plan, validate_revision_plan
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +24,8 @@ class GeneratedLogo:
     width: int
     height: int
     request_id: str = ""
+    reference_used: bool = False
+    reference_trace: Mapping[str, Any] = field(default_factory=dict)
 
 
 class BrandProvider(Protocol):
@@ -32,6 +35,11 @@ class BrandProvider(Protocol):
 
     def structured(self, stage: str, payload: Mapping[str, Any]) -> dict[str, Any]: ...
     def logo(self, direction: Mapping[str, Any]) -> GeneratedLogo: ...
+    def revision_plan(self, instruction: str, direction: Mapping[str, Any]) -> dict[str, Any]: ...
+    def reference_edit(
+        self, direction: Mapping[str, Any], plan: Mapping[str, Any],
+        source_path: Path, source_digest: str,
+    ) -> GeneratedLogo: ...
     def consume_usage(self) -> dict[str, int]: ...
 
 
@@ -191,6 +199,13 @@ class CommanderBrandBridge:
         result = self.post("approve", payload)
         return {str(key): (None if value is None else str(value)) for key, value in result.items()}
 
+    def approve_revision(self, payload: Mapping[str, Any]) -> dict[str, str | None]:
+        result = self.post("kit-logo-revisions/approve", payload)
+        return {
+            str(key): (None if value is None else str(value))
+            for key, value in result.items()
+        }
+
 
 class DeterministicBrandProvider:
     name = "deterministic_brand_fixture"
@@ -272,6 +287,31 @@ class DeterministicBrandProvider:
         image.save(stream, format="PNG")
         return GeneratedLogo(stream.getvalue(), self.image_model, self.image_model, str(direction.get("logo_prompt") or ""), 1024, 1024, "fixture")
 
+    def revision_plan(self, instruction: str, direction: Mapping[str, Any]) -> dict[str, Any]:
+        return deterministic_revision_plan(instruction)
+
+    def reference_edit(
+        self, direction: Mapping[str, Any], plan: Mapping[str, Any],
+        source_path: Path, source_digest: str,
+    ) -> GeneratedLogo:
+        from PIL import Image, ImageDraw
+
+        content = source_path.read_bytes()
+        if hashlib.sha256(content).hexdigest() != source_digest:
+            raise ValueError("source logo digest mismatch")
+        with Image.open(io.BytesIO(content)) as source:
+            image = source.convert("RGBA").resize((1024, 1024))
+        draw = ImageDraw.Draw(image)
+        palette = direction["palette"]["light"]
+        draw.rounded_rectangle((120, 438, 904, 586), radius=72, fill=palette["accent"])
+        stream = io.BytesIO()
+        image.save(stream, format="PNG")
+        return GeneratedLogo(
+            stream.getvalue(), self.image_model, self.image_model,
+            str(plan.get("requested_change") or ""), 1024, 1024, "fixture-reference-edit",
+            True, {"source_path": str(source_path), "source_digest": source_digest, "used": True},
+        )
+
 
 class UnavailableBrandProvider:
     """Keeps provider readiness inspectable when live credentials are absent."""
@@ -289,6 +329,15 @@ class UnavailableBrandProvider:
         raise RuntimeError("OpenAI Branding provider is not configured")
 
     def logo(self, direction: Mapping[str, Any]) -> GeneratedLogo:
+        raise RuntimeError("OpenAI Branding provider is not configured")
+
+    def revision_plan(self, instruction: str, direction: Mapping[str, Any]) -> dict[str, Any]:
+        raise RuntimeError("OpenAI Branding provider is not configured")
+
+    def reference_edit(
+        self, direction: Mapping[str, Any], plan: Mapping[str, Any],
+        source_path: Path, source_digest: str,
+    ) -> GeneratedLogo:
         raise RuntimeError("OpenAI Branding provider is not configured")
 
 
@@ -370,6 +419,14 @@ BRAND_OUTPUT_SCHEMAS = {
         "name_candidates": {"type": "array", "items": {"type": "string", "maxLength": 100}, "minItems": 12, "maxItems": 12},
         "directions": {"type": "array", "items": _DIRECTION, "minItems": 3, "maxItems": 3},
     }),
+    "REVISION_PLANNER": _strict_object({
+        "strategy": {"type": "string", "enum": ["reference_edit", "lettermark", "new_concept"]},
+        "requested_change": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "literal_text": {"type": ["string", "null"], "maxLength": 12},
+        "invariants": {"type": "array", "items": _STRING, "minItems": 1, "maxItems": 12},
+        "structural_change": {"type": "boolean"},
+        "layout": {"type": "string", "enum": ["preserve_anchor", "interlock", "stack", "orbit"]},
+    }),
 }
 
 BRAND_BRIDGE_MODES = {
@@ -378,7 +435,13 @@ BRAND_BRIDGE_MODES = {
     "BRAND_BRIEF": "branding_brand_brief",
     "DIRECTION_SYNTHESIS": "branding_direction_synthesis",
     "LOGO_GENERATION": "branding_logo_generation",
+    "REVISION_PLANNER": "branding_revision_planner",
+    "REFERENCE_EDIT": "branding_logo_reference_edit",
 }
+BRAND_INITIAL_BRIDGE_MODES = frozenset(
+    BRAND_BRIDGE_MODES[key]
+    for key in ("REFERENCE_PLAN", "DESIGN_PRINCIPLES", "BRAND_BRIEF", "DIRECTION_SYNTHESIS", "LOGO_GENERATION")
+)
 
 
 def _brand_instruction(stage: str) -> str:
@@ -387,6 +450,7 @@ def _brand_instruction(stage: str) -> str:
         "DESIGN_PRINCIPLES": "Derive evidence-cited visual, hype-without-deception, and retention design principles. Never copy trade dress.",
         "BRAND_BRIEF": "Create a concise bilingual brand brief faithful to the completed product case.",
         "DIRECTION_SYNTHESIS": "Create exactly three distinct complete brand directions and twelve internal candidate names. Use only allowed fonts and supplied evidence IDs. Include accessible light/dark semantic colors and a text-free symbol prompt.",
+        "REVISION_PLANNER": "Plan one owner-directed logo correction. The owner correction overrides soft direction constraints such as text-free or no letters. Exact requested text must use lettermark. Keep originality, safety, transparency, no-copy, and favicon clarity fixed.",
     }
     return instructions[stage]
 
@@ -418,9 +482,10 @@ class CodexBridgeBrandProvider:
 
     def capabilities(self) -> dict[str, Any]:
         capabilities = self.bridge.capabilities()
-        required = set(BRAND_BRIDGE_MODES.values())
+        required = set(BRAND_INITIAL_BRIDGE_MODES)
+        allowed = set(BRAND_BRIDGE_MODES.values())
         actual = set(capabilities.get("branding_modes") or [])
-        if actual != required:
+        if not required.issubset(actual) or actual - allowed:
             raise RuntimeError(
                 "Branding bridge contract mismatch: "
                 f"missing_modes={len(required - actual)} unexpected_modes={len(actual - required)}"
@@ -434,6 +499,12 @@ class CodexBridgeBrandProvider:
             or image.get("asset_transport") != "commander_asset_volume"
         ):
             raise RuntimeError("Branding bridge image contract is unavailable")
+        self.revision_ready = (
+            BRAND_BRIDGE_MODES["REVISION_PLANNER"] in actual
+            and BRAND_BRIDGE_MODES["REFERENCE_EDIT"] in actual
+            and image.get("reference_edit") is True
+            and image.get("reference_trace") == "exact_path_and_sha256"
+        )
         return capabilities
 
     def consume_usage(self) -> dict[str, int]:
@@ -474,6 +545,76 @@ class CodexBridgeBrandProvider:
         self._capture_usage(self.bridge.last_invocation)
         return result
 
+    def revision_plan(self, instruction: str, direction: Mapping[str, Any]) -> dict[str, Any]:
+        self.capabilities()
+        if not getattr(self, "revision_ready", False):
+            raise RuntimeError("Branding bridge reference-edit contract is unavailable")
+        payload = {
+            "owner_instruction": instruction,
+            "direction": {
+                "name": direction.get("name"),
+                "logo_prompt": direction.get("logo_prompt"),
+                "design_principles": direction.get("design_principles") or [],
+            },
+        }
+        result = self.structured("REVISION_PLANNER", payload)
+        return validate_revision_plan(result, instruction=instruction)
+
+    def _image_from_result(
+        self, result: Mapping[str, Any], *, prompt: str,
+        expected_reference: tuple[Path, str] | None = None,
+    ) -> GeneratedLogo:
+        invocation = dict(result.get("invocation") or {})
+        self._capture_usage(invocation)
+        image_result = result.get("image")
+        if not isinstance(image_result, Mapping):
+            raise RuntimeError("Branding bridge returned no image artifact")
+        if (
+            image_result.get("mime_type") != "image/png"
+            or image_result.get("requested_model") != self.image_model
+            or image_result.get("resolved_model") != self.image_model
+            or image_result.get("provider") != "codex_chatgpt_imagegen"
+        ):
+            raise RuntimeError("Branding bridge returned invalid image provenance")
+        path = Path(str(image_result.get("path") or "")).resolve()
+        provider_root = (self.asset_root / "brand-provider").resolve()
+        if provider_root not in path.parents or path.suffix.lower() != ".png":
+            raise RuntimeError("Branding bridge image path is outside the immutable asset root")
+        content = path.read_bytes() if path.is_file() else b""
+        source_digest = hashlib.sha256(content).hexdigest() if content else ""
+        if not content or source_digest != image_result.get("digest") or path.stem != source_digest:
+            raise RuntimeError("Branding bridge image digest does not match its immutable asset")
+        reference = image_result.get("reference") or {}
+        reference_used = False
+        if expected_reference is not None:
+            expected_path, expected_digest = expected_reference
+            reference_used = (
+                isinstance(reference, Mapping)
+                and reference.get("used") is True
+                and Path(str(reference.get("source_path") or "")).resolve() == expected_path.resolve()
+                and reference.get("source_digest") == expected_digest
+            )
+            if not reference_used:
+                raise RuntimeError("Branding bridge did not prove use of the exact reference image")
+
+        from PIL import Image
+
+        with Image.open(io.BytesIO(content)) as source:
+            source.load()
+            if source.format != "PNG" or source.width != source.height or not 512 <= source.width <= 2048:
+                raise RuntimeError("Branding bridge image must be a bounded square PNG")
+            rgba = source.convert("RGBA")
+            if rgba.getchannel("A").getextrema()[0] == 255:
+                raise RuntimeError("Branding bridge image must preserve a transparent background")
+            normalized = rgba.resize((1024, 1024), Image.Resampling.LANCZOS)
+            stream = io.BytesIO()
+            normalized.save(stream, format="PNG", compress_level=9)
+        return GeneratedLogo(
+            stream.getvalue(), self.image_model, self.image_model, prompt, 1024, 1024,
+            str(image_result.get("request_id") or invocation.get("session_id") or ""),
+            reference_used, dict(reference) if isinstance(reference, Mapping) else {},
+        )
+
     def logo(self, direction: Mapping[str, Any]) -> GeneratedLogo:
         symbol_prompt = str(direction.get("logo_prompt") or "").strip()
         system_prompt = (
@@ -500,52 +641,45 @@ class CodexBridgeBrandProvider:
                 "additionalProperties": False,
             },
         )
-        invocation = dict(result.get("invocation") or {})
-        self._capture_usage(invocation)
-        image_result = result.get("image")
-        if not isinstance(image_result, Mapping):
-            raise RuntimeError("Branding bridge returned no image artifact")
-        if (
-            image_result.get("mime_type") != "image/png"
-            or image_result.get("requested_model") != self.image_model
-            or image_result.get("resolved_model") != self.image_model
-            or image_result.get("provider") != "codex_chatgpt_imagegen"
-        ):
-            raise RuntimeError("Branding bridge returned invalid image provenance")
-        path = Path(str(image_result.get("path") or "")).resolve()
-        provider_root = (self.asset_root / "brand-provider").resolve()
-        if provider_root not in path.parents or path.suffix.lower() != ".png":
-            raise RuntimeError("Branding bridge image path is outside the immutable asset root")
-        content = path.read_bytes() if path.is_file() else b""
-        source_digest = hashlib.sha256(content).hexdigest() if content else ""
-        if not content or source_digest != image_result.get("digest") or path.stem != source_digest:
-            raise RuntimeError("Branding bridge image digest does not match its immutable asset")
+        return self._image_from_result(result, prompt=symbol_prompt)
 
-        from PIL import Image
-
-        with Image.open(io.BytesIO(content)) as source:
-            source.load()
-            if (
-                source.format != "PNG"
-                or source.width != source.height
-                or source.width < 512
-                or source.width > 2048
-            ):
-                raise RuntimeError("Branding bridge image must be a bounded square PNG")
-            rgba = source.convert("RGBA")
-            if rgba.getchannel("A").getextrema()[0] == 255:
-                raise RuntimeError("Branding bridge image must preserve a transparent background")
-            normalized = rgba.resize((1024, 1024), Image.Resampling.LANCZOS)
-            stream = io.BytesIO()
-            normalized.save(stream, format="PNG", compress_level=9)
-        return GeneratedLogo(
-            stream.getvalue(),
-            self.image_model,
-            self.image_model,
-            symbol_prompt,
-            1024,
-            1024,
-            str(image_result.get("request_id") or invocation.get("session_id") or ""),
+    def reference_edit(
+        self, direction: Mapping[str, Any], plan: Mapping[str, Any],
+        source_path: Path, source_digest: str,
+    ) -> GeneratedLogo:
+        self.capabilities()
+        if not getattr(self, "revision_ready", False):
+            raise RuntimeError("Branding bridge reference-edit contract is unavailable")
+        requested = str(plan.get("requested_change") or "").strip()
+        system_prompt = (
+            "$imagegen Edit the supplied logo image exactly once with the built-in image tool. "
+            f"Use referenced_image_paths with this exact edit target: {source_path}. "
+            "Change only what the owner requested; preserve all listed invariants. Keep a genuinely "
+            "transparent background. Do not use shell tools, do not generate without the reference, "
+            "and do not invoke image generation twice. Return the required JSON acknowledgement."
+        )
+        payload = {
+            "source_path": str(source_path.resolve()),
+            "source_digest": source_digest,
+            "requested_change": requested,
+            "invariants": list(plan.get("invariants") or []),
+            "direction": {"name": direction.get("name"), "palette": direction.get("palette")},
+        }
+        context_hash = hashlib.sha256(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()
+        ).hexdigest()
+        self.bridge.prepare_invocation("branding_v1", context_hash)
+        result = self.bridge.execute_contract(
+            BRAND_BRIDGE_MODES["REFERENCE_EDIT"], system_prompt, payload,
+            {
+                "type": "object",
+                "properties": {"generated": {"type": "boolean", "const": True}},
+                "required": ["generated"], "additionalProperties": False,
+            },
+        )
+        return self._image_from_result(
+            result, prompt=requested,
+            expected_reference=(source_path.resolve(), source_digest),
         )
 
 
@@ -631,4 +765,33 @@ class OpenAIBrandProvider:
             1024,
             1024,
             str(getattr(response, "id", "") or ""),
+        )
+
+    def revision_plan(self, instruction: str, direction: Mapping[str, Any]) -> dict[str, Any]:
+        return deterministic_revision_plan(instruction)
+
+    def reference_edit(
+        self, direction: Mapping[str, Any], plan: Mapping[str, Any],
+        source_path: Path, source_digest: str,
+    ) -> GeneratedLogo:
+        content = source_path.read_bytes()
+        if hashlib.sha256(content).hexdigest() != source_digest:
+            raise ValueError("source logo digest mismatch")
+        prompt = (
+            f"{plan.get('requested_change')}. Change only the requested logo structure; "
+            f"keep these invariants: {', '.join(plan.get('invariants') or [])}."
+        )
+        with source_path.open("rb") as image_file:
+            response = self.client.images.edit(
+                model=self.image_model, image=image_file, prompt=prompt,
+                quality="high", size="1024x1024", background="transparent",
+                output_format="png", n=1,
+            )
+        if not response.data or not response.data[0].b64_json:
+            raise RuntimeError("brand image-edit provider returned no image")
+        return GeneratedLogo(
+            base64.b64decode(response.data[0].b64_json), self.image_model,
+            str(getattr(response, "model", None) or self.image_model), prompt,
+            1024, 1024, str(getattr(response, "id", "") or ""), True,
+            {"source_path": str(source_path.resolve()), "source_digest": source_digest, "used": True},
         )

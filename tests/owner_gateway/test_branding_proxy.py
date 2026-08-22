@@ -213,6 +213,72 @@ class BrandingGatewayProxyTests(unittest.TestCase):
         self.assertEqual(503, response.status_code)
         self.assertEqual("Idea Laval service is unavailable", response.json()["detail"])
 
+    def test_brand_project_keeps_active_logo_and_server_resolves_direct_revision(self) -> None:
+        project_id = "01234567-89ab-7def-8123-456789abcdef"
+        revision_id = "11234567-89ab-7def-8123-456789abcdef"
+        creative_id = "21234567-89ab-7def-8123-456789abcdef"
+        captured: dict[str, object] = {}
+        calls: list[tuple[str, str, dict[str, object]]] = []
+        project = {
+            "id": project_id,
+            "active_kit": {"logo_artifact_digest": "a" * 64},
+            "kits": [{"logo_artifact_digest": "a" * 64}],
+            "logo_revisions": [{
+                "id": revision_id, "client_request_id": "owner-edit-1",
+                "source_artifact_digest": "a" * 64,
+                "artifact_digest": "b" * 64,
+            }],
+        }
+
+        class Client:
+            async def __aenter__(self): return self
+            async def __aexit__(self, *_args): return None
+            async def request(self, method: str, url: str, **kwargs):
+                calls.append((method, url, kwargs))
+                if url.endswith("/activity"):
+                    return httpx.Response(200, json={"active": False})
+                if method == "GET" and url.endswith(f"/projects/{project_id}"):
+                    return httpx.Response(200, json=project)
+                if method == "GET" and url.endswith("/branding/providers"):
+                    return httpx.Response(200, json={"ready": True, "revision_ready": True})
+                if method == "POST" and url.endswith("/logo-revisions"):
+                    return httpx.Response(200, json={"id": revision_id, "status": "pending"})
+                return httpx.Response(404, json={"detail": "unexpected"})
+
+        def review(_self, **kwargs):
+            captured.update(kwargs)
+            return {"feedback_id": "31234567-89ab-7def-8123-456789abcdef"}
+
+        with (
+            patch("owner_gateway.api.PlatformRepository.emergency_stop", return_value=False),
+            patch("owner_gateway.api.DomainReadModels.brand_project_review_target", return_value={
+                "creative_id": creative_id, "artifact_digest": "a" * 64,
+                "latest_feedback_id": None,
+            }),
+            patch("owner_gateway.api.DomainReadModels.review", new=review),
+            patch("owner_gateway.api.httpx.AsyncClient", return_value=Client()),
+            TestClient(create_app(self.settings, self.Verifier())) as client,
+        ):
+            loaded = client.get(
+                f"/api/v1/branding/projects/{project_id}", headers=self.headers
+            )
+            response = client.post(
+                f"/api/v1/branding/projects/{project_id}/logo-revisions",
+                headers=self.headers,
+                json={"feedback": "use just letters PTW", "client_request_id": "owner-edit-2"},
+            )
+
+        self.assertEqual(200, loaded.status_code, loaded.text)
+        self.assertEqual("private, no-store", loaded.json()["active_kit"]["logo_asset"]["cache"])
+        self.assertEqual("a" * 64, loaded.json()["logo_revisions"][0]["before_asset"]["digest"])
+        self.assertEqual("b" * 64, loaded.json()["logo_revisions"][0]["after_asset"]["digest"])
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual(creative_id, captured["creative_id"])
+        self.assertEqual("a" * 64, captured["artifact_digest"])
+        queued = next(item for item in calls if item[0] == "POST" and item[1].endswith("/logo-revisions"))
+        self.assertEqual("owner-edit-2", queued[2]["json"]["client_request_id"])
+        self.assertEqual("firebase:owner", queued[2]["json"]["actor"])
+
 
 if __name__ == "__main__":
     unittest.main()

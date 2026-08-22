@@ -9,6 +9,7 @@ from commander.ids import new_uuid7
 
 from .brand_pipeline import BrandPipeline
 from .brand_repository import BrandRepository
+from .laval_domain import json_safe
 from .operation_guard import HeavyOperationGuard, OperationConflict
 
 
@@ -77,6 +78,33 @@ class BrandRunner:
                 raise
             return True
 
+    def start_kit_revision(
+        self, project_id: str, revision_id: str, *, guard_acquired: bool = False,
+    ) -> bool:
+        with self._guard:
+            current = self._threads.get(project_id)
+            if current and current.is_alive():
+                return False
+            if not guard_acquired:
+                self.operation_guard.acquire("branding", project_id)
+            elif self.operation_guard.snapshot() != {
+                "active": True, "operation": "branding", "run_id": project_id
+            }:
+                raise RuntimeError("Branding operation guard reservation was lost")
+            thread = threading.Thread(
+                target=self._execute_kit_revision,
+                kwargs={"project_id": project_id, "revision_id": revision_id},
+                name=f"branding-kit-logo-revision-{revision_id}", daemon=True,
+            )
+            self._threads[project_id] = thread
+            try:
+                thread.start()
+            except Exception:
+                self._threads.pop(project_id, None)
+                self.operation_guard.release("branding", project_id)
+                raise
+            return True
+
     def _execute(self, *, run_id: str, start_stage: str | None) -> None:
         try:
             self.pipeline.run(run_id, start_stage=start_stage)
@@ -118,12 +146,44 @@ class BrandRunner:
                 except Exception:
                     pass
 
+    def _execute_kit_revision(self, *, project_id: str, revision_id: str) -> None:
+        try:
+            self.pipeline.revise_approved_kit(revision_id)
+        except Exception as error:
+            revision = self.pipeline.repository.kit_logo_revision(revision_id)
+            if revision["status"] not in {"failed", "completed", "approved", "rejected"}:
+                self.pipeline.repository.fail_kit_logo_revision(revision_id, error)
+        finally:
+            with self._guard:
+                self._threads.pop(project_id, None)
+            self.operation_guard.release("branding", project_id)
+            if self.on_idle is not None:
+                try:
+                    self.on_idle()
+                except Exception:
+                    pass
+
     def active(self, run_id: str) -> bool:
         with self._guard:
             thread = self._threads.get(run_id)
             return bool(thread and thread.is_alive())
 
     def resume_incomplete(self) -> None:
+        kit_revision = self.pipeline.repository.pending_kit_logo_revision()
+        if kit_revision:
+            project_id = str(kit_revision["source_laval_run_id"])
+            try:
+                self.operation_guard.acquire("branding", project_id)
+            except OperationConflict:
+                return
+            try:
+                self.start_kit_revision(
+                    project_id, str(kit_revision["id"]), guard_acquired=True
+                )
+            except Exception:
+                self.operation_guard.release("branding", project_id)
+                raise
+            return
         revision = self.pipeline.repository.pending_logo_revision()
         if revision:
             run_id = str(revision["run_id"])
@@ -180,6 +240,25 @@ class BrandService:
         self.readiness = dict(readiness)
 
     def create(self, request: Mapping[str, Any], *, actor: str) -> dict[str, Any]:
+        idea_run_id = str(request.get("idea_run_id") or "")
+        intent = str(request.get("intent") or "initial").strip().lower()
+        client_request_id = str(request.get("client_request_id") or "").strip() or None
+        if intent == "full_rebuild" and request.get("confirmed") is not True:
+            raise ValueError("full_rebuild requires explicit confirmation")
+        existing = self.repository.existing_create(
+            idea_run_id, intent=intent, client_request_id=client_request_id
+        )
+        if existing and existing.get("project_exists"):
+            raise ValueError(
+                "Brand Project already exists; open its history or use intent=full_rebuild"
+            )
+        if existing:
+            return {
+                "run_id": str(existing["id"]), "project_id": idea_run_id,
+                "project_version": int(existing["project_version"]),
+                "status": str(existing["status"]), "started": False,
+                "existing": True,
+            }
         if not self.readiness.get("ready"):
             missing = ", ".join(str(item) for item in self.readiness.get("missing") or [])
             raise RuntimeError(
@@ -190,19 +269,87 @@ class BrandService:
         self.runner.operation_guard.acquire("branding", run_id)
         try:
             result = self.repository.create(
-                str(request.get("idea_run_id") or ""), run_id=run_id,
+                idea_run_id, run_id=run_id,
                 constraints_text=str(request.get("constraints") or ""),
                 reference_urls=request.get("reference_urls") or [],
                 manual_transcripts=request.get("manual_transcripts") or [],
                 actor=actor,
                 provider_snapshot=self.readiness,
+                intent=intent,
+                client_request_id=client_request_id,
             )
+            if result.get("existing"):
+                self.runner.operation_guard.release("branding", run_id)
+                return {**result, "started": False}
             self.repository.ready(run_id)
             started = self.runner.start(run_id, guard_acquired=True)
             return {**result, "started": started, "status": "running"}
         except Exception:
             self.runner.operation_guard.release("branding", run_id)
             raise
+
+    def revise_approved_logo(
+        self, project_id: str, feedback_id: str, *, client_request_id: str,
+        actor: str,
+    ) -> dict[str, Any]:
+        if not self.readiness.get("revision_ready"):
+            raise RuntimeError("Branding reference-edit contract is unavailable")
+        existing = self.repository.store.fetchone(
+            """SELECT * FROM brand_kit_logo_revisions
+               WHERE source_laval_run_id=%s AND client_request_id=%s""",
+            (project_id, client_request_id),
+        )
+        if existing:
+            return {**json_safe(existing), "started": False}
+        self.runner.operation_guard.acquire("branding", project_id)
+        try:
+            revision = self.repository.queue_kit_logo_revision(
+                project_id, feedback_id, client_request_id=client_request_id,
+                actor=actor, provider=self.pipeline.provider.name,
+                model=self.pipeline.provider.image_model,
+            )
+            started = self.runner.start_kit_revision(
+                project_id, str(revision["id"]), guard_acquired=True
+            )
+            return {**revision, "started": started}
+        except Exception:
+            self.runner.operation_guard.release("branding", project_id)
+            raise
+
+    def retry_approved_logo_revision(
+        self, project_id: str, revision_id: str, *, actor: str,
+    ) -> dict[str, Any]:
+        revision = self.repository.kit_logo_revision(revision_id)
+        if str(revision["source_laval_run_id"]) != project_id:
+            raise KeyError("Brand Project logo revision not found")
+        self.runner.operation_guard.acquire("branding", project_id)
+        try:
+            self.repository.requeue_kit_logo_revision(revision_id)
+            return {
+                "revision_id": revision_id, "status": "running",
+                "started": self.runner.start_kit_revision(
+                    project_id, revision_id, guard_acquired=True
+                ),
+            }
+        except Exception:
+            self.runner.operation_guard.release("branding", project_id)
+            raise
+
+    def decide_approved_logo_revision(
+        self, project_id: str, revision_id: str, *, decision: str, actor: str,
+    ) -> dict[str, Any]:
+        revision = self.repository.kit_logo_revision(revision_id)
+        if str(revision["source_laval_run_id"]) != project_id:
+            raise KeyError("Brand Project logo revision not found")
+        if decision == "reject":
+            return self.repository.reject_kit_logo_revision(revision_id, actor=actor)
+        if decision != "approve":
+            raise ValueError("logo revision decision must be approve or reject")
+        self.runner.operation_guard.acquire("branding", project_id)
+        try:
+            return self.pipeline.approve_kit_logo_revision(revision_id, actor=actor)
+        finally:
+            self.runner.operation_guard.release("branding", project_id)
 
     def resume(self, run_id: str, *, actor: str) -> dict[str, Any]:
         self.runner.operation_guard.acquire("branding", run_id)

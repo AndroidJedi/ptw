@@ -227,6 +227,9 @@ export interface BrandRun {
   updated_at: string
   owner_preview?: string
   completed_stages?: number
+  project_version?: number
+  create_intent?: 'initial' | 'full_rebuild'
+  logo_thumbnail_digest?: string | null
 }
 
 export interface BrandStage {
@@ -290,6 +293,10 @@ export interface BrandDirection {
   regeneration_status?: 'pending' | 'running' | 'completed' | 'failed' | null
   regeneration_feedback_id?: string | null
   regeneration_error?: { type?: string; message?: string } | null
+  regeneration_strategy?: 'reference_edit' | 'lettermark' | 'new_concept' | null
+  regeneration_reference_used?: boolean | null
+  regeneration_compliance?: { passed?: boolean; reason?: string; [key: string]: unknown } | null
+  regeneration_verification?: 'verified' | 'failed_compliance' | 'legacy_unverified'
   regeneration_requested_at?: string | null
   regeneration_completed_at?: string | null
   rating?: number | null
@@ -315,8 +322,60 @@ export interface BrandKit {
   zip_digest: string
   source_stale: boolean
   approved_at: string
+  project_version?: number
+  run_id?: string
+  logo_artifact_digest?: string
+  logo_asset?: BrandAsset
   manifest: BrandDirection['manifest'] & Record<string, unknown>
   download?: { digest: string; mime_type: 'application/zip'; url: string; cache: 'private, no-store' }
+}
+
+export interface BrandLogoRevision {
+  id: string
+  source_laval_run_id: string
+  base_kit_id: string
+  proposed_project_version: number
+  client_request_id: string
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'approved' | 'rejected'
+  attempt: number
+  strategy?: 'reference_edit' | 'lettermark' | 'new_concept' | null
+  requested_change?: string | null
+  feedback?: string | null
+  literal_text?: string | null
+  structural_change?: boolean | null
+  reference_used: boolean
+  reference_trace: Record<string, unknown>
+  compliance: { passed?: boolean; reason?: string; [key: string]: unknown }
+  error?: { type?: string; message?: string } | null
+  before_asset?: BrandAsset
+  after_asset?: BrandAsset
+  created_at: string
+  completed_at?: string | null
+}
+
+export interface BrandProjectVersion {
+  kind: 'run' | 'logo_revision' | 'kit'
+  version: number
+  status: string
+  run_id?: string
+  revision_id?: string
+  kit_id?: string
+  logo_thumbnail_digest?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BrandProject {
+  id: string
+  status: 'active' | 'draft' | 'revision_running' | 'revision_review'
+  source_idea: { run_id: string; owner_idea: string; created_at: string }
+  active_kit?: BrandKit | null
+  kits: BrandKit[]
+  runs: BrandRun[]
+  logo_revisions: BrandLogoRevision[]
+  versions: BrandProjectVersion[]
+  created_at: string
+  updated_at: string
 }
 
 export interface BrandStatus {

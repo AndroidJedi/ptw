@@ -35,18 +35,25 @@ generates a concise Ukrainian report with visual summaries and bounded,
 clickable HTTP(S) references; unfinished runs do not present it as a final
 report.
 
-The Branding view accepts one completed live Idea case and automatically runs
-the fixed evidence-backed Branding pipeline to three reviewed directions. It
-shows authenticated immutable logo previews, normalized annotation review,
-light/dark palette and type specimens, then permits one explicit approval and
-private ZIP download. The browser never supplies Creative UUIDs or artifact
-digests; Owner Gateway resolves them from the direction. The generated React
-kit is code-owned and includes bundled licensed Cyrillic fonts.
+The Branding view treats one completed live Idea as one continuous Brand
+Project. It anchors the active approved kit/logo beside every draft and exposes
+versioned run history, so a paused rebuild cannot hide the canonical identity.
+The fixed evidence-backed pipeline still creates three directions, but primary
+review is text-only and sequential—no annotations, ratings, palette specimens,
+or owner-managed UUIDs.
+
+An approved logo can be corrected directly without rerunning research. The
+owner sees immutable Before/After assets, exact feedback, strategy, version, and
+compliance status; approval creates a superseding kit and rejection preserves
+the active one. Full rebuilding is an Advanced confirmed action. Asset and ZIP
+responses are authenticated `private, no-store`. Exact lettermarks use bundled
+fonts and code-owned rendering; the generated React kit remains code-owned and
+includes licensed Cyrillic fonts.
 
 The Landings view turns a completed live Idea evaluation into an editable Natal
 landing brief. It recommends one of the product, community/event, or
 waitlist/concept structures, keeps the source run and thesis IDs server-side,
-and creates a normal approval-gated Commander plan for
-`$natal-landing-builder`. Every generated page keeps the Natal name, canonical
-logo, icons, and UI kit. The tab generates local test output only; it never
-deploys or publishes a page.
+and starts the dedicated deterministic `$natal-landing-builder` pipeline. Every
+generated page keeps the Natal name, canonical logo, icons, and UI kit. A
+successful build is published only to the server-pinned Natal Firebase Hosting
+site; the tab polls its own durable history and exposes the exact public URL.

@@ -60,6 +60,12 @@ remains available in stage and review details.
 
 ## Branding
 
+- Treat one completed Idea as one Brand Project. Always anchor its original Idea
+  and active approved kit/logo above drafts and technical run focus. Never let a
+  newest-run sort hide the active kit or make a draft look like another project.
+- Label history semantically (`Brand Kit v1 · active`, `Draft v2 · paused`) and
+  show current stage/progress. A direct run link focuses history without
+  removing the canonical anchor.
 - A candidate leads with the original Idea, recommended thesis, target user,
   evidence quality, and prior Brand Kit state. Optional research context stays
   behind disclosure.
@@ -74,6 +80,15 @@ remains available in stage and review details.
   progressive disclosure.
 - Fetch and render only the currently reviewed or selected logo. Do not request
   a second copy for an annotation surface or preload all three full PNGs.
+- Approved-logo correction is a direct action, separate from a full research
+  rebuild. During revision review, immutable Before and After are both required.
+  Include feedback, strategy, version, and compliance; approval and rejection
+  are explicit. The prior logo stays visibly active until approval commits.
+- Owner correction text takes priority over soft direction wording such as
+  `text-free`. Exact requested letters use deterministic lettermark rendering.
+  Never present a structural request as successful when only colors changed.
+- Keep full research rebuilding behind an Advanced disclosure with explicit
+  confirmation. Retain its client request ID across retries.
 - Do not enable final direction approval until all three current logos have
   explicit approvals. Change-request feedback never satisfies approval. Direction
   choice and approval are one explicit owner action.

@@ -85,6 +85,34 @@ class DomainReadModels:
             else None,
         }
 
+    def brand_project_review_target(self, project_id: str) -> dict[str, Any]:
+        with self._connect(self.idea_database_url) as connection:
+            row = connection.execute(
+                """SELECT kit.source_laval_run_id,kit.logo_creative_id,
+                          kit.logo_artifact_digest,kit.project_version,
+                          kit.commander_brand_kit_id,review.feedback_id latest_feedback_id
+                   FROM brand_kits kit
+                   LEFT JOIN LATERAL (
+                     SELECT feedback_id FROM commander_creative_reviews
+                     WHERE creative_id=kit.logo_creative_id
+                     ORDER BY created_at DESC LIMIT 1
+                   ) review ON TRUE
+                   WHERE kit.source_laval_run_id=%s AND kit.status='approved'
+                   ORDER BY kit.project_version DESC LIMIT 1""",
+                (project_id,),
+            ).fetchone()
+        if not row:
+            raise KeyError("Brand Project has no active approved logo")
+        return {
+            "project_id": str(row["source_laval_run_id"]),
+            "creative_id": str(row["logo_creative_id"]),
+            "artifact_digest": str(row["logo_artifact_digest"]),
+            "kit_version": int(row["project_version"]),
+            "brand_kit_id": str(row["commander_brand_kit_id"]),
+            "latest_feedback_id": str(row["latest_feedback_id"])
+            if row["latest_feedback_id"] else None,
+        }
+
     def posts(self, *, limit: int, review_status: str | None) -> dict[str, Any]:
         review_clause = (
             "AND review.feedback_id IS NULL" if review_status == "pending"

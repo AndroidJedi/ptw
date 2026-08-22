@@ -475,6 +475,18 @@ def create_app(
         except (KeyError, TypeError, ValueError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
+    @app.post("/internal/branding/kit-logo-revisions/approve")
+    def approve_brand_kit_logo_revision(
+        request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")
+    ) -> dict[str, object]:
+        require_internal_bridge(x_ptw_bridge_token)
+        try:
+            return dict(
+                BrandPublishingService(commander, store).approve_logo_revision(request)
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
     @app.post("/internal/validations/select")
     def select_validation(
         request: Mapping[str, Any], x_ptw_bridge_token: str = Header(default="")

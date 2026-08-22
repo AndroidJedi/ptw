@@ -423,6 +423,231 @@ def create_app(
             )
         ).json()
 
+    def decorate_brand_project(project: dict[str, Any]) -> dict[str, Any]:
+        active = project.get("active_kit")
+        if isinstance(active, dict) and active.get("logo_artifact_digest"):
+            digest = str(active["logo_artifact_digest"])
+            active["logo_asset"] = {
+                "digest": digest, "mime_type": "image/png", "width": 1024,
+                "height": 1024, "url": f"/api/v1/branding/assets/{digest}",
+                "cache": "private, no-store",
+            }
+        for kit in project.get("kits") or []:
+            digest = kit.get("logo_artifact_digest")
+            if digest:
+                kit["logo_asset"] = {
+                    "digest": digest, "mime_type": "image/png", "width": 1024,
+                    "height": 1024, "url": f"/api/v1/branding/assets/{digest}",
+                    "cache": "private, no-store",
+                }
+        for revision in project.get("logo_revisions") or []:
+            source = revision.get("source_artifact_digest")
+            result = revision.get("artifact_digest")
+            if source:
+                revision["before_asset"] = {
+                    "digest": source, "mime_type": "image/png", "width": 1024,
+                    "height": 1024, "url": f"/api/v1/branding/assets/{source}",
+                    "cache": "private, no-store",
+                }
+            if result:
+                revision["after_asset"] = {
+                    "digest": result, "mime_type": "image/png", "width": 1024,
+                    "height": 1024, "url": f"/api/v1/branding/assets/{result}",
+                    "cache": "private, no-store",
+                }
+        return project
+
+    @app.get("/api/v1/branding/projects")
+    async def branding_projects(
+        limit: int = Query(default=30, ge=1, le=100),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        result = (
+            await laval_bridge(
+                "GET", "/internal/web/branding/projects", params={"limit": limit}
+            )
+        ).json()
+        result["items"] = [
+            decorate_brand_project(item) for item in result.get("items") or []
+        ]
+        return result
+
+    @app.get("/api/v1/branding/projects/{project_id}")
+    async def branding_project(
+        project_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_laval_id(project_id)
+        result = (
+            await laval_bridge(
+                "GET", f"/internal/web/branding/projects/{project_id}"
+            )
+        ).json()
+        return decorate_brand_project(result)
+
+    @app.get("/api/v1/branding/projects/{project_id}/active-kit")
+    async def branding_project_active_kit(
+        project_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_laval_id(project_id)
+        result = (
+            await laval_bridge(
+                "GET", f"/internal/web/branding/projects/{project_id}/active-kit"
+            )
+        ).json()
+        digest = result.get("logo_artifact_digest")
+        if digest:
+            result["logo_asset"] = {
+                "digest": digest, "mime_type": "image/png", "width": 1024,
+                "height": 1024, "url": f"/api/v1/branding/assets/{digest}",
+                "cache": "private, no-store",
+            }
+        return result
+
+    @app.get("/api/v1/branding/projects/{project_id}/history")
+    async def branding_project_history(
+        project_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_laval_id(project_id)
+        return (
+            await laval_bridge(
+                "GET", f"/internal/web/branding/projects/{project_id}/history"
+            )
+        ).json()
+
+    @app.post("/api/v1/branding/projects/{project_id}/rebuild")
+    async def rebuild_branding_project(
+        project_id: str, request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(project_id)
+        require_running()
+        async with operation_start_lock:
+            require_no_active_codex()
+            return (
+                await laval_bridge(
+                    "POST", f"/internal/web/branding/projects/{project_id}/rebuild",
+                    body={**dict(request), "confirmed": True,
+                          "actor": f"firebase:{identity.uid}"},
+                )
+            ).json()
+
+    @app.post("/api/v1/branding/projects/{project_id}/logo-revisions")
+    async def create_branding_project_logo_revision(
+        project_id: str, request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(project_id)
+        require_running()
+        comment = str(request.get("feedback") or request.get("comment") or "").strip()
+        client_request_id = str(request.get("client_request_id") or "").strip()
+        if not comment or len(comment) > 2000:
+            raise HTTPException(status_code=409, detail="logo feedback must contain 1-2000 characters")
+        if not client_request_id or len(client_request_id) > 200:
+            raise HTTPException(status_code=409, detail="client_request_id is required")
+        actor = f"firebase:{identity.uid}"
+        try:
+            async with operation_start_lock:
+                require_no_active_codex()
+                current = (
+                    await laval_bridge(
+                        "GET", f"/internal/web/branding/projects/{project_id}"
+                    )
+                ).json()
+                existing = next((
+                    item for item in current.get("logo_revisions") or []
+                    if item.get("client_request_id") == client_request_id
+                ), None)
+                if existing:
+                    return existing
+                active = await active_heavy_operation()
+                if active is not None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"{active.get('operation') or 'Heavy'} run {active['run_id']} is active",
+                    )
+                providers = (
+                    await laval_bridge("GET", "/internal/web/branding/providers")
+                ).json()
+                if providers.get("revision_ready") is not True:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Branding reference-edit contract is unavailable",
+                    )
+                target = read.brand_project_review_target(project_id)
+                feedback = read.review(
+                    creative_id=target["creative_id"],
+                    artifact_digest=target["artifact_digest"], rating=None,
+                    comment=comment, predicted_ctr=None, annotations=(),
+                    decision="changes", actor=actor,
+                    policy_path=settings.commander_policy_path,
+                    asset_directory=settings.commander_asset_root,
+                    supersedes_feedback_id=target["latest_feedback_id"],
+                )
+                return (
+                    await laval_bridge(
+                        "POST", f"/internal/web/branding/projects/{project_id}/logo-revisions",
+                        body={
+                            "feedback_id": feedback["feedback_id"],
+                            "client_request_id": client_request_id, "actor": actor,
+                        },
+                    )
+                ).json()
+        except (KeyError, TypeError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.get("/api/v1/branding/projects/{project_id}/logo-revisions/{revision_id}")
+    async def branding_project_logo_revision(
+        project_id: str, revision_id: str,
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(project_id); require_laval_id(revision_id)
+        revision = (
+            await laval_bridge(
+                "GET", f"/internal/web/branding/projects/{project_id}/logo-revisions/{revision_id}"
+            )
+        ).json()
+        return decorate_brand_project({"logo_revisions": [revision]})["logo_revisions"][0]
+
+    @app.post("/api/v1/branding/projects/{project_id}/logo-revisions/{revision_id}/retry")
+    async def retry_branding_project_logo_revision(
+        project_id: str, revision_id: str,
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(project_id); require_laval_id(revision_id); require_running()
+        async with operation_start_lock:
+            require_no_active_codex()
+            return (
+                await laval_bridge(
+                    "POST", f"/internal/web/branding/projects/{project_id}/logo-revisions/{revision_id}/retry",
+                    body={"actor": f"firebase:{identity.uid}"},
+                )
+            ).json()
+
+    @app.post("/api/v1/branding/projects/{project_id}/logo-revisions/{revision_id}/decision")
+    async def decide_branding_project_logo_revision(
+        project_id: str, revision_id: str, request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(project_id); require_laval_id(revision_id); require_running()
+        decision = str(request.get("decision") or "").strip().lower()
+        if decision not in {"approve", "reject"}:
+            raise HTTPException(status_code=409, detail="decision must be approve or reject")
+        if decision == "approve":
+            async with operation_start_lock:
+                require_no_active_codex()
+                return (
+                    await laval_bridge(
+                        "POST", f"/internal/web/branding/projects/{project_id}/logo-revisions/{revision_id}/decision",
+                        body={"decision": decision, "actor": f"firebase:{identity.uid}"},
+                    )
+                ).json()
+        return (
+            await laval_bridge(
+                "POST", f"/internal/web/branding/projects/{project_id}/logo-revisions/{revision_id}/decision",
+                body={"decision": decision, "actor": f"firebase:{identity.uid}"},
+            )
+        ).json()
+
     @app.post("/api/v1/branding/runs")
     async def create_branding_run(
         request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)

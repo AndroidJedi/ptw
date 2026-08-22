@@ -123,11 +123,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     laval = LavalService(laval_repository, laval_runner, readiness=readiness, notifier=laval_notifier)
 
     brand_contract_error = None
+    brand_capabilities: dict[str, Any] = {}
     if settings.brand_provider == "fixture":
         brand_provider = DeterministicBrandProvider()
         brand_web = FixtureBrandPageProvider()
         brand_youtube = FixtureYouTubeObservationProvider()
         brand_ready = True
+        brand_capabilities = {"revision_ready": True}
     elif settings.brand_provider == "bridge":
         brand_provider = CodexBridgeBrandProvider(
             settings.llm_bridge_url,
@@ -143,7 +145,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             else UnavailableYouTubeObservationProvider()
         )
         try:
-            brand_provider.capabilities()
+            brand_capabilities = brand_provider.capabilities()
             brand_ready = True
         except Exception as error:
             brand_ready = False
@@ -167,6 +169,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             else UnavailableYouTubeObservationProvider()
         )
         brand_ready = bool(settings.openai_api_key)
+        brand_capabilities = {"revision_ready": brand_ready}
     else:
         raise RuntimeError("BRAND_PROVIDER must be fixture, bridge, or openai")
     brand_readiness = {
@@ -177,6 +180,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "image_model": brand_provider.image_model,
         "text_ready": brand_ready,
         "image_ready": brand_ready,
+        "revision_ready": (
+            bool(getattr(brand_provider, "revision_ready", False))
+            if settings.brand_provider == "bridge"
+            else bool(brand_capabilities.get("revision_ready"))
+        ),
         "missing": (
             []
             if brand_ready
@@ -328,6 +336,138 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         require_owner_gateway(x_ptw_owner_gateway_token)
         return brand_repository.list(limit)
+
+    @app.get("/internal/web/branding/projects")
+    def branding_projects(
+        limit: int = Query(default=30, ge=1, le=100),
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        return brand_repository.projects(limit)
+
+    @app.get("/internal/web/branding/projects/{project_id}")
+    def branding_project(
+        project_id: str, x_ptw_owner_gateway_token: str = Header(default="")
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return brand_repository.project(project_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/internal/web/branding/projects/{project_id}/active-kit")
+    def branding_project_active_kit(
+        project_id: str, x_ptw_owner_gateway_token: str = Header(default="")
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return brand_repository.active_kit(project_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/internal/web/branding/projects/{project_id}/history")
+    def branding_project_history(
+        project_id: str, x_ptw_owner_gateway_token: str = Header(default="")
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            project = brand_repository.project(project_id)
+            return {"project_id": project_id, "items": project["versions"]}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.post("/internal/web/branding/projects/{project_id}/rebuild")
+    def rebuild_branding_project(
+        project_id: str, request: Mapping[str, Any],
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return branding.create(
+                {
+                    **dict(request), "idea_run_id": project_id,
+                    "intent": "full_rebuild",
+                },
+                actor=str(request.get("actor") or "owner-gateway"),
+            )
+        except OperationConflict as error:
+            raise HTTPException(
+                status_code=409, detail={"active_operation": error.active}
+            ) from error
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (TypeError, ValueError, RuntimeError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/internal/web/branding/projects/{project_id}/logo-revisions")
+    def create_branding_project_logo_revision(
+        project_id: str, request: Mapping[str, Any],
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return branding.revise_approved_logo(
+                project_id, str(request.get("feedback_id") or ""),
+                client_request_id=str(request.get("client_request_id") or ""),
+                actor=str(request.get("actor") or "owner-gateway"),
+            )
+        except OperationConflict as error:
+            raise HTTPException(status_code=409, detail={"active_operation": error.active}) from error
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (TypeError, ValueError, RuntimeError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.get("/internal/web/branding/projects/{project_id}/logo-revisions/{revision_id}")
+    def branding_project_logo_revision(
+        project_id: str, revision_id: str,
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            revision = brand_repository.kit_logo_revision(revision_id)
+            if str(revision["source_laval_run_id"]) != project_id:
+                raise KeyError("Brand Project logo revision not found")
+            return revision
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.post("/internal/web/branding/projects/{project_id}/logo-revisions/{revision_id}/retry")
+    def retry_branding_project_logo_revision(
+        project_id: str, revision_id: str, request: Mapping[str, Any],
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return branding.retry_approved_logo_revision(
+                project_id, revision_id,
+                actor=str(request.get("actor") or "owner-gateway"),
+            )
+        except OperationConflict as error:
+            raise HTTPException(status_code=409, detail={"active_operation": error.active}) from error
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (TypeError, ValueError, RuntimeError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/internal/web/branding/projects/{project_id}/logo-revisions/{revision_id}/decision")
+    def decide_branding_project_logo_revision(
+        project_id: str, revision_id: str, request: Mapping[str, Any],
+        x_ptw_owner_gateway_token: str = Header(default=""),
+    ) -> dict[str, Any]:
+        require_owner_gateway(x_ptw_owner_gateway_token)
+        try:
+            return branding.decide_approved_logo_revision(
+                project_id, revision_id,
+                decision=str(request.get("decision") or ""),
+                actor=str(request.get("actor") or "owner-gateway"),
+            )
+        except OperationConflict as error:
+            raise HTTPException(status_code=409, detail={"active_operation": error.active}) from error
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (TypeError, ValueError, RuntimeError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.post("/internal/web/branding/runs")
     def create_branding_run(

@@ -14,6 +14,7 @@ from .brand_domain import BRAND_STAGES, evaluate_direction, normalize_direction,
 from .brand_kit import assemble_brand_kit
 from .brand_providers import BrandProvider, CommanderBrandBridge, GeneratedLogo
 from .brand_repository import BrandRepository
+from .brand_revisions import render_lettermark, validate_logo_result
 from .laval_providers import YouTubeObservationProvider, WebPageProvider
 
 
@@ -111,6 +112,8 @@ class BrandPipeline:
                         width=int(cached.get("width") or 0),
                         height=int(cached.get("height") or 0),
                         request_id=str(cached.get("request_id") or ""),
+                        reference_used=bool(cached.get("reference_used")),
+                        reference_trace=dict(cached.get("reference_trace") or {}),
                     )
             raise RuntimeError("completed provider task has no valid persisted response")
         if existing and existing["status"] == "running":
@@ -168,6 +171,8 @@ class BrandPipeline:
                     "resolved_model": result.resolved_model,
                     "prompt": result.prompt, "width": result.width, "height": result.height,
                     "request_id": result.request_id,
+                    "reference_used": result.reference_used,
+                    "reference_trace": dict(result.reference_trace),
                 }
             else:
                 encoded = json.dumps(result, ensure_ascii=False, sort_keys=True, default=str).encode()
@@ -304,6 +309,7 @@ class BrandPipeline:
                 self._ensure_active(run_id)
                 self.repository.complete_stage(run_id, stage, artifact, metrics)
             except BrandRunPaused:
+                self.repository.pause_stage(run_id, stage)
                 return
             except Exception as error:
                 self.repository.fail_stage(run_id, stage, error)
@@ -544,34 +550,16 @@ class BrandPipeline:
         feedback = self.repository.feedback_context(
             str(revision["feedback_id"]), str(revision["source_creative_id"])
         )
-        manifest = dict(direction["manifest"])
-        base_prompt = str(manifest.get("logo_prompt") or "").strip()
-        manifest["logo_prompt"] = (
-            f"{base_prompt}\n\nRevise the current concept using this explicit owner feedback: "
-            f"{feedback['instruction']}\nCreate a meaningfully corrected new symbol, not a copy of "
-            "the previous pixels. Preserve the brand direction, text-free requirement, transparency, "
-            "originality, and favicon-size clarity."
-        )[:4000]
-        task_payload = {
-            "direction": manifest,
-            "feedback_id": revision["feedback_id"],
-            "feedback": feedback["instruction"],
-            "source_artifact_digest": revision["source_artifact_digest"],
-            "revision": revision["revision"],
-        }
-        generated = self._provider_task(
-            run_id, "LOGO_GENERATION",
-            f"logo-revision:{revision_id}:attempt:{revision['attempt']}", task_payload,
-            lambda: self.provider.logo(manifest),
+        plan = self.provider.revision_plan(feedback["instruction"], direction["manifest"])
+        self.repository.plan_logo_revision(revision_id, plan)
+        generated, compliance = self._revision_candidate(
+            run_id=run_id, task_prefix=f"logo-revision:{revision_id}",
+            direction=direction["manifest"], plan=plan,
+            source_path=Path(str(revision["source_logo_path"])),
+            source_digest=str(revision["source_artifact_digest"]),
         )
         if self.repository.run(run_id)["status"] != "running":
             raise BrandRunPaused("Branding logo regeneration is paused")
-        from PIL import Image
-        import io
-
-        with Image.open(io.BytesIO(generated.content)) as image:
-            if image.size != (1024, 1024) or image.format != "PNG":
-                raise ValueError("brand logo revision must be a 1024x1024 PNG")
         digest = hashlib.sha256(generated.content).hexdigest()
         run_directory = self.asset_directory / run_id
         run_directory.mkdir(parents=True, exist_ok=True)
@@ -600,11 +588,18 @@ class BrandPipeline:
                     "request_id": generated.request_id,
                     "revision": revision["revision"],
                     "feedback_id": revision["feedback_id"],
+                    "strategy": plan["strategy"],
+                    "literal_text": plan.get("literal_text"),
+                    "reference_used": generated.reference_used,
+                    "reference_trace": dict(generated.reference_trace),
+                    "compliance": compliance,
                 },
             },
         })
         self.repository.complete_logo_revision(
-            revision_id, path=path, digest=digest, graph=graph
+            revision_id, path=path, digest=digest, graph=graph,
+            compliance=compliance, reference_used=generated.reference_used,
+            reference_trace=generated.reference_trace,
         )
         return {
             "run_id": run_id,
@@ -613,6 +608,187 @@ class BrandPipeline:
             "revision": int(revision["revision"]),
             "artifact_digest": digest,
         }
+
+    def _validated_source(self, source_path: Path, source_digest: str) -> bytes:
+        path = source_path.resolve()
+        root = self.asset_directory.resolve()
+        if path != root and root not in path.parents:
+            raise PermissionError("logo revision source is outside the shared asset volume")
+        content = path.read_bytes() if path.is_file() else b""
+        if not content or hashlib.sha256(content).hexdigest() != source_digest:
+            raise ValueError("logo revision source digest does not match its immutable PNG")
+        if not content.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError("logo revision source is not a PNG")
+        return content
+
+    def _revision_candidate(
+        self, *, run_id: str, task_prefix: str, direction: Mapping[str, Any],
+        plan: Mapping[str, Any], source_path: Path, source_digest: str,
+        fresh_attempts: tuple[int, ...] = (1, 2),
+    ) -> tuple[GeneratedLogo, dict[str, Any]]:
+        source_content = self._validated_source(source_path, source_digest)
+        last_error: Exception | None = None
+        for fresh_attempt in fresh_attempts:
+            try:
+                strategy = str(plan["strategy"])
+                if strategy == "lettermark":
+                    content = render_lettermark(
+                        source_path.resolve(), source_digest, direction, plan
+                    )
+                    generated = GeneratedLogo(
+                        content, "deterministic-lettermark-v1", "deterministic-lettermark-v1",
+                        str(plan["requested_change"]), 1024, 1024,
+                        f"code-lettermark-{fresh_attempt}", True,
+                        {
+                            "source_path": str(source_path.resolve()),
+                            "source_digest": source_digest,
+                            "used": True,
+                            "renderer": "bundled-font-lettermark-v1",
+                        },
+                    )
+                elif strategy == "reference_edit":
+                    task_payload = {
+                        "strategy": strategy,
+                        "requested_change": plan["requested_change"],
+                        "invariants": plan["invariants"],
+                        "source_path": str(source_path.resolve()),
+                        "source_digest": source_digest,
+                        "fresh_attempt": fresh_attempt,
+                    }
+                    generated = self._provider_task(
+                        run_id, "LOGO_GENERATION", f"{task_prefix}:fresh:{fresh_attempt}",
+                        task_payload,
+                        lambda: self.provider.reference_edit(
+                            direction, plan, source_path.resolve(), source_digest
+                        ),
+                    )
+                else:
+                    manifest = dict(direction)
+                    manifest["logo_prompt"] = (
+                        f"Create a genuinely new original logo concept for {direction.get('name')}. "
+                        f"Owner request: {plan['requested_change']}. "
+                        f"Fixed invariants: {', '.join(plan['invariants'])}."
+                    )[:4000]
+                    generated = self._provider_task(
+                        run_id, "LOGO_GENERATION", f"{task_prefix}:fresh:{fresh_attempt}",
+                        {"strategy": strategy, "manifest": manifest, "fresh_attempt": fresh_attempt},
+                        lambda: self.provider.logo(manifest),
+                    )
+                compliance = validate_logo_result(
+                    source_content, generated.content, plan=plan,
+                    reference_used=(generated.reference_used or strategy == "lettermark"),
+                    rendered_literal_text=(
+                        str(plan.get("literal_text")) if strategy == "lettermark" else None
+                    ),
+                )
+                if not compliance.passed:
+                    raise ValueError(str(compliance.details.get("reason") or "logo compliance failed"))
+                return generated, compliance.details
+            except Exception as error:
+                last_error = error
+                if fresh_attempt == fresh_attempts[-1]:
+                    raise
+        raise RuntimeError("logo revision failed") from last_error
+
+    def revise_approved_kit(self, revision_id: str) -> dict[str, Any]:
+        revision = self.repository.kit_logo_revision(revision_id)
+        run_id = str(revision["source_laval_run_id"])
+        base = self.repository.kit(str(revision["base_kit_id"]))
+        feedback = self.repository.feedback_context(
+            str(revision["feedback_id"]), str(revision["source_creative_id"])
+        )
+        plan = self.provider.revision_plan(feedback["instruction"], base["direction_manifest"])
+        self.repository.plan_kit_logo_revision(revision_id, plan)
+        last_error: Exception | None = None
+        while int(revision.get("attempt") or 0) < 2:
+            revision = self.repository.start_kit_logo_revision(revision_id)
+            try:
+                generated, compliance = self._revision_candidate(
+                    run_id=str(base["run_id"]), task_prefix=f"kit-logo-revision:{revision_id}",
+                    direction=base["direction_manifest"], plan=plan,
+                    source_path=Path(str(revision["source_logo_path"])),
+                    source_digest=str(revision["source_artifact_digest"]),
+                    fresh_attempts=(int(revision["attempt"]),),
+                )
+                digest = hashlib.sha256(generated.content).hexdigest()
+                directory = self.asset_directory / "brand-projects" / run_id
+                directory.mkdir(parents=True, exist_ok=True)
+                path = directory / f"kit-logo-v{revision['proposed_project_version']}-{digest[:16]}.png"
+                if not path.exists():
+                    path.write_bytes(generated.content)
+                graph = self.bridge.logo_revision({
+                    "run_id": str(base["run_id"]),
+                    "direction_id": str(base["direction_id"]),
+                    "revision_id": revision_id,
+                    "revision": revision["proposed_project_version"],
+                    "previous_creative_id": revision["source_creative_id"],
+                    "feedback_id": revision["feedback_id"],
+                    "artifact": {
+                        "sha256": digest, "storage_uri": str(path), "width": 1024, "height": 1024,
+                        "generation": {
+                            "provider": generated.requested_model,
+                            "requested_model": generated.requested_model,
+                            "resolved_model": generated.resolved_model,
+                            "prompt": generated.prompt, "request_id": generated.request_id,
+                            "strategy": plan["strategy"], "literal_text": plan.get("literal_text"),
+                            "reference_used": generated.reference_used,
+                            "reference_trace": dict(generated.reference_trace),
+                            "compliance": compliance,
+                        },
+                    },
+                })
+                self.repository.complete_kit_logo_revision(
+                    revision_id, path=path, digest=digest, graph=graph,
+                    compliance=compliance, reference_used=generated.reference_used,
+                    reference_trace=generated.reference_trace,
+                )
+                return self.repository.kit_logo_revision(revision_id)
+            except Exception as error:
+                last_error = error
+                revision = self.repository.kit_logo_revision(revision_id)
+                if int(revision.get("attempt") or 0) < 2:
+                    self.repository.retry_kit_logo_revision(revision_id, error)
+                    continue
+                self.repository.fail_kit_logo_revision(revision_id, error)
+                raise
+        raise RuntimeError("logo revision exhausted its retry budget") from last_error
+
+    def approve_kit_logo_revision(
+        self, revision_id: str, *, actor: str,
+    ) -> dict[str, Any]:
+        revision = self.repository.kit_logo_revision(revision_id)
+        base = self.repository.kit(str(revision["base_kit_id"]))
+        if base["status"] != "approved":
+            raise ValueError("logo revision base is no longer the active Brand Kit")
+        logo_path = Path(str(revision.get("logo_path") or ""))
+        if revision["status"] != "completed" or not logo_path.is_file():
+            raise ValueError("logo revision is not ready for approval")
+        directory = self.asset_directory / "brand-projects" / str(revision["source_laval_run_id"]) / f"kit-v{revision['proposed_project_version']}"
+        zip_path, zip_digest, kit_manifest = assemble_brand_kit(
+            base["direction_manifest"], logo_path, directory
+        )
+        graph = self.bridge.approve_revision({
+            "run_id": str(base["run_id"]),
+            "direction_id": str(base["direction_id"]),
+            "source_laval_run_id": str(revision["source_laval_run_id"]),
+            "source_snapshot_hash": self.repository.run(str(base["run_id"]))["source_snapshot_hash"],
+            "revision_id": revision_id,
+            "feedback_id": str(revision["feedback_id"]),
+            "previous_brand_kit_id": str(base["commander_brand_kit_id"]),
+            "previous_creative_id": str(revision["source_creative_id"]),
+            "creative_id": str(revision["creative_id"]),
+            "manifest": kit_manifest,
+            "project_version": int(revision["proposed_project_version"]),
+            "actor": actor,
+            "artifact": {
+                "sha256": zip_digest, "storage_uri": str(zip_path),
+                "size_bytes": zip_path.stat().st_size,
+            },
+        })
+        return self.repository.approve_kit_logo_revision(
+            revision_id, kit_id=new_uuid7(), commander_kit_id=str(graph["brand_kit_id"]),
+            zip_path=zip_path, zip_digest=zip_digest, manifest=kit_manifest, actor=actor,
+        )
 
     def approve(self, run_id: str, direction_id: str, *, actor: str) -> dict[str, Any]:
         run = self.repository.run(run_id)

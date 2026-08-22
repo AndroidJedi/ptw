@@ -1,7 +1,7 @@
 # Branding v1
 
-Status: implemented, production acceptance pending
-Updated: 2026-08-21
+Status: Brand Project continuity and reliable logo correction implemented; release pending
+Updated: 2026-08-22
 
 Branding is the evidence-preserving stage between a completed Idea Laval case
 and future visual-post generation. It is hosted by the Idea process and uses
@@ -33,6 +33,20 @@ cost rows are durable PostgreSQL projections. Completed provider tasks cache
 their structured response or immutable logo digest. A process restart reuses
 completed work and never resubmits an unknown image request; an owner-authorized
 pre-review rerun is required for an unknown result.
+
+`source_laval_run_id` is the stable Brand Project identity. One project owns
+all full-pipeline runs, immutable Brand Kit versions, post-kit logo revisions,
+and their timestamps/statuses. One partial unique constraint permits exactly
+one active approved kit. Initial creation is idempotent by retained client
+request ID and refuses an implicit second project; a deliberate research
+rebuild requires `intent=full_rebuild`, a retained request ID, and explicit
+confirmation. Consumers resolve the active kit from the Idea/Brand Project and
+never require the owner to copy a kit UUID.
+
+Pause changes both the run and its active stage to `paused`. If a provider
+result arrives after that boundary, its provider task is retained as completed
+but the stage stays paused. Explicit resume reuses that result without another
+request, charge, or attempt increment. Startup never resumes a paused run.
 
 The runner automatically reaches `OWNER_REVIEW`. Exactly three independently
 evaluated directions and three symbol logos are required. A non-empty comment
@@ -87,6 +101,14 @@ Approval is a distinct append-only `owner_logo_approval` feedback entity on the
 current Creative. The legacy annotated/rated contract remains readable and is
 treated as a change request until its correction is regenerated and approved.
 
+An approved kit has a separate **Edit approved logo** path that does not rerun
+stages 1–8. It appends correction feedback against the current kit Creative and
+creates an immutable `brand_kit_logo_revision`. Review shows immutable before
+and after PNGs, exact feedback, planner strategy, proposed kit version, and
+compliance. Rejection preserves the active kit. Approval creates a new kit with
+`supersedes`, `derived_from`, `contains`, and `generated` lineage; feedback and
+append-only WeightUpdates retain `evaluates` and `adjusts`.
+
 Approval creates an immutable `brand_kit` and an `adopted_as` edge. A later kit
 for the same Idea supersedes the earlier kit without deletion. Material Idea
 changes mark every associated kit stale. Retired Posts APIs remain HTTP 410;
@@ -105,6 +127,23 @@ variants, favicon, and app icon are deterministic Pillow renders using the
 selected bundled font. Included Codex usage is recorded without inventing a USD
 cost.
 
+Logo corrections first pass through a strict planner with only three outcomes:
+`reference_edit`, `lettermark`, or `new_concept`. Owner corrections override
+soft direction constraints such as `text-free`/`no letters`; safety,
+originality, no-copy, real transparency, and favicon clarity remain fixed.
+Reference edits digest-check the current immutable PNG inside the shared asset
+volume and supply that exact path through `$imagegen` `referenced_image_paths`.
+The independent worker returns proof only after observing the exact image-tool
+argument, and Idea rejects a result without matching path-and-digest proof.
+
+Exact literal text such as `PTW` never depends on model typography. A code-owned
+Pillow renderer uses bundled fonts, constrained layouts, and colors derived
+from the approved source. Compliance verifies PNG size/digest/alpha, exact
+lettermark provenance, reference use, and geometry/color change appropriate to
+the request. An unchanged or color-only answer to a structural request fails.
+One fresh automatic retry is allowed; after that the old logo remains active
+and the bounded failure reason is shown.
+
 React source is emitted only from code-owned templates. The model supplies a
 validated design manifest, never executable code. The ZIP contract is defined
 in [`branding-kit-component-manifest.md`](branding-kit-component-manifest.md).
@@ -120,8 +159,10 @@ and [IBM Plex repository](https://github.com/IBM/plex).
 ## Owner and API boundary
 
 The five-item responsive navigation is Overview, Ideas, Branding, Jobs, and
-More. `/api/v1/branding` provides readiness, eligible cases, run lifecycle,
-stages, directions, review/history, approval, kit metadata, authenticated
+More. `/api/v1/branding` provides readiness, eligible cases, Brand Projects,
+active-kit resolution, project/run history, post-kit logo revision lifecycle,
+before/after review and approval, run lifecycle, stages, directions,
+review/history, kit metadata, authenticated
 assets, and ZIP download. Asset responses are private and `no-store`.
 Candidate cards show readable case content and kit state; UUIDs stay internal.
 Ukrainian is the default UI/sample language and the naming-clearance disclosure
@@ -131,6 +172,12 @@ field empty makes it **Схвалити й далі**. Regeneration visibly stay
 logo and the new version appears automatically. It fetches only the active logo;
 stage/provider/cost inspection, history, and deliberate rerun are collapsed
 outside the primary path.
+
+The landing view anchors the source Idea and canonical approved logo above
+every focused run. A direct run link may focus a paused draft, but cannot hide
+the canonical kit. History labels completed kit v1 and paused Draft v2 as
+versions of the same project. Full research rebuilding is an advanced confirmed
+action; editing the approved logo is the direct path.
 
 Production acceptance requires one real completed live Idea case, three current
 logo approvals, an approved/downloaded kit, fixture compilation, graph-edge audit,

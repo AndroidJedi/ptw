@@ -1,6 +1,6 @@
 # Natal landing builder
 
-Status: one-click Firebase publication implementation complete; production verification pending
+Status: one-click Firebase publication live and production-verified
 Updated: 2026-08-22
 
 ## Purpose
@@ -58,6 +58,21 @@ The old `/api/v1/landings/builder-jobs` route remains as a rollout compatibility
 alias, but it starts the same real build and publish lifecycle. Existing failed
 Commander plans remain immutable audit history and are not rewritten as
 successful landing builds.
+
+## Production evidence
+
+Release `natal-autopublish-a38990e` at commit `a38990e` is deployed on the VPS.
+Owner Console Hosting version `a031fe85258f6dec` serves service-worker cache
+`ptw-shell-v23`. The first real request, build
+`c691ef38-a142-4c26-ae3a-6fab29e8b175`, published dedicated Natal Hosting
+version `d30841b0a0259b63` at
+`https://natal-landings-86123.web.app/builds/c691ef38-a142-4c26-ae3a-6fab29e8b175/`.
+It renders the source idea title, its sampled assets return HTTP 200, and the
+private `brief.json` and `build.json` URLs return HTTP 404. PostgreSQL records
+its `landing` entity and `derived_from` edge to Idea Laval run
+`01a01de0-4980-7ab4-aa91-0cebb8aab3c8`; publication state and lineage remained
+intact across a controlled Owner Gateway restart. The legacy failed plan remains
+unchanged for auditability.
 
 ## Verification
 

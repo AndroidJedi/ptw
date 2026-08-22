@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Natal one-click Firebase publisher ready for production deployment
+Status: Natal one-click Firebase publisher live in production
 Updated: 2026-08-22
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -33,8 +33,21 @@ before planning because the mounted Codex refresh token could not be refreshed.
 The previous Firebase Auth service account also had no Hosting permission. The
 failed command remains audit history. The replacement uses a separate publisher
 identity, a server-pinned site, an explicit public-file allowlist, and never
-publishes `brief.json` or `build.json`. Production release evidence and the
-first real published landing will be recorded after deployment.
+publishes `brief.json` or `build.json`.
+
+Production release `natal-autopublish-a38990e` at commit `a38990e` runs in all
+three healthy application services. Owner Console Firebase Hosting version
+`a031fe85258f6dec` serves `index-DYb5tKwx.js`, `App-DZ99bozD.js`, and
+`ptw-shell-v23`. The original failed request was replayed through the new domain
+pipeline without altering its audit record: build
+`c691ef38-a142-4c26-ae3a-6fab29e8b175` is published as dedicated-site version
+`d30841b0a0259b63` at
+`https://natal-landings-86123.web.app/builds/c691ef38-a142-4c26-ae3a-6fab29e8b175/`.
+It retains a `derived_from` edge to Idea Laval run
+`01a01de0-4980-7ab4-aa91-0cebb8aab3c8`; the row, lineage, and URL survived an
+Owner Gateway restart. Both the build URL and latest-root URL return the
+idea-specific Natal page, its sampled CSS/SVG/PNG assets return HTTP 200, and
+both private JSON paths return HTTP 404.
 
 Branding v1 now runs inside the existing Idea process as the evidence-backed
 stage between a completed live Idea case and future visual-post generation. The
@@ -457,17 +470,19 @@ verified Google Firebase user.
 
 ## Verification
 
-- The isolated Natal release passes all 129 Commander tests with 58 expected
-  local dependency skips, all 28 Owner Gateway tests with 12 expected local
-  runtime skips, 30 Vitest checks, and 15 Playwright checks across desktop,
-  360 px Chromium, and iPhone WebKit. The pinned Commander image passes the
-  same 129 tests with 39 expected database/external skips; the pinned Owner
-  Gateway image passes all 28 tests, including the three Landing proxy tests.
-  The serialized publisher reran all 30 web checks and the production build,
-  deployed all three healthy images and Firebase Hosting, and completed the
-  public gateway/Auth/CORS audit. Firebase Functions type-check, Commander
-  demo, Python compile gate, local and VPS skill validation, strict production
-  dependency readiness, and `git diff --check` pass.
+- The isolated Natal release passes all 129 Commander tests, all 39 Owner
+  Gateway tests in the built image with only two optional database skips, 30
+  Vitest checks, and 15 Playwright checks across desktop, 360 px Chromium, and
+  iPhone WebKit. The pinned Commander image passes the same 129 tests with 39
+  expected database/external skips, and disposable PostgreSQL repository tests
+  prove Landing lineage, idempotency, and retry. The serialized publisher reran
+  all 30 web checks and the production build, deployed all three healthy images
+  plus Firebase Hosting, and completed the public gateway/Auth/CORS audit. The
+  live bundle contains the publish, landing-only history, and open-landing
+  controls; unauthenticated Landing list/detail/create calls return HTTP 401 and
+  the production preflight returns HTTP 200. Firebase Functions type-check,
+  Commander demo, Python compile gate, local and VPS skill validation, strict
+  production dependency readiness, and `git diff --check` pass.
 - Safari recovery Hosting version `bca9633a185d6218` serves
   `index-4XLnhkNC.js`, `App-Cix7w3By.js`, and `ptw-shell-v16`. The live audit
   proves the compiled local-storage Auth marker, App Check header/site key,

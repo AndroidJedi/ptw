@@ -61,6 +61,7 @@ STRUCTURED_LLM_MODES = frozenset({
     "branding_logo_generation",
     "branding_revision_planner",
     "branding_logo_reference_edit",
+    "natal_landing_revision",
 })
 MAX_STRUCTURED_LLM_REQUEST_BYTES = 1_000_000
 BRANDING_IMAGE_MODEL = "gpt-image-2"
@@ -106,6 +107,9 @@ def structured_llm_capabilities() -> dict:
         ),
         "branding_modes": sorted(
             mode for mode in STRUCTURED_LLM_MODES if mode.startswith("branding_")
+        ),
+        "landing_modes": sorted(
+            mode for mode in STRUCTURED_LLM_MODES if mode.startswith("natal_landing_")
         ),
         "branding_image": {
             "ready": True,

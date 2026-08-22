@@ -202,6 +202,68 @@ def _persist_brand_image(codex_home: Path, session_id: str) -> dict:
             shutil.rmtree(session_directory)
 
 
+def _validate_brand_reference(parameters: dict) -> dict | None:
+    if parameters.get("mode") != "branding_logo_reference_edit":
+        return None
+    payload = parameters.get("input_payload") or {}
+    path = Path(str(payload.get("source_path") or "")).resolve()
+    root = Path(os.environ.get("BRAND_SHARED_ASSET_ROOT", "/var/lib/ptw/assets")).resolve()
+    if path == root or root not in path.parents or path.suffix.lower() != ".png":
+        raise RuntimeError("Branding reference image is outside the shared asset volume")
+    content = path.read_bytes() if path.is_file() else b""
+    digest = hashlib.sha256(content).hexdigest() if content else ""
+    if (
+        not content.startswith(b"\x89PNG\r\n\x1a\n")
+        or digest != payload.get("source_digest")
+        or len(content) > 10_000_000
+    ):
+        raise RuntimeError("Branding reference image failed PNG or digest validation")
+    width = struct.unpack(">I", content[16:20])[0]
+    height = struct.unpack(">I", content[20:24])[0]
+    if width != height or not 512 <= width <= 2048:
+        raise RuntimeError("Branding reference image must be a bounded square PNG")
+    return {"source_path": str(path), "source_digest": digest}
+
+
+def _prove_brand_reference(stdout: str, reference: dict | None) -> dict | None:
+    if reference is None:
+        return None
+    path = reference["source_path"]
+    matching = []
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        item = event.get("item") if isinstance(event, dict) else None
+        if not isinstance(item, dict):
+            continue
+        tool_marker = " ".join(
+            str(item.get(key) or "") for key in ("type", "server", "tool", "name")
+        ).lower()
+        if "tool" not in tool_marker or "image" not in tool_marker:
+            continue
+        arguments = item.get("arguments") or item.get("input") or {}
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                continue
+        referenced = (
+            arguments.get("referenced_image_paths")
+            if isinstance(arguments, dict) else None
+        )
+        if isinstance(referenced, list) and referenced == [path]:
+            matching.append(json.dumps(event, sort_keys=True, separators=(",", ":")))
+    if not matching:
+        raise RuntimeError("Branding image trace did not supply the exact reference path")
+    return {
+        **reference,
+        "used": True,
+        "trace_digest": hashlib.sha256("\n".join(matching).encode()).hexdigest(),
+    }
+
+
 def execute_structured_llm(parameters: dict) -> dict:
     """Run one schema-bound Codex invocation with no reusable conversation state."""
     codex_home = Path(os.environ.get("CODEX_HOME", "/tmp/ptw-codex"))
@@ -212,6 +274,7 @@ def execute_structured_llm(parameters: dict) -> dict:
         shutil.copyfile(mounted, runtime)
         runtime.chmod(0o600)
 
+    reference = _validate_brand_reference(parameters)
     prompt = (
         parameters["system_prompt"].strip()
         + "\n\nReturn only one JSON object matching the supplied schema."
@@ -272,8 +335,11 @@ def execute_structured_llm(parameters: dict) -> dict:
             "response": json.dumps(data, ensure_ascii=False),
             "invocation": invocation,
         }
-        if parameters.get("mode") == "branding_logo_generation":
+        if parameters.get("mode") in {"branding_logo_generation", "branding_logo_reference_edit"}:
             result["image"] = _persist_brand_image(codex_home, session_id)
+            reference_trace = _prove_brand_reference(completed.stdout, reference)
+            if reference_trace is not None:
+                result["image"]["reference"] = reference_trace
         return result
 
 

@@ -223,6 +223,96 @@ def test_branding_logo_rejects_multiple_generated_images(monkeypatch, tmp_path: 
         })
 
 
+def test_branding_reference_edit_proves_exact_attached_source(monkeypatch, tmp_path: Path) -> None:
+    codex_home = tmp_path / "codex-home"
+    shared_root = tmp_path / "assets"
+    provider_root = shared_root / "brand-provider"
+    source_path = shared_root / "approved.png"
+    shared_root.mkdir()
+    source_path.write_bytes(png_header())
+    source_digest = __import__("hashlib").sha256(source_path.read_bytes()).hexdigest()
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("BRAND_SHARED_ASSET_ROOT", str(shared_root))
+    monkeypatch.setenv("BRAND_PROVIDER_ASSET_DIR", str(provider_root))
+
+    def fake_run(command, **_kwargs):
+        output_path = Path(command[command.index("--output-last-message") + 1])
+        output_path.write_text('{"generated":true}', encoding="utf-8")
+        generated = codex_home / "generated_images" / "brand-edit-session"
+        generated.mkdir(parents=True)
+        (generated / "edited.png").write_bytes(png_header())
+        tool_event = {
+            "type": "item.completed",
+            "item": {
+                "type": "mcp_tool_call", "server": "image_gen", "tool": "imagegen",
+                "arguments": {"referenced_image_paths": [str(source_path.resolve())]},
+            },
+        }
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout=(
+                '{"type":"thread.started","thread_id":"brand-edit-session"}\n'
+                + json.dumps(tool_event) + "\n"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    result = execute_structured_llm({
+        "mode": "branding_logo_reference_edit",
+        "system_prompt": (
+            f"$imagegen Use referenced_image_paths with {source_path.resolve()}."
+        ),
+        "input_payload": {
+            "source_path": str(source_path.resolve()),
+            "source_digest": source_digest,
+        },
+        "output_schema": {"type": "object"},
+    })
+    assert result["image"]["reference"]["used"] is True
+    assert result["image"]["reference"]["source_digest"] == source_digest
+    assert result["image"]["reference"]["source_path"] == str(source_path.resolve())
+
+
+def test_branding_reference_edit_rejects_a_missing_tool_trace(monkeypatch, tmp_path: Path) -> None:
+    codex_home = tmp_path / "codex-home"
+    shared_root = tmp_path / "assets"
+    source_path = shared_root / "approved.png"
+    shared_root.mkdir()
+    source_path.write_bytes(png_header())
+    source_digest = __import__("hashlib").sha256(source_path.read_bytes()).hexdigest()
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("BRAND_SHARED_ASSET_ROOT", str(shared_root))
+    monkeypatch.setenv("BRAND_PROVIDER_ASSET_DIR", str(shared_root / "provider"))
+
+    def fake_run(command, **_kwargs):
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"generated":true}', encoding="utf-8"
+        )
+        generated = codex_home / "generated_images" / "brand-edit-unproved"
+        generated.mkdir(parents=True)
+        (generated / "edited.png").write_bytes(png_header())
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout='{"type":"thread.started","thread_id":"brand-edit-unproved"}\n',
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    with pytest.raises(RuntimeError, match="exact reference path"):
+        execute_structured_llm({
+            "mode": "branding_logo_reference_edit",
+            "system_prompt": (
+                f"$imagegen Use referenced_image_paths with {source_path.resolve()}."
+            ),
+            "input_payload": {
+                "source_path": str(source_path.resolve()),
+                "source_digest": source_digest,
+            },
+            "output_schema": {"type": "object"},
+        })
+
+
 @pytest.mark.parametrize("mode", [
     "laval_youtube_observation",
     "laval_mechanism_extraction",

@@ -84,6 +84,8 @@ def test_structured_bridge_accepts_laval_modes_and_full_contract() -> None:
         "branding_brand_brief",
         "branding_direction_synthesis",
         "branding_logo_generation",
+        "branding_revision_planner",
+        "branding_logo_reference_edit",
     }
     assert {mode for mode in STRUCTURED_LLM_MODES if mode.startswith("branding_")} == branding_modes
     assert structured_llm_capabilities() == {
@@ -95,6 +97,8 @@ def test_structured_bridge_accepts_laval_modes_and_full_contract() -> None:
             "provider": "codex_chatgpt_imagegen",
             "max_images_per_request": 1,
             "asset_transport": "commander_asset_volume",
+            "reference_edit": True,
+            "reference_trace": "exact_path_and_sha256",
         },
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
     }
@@ -102,11 +106,16 @@ def test_structured_bridge_accepts_laval_modes_and_full_contract() -> None:
         validate_structured_llm_request({
             "mode": mode,
             "system_prompt": (
-                "$imagegen Return structured evidence."
+                "$imagegen Use referenced_image_paths with /var/lib/ptw/assets/reference.png."
+                if mode == "branding_logo_reference_edit"
+                else "$imagegen Return structured evidence."
                 if mode == "branding_logo_generation"
                 else "Return structured evidence."
             ),
-            "input_payload": {"evidence_ids": ["e-1"]},
+            "input_payload": ({
+                "source_path": "/var/lib/ptw/assets/reference.png",
+                "source_digest": "a" * 64,
+            } if mode == "branding_logo_reference_edit" else {"evidence_ids": ["e-1"]}),
             "output_schema": {"type": "object"},
             "prompt_template_version": "contract-v1",
             "context_hash": "sha256:abc",
@@ -138,6 +147,24 @@ def test_branding_logo_contract_requires_explicit_builtin_image_generation() -> 
     with pytest.raises(ValueError, match=r"\$imagegen"):
         validate_structured_llm_request(request)
     request["system_prompt"] = "$imagegen Create exactly one original symbol."
+    validate_structured_llm_request(request)
+
+
+def test_branding_reference_edit_requires_exact_path_digest_and_tool_argument() -> None:
+    request = {
+        "mode": "branding_logo_reference_edit",
+        "system_prompt": "$imagegen Edit this logo.",
+        "input_payload": {
+            "source_path": "/var/lib/ptw/assets/source.png",
+            "source_digest": "a" * 64,
+        },
+        "output_schema": {"type": "object"},
+    }
+    with pytest.raises(ValueError, match="exact path"):
+        validate_structured_llm_request(request)
+    request["system_prompt"] = (
+        "$imagegen Use referenced_image_paths with /var/lib/ptw/assets/source.png."
+    )
     validate_structured_llm_request(request)
 
 

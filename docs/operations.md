@@ -30,6 +30,12 @@ image per request, and `commander_asset_volume` transport. The Commander API and
 worker images are both prebuilt and pinned with `PTW_PLATFORM_IMAGE_TAG`; never
 build either on the 1 GB production host. Recreate them one at a time and run
 the PTW Owner Gateway dependency audit before starting a Branding run.
+Approved-logo editing additionally requires the planner and reference-edit
+modes plus `branding_image.reference_edit=true` and
+`reference_trace=exact_path_and_sha256`. Run an out-of-run edit canary with an
+immutable shared-volume PNG before enabling production replay. Verify the
+returned source path/digest proof, one generated PNG, temporary-session cleanup,
+and memory headroom; never treat a matching prompt string as proof of image use.
 
 ## Migrations
 

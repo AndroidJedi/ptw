@@ -59,6 +59,8 @@ STRUCTURED_LLM_MODES = frozenset({
     "branding_brand_brief",
     "branding_direction_synthesis",
     "branding_logo_generation",
+    "branding_revision_planner",
+    "branding_logo_reference_edit",
 })
 MAX_STRUCTURED_LLM_REQUEST_BYTES = 1_000_000
 BRANDING_IMAGE_MODEL = "gpt-image-2"
@@ -79,10 +81,19 @@ def validate_structured_llm_request(request: dict) -> None:
         if field in request and not isinstance(request[field], str):
             raise ValueError("invalid structured LLM request")
     if (
-        request.get("mode") == "branding_logo_generation"
+        request.get("mode") in {"branding_logo_generation", "branding_logo_reference_edit"}
         and "$imagegen" not in request["system_prompt"]
     ):
         raise ValueError("Branding logo generation must explicitly invoke $imagegen")
+    if request.get("mode") == "branding_logo_reference_edit":
+        payload = request["input_payload"]
+        if (
+            not isinstance(payload.get("source_path"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", str(payload.get("source_digest") or ""))
+            or "referenced_image_paths" not in request["system_prompt"]
+            or payload["source_path"] not in request["system_prompt"]
+        ):
+            raise ValueError("Branding reference edit requires an exact path and SHA-256 contract")
     if len(json.dumps(request, ensure_ascii=False).encode("utf-8")) > MAX_STRUCTURED_LLM_REQUEST_BYTES:
         raise ValueError("structured LLM request is too large")
 
@@ -102,6 +113,8 @@ def structured_llm_capabilities() -> dict:
             "provider": "codex_chatgpt_imagegen",
             "max_images_per_request": 1,
             "asset_transport": "commander_asset_volume",
+            "reference_edit": True,
+            "reference_trace": "exact_path_and_sha256",
         },
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
     }

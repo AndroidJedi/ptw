@@ -132,9 +132,9 @@ Logo corrections first pass through a strict planner with only three outcomes:
 soft direction constraints such as `text-free`/`no letters`; safety,
 originality, no-copy, real transparency, and favicon clarity remain fixed.
 Reference edits digest-check the current immutable PNG inside the shared asset
-volume and supply that exact path through `$imagegen` `referenced_image_paths`.
-The independent worker returns proof only after observing the exact image-tool
-argument, and Idea rejects a result without matching path-and-digest proof.
+volume and attach that exact path through Codex CLI `--image`. The independent
+worker returns proof only after observing the image tool consume exactly one
+attached image, and Idea rejects a result without matching path-and-digest proof.
 
 Exact literal text such as `PTW` never depends on model typography. A code-owned
 Pillow renderer uses bundled fonts, constrained layouts, and colors derived

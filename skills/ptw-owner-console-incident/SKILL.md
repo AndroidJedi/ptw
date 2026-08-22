@@ -161,9 +161,12 @@ corrections override soft direction constraints such as `text-free` or `no
 letters`; reject contradictory planner output before generation. Exact text
 such as `PTW` must use the code-owned bundled-font lettermark renderer, not
 probabilistic image typography. A `reference_edit` must digest-check the current
-immutable PNG under the shared asset root, pass that exact path as
-`referenced_image_paths`, and retain proof from the actual image-tool event.
-A prompt containing the path is not proof. Reject unchanged or color-only
+immutable PNG under the shared asset root, attach that exact path with Codex CLI
+`--image`, and retain proof that the actual image-tool event consumed exactly
+one attached image. A prompt containing the path is not proof. If the sanitized
+failure reports Bubblewrap user namespaces, do not relax the host kernel policy
+or bypass the Codex sandbox; use the verified attachment transport. Reject
+unchanged or color-only
 results for structural instructions, permit at most one fresh automatic retry,
 and keep the old Creative and kit active on failure.
 

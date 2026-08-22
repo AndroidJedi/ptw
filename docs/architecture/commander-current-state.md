@@ -50,7 +50,7 @@ publishes `brief.json` or `build.json`.
 
 Production release `natal-feedback-bbcaf90` at commit `bbcaf90` runs in all
 three healthy application services. Owner Console Firebase Hosting version
-`8e674dd9771a18ed` serves `index-BZyMdMS1.js`, `App-BOYcAlow.js`, and
+`61a24c84ce884c0b` serves `index-BZyMdMS1.js`, `App-BOYcAlow.js`, and
 `ptw-shell-v24`. The original failed request was replayed through the new domain
 pipeline without altering its audit record: build
 `c691ef38-a142-4c26-ae3a-6fab29e8b175` is published as dedicated-site version

@@ -86,7 +86,7 @@ successful landing builds.
 ## Production evidence
 
 Release `natal-feedback-bbcaf90` at commit `bbcaf90` is deployed on the VPS.
-Owner Console Hosting version `8e674dd9771a18ed` serves service-worker cache
+Owner Console Hosting version `61a24c84ce884c0b` serves service-worker cache
 `ptw-shell-v24`. The first real request, build
 `c691ef38-a142-4c26-ae3a-6fab29e8b175`, published dedicated Natal Hosting
 version `61854d2e51b8ec0c` at

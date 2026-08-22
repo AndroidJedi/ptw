@@ -444,6 +444,13 @@ verified Google Firebase user.
 
 ## Verification
 
+- The isolated Natal release candidate passes all 129 Commander tests with 58
+  expected local dependency skips, all 28 Owner Gateway tests with 12 expected
+  local runtime skips, 30 Vitest checks, and 15 Playwright checks across
+  desktop, 360 px Chromium, and iPhone WebKit. The production web build,
+  Firebase Functions type-check, Commander demo, Python compile gate, dedicated
+  Natal skill validation, and `git diff --check` pass. Built-image and live
+  production evidence are recorded only after the serialized deployment.
 - Safari recovery Hosting version `bca9633a185d6218` serves
   `index-4XLnhkNC.js`, `App-Cix7w3By.js`, and `ptw-shell-v16`. The live audit
   proves the compiled local-storage Auth marker, App Check header/site key,

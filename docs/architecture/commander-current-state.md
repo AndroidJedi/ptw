@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Brand Project continuity release verification; Natal publisher remains live
+Status: Brand Project continuity release verification; Natal iterative review remains live
 Updated: 2026-08-22
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -15,17 +15,30 @@ dependency-free static site with normalized brief and source provenance. The
 publication authority is narrowly limited to the owner-authenticated,
 server-pinned Firebase workflow.
 
-The Owner Console adds a sixth `Лендинги` destination. It loads completed live
+The Owner Console has a sixth `Лендинги` workspace. It loads completed live
 Idea Laval evaluations, maps the preferred thesis and mechanisms into editable
 business idea, target audience, pain, promise, features, steps, and CTA fields,
-and recommends a template with an explicit owner override. Submitting resolves
-the completed case again in Owner Gateway, preserves server-owned Laval/thesis
-IDs, and creates a PostgreSQL-backed Landing build with stable Idea Laval
-lineage. The gateway starts the deterministic builder immediately, publishes
-successful output to the dedicated `natal-landings-86123` Firebase Hosting
-site, and returns an exact public URL. The Landing tab polls and lists only
-Landing builds, with a safe retry for durable failures; it no longer sends the
-owner to unrelated global Jobs or depends on a Commander planning turn.
+and shows all three templates on every round. Recommendation is only a default:
+`product`, `community`, and `waitlist` can be switched or reapplied repeatedly
+in any order. Each application creates an increasing immutable revision for
+that Idea, optionally `supersedes` the published version selected from history,
+and preserves every earlier public URL.
+
+Before persistence, Owner Gateway now fails closed unless the independent
+ChatGPT-authenticated bridge advertises `natal_landing_revision`. A fresh,
+strict-schema builder-agent turn reads the canonical Natal skill, selected
+template, current brief, and captured feedback memory; code keeps source IDs,
+CTA destination, and verified proof server-owned. The static builder then
+publishes the revision to the dedicated `natal-landings-86123` Firebase site.
+The Landing tab polls only Landing builds, embeds the exact published page, and
+offers durable retry without redirecting to global Jobs or Commander plans.
+
+Owner comments are append-only runtime skill memory. Each comment creates a
+`HumanFeedback` that `evaluates` the exact published Landing plus a zero-delta
+`WeightUpdate` that `adjusts` the reviewed template component. A new revision
+snapshots the latest 100 feedback UUIDs in chronological order and links each
+as `derived_from`; older memory remains immutable graph history. Browser review
+never mutates `SKILL.md` or rewrites an earlier artifact.
 
 This correction follows the first real owner click. Legacy command
 `71ff6c4e-53cd-47ca-8389-2fa1763729ba` created only a plan request and failed
@@ -35,13 +48,13 @@ failed command remains audit history. The replacement uses a separate publisher
 identity, a server-pinned site, an explicit public-file allowlist, and never
 publishes `brief.json` or `build.json`.
 
-Production release `natal-autopublish-a38990e` at commit `a38990e` runs in all
+Production release `natal-feedback-bbcaf90` at commit `bbcaf90` runs in all
 three healthy application services. Owner Console Firebase Hosting version
-`a031fe85258f6dec` serves `index-DYb5tKwx.js`, `App-DZ99bozD.js`, and
-`ptw-shell-v23`. The original failed request was replayed through the new domain
+`61a24c84ce884c0b` serves `index-BZyMdMS1.js`, `App-BOYcAlow.js`, and
+`ptw-shell-v24`. The original failed request was replayed through the new domain
 pipeline without altering its audit record: build
 `c691ef38-a142-4c26-ae3a-6fab29e8b175` is published as dedicated-site version
-`d30841b0a0259b63` at
+`61854d2e51b8ec0c` at
 `https://natal-landings-86123.web.app/builds/c691ef38-a142-4c26-ae3a-6fab29e8b175/`.
 It retains a `derived_from` edge to Idea Laval run
 `01a01de0-4980-7ab4-aa91-0cebb8aab3c8`; the row, lineage, and URL survived an
@@ -62,6 +75,21 @@ the candidate. Migration 014 also reconciles paused/running stage drift and
 retains late provider results for charge-free resume. Release, edit-canary, and
 authorized production-replay evidence will replace this paragraph after
 cutover; the existing kit stays active throughout.
+
+The owner's next application preserved that waitlist build as revision 1 and
+created community revision 2, build
+`fc06d55b-4fb6-45e4-813f-0f1abf5e47a4`. Its first two bridge executions remain
+failed history: the VPS ChatGPT session required device reauthentication, and
+the new auth inode initially had root-only permissions that the non-root worker
+could not read. The credential contents were never copied or exposed. After
+repairing the exact read-only projection and recreating the worker, platform
+job 62 completed with a fresh ephemeral session and revision 2 published as
+Firebase version `d42c1e90c039b947` at
+`https://natal-landings-86123.web.app/builds/fc06d55b-4fb6-45e4-813f-0f1abf5e47a4/`.
+Its `derived_from` Idea edge and `supersedes` revision-1 edge are intact, both
+private JSON paths return 404, root and versioned HTML digests match, the frame
+policy permits only the two PTW owner origins, all heavy-operation guards are
+idle, and both production owner/dependency audits pass.
 
 Branding v1 now runs inside the existing Idea process as the evidence-backed
 stage between a completed live Idea case and future visual-post generation. The

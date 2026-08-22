@@ -36,13 +36,20 @@ def brief() -> dict:
 
 class Repository:
     def __init__(self, output: Path) -> None:
+        self.memory = []
         self.row = {
             "id": BUILD_ID,
             "request_id": "31234567-89ab-7def-8123-456789abcdef",
             "idea_run_id": RUN_ID,
             "thesis_id": THESIS_ID,
             "template_id": "waitlist",
+            "parent_build_id": None,
+            "revision_number": 1,
+            "input_brief": brief(),
             "brief": brief(),
+            "skill_memory_feedback_ids": [],
+            "revision_summary": None,
+            "revision_invocation": None,
             "status": "queued",
             "output_path": str(output),
             "build_manifest": None,
@@ -54,8 +61,24 @@ class Repository:
             "error_message": None,
         }
 
-    def mark_building(self, _build_id: str):
+    def get(self, _build_id: str):
+        return dict(self.row)
+
+    def skill_memory(self, _idea_run_id: str):
+        return list(self.memory)
+
+    def mark_revising(self, _build_id: str):
+        self.row["status"] = "revising"
+        return dict(self.row)
+
+    def mark_building(self, _build_id: str, **kwargs):
         self.row["status"] = "building"
+        if kwargs.get("brief") is not None:
+            self.row.update(
+                brief=kwargs["brief"],
+                revision_summary=kwargs["summary"],
+                revision_invocation=kwargs["invocation"],
+            )
         return dict(self.row)
 
     def mark_publishing(self, _build_id: str, *, manifest, artifact_sha256: str):
@@ -70,7 +93,7 @@ class Repository:
         self.row.update(status="failed", error_code=code, error_message=message)
         return dict(self.row)
 
-    def published(self, _limit: int):
+    def published(self):
         return []
 
 
@@ -89,6 +112,19 @@ class Publisher:
             "version": "firebase-version-1",
             "public_url": f"https://{self.site_id}.web.app/builds/{build_id}/",
         }
+
+
+class Reviser:
+    def __init__(self) -> None:
+        self.memory = None
+
+    def revise(self, *, template_id, brief, skill_memory):
+        self.memory = skill_memory
+        return (
+            {**brief, "business_idea": "Ідея після відгуку"},
+            f"Applied feedback to {template_id}.",
+            {"session_id": "revision-session", "mode": "natal_landing_revision"},
+        )
 
 
 class LandingBuildCoordinatorTests(unittest.TestCase):
@@ -139,6 +175,29 @@ class LandingBuildCoordinatorTests(unittest.TestCase):
         self.assertEqual("failed", repository.row["status"])
         self.assertIsNone(publisher.files)
         self.assertIn("emergency stop", repository.row["error_message"])
+
+    def test_skill_reviser_consumes_only_feedback_captured_by_the_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = Repository(root / "builds" / BUILD_ID)
+            repository.row["skill_memory_feedback_ids"] = ["feedback-1"]
+            repository.memory = [
+                {"id": "feedback-1", "template_id": "product", "revision_number": 1, "comment": "Shorter hero"},
+                {"id": "feedback-after-create", "template_id": "waitlist", "revision_number": 2, "comment": "Too late"},
+            ]
+            reviser = Reviser()
+            coordinator = LandingBuildCoordinator(
+                repository=repository,
+                publisher=Publisher(),
+                output_root=root,
+                stopped=lambda: False,
+                reviser=reviser,
+            )
+            coordinator.run_sync(BUILD_ID)
+        self.assertEqual("published", repository.row["status"])
+        self.assertEqual("Ідея після відгуку", repository.row["brief"]["business_idea"])
+        self.assertEqual(["feedback-1"], [item["id"] for item in reviser.memory])
+        self.assertEqual("revision-session", repository.row["revision_invocation"]["session_id"])
 
 
 if __name__ == "__main__":

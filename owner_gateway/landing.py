@@ -24,12 +24,18 @@ def prepare_landing_build(
     candidate: Mapping[str, Any],
     requested_template_id: str,
     overrides: Mapping[str, Any],
+    *,
+    base_brief: Mapping[str, Any] | None = None,
+    parent_build_id: str | None = None,
 ) -> dict[str, Any]:
     prepared = brief_from_candidate(candidate)
     recommended = str(prepared["recommended_template_id"])
     template_id = recommended if requested_template_id in {"", "auto"} else requested_template_id
     template_manifest(template_id)
-    brief = apply_brief_overrides(prepared["brief"], overrides)
+    brief = prepared["brief"]
+    if base_brief is not None:
+        brief = apply_brief_overrides(brief, base_brief)
+    brief = apply_brief_overrides(brief, overrides)
     build_id = str(uuid4())
     return {
         "build_id": build_id,
@@ -37,6 +43,7 @@ def prepare_landing_build(
         "template_id": template_id,
         "recommended_template_id": recommended,
         "brief": brief,
+        "parent_build_id": parent_build_id,
     }
 
 

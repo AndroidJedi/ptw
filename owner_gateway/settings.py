@@ -41,6 +41,8 @@ class Settings:
     firebase_landing_site_id: str = ""
     firebase_landing_service_account_path: Path | None = None
     landing_output_root: Path = Path("/var/lib/ptw-owner/landings")
+    landing_llm_bridge_url: str = ""
+    landing_llm_model: str = "codex-cli-default"
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -96,4 +98,11 @@ class Settings:
             landing_output_root=Path(
                 os.environ.get("NATAL_LANDING_OUTPUT_ROOT", "/var/lib/ptw-owner/landings")
             ),
+            landing_llm_bridge_url=os.environ.get(
+                "LANDING_LLM_BRIDGE_URL",
+                "http://ptw-agent-platform-commander-api-1:8000/internal/llm/structured",
+            ).strip().rstrip("/"),
+            landing_llm_model=os.environ.get(
+                "LANDING_LLM_MODEL", "codex-cli-default"
+            ).strip(),
         )

@@ -13,6 +13,7 @@ from natal.builder import build_landing
 
 from .firebase_hosting import FirebaseHostingPublisher, public_files
 from .landing_repository import LandingBuildRepository
+from .landing_revision import LandingRevisionProvider
 
 
 class LandingBuildCoordinator:
@@ -23,14 +24,21 @@ class LandingBuildCoordinator:
         publisher: FirebaseHostingPublisher,
         output_root: Path,
         stopped: Callable[[], bool],
+        reviser: LandingRevisionProvider | None = None,
     ) -> None:
         self.repository = repository
         self.publisher = publisher
         self.output_root = output_root.resolve()
         self.stopped = stopped
+        self.reviser = reviser
 
     def recover_interrupted(self) -> int:
         return self.repository.recover_interrupted()
+
+    def verify_ready(self) -> None:
+        if self.reviser is None:
+            raise RuntimeError("Natal landing revision provider is unavailable")
+        self.reviser.verify_ready()
 
     def active(self) -> dict[str, Any] | None:
         return self.repository.active()
@@ -41,15 +49,30 @@ class LandingBuildCoordinator:
     def by_request(self, request_id: str) -> dict[str, Any] | None:
         return self.repository.by_request(request_id)
 
-    def list(self, limit: int = 30) -> list[dict[str, Any]]:
-        return self.repository.list(limit)
+    def list(self, limit: int = 30, *, idea_run_id: str | None = None) -> list[dict[str, Any]]:
+        return self.repository.list(limit, idea_run_id=idea_run_id)
+
+    def skill_memory(self, idea_run_id: str) -> list[dict[str, Any]]:
+        return self.repository.skill_memory(idea_run_id)
+
+    def record_feedback(
+        self, build_id: str, *, comment: str, requested_by: str
+    ) -> dict[str, Any]:
+        return self.repository.record_feedback(
+            build_id, comment=comment, requested_by=requested_by
+        )
 
     def create(
         self, prepared: Mapping[str, Any], *, request_id: str, requested_by: str
     ) -> tuple[dict[str, Any], bool]:
         output = self.output_root / "builds" / str(prepared["build_id"])
+        memory = self.repository.skill_memory(str(prepared["idea_run_id"]))
+        stored = {
+            **dict(prepared),
+            "skill_memory_feedback_ids": [item["id"] for item in memory],
+        }
         return self.repository.create(
-            prepared,
+            stored,
             request_id=request_id,
             requested_by=requested_by,
             output_path=str(output),
@@ -65,7 +88,26 @@ class LandingBuildCoordinator:
     def run_sync(self, build_id: str) -> None:
         staging: Path | None = None
         try:
-            build = self.repository.mark_building(build_id)
+            build = self.repository.get(build_id)
+            captured_ids = set(build["skill_memory_feedback_ids"])
+            memory = [
+                item for item in self.repository.skill_memory(str(build["idea_run_id"]))
+                if item["id"] in captured_ids
+            ]
+            if self.reviser is not None:
+                self.repository.mark_revising(build_id)
+                revised, summary, invocation = self.reviser.revise(
+                    template_id=str(build["template_id"]),
+                    brief=dict(build["input_brief"]),
+                    skill_memory=memory,
+                )
+                build = self.repository.mark_building(
+                    build_id, brief=revised, summary=summary, invocation=invocation
+                )
+            elif build["skill_memory_feedback_ids"]:
+                raise RuntimeError("Natal skill revision provider is unavailable")
+            else:
+                build = self.repository.mark_building(build_id)
             output = Path(str(build["output_path"])).resolve()
             expected_output = self.output_root / "builds" / build_id
             if output != expected_output:
@@ -112,7 +154,7 @@ class LandingBuildCoordinator:
         return digest.hexdigest()
 
     def _assemble_release(self, target: Path, build_id: str, current_output: Path) -> None:
-        for prior in reversed(self.repository.published(100)):
+        for prior in reversed(self.repository.published()):
             prior_output = Path(str(prior["output_path"])).resolve()
             expected = self.output_root / "builds" / str(prior["id"])
             if prior_output != expected or not prior_output.is_dir():

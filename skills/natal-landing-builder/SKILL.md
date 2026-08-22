@@ -1,6 +1,6 @@
 ---
 name: natal-landing-builder
-description: Build fast, dependency-free Natal landing pages from a structured brief or completed PTW Idea Laval evaluation. Use for selecting among the Natal product, community, and waitlist templates, preparing landing copy, generating a previewable static build, updating an existing Natal landing, or running the authenticated PTW one-click Firebase landing workflow. Do not use for unrelated brands or arbitrary publishing targets.
+description: Build and iteratively revise fast, dependency-free Natal landing pages from a structured brief or completed PTW Idea Laval evaluation. Use for selecting or repeatedly switching among the Natal product, community, and waitlist templates, applying owner feedback, preparing landing copy, generating a previewable static build, updating an existing Natal landing, or running the authenticated PTW Firebase landing workflow. Do not use for unrelated brands or arbitrary publishing targets.
 ---
 
 # Natal Landing Builder
@@ -39,6 +39,23 @@ template system canonical under `natal/`.
    Keep `brief.json`, `build.json`, credentials, source IDs, and other internal
    metadata private. Stop before the Firebase release if the PTW emergency stop
    becomes active.
+9. Treat each owner submission as an immutable landing revision. `product`,
+   `community`, and `waitlist` may be applied repeatedly in any order; a
+   recommendation is never a lock. Link a revision to its published parent with
+   `supersedes` and retain every earlier public URL.
+10. Treat review comments as append-only skill memory. Persist a
+    `HumanFeedback` entity that `evaluates` the exact published Landing and a
+    zero-delta `WeightUpdate` that `adjusts` the reviewed template component.
+    Do not rewrite an earlier comment, landing, or artifact. PostgreSQL is the
+    runtime authority; do not make browser feedback dirty the Git checkout by
+    appending it to `SKILL.md`.
+11. Before a new revision starts, snapshot the latest 100 feedback IDs for that
+    Idea evaluation in chronological order; retain older feedback as immutable
+    graph history. A fresh `natal_landing_revision` builder-agent turn
+    receives the current brief, target template, this skill contract, and that
+    exact memory. Feedback is instruction, not factual proof. Keep source IDs,
+    verified proof, and CTA destination server-owned, and persist the bounded
+    application summary plus fresh invocation provenance.
 
 ## Generate and verify
 
@@ -65,10 +82,14 @@ python3 -m unittest discover -s tests/commander -p 'test_natal_builder.py' -v
 git diff --check
 ```
 
-For the authenticated one-click workflow, also verify that one request creates
-one idempotent PostgreSQL build, starts it immediately, reaches `published`,
-returns the exact Firebase URL, survives an Owner Gateway restart, and appears
-only in the Landing tab history. Confirm the public URL serves the selected
-brief and that `/brief.json` and `/build.json` are not published. A Firebase or
-build failure must end in a durable `failed` state with a safe retry action; it
-must never look like a successful plan or redirect the owner to global Jobs.
+For the authenticated iterative workflow, also verify that one request creates
+one idempotent PostgreSQL revision, starts it immediately, passes through
+`revising`, reaches `published`, returns the exact Firebase URL, survives an
+Owner Gateway restart, and appears only in that Idea's Landing history. Record
+feedback on a published revision, switch to a different template, then reapply
+an earlier template; require each new build to have an increasing revision
+number, the intended parent, and the exact captured feedback IDs. Confirm the
+public URL serves the selected brief and that `/brief.json` and `/build.json`
+are not published. A builder-agent, build, or Firebase failure must end in a
+durable `failed` state with a safe retry action; it must never look successful,
+discard feedback, or redirect the owner to global Jobs.

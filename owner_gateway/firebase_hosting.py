@@ -10,6 +10,7 @@ from typing import Any, Mapping
 
 
 API_ROOT = "https://firebasehosting.googleapis.com/v1beta1"
+HOSTING_CONTRACT = "natal-hosting-v2"
 PUBLIC_SUFFIXES = {".html", ".css", ".js", ".svg", ".png"}
 PRIVATE_FILENAMES = {"brief.json", "build.json"}
 
@@ -106,7 +107,11 @@ class FirebaseHostingPublisher:
         current = self._current_release()
         current_version = current.get("version") if isinstance(current, Mapping) else None
         labels = current_version.get("labels") if isinstance(current_version, Mapping) else None
-        if isinstance(labels, Mapping) and labels.get("natal-build-id") == build_id:
+        if (
+            isinstance(labels, Mapping)
+            and labels.get("natal-build-id") == build_id
+            and labels.get("natal-hosting-contract") == HOSTING_CONTRACT
+        ):
             version_name = str(current_version.get("name") or "")
             return {
                 "version": version_name.rsplit("/", 1)[-1],
@@ -126,7 +131,11 @@ class FirebaseHostingPublisher:
             "POST",
             f"{API_ROOT}/sites/{self.site_id}/versions",
             json={
-                "labels": {"natal-build-id": build_id, "deployment-tool": "ptw-natal"},
+                "labels": {
+                    "natal-build-id": build_id,
+                    "natal-hosting-contract": HOSTING_CONTRACT,
+                    "deployment-tool": "ptw-natal",
+                },
                 "config": {
                     "headers": [
                         {
@@ -138,7 +147,9 @@ class FirebaseHostingPublisher:
                                 "Content-Security-Policy": (
                                     "default-src 'self'; img-src 'self' data:; style-src 'self'; "
                                     "script-src 'self'; object-src 'none'; base-uri 'none'; "
-                                    "frame-ancestors 'none'; form-action 'self'"
+                                    f"frame-ancestors https://{self.project_id}.firebaseapp.com "
+                                    f"https://{self.project_id}.web.app; "
+                                    "form-action 'self'"
                                 ),
                             },
                         },

@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from owner_gateway.firebase_hosting import FirebaseHostingPublisher, public_files
+from owner_gateway.firebase_hosting import HOSTING_CONTRACT, FirebaseHostingPublisher, public_files
 
 
 SITE = "natal-landings-test"
@@ -22,8 +22,11 @@ class Response:
 
 
 class Session:
-    def __init__(self, *, current_build_id: str | None = None) -> None:
+    def __init__(
+        self, *, current_build_id: str | None = None, current_contract: str | None = HOSTING_CONTRACT
+    ) -> None:
         self.current_build_id = current_build_id
+        self.current_contract = current_contract
         self.requests: list[tuple[str, str, dict]] = []
         self.uploads: list[tuple[str, bytes, dict]] = []
 
@@ -35,7 +38,10 @@ class Session:
                 releases = [{
                     "version": {
                         "name": f"sites/{SITE}/versions/existing-version",
-                        "labels": {"natal-build-id": self.current_build_id},
+                        "labels": {
+                            "natal-build-id": self.current_build_id,
+                            **({"natal-hosting-contract": self.current_contract} if self.current_contract else {}),
+                        },
                     }
                 }]
             return Response(200, {"releases": releases})
@@ -93,6 +99,10 @@ class FirebaseHostingPublisherTests(unittest.TestCase):
         self.assertEqual(["GET", "POST", "POST", "PATCH", "POST"], methods)
         created = session.requests[1][2]["json"]
         self.assertEqual(BUILD_ID, created["labels"]["natal-build-id"])
+        self.assertEqual(HOSTING_CONTRACT, created["labels"]["natal-hosting-contract"])
+        csp = created["config"]["headers"][0]["headers"]["Content-Security-Policy"]
+        self.assertIn("https://project.firebaseapp.com", csp)
+        self.assertIn("https://project.web.app", csp)
         populated = session.requests[2][2]["json"]["files"]
         self.assertEqual(4, len(populated))
         self.assertEqual(4, len(session.uploads))
@@ -112,6 +122,19 @@ class FirebaseHostingPublisherTests(unittest.TestCase):
         self.assertEqual("existing-version", result["version"])
         self.assertEqual(1, len(session.requests))
         self.assertEqual([], session.uploads)
+
+    def test_matching_build_with_legacy_security_contract_is_republished(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.make_site(root)
+            session = Session(current_build_id=BUILD_ID, current_contract=None)
+            result = FirebaseHostingPublisher(
+                project_id="project", site_id=SITE, session=session
+            ).publish(root, build_id=BUILD_ID)
+        self.assertEqual("new-version", result["version"])
+        self.assertEqual(["GET", "POST", "POST", "PATCH", "POST"], [
+            method for method, _url, _kwargs in session.requests
+        ])
 
     def test_publish_rejects_unknown_public_file_and_symlink(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

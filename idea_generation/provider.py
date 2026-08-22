@@ -360,6 +360,7 @@ class BridgeProvider:
         )
         modes = payload.get("laval_modes")
         branding_modes = payload.get("branding_modes", [])
+        landing_modes = payload.get("landing_modes", [])
         branding_image = payload.get("branding_image", {})
         max_request_bytes = payload.get("max_request_bytes")
         if (
@@ -367,6 +368,8 @@ class BridgeProvider:
             or not all(isinstance(mode, str) for mode in modes)
             or not isinstance(branding_modes, list)
             or not all(isinstance(mode, str) for mode in branding_modes)
+            or not isinstance(landing_modes, list)
+            or not all(isinstance(mode, str) for mode in landing_modes)
             or not isinstance(branding_image, dict)
             or not isinstance(max_request_bytes, int)
             or max_request_bytes < 1
@@ -375,6 +378,7 @@ class BridgeProvider:
         return {
             "laval_modes": sorted(set(modes)),
             "branding_modes": sorted(set(branding_modes)),
+            "landing_modes": sorted(set(landing_modes)),
             "branding_image": dict(branding_image),
             "max_request_bytes": max_request_bytes,
         }

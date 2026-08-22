@@ -18,6 +18,7 @@ const stages = [
 test.beforeEach(async ({ page }) => {
   let brandApproved = false
   let landingBuild: Record<string, unknown> | null = null
+  const landingMemory: Record<string, unknown>[] = []
   const brandState = new Map<string, {
     revision: number
     reviewState: 'pending' | 'changes_requested' | 'approved'
@@ -59,6 +60,7 @@ test.beforeEach(async ({ page }) => {
         proof_points: [], faq: [], cta: { label: 'Спробувати Natal', url: '#contact' },
       },
     }] })
+    if (url.pathname === '/api/v1/landings/skill-memory') return json({ items: landingMemory })
     if (url.pathname === '/api/v1/landings/builds' && route.request().method() === 'GET') {
       return json({ items: landingBuild ? [landingBuild] : [] })
     }
@@ -71,7 +73,13 @@ test.beforeEach(async ({ page }) => {
         idea_run_id: runId,
         thesis_id: runId,
         template_id: 'community',
+        parent_build_id: null,
+        revision_number: 1,
+        input_brief: body.brief,
         brief: body.brief,
+        skill_memory_feedback_ids: [],
+        revision_summary: 'Applied the selected community structure.',
+        revision_invocation: { mode: 'natal_landing_revision' },
         status: 'queued',
         build_manifest: null,
         artifact_sha256: null,
@@ -85,6 +93,21 @@ test.beforeEach(async ({ page }) => {
         completed_at: null,
       }
       return json(landingBuild)
+    }
+    if (url.pathname === '/api/v1/landings/builds/21234567-89ab-7def-8123-456789abcdef/feedback') {
+      const body = route.request().postDataJSON() as { comment: string }
+      const item = {
+        id: '41234567-89ab-7def-8123-456789abcdef',
+        build_id: '21234567-89ab-7def-8123-456789abcdef',
+        idea_run_id: runId,
+        template_id: 'community',
+        revision_number: 1,
+        comment: body.comment,
+        weight_update_id: '51234567-89ab-7def-8123-456789abcdef',
+        created_at: '2026-08-22T00:00:02Z',
+      }
+      landingMemory.push(item)
+      return json(item, 201)
     }
     if (url.pathname === '/api/v1/landings/builds/21234567-89ab-7def-8123-456789abcdef') {
       landingBuild = {
@@ -253,19 +276,24 @@ test('renders the authenticated owner console without horizontal overflow', asyn
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('builds and publishes a Natal landing from a completed Idea evaluation', async ({ page }) => {
+test('iterates any Natal template and retains per-version skill feedback', async ({ page }) => {
   await page.goto('/?e2e=1&page=landings')
   await expect(page.getByRole('heading', { name: 'Лендинги' })).toBeVisible()
   await expect(page.getByLabel('Бізнес-ідея')).toHaveValue('Make credible progress visible.')
   await expect(page.getByText('РЕКОМЕНДОВАНО')).toBeVisible()
   await page.getByLabel(/Спільнота \/ подія/).check()
   await page.getByLabel('Бізнес-ідея').fill('A sharper evidence-backed landing')
-  await page.getByRole('button', { name: /Зібрати й опублікувати у Firebase/ }).click()
-  await expect(page.getByRole('heading', { name: 'Лендинг опубліковано' })).toBeVisible()
-  await expect(page.getByRole('link', { name: /Відкрити лендинг/ })).toHaveAttribute(
+  await page.getByRole('button', { name: /Застосувати community і опублікувати/ }).click()
+  await expect(page.getByRole('heading', { name: 'Версію опубліковано' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /Відкрити окремо/ })).toHaveAttribute(
     'href', 'https://natal-landings-86123.web.app/builds/21234567-89ab-7def-8123-456789abcdef/',
   )
-  await expect(page.getByText('Лише Natal лендинги')).toBeVisible()
+  await page.getByLabel('Що змінити в наступній версії?').fill('Скоротіть hero і посильте CTA')
+  await page.getByRole('button', { name: /Зберегти відгук у Natal skill/ }).click()
+  await expect(page.getByText('Скоротіть hero і посильте CTA')).toBeVisible()
+  await page.getByLabel(/Waitlist \/ концепт/).check()
+  await expect(page.getByRole('button', { name: /Застосувати waitlist і опублікувати/ })).toBeVisible()
+  await expect(page.getByText('Усі шаблони й версії')).toBeVisible()
   await expect(page.getByText('Відкрити Завдання')).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

@@ -34,14 +34,8 @@ class LandingBuildRepositoryTests(unittest.TestCase):
 
     def setUp(self) -> None:
         with psycopg.connect(self.database_url) as connection:
-            connection.execute("DELETE FROM natal_landing_builds")
             connection.execute(
-                "DELETE FROM commander_relationships WHERE source_id IN (SELECT id FROM commander_entities WHERE kind='landing')"
-            )
-            connection.execute("DELETE FROM commander_entities WHERE kind='landing'")
-            connection.execute("DELETE FROM commander_external_aliases WHERE system='idea_laval_run'")
-            connection.execute(
-                "DELETE FROM commander_entities WHERE kind='source' AND attributes->>'source_type'='idea_laval_evaluation'"
+                "TRUNCATE natal_landing_feedback,natal_landing_builds,commander_relationships,commander_external_aliases,commander_entities CASCADE"
             )
         self.repository = LandingBuildRepository(self.database_url)
         self.prepared = {
@@ -84,6 +78,8 @@ class LandingBuildRepositoryTests(unittest.TestCase):
         self.assertFalse(duplicate_is_new)
         self.assertEqual(created["id"], duplicate["id"])
         self.assertEqual("queued", self.repository.active()["status"])
+        self.assertEqual(1, created["revision_number"])
+        self.assertEqual(created["brief"], created["input_brief"])
         self.repository.mark_building(BUILD_ID)
         self.repository.mark_publishing(
             BUILD_ID, manifest={"template_id": "waitlist"}, artifact_sha256="a" * 64
@@ -121,6 +117,66 @@ class LandingBuildRepositoryTests(unittest.TestCase):
         self.assertEqual("queued", retried["status"])
         self.assertIsNone(retried["error_message"])
         self.assertIsNone(retried["completed_at"])
+
+    def test_feedback_is_append_only_skill_memory_and_next_template_supersedes_parent(self) -> None:
+        self.repository.create(
+            self.prepared,
+            request_id=REQUEST_ID,
+            requested_by="firebase:owner",
+            output_path=f"/tmp/landings/builds/{BUILD_ID}",
+            firebase_site_id="natal-landings-test",
+        )
+        self.repository.mark_building(BUILD_ID)
+        self.repository.mark_publishing(
+            BUILD_ID, manifest={"template_id": "waitlist"}, artifact_sha256="a" * 64
+        )
+        self.repository.mark_published(
+            BUILD_ID,
+            version="firebase-version-1",
+            public_url=f"https://natal-landings-test.web.app/builds/{BUILD_ID}/",
+        )
+        feedback = self.repository.record_feedback(
+            BUILD_ID,
+            comment="Make the hero shorter and the first action clearer.",
+            requested_by="firebase:owner",
+        )
+        memory = self.repository.skill_memory(RUN_ID)
+        next_id = "41234567-89ab-7def-8123-456789abcdef"
+        next_request = "51234567-89ab-7def-8123-456789abcdef"
+        second, created = self.repository.create(
+            {
+                **self.prepared,
+                "build_id": next_id,
+                "template_id": "community",
+                "parent_build_id": BUILD_ID,
+                "skill_memory_feedback_ids": [feedback["id"]],
+            },
+            request_id=next_request,
+            requested_by="firebase:owner",
+            output_path=f"/tmp/landings/builds/{next_id}",
+            firebase_site_id="natal-landings-test",
+        )
+        self.assertTrue(created)
+        self.assertEqual(2, second["revision_number"])
+        self.assertEqual(BUILD_ID, second["parent_build_id"])
+        self.assertEqual([feedback["id"]], second["skill_memory_feedback_ids"])
+        self.assertEqual([feedback["id"]], [item["id"] for item in memory])
+        with psycopg.connect(self.database_url) as connection:
+            kinds = connection.execute(
+                """SELECT kind,count(*) FROM commander_entities
+                   WHERE kind IN ('human_feedback','weight_update','creative_component')
+                   GROUP BY kind ORDER BY kind"""
+            ).fetchall()
+            relations = connection.execute(
+                """SELECT relation FROM commander_relationships
+                   WHERE source_id=%s ORDER BY relation""",
+                (next_id,),
+            ).fetchall()
+        self.assertEqual(
+            [("creative_component", 1), ("human_feedback", 1), ("weight_update", 1)],
+            [tuple(row) for row in kinds],
+        )
+        self.assertEqual(["derived_from", "derived_from", "supersedes"], [row[0] for row in relations])
 
 
 if __name__ == "__main__":

@@ -7,6 +7,8 @@ from .brand_providers import BRAND_BRIDGE_MODES
 from .laval_schemas import SCHEMAS
 from .provider import BridgeProvider
 
+LANDING_BRIDGE_MODE = "natal_landing_revision"
+
 
 def verify() -> dict[str, int]:
     settings = Settings.from_environment()
@@ -47,9 +49,17 @@ def verify() -> dict[str, int]:
             )
     else:
         actual_brand = set()
+    actual_landing = set(capabilities.get("landing_modes") or [])
+    if actual_landing != {LANDING_BRIDGE_MODE}:
+        raise RuntimeError(
+            "Natal landing bridge contract mismatch: "
+            f"mode_ready={LANDING_BRIDGE_MODE in actual_landing} "
+            f"unexpected_modes={len(actual_landing - {LANDING_BRIDGE_MODE})}"
+        )
     return {
         "modes": len(actual),
         "branding_modes": len(actual_brand),
+        "landing_modes": len(actual_landing),
         "max_request_bytes": int(capabilities["max_request_bytes"]),
     }
 
@@ -59,6 +69,7 @@ def main() -> None:
     print(
         "Idea Laval LLM bridge contract ready; "
         f"modes={result['modes']} branding_modes={result['branding_modes']} "
+        f"landing_modes={result['landing_modes']} "
         f"max_request_bytes={result['max_request_bytes']}"
     )
 

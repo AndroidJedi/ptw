@@ -1,6 +1,6 @@
 # Natal landing builder
 
-Status: one-click Firebase publication live and production-verified
+Status: iterative three-template review workflow production verified
 Updated: 2026-08-22
 
 ## Purpose
@@ -35,24 +35,48 @@ cannot change those source IDs or the Natal brand.
 
 Template recommendation is deterministic: community/event semantics choose
 `community`, product/system semantics choose `product`, and other early
-concepts choose `waitlist`. The owner may explicitly override the structure.
+concepts choose `waitlist`. It is only a default. All three templates remain
+selectable after every revision, and the owner may switch or reapply them in
+any order without replacing an earlier build.
 
 Submitting the brief calls `POST /api/v1/landings/builds` with a browser-created
 idempotency UUID. Under the shared heavy-operation lock, Owner Gateway resolves
-the completed case again, ignores browser-provided brand/source IDs, creates a
-PostgreSQL `landing` entity plus `derived_from` edge to the stable Idea Laval
-source alias, and commits the `queued` build before starting it. The deterministic
-builder then moves through `building` and `publishing` without a Commander plan
-or a Codex login dependency. The Landing tab polls that build directly and shows
-its Firebase URL or a retryable failure; it never redirects to unrelated Jobs.
+the completed case again, ignores browser-provided brand/source IDs, and first
+requires the independent bridge to advertise `natal_landing_revision`. It then
+creates a PostgreSQL `landing` entity plus `derived_from` edge to the stable Idea
+Laval source alias and commits the `queued` revision before starting it. A fresh,
+schema-bound builder-agent turn receives the selected template, current brief,
+canonical skill contract, and exact captured feedback IDs. It may rewrite the
+bounded copy, but code preserves the source IDs, CTA destination, and verified
+proof allowlist. The deterministic static builder then moves through `building`
+and `publishing`. The Landing tab polls that build directly and shows its
+embedded Firebase preview or a retryable failure; it never redirects to
+unrelated Jobs.
+
+Every revision has an increasing number within its Idea evaluation. A revision
+may `supersede` any published revision selected from that Idea's history, which
+keeps experimentation possible instead of forcing one template sequence. The
+input brief, agent-revised brief, application summary, invocation provenance,
+and consumed feedback UUIDs are immutable build facts.
+
+Feedback can be added only to a published revision with an artifact digest. It
+creates an append-only `HumanFeedback` entity that `evaluates` that exact
+Landing, plus a zero-delta `WeightUpdate` that `adjusts` the stable reviewed
+template component. PostgreSQL is the runtime skill-memory authority; browser
+feedback never dirties `SKILL.md`. The next revision snapshots the latest 100
+feedback records for that Idea in chronological order, while older records and
+their graph edges remain immutable history.
 
 Publication uses the Firebase Hosting REST deployment flow with a dedicated
 service account and the server-pinned `natal-landings-86123` site. Each complete
-release preserves recent published builds under `/builds/<build-id>/` and makes
+release preserves every published build under `/builds/<build-id>/` and makes
 the newest build the site root. The publisher accepts only HTML, CSS,
 JavaScript, SVG, and PNG files, rejects symlinks and unexpected files, and does
 not stage the normalized `brief.json` or provenance-bearing `build.json`. The
-emergency stop is checked again immediately before the external release.
+emergency stop is checked again immediately before the external release. The
+dedicated site's frame policy permits previews only from the two PTW Firebase
+owner origins, and the Owner Hosting policy explicitly permits the dedicated
+Natal site.
 
 The old `/api/v1/landings/builder-jobs` route remains as a rollout compatibility
 alias, but it starts the same real build and publish lifecycle. Existing failed
@@ -61,11 +85,11 @@ successful landing builds.
 
 ## Production evidence
 
-Release `natal-autopublish-a38990e` at commit `a38990e` is deployed on the VPS.
-Owner Console Hosting version `a031fe85258f6dec` serves service-worker cache
-`ptw-shell-v23`. The first real request, build
+Release `natal-feedback-bbcaf90` at commit `bbcaf90` is deployed on the VPS.
+Owner Console Hosting version `61a24c84ce884c0b` serves service-worker cache
+`ptw-shell-v24`. The first real request, build
 `c691ef38-a142-4c26-ae3a-6fab29e8b175`, published dedicated Natal Hosting
-version `d30841b0a0259b63` at
+version `61854d2e51b8ec0c` at
 `https://natal-landings-86123.web.app/builds/c691ef38-a142-4c26-ae3a-6fab29e8b175/`.
 It renders the source idea title, its sampled assets return HTTP 200, and the
 private `brief.json` and `build.json` URLs return HTTP 404. PostgreSQL records
@@ -73,6 +97,18 @@ its `landing` entity and `derived_from` edge to Idea Laval run
 `01a01de0-4980-7ab4-aa91-0cebb8aab3c8`; publication state and lineage remained
 intact across a controlled Owner Gateway restart. The legacy failed plan remains
 unchanged for auditability.
+
+Community revision 2 remains the same immutable build
+`fc06d55b-4fb6-45e4-813f-0f1abf5e47a4` after its bridge recovery. Two failed
+platform jobs retain the expired-authentication and projected-file permission
+history. The successful replacement used a fresh ephemeral builder-agent
+session and published Firebase version `d42c1e90c039b947` at
+`https://natal-landings-86123.web.app/builds/fc06d55b-4fb6-45e4-813f-0f1abf5e47a4/`.
+PostgreSQL records it as revision 2 with template `community`, a `derived_from`
+edge to the same Idea source, and a `supersedes` edge to revision 1. The build
+and root URLs return identical HTML, both private JSON files remain 404, and
+the production Owner Console and dependency audits pass with no active heavy
+operation.
 
 ## Verification
 

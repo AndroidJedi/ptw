@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "name": "Natal",
+  "name_policy": "immutable_across_landings",
+  "source": "/Users/serhiiholovaschuk/Projects/natal/natal_business",
+  "colors": {
+    "background": "#0c0e12",
+    "surface": "#181c25",
+    "surface_strong": "#202531",
+    "text": "#f4f6fa",
+    "muted": "#a3adbd",
+    "accent": "#43bdd3",
+    "accent_light": "#87d0dd",
+    "success": "#36d399",
+    "danger": "#f87171"
+  },
+  "typography": {
+    "sans": "Inter, Helvetica Neue, Arial, sans-serif",
+    "display_weight": 700,
+    "body_weight": 400
+  },
+  "assets": [
+    {"file": "logo-natal.png", "sha256": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba"},
+    {"file": "logo-icon.svg", "sha256": "33cf41e1c0d67e3ae8d8b67cbc96f776edb72827058a1278f082e153a6c8bea8"},
+    {"file": "convenient.svg", "sha256": "4646f9aa99e88ec17ac92dd67a3a4bbf6e36d4a84249a72f9628d5fe47bac8d5"},
+    {"file": "flex.svg", "sha256": "0c2660d5e3b76e08c3b9ecc2ad46958262cdb412f22be0e93b5c5d1ed66d17b8"},
+    {"file": "prof.svg", "sha256": "6bdc254d0bd2e803b0325432fa0971c7dbea67a1f8e6a66795c34a5ede983cb9"},
+    {"file": "quality.svg", "sha256": "af6c3f87759f345398d8e6144ee1b3e96c7c63c60cb453cf103b4203f491e819"},
+    {"file": "safety.svg", "sha256": "4361eb37c2b4ce129b7080a02133bb61087864dfac2af5babf2f28a1cccce626"}
+  ]
+}

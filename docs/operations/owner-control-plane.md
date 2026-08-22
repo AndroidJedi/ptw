@@ -1,7 +1,7 @@
 # Owner control plane operations
 
 Status: production cutover runbook
-Updated: 2026-08-21
+Updated: 2026-08-22
 
 Commander Web is deployed to `https://provethemwrong-86123.firebaseapp.com`; the API
 and WebSockets use `https://commander.proove-them-wrong.com`. Firebase stores
@@ -45,7 +45,8 @@ cancellation, validation, Git/PR, and deployment evidence are shown in Jobs.
 Destructive plans additionally require an exact owner confirmation. They do
 not require a backup by the owner's explicit decision.
 
-Laval, Branding, and Codex planning/execution are intentionally serial on the 1 GB host.
+Laval, Branding, and Codex planning/execution, including Natal landing builds,
+are intentionally serial on the 1 GB host.
 A conflicting start returns HTTP 409 with the active operation ID. Waiting for
 plan or logo approval is not active work; approval rechecks the shared guard
 before execution or kit assembly.
@@ -197,3 +198,11 @@ After deploy, verify exact-owner login, negative auth/App Check, one Plan and
 one approved Execute, cancellation, root `id`/`pwd`, emergency stop/resume,
 restart persistence, and that the PWA service worker never caches API, image,
 WebSocket, or terminal traffic.
+
+The Landing tab is a test-artifact handoff into the existing Plan/Execute
+lifecycle. `GET /api/v1/landings/templates` serves the repository catalog,
+`GET /api/v1/landings/candidates` derives briefs from completed live Laval
+cases, and `POST /api/v1/landings/builder-jobs` resolves the source IDs again
+before creating a plan. Browser-provided source IDs and brand names are ignored.
+The resulting `$natal-landing-builder` task may write its unique local output
+under `output/landings/`; it has no implicit publication authority.

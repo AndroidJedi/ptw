@@ -42,3 +42,11 @@ light/dark palette and type specimens, then permits one explicit approval and
 private ZIP download. The browser never supplies Creative UUIDs or artifact
 digests; Owner Gateway resolves them from the direction. The generated React
 kit is code-owned and includes bundled licensed Cyrillic fonts.
+
+The Landings view turns a completed live Idea evaluation into an editable Natal
+landing brief. It recommends one of the product, community/event, or
+waitlist/concept structures, keeps the source run and thesis IDs server-side,
+and creates a normal approval-gated Commander plan for
+`$natal-landing-builder`. Every generated page keeps the Natal name, canonical
+logo, icons, and UI kit. The tab generates local test output only; it never
+deploys or publishes a page.

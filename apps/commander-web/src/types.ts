@@ -1,5 +1,5 @@
 export type I18n<T = string> = { en: T; uk: T }
-export type Page = 'overview' | 'ideas' | 'branding' | 'jobs' | 'more'
+export type Page = 'overview' | 'ideas' | 'branding' | 'landings' | 'jobs' | 'more'
 
 export interface Mission {
   code: string
@@ -325,6 +325,56 @@ export interface BrandStatus {
   directions: BrandDirection[]
   cost: { items: Array<Record<string, unknown>>; total_usd: number }
   runner_active?: boolean
+}
+
+export interface LandingFeature {
+  title: string
+  description: string
+}
+
+export interface LandingBrief {
+  schema_version: 1
+  brand: 'Natal'
+  language: 'uk' | 'en'
+  source: { laval_run_id: string; thesis_id?: string }
+  business_idea: string
+  target_audience: string
+  pain: string
+  promise: string
+  key_features: LandingFeature[]
+  steps: LandingFeature[]
+  proof_points: string[]
+  faq: Array<{ question: string; answer: string }>
+  cta: { label: string; url: string }
+}
+
+export interface LandingTemplate {
+  id: 'product' | 'community' | 'waitlist'
+  version: number
+  name: I18n
+  description: I18n
+  best_for: string[]
+  adapted_from: string
+}
+
+export interface LandingCandidate {
+  idea_run_id: string
+  recommended_template_id: LandingTemplate['id']
+  brief: LandingBrief
+  quality: { successful?: number; attempted?: number }
+  verdict?: 'survives' | 'weak' | 'rejected' | null
+}
+
+export interface LandingBuilderJob extends Job {
+  landing: {
+    build_id: string
+    idea_run_id: string
+    template_id: LandingTemplate['id']
+    recommended_template_id: LandingTemplate['id']
+    output_path: string
+    brief: LandingBrief
+  }
+  created_by: string
 }
 
 export interface Creative {

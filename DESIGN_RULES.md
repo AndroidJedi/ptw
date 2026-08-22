@@ -1,7 +1,7 @@
 # PTW React operator-console rules
 
 Status: canonical
-Updated: 2026-08-21
+Updated: 2026-08-22
 
 ## Product language
 
@@ -15,7 +15,7 @@ Updated: 2026-08-21
 ## Mobile first
 
 - Design first for a 360 px viewport and one-hand use.
-- Primary navigation is Overview, Ideas, Branding, Jobs, More at the bottom on
+- Primary navigation is Overview, Ideas, Branding, Landings, Jobs, More at the bottom on
   mobile and a compact left rail on desktop.
 - Put the primary action inside thumb reach. Minimum interactive target is
   44x44 CSS pixels.
@@ -81,6 +81,19 @@ remains available in stage and review details.
   the exact brand name.
 - Kit previews and samples default to Ukrainian and must fit at 360 px without
   horizontal page overflow.
+
+## Landings
+
+- Start from a completed Idea Laval evaluation and keep its run/thesis IDs in
+  technical details; the owner edits readable content, not identifiers.
+- Show the recommended Natal template and permit one explicit structure
+  override. The Natal name, logo, icon set, and UI kit are locked.
+- Prefill business idea, target audience, pain, promise, key features, and CTA.
+  Never present assumptions as testimonials, metrics, pricing, or other proof.
+- The primary CTA creates the normal Commander plan for
+  `$natal-landing-builder`. It does not deploy or publish the generated page.
+- Template choice and brief editing must fit at 360 px without horizontal
+  overflow; expose the resulting build target before the owner opens Jobs.
 
 ## Data presentation
 

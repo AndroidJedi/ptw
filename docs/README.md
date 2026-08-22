@@ -13,6 +13,7 @@ and must identify their source revision.
 | Autonomous jobs, issues, and execution | [`architecture/task-issue-cycle.md`](architecture/task-issue-cycle.md) | [`architecture/session-checkpoints.md`](architecture/session-checkpoints.md) |
 | Idea Laval market-evidence engine | [`architecture/idea-laval-engine.md`](architecture/idea-laval-engine.md) | [`architecture/research-to-hypothesis.md`](architecture/research-to-hypothesis.md), [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
 | Evidence-backed Branding stage | [`architecture/branding-v1.md`](architecture/branding-v1.md) | [`architecture/branding-kit-component-manifest.md`](architecture/branding-kit-component-manifest.md), [`architecture/creative-feedback-learning.md`](architecture/creative-feedback-learning.md), [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
+| Natal landing factory | [`architecture/natal-landing-builder.md`](architecture/natal-landing-builder.md) | [`../natal/README.md`](../natal/README.md), [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
 | Creative feedback and weights | [`architecture/creative-feedback-learning.md`](architecture/creative-feedback-learning.md) | [`architecture/ad-image-estimation-loop.md`](architecture/ad-image-estimation-loop.md) |
 | Instagram adapter | [`verticals/instagram/README.md`](verticals/instagram/README.md) | Creative feedback route |
 | Firebase authentication and deployment | [`operations/owner-control-plane.md`](operations/owner-control-plane.md) | [`operations/commander.md`](operations/commander.md) |

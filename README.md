@@ -37,6 +37,11 @@ pipeline without paid calls; live localized SERPs and Trends require explicit
 provider configuration. See
 [`docs/architecture/idea-laval-engine.md`](docs/architecture/idea-laval-engine.md).
 
+Completed evaluations can also enter the Natal landing factory from the Owner
+Console Landings view. The approval-gated builder keeps Natal's canonical name,
+logo, icons, and UI kit across three reusable static structures. See
+[`docs/architecture/natal-landing-builder.md`](docs/architecture/natal-landing-builder.md).
+
 Web console:
 
 ```sh

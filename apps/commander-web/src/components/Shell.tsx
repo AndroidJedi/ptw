@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, LayoutDashboard, Lightbulb, MoreHorizontal, Palette } from 'lucide-react'
+import { BriefcaseBusiness, LayoutDashboard, LayoutTemplate, Lightbulb, MoreHorizontal, Palette } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Page } from '../types'
 
@@ -6,6 +6,7 @@ const items: Array<{ id: Page; label: string; icon: typeof LayoutDashboard }> = 
   { id: 'overview', label: 'Огляд', icon: LayoutDashboard },
   { id: 'ideas', label: 'Ідеї', icon: Lightbulb },
   { id: 'branding', label: 'Брендинг', icon: Palette },
+  { id: 'landings', label: 'Лендинги', icon: LayoutTemplate },
   { id: 'jobs', label: 'Завдання', icon: BriefcaseBusiness },
   { id: 'more', label: 'Ще', icon: MoreHorizontal },
 ]

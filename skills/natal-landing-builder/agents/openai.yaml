@@ -1,0 +1,4 @@
+interface:
+  display_name: "Natal Landing Builder"
+  short_description: "Build Natal landings from evaluated ideas"
+  default_prompt: "Use $natal-landing-builder to turn this evaluated idea into a ready-to-preview Natal landing page."

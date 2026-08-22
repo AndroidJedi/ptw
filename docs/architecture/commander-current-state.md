@@ -1,15 +1,32 @@
 # Commander current state
 
-Status: Branding v1 live through the existing ChatGPT-authenticated Codex bridge
-Updated: 2026-08-21
+Status: Natal landing-builder release candidate on live Branding v1
+Updated: 2026-08-22
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
 ## Current implementation milestone
 
+Natal now has a canonical landing factory under `natal/`: the exact source
+Natal logo and six SVG marks are digest-pinned, one mobile-first UI kit is shared
+by product, community/event, and waitlist/concept templates adapted from the
+three supplied landing projects, and a deterministic Python builder produces a
+dependency-free static site with normalized brief and source provenance. The
+new `$natal-landing-builder` skill prevents brand drift, fabricated proof, and
+implicit publishing.
+
+The Owner Console adds a sixth `Лендинги` destination. It loads completed live
+Idea Laval evaluations, maps the preferred thesis and mechanisms into editable
+business idea, target audience, pain, promise, features, steps, and CTA fields,
+and recommends a template with an explicit owner override. Submitting resolves
+the completed case again in Owner Gateway, preserves server-owned Laval/thesis
+IDs, and creates the existing approval-gated Commander plan with a unique local
+output target. This path generates a preview artifact and does not deploy or
+publish the resulting landing.
+
 Branding v1 now runs inside the existing Idea process as the evidence-backed
 stage between a completed live Idea case and future visual-post generation. The
-Owner Console has five-item responsive navigation with Branding between Ideas
-and Jobs, a readable eligible-case picker, a sequential text-only review for
+Owner Console has six-item responsive navigation with Branding and Landings
+between Ideas and Jobs, a readable eligible-case picker, a sequential text-only review for
 each of the three logos, explicit direction approval, and private Brand Kit ZIP
 download. The primary mobile flow shows one logo, one text field, and one CTA at
 a time. A comment regenerates that same logo; an empty field explicitly approves

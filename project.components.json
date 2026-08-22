@@ -12,11 +12,11 @@
     {
       "name": "creative-learning",
       "description": "Idea evolution, creative generation, feedback lineage, persistence, and workers",
-      "paths": ["commander/**", "idea_generation/**", "tests/commander/**", "db/**", "config/commander/**", "docker-compose*.yml", "requirements*.txt"],
+      "paths": ["commander/**", "idea_generation/**", "natal/**", "skills/natal-landing-builder/**", "tests/commander/**", "db/**", "config/commander/**", "docker-compose*.yml", "requirements*.txt"],
       "validation": [
         ["python3", "-m", "unittest", "discover", "-s", "tests/commander", "-v"],
         ["python3", "-m", "commander.demo", "--output-dir", ".local/commander-demo"],
-        ["python3", "-m", "compileall", "-q", "commander", "idea_generation", "tests/commander"]
+        ["python3", "-m", "compileall", "-q", "commander", "idea_generation", "natal", "tests/commander"]
       ],
       "extended_validation": []
     },

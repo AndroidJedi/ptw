@@ -1,0 +1,8 @@
+{
+  "id": "waitlist",
+  "version": 1,
+  "name": {"uk": "Waitlist / концепт", "en": "Waitlist / concept"},
+  "description": {"uk": "Коротка перевірка попиту без непідтверджених заяв.", "en": "Concise demand validation without unsupported claims."},
+  "best_for": ["waitlist", "concept", "early validation"],
+  "adapted_from": "/Users/serhiiholovaschuk/Projects/ofc_landing"
+}

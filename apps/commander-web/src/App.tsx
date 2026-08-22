@@ -11,6 +11,7 @@ import { JobsView } from './views/JobsView'
 import { MoreView } from './views/MoreView'
 import { OverviewView } from './views/OverviewView'
 import { BrandingView } from './views/BrandingView'
+import { LandingView } from './views/LandingView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
 export const AUTH_BOOT_TIMEOUT_MS = 10_000
@@ -18,7 +19,7 @@ export const AUTH_BOOT_TIMEOUT_MS = 10_000
 function initialConsoleLocation(): { page: Page; runId?: string } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const page: Page = ['overview', 'ideas', 'branding', 'jobs', 'more'].includes(requestedPage || '')
+  const page: Page = ['overview', 'ideas', 'branding', 'landings', 'jobs', 'more'].includes(requestedPage || '')
     ? requestedPage as Page
     : 'overview'
   const runId = params.get('run') || undefined
@@ -95,6 +96,7 @@ function Console({ user }: { user: User }) {
     {page === 'overview' && <OverviewView api={api} language={language} />}
     {page === 'ideas' && <IdeasView api={api} language={language} initialRunId={initialLocation.runId} />}
     {page === 'branding' && <BrandingView api={api} language={language} initialRunId={initialLocation.runId} />}
+    {page === 'landings' && <LandingView api={api} language={language} onOpenJobs={() => navigate('jobs')} />}
     {page === 'jobs' && <JobsView api={api} />}
     {page === 'more' && <MoreView api={api} />}
   </Shell>

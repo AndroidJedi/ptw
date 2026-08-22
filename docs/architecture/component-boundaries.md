@@ -25,3 +25,9 @@ it is never merged into this repository.
 
 Adding another runtime requires a manifest component with its own validations.
 There is no native mobile or compatibility component.
+
+The Natal landing factory does not add a runtime. Its canonical static kit and
+builder live in the creative-learning boundary, its authenticated handoff uses
+the owner-control-plane boundary, and the Landing tab stays a bounded
+commander-web read/edit surface. Generated test sites are local artifacts until
+a separate publishing contract adds authoritative PostgreSQL lineage.

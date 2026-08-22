@@ -18,6 +18,7 @@ from .annotations import region
 from .auth import FirebaseVerifier, OwnerDependency, OwnerIdentity
 from .control_store import ControlStore
 from .execution import CommandRunner
+from .landing import candidates_response, prepare_builder_job, templates_response
 from .platform import PlatformRepository
 from .read_models import DomainReadModels
 from .settings import Settings
@@ -214,6 +215,70 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         return (await laval_bridge("GET", "/internal/web/branding/providers")).json()
+
+    @app.get("/api/v1/landings/templates")
+    def landing_templates(
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return templates_response()
+
+    @app.get("/api/v1/landings/candidates")
+    async def landing_candidates(
+        limit: int = Query(default=30, ge=1, le=100),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        cases = (
+            await laval_bridge(
+                "GET", "/internal/web/branding/cases", params={"limit": limit}
+            )
+        ).json()
+        return candidates_response(cases.get("items") or [])
+
+    @app.post("/api/v1/landings/builder-jobs")
+    async def create_landing_builder_job(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_running()
+        idea_run_id = str(request.get("idea_run_id") or "").strip()
+        require_laval_id(idea_run_id)
+        template_id = str(request.get("template_id") or "auto").strip().lower()
+        overrides = request.get("brief") or {}
+        if not isinstance(overrides, Mapping):
+            raise HTTPException(status_code=400, detail="brief must be an object")
+        try:
+            cases = (
+                await laval_bridge(
+                    "GET", "/internal/web/branding/cases", params={"limit": 100}
+                )
+            ).json()
+            candidate = next(
+                item for item in cases.get("items") or []
+                if str(item.get("idea_run_id")) == idea_run_id
+            )
+            prepared = prepare_builder_job(candidate, template_id, overrides)
+        except StopIteration as error:
+            raise HTTPException(status_code=404, detail="completed Idea evaluation not found") from error
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        async with operation_start_lock:
+            await require_no_active_laval()
+            require_no_active_codex()
+            try:
+                command = store.create_command("plan", prepared["instruction"])
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
+            background(build_plan(command["id"], prepared["instruction"]))
+        return {
+            **command,
+            "landing": {
+                key: prepared[key]
+                for key in (
+                    "build_id", "idea_run_id", "template_id",
+                    "recommended_template_id", "output_path", "brief",
+                )
+            },
+            "created_by": f"firebase:{identity.uid}",
+        }
 
     @app.get("/api/v1/branding/cases")
     async def branding_cases(

@@ -9,7 +9,11 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILLS = ("ptw-owner-console-incident", "ptw-vps-operations")
+SKILLS = (
+    "natal-landing-builder",
+    "ptw-owner-console-incident",
+    "ptw-vps-operations",
+)
 
 
 def require(condition: bool, message: str) -> None:

@@ -15,6 +15,7 @@ COPY requirements-owner-gateway.txt ./
 RUN pip install --no-cache-dir -r requirements-owner-gateway.txt
 COPY commander ./commander
 COPY idea_generation ./idea_generation
+COPY natal ./natal
 COPY owner_gateway ./owner_gateway
 COPY config ./config
 COPY commander/assets/fonts ./commander/assets/fonts

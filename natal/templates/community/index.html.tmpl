@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="$lang">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="$description"><meta name="theme-color" content="#0c0e12">
+  <title>$page_title</title><link rel="icon" href="assets/logo-icon.svg"><link rel="stylesheet" href="styles.css">
+</head>
+<body data-template="community">
+  <a class="skip-link" href="#main">$skip_link</a>
+  <header class="site-header"><a class="brand" href="#top" aria-label="Natal"><img src="assets/logo-natal.png" alt="Natal" width="300" height="102"></a><nav><a href="#features">$nav_features</a><a href="#how">$nav_how</a><a class="button button-small" href="$cta_url">$cta_label</a></nav></header>
+  <main id="main">
+    <section class="hero community-hero" id="top"><div class="community-art" aria-hidden="true"><img src="assets/prof.svg" alt=""><i></i><i></i><i></i></div><div class="hero-copy"><p class="eyebrow">$target_audience</p><h1>$business_idea</h1><p class="hero-lede">$promise</p><a class="button" href="$cta_url">$cta_label <span>→</span></a><p class="quiet-note">$pain</p></div></section>
+    <section class="show-up"><div><p class="eyebrow">$pain_label</p><h2>$pain</h2><p>$promise</p></div><img src="assets/convenient.svg" alt="" aria-hidden="true"></section>
+    <section class="section" id="how"><header class="section-heading"><p class="eyebrow">$how_label</p><h2>$how_title</h2></header><ol class="steps steps-horizontal">$steps</ol></section>
+    <section class="section" id="features"><header class="section-heading"><p class="eyebrow">$features_label</p><h2>$features_title</h2></header><div class="feature-grid">$feature_cards</div></section>
+    <section class="section proof"><header class="section-heading"><p class="eyebrow">$proof_label</p><h2>$proof_title</h2></header><ul>$proof_points</ul></section>
+    <section class="section faq" id="faq"><header class="section-heading"><p class="eyebrow">$faq_label</p><h2>$faq_title</h2></header>$faq_items</section>
+    <section class="final-cta" id="contact"><img src="assets/logo-icon.svg" alt=""><h2>$final_title</h2><p>$promise</p><a class="button" href="$cta_url">$cta_label <span>→</span></a></section>
+  </main>
+  <footer><img src="assets/logo-natal.png" alt="Natal"><span>© <span data-year></span> Natal</span></footer><script src="app.js"></script>
+</body></html>

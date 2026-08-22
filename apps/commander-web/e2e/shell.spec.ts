@@ -42,6 +42,29 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname === '/api/v1/branding/providers') return json({
       ready: true, provider: 'openai_brand', image_model: 'gpt-image-2', paid_seo_enabled: false,
     })
+    if (url.pathname === '/api/v1/landings/templates') return json({ items: [
+      { id: 'product', version: 1, name: { en: 'Product', uk: 'Продукт' }, description: { en: 'Feature-led conversion.', uk: 'Функції та перша дія.' }, best_for: ['saas'], adapted_from: 'natal_landing' },
+      { id: 'community', version: 1, name: { en: 'Community / event', uk: 'Спільнота / подія' }, description: { en: 'Participation and registration.', uk: 'Участь і простий запис.' }, best_for: ['event'], adapted_from: 'sesh' },
+      { id: 'waitlist', version: 1, name: { en: 'Waitlist / concept', uk: 'Waitlist / концепт' }, description: { en: 'Lean demand validation.', uk: 'Коротка перевірка попиту.' }, best_for: ['waitlist'], adapted_from: 'ofc_landing' },
+    ] })
+    if (url.pathname === '/api/v1/landings/candidates') return json({ items: [{
+      idea_run_id: runId, recommended_template_id: 'product', quality: { successful: 9, attempted: 10 }, verdict: 'survives',
+      brief: {
+        schema_version: 1, brand: 'Natal', language: 'uk', source: { laval_run_id: runId, thesis_id: runId },
+        business_idea: 'Make credible progress visible.', target_audience: 'Goal setters', pain: 'Progress is hard to trust', promise: 'Natal turns work into visible proof.',
+        key_features: [{ title: 'Proof timeline', description: 'Shows completed evidence.' }],
+        steps: [{ title: '01', description: 'Choose a goal.' }, { title: '02', description: 'Record proof.' }],
+        proof_points: [], faq: [], cta: { label: 'Спробувати Natal', url: '#contact' },
+      },
+    }] })
+    if (url.pathname === '/api/v1/landings/builder-jobs' && route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as Record<string, unknown>
+      expect(body).toMatchObject({ idea_run_id: runId, template_id: 'community' })
+      return json({
+        id: 'landing-job-1', mode: 'plan', title: 'Natal landing', status: 'planning', created_at: '', created_by: 'firebase:owner',
+        landing: { build_id: 'landing-build-1', idea_run_id: runId, template_id: 'community', recommended_template_id: 'product', output_path: 'output/landings/landing-build-1', brief: body.brief },
+      })
+    }
     if (url.pathname === '/api/v1/branding/cases') return json({ items: [{
       idea_run_id: runId, owner_idea: 'Make credible progress visible.', created_at: '2026-08-20T00:00:00Z',
       theses: [{ id: runId, title: { en: 'Proof journey', uk: 'Шлях доказів' }, target_user: { en: 'Goal setters', uk: 'Люди з метою' }, recommended: true, verdict: 'survives' }],
@@ -172,7 +195,20 @@ test('renders the authenticated owner console without horizontal overflow', asyn
   await page.goto('/?e2e=1')
   await expect(page.getByText('sgolovaschuk@gmail.com')).toBeVisible()
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
-  await expect(page.locator('.bottom-nav button')).toHaveCount(5)
+  await expect(page.locator('.bottom-nav button')).toHaveCount(6)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('creates a Natal builder plan from a completed Idea evaluation', async ({ page }) => {
+  await page.goto('/?e2e=1&page=landings')
+  await expect(page.getByRole('heading', { name: 'Лендинги' })).toBeVisible()
+  await expect(page.getByLabel('Бізнес-ідея')).toHaveValue('Make credible progress visible.')
+  await expect(page.getByText('РЕКОМЕНДОВАНО')).toBeVisible()
+  await page.getByLabel(/Спільнота \/ подія/).check()
+  await page.getByLabel('Бізнес-ідея').fill('A sharper evidence-backed landing')
+  await page.getByRole('button', { name: /Передати Natal builder agent/ }).click()
+  await expect(page.getByText('Builder plan створено')).toBeVisible()
+  await expect(page.getByText(/output\/landings\/landing-build-1/)).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 

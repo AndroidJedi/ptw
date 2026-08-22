@@ -1,6 +1,6 @@
 # Commander current state
 
-Status: Natal iterative three-template review workflow release candidate
+Status: Natal iterative three-template review workflow production verified
 Updated: 2026-08-22
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
@@ -48,19 +48,34 @@ failed command remains audit history. The replacement uses a separate publisher
 identity, a server-pinned site, an explicit public-file allowlist, and never
 publishes `brief.json` or `build.json`.
 
-Production release `natal-autopublish-a38990e` at commit `a38990e` runs in all
+Production release `natal-feedback-bbcaf90` at commit `bbcaf90` runs in all
 three healthy application services. Owner Console Firebase Hosting version
-`a031fe85258f6dec` serves `index-DYb5tKwx.js`, `App-DZ99bozD.js`, and
-`ptw-shell-v23`. The original failed request was replayed through the new domain
+`8e674dd9771a18ed` serves `index-BZyMdMS1.js`, `App-BOYcAlow.js`, and
+`ptw-shell-v24`. The original failed request was replayed through the new domain
 pipeline without altering its audit record: build
 `c691ef38-a142-4c26-ae3a-6fab29e8b175` is published as dedicated-site version
-`d30841b0a0259b63` at
+`61854d2e51b8ec0c` at
 `https://natal-landings-86123.web.app/builds/c691ef38-a142-4c26-ae3a-6fab29e8b175/`.
 It retains a `derived_from` edge to Idea Laval run
 `01a01de0-4980-7ab4-aa91-0cebb8aab3c8`; the row, lineage, and URL survived an
 Owner Gateway restart. Both the build URL and latest-root URL return the
 idea-specific Natal page, its sampled CSS/SVG/PNG assets return HTTP 200, and
 both private JSON paths return HTTP 404.
+
+The owner's next application preserved that waitlist build as revision 1 and
+created community revision 2, build
+`fc06d55b-4fb6-45e4-813f-0f1abf5e47a4`. Its first two bridge executions remain
+failed history: the VPS ChatGPT session required device reauthentication, and
+the new auth inode initially had root-only permissions that the non-root worker
+could not read. The credential contents were never copied or exposed. After
+repairing the exact read-only projection and recreating the worker, platform
+job 62 completed with a fresh ephemeral session and revision 2 published as
+Firebase version `d42c1e90c039b947` at
+`https://natal-landings-86123.web.app/builds/fc06d55b-4fb6-45e4-813f-0f1abf5e47a4/`.
+Its `derived_from` Idea edge and `supersedes` revision-1 edge are intact, both
+private JSON paths return 404, root and versioned HTML digests match, the frame
+policy permits only the two PTW owner origins, all heavy-operation guards are
+idle, and both production owner/dependency audits pass.
 
 Branding v1 now runs inside the existing Idea process as the evidence-backed
 stage between a completed live Idea case and future visual-post generation. The

@@ -246,6 +246,24 @@ overall completed run; report it explicitly instead of rewriting history.
 For ChatGPT-authenticated Codex CLI, keep `LLM_MODEL=codex-cli-default` unless
 a named model has passed a live CLI canary. The sentinel must omit `--model`;
 an API model name such as `gpt-5` can be rejected by Codex subscription auth.
+Bridge capabilities do not prove that the mounted ChatGPT session can execute.
+When a structured job fails, inspect its sanitized issue before retrying:
+`RuntimeError` can indicate an expired or already-rotated session, while a
+`PermissionError` for `/run/ptw-codex-auth/auth.json` means the non-root worker
+cannot read the projected credential.
+
+After `codex login --device-auth`, never read or copy the auth file contents.
+The CLI can replace `/root/.codex/auth.json` with a new inode owned by root at
+mode `0600`. First resolve the deployed worker's exact numeric group from its
+container user, set only that file to root plus the worker group at mode `0640`,
+and prove the projected path is readable as the worker. Recreate the worker
+instead of restarting it when the inode changed, because an existing bind mount
+can remain pinned to the deleted inode. Require the projected size and modified
+time to match the host file, a private mode-`0600` runtime copy under
+`$CODEX_HOME`, and one successful fresh schema-bound execution before retrying
+the same domain build. Retain every failed job and resolve its issue only after
+that execution succeeds.
+
 After a bridge release, run one schema-bound `laval_market_signal_relevance`
 canary outside any Laval run and require `session_mode=fresh`,
 `ephemeral=true`, `conversation_reused=false`, and a schema-valid response.

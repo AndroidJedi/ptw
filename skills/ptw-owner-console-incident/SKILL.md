@@ -166,8 +166,10 @@ immutable PNG under the shared asset root, attach that exact path with Codex CLI
 one attached image. A prompt containing the path is not proof. If the sanitized
 failure reports Bubblewrap user namespaces, do not relax the host kernel policy
 or bypass the Codex sandbox; use the verified attachment transport. Reject
-unchanged or color-only
-results for structural instructions, permit at most one fresh automatic retry,
+unchanged or color-only results for structural instructions. If the provider
+returns a non-square edit, keep it rejected and make the retry prompt require
+one transparent 1024x1024 square PNG; do not silently crop it. Permit at most
+one fresh automatic retry,
 and keep the old Creative and kit active on failure.
 
 Post-kit review must render immutable Before and After assets plus the exact

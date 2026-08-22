@@ -656,7 +656,8 @@ class CodexBridgeBrandProvider:
             f"The bridge will attach this exact digest-checked edit target: {source_path}. "
             "Use num_last_images_to_include=1 and omit referenced_image_paths. "
             "Change only what the owner requested; preserve all listed invariants. Keep a genuinely "
-            "transparent background. Do not use shell tools, do not generate without the reference, "
+            "transparent background and output exactly one 1024x1024 square PNG. "
+            "Do not use shell tools, do not generate without the reference, "
             "and do not invoke image generation twice. Return the required JSON acknowledgement."
         )
         payload = {

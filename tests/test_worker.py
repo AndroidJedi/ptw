@@ -234,8 +234,11 @@ def test_branding_reference_edit_proves_exact_attached_source(monkeypatch, tmp_p
     monkeypatch.setenv("CODEX_HOME", str(codex_home))
     monkeypatch.setenv("BRAND_SHARED_ASSET_ROOT", str(shared_root))
     monkeypatch.setenv("BRAND_PROVIDER_ASSET_DIR", str(provider_root))
+    observed = {}
 
-    def fake_run(command, **_kwargs):
+    def fake_run(command, **kwargs):
+        observed["command"] = command
+        observed["input"] = kwargs["input"]
         output_path = Path(command[command.index("--output-last-message") + 1])
         output_path.write_text('{"generated":true}', encoding="utf-8")
         generated = codex_home / "generated_images" / "brand-edit-session"
@@ -245,7 +248,7 @@ def test_branding_reference_edit_proves_exact_attached_source(monkeypatch, tmp_p
             "type": "item.completed",
             "item": {
                 "type": "mcp_tool_call", "server": "image_gen", "tool": "imagegen",
-                "arguments": {"referenced_image_paths": [str(source_path.resolve())]},
+                "arguments": {"num_last_images_to_include": 1},
             },
         }
         return subprocess.CompletedProcess(
@@ -261,7 +264,7 @@ def test_branding_reference_edit_proves_exact_attached_source(monkeypatch, tmp_p
     result = execute_structured_llm({
         "mode": "branding_logo_reference_edit",
         "system_prompt": (
-            f"$imagegen Use referenced_image_paths with {source_path.resolve()}."
+            f"$imagegen Edit the attached image from {source_path.resolve()}."
         ),
         "input_payload": {
             "source_path": str(source_path.resolve()),
@@ -272,6 +275,9 @@ def test_branding_reference_edit_proves_exact_attached_source(monkeypatch, tmp_p
     assert result["image"]["reference"]["used"] is True
     assert result["image"]["reference"]["source_digest"] == source_digest
     assert result["image"]["reference"]["source_path"] == str(source_path.resolve())
+    assert result["image"]["reference"]["transport"] == "codex_cli_image_attachment"
+    assert observed["command"][observed["command"].index("--image") + 1] == str(source_path.resolve())
+    assert "num_last_images_to_include=1" in observed["input"]
 
 
 def test_branding_reference_edit_rejects_a_missing_tool_trace(monkeypatch, tmp_path: Path) -> None:
@@ -305,6 +311,55 @@ def test_branding_reference_edit_rejects_a_missing_tool_trace(monkeypatch, tmp_p
             "system_prompt": (
                 f"$imagegen Use referenced_image_paths with {source_path.resolve()}."
             ),
+            "input_payload": {
+                "source_path": str(source_path.resolve()),
+                "source_digest": source_digest,
+            },
+            "output_schema": {"type": "object"},
+        })
+
+
+def test_branding_reference_edit_rejects_path_text_without_attached_image_use(
+    monkeypatch, tmp_path: Path
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    shared_root = tmp_path / "assets"
+    source_path = shared_root / "approved.png"
+    shared_root.mkdir()
+    source_path.write_bytes(png_header())
+    source_digest = __import__("hashlib").sha256(source_path.read_bytes()).hexdigest()
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("BRAND_SHARED_ASSET_ROOT", str(shared_root))
+    monkeypatch.setenv("BRAND_PROVIDER_ASSET_DIR", str(shared_root / "provider"))
+
+    def fake_run(command, **_kwargs):
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"generated":true}', encoding="utf-8"
+        )
+        generated = codex_home / "generated_images" / "brand-edit-path-only"
+        generated.mkdir(parents=True)
+        (generated / "edited.png").write_bytes(png_header())
+        event = {
+            "type": "item.completed",
+            "item": {
+                "type": "mcp_tool_call", "server": "image_gen", "tool": "imagegen",
+                "arguments": {"referenced_image_paths": [str(source_path.resolve())]},
+            },
+        }
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout=(
+                '{"type":"thread.started","thread_id":"brand-edit-path-only"}\n'
+                + json.dumps(event) + "\n"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    with pytest.raises(RuntimeError, match="exact reference path"):
+        execute_structured_llm({
+            "mode": "branding_logo_reference_edit",
+            "system_prompt": f"$imagegen Edit {source_path.resolve()}.",
             "input_payload": {
                 "source_path": str(source_path.resolve()),
                 "source_digest": source_digest,

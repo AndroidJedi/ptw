@@ -26,7 +26,7 @@ Telegram API -> Commander API -> PostgreSQL <- Commander worker -> Telegram API
 Internet -> Caddy /health -> Commander API
 Host Codex check -> read-only metadata -> Commander worker /status
 Idea Branding -> authenticated planner/reference-edit bridge -> Codex `$imagegen`
-Approved immutable PNG -> exact `referenced_image_paths` image-tool argument
+Approved immutable PNG -> exact CLI image attachment -> one attached image-tool input
 Codex image -> SHA-256 immutable `ptw_commander-assets` entry -> Idea Branding
 Future job -> per-job /opt/ptw/workspaces/jobs/<job-id> -> tests/commit/PR -> cleanup
 GitHub main -> ls-remote -> PostgreSQL state/outbox -> authorized Telegram users
@@ -48,8 +48,8 @@ Approved-logo correction adds `branding_revision_planner` and
 `branding_logo_reference_edit`. The worker accepts an edit only when the source
 is a bounded square PNG under the shared Commander asset root and its bytes
 match the supplied SHA-256. It then requires the Codex JSONL trace to contain an
-actual image-tool call whose `referenced_image_paths` is exactly that source
-path. Prompt text containing the path is not reference proof. The returned
+actual image-tool call consuming exactly one CLI-attached image. Prompt text
+containing the path is not reference proof. The returned
 immutable image provenance includes the source path, source digest, use flag,
 and a digest of the matching tool event.
 

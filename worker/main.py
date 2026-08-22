@@ -249,17 +249,16 @@ def _prove_brand_reference(stdout: str, reference: dict | None) -> dict | None:
                 arguments = json.loads(arguments)
             except json.JSONDecodeError:
                 continue
-        referenced = (
-            arguments.get("referenced_image_paths")
-            if isinstance(arguments, dict) else None
-        )
-        if isinstance(referenced, list) and referenced == [path]:
+        referenced = arguments.get("referenced_image_paths") if isinstance(arguments, dict) else None
+        attached_count = arguments.get("num_last_images_to_include") if isinstance(arguments, dict) else None
+        if attached_count == 1 and referenced in (None, []):
             matching.append(json.dumps(event, sort_keys=True, separators=(",", ":")))
     if not matching:
         raise RuntimeError("Branding image trace did not supply the exact reference path")
     return {
         **reference,
         "used": True,
+        "transport": "codex_cli_image_attachment",
         "trace_digest": hashlib.sha256("\n".join(matching).encode()).hexdigest(),
     }
 
@@ -281,6 +280,12 @@ def execute_structured_llm(parameters: dict) -> dict:
         + "\nINPUT_PAYLOAD:\n"
         + json.dumps(parameters["input_payload"], ensure_ascii=False, sort_keys=True)
     )
+    if reference is not None:
+        prompt += (
+            "\nREFERENCE_ATTACHMENT: The bridge attached the digest-checked source image to this "
+            "request. In the imagegen call use num_last_images_to_include=1 and omit "
+            "referenced_image_paths."
+        )
     with tempfile.TemporaryDirectory(prefix="ptw-llm-") as directory:
         output = Path(directory) / "result.json"
         schema = Path(directory) / "output-schema.json"
@@ -297,6 +302,8 @@ def execute_structured_llm(parameters: dict) -> dict:
         requested_model = str(parameters.get("model") or "").strip()
         if requested_model and requested_model != "codex-cli-default":
             command.extend(["--model", requested_model])
+        if reference is not None:
+            command.extend(["--image", reference["source_path"]])
         command.extend([
             "--sandbox",
             "read-only",

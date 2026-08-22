@@ -153,7 +153,7 @@ def test_branding_logo_contract_requires_explicit_builtin_image_generation() -> 
     validate_structured_llm_request(request)
 
 
-def test_branding_reference_edit_requires_exact_path_digest_and_tool_argument() -> None:
+def test_branding_reference_edit_requires_exact_path_digest_and_attachment_contract() -> None:
     request = {
         "mode": "branding_logo_reference_edit",
         "system_prompt": "$imagegen Edit this logo.",
@@ -166,7 +166,11 @@ def test_branding_reference_edit_requires_exact_path_digest_and_tool_argument() 
     with pytest.raises(ValueError, match="exact path"):
         validate_structured_llm_request(request)
     request["system_prompt"] = (
-        "$imagegen Use referenced_image_paths with /var/lib/ptw/assets/source.png."
+        "$imagegen Attach /var/lib/ptw/assets/source.png and use num_last_images_to_include=1."
+    )
+    validate_structured_llm_request(request)
+    request["system_prompt"] = (
+        "$imagegen Legacy referenced_image_paths target /var/lib/ptw/assets/source.png."
     )
     validate_structured_llm_request(request)
 

@@ -91,7 +91,10 @@ def validate_structured_llm_request(request: dict) -> None:
         if (
             not isinstance(payload.get("source_path"), str)
             or not re.fullmatch(r"[0-9a-f]{64}", str(payload.get("source_digest") or ""))
-            or "referenced_image_paths" not in request["system_prompt"]
+            or not any(
+                marker in request["system_prompt"]
+                for marker in ("referenced_image_paths", "num_last_images_to_include=1")
+            )
             or payload["source_path"] not in request["system_prompt"]
         ):
             raise ValueError("Branding reference edit requires an exact path and SHA-256 contract")

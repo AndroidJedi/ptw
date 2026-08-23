@@ -50,3 +50,7 @@ while still failing on the removed application workers and Idea service.
 The first public bundle audit expected an English `Admin` nav label even though
 the code-owned chrome is Ukrainian. The live v2 bundle was correct. The audit
 now proves Admin through its stable `Docs / System / Terminal` view marker.
+
+The alternate official Owner Hosting hostname (`web.app`) initially failed
+CORS while the primary `firebaseapp.com` origin passed. Owner Gateway now
+derives and permits exactly both code-owned Firebase origins, with no wildcard.

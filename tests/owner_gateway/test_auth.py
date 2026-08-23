@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 import importlib.util
+from dataclasses import replace
 from pathlib import Path
 import subprocess
 import sys
@@ -12,6 +13,7 @@ from owner_gateway.settings import Settings
 HAS_FASTAPI = importlib.util.find_spec("fastapi") is not None
 if HAS_FASTAPI:
     from fastapi import HTTPException
+    from fastapi.middleware.cors import CORSMiddleware
     from owner_gateway.auth import validate_owner_claims
     from owner_gateway.api import create_app
 
@@ -48,6 +50,20 @@ class OwnerClaimsTests(unittest.TestCase):
     def test_exact_owner_is_allowed(self) -> None:
         identity = validate_owner_claims(self.settings, self.claims, {"app_id": "firebase-app"})
         self.assertEqual("owner-uid", identity.uid)
+
+    def test_both_code_owned_owner_hostnames_are_cors_origins(self) -> None:
+        firebaseapp = "https://provethemwrong-86123.firebaseapp.com"
+        webapp = "https://provethemwrong-86123.web.app"
+        configured = replace(
+            self.settings,
+            public_origin=firebaseapp,
+            owner_public_origins=(firebaseapp, webapp),
+        )
+        middleware = next(
+            item for item in create_app(configured).user_middleware
+            if item.cls is CORSMiddleware
+        )
+        self.assertEqual([firebaseapp, webapp], middleware.kwargs["allow_origins"])
 
     def test_disabled_gateway_import_does_not_load_pillow_or_ad_runtime(self) -> None:
         result = subprocess.run(

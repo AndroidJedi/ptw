@@ -69,6 +69,10 @@ Public bundle audits must respect the code-owned Ukrainian UI chrome. Prove the
 Admin workspace with its stable `Docs / System / Terminal` content marker, not
 an English `Admin` nav label that is intentionally absent from the bundle.
 
+The Owner Gateway CORS allowlist must include both code-owned Firebase Hosting
+origins for the Owner project: `.firebaseapp.com` and `.web.app`. Audit both;
+do not broaden CORS to wildcard or unrelated origins.
+
 Run `scripts/audit_vps_owner_dependencies.sh` on the VPS and
 `scripts/audit_live_owner_console.py` against public Hosting. Then perform the
 authenticated exact-owner journey: empty state, Positioning creation/source

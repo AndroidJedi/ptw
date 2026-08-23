@@ -31,6 +31,7 @@ class Settings:
     codex_executable: str
     root_broker_socket: Path
     public_origin: str
+    owner_public_origins: tuple[str, ...] = ()
     telegram_bot_token: str = ""
     commander_service_url: str = "http://ptw-commander-api:8080"
     firebase_landing_site_id: str = ""
@@ -89,8 +90,21 @@ class Settings:
                 ipaddress.ip_network(network, strict=False)
         except ValueError as error:
             raise RuntimeError("LANDING_TRUSTED_PROXY_NETWORKS contains an invalid CIDR") from error
+        firebase_project_id = os.environ.get("FIREBASE_PROJECT_ID", "provethemwrong-86123")
+        public_origin = os.environ.get(
+            "OWNER_WEB_ORIGIN", f"https://{firebase_project_id}.firebaseapp.com"
+        ).rstrip("/")
+        configured_owner_origins = tuple(
+            value.strip().rstrip("/")
+            for value in os.environ.get("OWNER_WEB_ORIGINS", "").split(",")
+            if value.strip()
+        )
+        owner_origins = configured_owner_origins or (
+            f"https://{firebase_project_id}.firebaseapp.com",
+            f"https://{firebase_project_id}.web.app",
+        )
         return cls(
-            firebase_project_id=os.environ.get("FIREBASE_PROJECT_ID", "provethemwrong-86123"),
+            firebase_project_id=firebase_project_id,
             firebase_app_id=os.environ.get("FIREBASE_APP_ID", "1:463396258702:web:e52325c94f477ede1c9adf"),
             owner_email=os.environ.get("FIREBASE_OWNER_EMAIL", "sgolovaschuk@gmail.com").lower(),
             owner_uid=required["FIREBASE_OWNER_UID"],
@@ -107,7 +121,8 @@ class Settings:
             repository_path=Path(os.environ.get("PTW_REPOSITORY_PATH", "/root/ptw")),
             codex_executable=os.environ.get("CODEX_EXECUTABLE", "/opt/ptw-codex/bin/codex"),
             root_broker_socket=Path(os.environ.get("ROOT_BROKER_SOCKET", "/run/ptw-root-broker/control.sock")),
-            public_origin=os.environ.get("OWNER_WEB_ORIGIN", "https://provethemwrong-86123.firebaseapp.com").rstrip("/"),
+            public_origin=public_origin,
+            owner_public_origins=owner_origins,
             telegram_bot_token=os.environ.get("TELEGRAM_BOT_TOKEN", "").strip(),
             commander_service_url=os.environ.get("COMMANDER_SERVICE_URL", "http://ptw-commander-api:8080").rstrip("/"),
             firebase_landing_site_id=site_id,

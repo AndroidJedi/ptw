@@ -125,7 +125,11 @@ def create_app(
     )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[settings.public_origin, *settings.landing_public_origins],
+        allow_origins=list(dict.fromkeys([
+            settings.public_origin,
+            *settings.owner_public_origins,
+            *settings.landing_public_origins,
+        ])),
         allow_credentials=False,
         allow_methods=["GET", "POST"],
         allow_headers=["Authorization", "Content-Type", "X-Firebase-AppCheck"],

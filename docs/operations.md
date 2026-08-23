@@ -24,21 +24,13 @@ curl -fsS http://127.0.0.1:8080/health/ready
 curl -fsS https://commander.proove-them-wrong.com/health
 ```
 
-The authenticated structured capabilities response must expose the exact Laval
-and Branding modes plus `branding_image.ready=true`, model `gpt-image-2`, one
-image per request, and `commander_asset_volume` transport. The Commander API and
+The authenticated structured capabilities response must expose exactly the three
+Marketing Positioning modes plus `natal_landing_revision`; retired Laval and
+Branding modes are not accepted. The Commander API and
 worker images are both prebuilt and pinned with `PTW_PLATFORM_IMAGE_TAG`; never
 build either on the 1 GB production host. Recreate them one at a time and run
-the PTW Owner Gateway dependency audit before starting a Branding run.
-Approved-logo editing additionally requires the planner and reference-edit
-modes plus `branding_image.reference_edit=true` and
-`reference_trace=exact_path_and_sha256`. The bridge digest-checks the canonical
-path, attaches that exact file with Codex CLI `--image`, and accepts only an
-image-tool event consuming one attached image; this avoids relaxing the VPS
-user-namespace policy or bypassing the Codex sandbox. Run an out-of-run edit
-canary with an immutable shared-volume PNG before enabling production replay. Verify the
-returned source path/digest proof, one generated PNG, temporary-session cleanup,
-and memory headroom; never treat a matching prompt string as proof of image use.
+the PTW Owner Gateway dependency audit before starting a Positioning or Landing
+run. Require a fresh schema-bound canary for every advertised PTW mode.
 
 ## Migrations
 

@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from commander.main import (BRANDING_IMAGE_MODEL, IDEA_COMMANDS, MAX_STRUCTURED_LLM_REQUEST_BYTES, STRUCTURED_LLM_MODES, SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
+from commander.main import (IDEA_COMMANDS, LANDING_MODES, MARKETING_POSITIONING_MODES, MAX_STRUCTURED_LLM_REQUEST_BYTES, STRUCTURED_LLM_MODES, SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
                             bridge_target, engineering_task, normalized_command,
                             get_structured_llm_capabilities, public_health, safe_bridge_error, structured_llm_capabilities, task_research_reference,
                             validate_structured_llm_request)
@@ -63,116 +63,54 @@ def test_task_can_consume_an_explicit_research_hypothesis() -> None:
     assert task_research_reference("implement onboarding") == (None, "implement onboarding")
 
 
-def test_structured_bridge_accepts_laval_modes_and_full_contract() -> None:
-    laval_modes = {
-        "laval_owner_dna",
-        "laval_query_plan",
-        "laval_competitor_dossier",
-        "laval_opportunity_matrix",
-        "laval_market_signal_relevance",
-        "laval_idea_expansion",
-        "laval_idea_evaluation",
-        "laval_youtube_observation",
-        "laval_mechanism_extraction",
-        "laval_thesis_synthesis",
-        "laval_thesis_falsification",
+def test_structured_bridge_accepts_ptw_v2_modes_and_full_contract() -> None:
+    positioning_modes = {
+        "marketing_positioning_research_plan",
+        "marketing_positioning_document",
+        "marketing_positioning_revision",
     }
-    assert {mode for mode in STRUCTURED_LLM_MODES if mode.startswith("laval_")} == laval_modes
-    branding_modes = {
-        "branding_reference_plan",
-        "branding_design_principles",
-        "branding_brand_brief",
-        "branding_direction_synthesis",
-        "branding_logo_generation",
-        "branding_revision_planner",
-        "branding_logo_reference_edit",
-    }
-    assert {mode for mode in STRUCTURED_LLM_MODES if mode.startswith("branding_")} == branding_modes
-    landing_modes = {"natal_landing_revision"}
-    assert {mode for mode in STRUCTURED_LLM_MODES if mode.startswith("natal_landing_")} == landing_modes
+    assert MARKETING_POSITIONING_MODES == positioning_modes
+    assert LANDING_MODES == {"natal_landing_revision"}
     assert structured_llm_capabilities() == {
-        "laval_modes": sorted(laval_modes),
-        "branding_modes": sorted(branding_modes),
-        "landing_modes": sorted(landing_modes),
-        "branding_image": {
-            "ready": True,
-            "model": BRANDING_IMAGE_MODEL,
-            "provider": "codex_chatgpt_imagegen",
-            "max_images_per_request": 1,
-            "asset_transport": "commander_asset_volume",
-            "reference_edit": True,
-            "reference_trace": "exact_path_and_sha256",
-        },
+        "marketing_positioning_modes": sorted(positioning_modes),
+        "landing_modes": ["natal_landing_revision"],
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
     }
-    for mode in laval_modes | branding_modes | landing_modes:
+    for mode in positioning_modes | LANDING_MODES:
         validate_structured_llm_request({
             "mode": mode,
-            "system_prompt": (
-                "$imagegen Use referenced_image_paths with /var/lib/ptw/assets/reference.png."
-                if mode == "branding_logo_reference_edit"
-                else "$imagegen Return structured evidence."
-                if mode == "branding_logo_generation"
-                else "Return structured evidence."
-            ),
-            "input_payload": ({
-                "source_path": "/var/lib/ptw/assets/reference.png",
-                "source_digest": "a" * 64,
-            } if mode == "branding_logo_reference_edit" else {"evidence_ids": ["e-1"]}),
+            "system_prompt": "Return structured evidence.",
+            "input_payload": {"evidence_ids": ["e-1"]},
             "output_schema": {"type": "object"},
             "prompt_template_version": "contract-v1",
             "context_hash": "sha256:abc",
         })
 
 
+@pytest.mark.parametrize("mode", ["laval_owner_dna", "branding_direction_synthesis"])
+def test_structured_bridge_rejects_retired_ptw_modes(mode: str) -> None:
+    with pytest.raises(ValueError, match="unsupported structured LLM mode"):
+        validate_structured_llm_request({
+            "mode": mode,
+            "system_prompt": "Return structured evidence.",
+            "input_payload": {},
+            "output_schema": {"type": "object"},
+        })
+
+
 def test_structured_bridge_rejects_unknown_and_oversized_requests() -> None:
     request = {
-        "mode": "laval_not_registered",
+        "mode": "marketing_positioning_not_registered",
         "system_prompt": "Return structured output.",
         "input_payload": {},
         "output_schema": {"type": "object"},
     }
     with pytest.raises(ValueError, match="unsupported structured LLM mode"):
         validate_structured_llm_request(request)
-    request["mode"] = "laval_owner_dna"
+    request["mode"] = "marketing_positioning_research_plan"
     request["input_payload"] = {"content": "x" * MAX_STRUCTURED_LLM_REQUEST_BYTES}
     with pytest.raises(ValueError, match="too large"):
         validate_structured_llm_request(request)
-
-
-def test_branding_logo_contract_requires_explicit_builtin_image_generation() -> None:
-    request = {
-        "mode": "branding_logo_generation",
-        "system_prompt": "Create one logo.",
-        "input_payload": {},
-        "output_schema": {"type": "object"},
-    }
-    with pytest.raises(ValueError, match=r"\$imagegen"):
-        validate_structured_llm_request(request)
-    request["system_prompt"] = "$imagegen Create exactly one original symbol."
-    validate_structured_llm_request(request)
-
-
-def test_branding_reference_edit_requires_exact_path_digest_and_attachment_contract() -> None:
-    request = {
-        "mode": "branding_logo_reference_edit",
-        "system_prompt": "$imagegen Edit this logo.",
-        "input_payload": {
-            "source_path": "/var/lib/ptw/assets/source.png",
-            "source_digest": "a" * 64,
-        },
-        "output_schema": {"type": "object"},
-    }
-    with pytest.raises(ValueError, match="exact path"):
-        validate_structured_llm_request(request)
-    request["system_prompt"] = (
-        "$imagegen Attach /var/lib/ptw/assets/source.png and use num_last_images_to_include=1."
-    )
-    validate_structured_llm_request(request)
-    request["system_prompt"] = (
-        "$imagegen Legacy referenced_image_paths target /var/lib/ptw/assets/source.png."
-    )
-    validate_structured_llm_request(request)
 
 
 def test_structured_capabilities_require_the_bridge_token(monkeypatch) -> None:
@@ -197,7 +135,7 @@ def test_platform_api_release_is_explicitly_tagged_and_never_built_on_production
 @pytest.mark.parametrize("missing", ["system_prompt", "input_payload", "output_schema"])
 def test_structured_bridge_rejects_incomplete_contract(missing: str) -> None:
     request = {
-        "mode": "laval_owner_dna",
+        "mode": "marketing_positioning_document",
         "system_prompt": "Return DNA.",
         "input_payload": {},
         "output_schema": {"type": "object"},

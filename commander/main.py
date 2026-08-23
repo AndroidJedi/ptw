@@ -37,34 +37,25 @@ IDEA_COMMANDS = frozenset({
     "/context", "/context_set", "/context_name", "/context_history", "/context_restore",
     "/context_enable", "/context_disable", "/executions", "/errors", "/cost", "/task", "/help",
 })
-STRUCTURED_LLM_MODES = frozenset({
+GENERIC_STRUCTURED_LLM_MODES = frozenset({
     "generate",
     "evaluate",
     "evolve",
     "normalize_human",
     "telegram_chat",
-    "laval_owner_dna",
-    "laval_query_plan",
-    "laval_competitor_dossier",
-    "laval_opportunity_matrix",
-    "laval_market_signal_relevance",
-    "laval_idea_expansion",
-    "laval_idea_evaluation",
-    "laval_youtube_observation",
-    "laval_mechanism_extraction",
-    "laval_thesis_synthesis",
-    "laval_thesis_falsification",
-    "branding_reference_plan",
-    "branding_design_principles",
-    "branding_brand_brief",
-    "branding_direction_synthesis",
-    "branding_logo_generation",
-    "branding_revision_planner",
-    "branding_logo_reference_edit",
+})
+MARKETING_POSITIONING_MODES = frozenset({
+    "marketing_positioning_research_plan",
+    "marketing_positioning_document",
+    "marketing_positioning_revision",
+})
+LANDING_MODES = frozenset({
     "natal_landing_revision",
 })
+STRUCTURED_LLM_MODES = frozenset(
+    GENERIC_STRUCTURED_LLM_MODES | MARKETING_POSITIONING_MODES | LANDING_MODES
+)
 MAX_STRUCTURED_LLM_REQUEST_BYTES = 1_000_000
-BRANDING_IMAGE_MODEL = "gpt-image-2"
 
 
 def validate_structured_llm_request(request: dict) -> None:
@@ -81,23 +72,6 @@ def validate_structured_llm_request(request: dict) -> None:
     for field in ("prompt_template_version", "context_hash", "model"):
         if field in request and not isinstance(request[field], str):
             raise ValueError("invalid structured LLM request")
-    if (
-        request.get("mode") in {"branding_logo_generation", "branding_logo_reference_edit"}
-        and "$imagegen" not in request["system_prompt"]
-    ):
-        raise ValueError("Branding logo generation must explicitly invoke $imagegen")
-    if request.get("mode") == "branding_logo_reference_edit":
-        payload = request["input_payload"]
-        if (
-            not isinstance(payload.get("source_path"), str)
-            or not re.fullmatch(r"[0-9a-f]{64}", str(payload.get("source_digest") or ""))
-            or not any(
-                marker in request["system_prompt"]
-                for marker in ("referenced_image_paths", "num_last_images_to_include=1")
-            )
-            or payload["source_path"] not in request["system_prompt"]
-        ):
-            raise ValueError("Branding reference edit requires an exact path and SHA-256 contract")
     if len(json.dumps(request, ensure_ascii=False).encode("utf-8")) > MAX_STRUCTURED_LLM_REQUEST_BYTES:
         raise ValueError("structured LLM request is too large")
 
@@ -105,24 +79,8 @@ def validate_structured_llm_request(request: dict) -> None:
 def structured_llm_capabilities() -> dict:
     """Expose authenticated structured and image contracts without queueing work."""
     return {
-        "laval_modes": sorted(
-            mode for mode in STRUCTURED_LLM_MODES if mode.startswith("laval_")
-        ),
-        "branding_modes": sorted(
-            mode for mode in STRUCTURED_LLM_MODES if mode.startswith("branding_")
-        ),
-        "landing_modes": sorted(
-            mode for mode in STRUCTURED_LLM_MODES if mode.startswith("natal_landing_")
-        ),
-        "branding_image": {
-            "ready": True,
-            "model": BRANDING_IMAGE_MODEL,
-            "provider": "codex_chatgpt_imagegen",
-            "max_images_per_request": 1,
-            "asset_transport": "commander_asset_volume",
-            "reference_edit": True,
-            "reference_trace": "exact_path_and_sha256",
-        },
+        "marketing_positioning_modes": sorted(MARKETING_POSITIONING_MODES),
+        "landing_modes": sorted(LANDING_MODES),
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
     }
 

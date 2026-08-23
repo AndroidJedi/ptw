@@ -51,6 +51,11 @@ with the platform, Commander, and Owner Gateway env files in that order. Resolve
 network subnet; never use a broad private-network range. A missing interpolation
 value must fail before bridge replacement or reset.
 
+Check lifecycle flags against the production Compose CLI before cutover.
+Production `docker compose run` does not accept `--no-build`; rely on the
+code-owned `pull_policy: never` plus preloaded exact image tags for one-off
+canary and migration containers. Keep `--no-build` on supported `up` commands.
+
 Run `scripts/audit_vps_owner_dependencies.sh` on the VPS and
 `scripts/audit_live_owner_console.py` against public Hosting. Then perform the
 authenticated exact-owner journey: empty state, Positioning creation/source

@@ -95,7 +95,7 @@ $commander_compose exec -T commander-db psql -X -v ON_ERROR_STOP=1 -U ptw_comman
 docker run --rm -v ptw_owner-control:/data alpine:3.22 sh -c \
   'if [ -d /data/landings ]; then find /data/landings -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; fi'
 
-$commander_compose run --rm --no-deps --no-build commander-migrate
+$commander_compose run --rm --no-deps commander-migrate
 $commander_compose up -d --no-deps --wait --no-build commander-api >/dev/null
 $positioning_compose up -d --no-deps --wait --no-build marketing-positioning-api >/dev/null
 $commander_compose up -d --no-deps --wait --no-build --force-recreate owner-gateway >/dev/null

@@ -110,7 +110,7 @@ export PTW_PLATFORM_IMAGE_TAG=$release_tag
 # Run a fresh strict-model invocation through the newly deployed API and worker
 # for every retained PTW mode. Restore the prior images if any canary fails;
 # the irreversible Commander reset has not started at this point.
-if ! "${positioning_compose[@]}" run --rm --no-deps --no-build marketing-positioning-api \
+if ! "${positioning_compose[@]}" run --rm --no-deps marketing-positioning-api \
     python -m marketing_positioning.verify_bridge_contract; then
     export PTW_PLATFORM_IMAGE_TAG=$old_platform_tag
     "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api

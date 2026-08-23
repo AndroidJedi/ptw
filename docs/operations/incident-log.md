@@ -30,3 +30,8 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   a pre-stream Compose render and exact live-network CIDR resolution.
 - Verification: shell parsing and Compose rendering pass with the production
   env layout; the failed attempt changed no schema or running container.
+
+The next pre-reset gate also found that the production Compose CLI rejects
+`--no-build` on `compose run`. The bridge rollback restored both prior platform
+images. One-off canary/migration commands now rely on `pull_policy: never` and
+preloaded versioned images, while service `up` retains `--no-build`.

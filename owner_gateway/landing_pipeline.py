@@ -94,7 +94,9 @@ class LandingBuildCoordinator:
                 item for item in self.repository.skill_memory(str(build["idea_run_id"]))
                 if item["id"] in captured_ids
             ]
-            if self.reviser is not None:
+            if build.get("source_draft_snapshot_id"):
+                build = self.repository.mark_building(build_id)
+            elif self.reviser is not None:
                 self.repository.mark_revising(build_id)
                 revised, summary, invocation = self.reviser.revise(
                     template_id=str(build["template_id"]),
@@ -115,7 +117,11 @@ class LandingBuildCoordinator:
             if output.exists():
                 shutil.rmtree(output)
             manifest = build_landing(
-                str(build["template_id"]), dict(build["brief"]), output
+                str(build["template_id"]), dict(build["brief"]), output,
+                page_content=(
+                    dict(build["page_content"])
+                    if isinstance(build.get("page_content"), Mapping) else None
+                ),
             )
             artifact_sha256 = self._artifact_digest(output)
             self.repository.mark_publishing(

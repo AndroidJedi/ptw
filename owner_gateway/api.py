@@ -21,6 +21,8 @@ from .control_store import ControlStore
 from .execution import CommandRunner
 from .firebase_hosting import FirebaseHostingPublisher
 from .landing import candidates_response, prepare_landing_build, templates_response
+from .landing_draft_repository import LandingDraftRepository
+from .landing_drafts import LandingDraftCoordinator
 from .landing_pipeline import LandingBuildCoordinator
 from .landing_repository import LandingBuildRepository
 from .landing_revision import LandingRevisionProvider
@@ -33,27 +35,29 @@ def create_app(
     settings: Settings,
     verifier: FirebaseVerifier | None = None,
     landing_coordinator: LandingBuildCoordinator | None = None,
+    draft_coordinator: LandingDraftCoordinator | None = None,
 ) -> FastAPI:
     store = ControlStore(settings.control_database_path)
     platform = PlatformRepository(settings.platform_database_url, settings.platform_owner_telegram_id)
     read = DomainReadModels(settings.idea_database_url, settings.commander_database_url)
     planner = AppServerPlanner(settings.codex_executable, settings.repository_path)
     runner = CommandRunner(settings.codex_executable, settings.repository_path, store, platform)
+    build_repository = LandingBuildRepository(settings.commander_database_url)
+    reviser = None
+    if settings.landing_llm_bridge_url and settings.telegram_bot_token:
+        reviser = LandingRevisionProvider(
+            bridge_url=settings.landing_llm_bridge_url,
+            token=settings.telegram_bot_token,
+            skill_path=settings.repository_path / "skills/natal-landing-builder/SKILL.md",
+            model=settings.landing_llm_model,
+        )
     if (
         landing_coordinator is None
         and settings.firebase_landing_site_id
         and settings.firebase_landing_service_account_path is not None
     ):
-        reviser = None
-        if settings.landing_llm_bridge_url and settings.telegram_bot_token:
-            reviser = LandingRevisionProvider(
-                bridge_url=settings.landing_llm_bridge_url,
-                token=settings.telegram_bot_token,
-                skill_path=settings.repository_path / "skills/natal-landing-builder/SKILL.md",
-                model=settings.landing_llm_model,
-            )
         landing_coordinator = LandingBuildCoordinator(
-            repository=LandingBuildRepository(settings.commander_database_url),
+            repository=build_repository,
             publisher=FirebaseHostingPublisher(
                 project_id=settings.firebase_project_id,
                 site_id=settings.firebase_landing_site_id,
@@ -62,6 +66,13 @@ def create_app(
             output_root=settings.landing_output_root,
             stopped=platform.emergency_stop,
             reviser=reviser,
+        )
+    if draft_coordinator is None and reviser is not None:
+        draft_coordinator = LandingDraftCoordinator(
+            repository=LandingDraftRepository(settings.commander_database_url),
+            build_repository=build_repository,
+            reviser=reviser,
+            stopped=platform.emergency_stop,
         )
     owner = OwnerDependency(verifier or FirebaseVerifier(settings))
     tasks: set[asyncio.Task[Any]] = set()
@@ -86,6 +97,8 @@ def create_app(
     async def lifespan(_app: FastAPI):
         if landing_coordinator is not None:
             await asyncio.to_thread(landing_coordinator.recover_interrupted)
+        if draft_coordinator is not None:
+            await asyncio.to_thread(draft_coordinator.recover_interrupted)
         yield
         for task in tasks:
             task.cancel()
@@ -167,6 +180,16 @@ def create_app(
         return activity if activity.get("active") else None
 
     def require_no_active_codex(*, exclude_id: str | None = None) -> None:
+        if draft_coordinator is not None:
+            active_draft = draft_coordinator.active()
+            if active_draft is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Natal {active_draft['kind']} {active_draft.get('id') or active_draft.get('request_id')} "
+                        f"is active ({active_draft['status']}); wait before starting another heavy operation"
+                    ),
+                )
         if landing_coordinator is not None:
             active_landing = landing_coordinator.active()
             if active_landing is not None:
@@ -203,6 +226,11 @@ def create_app(
             raise HTTPException(status_code=503, detail="Natal Firebase publisher is not configured")
         return landing_coordinator
 
+    def require_landing_drafts() -> LandingDraftCoordinator:
+        if draft_coordinator is None:
+            raise HTTPException(status_code=503, detail="Natal local preview agent is not configured")
+        return draft_coordinator
+
     def landing_response(build: Mapping[str, Any]) -> dict[str, Any]:
         return {
             key: build.get(key)
@@ -210,6 +238,7 @@ def create_app(
                 "id", "request_id", "idea_run_id", "thesis_id", "template_id",
                 "parent_build_id", "revision_number", "input_brief", "brief",
                 "skill_memory_feedback_ids", "revision_summary", "revision_invocation",
+                "source_draft_snapshot_id", "page_content", "page_content_sha256",
                 "status", "build_manifest", "artifact_sha256", "firebase_site_id",
                 "firebase_version", "public_url", "error_code", "error_message",
                 "created_at", "updated_at", "completed_at",
@@ -297,6 +326,261 @@ def create_app(
         ).json()
         return candidates_response(cases.get("items") or [])
 
+    async def completed_landing_case(idea_run_id: str) -> Mapping[str, Any]:
+        cases = (
+            await laval_bridge(
+                "GET", "/internal/web/branding/cases", params={"limit": 100}
+            )
+        ).json()
+        try:
+            return next(
+                item for item in cases.get("items") or []
+                if str(item.get("idea_run_id")) == idea_run_id
+            )
+        except StopIteration as error:
+            raise HTTPException(status_code=404, detail="completed Idea evaluation not found") from error
+
+    @app.post("/api/v1/landings/draft-sets", status_code=202)
+    async def create_landing_draft_set(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_running()
+        coordinator = require_landing_drafts()
+        request_id = str(request.get("request_id") or uuid4())
+        try:
+            UUID(request_id)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="request_id must be a UUID") from error
+        idea_run_id = str(request.get("idea_run_id") or "").strip()
+        require_laval_id(idea_run_id)
+        existing = coordinator.by_request(request_id)
+        if existing is not None:
+            if existing["idea_run_id"] != idea_run_id:
+                raise HTTPException(status_code=409, detail="request_id belongs to another Idea evaluation")
+            return existing
+        candidate = await completed_landing_case(idea_run_id)
+        prepared = candidates_response([candidate])["items"][0]
+        async with operation_start_lock:
+            await require_no_active_laval()
+            require_no_active_codex()
+            try:
+                await asyncio.to_thread(coordinator.verify_ready)
+                draft_set, created = coordinator.create(
+                    prepared, request_id=request_id,
+                    requested_by=f"firebase:{identity.uid}",
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
+            except RuntimeError as error:
+                raise HTTPException(status_code=503, detail=str(error)) from error
+            if created:
+                background(coordinator.populate(draft_set["id"]))
+        return draft_set
+
+    @app.get("/api/v1/landings/draft-sets/latest")
+    def latest_landing_draft_set(
+        idea_run_id: str, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_laval_id(idea_run_id)
+        result = require_landing_drafts().latest(idea_run_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Natal draft set not found")
+        return result
+
+    @app.get("/api/v1/landings/draft-sets/{draft_set_id}")
+    def landing_draft_set(
+        draft_set_id: str, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        try:
+            UUID(draft_set_id)
+            return require_landing_drafts().get(draft_set_id)
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=404, detail="Natal draft set not found") from error
+
+    @app.post("/api/v1/landings/draft-sets/{draft_set_id}/retry", status_code=202)
+    async def retry_landing_draft_set(
+        draft_set_id: str,
+        _request: Mapping[str, Any],
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_running()
+        coordinator = require_landing_drafts()
+        async with operation_start_lock:
+            await require_no_active_laval()
+            require_no_active_codex()
+            try:
+                UUID(draft_set_id)
+                await asyncio.to_thread(coordinator.verify_ready)
+                draft_set = coordinator.retry_population(draft_set_id)
+            except KeyError as error:
+                raise HTTPException(status_code=404, detail="Natal draft set not found") from error
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
+            except RuntimeError as error:
+                raise HTTPException(status_code=503, detail=str(error)) from error
+            background(coordinator.populate(draft_set_id))
+        return draft_set
+
+    @app.get("/api/v1/landings/draft-snapshots/{snapshot_id}/preview")
+    def landing_draft_preview(
+        snapshot_id: str, _identity: OwnerIdentity = Depends(owner),
+    ) -> Response:
+        try:
+            UUID(snapshot_id)
+            payload = require_landing_drafts().preview(snapshot_id)
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=404, detail="Natal draft snapshot not found") from error
+        return Response(
+            content=json.dumps(payload, ensure_ascii=False), media_type="application/json",
+            headers={"Cache-Control": "private, no-store"},
+        )
+
+    @app.post("/api/v1/landings/draft-snapshots/{snapshot_id}/edits", status_code=202)
+    async def create_landing_block_edit(
+        snapshot_id: str,
+        request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_running()
+        coordinator = require_landing_drafts()
+        request_id = str(request.get("request_id") or uuid4())
+        try:
+            UUID(snapshot_id)
+            UUID(request_id)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="snapshot_id and request_id must be UUIDs") from error
+        try:
+            existing = coordinator.get_edit(request_id)
+        except KeyError:
+            existing = None
+        if existing is not None:
+            if (
+                existing["base_snapshot_id"] != snapshot_id
+                or existing["block_id"] != str(request.get("block_id") or "")
+                or existing["instruction"] != str(request.get("instruction") or "").strip()
+            ):
+                raise HTTPException(status_code=409, detail="request_id belongs to another block edit")
+            return existing
+        async with operation_start_lock:
+            await require_no_active_laval()
+            require_no_active_codex()
+            try:
+                await asyncio.to_thread(coordinator.verify_ready)
+                edit, created = coordinator.create_edit(
+                    snapshot_id, request_id=request_id,
+                    block_id=str(request.get("block_id") or ""),
+                    instruction=str(request.get("instruction") or ""),
+                    requested_by=f"firebase:{identity.uid}",
+                )
+            except KeyError as error:
+                raise HTTPException(status_code=404, detail="Natal draft snapshot not found") from error
+            except ValueError as error:
+                message = str(error)
+                raise HTTPException(
+                    status_code=409 if "stale" in message else 400, detail=message
+                ) from error
+            except RuntimeError as error:
+                raise HTTPException(status_code=503, detail=str(error)) from error
+            if created:
+                background(coordinator.edit(request_id))
+        return edit
+
+    @app.get("/api/v1/landings/draft-edits/{request_id}")
+    def landing_block_edit(
+        request_id: str, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        try:
+            UUID(request_id)
+            return require_landing_drafts().get_edit(request_id)
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=404, detail="Natal draft edit not found") from error
+
+    @app.post("/api/v1/landings/draft-edits/{request_id}/retry", status_code=202)
+    async def retry_landing_block_edit(
+        request_id: str,
+        _request: Mapping[str, Any],
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_running()
+        coordinator = require_landing_drafts()
+        async with operation_start_lock:
+            await require_no_active_laval()
+            require_no_active_codex()
+            try:
+                UUID(request_id)
+                await asyncio.to_thread(coordinator.verify_ready)
+                edit = coordinator.retry_edit(request_id)
+            except KeyError as error:
+                raise HTTPException(status_code=404, detail="Natal draft edit not found") from error
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
+            except RuntimeError as error:
+                raise HTTPException(status_code=503, detail=str(error)) from error
+            background(coordinator.edit(request_id))
+        return edit
+
+    @app.get("/api/v1/landings/skill-proposals")
+    def landing_skill_proposals(
+        draft_set_id: str, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        try:
+            UUID(draft_set_id)
+            return {"items": require_landing_drafts().proposals(draft_set_id)}
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=404, detail="Natal draft set not found") from error
+
+    @app.post("/api/v1/landings/skill-proposals/{proposal_id}/dismiss")
+    def dismiss_landing_skill_proposal(
+        proposal_id: str,
+        _request: Mapping[str, Any],
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        try:
+            UUID(proposal_id)
+            return require_landing_drafts().dismiss_proposal(proposal_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Natal skill proposal not found") from error
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/api/v1/landings/skill-proposals/{proposal_id}/plan", status_code=202)
+    async def plan_landing_skill_proposal(
+        proposal_id: str,
+        request: Mapping[str, Any],
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        require_running()
+        coordinator = require_landing_drafts()
+        try:
+            UUID(proposal_id)
+            proposal = coordinator.proposal(proposal_id)
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=404, detail="Natal skill proposal not found") from error
+        lesson = str(request.get("lesson") or proposal.get("proposed_lesson") or "").strip()
+        if not lesson or len(lesson) > 500:
+            raise HTTPException(status_code=400, detail="reviewed lesson must contain 1-500 characters")
+        instruction = (
+            "Use $skill-creator to promote one owner-reviewed Natal landing lesson. "
+            "Update only skills/natal-landing-builder/references/owner-lessons.md; do not deploy, "
+            "publish, or change runtime data. Preserve the lesson meaning, remove idea-specific facts, "
+            "and do not add unsupported claims. Include proposal marker "
+            f"{proposal_id}. Reviewed lesson: {lesson}\n\n"
+            "Validate with the skill-creator quick validator, python3 scripts/verify_ptw_skills.py, "
+            "and git diff --check."
+        )
+        async with operation_start_lock:
+            await require_no_active_laval()
+            require_no_active_codex()
+            try:
+                command = store.create_command("plan", instruction)
+                proposal = coordinator.mark_proposal_planning(
+                    proposal_id, lesson=lesson, command_session_id=command["id"]
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
+            background(build_plan(command["id"], instruction))
+        return {"proposal": proposal, "job": command}
+
     async def start_landing_build(
         request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
@@ -310,9 +594,25 @@ def create_app(
         existing = coordinator.by_request(request_id)
         if existing is not None:
             return landing_response(existing)
-        idea_run_id = str(request.get("idea_run_id") or "").strip()
+        draft_snapshot_id = str(request.get("draft_snapshot_id") or "").strip() or None
+        snapshot = None
+        draft_set = None
+        if draft_snapshot_id:
+            try:
+                UUID(draft_snapshot_id)
+                drafts = require_landing_drafts()
+                snapshot = drafts.snapshot(draft_snapshot_id)
+                draft_set = drafts.get(snapshot["draft_set_id"])
+            except (KeyError, ValueError) as error:
+                raise HTTPException(status_code=404, detail="Natal draft snapshot not found") from error
+            if not snapshot["is_current"]:
+                raise HTTPException(status_code=409, detail="selected Natal draft snapshot is stale")
+            idea_run_id = str(draft_set["idea_run_id"])
+            template_id = str(snapshot["template_id"])
+        else:
+            idea_run_id = str(request.get("idea_run_id") or "").strip()
+            template_id = str(request.get("template_id") or "auto").strip().lower()
         require_laval_id(idea_run_id)
-        template_id = str(request.get("template_id") or "auto").strip().lower()
         parent_build_id = str(request.get("parent_build_id") or "").strip() or None
         parent = None
         if parent_build_id:
@@ -325,35 +625,38 @@ def create_app(
                 raise HTTPException(status_code=400, detail="parent landing revision belongs to another Idea evaluation")
             if parent["status"] != "published":
                 raise HTTPException(status_code=409, detail="only a published landing can be revised")
-        overrides = request.get("brief") or {}
-        if not isinstance(overrides, Mapping):
-            raise HTTPException(status_code=400, detail="brief must be an object")
-        try:
-            cases = (
-                await laval_bridge(
-                    "GET", "/internal/web/branding/cases", params={"limit": 100}
+        if snapshot is not None and draft_set is not None:
+            prepared = {
+                "build_id": str(uuid4()), "idea_run_id": idea_run_id,
+                "template_id": template_id, "brief": dict(draft_set["brief"]),
+                "parent_build_id": parent_build_id,
+                "source_draft_snapshot_id": snapshot["id"],
+                "page_content": dict(snapshot["page_content"]),
+                "page_content_sha256": snapshot["page_content_sha256"],
+                "revision_summary": snapshot["application_summary"],
+                "revision_invocation": snapshot["invocation"],
+            }
+        else:
+            overrides = request.get("brief") or {}
+            if not isinstance(overrides, Mapping):
+                raise HTTPException(status_code=400, detail="brief must be an object")
+            try:
+                candidate = await completed_landing_case(idea_run_id)
+                prepared = prepare_landing_build(
+                    candidate, template_id, overrides,
+                    base_brief=parent["brief"] if parent else None,
+                    parent_build_id=parent_build_id,
                 )
-            ).json()
-            candidate = next(
-                item for item in cases.get("items") or []
-                if str(item.get("idea_run_id")) == idea_run_id
-            )
-            prepared = prepare_landing_build(
-                candidate, template_id, overrides,
-                base_brief=parent["brief"] if parent else None,
-                parent_build_id=parent_build_id,
-            )
-        except StopIteration as error:
-            raise HTTPException(status_code=404, detail="completed Idea evaluation not found") from error
-        except ValueError as error:
-            raise HTTPException(status_code=400, detail=str(error)) from error
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail=str(error)) from error
         async with operation_start_lock:
             await require_no_active_laval()
             require_no_active_codex()
-            try:
-                await asyncio.to_thread(coordinator.verify_ready)
-            except RuntimeError as error:
-                raise HTTPException(status_code=503, detail=str(error)) from error
+            if snapshot is None:
+                try:
+                    await asyncio.to_thread(coordinator.verify_ready)
+                except RuntimeError as error:
+                    raise HTTPException(status_code=503, detail=str(error)) from error
             try:
                 build, created = coordinator.create(
                     prepared,

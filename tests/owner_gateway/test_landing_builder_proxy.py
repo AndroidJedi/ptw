@@ -7,6 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import UUID
 
+from natal.page import page_content_from_brief
+
 
 HAS_RUNTIME = importlib.util.find_spec("fastapi") is not None and importlib.util.find_spec("httpx") is not None
 
@@ -71,6 +73,9 @@ class FakeCoordinator:
             "skill_memory_feedback_ids": [item["id"] for item in self.feedback_items],
             "revision_summary": None,
             "revision_invocation": None,
+            "source_draft_snapshot_id": prepared.get("source_draft_snapshot_id"),
+            "page_content": prepared.get("page_content"),
+            "page_content_sha256": prepared.get("page_content_sha256"),
             "status": "queued",
             "build_manifest": None,
             "artifact_sha256": None,
@@ -131,6 +136,131 @@ class FakeCoordinator:
         return row
 
 
+class FakeDraftCoordinator:
+    def __init__(self) -> None:
+        self.sets: dict[str, dict] = {}
+        self.requests: dict[str, str] = {}
+        self.edits: dict[str, dict] = {}
+        self.stale_snapshots: dict[str, dict] = {}
+        self.populate_calls = 0
+        self.edit_calls = 0
+        self.ready = True
+
+    def recover_interrupted(self): return 0
+    def verify_ready(self):
+        if not self.ready: raise RuntimeError("Natal local preview bridge is unavailable")
+    def active(self): return None
+    def by_request(self, request_id):
+        draft_id = self.requests.get(request_id)
+        return self.sets.get(draft_id) if draft_id else None
+    def latest(self, idea_run_id):
+        return next((item for item in self.sets.values() if item["idea_run_id"] == idea_run_id), None)
+    def get(self, draft_id):
+        if draft_id not in self.sets: raise KeyError(draft_id)
+        return self.sets[draft_id]
+    def create(self, prepared, *, request_id, requested_by):
+        existing = self.by_request(request_id)
+        if existing: return existing, False
+        draft_id = "71234567-89ab-7def-8123-456789abcdef"
+        row = {
+            "id": draft_id, "request_id": request_id, "idea_run_id": prepared["idea_run_id"],
+            "thesis_id": prepared["brief"]["source"].get("thesis_id"), "brief": prepared["brief"],
+            "recommended_template_id": prepared["recommended_template_id"],
+            "skill_memory_feedback_ids": [], "status": "queued", "population_summary": None,
+            "population_invocation": None, "error_code": None, "error_message": None,
+            "requested_by": requested_by, "variants": [], "edits": [],
+            "created_at": "2026-08-22T00:00:00+00:00", "updated_at": "2026-08-22T00:00:00+00:00",
+            "completed_at": None,
+        }
+        self.sets[draft_id] = row
+        self.requests[request_id] = draft_id
+        return row, True
+    async def populate(self, draft_id):
+        self.populate_calls += 1
+        row = self.get(draft_id)
+        row.update(
+            status="ready", population_summary="Prepared all three templates.",
+            updated_at="2026-08-22T00:00:01+00:00", completed_at="2026-08-22T00:00:01+00:00",
+        )
+        row["variants"] = [self._snapshot(row, template_id, index + 8) for index, template_id in enumerate(("product", "community", "waitlist"))]
+    @staticmethod
+    def _snapshot(row, template_id, prefix):
+        content = page_content_from_brief(template_id, row["brief"]).to_dict()
+        return {
+            "id": f"{prefix}1234567-89ab-7def-8123-456789abcdef", "draft_set_id": row["id"],
+            "template_id": template_id, "snapshot_number": 1, "parent_snapshot_id": None,
+            "source_feedback_id": None, "page_content": content,
+            "page_content_sha256": "a" * 64, "artifact_sha256": "b" * 64,
+            "is_current": True, "application_summary": "Initial set", "invocation": None,
+            "created_at": "2026-08-22T00:00:01+00:00",
+        }
+    def preview(self, snapshot_id):
+        snapshot = self.snapshot(snapshot_id)
+        return {
+            "snapshot_id": snapshot_id, "template_id": snapshot["template_id"],
+            "snapshot_number": snapshot["snapshot_number"], "artifact_sha256": snapshot["artifact_sha256"],
+            "html": '<!doctype html><style>body{margin:0}</style><section data-landing-block="hero">Natal</section><script>document.querySelector("a")</script>',
+        }
+    def snapshot(self, snapshot_id):
+        if snapshot_id in self.stale_snapshots:
+            return self.stale_snapshots[snapshot_id]
+        for row in self.sets.values():
+            for item in row["variants"]:
+                if item["id"] == snapshot_id: return item
+        raise KeyError(snapshot_id)
+    def get_edit(self, request_id):
+        if request_id not in self.edits: raise KeyError(request_id)
+        return self.edits[request_id]
+    def create_edit(self, snapshot_id, *, request_id, block_id, instruction, requested_by):
+        try:
+            return self.get_edit(request_id), False
+        except KeyError:
+            pass
+        snapshot = self.snapshot(snapshot_id)
+        if not snapshot["is_current"]: raise ValueError("draft snapshot is stale; reload the current preview")
+        edit = {
+            "request_id": request_id, "draft_set_id": snapshot["draft_set_id"],
+            "template_id": snapshot["template_id"], "base_snapshot_id": snapshot_id,
+            "block_id": block_id, "instruction": instruction.strip(),
+            "feedback_id": "b1234567-89ab-7def-8123-456789abcdef",
+            "proposal_id": "c1234567-89ab-7def-8123-456789abcdef",
+            "result_snapshot_id": None, "status": "queued", "error_code": None,
+            "error_message": None, "created_at": "2026-08-22T00:00:02+00:00",
+            "updated_at": "2026-08-22T00:00:02+00:00", "completed_at": None,
+        }
+        self.edits[request_id] = edit
+        self.get(snapshot["draft_set_id"])["edits"].insert(0, edit)
+        return edit, True
+    async def edit(self, request_id):
+        self.edit_calls += 1
+        edit = self.get_edit(request_id)
+        base = self.snapshot(edit["base_snapshot_id"])
+        base["is_current"] = False
+        self.stale_snapshots[base["id"]] = base
+        content = {**base["page_content"], "blocks": {**base["page_content"]["blocks"]}}
+        content["blocks"][edit["block_id"]] = {
+            **content["blocks"][edit["block_id"]], "title": "Only the selected block changed",
+        }
+        result = {
+            **base, "id": "d1234567-89ab-7def-8123-456789abcdef", "snapshot_number": 2,
+            "parent_snapshot_id": base["id"], "source_feedback_id": edit["feedback_id"],
+            "page_content": content, "is_current": True,
+        }
+        row = self.get(edit["draft_set_id"])
+        row["variants"] = [result if item["id"] == base["id"] else item for item in row["variants"]]
+        edit.update(status="completed", result_snapshot_id=result["id"], completed_at="2026-08-22T00:00:03+00:00")
+    def retry_population(self, draft_id): return self.get(draft_id)
+    def retry_edit(self, request_id): return self.get_edit(request_id)
+    def proposals(self, draft_id):
+        return [{
+            "id": edit["proposal_id"], "feedback_id": edit["feedback_id"], "draft_set_id": draft_id,
+            "template_id": edit["template_id"], "block_id": edit["block_id"],
+            "proposed_lesson": "Keep block edits outcome-first.", "reviewed_lesson": None,
+            "status": "pending_review", "command_session_id": None, "comment": edit["instruction"],
+            "created_at": edit["created_at"], "updated_at": edit["updated_at"],
+        } for edit in self.edits.values()]
+
+
 @unittest.skipUnless(HAS_RUNTIME, "FastAPI and httpx are required")
 class LandingBuilderGatewayTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -148,6 +278,7 @@ class LandingBuilderGatewayTests(unittest.TestCase):
         )
         self.headers = {"Authorization": "Bearer owner-token", "X-Firebase-AppCheck": "app-token"}
         self.coordinator = FakeCoordinator()
+        self.drafts = FakeDraftCoordinator()
         self.case = {
             "idea_run_id": RUN_ID,
             "owner_idea": "Retention platform for service teams",
@@ -247,6 +378,94 @@ class LandingBuilderGatewayTests(unittest.TestCase):
         self.assertEqual("execute", first.json()["mode"])
         self.assertEqual(first.json()["id"], second.json()["id"])
         self.assertEqual(1, len(self.coordinator.run_ids))
+
+    def test_one_action_populates_three_private_drafts_idempotently_and_serves_no_store_preview(self) -> None:
+        payload = {"request_id": REQUEST_ID, "idea_run_id": RUN_ID}
+        with (
+            patch("owner_gateway.api.httpx.AsyncClient", return_value=self.client_fixture()),
+            patch("owner_gateway.api.PlatformRepository.emergency_stop", return_value=False),
+            TestClient(create_app(self.settings, self.Verifier(), self.coordinator, self.drafts)) as client,
+        ):
+            first = client.post("/api/v1/landings/draft-sets", headers=self.headers, json=payload)
+            detail = client.get(
+                f"/api/v1/landings/draft-sets/{first.json()['id']}", headers=self.headers
+            )
+            second = client.post("/api/v1/landings/draft-sets", headers=self.headers, json=payload)
+            snapshot_id = detail.json()["variants"][0]["id"]
+            preview = client.get(
+                f"/api/v1/landings/draft-snapshots/{snapshot_id}/preview", headers=self.headers
+            )
+        self.assertEqual(202, first.status_code, first.text)
+        self.assertEqual(first.json()["id"], second.json()["id"])
+        self.assertEqual(1, self.drafts.populate_calls)
+        self.assertEqual(["product", "community", "waitlist"], [item["template_id"] for item in detail.json()["variants"]])
+        self.assertEqual("private, no-store", preview.headers["cache-control"])
+        self.assertIn("data-landing-block", preview.json()["html"])
+
+    def test_block_edit_is_snapshot_scoped_and_rejects_the_superseded_snapshot(self) -> None:
+        with (
+            patch("owner_gateway.api.httpx.AsyncClient", return_value=self.client_fixture()),
+            patch("owner_gateway.api.PlatformRepository.emergency_stop", return_value=False),
+            TestClient(create_app(self.settings, self.Verifier(), self.coordinator, self.drafts)) as client,
+        ):
+            created = client.post(
+                "/api/v1/landings/draft-sets", headers=self.headers,
+                json={"request_id": REQUEST_ID, "idea_run_id": RUN_ID},
+            ).json()
+            current = client.get(
+                f"/api/v1/landings/draft-sets/{created['id']}", headers=self.headers
+            ).json()
+            base = next(item for item in current["variants"] if item["template_id"] == "product")
+            original_hero = base["page_content"]["blocks"]["hero"]
+            edit_request = "e1234567-89ab-7def-8123-456789abcdef"
+            accepted = client.post(
+                f"/api/v1/landings/draft-snapshots/{base['id']}/edits", headers=self.headers,
+                json={"request_id": edit_request, "block_id": "features", "instruction": "Lead with the result"},
+            )
+            updated = client.get(
+                f"/api/v1/landings/draft-sets/{created['id']}", headers=self.headers
+            ).json()
+            stale = client.post(
+                f"/api/v1/landings/draft-snapshots/{base['id']}/edits", headers=self.headers,
+                json={"request_id": "f1234567-89ab-7def-8123-456789abcdef", "block_id": "hero", "instruction": "Shorter"},
+            )
+            proposals = client.get(
+                f"/api/v1/landings/skill-proposals?draft_set_id={created['id']}", headers=self.headers
+            )
+        self.assertEqual(202, accepted.status_code, accepted.text)
+        product = next(item for item in updated["variants"] if item["template_id"] == "product")
+        self.assertEqual(2, product["snapshot_number"])
+        self.assertEqual(original_hero, product["page_content"]["blocks"]["hero"])
+        self.assertEqual("Only the selected block changed", product["page_content"]["blocks"]["features"]["title"])
+        self.assertEqual(409, stale.status_code, stale.text)
+        self.assertEqual("features", proposals.json()["items"][0]["block_id"])
+
+    def test_exact_snapshot_publication_skips_revision_readiness(self) -> None:
+        with (
+            patch("owner_gateway.api.httpx.AsyncClient", return_value=self.client_fixture()),
+            patch("owner_gateway.api.PlatformRepository.emergency_stop", return_value=False),
+            TestClient(create_app(self.settings, self.Verifier(), self.coordinator, self.drafts)) as client,
+        ):
+            draft = client.post(
+                "/api/v1/landings/draft-sets", headers=self.headers,
+                json={"request_id": REQUEST_ID, "idea_run_id": RUN_ID},
+            ).json()
+            ready = client.get(
+                f"/api/v1/landings/draft-sets/{draft['id']}", headers=self.headers
+            ).json()
+            snapshot = next(item for item in ready["variants"] if item["template_id"] == "community")
+            self.coordinator.ready = False
+            published = client.post(
+                "/api/v1/landings/builds", headers=self.headers,
+                json={
+                    "request_id": "f1234567-89ab-7def-8123-456789abcdef",
+                    "draft_snapshot_id": snapshot["id"],
+                },
+            )
+        self.assertEqual(202, published.status_code, published.text)
+        self.assertEqual(snapshot["id"], published.json()["source_draft_snapshot_id"])
+        self.assertEqual(snapshot["page_content_sha256"], published.json()["page_content_sha256"])
+        self.assertEqual([published.json()["id"]], self.coordinator.run_ids)
 
     def test_builder_readiness_fails_before_a_build_is_persisted(self) -> None:
         self.coordinator.ready = False

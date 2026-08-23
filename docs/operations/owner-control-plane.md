@@ -206,15 +206,20 @@ one approved Execute, cancellation, root `id`/`pwd`, emergency stop/resume,
 restart persistence, and that the PWA service worker never caches API, image,
 WebSocket, or terminal traffic.
 
-The Landing tab owns its build lifecycle rather than handing the owner to the
-global Plan/Execute list. `GET /api/v1/landings/templates` serves the repository
-catalog, `GET /api/v1/landings/candidates` derives briefs from completed live
-Laval cases, and `POST /api/v1/landings/builds` resolves the source IDs again,
-persists a PostgreSQL `landing` entity with Idea lineage, starts the deterministic
-builder immediately, and publishes the successful result to the server-pinned
-dedicated Firebase Hosting site. Browser-provided source IDs, brand names,
-Firebase targets, credentials, and output paths are ignored. The UI polls
-`GET /api/v1/landings/builds/<uuid>` and lists only Landing-domain history;
-failed builds may be retried through the matching authenticated retry endpoint.
-The external release contains only allowlisted public static files, never the
-internal brief or build provenance JSON.
+The Landing tab owns a private draft lifecycle before publication.
+`POST /api/v1/landings/draft-sets` resolves a completed live Laval case and
+populates all three canonical variants in one schema-bound agent turn. Draft
+sets, snapshots, scoped block edits, failures, and lesson proposals are durable
+PostgreSQL state. Authenticated preview responses are private/no-store,
+self-contained documents used only through sandboxed `srcdoc`; preview work
+does not contact Firebase.
+
+`POST /api/v1/landings/builds` with `draft_snapshot_id` validates and publishes
+the exact current snapshot without another rewrite. The legacy brief interface
+remains compatible. Browser-provided source IDs, brand names, Firebase targets,
+credentials, output paths, proof, and CTA destinations are not authoritative.
+Failed agent, render, and publication attempts remain retryable. The external
+release contains only allowlisted public static files, never internal brief,
+page-content, or build provenance JSON. Browser comments enter scoped runtime
+memory immediately; reusable lessons reach Git only through a bounded
+Plan/Execute workflow.

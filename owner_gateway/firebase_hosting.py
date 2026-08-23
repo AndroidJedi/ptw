@@ -12,7 +12,7 @@ from typing import Any, Mapping
 API_ROOT = "https://firebasehosting.googleapis.com/v1beta1"
 HOSTING_CONTRACT = "natal-hosting-v2"
 PUBLIC_SUFFIXES = {".html", ".css", ".js", ".svg", ".png"}
-PRIVATE_FILENAMES = {"brief.json", "build.json"}
+PRIVATE_FILENAMES = {"brief.json", "build.json", "page_content.json"}
 
 
 class FirebaseHostingError(RuntimeError):

@@ -1,123 +1,126 @@
 # Natal landing builder
 
-Status: iterative three-template review workflow production verified
-Updated: 2026-08-22
+Status: three-template draft preview workflow locally implemented; production remains on the prior iterative workflow
+Updated: 2026-08-23
 
 ## Purpose
 
-Natal is a fast, repeatable landing-page factory. Every generated app keeps the
-exact Natal name, canonical logo, icon set, color tokens, typography, and
-mobile/accessibility baseline. Only evaluated product content changes.
-
-The canonical kit is `natal/`. Its PNG and SVG assets are copied from
-`natal_business` and pinned by SHA-256 in `natal/brand/brand.json`. Three
-dependency-free static structures distill the supplied reference projects:
+Natal is a fast, repeatable landing-page factory. Every page keeps the exact
+Natal name, digest-pinned logo/icon assets, color and type tokens,
+mobile/accessibility baseline, and one of three dependency-free layouts:
 
 | Template | Source structure | Use |
 | --- | --- | --- |
-| `product` | `natal_landing` | SaaS, software, B2B, or feature-led services |
-| `community` | `sesh` | Events, offline participation, groups, or communities |
-| `waitlist` | `ofc_landing` | Early concepts and lean demand validation |
+| `product` | `natal_landing` | Feature-led software and services |
+| `community` | `sesh` | Events, groups, and participation |
+| `waitlist` | `ofc_landing` | Early concepts and demand tests |
 
-The templates share one stylesheet and runtime. The builder accepts a bounded
-version-1 JSON brief, validates copy and CTA URL schemes, HTML-escapes supplied
-text, verifies brand asset digests, and emits a static site plus normalized
-`brief.json` and provenance-bearing `build.json`. It refuses to overwrite a
-non-empty output directory unless explicitly told to do so.
+Recommendation is advisory. All three variants remain private and selectable
+until the owner explicitly publishes one.
 
-## Commander handoff
+## Independent page model
 
-The Owner Console `Лендинги` tab reads completed live Idea Laval cases through
-the authenticated Owner Gateway. The gateway resolves the preferred thesis and
-maps its target user, problem, value moment, mechanisms, and loop into an
-editable brief while retaining the Laval run and thesis IDs. Browser overrides
-cannot change those source IDs or the Natal brand.
+`LandingPageContent` separates copy into `hero`, `problem`, `features`, `steps`,
+`proof`, `faq`, and `final_cta`. The renderer consumes each block independently,
+HTML-escapes its copy, and writes the exact model to private
+`page_content.json`. Editing one block replaces only that block in code.
 
-Template recommendation is deterministic: community/event semantics choose
-`community`, product/system semantics choose `product`, and other early
-concepts choose `waitlist`. It is only a default. All three templates remain
-selectable after every revision, and the owner may switch or reapply them in
-any order without replacing an earlier build.
+Template layout, Natal assets and UI kit, Idea run/thesis IDs, CTA destination,
+and verified proof remain server-owned. Agent output cannot change them. The
+canonical skill reads focused block, content, and reviewed-owner references
+under `skills/natal-landing-builder/references/`.
 
-Submitting the brief calls `POST /api/v1/landings/builds` with a browser-created
-idempotency UUID. Under the shared heavy-operation lock, Owner Gateway resolves
-the completed case again, ignores browser-provided brand/source IDs, and first
-requires the independent bridge to advertise `natal_landing_revision`. It then
-creates a PostgreSQL `landing` entity plus `derived_from` edge to the stable Idea
-Laval source alias and commits the `queued` revision before starting it. A fresh,
-schema-bound builder-agent turn receives the selected template, current brief,
-canonical skill contract, and exact captured feedback IDs. It may rewrite the
-bounded copy, but code preserves the source IDs, CTA destination, and verified
-proof allowlist. The deterministic static builder then moves through `building`
-and `publishing`. The Landing tab polls that build directly and shows its
-embedded Firebase preview or a retryable failure; it never redirects to
-unrelated Jobs.
+## Draft workspace
 
-Every revision has an increasing number within its Idea evaluation. A revision
-may `supersede` any published revision selected from that Idea's history, which
-keeps experimentation possible instead of forcing one template sequence. The
-input brief, agent-revised brief, application summary, invocation provenance,
-and consumed feedback UUIDs are immutable build facts.
+The authenticated Landing tab resolves a completed Idea Laval case and calls
+`POST /api/v1/landings/draft-sets`. One fresh, strict-schema
+`natal_landing_revision` call uses `populate_set` to return all three complete
+page models. The request ID is idempotent. The durable set moves through
+`queued`, `populating`, `ready`, or `failed`; its variants and current snapshots
+are polled from `GET /api/v1/landings/draft-sets/<id>` and recovered after
+refresh or restart.
 
-Feedback can be added only to a published revision with an artifact digest. It
-creates an append-only `HumanFeedback` entity that `evaluates` that exact
-Landing, plus a zero-delta `WeightUpdate` that `adjusts` the stable reviewed
-template component. PostgreSQL is the runtime skill-memory authority; browser
-feedback never dirties `SKILL.md`. The next revision snapshots the latest 100
-feedback records for that Idea in chronological order, while older records and
-their graph edges remain immutable history.
+`GET /api/v1/landings/draft-snapshots/<id>/preview` returns authenticated,
+private, no-store JSON containing a self-contained HTML document. Canonical
+CSS and assets are inline. The Owner UI supplies it through sandboxed `srcdoc`
+with scripts only, renders it at 360 px or desktop width, and makes preview CTAs
+inert. A block-selection message is accepted only when its source is the exact
+current iframe window and its template/block IDs are canonical.
 
-Publication uses the Firebase Hosting REST deployment flow with a dedicated
-service account and the server-pinned `natal-landings-86123` site. Each complete
-release preserves every published build under `/builds/<build-id>/` and makes
-the newest build the site root. The publisher accepts only HTML, CSS,
-JavaScript, SVG, and PNG files, rejects symlinks and unexpected files, and does
-not stage the normalized `brief.json` or provenance-bearing `build.json`. The
-emergency stop is checked again immediately before the external release. The
-dedicated site's frame policy permits previews only from the two PTW Firebase
-owner origins, and the Owner Hosting policy explicitly permits the dedicated
-Natal site.
+`POST /api/v1/landings/draft-snapshots/<id>/edits` accepts a request UUID, one
+block ID, and one bounded instruction. The comment, feedback graph entity,
+zero-delta weight update, and reusable-lesson proposal commit before the agent
+call. `edit_block` receives full-page context but returns only the selected
+block. On success, the new snapshot supersedes its parent and derives from the
+exact feedback. On failure, the attempt stays retryable and the prior snapshot
+remains current. An edit against a superseded snapshot returns HTTP 409.
 
-The old `/api/v1/landings/builder-jobs` route remains as a rollout compatibility
-alias, but it starts the same real build and publish lifecycle. Existing failed
-Commander plans remain immutable audit history and are not rewritten as
-successful landing builds.
+## Runtime memory and reviewed lessons
 
-## Production evidence
+Every comment is append-only runtime memory scoped to its Idea, template,
+snapshot, and block. PostgreSQL returns the latest bounded set in chronological
+order. Feedback `evaluates` the exact snapshot and digest; a zero-delta
+`WeightUpdate` `adjusts` the stable template/block component.
 
-Release `natal-feedback-bbcaf90` at commit `bbcaf90` is deployed on the VPS.
-Owner Console Hosting version `61a24c84ce884c0b` serves service-worker cache
-`ptw-shell-v24`. The first real request, build
-`c691ef38-a142-4c26-ae3a-6fab29e8b175`, published dedicated Natal Hosting
-version `61854d2e51b8ec0c` at
-`https://natal-landings-86123.web.app/builds/c691ef38-a142-4c26-ae3a-6fab29e8b175/`.
-It renders the source idea title, its sampled assets return HTTP 200, and the
-private `brief.json` and `build.json` URLs return HTTP 404. PostgreSQL records
-its `landing` entity and `derived_from` edge to Idea Laval run
-`01a01de0-4980-7ab4-aa91-0cebb8aab3c8`; publication state and lineage remained
-intact across a controlled Owner Gateway restart. The legacy failed plan remains
-unchanged for auditability.
+The agent also proposes a generalized lesson. The owner may edit, dismiss, or
+promote it. Promotion starts the existing Plan/Execute workflow with a bounded
+instruction that may change only
+`skills/natal-landing-builder/references/owner-lessons.md` and must run skill
+validation. Browser actions never write Git directly.
 
-Community revision 2 remains the same immutable build
-`fc06d55b-4fb6-45e4-813f-0f1abf5e47a4` after its bridge recovery. Two failed
-platform jobs retain the expired-authentication and projected-file permission
-history. The successful replacement used a fresh ephemeral builder-agent
-session and published Firebase version `d42c1e90c039b947` at
-`https://natal-landings-86123.web.app/builds/fc06d55b-4fb6-45e4-813f-0f1abf5e47a4/`.
-PostgreSQL records it as revision 2 with template `community`, a `derived_from`
-edge to the same Idea source, and a `supersedes` edge to revision 1. The build
-and root URLs return identical HTML, both private JSON files remain 404, and
-the production Owner Console and dependency audits pass with no active heavy
-operation.
+## Persistence and lineage
+
+Migration 017 adds durable draft sets, append-only snapshots and edit attempts,
+and skill proposals. It backfills existing feedback with a generic target
+entity and adds template/block/snapshot scope to new feedback. Builds may store
+an exact source draft snapshot and page-content digest while preserving the
+legacy brief-based request and published response fields.
+
+Graph lineage is explicit:
+
+- the draft set derives from the stable Idea source;
+- every snapshot is contained by and derives from its set;
+- an edited snapshot supersedes its parent and derives from its feedback;
+- feedback evaluates the exact snapshot digest;
+- published Landings derive from both the selected snapshot and Idea source,
+  and may supersede a selected published parent.
+
+## Explicit publication
+
+Preview work never contacts Firebase. `POST /api/v1/landings/builds` with
+`draft_snapshot_id` validates that the snapshot is current and that its content
+digest matches, then builds and publishes that exact model without another
+agent rewrite. Only this action creates an increasing numbered Landing
+revision. The legacy brief path remains for compatibility.
+
+Firebase still uses a server-pinned service account and site. Releases contain
+only allowlisted HTML, CSS, JavaScript, SVG, and PNG. `brief.json`,
+`page_content.json`, and `build.json` remain private. Publication checks the
+emergency stop immediately before the external release, and failures remain
+durable and retryable.
+
+## Production baseline
+
+Production deployment is intentionally out of scope for this milestone. The
+last verified production state remains release `natal-feedback-bbcaf90` at
+commit `bbcaf90`, Owner Console Hosting `61a24c84ce884c0b`, and the prior
+publish-first iterative workflow. Existing published revisions and URLs remain
+immutable. No Firebase or VPS state was changed while implementing the private
+draft workspace.
 
 ## Verification
+
+Local acceptance uses a non-publishing fixture and disposable PostgreSQL:
 
 ```sh
 python3 -m unittest discover -s tests/commander -p 'test_natal_builder.py' -v
 python3 -m unittest discover -s tests/owner_gateway -p 'test_*landing*.py' -v
-python3 -m unittest discover -s tests/owner_gateway -p 'test_firebase_hosting.py' -v
 npm --prefix apps/commander-web run check
 npm --prefix apps/commander-web run test:e2e
 python3 scripts/verify_ptw_skills.py
 git diff --check
 ```
+
+Run the runtime-only Python tests in the built image as documented by
+`AGENTS.md`. Repository tests use `LANDING_TEST_DATABASE_URL` pointed at a
+disposable migrated database.

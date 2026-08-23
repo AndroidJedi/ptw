@@ -1,65 +1,88 @@
 ---
 name: natal-landing-builder
-description: Build and iteratively revise fast, dependency-free Natal landing pages from a structured brief or completed PTW Idea Laval evaluation. Use for selecting or repeatedly switching among the Natal product, community, and waitlist templates, applying owner feedback, preparing landing copy, generating a previewable static build, updating an existing Natal landing, or running the authenticated PTW Firebase landing workflow. Do not use for unrelated brands or arbitrary publishing targets.
+description: Build and iteratively revise fast, dependency-free Natal landing pages from a structured brief or completed PTW Idea Laval evaluation. Use for populating or switching among the Natal product, community, and waitlist templates, editing one canonical content block, generating private previews, preparing landing copy, publishing an explicitly selected draft snapshot, updating an existing Natal landing, or running the authenticated PTW landing workflow. Do not use for unrelated brands or arbitrary publishing targets.
 ---
 
 # Natal Landing Builder
 
-Create a truthful, previewable Natal site while keeping the brand identity and
-template system canonical under `natal/`.
+Create truthful Natal landing drafts, revise them block by block, and keep
+preview work separate from explicit publication.
 
-## Build contract
+## Required references
 
-1. Read `natal/README.md`, `natal/brand/style-guide.md`, and the manifest for
-   the selected template. Do not rename Natal, edit canonical logo/icon files,
-   or introduce a second visual system.
-2. When the source is a completed Idea Laval evaluation, retain its Laval run
-   and thesis IDs in `brief.source`. Use evaluated target user, problem, value
-   moment, mechanisms, and loop steps. Do not turn assumptions into proof.
-3. Select `product` for software/service and feature-led conversion,
-   `community` for events or group participation, and `waitlist` for an early
-   concept or lean demand test. When Commander supplied a template, respect it.
-4. Follow `natal/brief.schema.json` and populate the version-1 brief fields:
-   `business_idea`, `target_audience`,
-   `pain`, `promise`, one to six `key_features`, two to five `steps`, optional
-   verified `proof_points`, optional `faq`, `cta`, `language`, and `source`.
-5. Never invent testimonials, customer counts, conversion metrics, prices,
-   deadlines, scarcity, launch availability, or integrations. If proof is not
-   supplied, keep the builder's explicit no-proof state.
-6. Generate only within the output path named by the approved task. A normal
-   command-line or agent build is local static output, not authorization to
-   deploy, publish, spend, contact users, or change another app.
-7. Automatic publication is allowed only for the owner-authenticated
-   `POST /api/v1/landings/builds` workflow. The server must resolve the
-   dedicated Firebase site and source IDs; never accept a caller-supplied site,
-   project, credential, output path, or arbitrary file tree. Persist the build
-   and its `derived_from` Idea source before starting, and expose only its
-   landing-domain status and retry controls.
-8. Publish only allowlisted static HTML, CSS, JavaScript, SVG, and PNG files.
-   Keep `brief.json`, `build.json`, credentials, source IDs, and other internal
-   metadata private. Stop before the Firebase release if the PTW emergency stop
-   becomes active.
-9. Treat each owner submission as an immutable landing revision. `product`,
-   `community`, and `waitlist` may be applied repeatedly in any order; a
-   recommendation is never a lock. Link a revision to its published parent with
-   `supersedes` and retain every earlier public URL.
-10. Treat review comments as append-only skill memory. Persist a
-    `HumanFeedback` entity that `evaluates` the exact published Landing and a
-    zero-delta `WeightUpdate` that `adjusts` the reviewed template component.
-    Do not rewrite an earlier comment, landing, or artifact. PostgreSQL is the
-    runtime authority; do not make browser feedback dirty the Git checkout by
-    appending it to `SKILL.md`.
-11. Before a new revision starts, snapshot the latest 100 feedback IDs for that
-    Idea evaluation in chronological order; retain older feedback as immutable
-    graph history. A fresh `natal_landing_revision` builder-agent turn
-    receives the current brief, target template, this skill contract, and that
-    exact memory. Feedback is instruction, not factual proof. Keep source IDs,
-    verified proof, and CTA destination server-owned, and persist the bounded
-    application summary plus fresh invocation provenance.
+Before populating or editing a page, read:
 
-## Generate and verify
+- `references/block-contract.md` for the canonical page model and protected
+  boundaries.
+- `references/content-guidelines.md` for copy, friction, proof, and mobile
+  review heuristics.
+- `references/owner-lessons.md` for generalized lessons the owner has already
+  reviewed and promoted.
 
-Store the brief as JSON outside the canonical `natal/` kit, then run:
+Also read `natal/README.md`, `natal/brand/style-guide.md`, and the manifest for
+the target template when changing the renderer, templates, or static build.
+
+## Source and brand contract
+
+1. Keep the Natal name, canonical logo/icon assets, UI kit, template layout,
+   and asset digests fixed. Do not introduce another visual system.
+2. Retain the Idea Laval run and thesis IDs from the completed evaluation.
+   Use evaluated audience, problem, value moment, mechanisms, and steps as
+   source truth. Never turn an assumption or owner instruction into evidence.
+3. Keep the CTA destination server-owned. Content work may improve CTA labels,
+   but may not change where the action leads.
+4. Never invent testimonials, customer counts, conversion results, prices,
+   deadlines, scarcity, availability, integrations, credentials, or proof. If
+   verified proof is absent, preserve the explicit honest no-proof state.
+5. Use `product` for feature-led software or services, `community` for group
+   participation or events, and `waitlist` for an early concept or demand test.
+   Show the recommendation, but never treat it as a selection lock.
+
+## Draft-first workflow
+
+1. `populate_set` is one fresh, strict-schema `natal_landing_revision` agent
+   turn. Return complete `LandingPageContent` models for `product`,
+   `community`, and `waitlist` in the same response. Tailor copy to each fixed
+   template; do not rewrite template structure.
+2. Persist the draft set before the agent call. Persist all three initial
+   snapshots, their content and preview digests, invocation provenance, and
+   Idea lineage before reporting the set ready.
+3. Render private previews as authenticated, no-store, self-contained `srcdoc`
+   documents. Inline canonical CSS and assets, sandbox the iframe, make preview
+   CTA links inert, and accept block-selection messages only from that exact
+   iframe window.
+4. `edit_block` receives the full current page for context but returns only the
+   selected block. Revalidate the result, reapply protected source truth, and
+   combine it with the untouched six blocks in code. Reject an edit against a
+   superseded snapshot with a stale-snapshot conflict.
+5. Persist every instruction immediately as append-only memory scoped to its
+   Idea, template, snapshot, and block. Feedback evaluates the exact snapshot
+   digest. Its zero-delta WeightUpdate adjusts the stable template/block
+   component. An agent or render failure must not replace the current snapshot.
+6. Keep failed population and edit attempts durable and retryable. Draft sets,
+   snapshots, edit history, and unselected variants must survive refreshes and
+   service restarts. Never contact Firebase while populating or editing drafts.
+7. Publish only after the owner explicitly selects “Publish this version.” The
+   build consumes the exact current draft snapshot and content digest without
+   another agent rewrite. Only explicit publication creates a numbered,
+   immutable Landing revision and its Firebase release.
+8. Preserve the legacy brief-based build interface for compatibility, while
+   using the draft-snapshot path for the normal owner workbench.
+
+## Skill learning
+
+Every block instruction creates an editable reusable-lesson proposal in
+addition to scoped runtime memory. Do not write browser comments directly into
+Git. Dismissal changes only proposal state. Promotion must start the bounded
+owner Plan/Execute flow, may update only
+`references/owner-lessons.md`, and must run the skill validator,
+`scripts/verify_ptw_skills.py`, and `git diff --check`. Remove Idea-specific
+facts and unsupported claims before promoting a lesson.
+
+## Local static build
+
+For a deliberate standalone local build, store the brief outside `natal/` and
+run:
 
 ```sh
 python3 -m natal.builder \
@@ -68,28 +91,27 @@ python3 -m natal.builder \
   --output <approved-output-directory>
 ```
 
-The builder validates copy bounds and CTA schemes, checks canonical asset
-digests, emits source IDs in `brief.json` and `build.json`, and refuses to
-overwrite a non-empty directory. Use `--overwrite` only when the approved task
-explicitly identifies that existing generated directory.
+The builder emits `index.html`, public static assets, and private
+`brief.json`, `page_content.json`, and `build.json` manifests. It refuses to
+overwrite a non-empty directory unless the approved task explicitly authorizes
+that exact generated directory. A local build never authorizes deployment,
+publication, spend, outreach, or changes to another app.
 
-Preview the generated `index.html` at 360 px and desktop widths. Confirm the
-Natal name/logo, CTA destination, no horizontal overflow, no unfilled template
-tokens, and no unsupported claims. Run:
+## Verification
+
+At minimum, verify all three templates, independent block rendering, escaping,
+protected proof and CTA destination, self-contained inert previews, 360 px and
+desktop layouts, and no horizontal overflow. For the authenticated workflow,
+also verify population idempotency, selected-block-only edits, chronological
+memory, strict schema rejection, stale conflicts, restart persistence, graph
+lineage, proposal Plan bounds, retryable failures, and preview/published content
+parity. Confirm `brief.json`, `page_content.json`, and `build.json` are excluded
+from Firebase public files.
+
+Run the repository gates named by `AGENTS.md`, plus:
 
 ```sh
-python3 -m unittest discover -s tests/commander -p 'test_natal_builder.py' -v
+python3 -m unittest discover -s tests/owner_gateway -p 'test_*landing*.py' -v
+python3 scripts/verify_ptw_skills.py
 git diff --check
 ```
-
-For the authenticated iterative workflow, also verify that one request creates
-one idempotent PostgreSQL revision, starts it immediately, passes through
-`revising`, reaches `published`, returns the exact Firebase URL, survives an
-Owner Gateway restart, and appears only in that Idea's Landing history. Record
-feedback on a published revision, switch to a different template, then reapply
-an earlier template; require each new build to have an increasing revision
-number, the intended parent, and the exact captured feedback IDs. Confirm the
-public URL serves the selected brief and that `/brief.json` and `/build.json`
-are not published. A builder-agent, build, or Firebase failure must end in a
-durable `failed` state with a safe retry action; it must never look successful,
-discard feedback, or redirect the owner to global Jobs.

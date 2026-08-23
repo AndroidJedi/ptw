@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 from html import escape
 import json
+import mimetypes
 from pathlib import Path
 import shutil
 from string import Template
@@ -13,6 +15,7 @@ from typing import Any, Iterable, Mapping
 
 from .brief import LandingBrief
 from .catalog import ROOT, landing_templates, recommend_template, template_manifest
+from .page import LandingPageContent, page_content_from_brief
 
 
 ASSET_ROOT = ROOT / "assets"
@@ -36,6 +39,7 @@ def build_landing(
     brief_value: Mapping[str, Any] | LandingBrief,
     output_directory: Path,
     *,
+    page_content: Mapping[str, Any] | LandingPageContent | None = None,
     overwrite: bool = False,
 ) -> dict[str, Any]:
     manifest = template_manifest(template_id)
@@ -45,26 +49,9 @@ def build_landing(
         raise FileExistsError(f"output directory is not empty: {output}")
     output.mkdir(parents=True, exist_ok=True)
     verify_brand_assets()
-
-    labels = _labels(brief.language)
-    values = {
-        "lang": brief.language,
-        "page_title": escape(f"Natal — {brief.business_idea}"),
-        "description": escape(brief.promise),
-        "business_idea": escape(brief.business_idea),
-        "target_audience": escape(brief.target_audience),
-        "pain": escape(brief.pain),
-        "promise": escape(brief.promise),
-        "cta_label": escape(brief.cta["label"]),
-        "cta_url": escape(brief.cta["url"], quote=True),
-        "feature_cards": _feature_cards(brief.key_features),
-        "steps": _steps(brief.steps),
-        "proof_points": _proof_points(brief.proof_points, labels),
-        "faq_items": _faq_items(brief.faq, labels),
-        **labels,
-    }
+    content = _page_content(template_id, brief, page_content)
     source_template = ROOT / "templates" / template_id / "index.html.tmpl"
-    document = Template(source_template.read_text()).substitute(values)
+    document = _render_document(template_id, brief, content)
     (output / "index.html").write_text(document)
     shutil.copyfile(SHARED_ROOT / "styles.css", output / "styles.css")
     shutil.copyfile(SHARED_ROOT / "app.js", output / "app.js")
@@ -73,7 +60,11 @@ def build_landing(
     for item in _asset_manifest()["assets"]:
         shutil.copyfile(ASSET_ROOT / item["file"], assets / item["file"])
     (output / "brief.json").write_text(json.dumps(brief.to_dict(), ensure_ascii=False, indent=2) + "\n")
+    (output / "page_content.json").write_text(
+        json.dumps(content.to_dict(), ensure_ascii=False, indent=2) + "\n"
+    )
     normalized_brief = json.dumps(brief.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    normalized_content = json.dumps(content.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     build = {
         "schema_version": 1,
         "brand": "Natal",
@@ -81,11 +72,134 @@ def build_landing(
         "template_version": manifest["version"],
         "source": dict(brief.source or {}),
         "brief_sha256": hashlib.sha256(normalized_brief.encode()).hexdigest(),
+        "page_content_sha256": hashlib.sha256(normalized_content.encode()).hexdigest(),
         "template_sha256": hashlib.sha256(source_template.read_bytes()).hexdigest(),
-        "files": ["index.html", "styles.css", "app.js", "brief.json", *[f"assets/{item['file']}" for item in _asset_manifest()["assets"]]],
+        "files": ["index.html", "styles.css", "app.js", "brief.json", "page_content.json", *[f"assets/{item['file']}" for item in _asset_manifest()["assets"]]],
     }
     (output / "build.json").write_text(json.dumps(build, ensure_ascii=False, indent=2) + "\n")
     return build
+
+
+def preview_document(
+    template_id: str,
+    brief_value: Mapping[str, Any] | LandingBrief,
+    page_content: Mapping[str, Any] | LandingPageContent | None = None,
+) -> str:
+    """Return a private, self-contained editor preview with inert actions."""
+
+    brief = brief_value if isinstance(brief_value, LandingBrief) else LandingBrief.from_dict(brief_value)
+    content = _page_content(template_id, brief, page_content)
+    document = _render_document(template_id, brief, content, preview=True)
+    stylesheet = (SHARED_ROOT / "styles.css").read_text()
+    preview_styles = """
+[data-landing-block] { position: relative; cursor: pointer; }
+[data-landing-block]:focus, [data-landing-block].landing-block-selected {
+  outline: 3px solid #43bdd3; outline-offset: -3px;
+}
+[data-landing-block].landing-block-selected::after {
+  content: attr(data-landing-block); position: absolute; z-index: 90; top: 8px; right: 8px;
+  padding: 6px 8px; border-radius: 8px; color: #06161a; background: #87d0dd;
+  font: 800 11px/1 Inter, sans-serif; text-transform: uppercase;
+}
+""".strip()
+    script = (SHARED_ROOT / "app.js").read_text() + "\n" + _preview_script(template_id)
+    document = document.replace(
+        '<link rel="stylesheet" href="styles.css">',
+        f"<style>{stylesheet}\n{preview_styles}</style>",
+    ).replace('<script src="app.js"></script>', f"<script>{script}</script>")
+    for item in _asset_manifest()["assets"]:
+        path = ASSET_ROOT / item["file"]
+        mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        data = base64.b64encode(path.read_bytes()).decode()
+        document = document.replace(f"assets/{item['file']}", f"data:{mime};base64,{data}")
+    return document
+
+
+def _page_content(
+    template_id: str,
+    brief: LandingBrief,
+    value: Mapping[str, Any] | LandingPageContent | None,
+) -> LandingPageContent:
+    if value is None:
+        return page_content_from_brief(template_id, brief)
+    if isinstance(value, LandingPageContent):
+        if value.template_id != template_id:
+            raise ValueError("page content template does not match the build template")
+        return value
+    return LandingPageContent.from_dict(value, expected_template_id=template_id)
+
+
+def _render_document(
+    template_id: str,
+    brief: LandingBrief,
+    content: LandingPageContent,
+    *,
+    preview: bool = False,
+) -> str:
+    labels = _labels(brief.language)
+    hero = content.blocks["hero"]
+    problem = content.blocks["problem"]
+    features = content.blocks["features"]
+    steps = content.blocks["steps"]
+    proof = content.blocks["proof"]
+    faq = content.blocks["faq"]
+    final_cta = content.blocks["final_cta"]
+    values = {
+        "lang": brief.language,
+        "page_title": escape(f"Natal — {hero['title']}"),
+        "description": escape(str(hero["body"])),
+        "hero_eyebrow": escape(str(hero["eyebrow"])),
+        "hero_title": escape(str(hero["title"])),
+        "hero_body": escape(str(hero["body"])),
+        "hero_cta_label": escape(str(hero["cta_label"])),
+        "cta_label": escape(str(hero["cta_label"])),
+        "problem_eyebrow": escape(str(problem["eyebrow"])),
+        "problem_title": escape(str(problem["title"])),
+        "problem_body": escape(str(problem["body"])),
+        "features_eyebrow": escape(str(features["eyebrow"])),
+        "features_title": escape(str(features["title"])),
+        "feature_cards": _feature_cards(features["items"]),
+        "steps_eyebrow": escape(str(steps["eyebrow"])),
+        "steps_title": escape(str(steps["title"])),
+        "steps": _steps(steps["items"]),
+        "proof_eyebrow": escape(str(proof["eyebrow"])),
+        "proof_title": escape(str(proof["title"])),
+        "proof_points": _proof_points(proof["items"], str(proof["empty_text"])),
+        "faq_eyebrow": escape(str(faq["eyebrow"])),
+        "faq_title": escape(str(faq["title"])),
+        "faq_items": _faq_items(faq["items"]),
+        "final_title": escape(str(final_cta["title"])),
+        "final_body": escape(str(final_cta["body"])),
+        "final_cta_label": escape(str(final_cta["cta_label"])),
+        "cta_url": "#preview-action" if preview else escape(brief.cta["url"], quote=True),
+        **labels,
+    }
+    source_template = ROOT / "templates" / template_id / "index.html.tmpl"
+    return Template(source_template.read_text()).substitute(values)
+
+
+def _preview_script(template_id: str) -> str:
+    encoded_template = json.dumps(template_id)
+    return f"""
+(() => {{
+  const templateId = {encoded_template};
+  const select = (node) => {{
+    document.querySelectorAll('[data-landing-block]').forEach((item) => item.classList.remove('landing-block-selected'));
+    node.classList.add('landing-block-selected');
+    window.parent.postMessage({{ type: 'natal.select-block', templateId, blockId: node.dataset.landingBlock }}, '*');
+  }};
+  document.querySelectorAll('[data-landing-block]').forEach((node) => {{
+    node.tabIndex = 0;
+    node.setAttribute('role', 'button');
+    node.setAttribute('aria-label', `Edit ${{node.dataset.landingBlock}} block`);
+    node.addEventListener('click', (event) => {{ event.preventDefault(); event.stopPropagation(); select(node); }});
+    node.addEventListener('keydown', (event) => {{
+      if (event.key === 'Enter' || event.key === ' ') {{ event.preventDefault(); event.stopPropagation(); select(node); }}
+    }});
+  }});
+  document.querySelectorAll('a').forEach((link) => link.addEventListener('click', (event) => event.preventDefault()));
+}})();
+""".strip()
 
 
 def _feature_cards(features: Iterable[Mapping[str, str]]) -> str:
@@ -103,20 +217,15 @@ def _steps(steps: Iterable[Mapping[str, str]]) -> str:
     )
 
 
-def _proof_points(points: Iterable[str], labels: Mapping[str, str]) -> str:
+def _proof_points(points: Iterable[str], empty_text: str) -> str:
     values = list(points)
     if not values:
-        return f'<li class="honest-empty">{escape(labels["proof_empty"])}</li>'
+        return f'<li class="honest-empty">{escape(empty_text)}</li>'
     return "\n".join(f'<li><span>✓</span>{escape(item)}</li>' for item in values)
 
 
-def _faq_items(items: Iterable[Mapping[str, str]], labels: Mapping[str, str]) -> str:
+def _faq_items(items: Iterable[Mapping[str, str]]) -> str:
     values = list(items)
-    if not values:
-        values = [
-            {"question": labels["faq_question"], "answer": labels["faq_answer"]},
-            {"question": labels["faq_name_question"], "answer": labels["faq_name_answer"]},
-        ]
     return "\n".join(
         f'''<details><summary>{escape(item["question"])}</summary><p>{escape(item["answer"])}</p></details>'''
         for item in values

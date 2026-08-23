@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from natal.page import page_content_from_brief
 from owner_gateway.firebase_hosting import FirebaseHostingError, public_files
 from owner_gateway.landing_pipeline import LandingBuildCoordinator
 
@@ -50,6 +51,9 @@ class Repository:
             "skill_memory_feedback_ids": [],
             "revision_summary": None,
             "revision_invocation": None,
+            "source_draft_snapshot_id": None,
+            "page_content": None,
+            "page_content_sha256": None,
             "status": "queued",
             "output_path": str(output),
             "build_manifest": None,
@@ -146,6 +150,7 @@ class LandingBuildCoordinatorTests(unittest.TestCase):
         self.assertIn(f"/builds/{BUILD_ID}/index.html", publisher.files)
         self.assertNotIn("/brief.json", publisher.files)
         self.assertNotIn(f"/builds/{BUILD_ID}/build.json", publisher.files)
+        self.assertNotIn("/page_content.json", publisher.files)
         self.assertIn("Автоматичне утримання клієнтів", publisher.files["/index.html"].decode())
 
     def test_publish_failure_is_durable_and_retryable(self) -> None:
@@ -198,6 +203,31 @@ class LandingBuildCoordinatorTests(unittest.TestCase):
         self.assertEqual("Ідея після відгуку", repository.row["brief"]["business_idea"])
         self.assertEqual(["feedback-1"], [item["id"] for item in reviser.memory])
         self.assertEqual("revision-session", repository.row["revision_invocation"]["session_id"])
+
+    def test_selected_snapshot_publishes_exact_content_without_another_revision_call(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            repository = Repository(root / "builds" / BUILD_ID)
+            page = page_content_from_brief("waitlist", brief()).to_dict()
+            page["blocks"]["hero"]["title"] = "Exact private snapshot title"
+            repository.row.update(
+                source_draft_snapshot_id="61234567-89ab-7def-8123-456789abcdef",
+                page_content=page, page_content_sha256="a" * 64,
+                revision_summary="Selected exact snapshot",
+            )
+            reviser = Reviser()
+            publisher = Publisher()
+            coordinator = LandingBuildCoordinator(
+                repository=repository, publisher=publisher, output_root=root,
+                stopped=lambda: False, reviser=reviser,
+            )
+            coordinator.run_sync(BUILD_ID)
+            stored = (root / "builds" / BUILD_ID / "page_content.json").read_text()
+        self.assertEqual("published", repository.row["status"])
+        self.assertIsNone(reviser.memory)
+        self.assertIn("Exact private snapshot title", stored)
+        assert publisher.files is not None
+        self.assertIn("Exact private snapshot title", publisher.files["/index.html"].decode())
 
 
 if __name__ == "__main__":

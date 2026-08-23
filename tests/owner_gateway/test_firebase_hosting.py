@@ -73,6 +73,7 @@ class FirebaseHostingPublisherTests(unittest.TestCase):
         (root / "assets" / "logo.svg").write_text("<svg></svg>")
         (root / "brief.json").write_text('{"private":"source brief"}')
         (root / "build.json").write_text('{"private":"manifest"}')
+        (root / "page_content.json").write_text('{"private":"draft snapshot"}')
 
     def test_public_file_allowlist_excludes_internal_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -85,6 +86,7 @@ class FirebaseHostingPublisherTests(unittest.TestCase):
         )
         self.assertNotIn("/brief.json", files)
         self.assertNotIn("/build.json", files)
+        self.assertNotIn("/page_content.json", files)
 
     def test_publish_hashes_gzip_payloads_finalizes_and_releases(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

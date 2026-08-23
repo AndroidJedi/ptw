@@ -425,13 +425,104 @@ export interface LandingCandidate {
 }
 
 export type LandingBuildStatus = 'queued' | 'revising' | 'building' | 'publishing' | 'published' | 'failed'
+export type LandingBlockId = 'hero' | 'problem' | 'features' | 'steps' | 'proof' | 'faq' | 'final_cta'
+
+export interface LandingPageContent {
+  schema_version: 1
+  template_id: LandingTemplate['id']
+  language: 'uk' | 'en'
+  blocks: Record<LandingBlockId, Record<string, unknown>>
+}
+
+export interface LandingDraftSnapshot {
+  id: string
+  draft_set_id: string
+  template_id: LandingTemplate['id']
+  snapshot_number: number
+  parent_snapshot_id?: string | null
+  source_feedback_id?: string | null
+  page_content: LandingPageContent
+  page_content_sha256: string
+  artifact_sha256: string
+  is_current: boolean
+  application_summary?: string | null
+  invocation?: Record<string, unknown> | null
+  created_at: string
+}
+
+export type LandingDraftEditStatus = 'queued' | 'editing' | 'completed' | 'failed'
+
+export interface LandingBlockEdit {
+  request_id: string
+  draft_set_id: string
+  template_id: LandingTemplate['id']
+  base_snapshot_id: string
+  block_id: LandingBlockId
+  instruction: string
+  feedback_id: string
+  proposal_id: string
+  result_snapshot_id?: string | null
+  status: LandingDraftEditStatus
+  error_code?: string | null
+  error_message?: string | null
+  created_at: string
+  updated_at: string
+  completed_at?: string | null
+}
+
+export interface LandingDraftSet {
+  id: string
+  request_id: string
+  idea_run_id: string
+  thesis_id?: string | null
+  brief: LandingBrief
+  recommended_template_id: LandingTemplate['id']
+  skill_memory_feedback_ids: string[]
+  status: 'queued' | 'populating' | 'ready' | 'failed'
+  population_summary?: string | null
+  population_invocation?: Record<string, unknown> | null
+  error_code?: string | null
+  error_message?: string | null
+  requested_by: string
+  variants: LandingDraftSnapshot[]
+  edits: LandingBlockEdit[]
+  created_at: string
+  updated_at: string
+  completed_at?: string | null
+}
+
+export interface LandingDraftPreview {
+  snapshot_id: string
+  template_id: LandingTemplate['id']
+  snapshot_number: number
+  artifact_sha256: string
+  html: string
+}
+
+export interface LandingSkillProposal {
+  id: string
+  feedback_id: string
+  draft_set_id: string
+  template_id: LandingTemplate['id']
+  block_id: LandingBlockId
+  proposed_lesson?: string | null
+  reviewed_lesson?: string | null
+  status: 'pending_generation' | 'pending_review' | 'dismissed' | 'planning' | 'promoted' | 'failed'
+  command_session_id?: string | null
+  comment: string
+  created_at: string
+  updated_at: string
+}
 
 export interface LandingFeedback {
   id: string
-  build_id: string
+  build_id?: string
+  snapshot_id?: string
   idea_run_id?: string
   template_id: LandingTemplate['id']
   revision_number: number
+  snapshot_number?: number | null
+  block_id?: LandingBlockId | null
   comment: string
   weight_update_id?: string
   created_at: string
@@ -450,6 +541,9 @@ export interface LandingBuild {
   skill_memory_feedback_ids: string[]
   revision_summary?: string | null
   revision_invocation?: Record<string, unknown> | null
+  source_draft_snapshot_id?: string | null
+  page_content?: LandingPageContent | null
+  page_content_sha256?: string | null
   status: LandingBuildStatus
   build_manifest?: Record<string, unknown> | null
   artifact_sha256?: string | null

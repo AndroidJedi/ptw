@@ -4,6 +4,16 @@ const runId = '01234567-89ab-7def-8123-456789abcdef'
 const brandRunId = '11234567-89ab-7def-8123-456789abcdef'
 const brandKitId = '21234567-89ab-7def-8123-456789abcdef'
 const brandDraftRunId = '91234567-89ab-7def-8123-456789abcdef'
+const landingDraftId = 'a1234567-89ab-7def-8123-456789abcdef'
+const landingSnapshots = {
+  product: 'b1234567-89ab-7def-8123-456789abcdef',
+  community: 'c1234567-89ab-7def-8123-456789abcdef',
+  waitlist: 'd1234567-89ab-7def-8123-456789abcdef',
+}
+const landingEditedSnapshotId = 'e1234567-89ab-7def-8123-456789abcdef'
+const landingEditId = 'f1234567-89ab-7def-8123-456789abcdef'
+const landingProposalId = '61234567-89ab-7def-8123-456789abcdef'
+const landingBuildId = '71234567-89ab-7def-8123-456789abcdef'
 const brandStages = [
   'CASE_SNAPSHOT', 'REFERENCE_PLAN', 'REFERENCE_COLLECTION', 'DESIGN_PRINCIPLES', 'BRAND_BRIEF',
   'DIRECTION_SYNTHESIS', 'DIRECTION_EVALUATION', 'LOGO_GENERATION', 'OWNER_REVIEW', 'KIT_ASSEMBLY',
@@ -18,7 +28,54 @@ const stages = [
 test.beforeEach(async ({ page }) => {
   let brandApproved = false
   let landingBuild: Record<string, unknown> | null = null
-  const landingMemory: Record<string, unknown>[] = []
+  let landingDraftCreated = false
+  let landingEdited = false
+  let landingProposalPlanning = false
+  const landingBrief = {
+    schema_version: 1, brand: 'Natal', language: 'uk', source: { laval_run_id: runId, thesis_id: runId },
+    business_idea: 'Make credible progress visible.', target_audience: 'Goal setters',
+    pain: 'Progress is hard to trust', promise: 'Natal turns work into visible proof.',
+    key_features: [{ title: 'Proof timeline', description: 'Shows completed evidence.' }],
+    steps: [{ title: '01', description: 'Choose a goal.' }, { title: '02', description: 'Record proof.' }],
+    proof_points: [], faq: [], cta: { label: 'Спробувати Natal', url: '#contact' },
+  }
+  const landingPage = (templateId: string) => ({
+    schema_version: 1, template_id: templateId, language: 'uk', blocks: {
+      hero: { eyebrow: 'Goal setters', title: 'Make progress visible', body: 'Natal turns work into visible proof.', cta_label: 'Спробувати Natal' },
+      problem: { eyebrow: 'Проблема', title: 'Progress is hard to trust', body: 'Goal setters need clarity.' },
+      features: { eyebrow: 'Переваги', title: 'Visible proof', items: [{ title: 'Proof timeline', description: 'Shows completed evidence.' }] },
+      steps: { eyebrow: 'Кроки', title: 'How it works', items: landingBrief.steps },
+      proof: { eyebrow: 'Докази', title: 'Verified proof only', items: [], empty_text: 'No results claimed yet.' },
+      faq: { eyebrow: 'FAQ', title: 'Questions', items: [] },
+      final_cta: { title: 'Ready?', body: 'Make the next step clear.', cta_label: 'Спробувати Natal' },
+    },
+  })
+  const landingEdit = (status: 'queued' | 'completed') => ({
+    request_id: landingEditId, draft_set_id: landingDraftId, template_id: 'community',
+    base_snapshot_id: landingSnapshots.community, block_id: 'features',
+    instruction: 'Почніть з конкретного результату', feedback_id: '81234567-89ab-7def-8123-456789abcdef',
+    proposal_id: landingProposalId, result_snapshot_id: status === 'completed' ? landingEditedSnapshotId : null,
+    status, error_code: null, error_message: null, created_at: '2026-08-22T00:00:01Z',
+    updated_at: '2026-08-22T00:00:02Z', completed_at: status === 'completed' ? '2026-08-22T00:00:02Z' : null,
+  })
+  const landingDraft = (status: 'queued' | 'ready') => ({
+    id: landingDraftId, request_id: '91234567-89ab-7def-8123-456789abcdef', idea_run_id: runId,
+    thesis_id: runId, brief: landingBrief, recommended_template_id: 'product', skill_memory_feedback_ids: [],
+    status, population_summary: status === 'ready' ? 'Three private variants populated.' : null,
+    population_invocation: null, error_code: null, error_message: null, requested_by: 'firebase:e2e-owner',
+    variants: status === 'ready' ? (['product', 'community', 'waitlist'] as const).map((templateId) => ({
+      id: landingEdited && templateId === 'community' ? landingEditedSnapshotId : landingSnapshots[templateId],
+      draft_set_id: landingDraftId, template_id: templateId,
+      snapshot_number: landingEdited && templateId === 'community' ? 2 : 1,
+      parent_snapshot_id: landingEdited && templateId === 'community' ? landingSnapshots.community : null,
+      source_feedback_id: landingEdited && templateId === 'community' ? '81234567-89ab-7def-8123-456789abcdef' : null,
+      page_content: landingPage(templateId), page_content_sha256: 'a'.repeat(64), artifact_sha256: 'b'.repeat(64),
+      is_current: true, application_summary: 'Fixture snapshot', invocation: null, created_at: '2026-08-22T00:00:00Z',
+    })) : [],
+    edits: landingEdited ? [landingEdit('completed')] : [], created_at: '2026-08-22T00:00:00Z',
+    updated_at: landingEdited ? '2026-08-22T00:00:02Z' : '2026-08-22T00:00:00Z',
+    completed_at: status === 'ready' ? '2026-08-22T00:00:01Z' : null,
+  })
   const brandState = new Map<string, {
     revision: number
     reviewState: 'pending' | 'changes_requested' | 'approved'
@@ -52,70 +109,72 @@ test.beforeEach(async ({ page }) => {
     ] })
     if (url.pathname === '/api/v1/landings/candidates') return json({ items: [{
       idea_run_id: runId, recommended_template_id: 'product', quality: { successful: 9, attempted: 10 }, verdict: 'survives',
-      brief: {
-        schema_version: 1, brand: 'Natal', language: 'uk', source: { laval_run_id: runId, thesis_id: runId },
-        business_idea: 'Make credible progress visible.', target_audience: 'Goal setters', pain: 'Progress is hard to trust', promise: 'Natal turns work into visible proof.',
-        key_features: [{ title: 'Proof timeline', description: 'Shows completed evidence.' }],
-        steps: [{ title: '01', description: 'Choose a goal.' }, { title: '02', description: 'Record proof.' }],
-        proof_points: [], faq: [], cta: { label: 'Спробувати Natal', url: '#contact' },
-      },
+      brief: landingBrief,
     }] })
-    if (url.pathname === '/api/v1/landings/skill-memory') return json({ items: landingMemory })
+    if (url.pathname === '/api/v1/landings/draft-sets/latest') {
+      return landingDraftCreated ? json(landingDraft('ready')) : json({ detail: 'Natal draft set not found' }, 404)
+    }
+    if (url.pathname === '/api/v1/landings/draft-sets' && route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as Record<string, unknown>
+      expect(body).toMatchObject({ idea_run_id: runId })
+      landingDraftCreated = true
+      return json(landingDraft('queued'), 202)
+    }
+    if (url.pathname === `/api/v1/landings/draft-sets/${landingDraftId}`) {
+      if (landingDraftCreated && !landingEdited && route.request().method() === 'GET') return json(landingDraft('ready'))
+      return json(landingDraft('ready'))
+    }
+    if (url.pathname.startsWith('/api/v1/landings/draft-snapshots/') && url.pathname.endsWith('/preview')) {
+      const snapshotId = url.pathname.split('/').at(-2) || ''
+      const templateId = snapshotId === landingSnapshots.product ? 'product' : snapshotId === landingSnapshots.waitlist ? 'waitlist' : 'community'
+      const html = `<!doctype html><html><body style="margin:0"><section data-landing-block="hero" tabindex="0">Hero</section><section data-landing-block="features" tabindex="0">Features</section><a href="#preview-action">CTA</a><script>document.querySelectorAll('[data-landing-block]').forEach((node)=>node.addEventListener('click',(event)=>{event.preventDefault();parent.postMessage({type:'natal.select-block',templateId:'${templateId}',blockId:node.dataset.landingBlock},'*')}));document.querySelectorAll('a').forEach((a)=>a.addEventListener('click',(event)=>event.preventDefault()))<\/script></body></html>`
+      return json({ snapshot_id: snapshotId, template_id: templateId, snapshot_number: snapshotId === landingEditedSnapshotId ? 2 : 1, artifact_sha256: 'b'.repeat(64), html })
+    }
+    if (url.pathname.endsWith('/edits') && route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as Record<string, unknown>
+      expect(body).toMatchObject({ block_id: 'features', instruction: 'Почніть з конкретного результату' })
+      landingEdited = true
+      return json(landingEdit('queued'), 202)
+    }
+    if (url.pathname === '/api/v1/landings/skill-proposals') return json({ items: landingEdited ? [{
+      id: landingProposalId, feedback_id: '81234567-89ab-7def-8123-456789abcdef', draft_set_id: landingDraftId,
+      template_id: 'community', block_id: 'features', proposed_lesson: 'Lead features with a concrete result.',
+      reviewed_lesson: landingProposalPlanning ? 'Lead features with a concrete result.' : null,
+      status: landingProposalPlanning ? 'planning' : 'pending_review', command_session_id: landingProposalPlanning ? 'fixture-plan' : null,
+      comment: 'Почніть з конкретного результату', created_at: '2026-08-22T00:00:01Z', updated_at: '2026-08-22T00:00:02Z',
+    }] : [] })
+    if (url.pathname === `/api/v1/landings/skill-proposals/${landingProposalId}/plan`) {
+      landingProposalPlanning = true
+      return json({ proposal: { id: landingProposalId, draft_set_id: landingDraftId, template_id: 'community', block_id: 'features', status: 'planning', command_session_id: 'fixture-plan', comment: 'Почніть з конкретного результату' }, job: { id: 'fixture-plan', status: 'planning' } }, 202)
+    }
     if (url.pathname === '/api/v1/landings/builds' && route.request().method() === 'GET') {
       return json({ items: landingBuild ? [landingBuild] : [] })
     }
     if (url.pathname === '/api/v1/landings/builds' && route.request().method() === 'POST') {
       const body = route.request().postDataJSON() as Record<string, unknown>
-      expect(body).toMatchObject({ idea_run_id: runId, template_id: 'community' })
+      expect(body).toMatchObject({ draft_snapshot_id: landingEditedSnapshotId })
       landingBuild = {
-        id: '21234567-89ab-7def-8123-456789abcdef',
-        request_id: body.request_id,
-        idea_run_id: runId,
-        thesis_id: runId,
-        template_id: 'community',
-        parent_build_id: null,
-        revision_number: 1,
-        input_brief: body.brief,
-        brief: body.brief,
-        skill_memory_feedback_ids: [],
-        revision_summary: 'Applied the selected community structure.',
-        revision_invocation: { mode: 'natal_landing_revision' },
-        status: 'queued',
-        build_manifest: null,
-        artifact_sha256: null,
-        firebase_site_id: 'natal-landings-86123',
-        firebase_version: null,
-        public_url: null,
-        error_code: null,
-        error_message: null,
+        id: landingBuildId, request_id: body.request_id, idea_run_id: runId, thesis_id: runId,
+        template_id: 'community', parent_build_id: null, revision_number: 1,
+        input_brief: landingBrief, brief: landingBrief, skill_memory_feedback_ids: [],
+        revision_summary: 'Published exact draft snapshot.', revision_invocation: { mode: 'natal_landing_revision' },
+        source_draft_snapshot_id: landingEditedSnapshotId, page_content: landingPage('community'),
+        page_content_sha256: 'a'.repeat(64), status: 'queued', build_manifest: null, artifact_sha256: null,
+        firebase_site_id: 'natal-landings-86123', firebase_version: null, public_url: null,
+        error_code: null, error_message: null,
         created_at: '2026-08-22T00:00:00Z',
         updated_at: '2026-08-22T00:00:00Z',
         completed_at: null,
       }
-      return json(landingBuild)
+      return json(landingBuild, 202)
     }
-    if (url.pathname === '/api/v1/landings/builds/21234567-89ab-7def-8123-456789abcdef/feedback') {
-      const body = route.request().postDataJSON() as { comment: string }
-      const item = {
-        id: '41234567-89ab-7def-8123-456789abcdef',
-        build_id: '21234567-89ab-7def-8123-456789abcdef',
-        idea_run_id: runId,
-        template_id: 'community',
-        revision_number: 1,
-        comment: body.comment,
-        weight_update_id: '51234567-89ab-7def-8123-456789abcdef',
-        created_at: '2026-08-22T00:00:02Z',
-      }
-      landingMemory.push(item)
-      return json(item, 201)
-    }
-    if (url.pathname === '/api/v1/landings/builds/21234567-89ab-7def-8123-456789abcdef') {
+    if (url.pathname === `/api/v1/landings/builds/${landingBuildId}`) {
       landingBuild = {
         ...(landingBuild || {}),
         status: 'published',
         artifact_sha256: 'a'.repeat(64),
         firebase_version: 'fixture-version-1',
-        public_url: 'https://natal-landings-86123.web.app/builds/21234567-89ab-7def-8123-456789abcdef/',
+        public_url: `https://natal-landings-86123.web.app/builds/${landingBuildId}/`,
         updated_at: '2026-08-22T00:00:01Z',
         completed_at: '2026-08-22T00:00:01Z',
       }
@@ -276,24 +335,35 @@ test('renders the authenticated owner console without horizontal overflow', asyn
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('iterates any Natal template and retains per-version skill feedback', async ({ page }) => {
+test('populates three Natal previews, edits one block, promotes its lesson, and publishes the exact snapshot', async ({ page }) => {
   await page.goto('/?e2e=1&page=landings')
   await expect(page.getByRole('heading', { name: 'Лендинги' })).toBeVisible()
-  await expect(page.getByLabel('Бізнес-ідея')).toHaveValue('Make credible progress visible.')
-  await expect(page.getByText('РЕКОМЕНДОВАНО')).toBeVisible()
-  await page.getByLabel(/Спільнота \/ подія/).check()
-  await page.getByLabel('Бізнес-ідея').fill('A sharper evidence-backed landing')
-  await page.getByRole('button', { name: /Застосувати community і опублікувати/ }).click()
+  await page.getByRole('button', { name: /Заповнити три превʼю/ }).click()
+  await expect(page.getByRole('heading', { name: 'Три приватні превʼю готові' })).toBeVisible()
+  await expect(page.getByRole('tab')).toHaveCount(3)
+  await expect(page.getByText(/РЕКОМЕНДОВАНО/)).toBeVisible()
+  await page.getByRole('tab', { name: /Спільнота \/ подія/ }).click()
+  const preview = page.getByTitle('Natal community private preview')
+  await expect(preview).toHaveAttribute('sandbox', 'allow-scripts')
+  await page.getByRole('button', { name: '360 px' }).click()
+  await expect(page.getByRole('button', { name: '360 px' })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Проблема', exact: true }).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByLabel('Інструкція для блоку «Проблема»')).toBeVisible()
+  await page.frameLocator('iframe[title="Natal community private preview"]').locator('[data-landing-block="features"]').click()
+  await page.getByLabel('Інструкція для блоку «Переваги»').fill('Почніть з конкретного результату')
+  await page.getByRole('button', { name: /Застосувати лише до блоку/ }).click()
+  await expect(page.getByText('Почніть з конкретного результату')).toBeVisible()
+  await expect(page.getByLabel('Узагальнений урок')).toHaveValue('Lead features with a concrete result.')
+  await page.getByLabel('Узагальнений урок').fill('Lead features with a concrete result.')
+  await page.getByRole('button', { name: 'Promote через Plan' }).click()
+  await expect(page.getByText(/Plan fixture-plan/)).toBeVisible()
+  await page.getByRole('button', { name: /Publish this version/ }).click()
   await expect(page.getByRole('heading', { name: 'Версію опубліковано' })).toBeVisible()
-  await expect(page.getByRole('link', { name: /Відкрити окремо/ })).toHaveAttribute(
-    'href', 'https://natal-landings-86123.web.app/builds/21234567-89ab-7def-8123-456789abcdef/',
+  await expect(page.getByRole('link', { name: /Відкрити опубліковану версію/ })).toHaveAttribute(
+    'href', `https://natal-landings-86123.web.app/builds/${landingBuildId}/`,
   )
-  await page.getByLabel('Що змінити в наступній версії?').fill('Скоротіть hero і посильте CTA')
-  await page.getByRole('button', { name: /Зберегти відгук у Natal skill/ }).click()
-  await expect(page.getByText('Скоротіть hero і посильте CTA')).toBeVisible()
-  await page.getByLabel(/Waitlist \/ концепт/).check()
-  await expect(page.getByRole('button', { name: /Застосувати waitlist і опублікувати/ })).toBeVisible()
-  await expect(page.getByText('Усі шаблони й версії')).toBeVisible()
+  await expect(page.getByText('Нумеровані immutable revisions')).toBeVisible()
   await expect(page.getByText('Відкрити Завдання')).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

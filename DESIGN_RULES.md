@@ -100,15 +100,26 @@ remains available in stage and review details.
 ## Landings
 
 - Start from a completed Idea Laval evaluation and keep its run/thesis IDs in
-  technical details; the owner edits readable content, not identifiers.
-- Show the recommended Natal template and permit one explicit structure
-  override. The Natal name, logo, icon set, and UI kit are locked.
-- Prefill business idea, target audience, pain, promise, key features, and CTA.
-  Never present assumptions as testimonials, metrics, pricing, or other proof.
-- The primary CTA creates the normal Commander plan for
-  `$natal-landing-builder`. It does not deploy or publish the generated page.
-- Template choice and brief editing must fit at 360 px without horizontal
-  overflow; expose the resulting build target before the owner opens Jobs.
+  technical details; the owner edits content blocks, not identifiers.
+- One explicit action populates private `product`, `community`, and `waitlist`
+  previews. Show the recommendation without locking selection, and preserve all
+  unselected variants across refreshes.
+- The Natal name, assets, UI kit, template layouts, CTA destination, source
+  facts, and verified proof are locked. Never present instructions or
+  assumptions as testimonials, metrics, pricing, scarcity, or other proof.
+- Preview through a sandboxed, self-contained `srcdoc`. Make preview CTA links
+  inert and accept block-selection messages only from the exact iframe window.
+- A selected block has one bounded instruction field. Show durable queued,
+  editing, completed, and retryable failed states plus chronological scoped
+  comments and reusable-lesson proposals.
+- Make 360 px and desktop preview controls explicit. All selection and editing
+  controls must work with keyboard and pointer input without horizontal page
+  overflow.
+- Publication is one separate “Publish this version” action. It publishes the
+  exact current snapshot without another agent rewrite. Preview and edit work
+  never contacts Firebase.
+- Browser feedback updates runtime memory immediately but never writes Git.
+  Promoting a generalized lesson starts the bounded Plan/Execute workflow.
 
 ## Data presentation
 

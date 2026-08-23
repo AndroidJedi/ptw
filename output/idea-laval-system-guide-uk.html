@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Idea Laval — атлас системи</title>
+  <style>
+    :root {
+      --ink:#12201b; --muted:#5f6d67; --paper:#f6f5ef; --card:#fffdfa;
+      --line:#d9ddd5; --green:#0d6248; --green2:#17845f; --mint:#dff2e8;
+      --pink:#e4006d; --pink-soft:#ffe3f0; --gold:#b87310; --gold-soft:#fff0cf;
+      --blue:#245aa6; --blue-soft:#e7effc; --violet:#6546a5; --violet-soft:#eee8fa;
+      --red:#ae3434; --red-soft:#fde7e4; --dark:#081c15;
+    }
+    * { box-sizing:border-box; }
+    @page { size:A4; margin:0; }
+    html,body { margin:0; padding:0; background:#dfe3df; color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; }
+    body { font-size:10.2pt; line-height:1.38; }
+    .page { width:210mm; min-height:297mm; margin:0 auto 8px; padding:13mm 14mm 12mm; background:var(--paper); position:relative; page-break-after:always; overflow:hidden; }
+    .page:last-child { page-break-after:auto; }
+    h1,h2,h3,h4,p { margin-top:0; }
+    h1 { font-size:33pt; line-height:1.02; letter-spacing:-1.4px; margin-bottom:7mm; }
+    h2 { font-size:22pt; line-height:1.08; letter-spacing:-.6px; margin-bottom:4mm; }
+    h3 { font-size:13.3pt; line-height:1.15; margin-bottom:2mm; }
+    h4 { font-size:10pt; margin:0 0 1mm; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); }
+    p { margin-bottom:2.5mm; }
+    ul,ol { margin:1.5mm 0 0; padding-left:5mm; }
+    li { margin-bottom:1mm; }
+    strong { font-weight:750; }
+    .eyebrow { color:var(--pink); font-size:9pt; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:3mm; }
+    .subtitle { font-size:15pt; line-height:1.35; max-width:155mm; color:#34443d; }
+    .muted { color:var(--muted); }
+    .small { font-size:8.7pt; }
+    .tiny { font-size:7.7pt; }
+    .mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+    .pill { display:inline-block; padding:1.2mm 2.4mm; border-radius:20mm; font-size:7.7pt; font-weight:750; background:var(--mint); color:var(--green); margin:0 1mm 1mm 0; }
+    .pill.llm { background:var(--violet-soft); color:var(--violet); }
+    .pill.api { background:var(--blue-soft); color:var(--blue); }
+    .pill.code { background:var(--gold-soft); color:#86530d; }
+    .pill.owner { background:var(--pink-soft); color:#a40052; }
+    .rule { height:1px; background:var(--line); margin:4mm 0; }
+    .footer { position:absolute; left:14mm; right:14mm; bottom:6mm; display:flex; justify-content:space-between; color:#738078; font-size:7.5pt; }
+    .footer b { color:var(--green); }
+    .page-no::after { content:attr(data-page); }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:4mm; }
+    .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:3mm; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:4mm; padding:4mm; break-inside:avoid; }
+    .card.green { background:var(--mint); border-color:#b8ddca; }
+    .card.dark { background:var(--dark); color:#f4f7f5; border-color:var(--dark); }
+    .card.pink { background:var(--pink-soft); border-color:#f4b8d3; }
+    .callout { border-left:2.5mm solid var(--pink); padding:3mm 4mm; background:#fff; border-radius:0 3mm 3mm 0; }
+    .callout.green { border-color:var(--green2); background:#f1faf5; }
+    .callout.gold { border-color:var(--gold); background:#fff8e8; }
+    .metric { font-size:25pt; line-height:1; font-weight:850; color:var(--green); }
+    .metric-label { color:var(--muted); font-size:8pt; margin-top:1mm; }
+    .flow { display:flex; align-items:stretch; gap:2mm; margin:7mm 0; }
+    .flow .node { flex:1; min-width:0; border-radius:4mm; padding:3mm 2.5mm; color:#fff; font-size:8pt; font-weight:700; min-height:27mm; display:flex; flex-direction:column; justify-content:space-between; }
+    .flow .node b { font-size:16pt; display:block; }
+    .flow .node span { opacity:.9; }
+    .flow .arrow { align-self:center; font-size:17pt; color:#839087; margin:0 -1mm; }
+    .p1{background:var(--green)} .p2{background:#177b65} .p3{background:var(--blue)} .p4{background:var(--violet)} .p5{background:var(--pink)}
+    .stage { border-top:2.2mm solid var(--green); padding-top:3mm; min-height:64mm; }
+    .stage.p2s { border-color:#177b65; } .stage.p3s { border-color:var(--blue); } .stage.p4s { border-color:var(--violet); } .stage.p5s { border-color:var(--pink); }
+    .stage-head { display:flex; align-items:flex-start; justify-content:space-between; gap:2mm; margin-bottom:2mm; }
+    .stage-id { color:var(--pink); font-weight:850; font-size:12pt; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+    .stage h3 { margin:0; font-size:12pt; flex:1; }
+    .io { display:grid; grid-template-columns:18mm 1fr; gap:1mm 2mm; font-size:8.6pt; }
+    .io b { color:#52625b; }
+    .prompt { margin-top:2mm; background:#f0ede6; border-radius:2.5mm; padding:2mm 2.5mm; font-size:8.1pt; }
+    .why { margin-top:2mm; color:#29473b; font-size:8.2pt; font-weight:650; }
+    .arch { display:grid; grid-template-columns:1fr 14mm 1.2fr 14mm 1fr; align-items:center; gap:2mm; margin-top:4mm; }
+    .arch-col { display:flex; flex-direction:column; gap:3mm; }
+    .arch-arrow { text-align:center; color:var(--green2); font-size:22pt; font-weight:800; }
+    .box { border:1px solid var(--line); background:#fff; border-radius:3mm; padding:3mm; }
+    .box b { display:block; margin-bottom:1mm; }
+    .box.source { border-left:2mm solid var(--blue); }
+    .box.compute { border-left:2mm solid var(--gold); }
+    .box.model { border-left:2mm solid var(--violet); }
+    .box.ownerbox { border-left:2mm solid var(--pink); }
+    table { width:100%; border-collapse:collapse; font-size:8.15pt; }
+    th { text-align:left; color:#43534c; background:#ebece6; padding:2mm; border-bottom:1px solid #cdd2cb; }
+    td { vertical-align:top; padding:1.8mm 2mm; border-bottom:1px solid #dde0da; }
+    tr:last-child td { border-bottom:0; }
+    .prompt-table td:first-child { width:18mm; font-weight:800; color:var(--pink); }
+    .prompt-table td:nth-child(2) { width:43mm; font-weight:700; }
+    .prompt-table td:nth-child(4) { width:25mm; }
+    .legend { display:flex; flex-wrap:wrap; gap:2mm 4mm; margin:3mm 0; font-size:8pt; }
+    .dot { width:3mm; height:3mm; border-radius:50%; display:inline-block; margin-right:1mm; vertical-align:-.3mm; }
+    .lineage { display:flex; align-items:center; justify-content:center; gap:1.6mm; margin:5mm 0; }
+    .lineage .entity { width:25mm; min-height:24mm; border:1px solid var(--line); background:white; border-radius:3mm; padding:2.3mm; text-align:center; display:flex; flex-direction:column; justify-content:center; font-size:8pt; }
+    .lineage .entity b { font-size:9.5pt; }
+    .lineage .arr { color:#76847c; font-size:15pt; }
+    .decision { display:grid; grid-template-columns:1fr 12mm 1fr 12mm 1fr; gap:2mm; align-items:center; margin:4mm 0; }
+    .decision .q { background:#fff; border:1px solid var(--line); border-radius:4mm; padding:4mm; text-align:center; font-weight:750; }
+    .decision .yesno { text-align:center; font-size:8pt; color:var(--muted); }
+    .status-row { display:grid; grid-template-columns:33mm 1fr; gap:3mm; align-items:start; padding:2.5mm 0; border-bottom:1px solid var(--line); }
+    .status-row:last-child { border-bottom:0; }
+    .status-tag { border-radius:20mm; padding:1.5mm 2mm; text-align:center; font-weight:800; font-size:8pt; }
+    .completed { background:var(--mint); color:var(--green); }
+    .partial { background:var(--gold-soft); color:#81500a; }
+    .failed { background:var(--red-soft); color:var(--red); }
+    .stale { background:#ecebe9; color:#5f625f; }
+    .checklist { counter-reset:item; list-style:none; padding:0; }
+    .checklist li { counter-increment:item; display:grid; grid-template-columns:8mm 1fr; gap:2mm; margin:0 0 3mm; }
+    .checklist li::before { content:counter(item); width:7mm; height:7mm; border-radius:50%; background:var(--green); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:8pt; }
+    .cover { background:linear-gradient(145deg,#071b14 0%,#0c3326 60%,#0d6248 100%); color:#fff; }
+    .cover .eyebrow { color:#ff5da8; margin-top:6mm; }
+    .cover h1 { max-width:160mm; font-size:39pt; margin-top:13mm; }
+    .cover .subtitle { color:#d6e6df; }
+    .cover .flow { margin-top:18mm; }
+    .cover .node { border:1px solid rgba(255,255,255,.18); }
+    .cover-note { position:absolute; left:14mm; bottom:25mm; color:#bed0c8; font-size:9pt; max-width:150mm; }
+    .cover .footer, .cover .footer b { color:#a8c0b6; }
+    .toc { columns:2; column-gap:8mm; }
+    .toc div { break-inside:avoid; display:grid; grid-template-columns:10mm 1fr 8mm; gap:2mm; padding:2mm 0; border-bottom:1px solid var(--line); }
+    .toc b { color:var(--pink); }
+    .tight .card { padding:3mm; }
+    .tight .stage { min-height:58mm; }
+    .no-break { break-inside:avoid; }
+  </style>
+</head>
+<body>
+
+<section class="page cover">
+  <div class="eyebrow">PTW · Idea Laval · mechanism_thesis_v1</div>
+  <h1>Як працює дослідження ідей</h1>
+  <p class="subtitle">Візуальний атлас усіх 22 етапів: входи, джерела даних, виконавці, короткі промпти, результати та логіка рішень.</p>
+  <div class="flow">
+    <div class="node p1"><b>01</b><span>Намір власника<br>S00–S02</span></div><div class="arrow">→</div>
+    <div class="node p2"><b>02</b><span>Польові докази<br>S03–S09</span></div><div class="arrow">→</div>
+    <div class="node p3"><b>03</b><span>Ринкові сигнали<br>S10–S13</span></div><div class="arrow">→</div>
+    <div class="node p4"><b>04</b><span>Варіанти й механізми<br>S14–S18</span></div><div class="arrow">→</div>
+    <div class="node p5"><b>05</b><span>Тези й спростування<br>S19–S21</span></div>
+  </div>
+  <div class="cover-note">
+    <strong>Мета документа:</strong> за кілька хвилин зрозуміти, що система знає, звідки це знає, де працює модель, де працює код і що робити з результатом.
+  </div>
+  <div class="footer"><span>Стан системи: 20.08.2026</span><span>Джерело: Git <b>c7c1551</b> · production <b>acc03a2</b></span></div>
+</section>
+
+<section class="page">
+  <div class="eyebrow">Швидкий старт</div>
+  <h2>Система за одну хвилину</h2>
+  <div class="callout green">
+    <strong>Idea Laval не «вигадує найкращу ідею» одним промптом.</strong> Вона спочатку збирає зовнішні докази, відділяє їх від інтерпретації, будує кілька можливих механізмів, а потім спеціально намагається спростувати кожну продуктову тезу.
+  </div>
+  <div class="grid3" style="margin-top:5mm">
+    <div class="card"><div class="metric">22</div><div class="metric-label">персистентні етапи S00–S21</div></div>
+    <div class="card"><div class="metric">11</div><div class="metric-label">LLM-enabled етапів зі strict JSON Schema</div></div>
+    <div class="card"><div class="metric">5</div><div class="metric-label">зрозумілих для людини фаз у UI</div></div>
+  </div>
+  <div class="flow">
+    <div class="node p1"><b>Намір</b><span>Що саме хоче перевірити власник?</span></div><div class="arrow">→</div>
+    <div class="node p2"><b>Факти</b><span>Хто вже вирішує проблему і як поводяться люди?</span></div><div class="arrow">→</div>
+    <div class="node p3"><b>Сигнал</b><span>Які можливості повторюються в незалежних даних?</span></div><div class="arrow">→</div>
+    <div class="node p4"><b>Механізм</b><span>Який цикл цінності може реально працювати?</span></div><div class="arrow">→</div>
+    <div class="node p5"><b>Спростування</b><span>Що зламає тезу до витрат на продукт?</span></div>
+  </div>
+  <div class="grid2">
+    <div class="card green">
+      <h3>Що є фінальним результатом</h3>
+      <p>Не список із 24 «ідей», а максимум три повні продуктові тези. Кожна містить цільового користувача, проблему, 3–7 механізмів, цикл із 5–8 кроків, момент цінності, поведінку без аудиторії, замінники, небезпечні припущення та вимірюваний критерій.</p>
+    </div>
+    <div class="card pink">
+      <h3>Нормальний негативний результат</h3>
+      <p><span class="mono">no_surviving_thesis</span> означає: жодна теза не витримала перевірку на поточних доказах. Це корисний результат дослідження, а не технічний збій.</p>
+    </div>
+  </div>
+  <div class="rule"></div>
+  <h3>Як читати цей PDF</h3>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--pink)"></i>дія власника</span>
+    <span><i class="dot" style="background:var(--blue)"></i>зовнішній API / джерело</span>
+    <span><i class="dot" style="background:var(--violet)"></i>fresh LLM-сеанс</span>
+    <span><i class="dot" style="background:var(--gold)"></i>детермінований код</span>
+    <span><i class="dot" style="background:var(--green)"></i>персистентний артефакт</span>
+  </div>
+  <div class="footer"><span>Idea Laval · атлас системи</span><span class="page-no" data-page="2 / 15"></span></div>
+</section>
+
+<section class="page">
+  <div class="eyebrow">Архітектурна схема</div>
+  <h2>Хто насправді виконує роботу</h2>
+  <p class="subtitle" style="font-size:12.5pt">У системі немає 22 автономних агентів. Є один оркестратор, кілька спеціалізованих провайдерів і 11 ізольованих модельних контрактів.</p>
+  <div class="arch">
+    <div class="arch-col">
+      <div class="box ownerbox"><b>Власник</b>Вводить ідею, переглядає деталі, коригує конкурентів/можливості, обирає тезу.</div>
+      <div class="box"><b>Owner PWA</b>П’ять читабельних фаз, статуси S00–S21, item-local дії.</div>
+      <div class="box"><b>Owner Gateway</b>Перевірена Firebase-ідентичність, bounded API, аудит actor + reason.</div>
+    </div>
+    <div class="arch-arrow">⇄</div>
+    <div class="arch-col">
+      <div class="box compute"><b>Laval Orchestrator</b>Python-код послідовно виконує етапи, хешує входи, відновлює запуск, рахує формули та перевіряє ID.</div>
+      <div class="box model"><b>Fresh Structured LLM</b>Codex bridge: новий ephemeral read-only сеанс, exact output schema, семантичний validator, append-only audit.</div>
+      <div class="box"><b>PostgreSQL</b>Повна authority: артефакти, evidence IDs, remote task IDs, lineage, витрати, спроби, помилки, overrides.</div>
+    </div>
+    <div class="arch-arrow">⇄</div>
+    <div class="arch-col">
+      <div class="box source"><b>DataForSEO</b>Локалізований Google organic SERP; queued remote tasks і фактична вартість.</div>
+      <div class="box source"><b>Публічні web-сторінки</b>Read-only HTTP: сайт, features, pricing, FAQ, use cases тощо.</div>
+      <div class="box source"><b>YouTube Data API</b>search.list, videos.list, commentThreads.list; без caption scraping та без особи автора коментаря.</div>
+      <div class="box source"><b>Commander Research</b>Публікує лише live Sources, механізми та тези, що вижили, зі зв’язками derived_from.</div>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:5mm">
+    <div class="callout gold">
+      <strong>Модель не має доступу до «всього Інтернету».</strong> Вона бачить лише bounded payload конкретного етапу та може посилатися лише на надані UUID.
+    </div>
+    <div class="callout">
+      <strong>Google Trends не є обов’язковим у V2.</strong> S10–S12 будують Market Signal Score з уже зібраних SERP, web, review/forum/Reddit і YouTube-доказів.
+    </div>
+  </div>
+  <div class="footer"><span>Ролі та межі довіри</span><span class="page-no" data-page="3 / 15"></span></div>
+</section>
+
+<section class="page">
+  <div class="eyebrow">Чому 22</div>
+  <h2>Багато етапів — це контроль, а не бюрократія</h2>
+  <div class="grid2">
+    <div class="card"><h3>1. Відділити факт від інтерпретації</h3><p>S03/S05/S06 збирають матеріал; S07/S08/S09 його інтерпретують. Так можна побачити, де помилилося джерело, а де — модель.</p></div>
+    <div class="card"><h3>2. Безпечно відновлювати запуск</h3><p>Кожен етап має input hash, attempt, status, provider, metrics і artifact. Уже оплачені remote task IDs повторно не замовляються.</p></div>
+    <div class="card"><h3>3. Не дати моделі вигадати доказ</h3><p>Схеми й validators перевіряють кількість рядків, exact IDs, coverage та допустимі типи. Невідомий evidence UUID робить відповідь невалідною.</p></div>
+    <div class="card"><h3>4. Тримати математику в коді</h3><p>Відбір конкурентів, Market Signal Score, дедуплікація, support vectors і фінальна логіка verdict не доручені моделі.</p></div>
+    <div class="card"><h3>5. Мінімізувати упередження контексту</h3><p>Кожний LLM-етап — новий сеанс. Генератор не «переконує» оцінювача, а фальсифікатор не продовжує сесію синтезатора.</p></div>
+    <div class="card"><h3>6. Дати власнику точку втручання</h3><p>Корекція конкретного item з причиною створює аудит і робить лише залежні нижчі етапи stale, а не переписує історію мовчки.</p></div>
+  </div>
+  <div class="rule"></div>
+  <h3>Статуси та лічильники</h3>
+  <div class="status-row"><div class="status-tag completed">completed</div><div>Етап завершився повністю. Входить і до <strong>processed</strong>, і до <strong>completed</strong>.</div></div>
+  <div class="status-row"><div class="status-tag partial">partial</div><div>Є корисний артефакт, але частина запитів/джерел не спрацювала. Входить до <strong>processed</strong>, але не до strict <strong>completed</strong>.</div></div>
+  <div class="status-row"><div class="status-tag failed">failed</div><div>Етап не створив прийнятний артефакт. Запуск зупиняється до recovery/rerun.</div></div>
+  <div class="status-row"><div class="status-tag stale">stale</div><div>Верхній вхід був змінений; старий результат більше не можна вважати актуальним.</div></div>
+  <div class="callout green" style="margin-top:4mm">
+    <strong>Тому 22/22 і 21/22 можуть бути правдою одночасно:</strong> 22 етапи оброблено, з них 21 повністю завершений і 1 частковий. Окремо «20 успішних із 21 спроби» — це кількість модельних викликів, а не етапів.
+  </div>
+  <div class="footer"><span>Етапи = контрольні межі</span><span class="page-no" data-page="4 / 15"></span></div>
+</section>
+
+<section class="page tight">
+  <div class="eyebrow">Фаза 1 · Намір власника</div>
+  <h2>S00–S02 · Від сирої думки до плану пошуку</h2>
+  <div class="grid3">
+    <article class="card stage">
+      <div class="stage-head"><span class="stage-id">S00</span><h3>Початкова ідея</h3></div>
+      <div><span class="pill owner">власник</span><span class="pill code">код</span></div>
+      <div class="io"><b>Вхід</b><span>Текст ідеї, країни, режим запуску, конфігурація.</span><b>Виконавець</b><span>Owner UI → Gateway → Laval Repository.</span><b>Джерело</b><span>Тільки власник.</span><b>Вихід</b><span>Незмінний owner idea record і raw-text artifact.</span></div>
+      <div class="prompt"><strong>Промпт:</strong> немає.</div>
+      <div class="why">Навіщо: створити незмінну точку відліку, з якою можна порівнювати всі подальші висновки.</div>
+    </article>
+    <article class="card stage">
+      <div class="stage-head"><span class="stage-id">S01</span><h3>Суть ідеї / Owner DNA</h3></div>
+      <div><span class="pill llm">fresh LLM</span></div>
+      <div class="io"><b>Вхід</b><span>Raw text S00, обрізаний до 20 000 символів.</span><b>Виконавець</b><span>Codex bridge, strict schema.</span><b>Джерело</b><span>Власник; зовнішніх даних ще немає.</span><b>Вихід</b><span>Problem, target user, core mechanism/emotion, why now, must-preserve, assumptions, unknowns.</span></div>
+      <div class="prompt"><strong>Короткий промпт:</strong> «Витягни Owner DNA; збережи обмеження; явно назви припущення й невідоме».</div>
+      <div class="why">Навіщо: не дозволити ринку або моделі непомітно змінити початковий задум.</div>
+    </article>
+    <article class="card stage">
+      <div class="stage-head"><span class="stage-id">S02</span><h3>План пошуку</h3></div>
+      <div><span class="pill llm">fresh LLM</span><span class="pill code">нормалізація</span></div>
+      <div class="io"><b>Вхід</b><span>Owner DNA, країни/мови, 4 сімейства запитів.</span><b>Виконавець</b><span>LLM + deterministic localization/dedup.</span><b>Джерело</b><span>category, problem, alternative, behavioral.</span><b>Вихід</b><span>Search intents та локальні query variants для кожної країни/мови.</span></div>
+      <div class="prompt"><strong>Короткий промпт:</strong> «Створи компактні discovery-запити й точні переклади без зміни семантичного наміру».</div>
+      <div class="why">Навіщо: шукати не лише назву категорії, а також проблему, замінники й реальну поведінку.</div>
+    </article>
+  </div>
+  <div class="callout gold" style="margin-top:5mm"><strong>Контроль якості:</strong> S02 повинен дати точну кількість intent rows для всіх увімкнених сімейств і переклади для кожної запитаної неанглійської мови.</div>
+  <div class="footer"><span>Каталог етапів · 1/5</span><span class="page-no" data-page="5 / 15"></span></div>
+</section>
+
+<section class="page tight">
+  <div class="eyebrow">Фаза 2 · Польові докази</div>
+  <h2>S03–S05 · Пошук, відбір і збір матеріалу</h2>
+  <div class="grid3">
+    <article class="card stage p2s">
+      <div class="stage-head"><span class="stage-id">S03</span><h3>Результати пошуку</h3></div>
+      <div><span class="pill api">DataForSEO</span><span class="pill code">код</span></div>
+      <div class="io"><b>Вхід</b><span>Query variants S02, country, language, SERP depth.</span><b>Виконавець</b><span>Queued Google organic adapter.</span><b>Джерело</b><span>DataForSEO; live remote task IDs.</span><b>Вихід</b><span>Нормалізовані SERP rows, evidence IDs, missing countries/failures, фактична вартість.</span></div>
+      <div class="prompt"><strong>Промпт:</strong> немає; зовнішній API.</div>
+      <div class="why">Навіщо: отримати відтворюваний багатомовний зріз ринку, а не покладатися на знання моделі.</div>
+    </article>
+    <article class="card stage p2s">
+      <div class="stage-head"><span class="stage-id">S04</span><h3>Відбір конкурентів</h3></div>
+      <div><span class="pill code">детермінований код</span><span class="pill owner">editable</span></div>
+      <div class="io"><b>Вхід</b><span>SERP rows + ключові слова Owner DNA.</span><b>Виконавець</b><span>Classifier rules + weighted score.</span><b>Джерело</b><span>Тільки S03.</span><b>Вихід</b><span>Global deduplicated competitors, per-country ranking, direct/adjacent/substitute тип.</span></div>
+      <div class="prompt"><strong>Промпт:</strong> немає. Ваги: recurrence, позиція, semantic/country relevance, directness, evidence confidence.</div>
+      <div class="why">Навіщо: відкинути статті/директорії/social noise і не рахувати один домен кілька разів.</div>
+    </article>
+    <article class="card stage p2s">
+      <div class="stage-head"><span class="stage-id">S05</span><h3>Докази про конкурентів</h3></div>
+      <div><span class="pill api">HTTP + DataForSEO</span></div>
+      <div class="io"><b>Вхід</b><span>Selected competitors S04 та ліміти збору.</span><b>Виконавець</b><span>Web-page fetcher + search adapter.</span><b>Джерело</b><span>Official pages, features/pricing/FAQ/use cases, video/review/forum/Reddit search results.</span><b>Вихід</b><span>Evidence IDs по кожному конкуренту, failures, Commander Source sync.</span></div>
+      <div class="prompt"><strong>Промпт:</strong> немає; збір фактів.</div>
+      <div class="why">Навіщо: досьє наступного етапу має спиратися на збережений матеріал, а не на пам’ять LLM.</div>
+    </article>
+  </div>
+  <div class="callout" style="margin-top:5mm"><strong>Чому S05 часто буває partial:</strong> окрема сторінка конкурента, forum або search request може не відповісти, але інші джерела вже дають придатний артефакт. Partial не дорівнює «нічого не зроблено».</div>
+  <div class="footer"><span>Каталог етапів · 2/5</span><span class="page-no" data-page="6 / 15"></span></div>
+</section>
+
+<section class="page tight">
+  <div class="eyebrow">Фаза 2 · Польові докази</div>
+  <h2>S06–S09 · Поведінка, досьє та можливості</h2>
+  <div class="grid2">
+    <article class="card stage p2s">
+      <div class="stage-head"><span class="stage-id">S06</span><h3>Пошук YouTube</h3></div>
+      <div><span class="pill api">YouTube Data API</span><span class="pill code">код</span></div>
+      <div class="io"><b>Вхід</b><span>S02 intents × countries; bounded result/comment limits.</span><b>Джерело</b><span>search.list, videos.list, top-level commentThreads.list.</span><b>Вихід</b><span>Video/channel IDs, title, description, stats, safe comments, append-only snapshots і velocity.</span></div>
+      <div class="prompt"><strong>Промпт:</strong> немає. Captions не scraping; author identity не зберігається.</div>
+      <div class="why">Навіщо: побачити обхідні рішення, формати виклику й мову аудиторії у незалежних creators.</div>
+    </article>
+    <article class="card stage p2s">
+      <div class="stage-head"><span class="stage-id">S07</span><h3>Поведінкові спостереження</h3></div>
+      <div><span class="pill llm">fresh LLM</span></div>
+      <div class="io"><b>Вхід</b><span>Titles/descriptions/comments S06 + optional owner transcript Sources.</span><b>Джерело</b><span>Тільки надані video/evidence IDs.</span><b>Вихід</b><span>Typed observations: workaround, motivation, complaint, substitute тощо; independent creator count.</span></div>
+      <div class="prompt"><strong>Короткий промпт:</strong> «Витягни лише спостережувану поведінку; цитуй exact IDs; повторення між creators важливіше за популярність».</div>
+      <div class="why">Навіщо: перетворити відео на перевірені поведінкові сигнали без домислів про transcript або особу.</div>
+    </article>
+    <article class="card stage p2s">
+      <div class="stage-head"><span class="stage-id">S08</span><h3>Досьє конкурентів</h3></div>
+      <div><span class="pill llm">LLM × конкурент</span></div>
+      <div class="io"><b>Вхід</b><span>Один selected competitor + до 80 його evidence rows.</span><b>Джерело</b><span>S03/S05 evidence.</span><b>Вихід</b><span>Positioning, audience, features, pricing, distribution, hooks, strengths, complaints, gaps, keywords, complaint clusters.</span></div>
+      <div class="prompt"><strong>Короткий промпт:</strong> «Витягни тільки evidence-supported claims; кожне твердження посилається на supplied evidence ID».</div>
+      <div class="why">Навіщо: однакова структура для порівняння конкурентів. Саме тому один stage може мати багато LLM-викликів.</div>
+    </article>
+    <article class="card stage p2s">
+      <div class="stage-head"><span class="stage-id">S09</span><h3>Матриця можливостей</h3></div>
+      <div><span class="pill llm">fresh LLM</span><span class="pill code">score/ID checks</span><span class="pill owner">editable</span></div>
+      <div class="io"><b>Вхід</b><span>Owner DNA + dossiers + YouTube behavior observations.</span><b>Вихід</b><span>Evidence-backed opportunity vectors: pain, segment, competitors, countries, exact evidence IDs і 6 score components.</span></div>
+      <div class="prompt"><strong>Короткий промпт:</strong> «Стисни матеріал у можливості; збережи всі rows; цитуй лише видимі IDs; scores 0..1».</div>
+      <div class="why">Навіщо: сформулювати не «ідеї продукту», а доведені прогалини ринку, які ще можна вимкнути вручну.</div>
+    </article>
+  </div>
+  <div class="footer"><span>Каталог етапів · 3/5</span><span class="page-no" data-page="7 / 15"></span></div>
+</section>
+
+<section class="page tight">
+  <div class="eyebrow">Фаза 3 · Ринкові сигнали</div>
+  <h2>S10–S13 · Від доказів до bounded synthesis packet</h2>
+  <div class="grid2">
+    <article class="card stage p3s">
+      <div class="stage-head"><span class="stage-id">S10</span><h3>План ринкових сигналів</h3></div>
+      <div><span class="pill code">детермінований код</span></div>
+      <div class="io"><b>Вхід</b><span>Enabled opportunities S09 + їх evidence IDs.</span><b>Вихід</b><span>Deduplicated opportunity/evidence packet, as-of timestamp, optional-source status, spend boundary.</span></div>
+      <div class="prompt"><strong>Промпт:</strong> немає. Новий платний пошук не виконується.</div>
+      <div class="why">Навіщо: зафіксувати, які саме факти можна використовувати для кожної можливості.</div>
+    </article>
+    <article class="card stage p3s">
+      <div class="stage-head"><span class="stage-id">S11</span><h3>Релевантність доказів</h3></div>
+      <div><span class="pill llm">fresh LLM</span></div>
+      <div class="io"><b>Вхід</b><span>Кожна пара opportunity × evidence.</span><b>Вихід</b><span>Для кожної exact pair лише relevant=true/false.</span></div>
+      <div class="prompt"><strong>Короткий промпт:</strong> «Класифікуй кожну пару; не оцінюй, не додавай фактів, не вигадуй дати, не змінюй IDs».</div>
+      <div class="why">Навіщо: модель виконує вузьку семантичну задачу, а не вільно «оцінює ринок».</div>
+    </article>
+    <article class="card stage p3s">
+      <div class="stage-head"><span class="stage-id">S12</span><h3>Оцінка ринкових сигналів</h3></div>
+      <div><span class="pill code">формула в коді</span></div>
+      <div class="io"><b>Вхід</b><span>S10 evidence metadata + S11 relevant pairs + as-of.</span><b>Вихід</b><span>Raw counts, data status, 6 normalized components, aggregate score, lineage.</span></div>
+      <div class="prompt"><strong>Формула:</strong> 20% країни + 20% query families + по 15% recent content, community, negative pain, semantic relevance.</div>
+      <div class="why">Навіщо: число відтворюване; відсутні дані дають 0, а не вигадану «впевненість».</div>
+    </article>
+    <article class="card stage p3s">
+      <div class="stage-head"><span class="stage-id">S13</span><h3>Пакет синтезу</h3></div>
+      <div><span class="pill code">Context Compiler</span></div>
+      <div class="io"><b>Вхід</b><span>DNA, opportunities, market scores, repeated pains, distribution patterns, behavior observations.</span><b>Вихід</b><span>Bounded packet і selected evidence IDs для генерації.</span></div>
+      <div class="prompt"><strong>Промпт:</strong> немає; це контрольований context assembly.</div>
+      <div class="why">Навіщо: наступна модель бачить компактний, цитований пакет, а не всю базу або необмежений web context.</div>
+    </article>
+  </div>
+  <div class="callout green" style="margin-top:4mm"><strong>Market Signal Score ≠ шанс успіху.</strong> Це лише вимір того, наскільки можливість повторюється у наявних джерелах і наскільки дані придатні до аналізу.</div>
+  <div class="footer"><span>Каталог етапів · 4/5</span><span class="page-no" data-page="8 / 15"></span></div>
+</section>
+
+<section class="page tight">
+  <div class="eyebrow">Фаза 4 · Варіанти та механізми</div>
+  <h2>S14–S16 · Розширити простір ідей, а потім стиснути</h2>
+  <div class="grid3">
+    <article class="card stage p4s">
+      <div class="stage-head"><span class="stage-id">S14</span><h3>Варіанти ідей</h3></div>
+      <div><span class="pill llm">fresh LLM</span></div>
+      <div class="io"><b>Вхід</b><span>S13 + 8 transformation operators × 3.</span><b>Вихід</b><span>24 bilingual variants з exact opportunity/signal/evidence lineage.</span></div>
+      <div class="prompt"><strong>Короткий промпт:</strong> «Створи широкі недубльовані варіанти; використай кожний оператор; кожне поле en+uk; cite valid IDs».</div>
+      <div class="why">Навіщо: не дозволити першій очевидній формі продукту звузити весь пошук.</div>
+    </article>
+    <article class="card stage p4s">
+      <div class="stage-head"><span class="stage-id">S15</span><h3>Дедуплікація ідей</h3></div>
+      <div><span class="pill code">детермінований код</span></div>
+      <div class="io"><b>Вхід</b><span>Усі 24 variants.</span><b>Вихід</b><span>Clusters, representative IDs, duplicate count.</span></div>
+      <div class="prompt"><strong>Промпт:</strong> немає. Token-set similarity ≥ 0.92 лише всередині того самого operator.</div>
+      <div class="why">Навіщо: не витрачати evaluator context на майже однакові формулювання й не змішувати різні способи трансформації.</div>
+    </article>
+    <article class="card stage p4s">
+      <div class="stage-head"><span class="stage-id">S16</span><h3>Оцінка ідей</h3></div>
+      <div><span class="pill llm">fresh evaluator</span><span class="pill code">combined score</span></div>
+      <div class="io"><b>Вхід</b><span>Representative variants + evidence packet + rubric.</span><b>Вихід</b><span>Dimensions, strengths, critique, fatal flaw, deterministic/model/final scores.</span></div>
+      <div class="prompt"><strong>Короткий промпт:</strong> «Незалежно оціни кожний exact idea ID; не генеруй нових; дай 0..1 dimensions і critique».</div>
+      <div class="why">Навіщо: відсіяти слабкі форми, але не втратити нижчі варіанти — усі 24 ще підуть у S17.</div>
+    </article>
+  </div>
+  <div class="rule"></div>
+  <h3>Вісім операторів S14</h3>
+  <div class="grid2 small">
+    <div class="card"><strong>invert</strong> — перевернути важливе припущення категорії<br><strong>remove</strong> — прибрати повторюваний біль<br><strong>extreme</strong> — довести корисну властивість до крайності<br><strong>transfer</strong> — перенести механізм із суміжної поведінки</div>
+    <div class="card"><strong>resegment</strong> — застосувати до неочевидного сегмента<br><strong>recombine</strong> — поєднати DNA, opportunity і сигнал<br><strong>distribution_first</strong> — почати з циклу дистрибуції<br><strong>behavior_first</strong> — почати з повторюваної поведінки</div>
+  </div>
+  <div class="footer"><span>Варіанти — проміжний матеріал, не фінальний продукт</span><span class="page-no" data-page="9 / 15"></span></div>
+</section>
+
+<section class="page tight">
+  <div class="eyebrow">Фази 4–5 · Механізми та тези</div>
+  <h2>S17–S19 · Від 24 варіантів до 1–3 продуктових петель</h2>
+  <div class="grid3">
+    <article class="card stage p4s">
+      <div class="stage-head"><span class="stage-id">S17</span><h3>Виділення механізмів</h3></div>
+      <div><span class="pill llm">fresh LLM</span></div>
+      <div class="io"><b>Вхід</b><span>Усі 24 variants + behavior observations + valid ID sets.</span><b>Вихід</b><span>6–20 reusable mechanisms типу value/behavior/trust/retention/distribution/proof; coverage усіх variants.</span></div>
+      <div class="prompt"><strong>Короткий промпт:</strong> «Механізми — це поведінка або цикл, не список features; покрий кожний variant; cite exact IDs».</div>
+      <div class="why">Навіщо: знайти повторювану причинну логіку, яку можна комбінувати в різні продукти.</div>
+    </article>
+    <article class="card stage p4s">
+      <div class="stage-head"><span class="stage-id">S18</span><h3>Підтримка механізмів</h3></div>
+      <div><span class="pill code">код</span></div>
+      <div class="io"><b>Вхід</b><span>Mechanisms і їх lineage.</span><b>Вихід</b><span>Support vector: source diversity, cross-variant recurrence, opportunity support, market-signal support, owner-DNA fit; coverage floor.</span></div>
+      <div class="prompt"><strong>Промпт:</strong> немає. Немає aggregate winner score.</div>
+      <div class="why">Навіщо: показати слабку грань механізму замість маскування її одним красивим відсотком.</div>
+    </article>
+    <article class="card stage p5s">
+      <div class="stage-head"><span class="stage-id">S19</span><h3>Синтез продуктових тез</h3></div>
+      <div><span class="pill llm">fresh LLM</span></div>
+      <div class="io"><b>Вхід</b><span>Owner DNA + 6–20 scored mechanisms.</span><b>Вихід</b><span>1–3 тези: user/problem, 3–7 mechanisms, loop 5–8 steps, value moment, zero-audience behavior, substitutes, assumptions, criterion.</span></div>
+      <div class="prompt"><strong>Короткий промпт:</strong> «Стисни в найменші coherent product loops: acquisition → action → value/proof → return → distribution».</div>
+      <div class="why">Навіщо: перетворити розрізнені ідеї на цілісний продукт, поведінку якого можна фальсифікувати.</div>
+    </article>
+  </div>
+  <div class="callout gold" style="margin-top:5mm"><strong>Найважливіша різниця:</strong> feature описує, що є у продукті; mechanism пояснює, чому користувач діє, отримує цінність, повертається або поширює доказ.</div>
+  <div class="footer"><span>Каталог етапів · 5/5</span><span class="page-no" data-page="10 / 15"></span></div>
+</section>
+
+<section class="page">
+  <div class="eyebrow">Фаза 5 · Фальсифікація</div>
+  <h2>S20–S21 · Система спеціально намагається сказати «ні»</h2>
+  <div class="grid2">
+    <article class="card stage p5s">
+      <div class="stage-head"><span class="stage-id">S20</span><h3>Фальсифікація тез</h3></div>
+      <div><span class="pill llm">fresh strict LLM</span><span class="pill code">verdict rules</span></div>
+      <div class="io"><b>Вхід</b><span>Усі тези S19 + повні mechanisms.</span><b>Перевірка</b><span>Core behavior, arrival, return, zero-audience utility, substitutes, scale failure, dangerous assumptions.</span><b>Вихід</b><span>Risks по assumption ID, objection/counterargument, evidence/mechanism IDs, fatal flag, unsupported-high count, weakest coverage.</span></div>
+      <div class="prompt"><strong>Короткий промпт:</strong> «Спробуй спростувати кожну тезу; відсутність доказу = unsupported, а не proof».</div>
+      <div class="why">Live: fresh session, одна автоматична fresh retry, жодного deterministic fallback.</div>
+    </article>
+    <article class="card stage p5s">
+      <div class="stage-head"><span class="stage-id">S21</span><h3>Рекомендація тези</h3></div>
+      <div><span class="pill code">детермінований код</span><span class="pill owner">owner decision</span></div>
+      <div class="io"><b>Вхід</b><span>Theses + S20 falsification reports.</span><b>Вихід</b><span>Survivors, recommended thesis або no_surviving_thesis; graph sync лише survivors.</span></div>
+      <div class="prompt"><strong>Промпт:</strong> немає. Lexicographic order: no fatal → менше unsupported high → сильніший weakest mechanism → менше mechanisms.</div>
+      <div class="why">Навіщо: модель не може «проголосувати» за свою улюблену ідею після критики.</div>
+    </article>
+  </div>
+  <div class="rule"></div>
+  <h3>Як код визначає verdict</h3>
+  <div class="decision">
+    <div class="q">Є fatal objection?</div><div class="yesno">так →</div><div class="q" style="background:var(--red-soft);color:var(--red)">REJECTED</div><div class="yesno">ні ↓</div><div class="q">Рахуємо unsupported HIGH</div>
+  </div>
+  <div class="decision">
+    <div class="q">≥ 2 unsupported HIGH</div><div class="yesno">так →</div><div class="q" style="background:var(--red-soft);color:var(--red)">REJECTED</div><div class="yesno">1 →</div><div class="q" style="background:var(--gold-soft);color:#7e4d08">WEAK</div>
+  </div>
+  <div class="decision">
+    <div class="q">0 unsupported HIGH</div><div class="yesno">і model verdict<br>не weak →</div><div class="q" style="background:var(--mint);color:var(--green)">SURVIVES</div><div class="yesno">потім →</div><div class="q">S21 обирає найстійкішу</div>
+  </div>
+  <div class="callout" style="margin-top:4mm"><strong>Ключ:</strong> «відхилено» не означає, що проблема не існує. Це означає, що саме ця повна продуктова петля не має достатньої підтримки або має критичну суперечність.</div>
+  <div class="footer"><span>Фальсифікація захищає від красивих, але крихких концепцій</span><span class="page-no" data-page="11 / 15"></span></div>
+</section>
+
+<section class="page">
+  <div class="eyebrow">Модельні контракти</div>
+  <h2>Усі 11 LLM-enabled етапів</h2>
+  <p class="small muted">«11 етапів» не означає «11 викликів»: S08 запускається окремо для кожного selected competitor, а live validation може зробити одну автоматичну повторну спробу.</p>
+  <table class="prompt-table">
+    <thead><tr><th>Stage</th><th>Mode</th><th>Суть промпту</th><th>Strict output</th></tr></thead>
+    <tbody>
+      <tr><td>S01</td><td>laval_owner_dna</td><td>Витягти ядро, обмеження, assumptions і unknowns.</td><td>owner_dna</td></tr>
+      <tr><td>S02</td><td>laval_query_plan</td><td>Сформувати 4 типи discovery intent і точні переклади.</td><td>query_intents</td></tr>
+      <tr><td>S07</td><td>laval_youtube_observation</td><td>Виділити лише спостережувану поведінку з exact citations.</td><td>observations</td></tr>
+      <tr><td>S08</td><td>laval_competitor_dossier</td><td>Структурувати evidence-supported claims по одному конкуренту.</td><td>dossier</td></tr>
+      <tr><td>S09</td><td>laval_opportunity_matrix</td><td>Стиснути dossiers/behavior у evidence-backed opportunities.</td><td>opportunities</td></tr>
+      <tr><td>S11</td><td>laval_market_signal_relevance</td><td>Binary relevant/not relevant для кожної exact pair.</td><td>classifications</td></tr>
+      <tr><td>S14</td><td>laval_idea_expansion</td><td>24 variants: 8 operators × 3, en+uk, exact lineage.</td><td>variants</td></tr>
+      <tr><td>S16</td><td>laval_idea_evaluation</td><td>Незалежно оцінити кожний representative, не генерувати нового.</td><td>evaluations</td></tr>
+      <tr><td>S17</td><td>laval_mechanism_extraction</td><td>6–20 reusable loops/behaviors; покрити всі 24 variants.</td><td>mechanisms</td></tr>
+      <tr><td>S19</td><td>laval_thesis_synthesis</td><td>1–3 complete product loops із assumptions і criterion.</td><td>theses</td></tr>
+      <tr><td>S20</td><td>laval_thesis_falsification</td><td>Спробувати спростувати кожну тезу; missing evidence = unsupported.</td><td>reports</td></tr>
+    </tbody>
+  </table>
+  <div class="grid3" style="margin-top:5mm">
+    <div class="card"><h3>Ізольований сеанс</h3><p class="small">Новий session UUID і ephemeral Codex execution. Попередня розмова не resume.</p></div>
+    <div class="card"><h3>Подвійна перевірка</h3><p class="small">JSON Schema перевіряє форму; application validator — exact IDs, counts, coverage і semantics.</p></div>
+    <div class="card"><h3>Append-only audit</h3><p class="small">Зберігаються mode, prompt version, context/schema hash, model, session, success/fallback/failed.</p></div>
+  </div>
+  <div class="footer"><span>Prompt template: *-v3-strict-retry</span><span class="page-no" data-page="12 / 15"></span></div>
+</section>
+
+<section class="page">
+  <div class="eyebrow">Lineage і зміни</div>
+  <h2>Кожний висновок можна провести назад до джерела</h2>
+  <div class="lineage">
+    <div class="entity"><b>Source</b><span>SERP / web / review / YouTube</span></div><div class="arr">→</div>
+    <div class="entity"><b>Evidence</b><span>claim + UUID + metadata</span></div><div class="arr">→</div>
+    <div class="entity"><b>Opportunity</b><span>pain / gap</span></div><div class="arr">→</div>
+    <div class="entity"><b>Market Signal</b><span>formula + raw counts</span></div><div class="arr">→</div>
+    <div class="entity"><b>Mechanism</b><span>support vector</span></div><div class="arr">→</div>
+    <div class="entity"><b>Thesis</b><span>loop + assumptions</span></div>
+  </div>
+  <div class="callout green"><strong>Evidence ID — це не декоративний UUID.</strong> Він є ключем, який не дозволяє моделі послатися на факт, якого не було в її bounded context.</div>
+  <div class="rule"></div>
+  <h3>Що відбувається після ручної корекції</h3>
+  <div class="grid2">
+    <div class="card">
+      <h3>Видалити / додати конкурента</h3>
+      <p>Зберігається actor + reason + action. Новий розрахунок починається від доказів конкурента; dossiers, opportunities, signals, variants, mechanisms і theses більше не вважаються актуальними.</p>
+    </div>
+    <div class="card">
+      <h3>Вимкнути можливість</h3>
+      <p>Зберігається override. Залежні market-signal/synthesis результати мають бути перераховані; upstream SERP та evidence не потрібно оплачувати або збирати повторно.</p>
+    </div>
+  </div>
+  <div class="flow" style="margin-top:6mm">
+    <div class="node p2"><b>1</b><span>Item-local дія</span></div><div class="arrow">→</div>
+    <div class="node p1"><b>2</b><span>Обов’язкова причина</span></div><div class="arrow">→</div>
+    <div class="node p3"><b>3</b><span>Append-only override</span></div><div class="arrow">→</div>
+    <div class="node p4"><b>4</b><span>Downstream = stale</span></div><div class="arrow">→</div>
+    <div class="node p5"><b>5</b><span>Безпечний rerun</span></div>
+  </div>
+  <div class="callout gold"><strong>Важливо:</strong> уже створений validation workspace не переписується. Якщо нове дослідження суперечить його джерельній тезі, thesis позначається validation_stale.</div>
+  <div class="footer"><span>PostgreSQL — повна authority графа й аудиту</span><span class="page-no" data-page="13 / 15"></span></div>
+</section>
+
+<section class="page">
+  <div class="eyebrow">Практичне використання</div>
+  <h2>Як читати конкретне дослідження</h2>
+  <div class="grid2">
+    <div>
+      <ol class="checklist">
+        <li><div><strong>Почніть не з фіналу, а зі статусів.</strong><br><span class="small muted">Чи є partial/failed/recovered? Відкрийте technical details лише для цих stage.</span></div></li>
+        <li><div><strong>Перевірте S04 і S05.</strong><br><span class="small muted">Чи справді selected rows є конкурентами? Чи partial coverage змінює картину? Видаліть noise прямо в item.</span></div></li>
+        <li><div><strong>Перевірте S08–S09.</strong><br><span class="small muted">Відкрийте evidence IDs ключових complaints/opportunities. Вимкніть можливість, якщо її джерела слабкі або нерелевантні.</span></div></li>
+        <li><div><strong>Читайте S12 як signal, не probability.</strong><br><span class="small muted">Дивіться raw counts і data status; нуль може означати «немає даних», а не «немає попиту».</span></div></li>
+        <li><div><strong>У S17–S18 шукайте слабку грань.</strong><br><span class="small muted">Coverage floor і support vector важливіші за красиву назву механізму.</span></div></li>
+        <li><div><strong>У S20 перетворіть objections на наступні перевірки.</strong><br><span class="small muted">Unsupported assumption — готове питання для manual probe або нового research input.</span></div></li>
+        <li><div><strong>Тільки survivor переходить у Validation.</strong><br><span class="small muted">Вибір створює workspace і три proposed manual probes; система сама не публікує, не контактує і не витрачає гроші.</span></div></li>
+      </ol>
+    </div>
+    <div>
+      <div class="card dark">
+        <div class="eyebrow" style="color:#ff65ac">Приклад live run</div>
+        <h3 style="color:white">01a01de0…b3c8</h3>
+        <div class="grid2" style="margin-top:4mm">
+          <div><div class="metric" style="color:#78e0b5">22</div><div class="metric-label" style="color:#b5c7bf">processed</div></div>
+          <div><div class="metric" style="color:#78e0b5">21</div><div class="metric-label" style="color:#b5c7bf">strict completed</div></div>
+          <div><div class="metric" style="color:#ffd47d">1</div><div class="metric-label" style="color:#b5c7bf">partial stage</div></div>
+          <div><div class="metric" style="color:#ff77b6">0</div><div class="metric-label" style="color:#b5c7bf">surviving theses</div></div>
+        </div>
+        <div class="rule" style="background:#315044"></div>
+        <p class="small">S05 був partial, а один модельний етап відновився повторною спробою. Це пояснює різні лічильники. Запуск технічно завершився, але всі тези були відхилені — тому recommendation не створено.</p>
+      </div>
+      <div class="callout" style="margin-top:4mm">
+        <strong>Що робити з no_surviving_thesis:</strong>
+        <ul class="small">
+          <li>не натискати «оновити» без причини;</li>
+          <li>перевірити noise у competitors/opportunities;</li>
+          <li>прочитати unsupported HIGH у S20;</li>
+          <li>звузити segment/problem або додати справжні докази;</li>
+          <li>після корекції rerun лише залежну частину.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="footer"><span>Результат дослідження — рішення про наступну перевірку</span><span class="page-no" data-page="14 / 15"></span></div>
+</section>
+
+<section class="page">
+  <div class="eyebrow">Довідник</div>
+  <h2>Терміни, межі й джерела цього документа</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Короткий словник</h3>
+      <p><strong>Artifact</strong> — збережений результат одного stage.</p>
+      <p><strong>Evidence</strong> — нормалізований фрагмент зовнішнього джерела з UUID, claim, URL, publisher, confidence і metadata.</p>
+      <p><strong>Lineage</strong> — explicit зв’язок «цей об’єкт derived_from того доказу».</p>
+      <p><strong>Opportunity</strong> — evidence-backed біль або прогалина, ще не продукт.</p>
+      <p><strong>Mechanism</strong> — поведінка/цикл, який створює цінність, довіру, повернення, дистрибуцію або доказ.</p>
+      <p><strong>Product thesis</strong> — цілісна falsifiable петля від acquisition до return/distribution.</p>
+      <p><strong>Fresh session</strong> — новий ізольований LLM execution без продовження попередньої розмови.</p>
+    </div>
+    <div class="card">
+      <h3>Що система свідомо не робить</h3>
+      <ul>
+        <li>не показує «ймовірність успіху» продукту;</li>
+        <li>не дозволяє LLM вигадувати UUID або джерела;</li>
+        <li>не scraping YouTube captions;</li>
+        <li>не зберігає ідентичність авторів коментарів;</li>
+        <li>не публікує сторінки, не пише людям і не витрачає кошти під час validation;</li>
+        <li>не публікує fixture evidence у постійний Commander research graph;</li>
+        <li>не переписує append-only audit або weight/decision history.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="rule"></div>
+  <h3>Канонічні джерела</h3>
+  <table>
+    <tbody>
+      <tr><td class="mono">docs/architecture/idea-laval-engine.md</td><td>Мета V2, topology, YouTube contract, mechanisms/theses, validation.</td></tr>
+      <tr><td class="mono">idea_generation/laval_domain.py</td><td>22 stages, конфігурація, operators, scoring constants.</td></tr>
+      <tr><td class="mono">idea_generation/laval_pipeline.py</td><td>Фактичні inputs/outputs, prompts, validators, persistence та verdict rules.</td></tr>
+      <tr><td class="mono">idea_generation/laval_schemas.py</td><td>Strict JSON Schema для 11 language modes.</td></tr>
+      <tr><td class="mono">idea_generation/laval_providers.py</td><td>DataForSEO, HTTP, official YouTube і Commander research adapters.</td></tr>
+      <tr><td class="mono">idea_generation/laval_fresh_stage.py</td><td>Fresh sessions, retry, audit, schema/context hashes.</td></tr>
+    </tbody>
+  </table>
+  <div class="callout green" style="margin-top:5mm">
+    <strong>Версія атласу:</strong> згенеровано 20.08.2026 з Git revision <span class="mono">c7c155117b9383acdbea7565276570ff99237033</span>. Описує pipeline <span class="mono">mechanism_thesis_v1</span> і production UI release <span class="mono">laval-review-acc03a2</span>.
+  </div>
+  <div class="footer"><span>Кінець · editable HTML додається разом із PDF</span><span class="page-no" data-page="15 / 15"></span></div>
+</section>
+
+</body>
+</html>

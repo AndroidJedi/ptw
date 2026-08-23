@@ -1,10 +1,48 @@
 # Commander current state
 
-Status: Brand Project continuity release verification; Natal iterative review remains live
-Updated: 2026-08-22
+Status: Natal three-template draft workspace locally implemented; production remains on the prior iterative workflow
+Updated: 2026-08-23
 Architecture authority: [`commander-architecture-review.md`](commander-architecture-review.md)
 
 ## Current implementation milestone
+
+### Local Natal draft-workspace milestone
+
+The Landing workflow is now draft-first in the repository. One authenticated,
+idempotent `populate_set` request creates durable private product, community,
+and waitlist variants from one strict-schema bridge turn. Seven independent
+content blocks render through self-contained, sandboxed `srcdoc` previews at
+360 px or desktop width. Preview actions are inert; pointer/keyboard block
+selection is validated against the exact iframe window. A scoped
+`edit_block` request returns only the selected block, records the comment and
+graph memory before agent work, creates an append-only superseding snapshot on
+success, and leaves the current snapshot unchanged on retryable failure.
+
+Migration 017 adds draft sets, snapshots, edit attempts, scoped feedback, and
+reviewable skill proposals. The exact selected current snapshot can be
+published without another agent rewrite; published Landing lineage derives
+from both the snapshot and Idea source. Browser comments update runtime memory,
+while promotion creates only a bounded Plan for the canonical
+`owner-lessons.md` reference. The Natal skill now includes block, content/CRO,
+and reviewed-owner references distilled from the owner-supplied guidance
+without unsupported percentages or rigid conversion formulas.
+
+This milestone has not been deployed. No Firebase or VPS mutation was made.
+The deployed production baseline below remains authoritative until a separate
+production rollout and owner-authenticated acceptance.
+
+Local acceptance on 2026-08-23 is green: the built-image Commander suite ran
+136 tests with 39 environment-scoped skips, and the built-image Owner Gateway
+suite ran 57 tests with 6 PostgreSQL-only skips. A disposable PostgreSQL 16
+database passed all 6 Landing repository/migration tests, including restart
+persistence, stale-snapshot rejection, retry history, scoped memory, graph
+lineage, and exact-snapshot publication. The web gate passed 32 Vitest tests
+plus the production build, while all 15 Playwright cases passed on desktop,
+360 px Chromium, and iPhone WebKit. The Commander demo, Python compilation,
+canonical PTW skill synchronization, Natal skill quick validation, and
+`git diff --check` also pass.
+
+### Deployed baseline
 
 Natal now has a canonical landing factory under `natal/`: the exact source
 Natal logo and six SVG marks are digest-pinned, one mobile-first UI kit is shared

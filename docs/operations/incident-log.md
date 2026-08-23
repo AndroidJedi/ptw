@@ -41,3 +41,8 @@ the new lead-rate-limit HMAC secret. A persistent random secret was generated
 once in the root-owned Owner Gateway env without disclosure. Deploy and reset
 now reject a missing, short, or example-placeholder value before any schema
 drop.
+
+The first post-reset audit then falsely classified the required independent
+platform bridge worker as a retired Commander worker. Retired-service checks
+now use anchored full Compose container names, preserving the platform worker
+while still failing on the removed application workers and Idea service.

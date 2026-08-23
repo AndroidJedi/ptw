@@ -43,9 +43,9 @@ LandingRevisionProvider(bridge_url=s.landing_llm_bridge_url, token=s.telegram_bo
 print("Positioning and Landing bridge contracts ready")
 '
 
-for retired_pattern in idea-generation commander-worker ad-worker; do
-  test -z "$(docker ps -q --filter "name=$retired_pattern")" || {
-    echo "retired container matching $retired_pattern is running" >&2
+for retired_container in ptw-idea-generation-idea-generation-api-1 ptw-commander-worker-1 ptw-commander-ad-worker-1; do
+  test -z "$(docker ps -q --filter "name=^/$retired_container$")" || {
+    echo "retired container $retired_container is running" >&2
     exit 1
   }
 done

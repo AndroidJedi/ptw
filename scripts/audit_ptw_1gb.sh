@@ -18,10 +18,10 @@ ps -eo pid,ppid,rss,etimes,stat,comm --sort=-rss
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
 docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}'
 
-for retired_pattern in idea-generation commander-worker ad-worker; do
-    retired=$(docker ps -q --filter "name=$retired_pattern")
+for retired_container in ptw-idea-generation-idea-generation-api-1 ptw-commander-worker-1 ptw-commander-ad-worker-1; do
+    retired=$(docker ps -q --filter "name=^/$retired_container$")
     [[ -z $retired ]] || {
-        echo "retired container matching $retired_pattern is running" >&2
+        echo "retired container $retired_container is running" >&2
         exit 1
     }
 done

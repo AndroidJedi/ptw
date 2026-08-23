@@ -61,6 +61,10 @@ least 32 bytes in the root-owned Owner Gateway env. Generate it once without
 printing it; never use the example placeholder or rotate it during routine
 deployments, because stable HMACs are required for bounded IP rate limiting.
 
+Retired-container audits must use anchored full Compose container names. Never
+match the bare substring `commander-worker`: the independent, required platform
+bridge worker legitimately contains that substring.
+
 Run `scripts/audit_vps_owner_dependencies.sh` on the VPS and
 `scripts/audit_live_owner_console.py` against public Hosting. Then perform the
 authenticated exact-owner journey: empty state, Positioning creation/source

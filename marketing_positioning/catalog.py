@@ -1,4 +1,4 @@
-"""Verified DataForSEO market catalog exposed to the owner UI."""
+"""Code-owned country and market-language catalog exposed to the owner UI."""
 
 COUNTRIES = {
     "US": "United States", "GB": "United Kingdom", "CA": "Canada", "AU": "Australia",

@@ -15,10 +15,11 @@ Updated: 2026-08-23
 
 ## Marketing Positioning
 
-- Start from raw idea, country, research language, and output language. Another
+- Start from raw idea, country, market language, and output language. Another
   idea or market creates another project.
 - Show source UUIDs and assumption markers beside claims. Never hide a failed
-  live research or strict-synthesis attempt behind fallback output.
+  strict-synthesis attempt behind fallback output. The owner idea is the sole
+  factual Source; external research providers are not part of this flow.
 - A correction selects one section and creates a complete immutable revision.
   The existing revision remains active until explicit approval.
 - Landing and Ads expose only the active approved revision.

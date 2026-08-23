@@ -36,12 +36,18 @@ from owner_gateway.landing_revision import LandingRevisionProvider
 from owner_gateway.settings import Settings
 s = Settings.from_environment()
 cap = BridgeProvider(s.landing_llm_bridge_url, s.telegram_bot_token, s.landing_llm_model).capabilities()
-expected = {"marketing_positioning_research_plan", "marketing_positioning_document", "marketing_positioning_revision"}
-assert set(cap["marketing_positioning_modes"]) == expected
+expected = {"marketing_positioning_document", "marketing_positioning_revision"}
+assert expected <= set(cap["marketing_positioning_modes"])
 assert "natal_landing_revision" in cap["landing_modes"]
 LandingRevisionProvider(bridge_url=s.landing_llm_bridge_url, token=s.telegram_bot_token, skill_path=s.repository_path / "skills/natal-landing-builder/SKILL.md", model=s.landing_llm_model).verify_ready()
 print("Positioning and Landing bridge contracts ready")
 '
+
+if docker inspect "$positioning_container" --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  | grep -Eq '^(DATAFORSEO_|POSITIONING_RESEARCH_PROVIDER=)'; then
+  echo "Marketing Positioning still exposes retired external-research settings" >&2
+  exit 1
+fi
 
 for retired_container in ptw-idea-generation-idea-generation-api-1 ptw-commander-worker-1 ptw-commander-ad-worker-1; do
   test -z "$(docker ps -q --filter "name=^/$retired_container$")" || {

@@ -208,10 +208,14 @@ class PositioningDocumentV1:
             "assumptions": assumptions,
         }
         cited = set()
+        assumption_count = 0
         def collect(node: Any) -> None:
+            nonlocal assumption_count
             if isinstance(node, Mapping):
                 if set(node) == {"text", "source_ids", "assumption"}:
                     cited.update(node["source_ids"])
+                    if node["assumption"]:
+                        assumption_count += 1
                 else:
                     for child in node.values():
                         collect(child)
@@ -221,6 +225,8 @@ class PositioningDocumentV1:
         collect(normalized)
         if cited != set(references):
             raise ValueError("evidence_references must exactly match the sources cited by fields")
+        if assumption_count and not assumptions:
+            raise ValueError("assumption fields require a visible top-level assumptions list")
         quality = {
             "strict_shape": True,
             "source_ids_valid": True,
@@ -229,6 +235,7 @@ class PositioningDocumentV1:
             "two_ordered_ad_concepts": [item["kind"] for item in ads] == list(AD_KINDS),
             "three_definition_data_context_faqs": len(faqs) == 3,
             "honest_limitation_present": True,
+            "assumptions_visible": assumption_count == 0 or bool(assumptions),
             "passed": True,
         }
         canonical = json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(",", ":"))

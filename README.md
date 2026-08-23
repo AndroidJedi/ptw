@@ -6,7 +6,7 @@ explicit and revision-bound:
 ```text
 raw idea + market
         ↓
-Marketing Positioning (research, evidence, correction, owner approval)
+Marketing Positioning (owner evidence, assumptions, correction, approval)
         ↓                         ↓
 Landing (three Natal drafts)      Ads (read-only concepts stub)
         ↓
@@ -19,13 +19,16 @@ graph authority; Firebase hosts UI/static Landing files only. Admin contains
 Jobs, Docs/System, and the break-glass root terminal.
 
 Marketing Positioning runs as an isolated Compose project and retains port
-8093. It requires verified DataForSEO research and the authenticated platform
-bridge. Landing accepts only an active approved Positioning revision. Ads has
-no mutation: generation and publishing are explicitly unimplemented.
+8093. It synthesizes from the owner idea through the authenticated platform
+bridge; unsupported market conclusions are explicit assumptions and no
+external research provider is called. Landing accepts only an active approved
+Positioning revision. Ads has no mutation: generation and publishing are
+explicitly unimplemented.
 
 Telegram uses only the existing `@ptw_commander_bot` and allowlisted owner
-chat. Leads are committed before one direct `sendMessage`; no new bot, token,
-webhook, poller, or notification worker exists.
+chat. Leads and Positioning terminal states are committed before their direct
+`sendMessage`; no new bot, token, webhook, poller, or notification worker
+exists.
 
 ## Local verification
 

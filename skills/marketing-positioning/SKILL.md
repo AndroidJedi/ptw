@@ -1,6 +1,6 @@
 ---
 name: marketing-positioning
-description: Turn a raw business idea and a selected market into an evidence-explicit PTW Marketing Positioning document for downstream Natal Landing and Ads work. Use when creating, inspecting, correcting, exporting, or approving an immutable positioning revision; planning bounded positioning research; or reviewing positioning evidence, assumptions, ad concepts, and AEO FAQs. Do not use for arbitrary branding, landing publication, ad generation, or ad publishing.
+description: Turn a raw business idea and selected market context into an owner-input-only, assumption-explicit PTW Marketing Positioning document for downstream Natal Landing and Ads work. Use when creating, inspecting, correcting, exporting, or approving an immutable positioning revision, or reviewing positioning evidence, assumptions, ad concepts, and AEO FAQs. Do not use for arbitrary branding, landing publication, ad generation, ad publishing, or external market research.
 ---
 
 # Marketing Positioning
@@ -19,15 +19,14 @@ Before generating or correcting a document, read:
 
 ## Method
 
-1. Start with the owner idea, selected country, research language, and output
+1. Start with the owner idea, selected country, market language, and output
    language. Do not silently broaden the audience or market.
 2. Use the Strategyzer Value Proposition Canvas to identify customer jobs,
    pains, and gains. Use April Dunford's positioning method to identify the
    alternatives customers would use, differentiated value, the audience that
    cares most, and the market category that makes the value clear.
 3. Treat those methods as reasoning tools, not sources for product or market
-   facts. Ground the result in the supplied owner-idea Source and durable
-   research Sources.
+   facts. The owner-idea Source is the only factual source in this workflow.
 4. Build layered messages from feature to functional benefit to emotional
    reward. The emotional layer must follow from the functional layer; avoid
    vague identity claims.
@@ -37,17 +36,17 @@ Before generating or correcting a document, read:
 6. Return strict structured output only. Server-owned validation decides
    whether the document passes and persists.
 
-## Research workflow
+## Owner-input-only evidence workflow
 
-- `marketing_positioning_research_plan` returns two to four bounded queries for
-  the chosen country and language. Cover alternatives, jobs/pains/gains,
-  category language, or limitations.
-- Live research uses only the configured verified catalog, paid-task reuse,
-  safe public HTTPS pages, and the total USD 0.05 ceiling.
-- No fixture, stale cache, generic model knowledge, or synthesized substitute
-  may stand in for failed live research.
-- Every selected finding enters through `ResearchKnowledgeService` as a
-  permanent Source before synthesis.
+- Do not call DataForSEO or another external research provider. The selected
+  country and market language provide context; they are not evidence.
+- Cite the owner-idea Source only for claims it directly states. Describe an
+  unverified intended capability as intended, not as an available result.
+- Category choice, audience narrowing, alternatives, jobs, pains, gains,
+  emotional rewards, and other market conclusions are assumptions unless the
+  owner idea directly supplies them. Give each such field no source UUID, set
+  `assumption: true`, and include it in the top-level assumptions list.
+- Never present model knowledge as research or evidence.
 
 ## Revision and approval
 
@@ -75,7 +74,8 @@ Before generating or correcting a document, read:
 
 ## Verification
 
-Check strict shape, allowed Source UUIDs, unsupported-claim rejection, exactly
+Check strict shape, the sole allowed owner Source UUID, assumption visibility,
+unsupported-claim rejection, exactly
 three Landing value sections, exactly two ordered ad concepts, exactly three
 Definition–Data–Context FAQs, a real honest limitation, deterministic digest,
 retry durability, revision lineage, approval gating, and Markdown export.

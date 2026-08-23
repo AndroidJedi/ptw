@@ -84,6 +84,12 @@ class PositioningDocumentTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "results are not yet verified"):
             PositioningDocumentV1.from_dict(candidate, allowed_source_ids=[OWNER, RESEARCH], output_language="en")
 
+    def test_assumption_fields_require_visible_top_level_assumptions(self) -> None:
+        candidate = document()
+        candidate["assumptions"] = []
+        with self.assertRaisesRegex(ValueError, "visible top-level assumptions"):
+            PositioningDocumentV1.from_dict(candidate, allowed_source_ids=[OWNER, RESEARCH], output_language="en")
+
     def test_markdown_keeps_source_and_assumption_markers(self) -> None:
         value = PositioningDocumentV1.from_dict(document(), allowed_source_ids=[OWNER, RESEARCH], output_language="en")
         exported = markdown_export(value.value)

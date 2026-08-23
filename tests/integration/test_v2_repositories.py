@@ -119,6 +119,22 @@ class V2RepositoryIntegrationTests(unittest.TestCase):
             allowed_source_ids=[project["owner_idea_source_id"], research_id], output_language="en",
         )
         self.positioning.finish_attempt(first["id"], attempt_id, value.to_dict(), value.digest, value.quality_gates)
+        notification = self.positioning.record_notification_attempt(
+            first["id"], attempt_id, terminal_status="completed", status="sent",
+            chat_id=42, message_id=9001,
+        )
+        duplicate_notification = self.positioning.record_notification_attempt(
+            first["id"], attempt_id, terminal_status="completed", status="failed",
+            chat_id=42, error_code="Duplicate", error_message="must not replace the sent attempt",
+        )
+        self.assertEqual("sent", notification["status"])
+        self.assertEqual(notification["id"], duplicate_notification["id"])
+        with self.assertRaisesRegex(Exception, "append-only"):
+            with self.positioning.connection() as connection:
+                connection.execute(
+                    "UPDATE positioning_notification_attempts SET status='failed' WHERE id=%s",
+                    (notification["id"],),
+                )
         first = self.positioning.approve(first["id"], "test-owner")
         self.assertTrue(first["approved"])
 

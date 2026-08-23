@@ -181,6 +181,21 @@ CREATE TABLE positioning_provider_costs (
     created_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
 
+CREATE TABLE positioning_notification_attempts (
+    id uuid PRIMARY KEY,
+    revision_id uuid NOT NULL REFERENCES positioning_revisions(entity_id) ON DELETE RESTRICT,
+    generation_attempt_id uuid NOT NULL UNIQUE REFERENCES positioning_generation_attempts(id) ON DELETE RESTRICT,
+    terminal_status text NOT NULL CHECK (terminal_status IN ('completed','failed')),
+    status text NOT NULL CHECK (status IN ('sent','failed','ambiguous','suppressed')),
+    telegram_chat_id bigint NOT NULL,
+    telegram_message_id bigint,
+    error_code text,
+    error_message text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    completed_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    CHECK (telegram_message_id IS NULL OR status = 'sent')
+);
+
 CREATE TABLE positioning_revision_sources (
     revision_id uuid NOT NULL REFERENCES positioning_revisions(entity_id) ON DELETE RESTRICT,
     source_id uuid NOT NULL REFERENCES commander_sources(entity_id) ON DELETE RESTRICT,
@@ -351,7 +366,8 @@ BEGIN
     FOREACH table_name IN ARRAY ARRAY[
         'commander_entities','commander_relationships','commander_sources',
         'commander_human_feedback','commander_weight_updates','commander_audit_events',
-        'positioning_provider_costs','landing_publications','landing_leads',
+        'positioning_provider_costs','positioning_notification_attempts',
+        'landing_publications','landing_leads',
         'landing_lead_notification_attempts'
     ]
     LOOP

@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from pathlib import Path
-from typing import Any, Mapping, Sequence
-from urllib.parse import urlsplit
+from typing import Any, Mapping, Protocol, Sequence
 
 from .domain import PositioningDocumentV1, SECTION_IDS
-from .provider import (
-    BridgeProvider, DataForSEOProvider, POSITIONING_DOCUMENT_SCHEMA,
-    RESEARCH_PLAN_SCHEMA, SafePageFetcher,
-)
+from .provider import BridgeProvider, POSITIONING_DOCUMENT_SCHEMA
 from .repository import PositioningRepository
-from .research import ResearchKnowledgeService
+
+
+class TerminalNotifier(Protocol):
+    def notify(self, revision_id: str, generation_attempt_id: str) -> Mapping[str, Any]: ...
 
 
 class PositioningRunner:
@@ -20,11 +17,9 @@ class PositioningRunner:
         self,
         repository: PositioningRepository,
         bridge: BridgeProvider,
-        research_provider: DataForSEOProvider,
         *,
         skill_path: Path,
-        max_spend_usd: float = 0.05,
-        page_fetcher: SafePageFetcher | None = None,
+        notifier: TerminalNotifier | None = None,
     ) -> None:
         if not skill_path.is_file():
             raise RuntimeError("canonical Marketing Positioning skill is unavailable")
@@ -36,17 +31,14 @@ class PositioningRunner:
         self.skill_contract = "\n".join(parts)[:40_000]
         self.repository = repository
         self.bridge = bridge
-        self.research_provider = research_provider
-        self.research = ResearchKnowledgeService(repository)
-        self.max_spend_usd = min(0.05, max_spend_usd)
-        self.page_fetcher = page_fetcher or SafePageFetcher()
+        self.notifier = notifier
 
     def verify_ready(self) -> dict[str, Any]:
         capabilities = self.bridge.capabilities()
         return {
             "ready": True,
-            "research_provider": self.research_provider.name,
-            "max_spend_usd": self.max_spend_usd,
+            "evidence_mode": "owner_input_only",
+            "external_research": False,
             **capabilities,
         }
 
@@ -60,11 +52,12 @@ class PositioningRunner:
         try:
             attempt_id, attempt_number = self.repository.start_attempt(revision_id)
             project = self.repository.get_project(revision["project_id"])
-            if revision["revision_number"] == 1:
-                self._research(project, revision, attempt_id)
-            sources = self.repository.sources(revision_id)
-            if not sources or not any(item["source_type"] == "research_finding" for item in sources):
-                raise RuntimeError("strict positioning synthesis requires persisted live research")
+            sources = [
+                item for item in self.repository.sources(revision_id)
+                if item["source_type"] == "owner_idea"
+            ]
+            if len(sources) != 1:
+                raise RuntimeError("owner-input-only positioning requires exactly one owner idea source")
             document = self._synthesize(project, revision, attempt_id, attempt_number, sources)
             self.repository.finish_attempt(
                 revision_id, attempt_id, document.to_dict(), document.digest, document.quality_gates
@@ -76,124 +69,13 @@ class PositioningRunner:
             raise
         finally:
             self.repository.release_operation(revision_id)
-
-    def _research(self, project: Mapping[str, Any], revision: Mapping[str, Any], attempt_id: str) -> None:
-        plan_request = {
-            "owner_idea": project["raw_idea"],
-            "target_country": project["target_country"],
-            "research_language": project["research_language"],
-            "requirements": {
-                "query_count": "2-4", "intents": ["alternatives", "jobs_pains_gains", "category_language", "limitations"],
-            },
-        }
-        plan_key = f"{revision['id']}:research-plan"
-        invocation = self.repository.create_invocation(
-            revision_id=revision["id"], attempt_id=attempt_id, provider="codex_bridge",
-            mode="marketing_positioning_research_plan", idempotency_key=plan_key, request=plan_request,
-        )
-        try:
-            plan = self.bridge.generate(
-                mode="marketing_positioning_research_plan",
-                system_prompt=(
-                    "Use the canonical Marketing Positioning skill. Return a small market-research plan only. "
-                    "Queries must fit the selected country and research language and must not assert facts.\n\n"
-                    + self.skill_contract
-                ),
-                input_payload=plan_request,
-                output_schema=RESEARCH_PLAN_SCHEMA,
-                prompt_version="marketing_positioning_v1:research_plan",
-            )
-            queries = self._validate_plan(plan)
-            self.repository.complete_invocation(invocation["id"], plan, self.bridge.last_invocation)
-        except Exception as error:
-            self.repository.fail_invocation(invocation["id"], error)
-            raise
-
-        depth = 10
-        estimated = sum(self.research_provider.estimate_cost(depth) for _ in queries)
-        if self.repository.spend(revision["id"]) + estimated > self.max_spend_usd + 1e-9:
-            raise RuntimeError("research plan exceeds the USD 0.05 positioning ceiling")
-        rows: list[tuple[Mapping[str, Any], Mapping[str, Any]]] = []
-        for index, query in enumerate(queries):
-            request = {
-                "query": query["query"], "country": project["target_country"],
-                "language": project["research_language"], "depth": depth,
-            }
-            key_digest = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()
-            key = f"dataforseo:{project['id']}:{key_digest}"
-            paid = self.repository.invocation(key)
-            if paid is None:
-                paid = self.repository.create_invocation(
-                    revision_id=revision["id"], attempt_id=attempt_id, provider="dataforseo",
-                    mode="dataforseo_serp", idempotency_key=key, request=request,
-                )
-            remote_task_id = paid.get("remote_task_id")
-            if not remote_task_id:
-                remote_task_id, cost, provider_record = self.research_provider.submit(
-                    **request, tag=f"positioning:{project['id']}:{index}"
-                )
-                if self.repository.spend(revision["id"]) + cost > self.max_spend_usd + 1e-9:
-                    raise RuntimeError("provider cost would exceed the positioning research ceiling")
-                self.repository.attach_remote_task(paid["id"], remote_task_id, cost, provider_record)
-            try:
-                result = self.research_provider.wait(str(remote_task_id))
-                if not result:
-                    raise RuntimeError("DataForSEO returned no organic findings")
-                self.repository.complete_invocation(paid["id"], {"rows": result})
-            except Exception as error:
-                self.repository.fail_invocation(paid["id"], error)
-                raise
-            rows.extend((query, row) for row in result[:2])
-
-        if not rows:
-            raise RuntimeError("live positioning research returned no selectable findings")
-        for query, row in rows[:8]:
-            page_text = ""
-            try:
-                page_text = self.page_fetcher.fetch(str(row["url"]))
-            except Exception:
-                # The paid SERP excerpt remains a live provider finding. A page
-                # failure does not fabricate or substitute evidence.
-                page_text = ""
-            summary = page_text[:6000] or str(row.get("snippet") or "").strip()
-            if not summary:
-                continue
-            publisher = str(row.get("domain") or urlsplit(str(row["url"])).hostname or "unknown")
-            external_id = hashlib.sha256(
-                f"{row.get('remote_task_id')}|{row.get('url')}|{row.get('position')}".encode()
-            ).hexdigest()
-            self.research.record_finding(
-                revision["id"], title=str(row.get("title") or publisher),
-                source_uri=str(row["url"]), publisher=publisher, finding_summary=summary,
-                country=project["target_country"], language=project["research_language"],
-                provider="dataforseo_safe_page" if page_text else "dataforseo_serp",
-                external_id=external_id,
-                metadata={
-                    "intent": query["intent"], "query": query["query"],
-                    "position": row.get("position"), "remote_task_id": row.get("remote_task_id"),
-                    "page_fetched": bool(page_text),
-                },
-            )
-        if len(self.repository.sources(revision["id"])) < 2:
-            raise RuntimeError("research produced no durable findings")
-
-    @staticmethod
-    def _validate_plan(value: Mapping[str, Any]) -> list[dict[str, str]]:
-        if set(value) != {"queries"} or not isinstance(value.get("queries"), list):
-            raise ValueError("research plan did not match the strict schema")
-        queries = value["queries"]
-        if not 2 <= len(queries) <= 4:
-            raise ValueError("research plan must contain 2-4 queries")
-        allowed = {"alternatives", "jobs_pains_gains", "category_language", "limitations"}
-        result = []
-        for item in queries:
-            if not isinstance(item, Mapping) or set(item) != {"intent", "query"}:
-                raise ValueError("research queries must match the strict schema")
-            intent, query = str(item["intent"]), str(item["query"]).strip()
-            if intent not in allowed or not 2 <= len(query) <= 200:
-                raise ValueError("research query is invalid")
-            result.append({"intent": intent, "query": query})
-        return result
+            if attempt_id and self.notifier is not None:
+                try:
+                    self.notifier.notify(revision_id, attempt_id)
+                except Exception:
+                    # Terminal revision state is authoritative; notification
+                    # failures must never change or mask generation outcome.
+                    pass
 
     def _synthesize(
         self,
@@ -232,7 +114,7 @@ class PositioningRunner:
             "project": {
                 "id": project["id"], "owner_idea": project["raw_idea"],
                 "target_country": project["target_country"],
-                "research_language": project["research_language"],
+                "market_language": project["research_language"],
                 "output_language": project["output_language"],
             },
             "allowed_sources": source_payload,
@@ -254,7 +136,11 @@ class PositioningRunner:
                 system_prompt=(
                     "Use the canonical Marketing Positioning skill and return only the strict PositioningDocumentV1 object. "
                     + correction
-                    + "Every factual field must cite only an allowed source UUID. Mark uncited inferences as assumptions. "
+                    + "The owner idea is the only factual source. Cite it only for claims it directly states, including intended "
+                    "capabilities and intended users. Treat category choice, audience narrowing, customer jobs, pains, gains, "
+                    "competitive alternatives, emotional rewards, and every market inference as an explicit assumption unless "
+                    "the owner idea directly states it. Every uncited inference must have source_ids=[] and assumption=true and "
+                    "must also appear in the top-level assumptions list. "
                     "Never invent metrics, proof, testimonials, limitations, or competitive facts. The honest limitation "
                     "must be real and supplied or say results are not yet verified. Produce exactly two ordered ad concepts, "
                     "exactly three value sections, and exactly three Definition-Data-Context FAQs.\n\nCANONICAL_SKILL:\n"
@@ -301,7 +187,7 @@ def validate_create_input(value: Mapping[str, Any]) -> dict[str, str]:
     language = str(value["research_language"]).lower()
     output = str(value["output_language"]).lower()
     if country not in COUNTRIES or language not in RESEARCH_LANGUAGES or output not in {"uk", "en"}:
-        raise ValueError("country or language is outside the verified provider catalog")
+        raise ValueError("country or language is outside the supported market catalog")
     return {"request_id": request_id, "raw_idea": raw_idea, "target_country": country, "research_language": language, "output_language": output}
 
 

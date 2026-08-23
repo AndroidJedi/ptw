@@ -1,7 +1,8 @@
 # Marketing Positioning evidence policy
 
-The owner idea and every selected research finding are permanent Source
-entities with UUIDs. Cite only Source UUIDs supplied in `allowed_sources`.
+The owner idea is the sole factual Source in the active Positioning workflow.
+Cite only its UUID from `allowed_sources` and only when its text directly
+supports the claim. Country and market language are context, not evidence.
 
 ## Factual claims
 
@@ -28,11 +29,8 @@ not yet verified” in English or “Результати ще не підтве
 with no source IDs and `assumption: true`. Do not invent a charming flaw for a
 trust effect.
 
-## Research safety and cost
+## External research boundary
 
-- Use two to four market/language-specific queries.
-- Reuse a paid provider task ID after retry; never pay for the same query twice.
-- Persist provider cost exactly once and never exceed USD 0.05 for a revision.
-- Fetch only public HTTPS text pages through the bounded safe-page reader.
-- Failed live research or strict synthesis is a durable failure. There is no
-  fixture, unsourced model-knowledge, or silent live fallback.
+Do not call DataForSEO or another external research provider in Positioning.
+Model knowledge is not evidence. Market and competitor conclusions that the
+owner idea does not directly support must remain explicit assumptions.

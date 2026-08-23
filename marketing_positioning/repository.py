@@ -429,8 +429,8 @@ class PositioningRepository:
             )
             connection.execute(
                 """UPDATE positioning_revisions
-                   SET status=CASE WHEN revision_number=1 THEN 'researching' ELSE 'synthesizing' END,
-                       error_code=NULL,error_message=NULL,updated_at=clock_timestamp()
+                   SET status='synthesizing',error_code=NULL,error_message=NULL,
+                       updated_at=clock_timestamp()
                    WHERE entity_id=%s""",
                 (UUID(revision_id),),
             )
@@ -465,6 +465,24 @@ class PositioningRepository:
                    WHERE entity_id=%s""",
                 (code, message, UUID(revision_id)),
             )
+
+    def generation_attempt(self, attempt_id: str) -> dict[str, Any]:
+        with self.connection() as connection:
+            row = connection.execute(
+                """SELECT id,revision_id,attempt_number,status,error_code,error_message,
+                          started_at,completed_at
+                   FROM positioning_generation_attempts WHERE id=%s""",
+                (UUID(attempt_id),),
+            ).fetchone()
+        if row is None:
+            raise KeyError(attempt_id)
+        return {
+            "id": str(row[0]), "revision_id": str(row[1]),
+            "attempt_number": int(row[2]), "status": row[3],
+            "error_code": row[4], "error_message": row[5],
+            "started_at": row[6].isoformat(),
+            "completed_at": None if row[7] is None else row[7].isoformat(),
+        }
 
     def invocation(self, idempotency_key: str) -> dict[str, Any] | None:
         with self.connection() as connection:
@@ -559,6 +577,70 @@ class PositioningRepository:
                 (UUID(revision_id),),
             ).fetchone()[0]
         return float(value)
+
+    @staticmethod
+    def _notification_row(row: Sequence[Any]) -> dict[str, Any]:
+        return {
+            "id": str(row[0]), "revision_id": str(row[1]),
+            "generation_attempt_id": str(row[2]), "terminal_status": row[3],
+            "status": row[4], "telegram_chat_id": int(row[5]),
+            "telegram_message_id": row[6], "error_code": row[7],
+            "error_message": row[8], "created_at": row[9].isoformat(),
+            "completed_at": row[10].isoformat(),
+        }
+
+    def notification_attempt(self, generation_attempt_id: str) -> dict[str, Any] | None:
+        with self.connection() as connection:
+            row = connection.execute(
+                """SELECT id,revision_id,generation_attempt_id,terminal_status,status,
+                          telegram_chat_id,telegram_message_id,error_code,error_message,
+                          created_at,completed_at
+                   FROM positioning_notification_attempts WHERE generation_attempt_id=%s""",
+                (UUID(generation_attempt_id),),
+            ).fetchone()
+        return None if row is None else self._notification_row(row)
+
+    def record_notification_attempt(
+        self,
+        revision_id: str,
+        generation_attempt_id: str,
+        *,
+        terminal_status: str,
+        status: str,
+        chat_id: int,
+        message_id: int | None = None,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> dict[str, Any]:
+        if terminal_status not in {"completed", "failed"}:
+            raise ValueError("positioning notification requires a terminal revision status")
+        if status not in {"sent", "failed", "ambiguous", "suppressed"}:
+            raise ValueError("unknown positioning notification status")
+        with self.connection() as connection:
+            connection.execute(
+                """INSERT INTO positioning_notification_attempts(
+                       id,revision_id,generation_attempt_id,terminal_status,status,
+                       telegram_chat_id,telegram_message_id,error_code,error_message
+                   ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (generation_attempt_id) DO NOTHING""",
+                (
+                    UUID(new_uuid7()), UUID(revision_id), UUID(generation_attempt_id),
+                    terminal_status, status, chat_id, message_id,
+                    None if error_code is None else error_code[:100],
+                    None if error_message is None else error_message[:1000],
+                ),
+            )
+        stored = self.notification_attempt(generation_attempt_id)
+        if stored is None:
+            raise RuntimeError("positioning notification attempt was not persisted")
+        return stored
+
+    def emergency_stopped(self) -> bool:
+        with self.connection() as connection:
+            row = connection.execute(
+                "SELECT emergency_stop FROM commander_control WHERE singleton"
+            ).fetchone()
+        return bool(row and row[0])
 
     def approve(self, revision_id: str, approved_by: str) -> dict[str, Any]:
         from psycopg.types.json import Jsonb

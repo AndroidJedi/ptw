@@ -11,7 +11,8 @@ from fastapi.responses import PlainTextResponse
 from .catalog import catalog
 from .config import Settings
 from .domain import markdown_export
-from .provider import BridgeProvider, DataForSEOProvider
+from .notifications import ExistingBotPositioningNotifier
+from .provider import BridgeProvider
 from .repository import PositioningRepository
 from .service import PositioningRunner, validate_create_input, validate_revision_input
 
@@ -27,17 +28,16 @@ def create_app(
     runner_error: Exception | None = None
     if runner is None:
         try:
-            if settings.research_provider != "dataforseo" or not settings.dataforseo_verified:
-                raise RuntimeError("live Marketing Positioning requires verified DataForSEO; no fallback is allowed")
             runner = PositioningRunner(
                 repository,
                 BridgeProvider(settings.bridge_url, settings.bridge_token, settings.model),
-                DataForSEOProvider(
-                    settings.dataforseo_login, settings.dataforseo_password,
-                    poll_timeout_seconds=settings.dataforseo_poll_timeout_seconds,
-                ),
                 skill_path=settings.skill_path,
-                max_spend_usd=settings.max_spend_usd,
+                notifier=ExistingBotPositioningNotifier(
+                    repository,
+                    bot_token=settings.telegram_bot_token,
+                    owner_chat_id=settings.owner_chat_id,
+                    allowed_chat_ids=settings.telegram_allowed_chat_ids,
+                ),
             )
         except Exception as error:
             runner_error = error

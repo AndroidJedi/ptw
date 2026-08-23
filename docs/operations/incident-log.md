@@ -18,6 +18,24 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-23: first Positioning attempt timed out without notification
+
+- Symptom: the first production Positioning remained `researching` for 15
+  minutes, failed with no result, and sent no Telegram notification.
+- Cause: the active workflow blocked on a DataForSEO task until its bounded
+  polling timeout. Positioning terminal notifications had not been implemented;
+  only Landing lead delivery used the existing bot.
+- Durable fix: Positioning now synthesizes directly from the permanent owner
+  idea Source. Country and market language remain context, while unsupported
+  market conclusions are explicit assumptions. DataForSEO configuration and
+  calls are removed from the active service. Every durable completed or failed
+  generation attempt records one append-only notification attempt and makes at
+  most one direct `sendMessage` through the existing allowlisted PTW bot.
+- Verification: cover sole-source synthesis, absence of external-research
+  settings/calls, strict assumption validation, success/failure messages,
+  escaping, idempotency, emergency-stop suppression, restart recovery, and the
+  retried production revision.
+
 ## 2026-08-23: v2 cutover stopped at Compose interpolation
 
 - Symptom: the serial release stopped after image verification and before any

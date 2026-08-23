@@ -18,10 +18,11 @@ def main() -> None:
         tables = connection.execute(
             """SELECT count(*) FROM information_schema.tables
                WHERE table_schema='public' AND table_name IN (
-                   'positioning_projects','positioning_revisions','landing_draft_sets','landing_leads'
+                   'positioning_projects','positioning_revisions',
+                   'positioning_notification_attempts','landing_draft_sets','landing_leads'
                )"""
         ).fetchone()[0]
-    if tables != 4:
+    if tables != 5:
         raise SystemExit("Marketing Positioning v1 schema is incomplete")
     print("Marketing Positioning v1 schema: OK")
 

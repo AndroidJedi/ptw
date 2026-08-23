@@ -39,7 +39,7 @@ apply_and_check() {
     -f /migrations/001_ptw_marketing_v1.sql >/dev/null
   tables=$(docker exec "$application_container" psql -X -qAt -U ptw_commander -d ptw_commander \
     -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
-  [ "$tables" = 26 ] || { echo "expected 26 clean v1 tables, got $tables" >&2; exit 1; }
+  [ "$tables" = 27 ] || { echo "expected 27 clean v1 tables, got $tables" >&2; exit 1; }
   docker exec -i "$application_container" psql -X -qAt -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander <<'SQL'
 DO $$
 BEGIN

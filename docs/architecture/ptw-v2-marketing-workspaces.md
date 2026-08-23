@@ -1,26 +1,29 @@
 # PTW v2 marketing workspaces
 
-Status: implemented locally; production reset/cutover awaiting exact owner confirmation
+Status: deployed; owner-input-only Positioning correction in progress
 Updated: 2026-08-23
 
 ## Product flow
 
-Marketing Positioning accepts raw idea, country, research language, output
-language (`uk`/`en`), and request UUID. It performs bounded live research and
-strict synthesis, then waits for owner approval. Landing and Ads can read only
-the active approved revision. Landing creates three private Natal variants and
-publishes exactly one selected snapshot. Ads exposes the two document concepts
-without generation or publishing endpoints.
+Marketing Positioning accepts raw idea, country, market language, output
+language (`uk`/`en`), and request UUID. It performs strict owner-input-only
+synthesis, then waits for owner approval. Country and market language are
+context, not evidence; unsupported market conclusions are explicit assumptions.
+Landing and Ads can read only the active approved revision. Landing creates
+three private Natal variants and publishes exactly one selected snapshot. Ads
+exposes the two document concepts without generation or publishing endpoints.
 
 Admin contains Jobs, Docs/System, and break-glass Terminal. Retired UI queries
 redirect to Positioning; retired APIs are not registered and return 404.
 
 ## Clean baseline
 
-`db/migrations/001_ptw_marketing_v1.sql` is the only domain migration after the
-cutover reset. It defines generic graph/source/feedback/weights/audit and
+`db/migrations/001_ptw_marketing_v1.sql` is the clean reset baseline;
+`002_positioning_notifications.sql` adds the post-cutover terminal-notification
+table to existing deployments. They define generic graph/source/feedback/weights/audit and
 Plan/Execute tables, the singleton global heavy-operation guard, Positioning
-projects/revisions/attempts/provider invocations/costs/approvals/lessons,
+projects/revisions/attempts/provider history/approvals/lessons/terminal
+notification attempts,
 Landing draft sets/snapshots/edits/builds/publications/lessons, and Landing
 leads/notification attempts.
 
@@ -31,9 +34,9 @@ post, campaign, image, or publishing tables for Ads.
 
 ## Lineage
 
-- Owner idea and every selected research finding are permanent `Source`
-  entities.
-- A Positioning revision `derived_from` all allowed cited sources.
+- The owner idea is the permanent factual `Source` for active Positioning.
+- A Positioning revision `derived_from` that exact owner idea. Unsupported
+  market conclusions carry no Source UUID and are marked as assumptions.
 - Feedback `evaluates` its exact base; a replacement `supersedes` the base and
   `derived_from` feedback. Zero-delta WeightUpdate `adjusts` that feedback.
 - A Landing draft set derives from the exact approved Positioning revision;
@@ -48,17 +51,16 @@ project, exposed on loopback port 8093 for continuity. It joins the Commander
 database network and independent platform backend only. Owner Gateway proxies
 owner-authenticated public endpoints.
 
-The PTW bridge allowlist is exactly:
+The active Positioning bridge modes are:
 
-- `marketing_positioning_research_plan`
 - `marketing_positioning_document`
 - `marketing_positioning_revision`
-- retained `natal_landing_revision`
 
-The first three appear under `marketing_positioning_modes`; the last is the
-only `landing_modes` value. Deployment requires a fresh strict-schema canary
-for each. One database guard serializes Positioning, Landing agent calls, and
-Codex Plan/Execute.
+Landing retains `natal_landing_revision`. The active Positioning runtime does
+not call the legacy research-plan mode or any external research provider.
+Deployment requires fresh strict-schema canaries for the active document,
+revision, and Landing modes. One database guard serializes Positioning, Landing
+agent calls, and Codex Plan/Execute.
 
 ## Public APIs
 

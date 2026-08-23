@@ -30,14 +30,15 @@ modify platform data during a Commander reset.
 - Marketing Positioning is the independent `ptw-marketing-positioning` Compose
   project on local port 8093, sharing only the Commander database network and
   the established platform backend network.
-- The structured bridge allowlist contains exactly
-  `marketing_positioning_research_plan`, `marketing_positioning_document`,
-  `marketing_positioning_revision`, and retained `natal_landing_revision` for
-  PTW. Retired Laval/Branding modes are absent.
+- The active Positioning flow calls only `marketing_positioning_document` and
+  `marketing_positioning_revision`; Landing retains
+  `natal_landing_revision`. Retired Laval/Branding modes are absent, and the
+  runtime must not call `marketing_positioning_research_plan`.
 - Require a fresh schema-bound canary for every new mode before the reset. A
   canary may append a bridge job but must not create Positioning/Landing rows.
-- Marketing Positioning requires verified DataForSEO, safe public HTTPS pages,
-  paid-task reuse, and a USD 0.05 ceiling. There is no live fallback.
+- Marketing Positioning uses the owner idea as its sole factual Source and
+  marks unsupported market conclusions as assumptions. DataForSEO credentials,
+  calls, and paid tasks are absent from the active flow.
 - One global database guard serializes Positioning, Landing agent calls, and
   Codex Plan/Execute. Restart recovery marks interrupted attempts failed and
   releases only the owning service's orphaned guard.
@@ -45,8 +46,10 @@ modify platform data during a Commander reset.
 ## Telegram boundary
 
 Reuse only the configured `@ptw_commander_bot` token and existing allowlisted
-owner chat. Landing notifications use direct `sendMessage` after lead commit.
-Do not create a bot, token, webhook, poller, or worker. The established inbound
+owner chat. Landing notifications use direct `sendMessage` after lead commit;
+Positioning sends one direct terminal notification only after its generation
+attempt is durably completed or failed. Do not create a bot, token, webhook,
+poller, or worker. The established inbound
 long poller exposes only `/help`, `/status`, and `/stop`; every other command
 returns the web-console link and must not mutate state. Emergency stop allows
 lead persistence but suppresses outbound notification until explicit retry.

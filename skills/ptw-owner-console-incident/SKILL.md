@@ -20,9 +20,10 @@ page queries redirect to Positioning; old domain APIs return 404.
 
 ## Workspace checks
 
-- Positioning: verify port 8093, shared Commander DB, verified DataForSEO,
-  authenticated bridge capabilities, all three exact Positioning modes,
-  source UUID evidence, durable attempts/costs, and global guard state.
+- Positioning: verify port 8093, shared Commander DB, owner-input-only evidence,
+  authenticated document/revision bridge modes, sole owner Source UUID,
+  assumption visibility, durable attempts, terminal notification attempts, and
+  global guard state. DataForSEO must not be configured or called.
 - Landing: verify active-approved revision gating, all three snapshots, eight
   blocks, protected proof/privacy/form data, inert private previews, exact
   snapshot/digest publication, and no agent call during publish.
@@ -36,12 +37,13 @@ page queries redirect to Positioning; old domain APIs return 404.
 
 ## Telegram and failure handling
 
-Use only the existing bot and allowlisted chat. There is one direct
-`sendMessage` notification path and no new webhook/poller/worker. Escape all
-visitor text. A Telegram failure must not reject or erase a lead. Ambiguous
-timeouts remain ambiguous; do not auto-retry. Emergency stop records a
-suppressed attempt, and only an explicit owner action retries it. Inbound bot
-commands remain `/help`, `/status`, and `/stop` only.
+Use only the existing bot and allowlisted chat. Landing leads and durable
+Positioning terminal attempts may each make one direct `sendMessage`; there is
+no new webhook, poller, or worker. Escape owner and visitor text. A Telegram
+failure must not change a Positioning result or reject/erase a lead. Ambiguous
+timeouts remain ambiguous and are not auto-retried. Emergency stop records a
+suppressed attempt. Inbound bot commands remain `/help`, `/status`, and `/stop`
+only.
 
 ## Release acceptance
 

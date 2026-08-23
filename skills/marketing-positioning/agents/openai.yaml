@@ -1,4 +1,4 @@
 interface:
   display_name: "Marketing Positioning"
   short_description: "Create evidence-backed positioning revisions"
-  default_prompt: "Use $marketing-positioning to research my selected market and create a source-explicit positioning revision for owner approval."
+  default_prompt: "Use $marketing-positioning to turn my idea and selected market context into an owner-input-only, assumption-explicit positioning revision for approval."

@@ -45,6 +45,12 @@ commands remain `/help`, `/status`, and `/stop` only.
 
 ## Release acceptance
 
+Before streaming release images, render the Commander Compose configuration
+with the platform, Commander, and Owner Gateway env files in that order. Resolve
+`LANDING_TRUSTED_PROXY_NETWORKS` from the exact live Caddy-to-Owner Docker
+network subnet; never use a broad private-network range. A missing interpolation
+value must fail before bridge replacement or reset.
+
 Run `scripts/audit_vps_owner_dependencies.sh` on the VPS and
 `scripts/audit_live_owner_console.py` against public Hosting. Then perform the
 authenticated exact-owner journey: empty state, Positioning creation/source

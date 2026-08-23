@@ -20,7 +20,7 @@ fi
 
 repository=/root/ptw
 platform=/opt/ptw/platform
-commander_compose="docker compose --env-file $platform/.env --env-file $repository/.env.commander --project-directory $repository -f $repository/docker-compose.commander.yml"
+commander_compose="docker compose --env-file $platform/.env --env-file $repository/.env.commander --env-file $repository/.env.owner-gateway --project-directory $repository -f $repository/docker-compose.commander.yml"
 positioning_compose="docker compose --env-file $platform/.env --env-file $repository/.env.commander --env-file $repository/.env.owner-gateway --project-name ptw-marketing-positioning --project-directory $repository -f $repository/docker-compose.marketing-positioning.yml"
 platform_compose="docker compose --env-file $platform/.env --project-directory $platform -f $platform/docker-compose.yml"
 

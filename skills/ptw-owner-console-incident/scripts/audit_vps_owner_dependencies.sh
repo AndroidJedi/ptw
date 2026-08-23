@@ -8,7 +8,7 @@ test -f "$platform_environment"
 test -f .env.commander
 test -f .env.owner-gateway
 
-commander_compose="docker compose --env-file $platform_environment --env-file .env.commander --project-directory $repository_root -f docker-compose.commander.yml"
+commander_compose="docker compose --env-file $platform_environment --env-file .env.commander --env-file .env.owner-gateway --project-directory $repository_root -f docker-compose.commander.yml"
 positioning_compose="docker compose --env-file $platform_environment --env-file .env.commander --env-file .env.owner-gateway --project-name ptw-marketing-positioning --project-directory $repository_root -f docker-compose.marketing-positioning.yml"
 
 owner_container=$($commander_compose ps -q owner-gateway)

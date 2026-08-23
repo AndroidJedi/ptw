@@ -7,7 +7,7 @@ flock -n 9 || { echo "another PTW maintenance operation is active" >&2; exit 73;
 
 repository=/root/ptw
 platform=/opt/ptw/platform
-commander_compose=(docker compose --env-file "$platform/.env" --env-file "$repository/.env.commander" --project-directory "$repository" -f "$repository/docker-compose.commander.yml")
+commander_compose=(docker compose --env-file "$platform/.env" --env-file "$repository/.env.commander" --env-file "$repository/.env.owner-gateway" --project-directory "$repository" -f "$repository/docker-compose.commander.yml")
 positioning_compose=(docker compose --env-file "$platform/.env" --env-file "$repository/.env.commander" --env-file "$repository/.env.owner-gateway" --project-name ptw-marketing-positioning --project-directory "$repository" -f "$repository/docker-compose.marketing-positioning.yml")
 
 uptime

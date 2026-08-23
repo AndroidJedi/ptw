@@ -17,3 +17,16 @@ Historical retired-domain incidents are available only in Git history.
 
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
+
+## 2026-08-23: v2 cutover stopped at Compose interpolation
+
+- Symptom: the serial release stopped after image verification and before any
+  bridge replacement or database reset.
+- Cause: the required exact Landing proxy CIDR was stored in the Owner Gateway
+  env file, but Commander Compose interpolation loaded only the platform and
+  Commander env files.
+- Durable fix: every Commander lifecycle/audit command now loads the platform,
+  Commander, and Owner Gateway env files in order. The incident skill requires
+  a pre-stream Compose render and exact live-network CIDR resolution.
+- Verification: shell parsing and Compose rendering pass with the production
+  env layout; the failed attempt changed no schema or running container.

@@ -36,6 +36,13 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   escaping, idempotency, emergency-stop suppression, restart recovery, and the
   retried production revision.
 
+The first owner-input-only retry then failed immediately in the platform bridge.
+A typed minimal canary passed while the document schema failed: its
+`schema_version` used `const` without an explicit JSON `type`, which the current
+structured-output validator rejects as `invalid_json_schema`. Positioning and
+Landing output schemas now type every constant field, with regression tests and
+a fresh live canary required before retry.
+
 ## 2026-08-23: v2 cutover stopped at Compose interpolation
 
 - Symptom: the serial release stopped after image verification and before any

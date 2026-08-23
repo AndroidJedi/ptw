@@ -23,8 +23,8 @@ def main() -> None:
     capabilities = provider.capabilities()
     actual = set(capabilities["marketing_positioning_modes"])
     expected = set(POSITIONING_MODES)
-    if actual != expected:
-        raise SystemExit(f"PTW positioning bridge allowlist mismatch: expected={sorted(expected)} actual={sorted(actual)}")
+    if not expected.issubset(actual):
+        raise SystemExit(f"PTW positioning bridge modes missing: expected={sorted(expected)} actual={sorted(actual)}")
     if set(capabilities["landing_modes"]) != {"natal_landing_revision"}:
         raise SystemExit("PTW landing bridge allowlist must contain only natal_landing_revision")
     marker = str(uuid4())

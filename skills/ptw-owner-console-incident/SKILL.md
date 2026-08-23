@@ -83,6 +83,11 @@ publication fixture and real form, lead history, Ads stub, and Admin. Check
 desktop, 360 px Chromium, and iPhone WebKit. Verify restart persistence,
 retired-route absence, skill links, dependency/module audit, and no OOM.
 
+Strict structured-output schemas must declare `type` on every property that
+uses `const`. A bridge job failing quickly with `invalid_json_schema` is a
+contract defect, not a model-content failure; reproduce it with a typed minimal
+canary and fix the Positioning and Landing schemas before retrying user work.
+
 Do not resolve an incident by bypassing evidence validation, approval gating,
 App Check, fixed forms, source lineage, exact-snapshot publication, the global
 guard, or the existing-bot/no-poller boundary.

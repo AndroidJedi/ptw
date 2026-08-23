@@ -133,7 +133,7 @@ def page_content_schema(template_id: str | None = None) -> dict[str, Any]:
     return {
         "type": "object",
         "properties": {
-            "schema_version": {"const": 2},
+            "schema_version": {"type": "integer", "const": 2},
             "template_id": {
                 "type": "string",
                 **({"const": template_id} if template_id else {"enum": ["product", "community", "waitlist"]}),

@@ -6,9 +6,9 @@
   "additionalProperties": false,
   "required": ["schema_version", "brand", "language", "source", "privacy_policy_url", "business_idea", "target_audience", "pain", "promise", "honest_limitation", "key_features", "steps", "proof_points", "faq", "cta"],
   "properties": {
-    "schema_version": {"const": 2},
-    "brand": {"const": "Natal"},
-    "language": {"enum": ["uk", "en"]},
+    "schema_version": {"type": "integer", "const": 2},
+    "brand": {"type": "string", "const": "Natal"},
+    "language": {"type": "string", "enum": ["uk", "en"]},
     "source": {
       "type": "object", "additionalProperties": false,
       "required": ["positioning_project_id", "positioning_revision_id"],
@@ -31,7 +31,7 @@
       "type": "object", "additionalProperties": false, "required": ["label", "url"],
       "properties": {
         "label": {"type": "string", "minLength": 1, "maxLength": 100},
-        "url": {"const": "#lead-form"}
+        "url": {"type": "string", "const": "#lead-form"}
       }
     }
   },

@@ -35,6 +35,12 @@ deployment_started_at=$(date --iso-8601=seconds)
 [[ -f "$platform/.env" && -f "$repository/.env.commander" && -f "$repository/.env.owner-gateway" ]] || {
     echo "required production environment file is missing" >&2; exit 1;
 }
+# DataForSEO is retired from active Positioning. Remove its root-owned legacy
+# entries without reading or printing their values before Compose injects env.
+sed -i '/^DATAFORSEO_/d;/^POSITIONING_RESEARCH_PROVIDER=/d' "$repository/.env.owner-gateway"
+if grep -Eq '^(DATAFORSEO_|POSITIONING_RESEARCH_PROVIDER=)' "$repository/.env.owner-gateway"; then
+    echo "retired Positioning provider settings remain" >&2; exit 1
+fi
 lead_hmac_line=$(grep '^LANDING_LEAD_HMAC_SECRET=' "$repository/.env.owner-gateway" || true)
 lead_hmac_value=${lead_hmac_line#LANDING_LEAD_HMAC_SECRET=}
 [[ ${#lead_hmac_value} -ge 32 && $lead_hmac_value != generate-a-distinct-random-secret ]] || {

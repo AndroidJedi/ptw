@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from natal.page import page_content_from_brief
-from owner_gateway.landing_revision import LandingRevisionProvider
+from owner_gateway.landing_revision import LandingRevisionProvider, page_content_schema
 
 
 PROJECT_ID = "018f07ea-7f20-7000-8000-000000000001"
@@ -53,6 +53,11 @@ class FakeBridge:
 
 
 class LandingRevisionProtectionTests(unittest.TestCase):
+    def test_const_schema_fields_declare_their_json_type(self) -> None:
+        schema = page_content_schema("product")
+        self.assertEqual({"type": "integer", "const": 2}, schema["properties"]["schema_version"])
+        self.assertEqual("string", schema["properties"]["template_id"]["type"])
+
     def test_lead_form_edit_cannot_change_the_code_owned_field_set(self) -> None:
         provider = LandingRevisionProvider.__new__(LandingRevisionProvider)
         provider.skill_contract = "test contract"

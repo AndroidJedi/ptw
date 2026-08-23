@@ -29,7 +29,7 @@ EVIDENCE_STATEMENT_SCHEMA: dict[str, Any] = {
 POSITIONING_DOCUMENT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
-        "schema_version": {"const": 1},
+        "schema_version": {"type": "integer", "const": 1},
         "output_language": {"type": "string", "enum": ["uk", "en"]},
         "positioning_foundation": {
             "type": "object",

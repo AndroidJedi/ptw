@@ -3,11 +3,17 @@ from __future__ import annotations
 import unittest
 from uuid import uuid4
 
-from marketing_positioning.provider import BridgeProvider, POSITIONING_MODES
+from marketing_positioning.provider import BridgeProvider, POSITIONING_DOCUMENT_SCHEMA, POSITIONING_MODES
 from marketing_positioning.service import validate_create_input, validate_revision_input
 
 
 class ProviderContractTests(unittest.TestCase):
+    def test_const_schema_fields_declare_their_json_type(self) -> None:
+        self.assertEqual(
+            {"type": "integer", "const": 1},
+            POSITIONING_DOCUMENT_SCHEMA["properties"]["schema_version"],
+        )
+
     def test_bridge_allows_only_positioning_and_retained_landing_mode(self) -> None:
         provider = BridgeProvider("https://bridge.example/internal/structured", "token", "model")
         provider._request = lambda *_args, **_kwargs: {  # type: ignore[method-assign]

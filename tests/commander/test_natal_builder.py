@@ -5,159 +5,94 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from natal.brief import LandingBrief, apply_brief_overrides, brief_from_candidate
-from natal.builder import build_landing, preview_document, verify_brand_assets
-from natal.catalog import landing_templates, recommend_template
+from natal.brief import LandingBrief
+from natal.builder import build_landing, preview_document
+from natal.forms import allowed_field_names, form_definition
 from natal.page import BLOCK_IDS, LandingPageContent, page_content_from_brief, protect_page_content
 
 
-RUN_ID = "01234567-89ab-7def-8123-456789abcdef"
-THESIS_ID = "11234567-89ab-7def-8123-456789abcdef"
+PROJECT_ID = "018f07ea-7f20-7000-8000-000000000001"
+REVISION_ID = "018f07ea-7f20-7000-8000-000000000002"
 
 
-def candidate(problem: str = "Teams lose clients in manual workflows") -> dict:
-    return {
-        "idea_run_id": RUN_ID,
-        "owner_idea": "Automate retention for service businesses",
-        "recommended_thesis_id": THESIS_ID,
-        "quality": {"successful": 10, "attempted": 10},
-        "theses": [{
-            "id": THESIS_ID,
-            "recommended": True,
-            "verdict": "survives",
-            "title": {"uk": "Автоматичне утримання", "en": "Automated retention"},
-            "target_user": {"uk": "Власники сервісного бізнесу", "en": "Service business owners"},
-            "problem": {"uk": problem, "en": problem},
-            "value_moment": {"uk": "Natal показує наступну дію", "en": "Natal shows the next action"},
-            "mechanism_ids": ["mechanism-1"],
-            "loop_steps": [
-                {"uk": "Підключіть дані", "en": "Connect data"},
-                {"uk": "Побачте ризик", "en": "See risk"},
-                {"uk": "Запустіть наступну дію", "en": "Start the next action"},
-            ],
-        }],
-        "mechanisms": [{
-            "id": "mechanism-1",
-            "name": {"uk": "Сигнали ризику", "en": "Risk signals"},
-            "description": {"uk": "Помічає зміни раніше", "en": "Notices changes earlier"},
-        }],
-    }
+def brief() -> LandingBrief:
+    return LandingBrief.from_dict({
+        "language": "en",
+        "source": {"positioning_project_id": PROJECT_ID, "positioning_revision_id": REVISION_ID},
+        "privacy_policy_url": "https://example.com/privacy",
+        "business_idea": "A focused Natal workflow",
+        "target_audience": "Small teams",
+        "pain": "Manual follow-up is hard to track",
+        "promise": "Keep one useful next step visible",
+        "honest_limitation": "Results are not yet verified.",
+        "key_features": [{"title": "Focus", "description": "Keep the next step visible"}],
+        "steps": [{"title": "01", "description": "Share intent"}, {"title": "02", "description": "Review response"}],
+        "proof_points": [],
+        "faq": [{"question": "What is Natal?", "answer": "Natal is the fixed product identity."}],
+        "cta": {"label": "Leave details", "url": "#lead-form"},
+    })
 
 
-class NatalLandingBuilderTests(unittest.TestCase):
-    def test_catalog_and_selector_cover_the_three_source_structures(self) -> None:
-        self.assertEqual(["product", "community", "waitlist"], [item["id"] for item in landing_templates()])
-        self.assertEqual("product", recommend_template(candidate()))
-        self.assertEqual("community", recommend_template(candidate("Офлайн зустріч для маленької спільноти")))
-        self.assertEqual("waitlist", recommend_template({"owner_idea": "A new personal ritual", "theses": []}))
+class NatalV2BuilderTests(unittest.TestCase):
+    def test_all_templates_have_eight_blocks_and_code_owned_forms(self) -> None:
+        expected = {"product": "contact_request", "community": "community_interest", "waitlist": "waitlist"}
+        self.assertEqual(len(BLOCK_IDS), 8)
+        for template_id, form_id in expected.items():
+            page = page_content_from_brief(template_id, brief())
+            self.assertEqual(set(page.blocks), set(BLOCK_IDS))
+            self.assertEqual(page.blocks["lead_form"]["form_id"], form_id)
+            self.assertEqual(page.to_dict()["schema_version"], 2)
 
-    def test_completed_evaluation_becomes_source_explicit_natal_brief(self) -> None:
-        prepared = brief_from_candidate(candidate())
-        self.assertEqual("product", prepared["recommended_template_id"])
-        self.assertEqual("Natal", prepared["brief"]["brand"])
-        self.assertEqual(RUN_ID, prepared["brief"]["source"]["laval_run_id"])
-        self.assertEqual(THESIS_ID, prepared["brief"]["source"]["thesis_id"])
-        self.assertEqual("Сигнали ризику", prepared["brief"]["key_features"][0]["title"])
-        self.assertEqual([], prepared["brief"]["proof_points"])
+    def test_preview_is_self_contained_and_form_is_inert(self) -> None:
+        page = page_content_from_brief("waitlist", brief())
+        document = preview_document("waitlist", brief(), page)
+        self.assertIn('data-landing-block="lead_form"', document)
+        self.assertIn(" disabled", document)
+        self.assertNotIn("/api/v1/public/landings/", document)
+        self.assertNotIn('href="styles.css"', document)
 
-    def test_overrides_cannot_change_brand_or_source_ids(self) -> None:
-        base = brief_from_candidate(candidate())["brief"]
-        changed = apply_brief_overrides(base, {
-            "brand": "Another App",
-            "source": {"laval_run_id": "spoofed"},
-            "business_idea": "A sharper idea",
-        })
-        self.assertEqual("Natal", changed["brand"])
-        self.assertEqual(RUN_ID, changed["source"]["laval_run_id"])
-        self.assertEqual("A sharper idea", changed["business_idea"])
-
-    def test_every_template_builds_with_canonical_assets_and_no_raw_tokens(self) -> None:
-        verify_brand_assets()
-        brief = brief_from_candidate(candidate())["brief"]
+    def test_published_build_activates_exact_form_endpoint_and_keeps_private_json_private(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            for template in ("product", "community", "waitlist"):
-                output = root / template
-                result = build_landing(template, brief, output)
-                document = (output / "index.html").read_text()
-                normalized = json.loads((output / "brief.json").read_text())
-                page_content = json.loads((output / "page_content.json").read_text())
-                self.assertEqual(template, result["template_id"])
-                self.assertIn('alt="Natal"', document)
-                self.assertIn("Автоматичне утримання", document)
-                self.assertNotIn("$business_idea", document)
-                self.assertIn("не заявляємо про результати", document)
-                self.assertEqual("Natal", normalized["brand"])
-                self.assertEqual(RUN_ID, normalized["source"]["laval_run_id"])
-                self.assertEqual(template, page_content["template_id"])
-                self.assertEqual(set(BLOCK_IDS), set(page_content["blocks"]))
-                self.assertTrue((output / "assets" / "logo-natal.png").is_file())
+            output = Path(directory)
+            page = page_content_from_brief("community", brief())
+            manifest = build_landing(
+                "community", brief(), output, page_content=page,
+                build_id=REVISION_ID,
+                lead_api_url="https://api.example.com/api/v1/public/landings",
+            )
+            html = (output / "index.html").read_text()
+            self.assertIn(f"https://api.example.com/api/v1/public/landings/{REVISION_ID}/leads", html)
+            self.assertIn("https://example.com/privacy", html)
+            self.assertNotIn(" disabled", html)
+            self.assertEqual(manifest["schema_version"], 2)
+            self.assertEqual(json.loads((output / "page_content.json").read_text())["blocks"], page.to_dict()["blocks"])
 
-    def test_independent_blocks_and_self_contained_inert_preview(self) -> None:
-        brief = brief_from_candidate(candidate())["brief"]
-        original = page_content_from_brief("community", brief)
-        changed = original.replace_block("problem", {
-            **original.blocks["problem"],
-            "title": "<img src=x onerror=alert(1)> Конкретна проблема",
-        })
-        self.assertEqual(original.blocks["hero"], changed.blocks["hero"])
-        self.assertEqual(original.blocks["features"], changed.blocks["features"])
+    def test_proof_is_reapplied_from_positioning_brief(self) -> None:
+        source = brief().to_dict()
+        source["proof_points"] = ["Source-backed claim"]
+        page = page_content_from_brief("product", source).to_dict()
+        page["blocks"]["proof"]["items"] = ["Invented result"]
+        page["blocks"]["proof"]["empty_text"] = "An invented limitation"
+        page["language"] = "uk"
+        protected = protect_page_content(page, template_id="product", brief=source)
+        self.assertEqual(protected.blocks["proof"]["items"], ["Source-backed claim"])
+        self.assertEqual(protected.blocks["proof"]["empty_text"], "Results are not yet verified.")
+        self.assertEqual(protected.language, "en")
 
-        preview = preview_document("community", brief, changed)
-        self.assertIn("&lt;img src=x onerror=alert(1)&gt;", preview)
-        self.assertNotIn('<link rel="stylesheet" href="styles.css">', preview)
-        self.assertNotIn('<script src="app.js"></script>', preview)
-        self.assertNotIn('src="assets/', preview)
-        self.assertIn("data:image/", preview)
-        self.assertIn('href="#preview-action"', preview)
-        self.assertNotIn('href="#contact"', preview)
-        self.assertIn("natal.select-block", preview)
-        self.assertIn("window.parent.postMessage", preview)
-        for block_id in BLOCK_IDS:
-            self.assertIn(f'data-landing-block="{block_id}"', preview)
+    def test_form_catalog_fields_and_success_copy_are_fixed(self) -> None:
+        self.assertEqual(allowed_field_names("waitlist"), {"email"})
+        self.assertEqual(allowed_field_names("contact_request"), {"name", "email", "note"})
+        self.assertEqual(allowed_field_names("community_interest"), {"name", "email", "telegram_handle"})
+        self.assertEqual(
+            form_definition("waitlist", "en")["success_copy"],
+            "Thanks. We received your details and will contact you.",
+        )
 
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "site"
-            build_landing("community", brief, output, page_content=changed)
-            published = (output / "index.html").read_text()
-            stored = LandingPageContent.from_dict(json.loads((output / "page_content.json").read_text()))
-        self.assertEqual(changed.to_dict(), stored.to_dict())
-        self.assertIn("&lt;img src=x onerror=alert(1)&gt;", published)
-        self.assertIn('href="#contact"', published)
-
-    def test_agent_page_content_cannot_replace_verified_proof(self) -> None:
-        raw = brief_from_candidate(candidate())["brief"]
-        raw["proof_points"] = ["Перевірений доказ"]
-        proposed = page_content_from_brief("product", raw).to_dict()
-        proposed["blocks"]["proof"]["items"] = ["Вигаданий результат"]
-        protected = protect_page_content(proposed, template_id="product", brief=raw)
-        self.assertEqual(["Перевірений доказ"], protected.blocks["proof"]["items"])
-
-    def test_page_content_rejects_fields_outside_the_strict_block_contract(self) -> None:
-        proposed = page_content_from_brief(
-            "product", brief_from_candidate(candidate())["brief"]
-        ).to_dict()
-        proposed["blocks"]["hero"]["unreviewed_layout_change"] = "wide"
-        with self.assertRaisesRegex(ValueError, "unsupported fields"):
-            LandingPageContent.from_dict(proposed)
-
-    def test_builder_escapes_copy_rejects_unsafe_cta_and_preserves_nonempty_output(self) -> None:
-        raw = brief_from_candidate(candidate())["brief"]
-        raw["business_idea"] = "<script>alert(1)</script>"
-        brief = LandingBrief.from_dict(raw)
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "site"
-            build_landing("product", brief, output)
-            self.assertIn("&lt;script&gt;", (output / "index.html").read_text())
-            with self.assertRaises(FileExistsError):
-                build_landing("product", brief, output)
-        raw["cta"] = {"label": "Click", "url": "javascript:alert(1)"}
-        with self.assertRaisesRegex(ValueError, "cta.url"):
-            LandingBrief.from_dict(raw)
-        for unsafe_url in ("//example.test/collect", "https:missing-host"):
-            raw["cta"] = {"label": "Click", "url": unsafe_url}
-            with self.subTest(unsafe_url=unsafe_url), self.assertRaisesRegex(ValueError, "cta.url"):
-                LandingBrief.from_dict(raw)
+    def test_schema_rejects_seven_block_legacy_page(self) -> None:
+        page = page_content_from_brief("product", brief()).to_dict()
+        page["blocks"].pop("lead_form")
+        with self.assertRaisesRegex(ValueError, "every canonical"):
+            LandingPageContent.from_dict(page)
 
 
 if __name__ == "__main__":

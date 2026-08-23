@@ -1,59 +1,46 @@
-# PTW — web-only Commander
+# PTW v2 — Marketing Positioning → Landing → Ads
 
-PTW is an owner-operated system for building a company with a plausible path to
-a USD 20M sale or valuation within 36 months. The system is designed to be
-managed remotely from idea discovery through implementation and deployment,
-with explicit policy gates for destructive operations.
-
-The only product UI is the mobile-first React PWA in `apps/commander-web`.
-Firebase supplies Google authentication and App Check; it does not store domain
-data. PostgreSQL remains the runtime authority, Git owns code, policy, and
-canonical Markdown, and generated artifacts are immutable files addressed by
-digest.
+PTW is an owner-operated, web-only marketing workspace. Its normal workflow is
+explicit and revision-bound:
 
 ```text
-React PWA
-    |
-Owner Gateway (HTTPS/WSS; Firebase Auth + App Check)
-    |-- Idea Laval + post APIs -> PostgreSQL
-    |-- Plan / Execute -> Codex
-    `-- Unix socket -> root broker -> root PTY
-
-Telegram <- notifications + /help /status /stop
+raw idea + market
+        ↓
+Marketing Positioning (research, evidence, correction, owner approval)
+        ↓                         ↓
+Landing (three Natal drafts)      Ads (read-only concepts stub)
+        ↓
+exact-snapshot publication → lead form → existing PTW bot notification
 ```
 
-## Local development
+The React PWA is authenticated by Firebase Auth and App Check. Owner Gateway is
+the only normal instruction channel. PostgreSQL is the complete domain and
+graph authority; Firebase hosts UI/static Landing files only. Admin contains
+Jobs, Docs/System, and the break-glass root terminal.
 
-Commander and idea-generation checks:
+Marketing Positioning runs as an isolated Compose project and retains port
+8093. It requires verified DataForSEO research and the authenticated platform
+bridge. Landing accepts only an active approved Positioning revision. Ads has
+no mutation: generation and publishing are explicitly unimplemented.
+
+Telegram uses only the existing `@ptw_commander_bot` and allowlisted owner
+chat. Leads are committed before one direct `sendMessage`; no new bot, token,
+webhook, poller, or notification worker exists.
+
+## Local verification
 
 ```sh
 python3 -m unittest discover -s tests/commander -v
+python3 -m unittest discover -s tests/marketing_positioning -v
+python3 -m unittest discover -s tests/owner_gateway -v
 python3 -m commander.demo --output-dir .local/commander-demo
+npm --prefix apps/commander-web run check
+python3 scripts/verify_ptw_skills.py
+git diff --check
 ```
 
-Idea Laval is available in the Ideas web view and through `lav` inside the Idea
-Evolution image. Its default fixture providers exercise the complete persisted
-pipeline without paid calls; live localized SERPs and Trends require explicit
-provider configuration. See
-[`docs/architecture/idea-laval-engine.md`](docs/architecture/idea-laval-engine.md).
-
-Completed evaluations can also enter the Natal landing factory from the Owner
-Console Landings view. The approval-gated builder keeps Natal's canonical name,
-logo, icons, and UI kit across three reusable static structures. See
-[`docs/architecture/natal-landing-builder.md`](docs/architecture/natal-landing-builder.md).
-
-Web console:
-
-```sh
-cd apps/commander-web
-npm ci
-npm run dev
-```
-
-The selective documentation map is in [`docs/README.md`](docs/README.md), the
-current milestone in
-[`docs/architecture/commander-current-state.md`](docs/architecture/commander-current-state.md),
-and operator-console rules in [`DESIGN_RULES.md`](DESIGN_RULES.md).
-
-PTW has no native iOS/Android runtime or legacy compatibility surface.
-Historical implementations are available only through Git history.
+Use [`docs/README.md`](docs/README.md) for selective documentation routes and
+[`docs/architecture/commander-current-state.md`](docs/architecture/commander-current-state.md)
+for the current verified milestone. Production reset is irreversible,
+backup-free, limited to `ptw_commander.public`, and requires the exact phrase
+`RESET PTW PRODUCTION`.

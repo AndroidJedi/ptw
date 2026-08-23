@@ -1,39 +1,20 @@
-# PTW reset and recovery boundary
+# Irreversible PTW v2 reset
 
-Status: confirmation-gated, intentionally no backup
-Updated: 2026-08-17
-
-By explicit owner decision, PTW does not create or require a backup before a
-production reset. A reset is therefore irreversible. It still requires the
-exact confirmation `RESET PTW PRODUCTION` and can run only through the
-root-owned broker.
-
-## Clean reset
-
-The allowlist is deliberately narrow. Reset recreates only the `public` schema
-in the Commander and platform PostgreSQL databases, clears only the Commander
-asset volume, and clears these exact live directories:
-
-- `/opt/ptw/workspaces/incoming`
-- `/opt/ptw/workspaces/jobs`
-- `/opt/ptw/persistent-data/runtime`
-
-PostgreSQL volumes and roles, Git, SSH, Caddy, environment files, Firebase
-credentials, and the reset-independent Owner Gateway control store remain.
+The owner selected a backup-free reset. It is intentionally irreversible and
+must be invoked only with:
 
 ```sh
-cd /root/ptw
-scripts/reset_ptw.sh --confirm 'RESET PTW PRODUCTION'
+scripts/reset_ptw.sh --confirm 'RESET PTW PRODUCTION' --release-tag RELEASE_TAG
 ```
 
-The postcondition is one active `MISSION_20M_3Y`, C01–C10 plus ten revisions,
-A01–A10 plus ten revisions, one platform owner configuration, and zero ideas,
-generations, reports, submissions, creatives, feedback, jobs, sessions, issues,
-or executions. Generation 1 is never started by reset.
+The allowlist is exact: stop PTW application services; drop/recreate only
+`ptw_commander.public`; clear only generated Landing output under the owner
+volume; apply the clean baseline; start Commander, Positioning, and Owner
+Gateway; verify zero domain/graph counts and retired table absence; compare
+exact table counts captured from the independent platform database; remove the
+retired Idea container only after v2 readiness.
 
-## Verification
-
-The reset procedure was rehearsed against two disposable PostgreSQL 16
-instances, including exact schema recreation and clean reseeding. Production
-acceptance checks database counts immediately after the reset. There is no
-restore promise after an owner-confirmed production reset.
+The script must not drop, migrate, seed, truncate, or rewrite the platform
+database; clear platform workspaces; touch Git/credentials; delete the database
+or owner-control volumes; use `latest`; or proceed without all three matching
+images. Production is deliberately empty after reset.

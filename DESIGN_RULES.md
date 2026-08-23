@@ -1,132 +1,56 @@
-# PTW React operator-console rules
+# PTW v2 owner-console rules
 
 Status: canonical
-Updated: 2026-08-22
+Updated: 2026-08-23
 
-## Product language
+## Product and navigation
 
-- Українська is the default operator language. English source text is always
-  available behind an explicit “EN” disclosure.
-- Raw command output, logs, diffs, IDs, paths, and provider errors remain
-  verbatim.
-- Labels describe an action or state; do not add explanatory copy where the
-  interface already makes the meaning clear.
+- Ukrainian is the default chrome; source/output language is explicit per
+  project. IDs, source text, logs, and provider errors remain verbatim.
+- Primary navigation is Marketing Positioning, Landing, Ads, and Admin. Admin
+  contains Jobs plus Docs/System/Terminal.
+- Old page locations redirect to Positioning. Old domain APIs do not exist.
+- Design first for 360 px and one-hand use, with 44×44 CSS pixel targets, no
+  horizontal page overflow, keyboard access, and reduced-motion support.
 
-## Mobile first
+## Marketing Positioning
 
-- Design first for a 360 px viewport and one-hand use.
-- Primary navigation is Overview, Ideas, Branding, Landings, Jobs, More at the bottom on
-  mobile and a compact left rail on desktop.
-- Put the primary action inside thumb reach. Minimum interactive target is
-  44x44 CSS pixels.
-- Avoid horizontal page scrolling. Large tables become ranked cards or compact
-  lists with progressive disclosure.
+- Start from raw idea, country, research language, and output language. Another
+  idea or market creates another project.
+- Show source UUIDs and assumption markers beside claims. Never hide a failed
+  live research or strict-synthesis attempt behind fallback output.
+- A correction selects one section and creates a complete immutable revision.
+  The existing revision remains active until explicit approval.
+- Landing and Ads expose only the active approved revision.
 
-## Visual identity
+## Landing
 
-- PTW hot pink `#f4066e`, near-black `#09090b`, and white are the core palette.
-- Use pink for intent and progress, not for every surface. State colors must
-  retain WCAG AA contrast and never communicate by color alone.
-- Prefer strong type, whitespace, thin borders, and direct content over generic
-  dashboard cards nested inside cards.
-- Motion is brief and functional and respects `prefers-reduced-motion`.
+- Show exact project/revision IDs and require an HTTPS privacy policy before
+  creating the three Natal drafts.
+- The editor exposes all eight blocks. Preview uses sandboxed self-contained
+  `srcdoc`; forms and CTAs are inert. Mobile 360 px and desktop toggles are
+  explicit.
+- Proof, privacy, form behavior, source facts, publication target, and IDs are
+  protected. A correction replaces only its selected block.
+- Publication has one explicit action and consumes the exact current snapshot
+  without another rewrite. Show durable failures/retries, publication history,
+  lead UUIDs, submitted fields, and notification status.
 
-## Operational safety
+## Ads and Admin
 
-- Plan and Execute are visibly different modes. An approved plan shows its
-  immutable digest.
-- Destructive actions show an exact preview, verified backup evidence, and a
-  typed confirmation.
-- The root terminal is always labelled **Break-glass · root**. It displays its
-  idle and maximum lifetime and never stores transcript in application state.
-- Job state, validation evidence, deployment revision, and failure recovery are
-  visible without opening raw logs.
+- Ads shows the two approved Positioning concepts and the literal state
+  “Generation and publishing are not implemented.” It exposes no generate,
+  campaign, post, image, or publish action.
+- Plan and Execute remain visibly distinct and digest-bound. The root terminal
+  is labelled break-glass and retains bounded lifetimes.
+- The irreversible reset preview names only `ptw_commander.public` and requires
+  `RESET PTW PRODUCTION`.
 
-## Creative review
+## Trust and caching
 
-- The image remains the largest review surface. Pin, rectangle, and freehand
-  annotations use normalized `[0,1]` coordinates and can be edited without
-  changing the immutable artifact.
-- Each region has a comment. Overall rating and comment are separate.
-- Ten-variant batches keep the sequence visible and advance only after the
-  current feedback and producing-context conclusion are persisted.
-- Never hide Creative UUID or artifact digest; show shortened values with a
-  copy action and the full value in details.
-
-Branding is the owner-friendly exception to showing graph IDs in the primary
-flow: direction cards identify a readable name and ordinal, while the gateway
-resolves the immutable Creative UUID and digest server-side. Full provenance
-remains available in stage and review details.
-
-## Branding
-
-- Treat one completed Idea as one Brand Project. Always anchor its original Idea
-  and active approved kit/logo above drafts and technical run focus. Never let a
-  newest-run sort hide the active kit or make a draft look like another project.
-- Label history semantically (`Brand Kit v1 · active`, `Draft v2 · paused`) and
-  show current stage/progress. A direct run link focuses history without
-  removing the canonical anchor.
-- A candidate leads with the original Idea, recommended thesis, target user,
-  evidence quality, and prior Brand Kit state. Optional research context stays
-  behind disclosure.
-- The primary review flow shows one logo at a time and accepts one optional
-  text comment. Branding does not show annotation tools, numeric rating,
-  palette, type specimens, or raw principles in this path.
-- Each primary state has one CTA. A non-empty comment changes it to **Regenerate
-  from comment** and keeps the owner on the same logo until the replacement is
-  ready. An empty field changes it to **Approve and next**. Later states approve
-  the selected direction, recover saved work, or download the finished kit. Run switching,
-  provider/cost details, stages, artifacts, and deliberate rerun remain behind
-  progressive disclosure.
-- Fetch and render only the currently reviewed or selected logo. Do not request
-  a second copy for an annotation surface or preload all three full PNGs.
-- Approved-logo correction is a direct action, separate from a full research
-  rebuild. During revision review, immutable Before and After are both required.
-  Include feedback, strategy, version, and compliance; approval and rejection
-  are explicit. The prior logo stays visibly active until approval commits.
-- Owner correction text takes priority over soft direction wording such as
-  `text-free`. Exact requested letters use deterministic lettermark rendering.
-  Never present a structural request as successful when only colors changed.
-- Keep full research rebuilding behind an Advanced disclosure with explicit
-  confirmation. Retain its client request ID across retries.
-- Do not enable final direction approval until all three current logos have
-  explicit approvals. Change-request feedback never satisfies approval. Direction
-  choice and approval are one explicit owner action.
-- Always show the trademark/domain-clearance warning. Never translate or vary
-  the exact brand name.
-- Kit previews and samples default to Ukrainian and must fit at 360 px without
-  horizontal page overflow.
-
-## Landings
-
-- Start from a completed Idea Laval evaluation and keep its run/thesis IDs in
-  technical details; the owner edits content blocks, not identifiers.
-- One explicit action populates private `product`, `community`, and `waitlist`
-  previews. Show the recommendation without locking selection, and preserve all
-  unselected variants across refreshes.
-- The Natal name, assets, UI kit, template layouts, CTA destination, source
-  facts, and verified proof are locked. Never present instructions or
-  assumptions as testimonials, metrics, pricing, scarcity, or other proof.
-- Preview through a sandboxed, self-contained `srcdoc`. Make preview CTA links
-  inert and accept block-selection messages only from the exact iframe window.
-- A selected block has one bounded instruction field. Show durable queued,
-  editing, completed, and retryable failed states plus chronological scoped
-  comments and reusable-lesson proposals.
-- Make 360 px and desktop preview controls explicit. All selection and editing
-  controls must work with keyboard and pointer input without horizontal page
-  overflow.
-- Publication is one separate “Publish this version” action. It publishes the
-  exact current snapshot without another agent rewrite. Preview and edit work
-  never contacts Firebase.
-- Browser feedback updates runtime memory immediately but never writes Git.
-  Promoting a generalized lesson starts the bounded Plan/Execute workflow.
-
-## Data presentation
-
-- Collections are bounded and cursor-paginated.
-- Trends show units, time range, and empty-state meaning. A score without its
-  rubric or generation is ambiguous and must not be shown alone.
-- Empty production state is valid. Generation 1 starts only through an explicit
-  owner action.
-- PWA caching is limited to the static application shell. API responses,
-  images, terminal traffic, and sensitive state must never be cached.
+- Empty production state is valid. Never seed fake projects, Landings, proof,
+  or leads.
+- PWA caching is limited to public shell resources. API, preview, lead,
+  terminal, and sensitive responses are never cached.
+- Do not show invented metrics, proof, testimonials, urgency, scarcity,
+  limitations, or competitive facts.

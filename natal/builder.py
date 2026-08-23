@@ -15,6 +15,7 @@ from typing import Any, Iterable, Mapping
 
 from .brief import LandingBrief
 from .catalog import ROOT, landing_templates, recommend_template, template_manifest
+from .forms import form_definition
 from .page import LandingPageContent, page_content_from_brief
 
 
@@ -40,6 +41,8 @@ def build_landing(
     output_directory: Path,
     *,
     page_content: Mapping[str, Any] | LandingPageContent | None = None,
+    build_id: str | None = None,
+    lead_api_url: str | None = None,
     overwrite: bool = False,
 ) -> dict[str, Any]:
     manifest = template_manifest(template_id)
@@ -51,7 +54,9 @@ def build_landing(
     verify_brand_assets()
     content = _page_content(template_id, brief, page_content)
     source_template = ROOT / "templates" / template_id / "index.html.tmpl"
-    document = _render_document(template_id, brief, content)
+    document = _render_document(
+        template_id, brief, content, build_id=build_id, lead_api_url=lead_api_url
+    )
     (output / "index.html").write_text(document)
     shutil.copyfile(SHARED_ROOT / "styles.css", output / "styles.css")
     shutil.copyfile(SHARED_ROOT / "app.js", output / "app.js")
@@ -66,7 +71,7 @@ def build_landing(
     normalized_brief = json.dumps(brief.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     normalized_content = json.dumps(content.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     build = {
-        "schema_version": 1,
+        "schema_version": 2,
         "brand": "Natal",
         "template_id": template_id,
         "template_version": manifest["version"],
@@ -135,6 +140,8 @@ def _render_document(
     content: LandingPageContent,
     *,
     preview: bool = False,
+    build_id: str | None = None,
+    lead_api_url: str | None = None,
 ) -> str:
     labels = _labels(brief.language)
     hero = content.blocks["hero"]
@@ -144,6 +151,7 @@ def _render_document(
     proof = content.blocks["proof"]
     faq = content.blocks["faq"]
     final_cta = content.blocks["final_cta"]
+    lead_form = content.blocks["lead_form"]
     values = {
         "lang": brief.language,
         "page_title": escape(f"Natal — {hero['title']}"),
@@ -171,7 +179,10 @@ def _render_document(
         "final_title": escape(str(final_cta["title"])),
         "final_body": escape(str(final_cta["body"])),
         "final_cta_label": escape(str(final_cta["cta_label"])),
-        "cta_url": "#preview-action" if preview else escape(brief.cta["url"], quote=True),
+        "lead_form": _lead_form(
+            lead_form, brief, preview=preview, build_id=build_id, lead_api_url=lead_api_url
+        ),
+        "cta_url": "#preview-action" if preview else "#lead-form",
         **labels,
     }
     source_template = ROOT / "templates" / template_id / "index.html.tmpl"
@@ -230,6 +241,42 @@ def _faq_items(items: Iterable[Mapping[str, str]]) -> str:
         f'''<details><summary>{escape(item["question"])}</summary><p>{escape(item["answer"])}</p></details>'''
         for item in values
     )
+
+
+def _lead_form(
+    content: Mapping[str, Any],
+    brief: LandingBrief,
+    *,
+    preview: bool,
+    build_id: str | None,
+    lead_api_url: str | None,
+) -> str:
+    definition = form_definition(str(content["form_id"]), brief.language)
+    fields = []
+    for field in definition["fields"]:
+        name = escape(str(field["name"]), quote=True)
+        label = escape(str(field["label"]))
+        required = " required" if field["required"] else ""
+        disabled = " disabled" if preview else ""
+        if field["type"] == "textarea":
+            control = f'<textarea name="{name}" maxlength="1000"{required}{disabled}></textarea>'
+        else:
+            maximum = 320 if field["type"] == "email" else 160
+            control = f'<input type="{field["type"]}" name="{name}" maxlength="{maximum}"{required}{disabled}>'
+        fields.append(f'<label><span>{label}</span>{control}</label>')
+    endpoint = "" if preview or not build_id or not lead_api_url else f"{lead_api_url.rstrip('/')}/{build_id}/leads"
+    disabled = " disabled" if preview or not endpoint else ""
+    return f'''<section class="lead-capture" id="lead-form" data-landing-block="lead_form">
+  <div><p class="eyebrow">Natal</p><h2>{escape(str(content["heading"]))}</h2><p>{escape(str(content["body"]))}</p></div>
+  <form data-natal-lead data-endpoint="{escape(endpoint, quote=True)}" novalidate>
+    <input type="hidden" name="form_id" value="{escape(str(definition["id"]), quote=True)}">
+    <label class="honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+    {''.join(fields)}
+    <p class="consent">{escape(str(definition["consent_prefix"]))} <a href="{escape(brief.privacy_policy_url, quote=True)}" target="_blank" rel="noopener noreferrer">{escape(str(definition["privacy_label"]))}</a>.</p>
+    <button class="button" type="submit"{disabled}>{escape(str(definition["submit_label"]))}</button>
+    <p class="form-status" role="status" aria-live="polite" data-success="{escape(str(definition["success_copy"]), quote=True)}"></p>
+  </form>
+</section>'''
 
 
 def _labels(language: str) -> dict[str, str]:

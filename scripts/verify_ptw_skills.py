@@ -10,6 +10,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = (
+    "marketing-positioning",
     "natal-landing-builder",
     "ptw-owner-console-incident",
     "ptw-vps-operations",
@@ -32,9 +33,16 @@ def main() -> None:
         require(f"name: {name}" in frontmatter[1], f"wrong skill name in {name}")
         require("description:" in frontmatter[1], f"missing description in {name}")
 
-    compose = (ROOT / "docker-compose.commander.yml").read_text()
-    require(compose.count("./skills:/run/ptw-auth/skills:ro") == 1, "Commander skill mount is missing")
-    require(compose.count("./skills:/run/ptw-auth/skills\n") == 1, "Owner Gateway skill mount is missing")
+    commander_compose = (ROOT / "docker-compose.commander.yml").read_text()
+    positioning_compose = (ROOT / "docker-compose.marketing-positioning.yml").read_text()
+    require(
+        positioning_compose.count("./skills:/run/ptw-auth/skills:ro") == 1,
+        "Marketing Positioning canonical read-only skill mount is missing",
+    )
+    require(
+        commander_compose.count("./skills:/run/ptw-auth/skills\n") == 1,
+        "Owner Gateway canonical writable skill mount is missing",
+    )
 
     hook = Path(
         subprocess.run(

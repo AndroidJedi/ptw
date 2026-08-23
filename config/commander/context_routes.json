@@ -1,73 +1,40 @@
 {
-  "version": 1,
+  "version": 2,
   "routes": {
-    "commander": {
-      "canonical": [
-        "docs/architecture/commander-architecture-review.md"
-      ],
-      "optional": [
-        "docs/PTW_Commander_Bootstrap_Addendum.md",
-        "docs/operations/commander.md"
-      ]
+    "current_state": {
+      "canonical": ["docs/architecture/commander-current-state.md"],
+      "optional": ["docs/README.md"]
     },
-    "backend": {
+    "marketing_positioning": {
       "canonical": [
-        "docs/architecture/commander-architecture-review.md"
+        "docs/architecture/ptw-v2-marketing-workspaces.md",
+        "docs/architecture/research-to-hypothesis.md",
+        "skills/marketing-positioning/SKILL.md"
       ],
-      "optional": [
-        "db/migrations/001_commander_foundation.sql",
-        "db/migrations/002_commander_control_plane.sql",
-        "db/migrations/003_telegram_runtime.sql",
-        "db/migrations/004_outbox_retry.sql",
-        "db/migrations/005_feedback_weights.sql",
-        "db/migrations/006_telegram_delivery_links.sql",
-        "config/commander/policies.json"
-      ]
+      "optional": ["DESIGN_RULES.md", "docs/architecture/component-boundaries.md"]
     },
-    "instagram_creative": {
+    "landing": {
       "canonical": [
-        "docs/verticals/instagram/README.md",
-        "docs/architecture/creative-feedback-learning.md"
+        "docs/architecture/natal-landing-builder.md",
+        "skills/natal-landing-builder/SKILL.md"
       ],
-      "optional": [
-        "docs/architecture/ad-image-estimation-loop.md",
-        "DESIGN_RULES.md"
-      ]
+      "optional": ["natal/README.md", "DESIGN_RULES.md"]
     },
-    "ui": {
-      "canonical": [
-        "README.md",
-        "DESIGN_RULES.md"
-      ],
+    "ads": {
+      "canonical": ["docs/architecture/ptw-v2-marketing-workspaces.md"],
       "optional": []
     },
-    "product": {
-      "canonical": [
-        "Proof_Them_Wrong_Idea_and_Strengths.md"
-      ],
-      "optional": [
-        "docs/architecture/commander-architecture-review.md"
-      ]
+    "owner_ui": {
+      "canonical": ["docs/operations/owner-control-plane.md"],
+      "optional": ["DESIGN_RULES.md"]
     },
-    "research": {
+    "operations": {
       "canonical": [
-        "docs/architecture/research-to-hypothesis.md",
-        "docs/architecture/commander-architecture-review.md"
+        "docs/operations/commander.md",
+        "docs/operations/disaster-recovery.md",
+        "docs/operations/telegram-runtime.md"
       ],
-      "optional": [
-        "Proof_Them_Wrong_Idea_and_Strengths.md"
-      ]
-    },
-    "idea_laval": {
-      "canonical": [
-        "docs/architecture/idea-laval-engine.md",
-        "docs/architecture/idea-laval-engine.md",
-        "docs/architecture/research-to-hypothesis.md"
-      ],
-      "optional": [
-        "DESIGN_RULES.md",
-        "docs/operations/commander.md"
-      ]
+      "optional": ["docs/operations/incident-log.md"]
     }
   }
 }

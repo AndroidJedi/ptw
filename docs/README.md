@@ -1,32 +1,26 @@
-# PTW documentation map
+# PTW v2 documentation map
 
-Markdown in this repository is canonical. Generated exports are derivatives
-and must identify their source revision.
+Markdown is canonical; generated exports are derivatives. Read only the route
+needed for the task.
 
-## Context routes
-
-| Task | Read first | Read when needed |
+| Task | Read first | Then |
 | --- | --- | --- |
-| Current implementation checkpoint | [`architecture/commander-current-state.md`](architecture/commander-current-state.md) | The relevant route below |
-| Owner control plane and learning architecture | [`architecture/commander-architecture-review.md`](architecture/commander-architecture-review.md) | [`architecture/component-boundaries.md`](architecture/component-boundaries.md) |
-| React operator UI | [`../DESIGN_RULES.md`](../DESIGN_RULES.md) | `apps/commander-web/README.md` |
-| Autonomous jobs, issues, and execution | [`architecture/task-issue-cycle.md`](architecture/task-issue-cycle.md) | [`architecture/session-checkpoints.md`](architecture/session-checkpoints.md) |
-| Idea Laval market-evidence engine | [`architecture/idea-laval-engine.md`](architecture/idea-laval-engine.md) | [`architecture/research-to-hypothesis.md`](architecture/research-to-hypothesis.md), [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
-| Evidence-backed Branding stage | [`architecture/branding-v1.md`](architecture/branding-v1.md) | [`architecture/branding-kit-component-manifest.md`](architecture/branding-kit-component-manifest.md), [`architecture/creative-feedback-learning.md`](architecture/creative-feedback-learning.md), [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
-| Natal landing factory | [`architecture/natal-landing-builder.md`](architecture/natal-landing-builder.md) | [`../natal/README.md`](../natal/README.md), [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
-| Creative feedback and weights | [`architecture/creative-feedback-learning.md`](architecture/creative-feedback-learning.md) | [`architecture/ad-image-estimation-loop.md`](architecture/ad-image-estimation-loop.md) |
-| Instagram adapter | [`verticals/instagram/README.md`](verticals/instagram/README.md) | Creative feedback route |
-| Firebase authentication and deployment | [`operations/owner-control-plane.md`](operations/owner-control-plane.md) | [`operations/commander.md`](operations/commander.md) |
-| Irreversible reset boundary | [`operations/disaster-recovery.md`](operations/disaster-recovery.md) | [`operations/incident-log.md`](operations/incident-log.md) |
-| Telegram emergency controls | [`operations/telegram-runtime.md`](operations/telegram-runtime.md) | Incident log |
+| Current checkpoint | [`architecture/commander-current-state.md`](architecture/commander-current-state.md) | Relevant route below |
+| Marketing workspaces/schema/API | [`architecture/ptw-v2-marketing-workspaces.md`](architecture/ptw-v2-marketing-workspaces.md) | [`architecture/component-boundaries.md`](architecture/component-boundaries.md) |
+| Marketing research/source lineage | [`architecture/research-to-hypothesis.md`](architecture/research-to-hypothesis.md) | Marketing Positioning skill |
+| Natal Landing/forms/publication | [`architecture/natal-landing-builder.md`](architecture/natal-landing-builder.md) | [`../natal/README.md`](../natal/README.md), [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
+| Owner UI/Auth/App Check | [`operations/owner-control-plane.md`](operations/owner-control-plane.md) | [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
+| Services/deployment/1 GB host | [`operations/commander.md`](operations/commander.md) | PTW VPS Operations skill |
+| Irreversible reset | [`operations/disaster-recovery.md`](operations/disaster-recovery.md) | Current state |
+| Telegram controls/leads | [`operations/telegram-runtime.md`](operations/telegram-runtime.md) | Incident log |
+| Jobs and checkpoints | [`architecture/task-issue-cycle.md`](architecture/task-issue-cycle.md) | [`architecture/session-checkpoints.md`](architecture/session-checkpoints.md) |
 
 ## Authority
 
-- PostgreSQL is the complete runtime authority for domain entities and edges.
-- Git is authoritative for code, migrations, policy, prompts, and these docs.
-- Large artifacts are immutable files identified by SHA-256 digest.
-- Firebase stores identity configuration and static Hosting content only, never
-  PTW domain data.
-
-Superseded client documents are intentionally absent from the current tree. Git
-history is the only archive for removed subsystems.
+- `ptw_commander` PostgreSQL is the complete PTW v2 runtime/graph authority.
+- `/opt/ptw/platform` has an unrelated history and database; the structured
+  bridge is the only explicit integration.
+- Git owns code, the clean baseline, skills, prompts, and these docs.
+- Firebase owns identity configuration and active static releases, not domain
+  data.
+- Git history is the only archive for removed domains.

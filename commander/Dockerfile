@@ -8,13 +8,11 @@ COPY requirements-commander.txt ./
 RUN pip install --no-cache-dir -r requirements-commander.txt
 
 COPY commander ./commander
-COPY config ./config
-COPY commander/assets/fonts ./commander/assets/fonts
 
 RUN groupadd --system --gid 10001 commander \
     && useradd --system --uid 10001 --gid 10001 commander \
-    && mkdir -p /var/lib/ptw/assets /run/ptw-auth/skills \
-    && chown -R commander:commander /var/lib/ptw /run/ptw-auth
+    && mkdir -p /run/ptw-auth/skills \
+    && chown -R commander:commander /run/ptw-auth
 USER commander
 
 CMD ["uvicorn", "commander.api:create_app_from_env", "--factory", "--host", "0.0.0.0", "--port", "8080"]

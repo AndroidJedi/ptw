@@ -6,9 +6,10 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from .brief import LandingBrief
+from .forms import FORM_IDS
 
 
-BLOCK_IDS = ("hero", "problem", "features", "steps", "proof", "faq", "final_cta")
+BLOCK_IDS = ("hero", "problem", "features", "steps", "proof", "faq", "final_cta", "lead_form")
 
 
 def _exact_keys(value: Mapping[str, Any], allowed: set[str], name: str) -> None:
@@ -69,8 +70,8 @@ class LandingPageContent:
         cls, value: Mapping[str, Any], *, expected_template_id: str | None = None
     ) -> "LandingPageContent":
         _exact_keys(value, {"schema_version", "template_id", "language", "blocks"}, "page_content")
-        if "schema_version" in value and value["schema_version"] != 1:
-            raise ValueError("page_content.schema_version must be 1")
+        if value.get("schema_version") != 2:
+            raise ValueError("page_content.schema_version must be 2")
         template_id = str(value.get("template_id") or expected_template_id or "")
         if template_id not in {"product", "community", "waitlist"}:
             raise ValueError("page_content.template_id is invalid")
@@ -132,18 +133,28 @@ class LandingPageContent:
                     "title": _text(raw.get("title"), "faq.title", 500),
                     "items": _faq(raw.get("items")),
                 }
-            else:
+            elif block_id == "final_cta":
                 _exact_keys(raw, {"title", "body", "cta_label"}, "final_cta")
                 blocks[block_id] = {
                     "title": _text(raw.get("title"), "final_cta.title", 500),
                     "body": _text(raw.get("body"), "final_cta.body", 1000),
                     "cta_label": _text(raw.get("cta_label"), "final_cta.cta_label", 100),
                 }
+            else:
+                _exact_keys(raw, {"form_id", "heading", "body"}, "lead_form")
+                form_id = str(raw.get("form_id") or "")
+                if form_id not in FORM_IDS:
+                    raise ValueError("lead_form.form_id is outside the code-owned catalog")
+                blocks[block_id] = {
+                    "form_id": form_id,
+                    "heading": _text(raw.get("heading"), "lead_form.heading", 300),
+                    "body": _text(raw.get("body"), "lead_form.body", 600),
+                }
         return cls(template_id=template_id, language=language, blocks=blocks)
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "template_id": self.template_id,
             "language": self.language,
             "blocks": {key: dict(value) for key, value in self.blocks.items()},
@@ -181,6 +192,7 @@ def page_content_from_brief(
         },
     ]
     return LandingPageContent.from_dict({
+        "schema_version": 2,
         "template_id": template_id,
         "language": brief.language,
         "blocks": {
@@ -225,6 +237,14 @@ def page_content_from_brief(
                 "body": brief.promise,
                 "cta_label": brief.cta["label"],
             },
+            "lead_form": {
+                "form_id": (
+                    "contact_request" if template_id == "product" else
+                    "community_interest" if template_id == "community" else "waitlist"
+                ),
+                "heading": "Залиште контакти" if uk else "Leave your details",
+                "body": brief.honest_limitation,
+            },
         },
     })
 
@@ -235,7 +255,10 @@ def protect_page_content(
     """Reapply server-owned evidence after an agent-generated content proposal."""
 
     current = LandingBrief.from_dict(brief)
-    page = LandingPageContent.from_dict(proposed, expected_template_id=template_id)
+    protected = dict(proposed)
+    protected["language"] = current.language
+    page = LandingPageContent.from_dict(protected, expected_template_id=template_id)
     proof = dict(page.blocks["proof"])
     proof["items"] = list(current.proof_points)
+    proof["empty_text"] = current.honest_limitation
     return page.replace_block("proof", proof)

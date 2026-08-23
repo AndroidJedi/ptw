@@ -1,3 +1,0 @@
-#!/bin/sh
-set -eu
-exec python -m idea_generation.laval_cli "$@"

@@ -49,5 +49,5 @@ uplift.
   content or relying on hover.
 
 Do not cite unsupported conversion percentages, performance penalties, or
-supposedly universal equations. Use evidence from the Idea source and measured
-results from this product when available.
+supposedly universal equations. Use only source-backed statements from the
+approved Positioning revision and verified results from this product.

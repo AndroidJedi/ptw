@@ -25,10 +25,10 @@ vi.mock('./firebase', () => ({
 }))
 vi.mock('./api', () => ({ ApiClient: class {} }))
 vi.mock('./components/Shell', () => ({ Shell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
-vi.mock('./views/OverviewView', () => ({ OverviewView: () => <p>OWNER CONSOLE READY</p> }))
-vi.mock('./views/IdeasView', () => ({ IdeasView: () => null }))
-vi.mock('./views/JobsView', () => ({ JobsView: () => null }))
-vi.mock('./views/MoreView', () => ({ MoreView: () => null }))
+vi.mock('./views/PositioningView', () => ({ PositioningView: () => <p>OWNER CONSOLE READY</p> }))
+vi.mock('./views/LandingView', () => ({ LandingView: () => null }))
+vi.mock('./views/AdsView', () => ({ AdsView: () => null }))
+vi.mock('./views/AdminView', () => ({ AdminView: () => null }))
 
 import App, { AUTH_BOOT_TIMEOUT_MS } from './App'
 

@@ -33,21 +33,10 @@ def _unknown_template(template_id: str) -> dict[str, Any]:
     raise ValueError(f"unknown Natal landing template: {template_id}")
 
 
-def recommend_template(candidate: Mapping[str, Any]) -> str:
-    """Choose structure from the idea semantics, never from brand presentation."""
+def recommend_template(positioning_document: Mapping[str, Any]) -> str:
+    """Choose an advisory structure from the approved Positioning document."""
 
-    thesis = _preferred_thesis(candidate)
-    searchable = " ".join(
-        _flatten(value)
-        for value in (
-            candidate.get("owner_idea"),
-            thesis.get("title"),
-            thesis.get("target_user"),
-            thesis.get("problem"),
-            thesis.get("value_moment"),
-            thesis.get("loop_steps"),
-        )
-    ).lower()
+    searchable = _flatten(positioning_document).lower()
     community_terms = {
         "community", "group", "event", "dinner", "meet", "offline", "club",
         "спільнот", "груп", "поді", "вечер", "зустріч", "офлайн", "клуб",
@@ -62,15 +51,6 @@ def recommend_template(candidate: Mapping[str, Any]) -> str:
     if any(term in searchable for term in product_terms):
         return "product"
     return "waitlist"
-
-
-def _preferred_thesis(candidate: Mapping[str, Any]) -> Mapping[str, Any]:
-    theses = [item for item in candidate.get("theses") or [] if isinstance(item, Mapping)]
-    recommended_id = str(candidate.get("recommended_thesis_id") or "")
-    return next(
-        (item for item in theses if str(item.get("id")) == recommended_id),
-        next((item for item in theses if item.get("recommended") is True), theses[0] if theses else {}),
-    )
 
 
 def _flatten(value: Any) -> str:

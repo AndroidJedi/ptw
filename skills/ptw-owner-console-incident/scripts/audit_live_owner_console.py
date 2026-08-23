@@ -74,6 +74,10 @@ def main() -> None:
         "App Check header": "X-Firebase-AppCheck",
         "reCAPTCHA Enterprise site key": args.site_key,
         "Safari-safe Auth persistence": "ptw-auth-local-storage-v1",
+        "Marketing Positioning workspace": "Marketing Positioning",
+        "Landing workspace": "Landing",
+        "Ads workspace": "Ads",
+        "Admin workspace": "Admin",
     }.items():
         require(marker in app_bundle, f"Live App bundle is missing {label}")
 
@@ -93,6 +97,10 @@ def main() -> None:
     auth_status, _, auth_bytes = fetch(f"{args.api}/api/v1/overview")
     require(auth_status == 401, f"Unauthenticated Overview returned HTTP {auth_status}")
     require("Bearer token is required" in auth_bytes.decode(), "Unexpected auth failure body")
+
+    for retired_path in ("/api/v1/ideas", "/api/v1/branding", "/api/v1/posts"):
+        retired_status, _, _ = fetch(f"{args.api}{retired_path}")
+        require(retired_status == 404, f"Retired route {retired_path} returned HTTP {retired_status}")
 
     cors_status, cors_headers, _ = fetch(
         f"{args.api}/api/v1/overview", method="OPTIONS",

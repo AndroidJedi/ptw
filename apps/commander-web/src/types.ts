@@ -1,574 +1,174 @@
+export type Page = 'positioning' | 'landing' | 'ads' | 'admin'
 export type I18n<T = string> = { en: T; uk: T }
-export type Page = 'overview' | 'ideas' | 'branding' | 'landings' | 'jobs' | 'more'
 
-export interface Mission {
-  code: string
-  name: I18n
-  activated_at: string
-  deadline_at: string
-  status: string
+export interface EvidenceStatement {
+  text: string
+  source_ids: string[]
+  assumption: boolean
 }
 
-export interface Overview {
-  mission: Mission
-  health: Record<string, string>
-  laval_runs: { total: number; active: number; completed: number }
-  branding_runs: { total: number; active: number; completed: number }
-  jobs: { active: number; blocked: number; last_deploy?: string }
-}
-
-export type LavalStageStatus = 'pending' | 'running' | 'partial' | 'completed' | 'failed' | 'paused' | 'stale'
-export type LavalEvidenceMode = 'demo_fixture' | 'live_search_pending_trends' | 'live_complete' | 'live_market_signals'
-
-export interface LavalProviderReadiness {
-  llm_provider: string
-  search_provider: string
-  trend_provider: string
-  search_live_ready: boolean
-  trends_live_ready: boolean
-  youtube_provider?: string
-  youtube_live_ready?: boolean
-  demo_available: boolean
-  default_evidence_mode: LavalEvidenceMode
-  max_spend_usd: number
-  reserved_spend_usd: number
-  missing: string[]
-  optional_sources?: { google_trends: { ready: boolean; required: false } }
-  required_sources?: { youtube: { ready: boolean } }
-}
-
-export interface ProductMechanism {
-  id: string
-  name: I18n
-  description: I18n
-  mechanism_type: 'value' | 'behavior' | 'trust' | 'retention' | 'distribution' | 'proof'
-  support_dimensions: Record<string, number>
-  evidence_ids: string[]
-}
-
-export interface FalsificationReport {
-  risks: Array<{ assumption_id: string; severity: 'low' | 'medium' | 'high'; supported: boolean; objection: string; counterargument: string; fatal: boolean }>
-  fatal_objection?: string | null
-  unsupported_high_severity_count: number
-  weakest_mechanism_coverage: number
-}
-
-export interface ProductThesis extends FalsificationReport {
-  id: string
-  title: I18n
-  target_user: I18n
-  problem: I18n
-  loop_steps: I18n[]
-  value_moment: I18n
-  zero_audience_behavior: I18n
-  substitutes: I18n[]
-  dangerous_assumptions: Array<{ id: string; statement: I18n; severity: 'low' | 'medium' | 'high' }>
-  success_criterion: { metric: string; operator: '>='; threshold: number; sample_target: number }
-  mechanism_ids: string[]
-  evidence_ids: string[]
-  verdict: 'survives' | 'weak' | 'rejected'
-  recommended: boolean
-  recommendation_reason?: string
-  commander_hypothesis_id?: string
-  validation_workspace_id?: string
-  validation_stale?: boolean
-}
-
-export interface ThesisCollection {
-  run_id: string
-  status: 'ready' | 'no_surviving_thesis'
-  items: ProductThesis[]
-  mechanisms: ProductMechanism[]
-  recommended_thesis_id?: string | null
-}
-
-export interface GraphEntity<T extends Record<string, unknown> = Record<string, unknown>> {
-  id: string
-  kind: string
-  created_at: string
-  attributes: T
-}
-
-export interface MarketProbe extends GraphEntity<{
-  experiment_type: 'market_probe'
-  probe_type: string
-  assumption_id: string
-  assumption: string
-  procedure: string
-  target_segment: string
-  success_criterion: { metric: string; operator: '>='; threshold: number }
-  sample_target: number
-  duration_days: number
-  budget_minor: number
-  external_execution: 'manual_owner_only'
-}> { status: 'proposed' | 'running' | 'completed' | 'evaluated' | 'cancelled' | 'superseded' }
-
-export interface ValidationWorkspace {
-  workspace: GraphEntity<{ hypothesis_id: string; idea_laval_run_id: string; idea_laval_thesis_id: string; status: string; external_actions_automatic: false }>
-  hypothesis: GraphEntity<{ claim: string; success_criterion: { metric: string; operator: '>='; threshold: number } }>
-  probes: MarketProbe[]
-  observations: GraphEntity[]
-  insights: GraphEntity[]
-  decisions: GraphEntity<{ action: 'continue' | 'mutate' | 'pivot' | 'reject'; reasoning_summary: string }>[]
-  mechanisms: GraphEntity<{ name: I18n; description: I18n; mechanism_type: string }>[]
-}
-
-export interface LavalRun {
-  id: string
-  owner_idea_id: string
-  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
-  current_stage?: string
-  through_stage?: string
-  approval_mode: 'manual' | 'automatic'
-  approval_gates: string[]
-  owner_preview?: string
-  completed_stages?: number
-  processed_stages?: number
-  partial_stages?: number
-  variant_count?: number
-  error_text?: string
-  created_at: string
-  updated_at: string
-  config: Record<string, unknown>
-  evidence_mode: LavalEvidenceMode
-  provider_snapshot: Record<string, string>
-  max_spend_usd: number
-  reserved_spend_usd: number
-  awaiting_reason?: string | null
-  pipeline_version?: string
-}
-
-export interface LavalStage {
-  stage: string
-  ordinal: number
-  status: LavalStageStatus
-  started_at?: string
-  completed_at?: string
-  input_hash?: string
-  attempt: number
-  provider?: string
-  model?: string
-  metrics: Record<string, unknown>
-  error?: { type?: string; message?: string }
-}
-
-export interface LavalQualityCount {
-  stage?: string
-  verdict: 'verified' | 'invalid' | 'pending' | 'fixture' | 'not_applicable'
-  attempted: number
-  success: number
-  fallback: number
-  failed: number
-  recovered_failures?: number
-  unresolved_failures?: number
-}
-
-export interface LavalRunQuality extends LavalQualityCount {
-  message: string
-  missing_stages: string[]
-  by_stage: LavalQualityCount[]
-}
-
-export interface LavalStatus {
-  run: LavalRun
-  stages: LavalStage[]
-  quality?: LavalRunQuality
-  cost: { items: Array<Record<string, unknown>>; total_usd: number; provider_projected_usd?: number; provider_reserved_usd?: number; provider_actual_usd?: number; max_spend_usd?: number }
-  recovery?: {
-    available: boolean
-    stage?: string | null
-    stage_status?: LavalStageStatus | null
-    attempt: number
-    failed_at?: string | null
-    failure?: { type?: string; message?: string } | null
-    provider_tasks: {
-      total: number; reserved: number; submitted: number; completed: number; failed: number
-      persisted_remote_ids: number; cost_recorded: number; actual_cost_usd: number
-    }
-    resume_behavior: {
-      reuses_persisted_remote_ids: boolean
-      reposts_submitted_tasks: boolean
-      duplicates_recorded_cost: boolean
-    }
-    history: Array<{
-      action: string; stage?: string; actor: string; previous_status?: string; outcome: string
-      details: Record<string, unknown>; created_at: string
-    }>
-  }
-  runner_active?: boolean
-  resume_with_market_signals_available?: boolean
-}
-
-export interface BrandCandidate {
-  idea_run_id: string
-  owner_idea: string
-  created_at: string
-  theses: ProductThesis[]
-  mechanisms: ProductMechanism[]
-  quality: { successful: number; attempted: number }
-  recommended_thesis_id?: string | null
-  surviving_thesis_count: number
-  active_brand_kit?: { name: string; status: 'approved' | 'superseded' | 'stale'; approved_at: string } | null
-}
-
-export type BrandRunStatus = 'pending' | 'running' | 'paused' | 'awaiting_review' | 'completed' | 'failed' | 'cancelled'
-
-export interface BrandRun {
-  id: string
-  source_laval_run_id: string
-  status: BrandRunStatus
-  current_stage: string
-  source_snapshot: { owner_idea: string; theses: ProductThesis[]; mechanisms: ProductMechanism[] }
-  source_stale: boolean
-  constraints_text: string
-  provider_snapshot: Record<string, unknown>
-  commander_brand_kit_id?: string | null
-  created_at: string
-  updated_at: string
-  owner_preview?: string
-  completed_stages?: number
-  project_version?: number
-  create_intent?: 'initial' | 'full_rebuild'
-  logo_thumbnail_digest?: string | null
-}
-
-export interface BrandStage {
-  stage: string
-  ordinal: number
-  status: LavalStageStatus
-  attempt: number
-  input_hash?: string
-  provider?: string
-  model?: string
-  artifact?: unknown
-  metrics: Record<string, unknown>
-  error?: { type?: string; message?: string }
-}
-
-export interface BrandEvaluation {
-  passed: boolean
-  checks: Record<string, { passed: boolean; [key: string]: unknown }>
-}
-
-export interface BrandAsset {
-  digest: string
-  mime_type: string
-  width?: number
-  height?: number
-  generation_provenance: {
-    provider?: string
-    requested_model?: string
-    resolved_model?: string
-    request_id?: string
-    prompt?: string
-  }
-  url: string
-  cache: 'private, no-store'
-}
-
-export interface BrandDirection {
-  id: string
-  ordinal: number
-  revision?: number
-  name: string
-  status: string
-  manifest: {
-    name: string
-    tagline: I18n
-    positioning: I18n
-    personality: string[]
-    palette: Record<'light' | 'dark', Record<string, string>>
-    typography: { display: string; body: string; mono: string }
-    design_principles: string[]
-    retention_patterns: string[]
-    ui_system: Record<string, unknown>
-  }
-  evaluation: BrandEvaluation
-  artifact_digest?: string
-  logo_asset?: BrandAsset
-  latest_feedback_id?: string | null
-  feedback_type?: string | null
-  review_state?: 'pending' | 'changes_requested' | 'approved'
-  regeneration_id?: string | null
-  regeneration_status?: 'pending' | 'running' | 'completed' | 'failed' | null
-  regeneration_feedback_id?: string | null
-  regeneration_error?: { type?: string; message?: string } | null
-  regeneration_strategy?: 'reference_edit' | 'lettermark' | 'new_concept' | null
-  regeneration_reference_used?: boolean | null
-  regeneration_compliance?: { passed?: boolean; reason?: string; [key: string]: unknown } | null
-  regeneration_verification?: 'verified' | 'failed_compliance' | 'legacy_unverified'
-  regeneration_requested_at?: string | null
-  regeneration_completed_at?: string | null
-  rating?: number | null
-  overall_comment?: string | null
-  annotations?: Region[]
-  reviewed_at?: string | null
-}
-
-export interface BrandReview {
-  feedback_id: string
-  rating?: number | null
-  overall_comment: string
-  annotations: Region[]
-  supersedes_feedback_id?: string | null
-  created_at: string
-}
-
-export interface BrandKit {
-  id: string
-  commander_brand_kit_id: string
-  name: string
-  status: 'approved' | 'superseded' | 'stale'
-  zip_digest: string
-  source_stale: boolean
-  approved_at: string
-  project_version?: number
-  run_id?: string
-  logo_artifact_digest?: string
-  logo_asset?: BrandAsset
-  manifest: BrandDirection['manifest'] & Record<string, unknown>
-  download?: { digest: string; mime_type: 'application/zip'; url: string; cache: 'private, no-store' }
-}
-
-export interface BrandLogoRevision {
-  id: string
-  source_laval_run_id: string
-  base_kit_id: string
-  proposed_project_version: number
-  client_request_id: string
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'approved' | 'rejected'
-  attempt: number
-  strategy?: 'reference_edit' | 'lettermark' | 'new_concept' | null
-  requested_change?: string | null
-  feedback?: string | null
-  literal_text?: string | null
-  structural_change?: boolean | null
-  reference_used: boolean
-  reference_trace: Record<string, unknown>
-  compliance: { passed?: boolean; reason?: string; [key: string]: unknown }
-  error?: { type?: string; message?: string } | null
-  before_asset?: BrandAsset
-  after_asset?: BrandAsset
-  created_at: string
-  completed_at?: string | null
-}
-
-export interface BrandProjectVersion {
-  kind: 'run' | 'logo_revision' | 'kit'
-  version: number
-  status: string
-  run_id?: string
-  revision_id?: string
-  kit_id?: string
-  logo_thumbnail_digest?: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface BrandProject {
-  id: string
-  status: 'active' | 'draft' | 'revision_running' | 'revision_review'
-  source_idea: { run_id: string; owner_idea: string; created_at: string }
-  active_kit?: BrandKit | null
-  kits: BrandKit[]
-  runs: BrandRun[]
-  logo_revisions: BrandLogoRevision[]
-  versions: BrandProjectVersion[]
-  created_at: string
-  updated_at: string
-}
-
-export interface BrandStatus {
-  run: BrandRun
-  stages: BrandStage[]
-  directions: BrandDirection[]
-  cost: { items: Array<Record<string, unknown>>; total_usd: number }
-  runner_active?: boolean
-}
-
-export interface LandingFeature {
-  title: string
-  description: string
-}
-
-export interface LandingBrief {
+export interface PositioningDocument {
   schema_version: 1
-  brand: 'Natal'
-  language: 'uk' | 'en'
-  source: { laval_run_id: string; thesis_id?: string }
-  business_idea: string
-  target_audience: string
-  pain: string
-  promise: string
-  key_features: LandingFeature[]
-  steps: LandingFeature[]
-  proof_points: string[]
-  faq: Array<{ question: string; answer: string }>
-  cta: { label: string; url: string }
+  output_language: 'uk' | 'en'
+  positioning_foundation: {
+    category: EvidenceStatement
+    competitive_alternatives: EvidenceStatement[]
+    definitive_audience: EvidenceStatement
+    jobs: EvidenceStatement[]
+    pains: EvidenceStatement[]
+    gains: EvidenceStatement[]
+    uvp: EvidenceStatement
+  }
+  messaging_matrix: Array<{
+    feature: EvidenceStatement
+    functional_benefit: EvidenceStatement
+    emotional_reward: EvidenceStatement
+  }>
+  landing_copy: {
+    hero: Record<'eyebrow' | 'headline' | 'subheadline' | 'cta', EvidenceStatement>
+    value_sections: Array<{ title: EvidenceStatement; body: EvidenceStatement }>
+    honest_limitation: EvidenceStatement
+    lead_capture_strategy: EvidenceStatement
+  }
+  ad_concepts: Array<{
+    kind: 'contextual_relatable' | 'direct_problem_solution'
+    hook: EvidenceStatement
+    body: EvidenceStatement
+    visual_direction: EvidenceStatement
+  }>
+  aeo_faqs: Array<Record<'question' | 'definition' | 'data' | 'context', EvidenceStatement>>
+  evidence_references: string[]
+  assumptions: string[]
 }
 
-export interface LandingTemplate {
-  id: 'product' | 'community' | 'waitlist'
-  version: number
-  name: I18n
-  description: I18n
-  best_for: string[]
-  adapted_from: string
-}
-
-export interface LandingCandidate {
-  idea_run_id: string
-  recommended_template_id: LandingTemplate['id']
-  brief: LandingBrief
-  quality: { successful?: number; attempted?: number }
-  verdict?: 'survives' | 'weak' | 'rejected' | null
-}
-
-export type LandingBuildStatus = 'queued' | 'revising' | 'building' | 'publishing' | 'published' | 'failed'
-export type LandingBlockId = 'hero' | 'problem' | 'features' | 'steps' | 'proof' | 'faq' | 'final_cta'
-
-export interface LandingPageContent {
-  schema_version: 1
-  template_id: LandingTemplate['id']
-  language: 'uk' | 'en'
-  blocks: Record<LandingBlockId, Record<string, unknown>>
-}
-
-export interface LandingDraftSnapshot {
+export interface PositioningRevision {
   id: string
-  draft_set_id: string
-  template_id: LandingTemplate['id']
-  snapshot_number: number
-  parent_snapshot_id?: string | null
-  source_feedback_id?: string | null
-  page_content: LandingPageContent
-  page_content_sha256: string
-  artifact_sha256: string
-  is_current: boolean
-  application_summary?: string | null
-  invocation?: Record<string, unknown> | null
-  created_at: string
-}
-
-export type LandingDraftEditStatus = 'queued' | 'editing' | 'completed' | 'failed'
-
-export interface LandingBlockEdit {
+  project_id: string
   request_id: string
-  draft_set_id: string
-  template_id: LandingTemplate['id']
-  base_snapshot_id: string
-  block_id: LandingBlockId
-  instruction: string
-  feedback_id: string
-  proposal_id: string
-  result_snapshot_id?: string | null
-  status: LandingDraftEditStatus
+  revision_number: number
+  base_revision_id?: string | null
+  feedback_id?: string | null
+  status: 'queued' | 'researching' | 'synthesizing' | 'completed' | 'failed'
+  document?: PositioningDocument | null
+  document_sha256?: string | null
+  quality_gates?: Record<string, boolean> | null
+  failure_count: number
   error_code?: string | null
   error_message?: string | null
+  approved: boolean
   created_at: string
-  updated_at: string
-  completed_at?: string | null
+}
+
+export interface PositioningSource {
+  id: string
+  source_type: 'owner_idea' | 'research_finding'
+  title: string
+  source_uri?: string | null
+  publisher?: string | null
+  content: string
+  provider: string
+  metadata: Record<string, unknown>
+}
+
+export interface PositioningProject {
+  id: string
+  request_id: string
+  owner_idea_source_id: string
+  raw_idea: string
+  target_country: string
+  research_language: string
+  output_language: 'uk' | 'en'
+  active_approved_revision_id?: string | null
+  latest_revision_id?: string
+  latest_revision_status?: PositioningRevision['status']
+  revisions?: PositioningRevision[]
+  sources?: PositioningSource[]
+  created_at: string
+}
+
+export interface PositioningCatalog {
+  default_country: string
+  default_research_language: string
+  countries: Array<{ code: string; name: string }>
+  research_languages: Array<{ code: string; name: string }>
+  output_languages: Array<{ code: 'uk' | 'en'; name: string }>
+}
+
+export type LandingTemplateId = 'product' | 'community' | 'waitlist'
+export type LandingBlockId = 'hero' | 'problem' | 'features' | 'steps' | 'proof' | 'faq' | 'final_cta' | 'lead_form'
+
+export interface LandingTemplate {
+  id: LandingTemplateId
+  name: { uk: string; en: string }
+  description: { uk: string; en: string }
+}
+
+export interface LandingSnapshot {
+  id: string
+  draft_set_id: string
+  template_id: LandingTemplateId
+  snapshot_number: number
+  page_content: { schema_version: 2; template_id: LandingTemplateId; language: 'uk' | 'en'; blocks: Record<LandingBlockId, Record<string, unknown>> }
+  page_content_sha256: string
+  is_current: boolean
+}
+
+export interface LandingEdit {
+  request_id: string
+  draft_set_id: string
+  template_id: LandingTemplateId
+  block_id: LandingBlockId
+  instruction: string
+  status: 'queued' | 'editing' | 'completed' | 'failed'
+  result_snapshot_id?: string | null
+  error_message?: string | null
 }
 
 export interface LandingDraftSet {
   id: string
   request_id: string
-  idea_run_id: string
-  thesis_id?: string | null
-  brief: LandingBrief
-  recommended_template_id: LandingTemplate['id']
-  skill_memory_feedback_ids: string[]
-  status: 'queued' | 'populating' | 'ready' | 'failed'
+  positioning_project_id: string
+  positioning_revision_id: string
+  privacy_policy_url: string
+  brief: Record<string, unknown>
+  status: 'queued' | 'populating' | 'completed' | 'failed'
   population_summary?: string | null
-  population_invocation?: Record<string, unknown> | null
-  error_code?: string | null
   error_message?: string | null
-  requested_by: string
-  variants: LandingDraftSnapshot[]
-  edits: LandingBlockEdit[]
-  created_at: string
-  updated_at: string
-  completed_at?: string | null
-}
-
-export interface LandingDraftPreview {
-  snapshot_id: string
-  template_id: LandingTemplate['id']
-  snapshot_number: number
-  artifact_sha256: string
-  html: string
-}
-
-export interface LandingSkillProposal {
-  id: string
-  feedback_id: string
-  draft_set_id: string
-  template_id: LandingTemplate['id']
-  block_id: LandingBlockId
-  proposed_lesson?: string | null
-  reviewed_lesson?: string | null
-  status: 'pending_generation' | 'pending_review' | 'dismissed' | 'planning' | 'promoted' | 'failed'
-  command_session_id?: string | null
-  comment: string
-  created_at: string
-  updated_at: string
-}
-
-export interface LandingFeedback {
-  id: string
-  build_id?: string
-  snapshot_id?: string
-  idea_run_id?: string
-  template_id: LandingTemplate['id']
-  revision_number: number
-  snapshot_number?: number | null
-  block_id?: LandingBlockId | null
-  comment: string
-  weight_update_id?: string
-  created_at: string
+  snapshots: LandingSnapshot[]
+  current_snapshots: Partial<Record<LandingTemplateId, LandingSnapshot>>
 }
 
 export interface LandingBuild {
   id: string
   request_id: string
-  idea_run_id: string
-  thesis_id?: string | null
-  template_id: LandingTemplate['id']
-  parent_build_id?: string | null
-  revision_number: number
-  input_brief: LandingBrief
-  brief: LandingBrief
-  skill_memory_feedback_ids: string[]
-  revision_summary?: string | null
-  revision_invocation?: Record<string, unknown> | null
-  source_draft_snapshot_id?: string | null
-  page_content?: LandingPageContent | null
-  page_content_sha256?: string | null
-  status: LandingBuildStatus
-  build_manifest?: Record<string, unknown> | null
-  artifact_sha256?: string | null
-  firebase_site_id: string
-  firebase_version?: string | null
+  positioning_project_id: string
+  positioning_revision_id: string
+  source_draft_snapshot_id: string
+  template_id: LandingTemplateId
+  status: 'queued' | 'building' | 'publishing' | 'published' | 'failed'
   public_url?: string | null
-  error_code?: string | null
   error_message?: string | null
   created_at: string
-  updated_at: string
-  completed_at?: string | null
 }
 
-export interface Creative {
-  uuid: string
-  artifact_digest: string
-  image_url: string
-  title: I18n
-  batch_id?: string
-  position?: number
-  review_status: string
-  latest_feedback_id?: string
-  rating?: number
-  predicted_ctr?: number
-  reviewed_at?: string
+export interface LandingLead {
+  id: string
+  build_id: string
+  form_id: 'waitlist' | 'contact_request' | 'community_interest'
+  fields: Record<string, string>
+  submitted_at: string
+  notification_attempts: Array<{ status: 'sent' | 'failed' | 'ambiguous' | 'suppressed'; error_message?: string | null }>
+}
+
+export interface SkillProposal {
+  id: string
+  feedback_id: string
+  revision_id?: string
+  lesson: string
+  status: 'pending_generation' | 'pending' | 'planning' | 'promoted' | 'rejected' | 'failed'
+  command_session_id?: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface Job {
@@ -576,14 +176,8 @@ export interface Job {
   mode: 'plan' | 'execute'
   title: string
   status: string
-  plan_digest?: string
-  plan?: string
-  created_at: string
-  deployment_revision?: string
   destructive?: boolean
+  plan?: string
+  plan_digest?: string
+  deployment_revision?: string
 }
-
-export type Region =
-  | { id: string; kind: 'pin'; x: number; y: number; comment: string }
-  | { id: string; kind: 'rectangle'; x: number; y: number; width: number; height: number; comment: string }
-  | { id: string; kind: 'freehand'; points: Array<{ x: number; y: number }>; comment: string }

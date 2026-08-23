@@ -28,3 +28,9 @@ test-results/
 firebase-debug.log
 firebase-debug.*.log
 .firebase/
+
+# Retired v1 artifacts may remain in an old checkout, but v2 keeps them only
+# in Git history and never tracks or ships regenerated copies.
+/commander/assets/
+/idea_generation/
+/output/

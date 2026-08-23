@@ -1,37 +1,33 @@
 {
-  "version": 2,
+  "version": 3,
   "emergencyStop": false,
   "approvals": {
-    "experiments": true,
-    "publishing": true,
-    "deployment": true
+    "positioningRevision": true,
+    "landingPublication": true,
+    "skillLessonPromotion": true,
+    "deployment": true,
+    "productionResetPhrase": "RESET PTW PRODUCTION"
   },
   "budgets": {
     "currency": "USD",
-    "dailyMinor": 5000,
-    "maxExperimentMinor": 1000
+    "positioningResearchMaximum": 0.05
   },
-  "experiments": {
-    "maxRunning": 3,
-    "maxDurationHours": 168
+  "heavyOperations": {
+    "globalConcurrentMaximum": 1,
+    "kinds": ["marketing_positioning", "landing_agent", "codex_plan", "codex_execute"]
   },
-  "confidence": {
-    "minimumForAutomaticDecision": 0.9
+  "ads": {
+    "generation": false,
+    "publishing": false
   },
-  "rollback": {
-    "requiredForDeployment": true
-  },
-  "notifications": {
-    "approval": "telegram",
-    "failure": "telegram",
-    "completion": "telegram"
+  "telegram": {
+    "reuseExistingBotOnly": true,
+    "allowedInboundCommands": ["/help", "/status", "/stop"],
+    "additionalPollers": false
   },
   "deployment": {
-    "allowed": true,
     "productionBranch": "main",
-    "mergeMethod": "pull_request",
     "directPush": false,
-    "autonomousMerge": true,
-    "recordRollbackRevision": true
+    "recordReleaseTag": true
   }
 }

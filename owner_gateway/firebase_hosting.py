@@ -7,6 +7,7 @@ import hashlib
 from pathlib import Path
 import re
 from typing import Any, Mapping
+from urllib.parse import urlsplit
 
 
 API_ROOT = "https://firebasehosting.googleapis.com/v1beta1"
@@ -54,6 +55,7 @@ class FirebaseHostingPublisher:
         project_id: str,
         site_id: str,
         credential_path: Path | None = None,
+        lead_api_origin: str = "",
         session: Any | None = None,
     ) -> None:
         if not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,62}", site_id):
@@ -61,6 +63,12 @@ class FirebaseHostingPublisher:
         self.project_id = project_id
         self.site_id = site_id
         self.credential_path = credential_path
+        parsed_lead = urlsplit(lead_api_origin)
+        if lead_api_origin and (parsed_lead.scheme != "https" or not parsed_lead.netloc):
+            raise ValueError("Landing lead API origin must be HTTPS")
+        self.lead_api_origin = (
+            f"{parsed_lead.scheme}://{parsed_lead.netloc}" if lead_api_origin else ""
+        )
         self._session = session
 
     def _authorized_session(self) -> Any:
@@ -149,7 +157,8 @@ class FirebaseHostingPublisher:
                                     "script-src 'self'; object-src 'none'; base-uri 'none'; "
                                     f"frame-ancestors https://{self.project_id}.firebaseapp.com "
                                     f"https://{self.project_id}.web.app; "
-                                    "form-action 'self'"
+                                    "form-action 'none'; "
+                                    f"connect-src 'self' {self.lead_api_origin or ''}"
                                 ),
                             },
                         },

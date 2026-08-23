@@ -1,82 +1,15 @@
-# Commander runtime operations
+# PTW v2 service operations
 
-Status: web-only runtime
-Updated: 2026-08-21
+Build linux/amd64 `ptw-commander`, `ptw-marketing-positioning`, and
+`ptw-owner-gateway` images off-host. Production uses one locked serial session,
+one image load at a time, matching non-`latest` tags, and `--no-build` starts.
 
-Run the deterministic learning-domain demonstration and unit tests from the
-repository root:
+Commander/Owner Gateway/DB use `docker-compose.commander.yml`. Positioning uses
+its separately named Compose file/project and retains loopback 8093. The
+platform bridge remains under `/opt/ptw/platform`; never merge repositories or
+databases. Deploy its allowlist update independently and run every fresh bridge
+canary before resetting application state.
 
-```sh
-python3 -m unittest discover -s tests/commander -v
-python3 -m commander.demo --output-dir .local/commander-demo
-```
-
-The executable production composition is `docker-compose.commander.yml`. It
-contains the Commander database/migrator, domain API, retired-profile outbox
-and ad workers,
-Owner Gateway, and reset-independent control storage. Idea Laval runs from
-`docker-compose.idea-generation.yml` on the shared platform backend network.
-The Idea API's default loopback port is `8093`; its browser-facing Laval routes
-are exposed only through the authenticated Owner Gateway.
-
-The same Idea process hosts the restartable Branding runner and mounts the
-existing Commander asset volume. Production uses `BRAND_PROVIDER=bridge`, the
-existing `codex-cli-default` ChatGPT authentication, and the bridge's exact
-`gpt-image-2` image contract; `fixture` is test-only. Branding never consumes
-DataForSEO. Its public-page and optional official YouTube collection remain
-bounded, and provider readiness truthfully reports unavailable optional
-YouTube access without blocking a run.
-
-`scripts/configure_brand_provider.sh` no longer prompts for or changes a key.
-It verifies that the live platform exposes all strict Branding modes, one
-`gpt-image-2` image per request, immutable Commander-volume transport, and at
-least one selectable completed case.
-
-Idea Laval is operated through the authenticated Ideas web view.
-`LAVAL_SEARCH_PROVIDER=fixture` and
-`LAVAL_TREND_PROVIDER=fixture` are safe deterministic defaults. Live localized
-search uses `dataforseo` plus `DATAFORSEO_LOGIN`/`DATAFORSEO_PASSWORD`. Live V2
-also requires the official YouTube Data API through `YOUTUBE_API_KEY` and the
-canary-written `YOUTUBE_VERIFIED=1`; caption scraping is forbidden. Live Trends
-is optional and uses `google_trends` plus the owner-provided alpha/API bridge.
-Provider credentials stay in root-owned VPS environment files, never Git or the
-browser. The `lav` CLI inside the image calls the same PostgreSQL services.
-
-PostgreSQL owns domain entities, relationship edges, feedback, jobs, and
-projections. Git owns migrations, policies, prompts, and canonical docs.
-Entity/edge changes and outbox records commit in one transaction. Generated
-files are immutable and addressed by SHA-256 digest.
-
-## Runtime controls
-
-- Normal owner actions use Firebase-authenticated `/api/v1/*` endpoints.
-- Telegram input is limited to emergency `/help`, `/status`, and `/stop`.
-  General proactive delivery remains retired; Idea Laval alone sends one direct,
-  deduplicated status message when a run pauses, completes, or fails. This uses
-  `sendMessage` and starts no polling worker.
-- Emergency stop is durable and checked before generation or execution side
-  effects; only the web System view resumes all runtimes.
-- Plan mode is read-only. Execute requires the immutable plan digest, and a
-  destructive plan also requires exact owner confirmation.
-- The root broker is a separate break-glass systemd service and never exposes
-  credentials or PTY transcripts to PostgreSQL.
-
-## Retired creative runtime
-
-The historical ten-context post workflow, A01–A10 state, immutable images,
-review lineage, migrations, and source remain preserved. On the 1 GB production
-profile `CREATIVE_RUNTIME_ENABLED=false` and
-`OUTBOUND_NOTIFICATIONS_ENABLED=false`; neither polling worker starts, Pillow
-and ad-generation modules are not imported by the Commander API, pending
-Telegram deliveries are cancelled append-only, and retired endpoints return
-HTTP 410. `LAVAL_TELEGRAM_NOTIFICATIONS_ENABLED=true` is independent of that
-retired outbox runtime and enables only direct terminal Laval messages.
-
-Branding does not reactivate either retired worker. It creates logo Creative
-and feedback graph records synchronously through the internal Commander bridge,
-and uses no Telegram commands or general notifications. The retained future
-batch API requires an approved active non-stale Brand Kit.
-
-See [`owner-control-plane.md`](owner-control-plane.md) for authentication,
-Plan/Execute, root terminal, deployment, and production acceptance. See
-[`disaster-recovery.md`](disaster-recovery.md) for the irreversible reset boundary.
+After cutover, run the dependency audit, public console audit, exact-owner
+browser journey, skill verification, direct labelled bot canary, restart check,
+and `scripts/audit_ptw_1gb.sh`. Repeat the locked resource audit after 24 hours.

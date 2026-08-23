@@ -1,69 +1,18 @@
-# Research to initial hypothesis
+# Marketing Positioning research lineage
 
-Research is evidence, not knowledge by itself. Commander preserves the stages:
+The owner idea is stored before work begins. A strict research-plan call creates
+two to four localized queries. Verified DataForSEO tasks are keyed durably;
+their remote task IDs and cost are stored once and reused after retry. Total
+paid cost for one revision cannot exceed USD 0.05.
 
-```text
-ResearchFinding (Source entities)
-        |                         \
-        | derived_from             -> ProductMechanism
-        v                                   |
-Proposed Product Thesis Hypothesis <--------+ contains
-        |
-        v
-Experiment -> Observation -> Insight -> Decision -> KnowledgeAssertion
-```
+Only bounded organic results and safe public HTTPS pages are eligible. The page
+fetcher rejects private/local addresses, credentials, non-HTTP redirects,
+unsupported MIME, excessive bodies, and unsafe DNS results. Selected findings
+enter through `ResearchKnowledgeService`, which creates permanent Source UUIDs
+before synthesis.
 
-`ResearchKnowledgeService` records each bounded finding as a permanent UUIDv7
-`Source` with URI, publisher, publication date, concise finding summary, scoped
-credibility, and optional external ID. A hypothesis may derive from multiple
-sources; each source has its own relationship edge. The hypothesis remains
-`proposed` and does not become accepted knowledge until tested and adopted by an
-explicit decision.
-
-Idea Laval V2 treats candidate variants as intermediate research material.
-Every published `product_mechanism` derives from permanent Sources. A surviving
-product thesis contains 3-7 mechanisms and independently derives from its
-permanent Sources. Weak/rejected theses and `no_surviving_thesis` runs publish
-no selectable Hypothesis.
-
-Owner selection creates one idempotent `validation_workspace`. Manual market
-probe Experiments produce factual Observations and separate supporting or
-contradicting Insights. Continue/Mutate/Pivot/Reject Decisions are append-only;
-revision Hypotheses use `supersedes`. Continue injects bounded graph context
-into Plan mode and records `RESEARCH_CONTEXT_CONSUMED` without asking the owner
-to copy any UUID.
-
-Automated research is owned by explicit agents: `/research creative`,
-`/research product`, `/research design`, and `/research engineering`. Each
-records its `owner_agent`, `knowledge_domain`, and `research_type`, calls the
-same provenance contract, stores concise findings, and separates source claims
-from Commander interpretation.
-
-PostgreSQL is the graph store:
-
-- `commander_entities.id`: permanent UUID entity ID;
-- `commander_entities.kind/attributes`: typed entity envelope and vertical
-  attributes;
-- `commander_relationships`: foreign-key-protected directed edges;
-- `relation`: constrained predicate such as `derived_from`, `supports`,
-  `contradicts`, or `supersedes`;
-- audit entities: actor, concise reasoning summary, evidence IDs, and policy
-  revision.
-
-A dedicated graph database is unnecessary until measured query patterns exceed
-recursive SQL/typed-edge capabilities. PostgreSQL remains the authoritative
-store even if vector or graph projections are added later.
-
-After ingestion, `/graph hypotheses` shows proposed hypotheses and the exact
-Source UUIDs from which each was derived.
-
-`/creative from <hypothesis-uuid>` validates that the selected hypothesis has
-`research_type=creative_ideation`, then generates a creative linked to that
-existing hypothesis. This preserves Source -> Hypothesis -> Creative lineage.
-
-Product, design, and engineering hypotheses are consumed with
-`/task from <hypothesis-uuid> <request>`. The platform retrieves the hypothesis
-and permanent sources through the authenticated bridge, injects the bounded
-evidence into the task specification, and appends a
-`RESEARCH_CONTEXT_CONSUMED` event. Creative-owned hypotheses fail closed on
-this path and must use `/creative from`.
+Each generated factual statement lists allowed Source UUIDs. Uncited inference
+is marked `assumption: true`; metrics, proof, testimonials, limitations, and
+competitive facts cannot be invented. Failure of research, safe-page reading,
+bridge availability, schema validation, or quality gates fails the durable
+attempt. There is no fixture/model-knowledge fallback in live generation.

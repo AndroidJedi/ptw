@@ -1,34 +1,5 @@
-"""PTW Commander generic learning-domain prototype."""
+"""Small shared identity primitive for the PTW v2 control plane."""
 
 from .ids import new_uuid7
-from .context import ContextBroker, ContextBundle
-from .model import Entity, EntityKind, Relationship
-from .policy import CommanderPolicy, PolicyDenied
-from .postgres_store import PostgresKnowledgeStore, connect_postgres
-from .research import (
-    CreativeIdeationResearchService,
-    CreativeResearchResult,
-    HypothesisProposal,
-    ResearchFinding,
-    ResearchKnowledgeService,
-)
-from .service import Commander
-from .store import JsonlKnowledgeStore, MemoryKnowledgeStore
 
-__all__ = [
-    "Commander",
-    "CommanderPolicy",
-    "ContextBroker",
-    "ContextBundle",
-    "Entity",
-    "EntityKind",
-    "JsonlKnowledgeStore",
-    "MemoryKnowledgeStore",
-    "PolicyDenied",
-    "PostgresKnowledgeStore",
-    "Relationship",
-    "ResearchFinding",
-    "ResearchKnowledgeService",
-    "new_uuid7",
-    "connect_postgres",
-]
+__all__ = ["new_uuid7"]

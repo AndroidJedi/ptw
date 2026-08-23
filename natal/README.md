@@ -1,28 +1,30 @@
 # Natal landing factory
 
-This folder turns a bounded `brief.schema.json` product brief into a dependency-free, mobile-first
-Natal landing page. The name, logo, icons, tokens, and accessibility baseline
-are fixed; Idea Laval data supplies the audience, pain, promise, features,
-steps, proof, FAQ, and CTA.
+This package turns exactly one active, approved Marketing Positioning revision
+into three dependency-free, mobile-first Natal landing drafts. Natal name,
+assets, tokens, layouts, evidence, privacy URL, form behavior, publication
+target, and graph IDs remain server-owned.
+
+The v2 page model contains eight independent blocks: `hero`, `problem`,
+`features`, `steps`, `proof`, `faq`, `final_cta`, and `lead_form`. The agent may
+choose `waitlist`, `contact_request`, or `community_interest` and tailor its
+heading/body. Fields, validation, consent, submit labels, success copy, and
+notification behavior come only from `natal/forms.py`.
 
 ```sh
 python3 -m natal.builder --list-templates
 python3 -m natal.builder \
   --template product \
-  --brief path/to/brief.json \
+  --brief path/to/approved-positioning-brief.json \
   --output output/landings/example
 ```
 
-The build contains `index.html`, `styles.css`, `app.js`, the normalized
-`brief.json`, the exact independent-block `page_content.json`, a
-provenance-bearing `build.json`, and digest-verified Natal assets. The three JSON
-files are internal metadata and are not published. The builder refuses a
-non-empty output directory unless `--overwrite` is explicit.
+The build contains public `index.html`, `styles.css`, `app.js`, and canonical
+assets plus private `brief.json`, `page_content.json`, and `build.json`
+manifests. Firebase publishes only the public allowlist. Private previews are
+self-contained and inert. Publication consumes the exact selected snapshot,
+enables its form, and performs no additional agent rewrite.
 
-`skills/natal-landing-builder/` is the Commander/Codex agent contract. The
-Owner Console Landing workspace prepares one fresh, schema-bound builder-agent
-turn from a completed Idea Laval evaluation and its append-only feedback memory
-to populate private `product`, `community`, and `waitlist` snapshots. Preview
-documents inline this kit for sandboxed `srcdoc` review. The owner can edit one
-of seven content blocks at a time; only an explicit publish action creates an
-immutable Landing revision through the server-pinned Firebase workflow.
+`skills/natal-landing-builder/` is the canonical agent contract. Owner feedback
+edits one block at a time and produces append-only feedback, a zero-delta weight
+update, a superseding snapshot, and an editable lesson proposal.

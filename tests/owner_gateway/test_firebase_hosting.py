@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 from owner_gateway.firebase_hosting import HOSTING_CONTRACT, FirebaseHostingPublisher, public_files
+from owner_gateway.landing_pipeline import LandingBuildCoordinator
 
 
 SITE = "natal-landings-test"
@@ -149,6 +150,51 @@ class FirebaseHostingPublisherTests(unittest.TestCase):
             (root / "linked.css").symlink_to(root / "styles.css")
             with self.assertRaisesRegex(ValueError, "must not contain symlinks"):
                 public_files(root)
+
+    def test_release_keeps_prior_build_and_publishes_current_snapshot_at_root_and_build_path(self) -> None:
+        prior_id = "01234567-89ab-7def-8123-456789abcdea"
+
+        class Repository:
+            def __init__(self, prior_output: Path) -> None:
+                self.prior_output = prior_output
+
+            def published(self) -> list[dict[str, str]]:
+                return [{"id": prior_id, "output_path": str(self.prior_output)}]
+
+        with tempfile.TemporaryDirectory() as directory:
+            output_root = Path(directory)
+            prior = output_root / "builds" / prior_id
+            current = output_root / "builds" / BUILD_ID
+            prior.mkdir(parents=True)
+            current.mkdir(parents=True)
+            self.make_site(prior)
+            self.make_site(current)
+            (prior / "index.html").write_text("<h1>Prior snapshot</h1>")
+            (current / "index.html").write_text("<h1>Current exact snapshot</h1>")
+            release = output_root / "release"
+            release.mkdir()
+            coordinator = LandingBuildCoordinator(
+                repository=Repository(prior),  # type: ignore[arg-type]
+                publisher=object(),  # type: ignore[arg-type]
+                output_root=output_root,
+                stopped=lambda: False,
+                lead_api_base_url="https://api.example.com/api/v1/public/landings",
+            )
+            coordinator._assemble_release(release, BUILD_ID, current)
+
+            self.assertEqual(
+                public_files(current), public_files(release / "builds" / BUILD_ID)
+            )
+            self.assertEqual(
+                (release / "index.html").read_bytes(),
+                (release / "builds" / BUILD_ID / "index.html").read_bytes(),
+            )
+            self.assertEqual(
+                "<h1>Prior snapshot</h1>",
+                (release / "builds" / prior_id / "index.html").read_text(),
+            )
+            self.assertFalse((release / "brief.json").exists())
+            self.assertFalse((release / "builds" / BUILD_ID / "page_content.json").exists())
 
 
 if __name__ == "__main__":

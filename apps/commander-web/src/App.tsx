@@ -6,24 +6,27 @@ import { AUTH_PERSISTENCE_MARKER, auth, googleProvider } from './firebase'
 import { Shell } from './components/Shell'
 import type { Language } from './i18n'
 import type { Page } from './types'
-import { IdeasView } from './views/IdeasView'
-import { JobsView } from './views/JobsView'
-import { MoreView } from './views/MoreView'
-import { OverviewView } from './views/OverviewView'
-import { BrandingView } from './views/BrandingView'
 import { LandingView } from './views/LandingView'
+import { PositioningView } from './views/PositioningView'
+import { AdsView } from './views/AdsView'
+import { AdminView } from './views/AdminView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
 export const AUTH_BOOT_TIMEOUT_MS = 10_000
 
-function initialConsoleLocation(): { page: Page; runId?: string } {
+function initialConsoleLocation(): { page: Page } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const page: Page = ['overview', 'ideas', 'branding', 'landings', 'jobs', 'more'].includes(requestedPage || '')
+  const known = ['positioning', 'landing', 'ads', 'admin'].includes(requestedPage || '')
+  const page: Page = known
     ? requestedPage as Page
-    : 'overview'
-  const runId = params.get('run') || undefined
-  return { page, ...(runId ? { runId } : {}) }
+    : 'positioning'
+  if (requestedPage && !known) {
+    params.delete('page'); params.delete('run')
+    const search = params.toString()
+    window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
+  }
+  return { page }
 }
 
 function prefersRedirectSignIn() {
@@ -84,21 +87,19 @@ function Console({ user }: { user: User }) {
   const api = useMemo(() => new ApiClient(user), [user])
   const navigate = (nextPage: Page) => {
     const params = new URLSearchParams(window.location.search)
-    if (nextPage === 'overview') params.delete('page')
+    if (nextPage === 'positioning') params.delete('page')
     else params.set('page', nextPage)
-    if (nextPage !== 'ideas' && nextPage !== 'branding') params.delete('run')
+    params.delete('run')
     const search = params.toString()
     window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
     setPage(nextPage)
   }
   return <Shell page={page} onPage={navigate} language={language} onLanguage={() => setLanguage(language === 'uk' ? 'en' : 'uk')}>
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label="Вийти"><LogOut /></button></div>
-    {page === 'overview' && <OverviewView api={api} language={language} />}
-    {page === 'ideas' && <IdeasView api={api} language={language} initialRunId={initialLocation.runId} />}
-    {page === 'branding' && <BrandingView api={api} language={language} initialRunId={initialLocation.runId} />}
-    {page === 'landings' && <LandingView api={api} language={language} />}
-    {page === 'jobs' && <JobsView api={api} />}
-    {page === 'more' && <MoreView api={api} />}
+    {page === 'positioning' && <PositioningView api={api} />}
+    {page === 'landing' && <LandingView api={api} />}
+    {page === 'ads' && <AdsView api={api} />}
+    {page === 'admin' && <AdminView api={api} />}
   </Shell>
 }
 

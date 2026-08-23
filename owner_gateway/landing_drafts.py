@@ -42,16 +42,15 @@ class LandingDraftCoordinator:
     def by_request(self, request_id: str) -> dict[str, Any] | None:
         return self.repository.by_request(request_id)
 
-    def latest(self, idea_run_id: str) -> dict[str, Any] | None:
-        return self.repository.latest(idea_run_id)
+    def latest(self, positioning_revision_id: str) -> dict[str, Any] | None:
+        return self.repository.latest(positioning_revision_id)
 
     def create(
         self, prepared: Mapping[str, Any], *, request_id: str, requested_by: str
     ) -> tuple[dict[str, Any], bool]:
-        memory = self.build_repository.skill_memory(str(prepared["idea_run_id"]))
         return self.repository.create(
             prepared, request_id=request_id, requested_by=requested_by,
-            feedback_ids=[item["id"] for item in memory],
+            feedback_ids=(),
         )
 
     def retry_population(self, draft_set_id: str) -> dict[str, Any]:
@@ -65,11 +64,9 @@ class LandingDraftCoordinator:
             if self.stopped():
                 raise RuntimeError("PTW emergency stop is active")
             draft_set = self.repository.mark_populating(draft_set_id)
-            captured = set(draft_set["skill_memory_feedback_ids"])
-            memory = [
-                item for item in self.build_repository.skill_memory(draft_set["idea_run_id"])
-                if item["id"] in captured
-            ]
+            memory = self.build_repository.skill_memory(
+                draft_set["positioning_revision_id"]
+            )
             pages, summary, invocation = self.reviser.populate_set(
                 brief=dict(draft_set["brief"]), skill_memory=memory
             )
@@ -129,7 +126,9 @@ class LandingDraftCoordinator:
             edit = self.repository.mark_editing(request_id)
             draft_set = self.repository.get(edit["draft_set_id"])
             base = self.repository.snapshot(edit["base_snapshot_id"])
-            memory = self.build_repository.skill_memory(draft_set["idea_run_id"])
+            memory = self.build_repository.skill_memory(
+                draft_set["positioning_revision_id"]
+            )
             block, summary, lesson, invocation = self.reviser.edit_block(
                 template_id=edit["template_id"], brief=dict(draft_set["brief"]),
                 page_content=dict(base["page_content"]), block_id=edit["block_id"],

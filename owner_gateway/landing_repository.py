@@ -1,13 +1,30 @@
-"""PostgreSQL authority for Natal landing revisions and skill feedback memory."""
+"""PostgreSQL authority for exact-snapshot Natal publications."""
 
 from __future__ import annotations
 
 from contextlib import contextmanager
 from typing import Any, Iterator, Mapping, Sequence
-from uuid import UUID, uuid4
+from uuid import UUID
+
+from commander.ids import new_uuid7
 
 
-ACTIVE_STATUSES = ("queued", "revising", "building", "publishing")
+ACTIVE_STATUSES = ("queued", "building", "publishing")
+
+
+def _audit_failure(
+    connection: Any, *, action: str, target_id: UUID, code: str, message: str
+) -> None:
+    from psycopg.types.json import Jsonb
+
+    connection.execute(
+        """INSERT INTO commander_audit_events(id,actor,action,target_id,details)
+           VALUES(%s,'system',%s,%s,%s)""",
+        (
+            UUID(new_uuid7()), action, target_id,
+            Jsonb({"error_code": code[:100], "error_message": message[:2000]}),
+        ),
+    )
 
 
 class LandingBuildRepository:
@@ -17,86 +34,62 @@ class LandingBuildRepository:
     @contextmanager
     def connection(self) -> Iterator[Any]:
         import psycopg
-
         with psycopg.connect(self.database_url, connect_timeout=5) as connection:
             yield connection
 
     @staticmethod
-    def _row(row: Sequence[Any]) -> dict[str, Any]:
-        return {
-            "id": str(row[0]),
-            "request_id": str(row[1]),
-            "idea_run_id": str(row[2]),
-            "thesis_id": None if row[3] is None else str(row[3]),
-            "template_id": row[4],
-            "parent_build_id": None if row[5] is None else str(row[5]),
-            "revision_number": int(row[6]),
-            "input_brief": row[7],
-            "brief": row[8],
-            "skill_memory_feedback_ids": [str(item) for item in row[9]],
-            "revision_summary": row[10],
-            "revision_invocation": row[11],
-            "source_draft_snapshot_id": None if row[12] is None else str(row[12]),
-            "page_content": row[13], "page_content_sha256": row[14],
-            "status": row[15],
-            "output_path": row[16],
-            "build_manifest": row[17],
-            "artifact_sha256": row[18],
-            "firebase_site_id": row[19],
-            "firebase_version": row[20],
-            "public_url": row[21],
-            "error_code": row[22],
-            "error_message": row[23],
-            "requested_by": row[24],
-            "created_at": row[25].isoformat(),
-            "updated_at": row[26].isoformat(),
-            "completed_at": None if row[27] is None else row[27].isoformat(),
-        }
+    def _select() -> str:
+        return """SELECT build.entity_id,build.request_id,build.positioning_project_id,
+                         build.positioning_revision_id,build.source_snapshot_id,build.template_id,
+                         draft.source_brief,build.page_content,build.page_content_sha256,
+                         build.output_path,build.build_manifest,build.artifact_sha256,
+                         build.firebase_site_id,build.firebase_version,build.public_url,build.status,
+                         build.error_code,build.error_message,build.requested_by,build.created_at,
+                         build.updated_at,build.completed_at
+                  FROM landing_builds build
+                  JOIN landing_draft_snapshots snapshot ON snapshot.entity_id=build.source_snapshot_id
+                  JOIN landing_draft_sets draft ON draft.entity_id=snapshot.draft_set_id"""
 
     @staticmethod
-    def _select() -> str:
-        return """SELECT entity_id,request_id,source_laval_run_id,source_thesis_id,
-                         template_id,parent_build_id,revision_number,input_brief,brief,
-                         skill_memory_feedback_ids,revision_summary,revision_invocation,
-                         source_draft_snapshot_id,page_content,page_content_sha256,
-                         status,output_path,build_manifest,artifact_sha256,firebase_site_id,
-                         firebase_version,public_url,error_code,error_message,requested_by,
-                         created_at,updated_at,completed_at
-                  FROM natal_landing_builds"""
+    def _row(row: Sequence[Any]) -> dict[str, Any]:
+        return {
+            "id": str(row[0]), "request_id": str(row[1]),
+            "positioning_project_id": str(row[2]), "positioning_revision_id": str(row[3]),
+            "source_draft_snapshot_id": str(row[4]), "template_id": row[5],
+            "brief": row[6], "page_content": row[7], "page_content_sha256": row[8],
+            "output_path": row[9], "build_manifest": row[10], "artifact_sha256": row[11],
+            "firebase_site_id": row[12], "firebase_version": row[13], "public_url": row[14],
+            "status": row[15], "error_code": row[16], "error_message": row[17],
+            "requested_by": row[18], "created_at": row[19].isoformat(),
+            "updated_at": row[20].isoformat(), "completed_at": None if row[21] is None else row[21].isoformat(),
+        }
 
     def get(self, build_id: str) -> dict[str, Any]:
         with self.connection() as connection:
-            row = connection.execute(
-                self._select() + " WHERE entity_id=%s", (UUID(build_id),)
-            ).fetchone()
+            row = connection.execute(self._select() + " WHERE build.entity_id=%s", (UUID(build_id),)).fetchone()
         if row is None:
             raise KeyError(build_id)
         return self._row(row)
 
     def by_request(self, request_id: str) -> dict[str, Any] | None:
         with self.connection() as connection:
-            row = connection.execute(
-                self._select() + " WHERE request_id=%s", (UUID(request_id),)
-            ).fetchone()
+            row = connection.execute(self._select() + " WHERE build.request_id=%s", (UUID(request_id),)).fetchone()
         return None if row is None else self._row(row)
 
-    def list(self, limit: int = 30, *, idea_run_id: str | None = None) -> list[dict[str, Any]]:
-        suffix = ""
-        params: list[Any] = []
-        if idea_run_id:
-            suffix = " WHERE source_laval_run_id=%s"
-            params.append(UUID(idea_run_id))
+    def list(self, limit: int = 30, *, positioning_revision_id: str | None = None) -> list[dict[str, Any]]:
+        suffix, params = "", []
+        if positioning_revision_id:
+            suffix = " WHERE build.positioning_revision_id=%s"
+            params.append(UUID(positioning_revision_id))
         params.append(min(limit, 100))
         with self.connection() as connection:
-            rows = connection.execute(
-                self._select() + suffix + " ORDER BY created_at DESC LIMIT %s", params
-            ).fetchall()
+            rows = connection.execute(self._select() + suffix + " ORDER BY build.created_at DESC LIMIT %s", params).fetchall()
         return [self._row(row) for row in rows]
 
     def active(self) -> dict[str, Any] | None:
         with self.connection() as connection:
             row = connection.execute(
-                self._select() + " WHERE status=ANY(%s) ORDER BY created_at LIMIT 1",
+                self._select() + " WHERE build.status=ANY(%s) ORDER BY build.created_at LIMIT 1",
                 (list(ACTIVE_STATUSES),),
             ).fetchone()
         return None if row is None else self._row(row)
@@ -111,338 +104,221 @@ class LandingBuildRepository:
         firebase_site_id: str,
     ) -> tuple[dict[str, Any], bool]:
         from psycopg.types.json import Jsonb
-
         existing = self.by_request(request_id)
         if existing is not None:
+            if existing["source_draft_snapshot_id"] != str(prepared["source_draft_snapshot_id"]):
+                raise ValueError("request_id was already used for another Landing snapshot")
             return existing, False
         build_id = UUID(str(prepared["build_id"]))
-        brief = dict(prepared["brief"])
-        run_id = UUID(str(prepared["idea_run_id"]))
-        raw_thesis = str((brief.get("source") or {}).get("thesis_id") or "")
-        thesis_id = UUID(raw_thesis) if raw_thesis else None
-        parent_id = UUID(str(prepared["parent_build_id"])) if prepared.get("parent_build_id") else None
-        feedback_ids = [UUID(str(item)) for item in prepared.get("skill_memory_feedback_ids") or []]
-        source_draft_id = UUID(str(prepared["source_draft_snapshot_id"])) if prepared.get("source_draft_snapshot_id") else None
-        page_content = dict(prepared["page_content"]) if isinstance(prepared.get("page_content"), Mapping) else None
-        page_content_sha256 = str(prepared.get("page_content_sha256") or "") or None
+        project_id = UUID(str(prepared["positioning_project_id"]))
+        revision_id = UUID(str(prepared["positioning_revision_id"]))
+        snapshot_id = UUID(str(prepared["source_draft_snapshot_id"]))
         with self.connection() as connection:
-            connection.execute("BEGIN")
-            if parent_id is not None:
-                parent = connection.execute(
-                    "SELECT source_laval_run_id,status FROM natal_landing_builds WHERE entity_id=%s",
-                    (parent_id,),
-                ).fetchone()
-                if parent is None or parent[0] != run_id:
-                    raise ValueError("parent landing revision must belong to the same Idea evaluation")
-                if parent[1] != "published":
-                    raise ValueError("only a published landing can be used as a revision parent")
-            revision_number = int(connection.execute(
-                "SELECT COALESCE(max(revision_number),0)+1 FROM natal_landing_builds WHERE source_laval_run_id=%s",
-                (run_id,),
-            ).fetchone()[0])
-            alias = connection.execute(
-                "SELECT entity_id FROM commander_external_aliases WHERE system='idea_laval_run' AND external_id=%s",
-                (str(run_id),),
+            row = connection.execute(
+                """SELECT snapshot.template_id,snapshot.page_content,snapshot.page_content_sha256,
+                          snapshot.is_current,draft.positioning_project_id,draft.positioning_revision_id
+                   FROM landing_draft_snapshots snapshot
+                   JOIN landing_draft_sets draft ON draft.entity_id=snapshot.draft_set_id
+                   WHERE snapshot.entity_id=%s FOR SHARE""",
+                (snapshot_id,),
             ).fetchone()
-            if alias is None:
-                source_id = uuid4()
-                connection.execute(
-                    "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'source',%s)",
-                    (
-                        source_id,
-                        Jsonb({
-                            "source_type": "idea_laval_evaluation",
-                            "idea_run_id": str(run_id),
-                            **({"thesis_id": str(thesis_id)} if thesis_id else {}),
-                        }),
-                    ),
-                )
-                connection.execute(
-                    "INSERT INTO commander_external_aliases(system,external_id,entity_id) VALUES('idea_laval_run',%s,%s)",
-                    (str(run_id), source_id),
-                )
-            else:
-                source_id = alias[0]
-            if source_draft_id is not None:
-                draft = connection.execute(
-                    """SELECT draft.source_laval_run_id,snapshot.template_id,snapshot.page_content_sha256,
-                              snapshot.is_current
-                       FROM natal_landing_draft_snapshots snapshot
-                       JOIN natal_landing_draft_sets draft ON draft.entity_id=snapshot.draft_set_id
-                       WHERE snapshot.entity_id=%s""",
-                    (source_draft_id,),
-                ).fetchone()
-                if draft is None or draft[0] != run_id or draft[1] != prepared["template_id"]:
-                    raise ValueError("selected draft snapshot does not match the landing source")
-                if not draft[3]:
-                    raise ValueError("selected draft snapshot is stale")
-                if page_content is None or page_content_sha256 != draft[2]:
-                    raise ValueError("selected draft content digest does not match")
+            if row is None or not row[3]:
+                raise ValueError("publication requires a current Landing snapshot")
+            if (
+                row[0] != prepared["template_id"] or row[4] != project_id or row[5] != revision_id
+                or row[2] != prepared["page_content_sha256"] or row[1] != prepared["page_content"]
+            ):
+                raise ValueError("selected snapshot content or positioning lineage does not match")
+            approved = connection.execute(
+                """SELECT 1 FROM positioning_approvals
+                   WHERE project_id=%s AND revision_id=%s AND revoked_at IS NULL""",
+                (project_id, revision_id),
+            ).fetchone()
+            if approved is None:
+                raise ValueError("publication requires the active approved positioning revision")
             connection.execute(
                 "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'landing',%s)",
-                (
-                    build_id,
-                    Jsonb({
-                        "brand": "Natal", "template_id": prepared["template_id"],
-                        "idea_run_id": str(run_id), "revision_number": revision_number,
-                    }),
-                ),
+                (build_id, Jsonb({"brand": "Natal", "template_id": row[0]})),
             )
             connection.execute(
-                "INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes) VALUES(%s,%s,'derived_from',%s,%s)",
-                (uuid4(), build_id, source_id, Jsonb({"thesis_id": raw_thesis or None})),
+                """INSERT INTO landing_builds(
+                       entity_id,request_id,positioning_project_id,positioning_revision_id,
+                       source_snapshot_id,template_id,page_content,page_content_sha256,
+                       output_path,firebase_site_id,status,requested_by
+                   ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued',%s)""",
+                (build_id, UUID(request_id), project_id, revision_id, snapshot_id, row[0],
+                 Jsonb(dict(row[1])), row[2], output_path, firebase_site_id, requested_by),
             )
-            if parent_id is not None:
-                connection.execute(
-                    "INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes) VALUES(%s,%s,'supersedes',%s,%s)",
-                    (uuid4(), build_id, parent_id, Jsonb({"revision_number": revision_number})),
-                )
-            if source_draft_id is not None:
+            for target, attributes in (
+                (snapshot_id, {"input": "exact_snapshot"}),
+                (revision_id, {"input": "approved_positioning"}),
+            ):
                 connection.execute(
                     "INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes) VALUES(%s,%s,'derived_from',%s,%s)",
-                    (uuid4(), build_id, source_draft_id, Jsonb({"input": "selected_natal_draft"})),
+                    (UUID(new_uuid7()), build_id, target, Jsonb(attributes)),
                 )
-            for feedback_id in feedback_ids:
-                exists = connection.execute(
-                    "SELECT 1 FROM natal_landing_feedback WHERE feedback_id=%s AND source_laval_run_id=%s",
-                    (feedback_id, run_id),
-                ).fetchone()
-                if exists is None:
-                    raise ValueError("skill-memory feedback must belong to the same Idea evaluation")
-                connection.execute(
-                    "INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes) VALUES(%s,%s,'derived_from',%s,%s)",
-                    (uuid4(), build_id, feedback_id, Jsonb({"input": "natal_skill_memory"})),
-                )
-            connection.execute(
-                """INSERT INTO natal_landing_builds(
-                       entity_id,request_id,source_laval_run_id,source_thesis_id,template_id,
-                       parent_build_id,revision_number,input_brief,brief,skill_memory_feedback_ids,
-                       revision_summary,revision_invocation,
-                       source_draft_snapshot_id,page_content,page_content_sha256,
-                       status,output_path,firebase_site_id,requested_by
-                   ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued',%s,%s,%s)""",
-                (
-                    build_id, UUID(request_id), run_id, thesis_id, prepared["template_id"],
-                    parent_id, revision_number, Jsonb(brief), Jsonb(brief), feedback_ids,
-                    prepared.get("revision_summary"),
-                    None if prepared.get("revision_invocation") is None else Jsonb(dict(prepared["revision_invocation"])),
-                    source_draft_id, None if page_content is None else Jsonb(page_content), page_content_sha256,
-                    output_path, firebase_site_id, requested_by,
-                ),
-            )
         return self.get(str(build_id)), True
 
     def record_feedback(self, build_id: str, *, comment: str, requested_by: str) -> dict[str, Any]:
         from psycopg.types.json import Jsonb
-
         normalized = comment.strip()
-        if not normalized or len(normalized) > 2000:
+        if not 1 <= len(normalized) <= 2000:
             raise ValueError("feedback must contain 1-2000 characters")
-        feedback_id = uuid4()
-        update_id = uuid4()
+        feedback_id, weight_id, proposal_id = (UUID(new_uuid7()) for _ in range(3))
         with self.connection() as connection:
-            connection.execute("BEGIN")
             build = connection.execute(
-                """SELECT source_laval_run_id,template_id,status,artifact_sha256,revision_number
-                   FROM natal_landing_builds WHERE entity_id=%s FOR SHARE""",
+                "SELECT status,template_id FROM landing_builds WHERE entity_id=%s FOR SHARE", (UUID(build_id),)
+            ).fetchone()
+            if build is None:
+                raise KeyError(build_id)
+            if build[0] != "published":
+                raise ValueError("feedback requires a published Landing")
+            for entity_id, kind, attributes in (
+                (feedback_id, "human_feedback", {"domain": "landing", "section_id": "published_page"}),
+                (weight_id, "weight_update", {"delta": 0}),
+            ):
+                connection.execute("INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,%s,%s)", (entity_id, kind, Jsonb(attributes)))
+            connection.execute(
+                """INSERT INTO commander_human_feedback(entity_id,target_id,domain,section_id,instruction,actor)
+                   VALUES(%s,%s,'landing','published_page',%s,%s)""",
+                (feedback_id, UUID(build_id), normalized, requested_by),
+            )
+            connection.execute(
+                """INSERT INTO commander_weight_updates(entity_id,feedback_id,component,delta,reason)
+                   VALUES(%s,%s,%s,0,'Published Landing feedback is append-only')""",
+                (weight_id, feedback_id, f"natal:{build[1]}:published_page"),
+            )
+            connection.execute(
+                "INSERT INTO landing_skill_proposals(id,feedback_id,lesson,status) VALUES(%s,%s,%s,'pending')",
+                (proposal_id, feedback_id, f"Apply this owner preference when relevant: {normalized}"[:500]),
+            )
+            for source, relation, target in (
+                (feedback_id, "evaluates", UUID(build_id)), (weight_id, "adjusts", feedback_id),
+            ):
+                connection.execute(
+                    "INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes) VALUES(%s,%s,%s,%s,%s)",
+                    (UUID(new_uuid7()), source, relation, target, Jsonb({"delta": 0} if relation == "adjusts" else {})),
+                )
+        return {"id": str(feedback_id), "weight_update_id": str(weight_id), "proposal_id": str(proposal_id)}
+
+    def skill_memory(self, positioning_revision_id: str, limit: int = 100) -> list[dict[str, Any]]:
+        with self.connection() as connection:
+            rows = connection.execute(
+                """SELECT feedback.entity_id,feedback.section_id,feedback.instruction,feedback.target_id,
+                          feedback.created_at,COALESCE(snapshot.template_id,build.template_id),
+                          COALESCE(snapshot.snapshot_number,0)
+                   FROM commander_human_feedback feedback
+                   LEFT JOIN landing_draft_snapshots snapshot ON snapshot.entity_id=feedback.target_id
+                   LEFT JOIN landing_draft_sets draft ON draft.entity_id=snapshot.draft_set_id
+                   LEFT JOIN landing_builds build ON build.entity_id=feedback.target_id
+                   WHERE feedback.domain='landing'
+                     AND COALESCE(draft.positioning_revision_id,build.positioning_revision_id)=%s
+                   ORDER BY feedback.created_at LIMIT %s""",
+                (UUID(positioning_revision_id), min(limit, 100)),
+            ).fetchall()
+        return [{
+            "id": str(row[0]), "block_id": row[1], "comment": row[2], "target_id": str(row[3]),
+            "created_at": row[4].isoformat(), "template_id": row[5], "revision_number": int(row[6]),
+        } for row in rows]
+
+    def mark_building(self, build_id: str) -> dict[str, Any]:
+        self._transition(build_id, "building", ("queued",))
+        return self.get(build_id)
+
+    def mark_publishing(self, build_id: str, *, manifest: Mapping[str, Any], artifact_sha256: str) -> dict[str, Any]:
+        from psycopg.types.json import Jsonb
+        self._transition(build_id, "publishing", ("building",), values={"build_manifest": Jsonb(dict(manifest)), "artifact_sha256": artifact_sha256})
+        return self.get(build_id)
+
+    def mark_published(self, build_id: str, *, version: str, public_url: str) -> dict[str, Any]:
+        from psycopg.types.json import Jsonb
+        with self.connection() as connection:
+            build = connection.execute(
+                "SELECT positioning_revision_id,source_snapshot_id,status FROM landing_builds WHERE entity_id=%s FOR UPDATE",
                 (UUID(build_id),),
             ).fetchone()
             if build is None:
                 raise KeyError(build_id)
-            run_id, template_id, status, artifact_sha256, revision_number = build
-            if status != "published" or not artifact_sha256:
-                raise ValueError("feedback can be recorded only for a published landing revision")
-            alias = connection.execute(
-                "SELECT entity_id FROM commander_external_aliases WHERE system='natal_landing_template' AND external_id=%s",
-                (template_id,),
-            ).fetchone()
-            if alias is None:
-                component_id = uuid4()
-                connection.execute(
-                    "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'creative_component',%s)",
-                    (component_id, Jsonb({"component_type": "natal_landing_template", "template_id": template_id})),
-                )
-                connection.execute(
-                    "INSERT INTO commander_external_aliases(system,external_id,entity_id) VALUES('natal_landing_template',%s,%s)",
-                    (template_id, component_id),
-                )
-            else:
-                component_id = alias[0]
+            if build[2] != "publishing":
+                raise ValueError("Landing is not ready to publish")
             connection.execute(
-                "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'human_feedback',%s)",
-                (feedback_id, Jsonb({
-                    "landing_build_id": build_id, "template_id": template_id,
-                    "revision_number": int(revision_number), "comment": normalized,
-                    "actor": requested_by, "feedback_type": "natal_landing_skill_memory",
-                    "artifact_sha256": artifact_sha256,
-                })),
+                """UPDATE landing_builds SET status='published',firebase_version=%s,public_url=%s,
+                       error_code=NULL,error_message=NULL,updated_at=clock_timestamp(),completed_at=clock_timestamp()
+                   WHERE entity_id=%s""",
+                (version, public_url, UUID(build_id)),
             )
             connection.execute(
-                "INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes) VALUES(%s,%s,'evaluates',%s,%s)",
-                (uuid4(), feedback_id, UUID(build_id), Jsonb({"artifact_sha256": artifact_sha256})),
+                """INSERT INTO landing_publications(
+                       id,build_id,positioning_revision_id,snapshot_id,firebase_version,public_url
+                   ) VALUES(%s,%s,%s,%s,%s,%s)""",
+                (UUID(new_uuid7()), UUID(build_id), build[0], build[1], version, public_url),
             )
-            connection.execute(
-                "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'weight_update',%s)",
-                (update_id, Jsonb({
-                    "component_id": str(component_id), "previous_weight": 0.5,
-                    "delta": 0.0, "new_weight": 0.5,
-                    "algorithm": "owner_text_feedback_v1", "rating": None,
-                })),
-            )
-            connection.execute(
-                "INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes) VALUES(%s,%s,'derived_from',%s,'{}'::jsonb)",
-                (uuid4(), update_id, feedback_id),
-            )
-            connection.execute(
-                "INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes) VALUES(%s,%s,'adjusts',%s,'{}'::jsonb)",
-                (uuid4(), update_id, component_id),
-            )
-            created_at = connection.execute(
-                """INSERT INTO natal_landing_feedback(
-                       feedback_id,landing_build_id,target_entity_id,source_laval_run_id,template_id,
-                       comment,artifact_sha256,requested_by
-                   ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING created_at""",
-                (feedback_id, UUID(build_id), UUID(build_id), run_id, template_id, normalized, artifact_sha256, requested_by),
-            ).fetchone()[0]
-        return {
-            "id": str(feedback_id), "build_id": build_id, "idea_run_id": str(run_id),
-            "template_id": template_id, "revision_number": int(revision_number),
-            "comment": normalized, "weight_update_id": str(update_id),
-            "created_at": created_at.isoformat(),
-        }
-
-    def skill_memory(self, idea_run_id: str, limit: int = 100) -> list[dict[str, Any]]:
-        with self.connection() as connection:
-            rows = connection.execute(
-                """SELECT memory.feedback_id,memory.target_entity_id,memory.template_id,
-                          memory.revision_number,memory.snapshot_number,memory.block_id,
-                          memory.comment,memory.created_at
-                   FROM (
-                     SELECT feedback.feedback_id,feedback.target_entity_id,feedback.template_id,
-                            COALESCE(build.revision_number,0) AS revision_number,
-                            feedback.snapshot_number,feedback.block_id,
-                            feedback.comment,feedback.created_at
-                     FROM natal_landing_feedback feedback
-                     LEFT JOIN natal_landing_builds build ON build.entity_id=feedback.landing_build_id
-                     WHERE feedback.source_laval_run_id=%s
-                     ORDER BY feedback.created_at DESC,feedback.feedback_id DESC LIMIT %s
-                   ) memory
-                   ORDER BY memory.created_at,memory.feedback_id""",
-                (UUID(idea_run_id), min(limit, 100)),
-            ).fetchall()
-        return [
-            {
-                "id": str(row[0]), "target_id": str(row[1]), "template_id": row[2],
-                "revision_number": int(row[3]),
-                "snapshot_number": None if row[4] is None else int(row[4]),
-                "block_id": row[5], "comment": row[6], "created_at": row[7].isoformat(),
-                **({"build_id": str(row[1])} if row[3] else {"snapshot_id": str(row[1])}),
-            }
-            for row in rows
-        ]
-
-    def _transition(
-        self,
-        build_id: str,
-        expected: Sequence[str],
-        status: str,
-        *,
-        complete: bool = False,
-        clear_completed: bool = False,
-        **values: Any,
-    ) -> dict[str, Any]:
-        from psycopg.types.json import Jsonb
-
-        allowed = {
-            "brief", "revision_summary", "revision_invocation", "build_manifest",
-            "artifact_sha256", "firebase_version", "public_url", "error_code", "error_message",
-        }
-        if not set(values).issubset(allowed):
-            raise ValueError("invalid landing build update")
-        normalized = {
-            key: Jsonb(value) if key in {"brief", "revision_invocation", "build_manifest"} and value is not None else value
-            for key, value in values.items()
-        }
-        assignments = ["status=%s", "updated_at=clock_timestamp()"] + [f"{key}=%s" for key in normalized]
-        if complete:
-            assignments.append("completed_at=clock_timestamp()")
-        elif clear_completed:
-            assignments.append("completed_at=NULL")
-        params = [status, *normalized.values(), UUID(build_id), list(expected)]
-        with self.connection() as connection:
-            row = connection.execute(
-                f"UPDATE natal_landing_builds SET {','.join(assignments)} WHERE entity_id=%s AND status=ANY(%s) RETURNING entity_id",
-                params,
-            ).fetchone()
-        if row is None:
-            raise ValueError(f"landing build {build_id} cannot transition to {status}")
         return self.get(build_id)
 
-    def mark_revising(self, build_id: str) -> dict[str, Any]:
-        return self._transition(build_id, ("queued",), "revising", error_code=None, error_message=None)
-
-    def mark_building(
-        self,
-        build_id: str,
-        *,
-        brief: Mapping[str, Any] | None = None,
-        summary: str | None = None,
-        invocation: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        values: dict[str, Any] = {"error_code": None, "error_message": None}
-        if brief is not None:
-            values.update(brief=dict(brief), revision_summary=summary, revision_invocation=dict(invocation or {}))
-        return self._transition(build_id, ("queued", "revising"), "building", **values)
-
-    def mark_publishing(
-        self, build_id: str, *, manifest: Mapping[str, Any], artifact_sha256: str
-    ) -> dict[str, Any]:
-        return self._transition(
-            build_id, ("building",), "publishing",
-            build_manifest=dict(manifest), artifact_sha256=artifact_sha256,
-        )
-
-    def mark_published(self, build_id: str, *, version: str, public_url: str) -> dict[str, Any]:
-        return self._transition(
-            build_id, ("publishing",), "published",
-            firebase_version=version, public_url=public_url, complete=True,
-        )
-
-    def refresh_publication(
-        self, build_id: str, *, version: str, public_url: str
-    ) -> dict[str, Any]:
-        return self._transition(
-            build_id, ("published",), "published",
-            firebase_version=version, public_url=public_url,
-        )
-
     def mark_failed(self, build_id: str, *, code: str, message: str) -> dict[str, Any]:
-        return self._transition(
-            build_id, ACTIVE_STATUSES, "failed",
-            error_code=code[:120], error_message=message[:1000], complete=True,
-        )
+        target_id = UUID(build_id)
+        with self.connection() as connection:
+            changed = connection.execute(
+                """UPDATE landing_builds SET status='failed',error_code=%s,error_message=%s,
+                       updated_at=clock_timestamp(),completed_at=clock_timestamp()
+                   WHERE entity_id=%s AND status=ANY(%s)""",
+                (code[:100], message[:2000], target_id, list(ACTIVE_STATUSES)),
+            ).rowcount
+            if changed:
+                _audit_failure(
+                    connection, action="landing.publication.failed", target_id=target_id,
+                    code=code, message=message,
+                )
+        if not changed:
+            raise ValueError("Landing cannot fail from its current state")
+        return self.get(build_id)
 
     def retry(self, build_id: str) -> dict[str, Any]:
-        return self._transition(
-            build_id, ("failed",), "queued",
-            error_code=None, error_message=None, clear_completed=True,
-        )
+        self._transition(build_id, "queued", ("failed",), clear=True)
+        return self.get(build_id)
 
     def recover_interrupted(self) -> int:
         with self.connection() as connection:
-            cursor = connection.execute(
-                """UPDATE natal_landing_builds
-                   SET status='failed',error_code='gateway_restarted',
-                       error_message='Owner Gateway restarted during build; retry is safe',
-                       updated_at=clock_timestamp(),completed_at=clock_timestamp()
-                   WHERE status IN ('queued','revising','building','publishing')"""
+            interrupted = [row[0] for row in connection.execute(
+                "SELECT entity_id FROM landing_builds WHERE status=ANY(%s) FOR UPDATE",
+                (list(ACTIVE_STATUSES),),
+            ).fetchall()]
+            connection.execute(
+                """UPDATE landing_builds SET status='failed',error_code='InterruptedError',
+                       error_message='gateway restarted during publication',updated_at=clock_timestamp(),
+                       completed_at=clock_timestamp() WHERE status=ANY(%s)""",
+                (list(ACTIVE_STATUSES),),
             )
-            recovered = cursor.rowcount
-        return recovered
+            for target_id in interrupted:
+                _audit_failure(
+                    connection, action="landing.publication.failed", target_id=target_id,
+                    code="InterruptedError", message="gateway restarted during publication",
+                )
+        return len(interrupted)
 
     def published(self) -> list[dict[str, Any]]:
         with self.connection() as connection:
-            rows = connection.execute(
-                self._select() + " WHERE status='published' ORDER BY created_at DESC",
-            ).fetchall()
+            rows = connection.execute(self._select() + " WHERE build.status='published' ORDER BY build.completed_at").fetchall()
         return [self._row(row) for row in rows]
+
+    def _transition(
+        self, build_id: str, status: str, expected: Sequence[str], *,
+        values: Mapping[str, Any] | None = None, clear: bool = False,
+    ) -> None:
+        values = dict(values or {})
+        assignments = ["status=%s", "updated_at=clock_timestamp()"]
+        params: list[Any] = [status]
+        for key, value in values.items():
+            if key not in {"build_manifest", "artifact_sha256"}:
+                raise ValueError("unsupported Landing transition value")
+            assignments.append(f"{key}=%s")
+            params.append(value)
+        if clear:
+            assignments += ["error_code=NULL", "error_message=NULL", "completed_at=NULL"]
+        params += [UUID(build_id), list(expected)]
+        with self.connection() as connection:
+            changed = connection.execute(
+                f"UPDATE landing_builds SET {','.join(assignments)} WHERE entity_id=%s AND status=ANY(%s)", params
+            ).rowcount
+        if not changed:
+            raise ValueError("invalid Landing transition")

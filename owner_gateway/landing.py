@@ -1,11 +1,12 @@
-"""Owner-safe handoff from completed Idea Laval cases to the Natal builder."""
+"""Owner-safe handoff from an approved positioning to fixed Natal templates."""
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
-from uuid import uuid4
+from typing import Any, Mapping
+from uuid import UUID
 
-from natal.brief import apply_brief_overrides, brief_from_candidate
+from commander.ids import new_uuid7
+from natal.brief import brief_from_positioning
 from natal.catalog import landing_templates, template_manifest
 
 
@@ -13,39 +14,31 @@ def templates_response() -> dict[str, Any]:
     return {"items": list(landing_templates())}
 
 
-def candidates_response(cases: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    return {
-        "items": [brief_from_candidate(item) for item in cases],
-        "next_cursor": None,
-    }
+def prepare_draft_set(
+    project: Mapping[str, Any],
+    revision: Mapping[str, Any],
+    *,
+    privacy_policy_url: str,
+) -> dict[str, Any]:
+    return brief_from_positioning(
+        project, revision, privacy_policy_url=privacy_policy_url
+    )
 
 
 def prepare_landing_build(
-    candidate: Mapping[str, Any],
-    requested_template_id: str,
-    overrides: Mapping[str, Any],
-    *,
-    base_brief: Mapping[str, Any] | None = None,
-    parent_build_id: str | None = None,
+    draft_set: Mapping[str, Any], snapshot: Mapping[str, Any]
 ) -> dict[str, Any]:
-    prepared = brief_from_candidate(candidate)
-    recommended = str(prepared["recommended_template_id"])
-    template_id = recommended if requested_template_id in {"", "auto"} else requested_template_id
+    template_id = str(snapshot["template_id"])
     template_manifest(template_id)
-    brief = prepared["brief"]
-    if base_brief is not None:
-        brief = apply_brief_overrides(brief, base_brief)
-    brief = apply_brief_overrides(brief, overrides)
-    build_id = str(uuid4())
+    if str(snapshot["draft_set_id"]) != str(draft_set["id"]) or snapshot.get("is_current") is not True:
+        raise ValueError("publication requires the exact current draft snapshot")
     return {
-        "build_id": build_id,
-        "idea_run_id": prepared["idea_run_id"],
+        "build_id": new_uuid7(),
+        "positioning_project_id": str(UUID(str(draft_set["positioning_project_id"]))),
+        "positioning_revision_id": str(UUID(str(draft_set["positioning_revision_id"]))),
+        "source_draft_snapshot_id": str(UUID(str(snapshot["id"]))),
         "template_id": template_id,
-        "recommended_template_id": recommended,
-        "brief": brief,
-        "parent_build_id": parent_build_id,
+        "brief": dict(draft_set["brief"]),
+        "page_content": dict(snapshot["page_content"]),
+        "page_content_sha256": str(snapshot["page_content_sha256"]),
     }
-
-
-# Compatibility for older imports while the production UI rolls forward.
-prepare_builder_job = prepare_landing_build

@@ -1,14 +1,12 @@
-import { BriefcaseBusiness, LayoutDashboard, LayoutTemplate, Lightbulb, MoreHorizontal, Palette } from 'lucide-react'
+import { LayoutTemplate, Megaphone, Settings, Target } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Page } from '../types'
 
-const items: Array<{ id: Page; label: string; icon: typeof LayoutDashboard }> = [
-  { id: 'overview', label: 'Огляд', icon: LayoutDashboard },
-  { id: 'ideas', label: 'Ідеї', icon: Lightbulb },
-  { id: 'branding', label: 'Брендинг', icon: Palette },
-  { id: 'landings', label: 'Лендинги', icon: LayoutTemplate },
-  { id: 'jobs', label: 'Завдання', icon: BriefcaseBusiness },
-  { id: 'more', label: 'Ще', icon: MoreHorizontal },
+const items: Array<{ id: Page; label: string; icon: typeof Target }> = [
+  { id: 'positioning', label: 'Позиціонування', icon: Target },
+  { id: 'landing', label: 'Лендинг', icon: LayoutTemplate },
+  { id: 'ads', label: 'Реклама', icon: Megaphone },
+  { id: 'admin', label: 'Адмін', icon: Settings },
 ]
 
 export function Shell({ page, onPage, children, language, onLanguage }: {
@@ -20,7 +18,7 @@ export function Shell({ page, onPage, children, language, onLanguage }: {
 }) {
   return <div className="app-shell">
     <aside className="rail" aria-label="Головна навігація">
-      <div className="brand" aria-label="PTW Commander"><span>PTW</span><small>Командир</small></div>
+      <div className="brand" aria-label="PTW"><span>PTW</span><small>Маркетинг</small></div>
       <nav aria-label="Головна навігація на комп’ютері">
         {items.map(({ id, label, icon: Icon }) => <button key={id} className={page === id ? 'active' : ''} onClick={() => onPage(id)} aria-current={page === id ? 'page' : undefined}>
           <Icon aria-hidden="true" /><span>{label}</span>

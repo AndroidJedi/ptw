@@ -2,32 +2,33 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+import ipaddress
 import json
 from pathlib import Path
 import re
 import subprocess
 from typing import Any, Mapping
-from uuid import UUID, uuid4
+from urllib.parse import urlsplit
+from uuid import UUID
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import JSONResponse, Response
 
 from .app_server import AppServerPlanner
-from .annotations import region
 from .auth import FirebaseVerifier, OwnerDependency, OwnerIdentity
 from .control_store import ControlStore
 from .execution import CommandRunner
 from .firebase_hosting import FirebaseHostingPublisher
-from .landing import candidates_response, prepare_landing_build, templates_response
+from .landing import prepare_draft_set, prepare_landing_build, templates_response
 from .landing_draft_repository import LandingDraftRepository
 from .landing_drafts import LandingDraftCoordinator
 from .landing_pipeline import LandingBuildCoordinator
 from .landing_repository import LandingBuildRepository
 from .landing_revision import LandingRevisionProvider
+from .leads import ExistingBotLeadNotifier, LandingLeadRepository
 from .platform import PlatformRepository
-from .read_models import DomainReadModels
 from .settings import Settings
 
 
@@ -36,14 +37,16 @@ def create_app(
     verifier: FirebaseVerifier | None = None,
     landing_coordinator: LandingBuildCoordinator | None = None,
     draft_coordinator: LandingDraftCoordinator | None = None,
+    lead_repository: LandingLeadRepository | None = None,
+    lead_notifier: ExistingBotLeadNotifier | None = None,
 ) -> FastAPI:
     store = ControlStore(settings.control_database_path)
     platform = PlatformRepository(settings.platform_database_url, settings.platform_owner_telegram_id)
-    read = DomainReadModels(settings.idea_database_url, settings.commander_database_url)
     planner = AppServerPlanner(settings.codex_executable, settings.repository_path)
     runner = CommandRunner(settings.codex_executable, settings.repository_path, store, platform)
     build_repository = LandingBuildRepository(settings.commander_database_url)
-    reviser = None
+    draft_repository = LandingDraftRepository(settings.commander_database_url)
+    reviser: LandingRevisionProvider | None = None
     if settings.landing_llm_bridge_url and settings.telegram_bot_token:
         reviser = LandingRevisionProvider(
             bridge_url=settings.landing_llm_bridge_url,
@@ -51,50 +54,63 @@ def create_app(
             skill_path=settings.repository_path / "skills/natal-landing-builder/SKILL.md",
             model=settings.landing_llm_model,
         )
-    if (
-        landing_coordinator is None
-        and settings.firebase_landing_site_id
-        and settings.firebase_landing_service_account_path is not None
-    ):
+    if landing_coordinator is None and settings.firebase_landing_service_account_path is not None:
+        lead_origin = urlsplit(settings.landing_lead_api_base_url)
         landing_coordinator = LandingBuildCoordinator(
             repository=build_repository,
             publisher=FirebaseHostingPublisher(
                 project_id=settings.firebase_project_id,
                 site_id=settings.firebase_landing_site_id,
                 credential_path=settings.firebase_landing_service_account_path,
+                lead_api_origin=f"{lead_origin.scheme}://{lead_origin.netloc}",
             ),
             output_root=settings.landing_output_root,
             stopped=platform.emergency_stop,
-            reviser=reviser,
+            lead_api_base_url=settings.landing_lead_api_base_url,
         )
     if draft_coordinator is None and reviser is not None:
         draft_coordinator = LandingDraftCoordinator(
-            repository=LandingDraftRepository(settings.commander_database_url),
+            repository=draft_repository,
             build_repository=build_repository,
             reviser=reviser,
             stopped=platform.emergency_stop,
+        )
+    lead_repository = lead_repository or LandingLeadRepository(
+        settings.commander_database_url, settings.landing_lead_hmac_secret
+    )
+    if lead_notifier is None and settings.telegram_bot_token:
+        lead_notifier = ExistingBotLeadNotifier(
+            lead_repository,
+            bot_token=settings.telegram_bot_token,
+            owner_chat_id=settings.owner_chat_id,
+            allowed_chat_ids=settings.telegram_allowed_chat_ids,
+            emergency_stopped=platform.emergency_stop,
         )
     owner = OwnerDependency(verifier or FirebaseVerifier(settings))
     tasks: set[asyncio.Task[Any]] = set()
     operation_start_lock = asyncio.Lock()
     interrupted_commands = store.recover_interrupted_commands()
     for interrupted in interrupted_commands:
-        platform_job_id = interrupted.get("platform_job_id")
-        if platform_job_id is None:
-            continue
-        try:
-            platform.complete_job(
-                int(platform_job_id),
-                success=False,
-                result={"error": "owner gateway restarted during operation"},
+        if interrupted.get("platform_job_id") is not None:
+            try:
+                platform.complete_job(
+                    int(interrupted["platform_job_id"]), success=False,
+                    result={"error": "owner gateway restarted during operation"},
+                )
+            except Exception:
+                pass
+
+    def orphan_gateway_guard() -> None:
+        with build_repository.connection() as connection:
+            connection.execute(
+                """UPDATE commander_operation_guard
+                   SET operation_kind=NULL,operation_id=NULL,acquired_at=NULL
+                   WHERE singleton AND operation_kind IN ('landing_agent','codex_plan','codex_execute')"""
             )
-        except Exception:
-            # Gateway startup must remain available even if the platform DB is
-            # the dependency being diagnosed. Local exclusion state is repaired.
-            pass
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        await asyncio.to_thread(orphan_gateway_guard)
         if landing_coordinator is not None:
             await asyncio.to_thread(landing_coordinator.recover_interrupted)
         if draft_coordinator is not None:
@@ -103,11 +119,15 @@ def create_app(
         for task in tasks:
             task.cancel()
 
-    app = FastAPI(title="PTW Owner Gateway", version="1.0.0", docs_url=None, redoc_url=None, lifespan=lifespan)
+    app = FastAPI(
+        title="PTW Owner Gateway", version="2.0.0", docs_url=None, redoc_url=None,
+        lifespan=lifespan,
+    )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[settings.public_origin], allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_origins=[settings.public_origin, *settings.landing_public_origins],
+        allow_credentials=False,
+        allow_methods=["GET", "POST"],
         allow_headers=["Authorization", "Content-Type", "X-Firebase-AppCheck"],
     )
 
@@ -118,107 +138,88 @@ def create_app(
 
     def require_running() -> None:
         if platform.emergency_stop():
-            raise HTTPException(
-                status_code=423,
-                detail="PTW emergency stop is active; resume it from Docs / System",
-            )
+            raise HTTPException(status_code=423, detail="PTW emergency stop is active; resume it from Admin / System")
 
-    def require_laval_id(run_id: str) -> None:
-        if not re.fullmatch(r"[0-9a-fA-F-]{36}", run_id):
-            raise HTTPException(status_code=400, detail="invalid Laval run UUID")
-
-    async def laval_bridge(
-        method: str, path: str, *, body: Mapping[str, Any] | None = None, params: Mapping[str, Any] | None = None
-    ) -> httpx.Response:
-        if not settings.idea_service_token:
-            raise HTTPException(status_code=503, detail="Idea Laval bridge is not configured")
+    def visitor_ip(request: Request) -> str:
+        peer = request.client.host if request.client else ""
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            peer_address = ipaddress.ip_address(peer)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="visitor network address is unavailable") from error
+        trusted = any(
+            peer_address in ipaddress.ip_network(network, strict=False)
+            for network in settings.landing_trusted_proxy_networks
+        )
+        forwarded = request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
+        if trusted and forwarded:
+            try:
+                return str(ipaddress.ip_address(forwarded))
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail="forwarded visitor address is invalid") from error
+        return str(peer_address)
+
+    async def positioning_bridge(
+        method: str, path: str, *, body: Mapping[str, Any] | None = None,
+        params: Mapping[str, Any] | None = None, actor: str = "owner-web",
+    ) -> httpx.Response:
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
                 response = await client.request(
-                    method,
-                    f"{settings.idea_service_url}{path}",
-                    headers={"X-PTW-Owner-Gateway-Token": settings.idea_service_token},
-                    json=dict(body) if body is not None else None,
-                    params=dict(params or {}),
+                    method, f"{settings.positioning_service_url}{path}",
+                    headers={
+                        "X-PTW-Owner-Gateway-Token": settings.positioning_service_token,
+                        "X-PTW-Actor": actor,
+                    },
+                    json=None if body is None else dict(body), params=dict(params or {}),
                 )
         except httpx.HTTPError as error:
-            raise HTTPException(status_code=503, detail="Idea Laval service is unavailable") from error
+            raise HTTPException(status_code=503, detail="Marketing Positioning service is unavailable") from error
         if response.status_code >= 400:
             try:
                 detail = response.json().get("detail")
             except (ValueError, AttributeError):
                 detail = None
-            raise HTTPException(status_code=response.status_code, detail=detail or "Idea Laval request failed")
+            raise HTTPException(status_code=response.status_code, detail=detail or "Marketing Positioning request failed")
         return response
 
-    async def commander_bridge(
-        method: str, path: str, *, body: Mapping[str, Any] | None = None
-    ) -> httpx.Response:
-        if not settings.telegram_bot_token:
-            raise HTTPException(status_code=503, detail="Commander validation bridge is not configured")
-        try:
-            async with httpx.AsyncClient(timeout=20) as client:
-                response = await client.request(
-                    method,
-                    f"{settings.commander_service_url}{path}",
-                    headers={"X-PTW-Bridge-Token": settings.telegram_bot_token},
-                    json=dict(body) if body is not None else None,
-                )
-        except httpx.HTTPError as error:
-            raise HTTPException(status_code=503, detail="Commander validation service is unavailable") from error
-        if response.status_code >= 400:
-            try:
-                detail = response.json().get("detail")
-            except (ValueError, AttributeError):
-                detail = None
-            raise HTTPException(status_code=response.status_code, detail=detail or "Commander validation request failed")
-        return response
+    def operation_activity() -> dict[str, Any]:
+        with build_repository.connection() as connection:
+            row = connection.execute(
+                "SELECT operation_kind,operation_id,acquired_at FROM commander_operation_guard WHERE singleton"
+            ).fetchone()
+        return {
+            "active": bool(row and row[1]), "operation": None if not row else row[0],
+            "operation_id": None if not row or row[1] is None else str(row[1]),
+            "acquired_at": None if not row or row[2] is None else row[2].isoformat(),
+        }
 
-    async def active_heavy_operation() -> Mapping[str, Any] | None:
-        response = await laval_bridge("GET", "/internal/web/activity")
-        activity = response.json()
-        return activity if activity.get("active") else None
-
-    def require_no_active_codex(*, exclude_id: str | None = None) -> None:
-        if draft_coordinator is not None:
-            active_draft = draft_coordinator.active()
-            if active_draft is not None:
-                raise HTTPException(
-                    status_code=409,
-                    detail=(
-                        f"Natal {active_draft['kind']} {active_draft.get('id') or active_draft.get('request_id')} "
-                        f"is active ({active_draft['status']}); wait before starting another heavy operation"
-                    ),
-                )
-        if landing_coordinator is not None:
-            active_landing = landing_coordinator.active()
-            if active_landing is not None:
-                raise HTTPException(
-                    status_code=409,
-                    detail=(
-                        f"Natal landing build {active_landing['id']} is active "
-                        f"({active_landing['status']}); wait before starting another heavy operation"
-                    ),
-                )
-        active = store.active_command(exclude_id=exclude_id)
-        if active is not None:
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    f"Codex operation {active['id']} is active ({active['status']}); "
-                    "wait before starting another heavy operation"
-                ),
+    def acquire_operation(kind: str, operation_id: str) -> None:
+        with build_repository.connection() as connection:
+            row = connection.execute(
+                "SELECT operation_kind,operation_id FROM commander_operation_guard WHERE singleton FOR UPDATE"
+            ).fetchone()
+            if row is None or row[1] is not None:
+                active = "unknown" if row is None else f"{row[0]} {row[1]}"
+                raise ValueError(f"heavy operation {active} is already active")
+            connection.execute(
+                "UPDATE commander_operation_guard SET operation_kind=%s,operation_id=%s,acquired_at=clock_timestamp() WHERE singleton",
+                (kind, UUID(operation_id)),
             )
 
-    async def require_no_active_laval() -> None:
-        active = await active_heavy_operation()
-        if active is not None:
+    def release_operation(operation_id: str) -> None:
+        with build_repository.connection() as connection:
+            connection.execute(
+                """UPDATE commander_operation_guard SET operation_kind=NULL,operation_id=NULL,acquired_at=NULL
+                   WHERE singleton AND operation_id=%s""",
+                (UUID(operation_id),),
+            )
+
+    def require_no_active_operation() -> None:
+        active = operation_activity()
+        if active["active"]:
             raise HTTPException(
                 status_code=409,
-                detail=(
-                    f"{active.get('operation') or 'Heavy'} run {active['run_id']} is active; "
-                    "wait before starting Codex"
-                ),
+                detail=f"{active['operation']} {active['operation_id']} is active; wait before starting another heavy operation",
             )
 
     def require_landing_builder() -> LandingBuildCoordinator:
@@ -228,50 +229,22 @@ def create_app(
 
     def require_landing_drafts() -> LandingDraftCoordinator:
         if draft_coordinator is None:
-            raise HTTPException(status_code=503, detail="Natal local preview agent is not configured")
+            raise HTTPException(status_code=503, detail="Natal landing agent is not configured")
         return draft_coordinator
 
-    def landing_response(build: Mapping[str, Any]) -> dict[str, Any]:
-        return {
-            key: build.get(key)
-            for key in (
-                "id", "request_id", "idea_run_id", "thesis_id", "template_id",
-                "parent_build_id", "revision_number", "input_brief", "brief",
-                "skill_memory_feedback_ids", "revision_summary", "revision_invocation",
-                "source_draft_snapshot_id", "page_content", "page_content_sha256",
-                "status", "build_manifest", "artifact_sha256", "firebase_site_id",
-                "firebase_version", "public_url", "error_code", "error_message",
-                "created_at", "updated_at", "completed_at",
-            )
-        }
+    async def populate_and_release(coordinator: LandingDraftCoordinator, draft_set_id: str) -> None:
+        try:
+            await coordinator.populate(draft_set_id)
+        finally:
+            await asyncio.to_thread(release_operation, draft_set_id)
 
-    def creative_gone() -> None:
-        if not settings.creative_runtime_enabled:
-            raise HTTPException(status_code=410, detail="creative production and review are retired")
+    async def edit_and_release(coordinator: LandingDraftCoordinator, request_id: str) -> None:
+        try:
+            await coordinator.edit(request_id)
+        finally:
+            await asyncio.to_thread(release_operation, request_id)
 
-    async def propagate_emergency_stop(active: bool, actor: str) -> list[str]:
-        if not settings.telegram_bot_token:
-            raise HTTPException(status_code=503, detail="emergency bridge token is not configured")
-        failures: list[str] = []
-        targets = {
-            "commander": f"{settings.commander_service_url}/internal/emergency-stop",
-            "ideas": f"{settings.idea_service_url}/internal/emergency-stop",
-        }
-        async with httpx.AsyncClient(timeout=20) as client:
-            for name, url in targets.items():
-                try:
-                    response = await client.post(
-                        url,
-                        headers={"X-PTW-Bridge-Token": settings.telegram_bot_token},
-                        json={"active": active, "actor": actor},
-                    )
-                    if response.status_code >= 400:
-                        failures.append(name)
-                except httpx.HTTPError:
-                    failures.append(name)
-        return failures
-
-    async def build_plan(session_id: str, instruction: str) -> None:
+    async def plan_and_release(session_id: str, instruction: str) -> None:
         async def sink(event: dict[str, Any]) -> None:
             store.event(session_id, event)
         try:
@@ -280,6 +253,30 @@ def create_app(
         except Exception as error:
             store.update(session_id, "failed", error=f"{type(error).__name__}: {str(error)[:1000]}")
             store.event(session_id, {"type": "plan.failed", "error": type(error).__name__})
+        finally:
+            await asyncio.to_thread(release_operation, session_id)
+
+    async def execute_and_release(session_id: str) -> None:
+        try:
+            await runner.execute(session_id)
+        finally:
+            await asyncio.to_thread(release_operation, session_id)
+
+    async def propagate_emergency_stop(active: bool, actor: str) -> list[str]:
+        failures: list[str] = []
+        targets = (
+            ("commander", f"{settings.commander_service_url}/internal/emergency-stop", {"X-PTW-Bridge-Token": settings.telegram_bot_token}),
+            ("positioning", f"{settings.positioning_service_url}/internal/emergency-stop", {"X-PTW-Owner-Gateway-Token": settings.positioning_service_token}),
+        )
+        async with httpx.AsyncClient(timeout=20) as client:
+            for name, url, headers in targets:
+                try:
+                    response = await client.post(url, headers=headers, json={"active": active, "actor": actor})
+                    if response.status_code >= 400:
+                        failures.append(name)
+                except httpx.HTTPError:
+                    failures.append(name)
+        return failures
 
     @app.get("/healthz")
     def health() -> dict[str, str]:
@@ -287,1364 +284,462 @@ def create_app(
 
     @app.get("/api/v1/overview")
     def overview(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return read.overview(platform.summary())
+        with build_repository.connection() as connection:
+            positioning = connection.execute(
+                """SELECT count(*)::int,
+                          count(*) FILTER (WHERE approved.revision_id IS NOT NULL)::int
+                   FROM positioning_projects project
+                   LEFT JOIN positioning_approvals approved ON approved.project_id=project.entity_id AND approved.revoked_at IS NULL"""
+            ).fetchone()
+            landings = connection.execute(
+                """SELECT count(*)::int,
+                          count(*) FILTER (WHERE status='published')::int FROM landing_builds"""
+            ).fetchone()
+            leads = int(connection.execute("SELECT count(*) FROM landing_leads").fetchone()[0])
+        return {
+            "positionings": {"total": positioning[0], "approved": positioning[1]},
+            "landings": {"total": landings[0], "published": landings[1]},
+            "leads": {"total": leads}, "jobs": platform.summary(),
+            "emergency_stop": platform.emergency_stop(),
+        }
 
-    @app.get("/api/v1/laval/runs")
-    async def laval_runs(
-        limit: int = Query(default=30, ge=1, le=100),
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await laval_bridge("GET", "/internal/web/laval/runs", params={"limit": limit})).json()
+    # Marketing Positioning owner API.
+    @app.get("/api/v1/positionings/catalog")
+    async def positioning_catalog(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await positioning_bridge("GET", "/internal/v1/catalog")).json()
 
-    @app.get("/api/v1/laval/providers")
-    async def laval_providers(
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await laval_bridge("GET", "/internal/web/laval/providers")).json()
+    @app.post("/api/v1/positionings", status_code=202)
+    async def create_positioning(request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        require_running()
+        async with operation_start_lock:
+            require_no_active_operation()
+            return (await positioning_bridge(
+                "POST", "/internal/v1/positionings", body=request, actor=f"firebase:{identity.uid}"
+            )).json()
 
-    @app.get("/api/v1/branding/providers")
-    async def branding_providers(
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await laval_bridge("GET", "/internal/web/branding/providers")).json()
+    @app.get("/api/v1/positionings")
+    async def list_positionings(limit: int = Query(default=50, ge=1, le=100), _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await positioning_bridge("GET", "/internal/v1/positionings", params={"limit": limit})).json()
 
+    @app.get("/api/v1/positionings/{project_id}")
+    async def positioning(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await positioning_bridge("GET", f"/internal/v1/positionings/{project_id}")).json()
+
+    @app.post("/api/v1/positionings/{project_id}/revisions", status_code=202)
+    async def revise_positioning(project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        require_running()
+        async with operation_start_lock:
+            require_no_active_operation()
+            return (await positioning_bridge(
+                "POST", f"/internal/v1/positionings/{project_id}/revisions",
+                body=request, actor=f"firebase:{identity.uid}",
+            )).json()
+
+    @app.post("/api/v1/positioning-revisions/{revision_id}/retry", status_code=202)
+    async def retry_positioning(revision_id: str, identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        require_running()
+        async with operation_start_lock:
+            require_no_active_operation()
+            return (await positioning_bridge(
+                "POST", f"/internal/v1/positioning-revisions/{revision_id}/retry",
+                actor=f"firebase:{identity.uid}",
+            )).json()
+
+    @app.post("/api/v1/positioning-revisions/{revision_id}/approve")
+    async def approve_positioning(revision_id: str, identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        require_running()
+        return (await positioning_bridge(
+            "POST", f"/internal/v1/positioning-revisions/{revision_id}/approve",
+            actor=f"firebase:{identity.uid}",
+        )).json()
+
+    @app.get("/api/v1/positioning-revisions/{revision_id}/export.md")
+    async def export_positioning(revision_id: str, _identity: OwnerIdentity = Depends(owner)) -> Response:
+        response = await positioning_bridge("GET", f"/internal/v1/positioning-revisions/{revision_id}/export.md")
+        return Response(
+            response.content, media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": response.headers.get("Content-Disposition", "attachment")},
+        )
+
+    @app.get("/api/v1/positionings/{project_id}/skill-proposals")
+    async def positioning_skill_proposals(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await positioning_bridge(
+            "GET", f"/internal/v1/positionings/{project_id}/skill-proposals"
+        )).json()
+
+    @app.post("/api/v1/positioning-skill-proposals/{proposal_id}/update")
+    async def update_positioning_skill_proposal(proposal_id: str, request: Mapping[str, Any], _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await positioning_bridge(
+            "POST", f"/internal/v1/positioning-skill-proposals/{proposal_id}/update", body=request
+        )).json()
+
+    @app.post("/api/v1/positioning-skill-proposals/{proposal_id}/dismiss")
+    async def dismiss_positioning_skill_proposal(proposal_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await positioning_bridge(
+            "POST", f"/internal/v1/positioning-skill-proposals/{proposal_id}/dismiss"
+        )).json()
+
+    @app.post("/api/v1/positioning-skill-proposals/{proposal_id}/plan", status_code=202)
+    async def plan_positioning_skill_proposal(proposal_id: str, request: Mapping[str, Any], _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        require_running()
+        if set(request) != {"lesson"} or not 1 <= len(str(request["lesson"]).strip()) <= 500:
+            raise HTTPException(status_code=400, detail="lesson must contain 1-500 characters")
+        lesson = str(request["lesson"]).strip()
+        instruction = (
+            "Update only skills/marketing-positioning/references/owner-lessons.md. "
+            "Add this reviewed generalized owner lesson without changing evidence rules: "
+            f"{lesson}\nDo not edit any other file. Run python3 scripts/verify_ptw_skills.py and the skill quick validator."
+        )
+        async with operation_start_lock:
+            require_no_active_operation()
+            command = store.create_command("plan", instruction)
+            try:
+                acquire_operation("codex_plan", command["id"])
+                proposal = (await positioning_bridge(
+                    "POST", f"/internal/v1/positioning-skill-proposals/{proposal_id}/plan",
+                    body={"lesson": lesson, "command_session_id": command["id"]},
+                )).json()
+            except Exception:
+                store.update(command["id"], "failed", error="Skill proposal planning could not start")
+                release_operation(command["id"])
+                raise
+            background(plan_and_release(command["id"], instruction))
+            return {"proposal": proposal, "command_session": command}
+
+    # Landing workspace.
     @app.get("/api/v1/landings/templates")
-    def landing_templates(
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
+    def landing_templates(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return templates_response()
 
-    @app.get("/api/v1/landings/candidates")
-    async def landing_candidates(
-        limit: int = Query(default=30, ge=1, le=100),
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        cases = (
-            await laval_bridge(
-                "GET", "/internal/web/branding/cases", params={"limit": limit}
-            )
-        ).json()
-        return candidates_response(cases.get("items") or [])
-
-    async def completed_landing_case(idea_run_id: str) -> Mapping[str, Any]:
-        cases = (
-            await laval_bridge(
-                "GET", "/internal/web/branding/cases", params={"limit": 100}
-            )
-        ).json()
-        try:
-            return next(
-                item for item in cases.get("items") or []
-                if str(item.get("idea_run_id")) == idea_run_id
-            )
-        except StopIteration as error:
-            raise HTTPException(status_code=404, detail="completed Idea evaluation not found") from error
-
     @app.post("/api/v1/landings/draft-sets", status_code=202)
-    async def create_landing_draft_set(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
+    async def create_landing_draft_set(request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         require_running()
-        coordinator = require_landing_drafts()
-        request_id = str(request.get("request_id") or uuid4())
+        expected = {"request_id", "positioning_project_id", "positioning_revision_id", "privacy_policy_url"}
+        if set(request) != expected:
+            raise HTTPException(status_code=400, detail="draft-set request fields do not match the v2 contract")
         try:
-            UUID(request_id)
+            request_id = str(UUID(str(request["request_id"])))
+            project_id = str(UUID(str(request["positioning_project_id"])))
+            revision_id = str(UUID(str(request["positioning_revision_id"])))
         except ValueError as error:
-            raise HTTPException(status_code=400, detail="request_id must be a UUID") from error
-        idea_run_id = str(request.get("idea_run_id") or "").strip()
-        require_laval_id(idea_run_id)
+            raise HTTPException(status_code=400, detail="request and positioning IDs must be UUIDs") from error
+        project = (await positioning_bridge("GET", f"/internal/v1/positionings/{project_id}")).json()
+        revision = next((item for item in project.get("revisions") or [] if item["id"] == revision_id), None)
+        if revision is None or project.get("active_approved_revision_id") != revision_id:
+            raise HTTPException(status_code=409, detail="Landing requires the active approved positioning revision")
+        try:
+            prepared = prepare_draft_set(
+                project, revision, privacy_policy_url=str(request["privacy_policy_url"])
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        coordinator = require_landing_drafts()
         existing = coordinator.by_request(request_id)
         if existing is not None:
-            if existing["idea_run_id"] != idea_run_id:
-                raise HTTPException(status_code=409, detail="request_id belongs to another Idea evaluation")
             return existing
-        candidate = await completed_landing_case(idea_run_id)
-        prepared = candidates_response([candidate])["items"][0]
         async with operation_start_lock:
-            await require_no_active_laval()
-            require_no_active_codex()
+            require_no_active_operation()
             try:
                 await asyncio.to_thread(coordinator.verify_ready)
                 draft_set, created = coordinator.create(
-                    prepared, request_id=request_id,
-                    requested_by=f"firebase:{identity.uid}",
+                    prepared, request_id=request_id, requested_by=f"firebase:{identity.uid}"
                 )
+                if created:
+                    acquire_operation("landing_agent", draft_set["id"])
+                    background(populate_and_release(coordinator, draft_set["id"]))
+                return draft_set
             except ValueError as error:
                 raise HTTPException(status_code=409, detail=str(error)) from error
             except RuntimeError as error:
                 raise HTTPException(status_code=503, detail=str(error)) from error
-            if created:
-                background(coordinator.populate(draft_set["id"]))
-        return draft_set
 
     @app.get("/api/v1/landings/draft-sets/latest")
-    def latest_landing_draft_set(
-        idea_run_id: str, _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(idea_run_id)
-        result = require_landing_drafts().latest(idea_run_id)
-        if result is None:
-            raise HTTPException(status_code=404, detail="Natal draft set not found")
-        return result
+    def latest_landing_draft_set(positioning_revision_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        try:
+            value = require_landing_drafts().latest(str(UUID(positioning_revision_id)))
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="invalid positioning revision UUID") from error
+        if value is None:
+            raise HTTPException(status_code=404, detail="Landing draft set not found")
+        return value
 
     @app.get("/api/v1/landings/draft-sets/{draft_set_id}")
-    def landing_draft_set(
-        draft_set_id: str, _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
+    def landing_draft_set(draft_set_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         try:
-            UUID(draft_set_id)
-            return require_landing_drafts().get(draft_set_id)
+            return require_landing_drafts().get(str(UUID(draft_set_id)))
         except (KeyError, ValueError) as error:
-            raise HTTPException(status_code=404, detail="Natal draft set not found") from error
+            raise HTTPException(status_code=404, detail="Landing draft set not found") from error
 
     @app.post("/api/v1/landings/draft-sets/{draft_set_id}/retry", status_code=202)
-    async def retry_landing_draft_set(
-        draft_set_id: str,
-        _request: Mapping[str, Any],
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
+    async def retry_landing_draft_set(draft_set_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         require_running()
         coordinator = require_landing_drafts()
+        try:
+            draft_set_id = str(UUID(draft_set_id))
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="invalid Landing draft-set UUID") from error
         async with operation_start_lock:
-            await require_no_active_laval()
-            require_no_active_codex()
+            require_no_active_operation()
             try:
-                UUID(draft_set_id)
-                await asyncio.to_thread(coordinator.verify_ready)
                 draft_set = coordinator.retry_population(draft_set_id)
-            except KeyError as error:
-                raise HTTPException(status_code=404, detail="Natal draft set not found") from error
-            except ValueError as error:
+                acquire_operation("landing_agent", draft_set_id)
+                background(populate_and_release(coordinator, draft_set_id))
+                return draft_set
+            except (KeyError, ValueError) as error:
                 raise HTTPException(status_code=409, detail=str(error)) from error
-            except RuntimeError as error:
-                raise HTTPException(status_code=503, detail=str(error)) from error
-            background(coordinator.populate(draft_set_id))
-        return draft_set
 
     @app.get("/api/v1/landings/draft-snapshots/{snapshot_id}/preview")
-    def landing_draft_preview(
-        snapshot_id: str, _identity: OwnerIdentity = Depends(owner),
-    ) -> Response:
+    def landing_preview(snapshot_id: str, _identity: OwnerIdentity = Depends(owner)) -> JSONResponse:
         try:
-            UUID(snapshot_id)
-            payload = require_landing_drafts().preview(snapshot_id)
+            preview = require_landing_drafts().preview(str(UUID(snapshot_id)))
         except (KeyError, ValueError) as error:
-            raise HTTPException(status_code=404, detail="Natal draft snapshot not found") from error
-        return Response(
-            content=json.dumps(payload, ensure_ascii=False), media_type="application/json",
-            headers={"Cache-Control": "private, no-store"},
-        )
+            raise HTTPException(status_code=404, detail="Landing snapshot not found") from error
+        return JSONResponse(preview, headers={"Cache-Control": "no-store, private"})
 
     @app.post("/api/v1/landings/draft-snapshots/{snapshot_id}/edits", status_code=202)
-    async def create_landing_block_edit(
-        snapshot_id: str,
-        request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
+    async def edit_landing_snapshot(snapshot_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         require_running()
-        coordinator = require_landing_drafts()
-        request_id = str(request.get("request_id") or uuid4())
+        if set(request) != {"request_id", "block_id", "instruction"}:
+            raise HTTPException(status_code=400, detail="edit request fields do not match the v2 contract")
         try:
-            UUID(snapshot_id)
-            UUID(request_id)
+            request_id = str(UUID(str(request["request_id"])))
+            snapshot_id = str(UUID(snapshot_id))
         except ValueError as error:
-            raise HTTPException(status_code=400, detail="snapshot_id and request_id must be UUIDs") from error
+            raise HTTPException(status_code=400, detail="request and snapshot IDs must be UUIDs") from error
+        coordinator = require_landing_drafts()
         try:
             existing = coordinator.get_edit(request_id)
-        except KeyError:
-            existing = None
-        if existing is not None:
-            if (
-                existing["base_snapshot_id"] != snapshot_id
-                or existing["block_id"] != str(request.get("block_id") or "")
-                or existing["instruction"] != str(request.get("instruction") or "").strip()
-            ):
-                raise HTTPException(status_code=409, detail="request_id belongs to another block edit")
             return existing
+        except KeyError:
+            pass
         async with operation_start_lock:
-            await require_no_active_laval()
-            require_no_active_codex()
+            require_no_active_operation()
             try:
-                await asyncio.to_thread(coordinator.verify_ready)
                 edit, created = coordinator.create_edit(
-                    snapshot_id, request_id=request_id,
-                    block_id=str(request.get("block_id") or ""),
-                    instruction=str(request.get("instruction") or ""),
-                    requested_by=f"firebase:{identity.uid}",
+                    snapshot_id, request_id=request_id, block_id=str(request["block_id"]),
+                    instruction=str(request["instruction"]), requested_by=f"firebase:{identity.uid}",
                 )
-            except KeyError as error:
-                raise HTTPException(status_code=404, detail="Natal draft snapshot not found") from error
+                if created:
+                    acquire_operation("landing_agent", request_id)
+                    background(edit_and_release(coordinator, request_id))
+                return edit
             except ValueError as error:
-                message = str(error)
-                raise HTTPException(
-                    status_code=409 if "stale" in message else 400, detail=message
-                ) from error
-            except RuntimeError as error:
-                raise HTTPException(status_code=503, detail=str(error)) from error
-            if created:
-                background(coordinator.edit(request_id))
-        return edit
+                raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.get("/api/v1/landings/draft-edits/{request_id}")
-    def landing_block_edit(
-        request_id: str, _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
+    def landing_edit(request_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         try:
-            UUID(request_id)
-            return require_landing_drafts().get_edit(request_id)
+            return require_landing_drafts().get_edit(str(UUID(request_id)))
         except (KeyError, ValueError) as error:
-            raise HTTPException(status_code=404, detail="Natal draft edit not found") from error
+            raise HTTPException(status_code=404, detail="Landing edit not found") from error
 
     @app.post("/api/v1/landings/draft-edits/{request_id}/retry", status_code=202)
-    async def retry_landing_block_edit(
-        request_id: str,
-        _request: Mapping[str, Any],
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
+    async def retry_landing_edit(request_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         require_running()
+        request_id = str(UUID(request_id))
         coordinator = require_landing_drafts()
         async with operation_start_lock:
-            await require_no_active_laval()
-            require_no_active_codex()
+            require_no_active_operation()
             try:
-                UUID(request_id)
-                await asyncio.to_thread(coordinator.verify_ready)
                 edit = coordinator.retry_edit(request_id)
-            except KeyError as error:
-                raise HTTPException(status_code=404, detail="Natal draft edit not found") from error
+                acquire_operation("landing_agent", request_id)
+                background(edit_and_release(coordinator, request_id))
+                return edit
             except ValueError as error:
                 raise HTTPException(status_code=409, detail=str(error)) from error
-            except RuntimeError as error:
-                raise HTTPException(status_code=503, detail=str(error)) from error
-            background(coordinator.edit(request_id))
-        return edit
 
-    @app.get("/api/v1/landings/skill-proposals")
-    def landing_skill_proposals(
-        draft_set_id: str, _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        try:
-            UUID(draft_set_id)
-            return {"items": require_landing_drafts().proposals(draft_set_id)}
-        except (KeyError, ValueError) as error:
-            raise HTTPException(status_code=404, detail="Natal draft set not found") from error
-
-    @app.post("/api/v1/landings/skill-proposals/{proposal_id}/dismiss")
-    def dismiss_landing_skill_proposal(
-        proposal_id: str,
-        _request: Mapping[str, Any],
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        try:
-            UUID(proposal_id)
-            return require_landing_drafts().dismiss_proposal(proposal_id)
-        except KeyError as error:
-            raise HTTPException(status_code=404, detail="Natal skill proposal not found") from error
-        except ValueError as error:
-            raise HTTPException(status_code=409, detail=str(error)) from error
-
-    @app.post("/api/v1/landings/skill-proposals/{proposal_id}/plan", status_code=202)
-    async def plan_landing_skill_proposal(
-        proposal_id: str,
-        request: Mapping[str, Any],
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
+    @app.post("/api/v1/landings/draft-snapshots/{snapshot_id}/publish", status_code=202)
+    async def publish_landing(snapshot_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         require_running()
-        coordinator = require_landing_drafts()
+        if set(request) != {"request_id"}:
+            raise HTTPException(status_code=400, detail="publication requires request_id")
         try:
-            UUID(proposal_id)
-            proposal = coordinator.proposal(proposal_id)
-        except (KeyError, ValueError) as error:
-            raise HTTPException(status_code=404, detail="Natal skill proposal not found") from error
-        lesson = str(request.get("lesson") or proposal.get("proposed_lesson") or "").strip()
-        if not lesson or len(lesson) > 500:
-            raise HTTPException(status_code=400, detail="reviewed lesson must contain 1-500 characters")
-        instruction = (
-            "Use $skill-creator to promote one owner-reviewed Natal landing lesson. "
-            "Update only skills/natal-landing-builder/references/owner-lessons.md; do not deploy, "
-            "publish, or change runtime data. Preserve the lesson meaning, remove idea-specific facts, "
-            "and do not add unsupported claims. Include proposal marker "
-            f"{proposal_id}. Reviewed lesson: {lesson}\n\n"
-            "Validate with the skill-creator quick validator, python3 scripts/verify_ptw_skills.py, "
-            "and git diff --check."
-        )
-        async with operation_start_lock:
-            await require_no_active_laval()
-            require_no_active_codex()
-            try:
-                command = store.create_command("plan", instruction)
-                proposal = coordinator.mark_proposal_planning(
-                    proposal_id, lesson=lesson, command_session_id=command["id"]
-                )
-            except ValueError as error:
-                raise HTTPException(status_code=409, detail=str(error)) from error
-            background(build_plan(command["id"], instruction))
-        return {"proposal": proposal, "job": command}
-
-    async def start_landing_build(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_running()
-        coordinator = require_landing_builder()
-        request_id = str(request.get("request_id") or uuid4())
-        try:
-            UUID(request_id)
-        except ValueError as error:
-            raise HTTPException(status_code=400, detail="request_id must be a UUID") from error
-        existing = coordinator.by_request(request_id)
-        if existing is not None:
-            return landing_response(existing)
-        draft_snapshot_id = str(request.get("draft_snapshot_id") or "").strip() or None
-        snapshot = None
-        draft_set = None
-        if draft_snapshot_id:
-            try:
-                UUID(draft_snapshot_id)
-                drafts = require_landing_drafts()
-                snapshot = drafts.snapshot(draft_snapshot_id)
-                draft_set = drafts.get(snapshot["draft_set_id"])
-            except (KeyError, ValueError) as error:
-                raise HTTPException(status_code=404, detail="Natal draft snapshot not found") from error
-            if not snapshot["is_current"]:
-                raise HTTPException(status_code=409, detail="selected Natal draft snapshot is stale")
-            idea_run_id = str(draft_set["idea_run_id"])
-            template_id = str(snapshot["template_id"])
-        else:
-            idea_run_id = str(request.get("idea_run_id") or "").strip()
-            template_id = str(request.get("template_id") or "auto").strip().lower()
-        require_laval_id(idea_run_id)
-        parent_build_id = str(request.get("parent_build_id") or "").strip() or None
-        parent = None
-        if parent_build_id:
-            try:
-                UUID(parent_build_id)
-                parent = coordinator.get(parent_build_id)
-            except (KeyError, ValueError) as error:
-                raise HTTPException(status_code=404, detail="parent Natal landing revision not found") from error
-            if parent["idea_run_id"] != idea_run_id:
-                raise HTTPException(status_code=400, detail="parent landing revision belongs to another Idea evaluation")
-            if parent["status"] != "published":
-                raise HTTPException(status_code=409, detail="only a published landing can be revised")
-        if snapshot is not None and draft_set is not None:
-            prepared = {
-                "build_id": str(uuid4()), "idea_run_id": idea_run_id,
-                "template_id": template_id, "brief": dict(draft_set["brief"]),
-                "parent_build_id": parent_build_id,
-                "source_draft_snapshot_id": snapshot["id"],
-                "page_content": dict(snapshot["page_content"]),
-                "page_content_sha256": snapshot["page_content_sha256"],
-                "revision_summary": snapshot["application_summary"],
-                "revision_invocation": snapshot["invocation"],
-            }
-        else:
-            overrides = request.get("brief") or {}
-            if not isinstance(overrides, Mapping):
-                raise HTTPException(status_code=400, detail="brief must be an object")
-            try:
-                candidate = await completed_landing_case(idea_run_id)
-                prepared = prepare_landing_build(
-                    candidate, template_id, overrides,
-                    base_brief=parent["brief"] if parent else None,
-                    parent_build_id=parent_build_id,
-                )
-            except ValueError as error:
-                raise HTTPException(status_code=400, detail=str(error)) from error
-        async with operation_start_lock:
-            await require_no_active_laval()
-            require_no_active_codex()
-            if snapshot is None:
-                try:
-                    await asyncio.to_thread(coordinator.verify_ready)
-                except RuntimeError as error:
-                    raise HTTPException(status_code=503, detail=str(error)) from error
-            try:
-                build, created = coordinator.create(
-                    prepared,
-                    request_id=request_id,
-                    requested_by=f"firebase:{identity.uid}",
-                )
-            except ValueError as error:
-                raise HTTPException(status_code=409, detail=str(error)) from error
+            request_id = str(UUID(str(request["request_id"])))
+            snapshot = draft_repository.snapshot(str(UUID(snapshot_id)))
+            draft_set = draft_repository.get(snapshot["draft_set_id"])
+            prepared = prepare_landing_build(draft_set, snapshot)
+            coordinator = require_landing_builder()
+            build, created = coordinator.create(
+                prepared, request_id=request_id, requested_by=f"firebase:{identity.uid}"
+            )
             if created:
-                background(coordinator.run(str(build["id"])))
-        return landing_response(build)
+                background(coordinator.run(build["id"]))
+            return build
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Landing snapshot not found") from error
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
-    @app.post("/api/v1/landings/builds", status_code=202)
-    async def create_landing_build(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return await start_landing_build(request, identity)
+    @app.get("/api/v1/landings")
+    def landings(limit: int = Query(default=50, ge=1, le=100), positioning_revision_id: str | None = None, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return {"items": build_repository.list(limit, positioning_revision_id=positioning_revision_id), "next_cursor": None}
 
-    @app.post("/api/v1/landings/builder-jobs", status_code=202)
-    async def create_landing_builder_job_compatibility(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        build = await start_landing_build(request, identity)
-        return {
-            **build,
-            "mode": "execute",
-            "title": "Natal landing build and Firebase publish",
-            "created_by": f"firebase:{identity.uid}",
-            "landing": {
-                "build_id": build["id"],
-                "idea_run_id": build["idea_run_id"],
-                "template_id": build["template_id"],
-                "recommended_template_id": build["template_id"],
-                "output_path": f"Firebase · {build['firebase_site_id']}",
-                "brief": build["brief"],
-            },
-        }
-
-    @app.get("/api/v1/landings/builds")
-    def landing_builds(
-        limit: int = Query(default=30, ge=1, le=100),
-        idea_run_id: str | None = Query(default=None),
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        coordinator = require_landing_builder()
-        if idea_run_id:
-            require_laval_id(idea_run_id)
-        return {
-            "items": [
-                landing_response(item)
-                for item in coordinator.list(limit, idea_run_id=idea_run_id)
-            ],
-            "next_cursor": None,
-        }
-
-    @app.get("/api/v1/landings/skill-memory")
-    def landing_skill_memory(
-        idea_run_id: str,
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(idea_run_id)
-        return {"items": require_landing_builder().skill_memory(idea_run_id)}
-
-    @app.get("/api/v1/landings/builds/{build_id}")
-    def landing_build(
-        build_id: str, _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        coordinator = require_landing_builder()
+    @app.get("/api/v1/landings/{build_id}")
+    def landing(build_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         try:
-            UUID(build_id)
-            return landing_response(coordinator.get(build_id))
+            return build_repository.get(str(UUID(build_id)))
         except (KeyError, ValueError) as error:
-            raise HTTPException(status_code=404, detail="Natal landing build not found") from error
+            raise HTTPException(status_code=404, detail="Landing not found") from error
 
-    @app.post("/api/v1/landings/builds/{build_id}/feedback", status_code=201)
-    def record_landing_feedback(
-        build_id: str,
-        request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
+    @app.post("/api/v1/landings/{build_id}/retry", status_code=202)
+    async def retry_landing(build_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        require_running()
         try:
-            UUID(build_id)
-            comment = str(request.get("comment") or "")
-            return require_landing_builder().record_feedback(
-                build_id,
-                comment=comment,
-                requested_by=f"firebase:{identity.uid}",
+            coordinator = require_landing_builder()
+            build = coordinator.retry(str(UUID(build_id)))
+            background(coordinator.run(build["id"]))
+            return build
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post("/api/v1/landings/{build_id}/feedback")
+    def landing_feedback(build_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        if set(request) != {"comment"}:
+            raise HTTPException(status_code=400, detail="feedback requires one comment")
+        try:
+            return build_repository.record_feedback(
+                str(UUID(build_id)), comment=str(request["comment"]), requested_by=f"firebase:{identity.uid}"
             )
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.get("/api/v1/landings/draft-sets/{draft_set_id}/skill-proposals")
+    def landing_skill_proposals(draft_set_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        try:
+            return {"items": require_landing_drafts().proposals(str(UUID(draft_set_id)))}
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=404, detail="Landing draft set not found") from error
+
+    @app.post("/api/v1/landing-skill-proposals/{proposal_id}/dismiss")
+    def dismiss_landing_skill_proposal(proposal_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        try:
+            return require_landing_drafts().dismiss_proposal(str(UUID(proposal_id)))
         except KeyError as error:
-            raise HTTPException(status_code=404, detail="Natal landing build not found") from error
+            raise HTTPException(status_code=404, detail="Landing lesson proposal not found") from error
         except ValueError as error:
-            raise HTTPException(status_code=400, detail=str(error)) from error
-
-    @app.post("/api/v1/landings/builds/{build_id}/retry", status_code=202)
-    async def retry_landing_build(
-        build_id: str,
-        _request: Mapping[str, Any],
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_running()
-        coordinator = require_landing_builder()
-        try:
-            UUID(build_id)
-        except ValueError as error:
-            raise HTTPException(status_code=404, detail="Natal landing build not found") from error
-        async with operation_start_lock:
-            await require_no_active_laval()
-            require_no_active_codex()
-            try:
-                await asyncio.to_thread(coordinator.verify_ready)
-            except RuntimeError as error:
-                raise HTTPException(status_code=503, detail=str(error)) from error
-            try:
-                build = coordinator.retry(build_id)
-            except (KeyError, ValueError) as error:
-                raise HTTPException(status_code=409, detail=str(error)) from error
-            background(coordinator.run(build_id))
-        return landing_response(build)
-
-    @app.get("/api/v1/branding/cases")
-    async def branding_cases(
-        limit: int = Query(default=30, ge=1, le=100),
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (
-            await laval_bridge(
-                "GET", "/internal/web/branding/cases", params={"limit": limit}
-            )
-        ).json()
-
-    @app.get("/api/v1/branding/runs")
-    async def branding_runs(
-        limit: int = Query(default=30, ge=1, le=100),
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (
-            await laval_bridge(
-                "GET", "/internal/web/branding/runs", params={"limit": limit}
-            )
-        ).json()
-
-    def decorate_brand_project(project: dict[str, Any]) -> dict[str, Any]:
-        active = project.get("active_kit")
-        if isinstance(active, dict) and active.get("logo_artifact_digest"):
-            digest = str(active["logo_artifact_digest"])
-            active["logo_asset"] = {
-                "digest": digest, "mime_type": "image/png", "width": 1024,
-                "height": 1024, "url": f"/api/v1/branding/assets/{digest}",
-                "cache": "private, no-store",
-            }
-        for kit in project.get("kits") or []:
-            digest = kit.get("logo_artifact_digest")
-            if digest:
-                kit["logo_asset"] = {
-                    "digest": digest, "mime_type": "image/png", "width": 1024,
-                    "height": 1024, "url": f"/api/v1/branding/assets/{digest}",
-                    "cache": "private, no-store",
-                }
-        for revision in project.get("logo_revisions") or []:
-            source = revision.get("source_artifact_digest")
-            result = revision.get("artifact_digest")
-            if source:
-                revision["before_asset"] = {
-                    "digest": source, "mime_type": "image/png", "width": 1024,
-                    "height": 1024, "url": f"/api/v1/branding/assets/{source}",
-                    "cache": "private, no-store",
-                }
-            if result:
-                revision["after_asset"] = {
-                    "digest": result, "mime_type": "image/png", "width": 1024,
-                    "height": 1024, "url": f"/api/v1/branding/assets/{result}",
-                    "cache": "private, no-store",
-                }
-        return project
-
-    @app.get("/api/v1/branding/projects")
-    async def branding_projects(
-        limit: int = Query(default=30, ge=1, le=100),
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        result = (
-            await laval_bridge(
-                "GET", "/internal/web/branding/projects", params={"limit": limit}
-            )
-        ).json()
-        result["items"] = [
-            decorate_brand_project(item) for item in result.get("items") or []
-        ]
-        return result
-
-    @app.get("/api/v1/branding/projects/{project_id}")
-    async def branding_project(
-        project_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        require_laval_id(project_id)
-        result = (
-            await laval_bridge(
-                "GET", f"/internal/web/branding/projects/{project_id}"
-            )
-        ).json()
-        return decorate_brand_project(result)
-
-    @app.get("/api/v1/branding/projects/{project_id}/active-kit")
-    async def branding_project_active_kit(
-        project_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        require_laval_id(project_id)
-        result = (
-            await laval_bridge(
-                "GET", f"/internal/web/branding/projects/{project_id}/active-kit"
-            )
-        ).json()
-        digest = result.get("logo_artifact_digest")
-        if digest:
-            result["logo_asset"] = {
-                "digest": digest, "mime_type": "image/png", "width": 1024,
-                "height": 1024, "url": f"/api/v1/branding/assets/{digest}",
-                "cache": "private, no-store",
-            }
-        return result
-
-    @app.get("/api/v1/branding/projects/{project_id}/history")
-    async def branding_project_history(
-        project_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        require_laval_id(project_id)
-        return (
-            await laval_bridge(
-                "GET", f"/internal/web/branding/projects/{project_id}/history"
-            )
-        ).json()
-
-    @app.post("/api/v1/branding/projects/{project_id}/rebuild")
-    async def rebuild_branding_project(
-        project_id: str, request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(project_id)
-        require_running()
-        async with operation_start_lock:
-            require_no_active_codex()
-            return (
-                await laval_bridge(
-                    "POST", f"/internal/web/branding/projects/{project_id}/rebuild",
-                    body={**dict(request), "confirmed": True,
-                          "actor": f"firebase:{identity.uid}"},
-                )
-            ).json()
-
-    @app.post("/api/v1/branding/projects/{project_id}/logo-revisions")
-    async def create_branding_project_logo_revision(
-        project_id: str, request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(project_id)
-        require_running()
-        comment = str(request.get("feedback") or request.get("comment") or "").strip()
-        client_request_id = str(request.get("client_request_id") or "").strip()
-        if not comment or len(comment) > 2000:
-            raise HTTPException(status_code=409, detail="logo feedback must contain 1-2000 characters")
-        if not client_request_id or len(client_request_id) > 200:
-            raise HTTPException(status_code=409, detail="client_request_id is required")
-        actor = f"firebase:{identity.uid}"
-        try:
-            async with operation_start_lock:
-                require_no_active_codex()
-                current = (
-                    await laval_bridge(
-                        "GET", f"/internal/web/branding/projects/{project_id}"
-                    )
-                ).json()
-                existing = next((
-                    item for item in current.get("logo_revisions") or []
-                    if item.get("client_request_id") == client_request_id
-                ), None)
-                if existing:
-                    return existing
-                active = await active_heavy_operation()
-                if active is not None:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=f"{active.get('operation') or 'Heavy'} run {active['run_id']} is active",
-                    )
-                providers = (
-                    await laval_bridge("GET", "/internal/web/branding/providers")
-                ).json()
-                if providers.get("revision_ready") is not True:
-                    raise HTTPException(
-                        status_code=409,
-                        detail="Branding reference-edit contract is unavailable",
-                    )
-                target = read.brand_project_review_target(project_id)
-                feedback = read.review(
-                    creative_id=target["creative_id"],
-                    artifact_digest=target["artifact_digest"], rating=None,
-                    comment=comment, predicted_ctr=None, annotations=(),
-                    decision="changes", actor=actor,
-                    policy_path=settings.commander_policy_path,
-                    asset_directory=settings.commander_asset_root,
-                    supersedes_feedback_id=target["latest_feedback_id"],
-                )
-                return (
-                    await laval_bridge(
-                        "POST", f"/internal/web/branding/projects/{project_id}/logo-revisions",
-                        body={
-                            "feedback_id": feedback["feedback_id"],
-                            "client_request_id": client_request_id, "actor": actor,
-                        },
-                    )
-                ).json()
-        except (KeyError, TypeError, ValueError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
-    @app.get("/api/v1/branding/projects/{project_id}/logo-revisions/{revision_id}")
-    async def branding_project_logo_revision(
-        project_id: str, revision_id: str,
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(project_id); require_laval_id(revision_id)
-        revision = (
-            await laval_bridge(
-                "GET", f"/internal/web/branding/projects/{project_id}/logo-revisions/{revision_id}"
-            )
-        ).json()
-        return decorate_brand_project({"logo_revisions": [revision]})["logo_revisions"][0]
-
-    @app.post("/api/v1/branding/projects/{project_id}/logo-revisions/{revision_id}/retry")
-    async def retry_branding_project_logo_revision(
-        project_id: str, revision_id: str,
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(project_id); require_laval_id(revision_id); require_running()
-        async with operation_start_lock:
-            require_no_active_codex()
-            return (
-                await laval_bridge(
-                    "POST", f"/internal/web/branding/projects/{project_id}/logo-revisions/{revision_id}/retry",
-                    body={"actor": f"firebase:{identity.uid}"},
-                )
-            ).json()
-
-    @app.post("/api/v1/branding/projects/{project_id}/logo-revisions/{revision_id}/decision")
-    async def decide_branding_project_logo_revision(
-        project_id: str, revision_id: str, request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(project_id); require_laval_id(revision_id); require_running()
-        decision = str(request.get("decision") or "").strip().lower()
-        if decision not in {"approve", "reject"}:
-            raise HTTPException(status_code=409, detail="decision must be approve or reject")
-        if decision == "approve":
-            async with operation_start_lock:
-                require_no_active_codex()
-                return (
-                    await laval_bridge(
-                        "POST", f"/internal/web/branding/projects/{project_id}/logo-revisions/{revision_id}/decision",
-                        body={"decision": decision, "actor": f"firebase:{identity.uid}"},
-                    )
-                ).json()
-        return (
-            await laval_bridge(
-                "POST", f"/internal/web/branding/projects/{project_id}/logo-revisions/{revision_id}/decision",
-                body={"decision": decision, "actor": f"firebase:{identity.uid}"},
-            )
-        ).json()
-
-    @app.post("/api/v1/branding/runs")
-    async def create_branding_run(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
+    @app.post("/api/v1/landing-skill-proposals/{proposal_id}/plan", status_code=202)
+    async def plan_landing_skill_proposal(proposal_id: str, request: Mapping[str, Any], _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         require_running()
-        async with operation_start_lock:
-            require_no_active_codex()
-            return (
-                await laval_bridge(
-                    "POST",
-                    "/internal/web/branding/runs",
-                    body={**dict(request), "actor": f"firebase:{identity.uid}"},
-                )
-            ).json()
-
-    @app.get("/api/v1/branding/runs/{run_id}")
-    async def branding_run_status(
-        run_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        result = (
-            await laval_bridge("GET", f"/internal/web/branding/runs/{run_id}")
-        ).json()
-        for direction in result.get("directions") or []:
-            digest = direction.get("artifact_digest")
-            if digest:
-                direction["logo_asset"] = {
-                    "digest": digest,
-                    "mime_type": "image/png",
-                    "width": 1024,
-                    "height": 1024,
-                    "generation_provenance": direction.get("generation_provenance") or {},
-                    "url": f"/api/v1/branding/assets/{digest}",
-                    "cache": "private, no-store",
-                }
-        return result
-
-    @app.get("/api/v1/branding/runs/{run_id}/stages")
-    async def branding_run_stages(
-        run_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        return (
-            await laval_bridge(
-                "GET", f"/internal/web/branding/runs/{run_id}/stages"
-            )
-        ).json()
-
-    @app.get("/api/v1/branding/runs/{run_id}/show")
-    async def branding_stage_output(
-        run_id: str,
-        stage: str,
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        return (
-            await laval_bridge(
-                "GET",
-                f"/internal/web/branding/runs/{run_id}/show",
-                params={"stage": stage},
-            )
-        ).json()
-
-    @app.get("/api/v1/branding/runs/{run_id}/directions")
-    async def branding_directions(
-        run_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        result = (
-            await laval_bridge(
-                "GET", f"/internal/web/branding/runs/{run_id}/directions"
-            )
-        ).json()
-        for direction in result.get("items") or []:
-            digest = direction.get("artifact_digest")
-            if digest:
-                direction["logo_asset"] = {
-                    "digest": digest,
-                    "mime_type": "image/png",
-                    "width": 1024,
-                    "height": 1024,
-                    "generation_provenance": direction.get("generation_provenance") or {},
-                    "url": f"/api/v1/branding/assets/{digest}",
-                    "cache": "private, no-store",
-                }
-        return result
-
-    @app.post("/api/v1/branding/runs/{run_id}/directions/{direction_id}/review")
-    async def review_brand_logo(
-        run_id: str,
-        direction_id: str,
-        request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        require_laval_id(direction_id)
-        require_running()
-        try:
-            target = read.brand_review_target(run_id, direction_id)
-            decision = str(request.get("decision") or "changes").strip().lower()
-            if decision not in {"changes", "approve"}:
-                raise ValueError("review decision must be changes or approve")
-            raw_annotations = request.get("annotations", request.get("regions", [])) or []
-            if not isinstance(raw_annotations, list) or len(raw_annotations) > 100:
-                raise ValueError("reviews support at most 100 annotations")
-            annotations = tuple(region(item) for item in raw_annotations)
-            raw_rating = request.get("rating")
-            rating = None if raw_rating in (None, "") else int(raw_rating)
-            if rating is not None and rating not in range(1, 6):
-                raise ValueError("rating must be 1..5")
-            comment = str(request.get("comment") or "").strip()
-            if decision == "changes" and rating is None and not comment:
-                raise ValueError("text feedback must not be empty")
-            if decision == "approve" and (comment or rating is not None or annotations):
-                raise ValueError("approval must not include correction feedback")
-            async with operation_start_lock:
-                if decision == "changes":
-                    require_no_active_codex()
-                    active = await active_heavy_operation()
-                    if active is not None:
-                        raise HTTPException(
-                            status_code=409,
-                            detail=(
-                                f"{active.get('operation') or 'Heavy'} run "
-                                f"{active['run_id']} is active"
-                            ),
-                        )
-                result = read.review(
-                    creative_id=target["creative_id"],
-                    artifact_digest=target["artifact_digest"],
-                    rating=rating,
-                    comment=comment,
-                    predicted_ctr=None,
-                    annotations=annotations,
-                    decision=decision,
-                    actor=f"firebase:{identity.uid}",
-                    policy_path=settings.commander_policy_path,
-                    asset_directory=settings.commander_asset_root,
-                    supersedes_feedback_id=target["latest_feedback_id"],
-                )
-                if decision == "changes":
-                    regeneration = (
-                        await laval_bridge(
-                            "POST",
-                            f"/internal/web/branding/runs/{run_id}/directions/{direction_id}/regenerate",
-                            body={
-                                "feedback_id": result["feedback_id"],
-                                "actor": f"firebase:{identity.uid}",
-                            },
-                        )
-                    ).json()
-                    return {
-                        **result, "direction_id": direction_id,
-                        "decision": decision, "regeneration": regeneration,
-                    }
-            return {**result, "direction_id": direction_id, "decision": decision}
-        except (KeyError, TypeError, ValueError) as error:
-            raise HTTPException(status_code=409, detail=str(error)) from error
-
-    @app.post(
-        "/api/v1/branding/runs/{run_id}/directions/{direction_id}/regenerate"
-    )
-    async def retry_brand_logo_regeneration(
-        run_id: str,
-        direction_id: str,
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        require_laval_id(direction_id)
-        require_running()
-        try:
-            target = read.brand_review_target(run_id, direction_id)
-            if not target["latest_feedback_id"]:
-                raise ValueError("the current logo has no correction feedback")
-            async with operation_start_lock:
-                require_no_active_codex()
-                active = await active_heavy_operation()
-                if active is not None:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=(
-                            f"{active.get('operation') or 'Heavy'} run "
-                            f"{active['run_id']} is active"
-                        ),
-                    )
-                return (
-                    await laval_bridge(
-                        "POST",
-                        f"/internal/web/branding/runs/{run_id}/directions/{direction_id}/regenerate",
-                        body={
-                            "feedback_id": target["latest_feedback_id"],
-                            "actor": f"firebase:{identity.uid}",
-                        },
-                    )
-                ).json()
-        except (KeyError, TypeError, ValueError) as error:
-            raise HTTPException(status_code=409, detail=str(error)) from error
-
-    @app.get("/api/v1/branding/runs/{run_id}/directions/{direction_id}/reviews")
-    def brand_logo_reviews(
-        run_id: str,
-        direction_id: str,
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        require_laval_id(direction_id)
-        try:
-            target = read.brand_review_target(run_id, direction_id)
-        except KeyError as error:
-            raise HTTPException(status_code=404, detail=str(error)) from error
-        return {"items": read.creative_reviews(target["creative_id"])}
-
-    @app.post("/api/v1/branding/runs/{run_id}/{action}")
-    async def control_branding_run(
-        run_id: str,
-        action: str,
-        request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        if action not in {"pause", "resume", "rerun", "approve"}:
-            raise HTTPException(status_code=404, detail="unknown Branding action")
-        if action != "pause":
-            require_running()
-        payload = {**dict(request), "actor": f"firebase:{identity.uid}"}
-        if action in {"resume", "rerun", "approve"}:
-            async with operation_start_lock:
-                require_no_active_codex()
-                return (
-                    await laval_bridge(
-                        "POST",
-                        f"/internal/web/branding/runs/{run_id}/{action}",
-                        body=payload,
-                    )
-                ).json()
-        return (
-            await laval_bridge(
-                "POST",
-                f"/internal/web/branding/runs/{run_id}/{action}",
-                body=payload,
-            )
-        ).json()
-
-    @app.get("/api/v1/branding/kits/{kit_id}")
-    async def brand_kit(
-        kit_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        require_laval_id(kit_id)
-        result = (
-            await laval_bridge("GET", f"/internal/web/branding/kits/{kit_id}")
-        ).json()
-        digest = result.get("zip_digest")
-        if digest:
-            result["download"] = {
-                "digest": digest,
-                "mime_type": "application/zip",
-                "url": f"/api/v1/branding/kits/{kit_id}/download",
-                "cache": "private, no-store",
-            }
-        return result
-
-    @app.get("/api/v1/branding/assets/{digest}")
-    async def brand_asset(
-        digest: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> Response:
-        if not re.fullmatch(r"[0-9a-f]{64}", digest):
-            raise HTTPException(status_code=400, detail="invalid artifact digest")
-        response = await laval_bridge(
-            "GET", f"/internal/web/branding/assets/{digest}"
-        )
-        return Response(
-            response.content,
-            media_type=response.headers.get("content-type", "application/octet-stream"),
-            headers={"Cache-Control": "private, no-store"},
-        )
-
-    @app.get("/api/v1/branding/kits/{kit_id}/download")
-    async def download_brand_kit(
-        kit_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> Response:
-        require_laval_id(kit_id)
-        kit = (
-            await laval_bridge("GET", f"/internal/web/branding/kits/{kit_id}")
-        ).json()
-        digest = str(kit.get("zip_digest") or "")
-        if not re.fullmatch(r"[0-9a-f]{64}", digest):
-            raise HTTPException(status_code=404, detail="Brand Kit archive is unavailable")
-        response = await laval_bridge(
-            "GET", f"/internal/web/branding/assets/{digest}"
-        )
-        return Response(
-            response.content,
-            media_type="application/zip",
-            headers={
-                "Content-Disposition": response.headers.get(
-                    "content-disposition", 'attachment; filename="brand-kit.zip"'
-                ),
-                "Cache-Control": "private, no-store",
-            },
-        )
-
-    @app.post("/api/v1/laval/runs")
-    async def create_laval_run(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        require_running()
-        payload = {"text": request.get("text"), "config": request.get("config") or {}, "mode": request.get("mode") or "demo", "actor": f"firebase:{identity.uid}"}
-        async with operation_start_lock:
-            require_no_active_codex()
-            return (await laval_bridge("POST", "/internal/web/laval/runs", body=payload)).json()
-
-    @app.get("/api/v1/laval/runs/{run_id}")
-    async def laval_run_status(
-        run_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        return (await laval_bridge("GET", f"/internal/web/laval/runs/{run_id}")).json()
-
-    @app.get("/api/v1/laval/runs/{run_id}/stages")
-    async def laval_run_stages(
-        run_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        return (await laval_bridge("GET", f"/internal/web/laval/runs/{run_id}/stages")).json()
-
-    @app.get("/api/v1/laval/runs/{run_id}/theses")
-    async def laval_theses(
-        run_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        return (await laval_bridge("GET", f"/internal/web/laval/runs/{run_id}/theses")).json()
-
-    @app.post("/api/v1/laval/runs/{run_id}/theses/{thesis_id}/select")
-    async def select_laval_thesis(
-        run_id: str,
-        thesis_id: str,
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        require_laval_id(thesis_id)
-        require_running()
-        theses = (await laval_bridge("GET", f"/internal/web/laval/runs/{run_id}/theses")).json()
-        thesis = next((item for item in theses.get("items") or [] if str(item.get("id")) == thesis_id), None)
-        if not thesis:
-            raise HTTPException(status_code=404, detail="product thesis not found")
-        if thesis.get("verdict") != "survives" or not thesis.get("commander_hypothesis_id"):
-            raise HTTPException(status_code=409, detail="only a published surviving thesis can enter validation")
-        actor = f"firebase:{identity.uid}"
-        validation = (await commander_bridge("POST", "/internal/validations/select", body={
-            "hypothesis_id": thesis["commander_hypothesis_id"],
-            "run_id": run_id,
-            "thesis_id": thesis_id,
-            "actor": actor,
-        })).json()
-        workspace_id = str((validation.get("workspace") or {}).get("id") or "")
-        if not workspace_id:
-            raise HTTPException(status_code=502, detail="Commander did not return a validation workspace")
-        selection = (await laval_bridge(
-            "POST", f"/internal/web/laval/runs/{run_id}/theses/{thesis_id}/select",
-            body={"workspace_id": workspace_id, "actor": actor},
-        )).json()
-        return {**validation, "selection": selection}
-
-    @app.post("/api/v1/laval/runs/{run_id}/youtube-transcripts")
-    async def add_laval_youtube_transcript(
-        run_id: str,
-        request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        require_running()
-        return (await laval_bridge(
-            "POST", f"/internal/web/laval/runs/{run_id}/youtube-transcripts",
-            body={**dict(request), "actor": f"firebase:{identity.uid}"},
-        )).json()
-
-    @app.get("/api/v1/validations")
-    async def validations(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await commander_bridge("GET", "/internal/validations")).json()
-
-    @app.get("/api/v1/validations/{workspace_id}")
-    async def validation(
-        workspace_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        require_laval_id(workspace_id)
-        return (await commander_bridge("GET", f"/internal/validations/{workspace_id}")).json()
-
-    @app.post("/api/v1/validations/{workspace_id}/probes")
-    async def create_probe(
-        workspace_id: str,
-        request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(workspace_id)
-        require_running()
-        return (await commander_bridge(
-            "POST", f"/internal/validations/{workspace_id}/probes",
-            body={**dict(request), "actor": f"firebase:{identity.uid}"},
-        )).json()
-
-    @app.post("/api/v1/probes/{probe_id}/start")
-    async def start_probe(
-        probe_id: str, identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        require_laval_id(probe_id)
-        require_running()
-        return (await commander_bridge(
-            "POST", f"/internal/probes/{probe_id}/start",
-            body={"actor": f"firebase:{identity.uid}"},
-        )).json()
-
-    async def record_probe_result(
-        probe_id: str, request: Mapping[str, Any], identity: OwnerIdentity
-    ) -> dict[str, Any]:
-        require_laval_id(probe_id)
-        require_running()
-        return (await commander_bridge(
-            "POST", f"/internal/probes/{probe_id}/observations",
-            body={**dict(request), "actor": f"firebase:{identity.uid}"},
-        )).json()
-
-    @app.post("/api/v1/probes/{probe_id}/observations")
-    async def probe_observation(
-        probe_id: str,
-        request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return await record_probe_result(probe_id, request, identity)
-
-    @app.post("/api/v1/probes/{probe_id}/complete")
-    async def complete_probe(
-        probe_id: str,
-        request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return await record_probe_result(probe_id, request, identity)
-
-    @app.post("/api/v1/validations/{workspace_id}/decision")
-    async def validation_decision(
-        workspace_id: str,
-        request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(workspace_id)
-        require_running()
-        return (await commander_bridge(
-            "POST", f"/internal/validations/{workspace_id}/decision",
-            body={**dict(request), "actor": f"firebase:{identity.uid}"},
-        )).json()
-
-    @app.post("/api/v1/validations/{workspace_id}/plan")
-    async def plan_validation(
-        workspace_id: str,
-        request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(workspace_id)
-        require_running()
-        actor = f"firebase:{identity.uid}"
-        context = (await commander_bridge(
-            "POST", f"/internal/validations/{workspace_id}/consume-context", body={"actor": actor}
-        )).json()
-        requested = str(request.get("request") or "Create a product implementation plan from the validated thesis. Do not execute it.").strip()
+        if set(request) != {"lesson"} or not 1 <= len(str(request["lesson"]).strip()) <= 500:
+            raise HTTPException(status_code=400, detail="lesson must contain 1-500 characters")
+        lesson = str(request["lesson"]).strip()
         instruction = (
-            f"{requested}\n\nUse this bounded PTW validation context. Treat recorded observations as facts and insights as interpretations. "
-            "Do not request UUID copying and do not broaden into external execution.\n\n"
-            + json.dumps(context, ensure_ascii=False, default=str)[:16_000]
+            "Update only skills/natal-landing-builder/references/owner-lessons.md. "
+            f"Add this reviewed generalized owner lesson: {lesson}\n"
+            "Do not edit any other file. Run python3 scripts/verify_ptw_skills.py and the skill quick validator."
         )
+        coordinator = require_landing_drafts()
         async with operation_start_lock:
-            await require_no_active_laval()
-            require_no_active_codex()
+            require_no_active_operation()
+            command = store.create_command("plan", instruction)
             try:
-                command = store.create_command("plan", instruction)
-            except ValueError as error:
-                raise HTTPException(status_code=409, detail=str(error)) from error
-            background(build_plan(command["id"], instruction))
-            return command
+                acquire_operation("codex_plan", command["id"])
+                proposal = coordinator.mark_proposal_planning(
+                    str(UUID(proposal_id)), lesson=lesson, command_session_id=command["id"]
+                )
+            except Exception:
+                store.update(command["id"], "failed", error="Skill proposal planning could not start")
+                release_operation(command["id"])
+                raise
+            background(plan_and_release(command["id"], instruction))
+            return {"proposal": proposal, "command_session": command}
 
-    @app.get("/api/v1/laval/runs/{run_id}/show")
-    async def laval_stage_output(
-        run_id: str,
-        stage: str,
-        view: str | None = None,
-        country: str | None = None,
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        return (await laval_bridge(
-            "GET", f"/internal/web/laval/runs/{run_id}/show",
-            params={key: value for key, value in {"stage": stage, "view": view, "country": country}.items() if value},
-        )).json()
-
-    @app.get("/api/v1/laval/runs/{run_id}/export")
-    async def export_laval_run(
-        run_id: str,
-        stage: str | None = None,
-        format: str = Query(default="json", pattern="^(json|md|pdf)$"),
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> Response:
-        require_laval_id(run_id)
-        response = await laval_bridge(
-            "GET", f"/internal/web/laval/runs/{run_id}/export",
-            params={key: value for key, value in {"stage": stage, "format": format}.items() if value},
-        )
-        return Response(
-            response.content,
-            media_type=response.headers.get("content-type", "application/octet-stream"),
-            headers={"Content-Disposition": response.headers.get("content-disposition", "attachment"), "Cache-Control": "no-store, private"},
-        )
-
-    @app.post("/api/v1/laval/runs/{run_id}/{action}")
-    async def control_laval_run(
-        run_id: str,
-        action: str,
-        request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        require_laval_id(run_id)
-        if action not in {"run", "pause", "resume", "resume-market-signals", "approve", "rerun", "override", "notify"}:
-            raise HTTPException(status_code=404, detail="unknown Laval action")
-        if action == "notify" and not settings.outbound_notifications_enabled:
-            raise HTTPException(status_code=410, detail="outbound notifications are retired")
-        if action not in {"pause", "notify"}:
-            require_running()
-        payload = {**dict(request), "actor": f"firebase:{identity.uid}"}
-        if action in {"run", "resume", "resume-market-signals", "approve", "rerun"}:
-            async with operation_start_lock:
-                require_no_active_codex()
-                return (await laval_bridge("POST", f"/internal/web/laval/runs/{run_id}/{action}", body=payload)).json()
-        return (await laval_bridge("POST", f"/internal/web/laval/runs/{run_id}/{action}", body=payload)).json()
-
-    @app.get("/api/v1/posts")
-    def posts(
-        limit: int = Query(default=20, ge=1, le=100),
-        review_status: str | None = Query(default=None, pattern="^(pending|reviewed)$"),
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        creative_gone()
-        return read.posts(limit=limit, review_status=review_status)
-
-    @app.post("/api/v1/posts")
-    def create_post(request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        creative_gone()
-        require_running()
-        try:
-            return read.create_single_post(
-                request_text=str(request.get("request_text", "")), actor=f"firebase:{identity.uid}",
-                policy_path=settings.commander_policy_path, asset_directory=settings.commander_asset_root,
+    # Ads is intentionally read-only until generation/publishing is implemented.
+    @app.get("/api/v1/ads")
+    async def ads(positioning_project_id: str | None = None, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        projects = (await positioning_bridge("GET", "/internal/v1/positionings", params={"limit": 100})).json().get("items") or []
+        approved = [item for item in projects if item.get("active_approved_revision_id")]
+        selected = None
+        if positioning_project_id:
+            if not any(item["id"] == positioning_project_id for item in approved):
+                raise HTTPException(status_code=404, detail="approved positioning project not found")
+            detail = (await positioning_bridge("GET", f"/internal/v1/positionings/{positioning_project_id}")).json()
+            selected = next(
+                item for item in detail["revisions"]
+                if item["id"] == detail["active_approved_revision_id"]
             )
-        except ValueError as error:
+        return {
+            "positionings": approved,
+            "selected_revision": selected,
+            "ad_concepts": [] if selected is None else selected["document"]["ad_concepts"],
+            "implemented": False,
+            "message": "Generation and publishing are not implemented",
+        }
+
+    # Public lead endpoint persists before any notification attempt.
+    @app.post("/api/v1/public/landings/{build_id}/leads", status_code=202)
+    async def submit_lead(build_id: str, request: Request) -> dict[str, Any]:
+        try:
+            payload = await request.json()
+            if not isinstance(payload, Mapping):
+                raise ValueError("lead body must be one object")
+            remote_ip = visitor_ip(request)
+            lead, created = await asyncio.to_thread(
+                lead_repository.create, str(UUID(build_id)), payload, remote_ip=remote_ip
+            )
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="published Landing not found") from error
+        except PermissionError as error:
+            raise HTTPException(status_code=429, detail=str(error)) from error
+        except (ValueError, json.JSONDecodeError) as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
+        if lead is None:
+            return {"accepted": True}
+        if created:
+            try:
+                if lead_notifier is None:
+                    await asyncio.to_thread(
+                        lead_repository.record_attempt, lead["id"], status="failed",
+                        chat_id=settings.owner_chat_id, error_code="NotifierUnavailable",
+                        error_message="existing PTW bot notifier is unavailable",
+                    )
+                else:
+                    # The committed lead is reloaded inside notify; notification
+                    # can fail without changing the visitor response.
+                    await asyncio.to_thread(lead_notifier.notify, lead["id"])
+            except Exception:
+                # Persistence already committed. A notifier or attempt-recording
+                # failure must never reject the visitor submission.
+                pass
+        return {"accepted": True, "lead_id": lead["id"]}
 
-    @app.post("/api/v1/creatives/{creative_id}/reviews")
-    def review_creative(creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        creative_gone()
-        if not re.fullmatch(r"[0-9a-fA-F-]{36}", creative_id):
-            raise HTTPException(status_code=400, detail="invalid Creative UUID")
+    @app.get("/api/v1/landing-leads")
+    def landing_leads(limit: int = Query(default=100, ge=1, le=100), build_id: str | None = None, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return {"items": lead_repository.list(limit, build_id=build_id), "next_cursor": None}
+
+    @app.post("/api/v1/landing-leads/{lead_id}/retry-notification")
+    def retry_lead_notification(lead_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        if lead_notifier is None:
+            raise HTTPException(status_code=503, detail="existing PTW bot notifier is unavailable")
         try:
-            raw_annotations = request.get("regions") or []
-            if not isinstance(raw_annotations, list) or len(raw_annotations) > 100:
-                raise ValueError("reviews support at most 100 annotations")
-            annotations = tuple(region(item) for item in raw_annotations)
-            rating = int(request.get("rating"))
-            if rating not in range(1, 6):
-                raise ValueError("rating must be 1..5")
-            predicted = request.get("predicted_ctr")
-            predicted_ctr = None if predicted is None else float(predicted)
-            supersedes = request.get("supersedes_feedback_id")
-            supersedes_feedback_id = None if supersedes is None else str(supersedes)
-            if supersedes_feedback_id and not re.fullmatch(r"[0-9a-fA-F-]{36}", supersedes_feedback_id):
-                raise ValueError("invalid superseded feedback UUID")
-            return read.review(
-                creative_id=creative_id, artifact_digest=str(request.get("artifact_digest", "")),
-                rating=rating, comment=str(request.get("comment", "")), predicted_ctr=predicted_ctr,
-                annotations=annotations, actor=f"firebase:{identity.uid}",
-                policy_path=settings.commander_policy_path, asset_directory=settings.commander_asset_root,
-                supersedes_feedback_id=supersedes_feedback_id,
-            )
-        except (KeyError, TypeError, ValueError) as error:
+            return lead_notifier.notify(str(UUID(lead_id)))
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="lead not found") from error
+        except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
-    @app.get("/api/v1/creatives/{creative_id}/reviews")
-    def creative_reviews(creative_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        creative_gone()
-        if not re.fullmatch(r"[0-9a-fA-F-]{36}", creative_id):
-            raise HTTPException(status_code=400, detail="invalid Creative UUID")
-        return {"items": read.creative_reviews(creative_id)}
-
-    @app.get("/api/v1/artifacts/{digest}")
-    def artifact(digest: str, _identity: OwnerIdentity = Depends(owner)) -> FileResponse:
-        creative_gone()
-        if not re.fullmatch(r"[0-9a-f]{64}", digest):
-            raise HTTPException(status_code=400, detail="invalid artifact digest")
-        try:
-            path = read.artifact_path(digest, settings.commander_asset_root)
-        except (KeyError, PermissionError) as error:
-            raise HTTPException(status_code=404, detail="artifact not found") from error
-        return FileResponse(path, media_type="image/png", headers={"Cache-Control": "no-store, private"})
-
+    # Admin: Jobs, Docs/System, and break-glass terminal.
     @app.get("/api/v1/jobs")
     def jobs(limit: int = Query(default=30, ge=1, le=100), _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         local = store.commands(limit)
-        for item in local:
-            item["mode"] = item["mode"]
-            item["created_at"] = item["created_at"]
         return {"items": local + platform.state(max(0, limit - len(local))), "next_cursor": None}
 
     @app.post("/api/v1/jobs")
     @app.post("/api/v1/command-sessions")
     async def create_job(request: Mapping[str, Any], _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        mode = str(request.get("mode", "plan"))
-        instruction = str(request.get("instruction", "")).strip()
-        if mode not in {"plan", "execute"} or not instruction or len(instruction) > 20_000:
+        mode = str(request.get("mode", "plan")); instruction = str(request.get("instruction", "")).strip()
+        if set(request) != {"mode", "instruction"} or mode not in {"plan", "execute"} or not 1 <= len(instruction) <= 20_000:
             raise HTTPException(status_code=400, detail="mode and 1-20000 character instruction are required")
         async with operation_start_lock:
-            await require_no_active_laval()
-            require_no_active_codex()
+            require_no_active_operation()
             try:
                 command = store.create_command(mode, instruction)
+                acquire_operation("codex_plan", command["id"])
             except ValueError as error:
                 raise HTTPException(status_code=409, detail=str(error)) from error
-            background(build_plan(command["id"], instruction))
+            background(plan_and_release(command["id"], instruction))
             return command
 
     @app.get("/api/v1/command-sessions")
@@ -1660,20 +755,17 @@ def create_app(
         require_running()
         destructive_allowed = request.get("destructive_confirmation") == "EXECUTE DESTRUCTIVE PLAN"
         async with operation_start_lock:
-            await require_no_active_laval()
-            require_no_active_codex(exclude_id=session_id)
+            require_no_active_operation()
             try:
-                command = store.approve_once(
-                    session_id, str(request.get("plan_digest", "")),
-                    destructive_allowed=destructive_allowed,
-                )
+                command = store.approve_once(session_id, str(request.get("plan_digest", "")), destructive_allowed=destructive_allowed)
+                acquire_operation("codex_execute", session_id)
             except KeyError as error:
                 raise HTTPException(status_code=404, detail="command session not found") from error
             except PermissionError as error:
                 raise HTTPException(status_code=412, detail=str(error)) from error
             except ValueError as error:
                 raise HTTPException(status_code=409, detail=str(error)) from error
-            background(runner.execute(session_id))
+            background(execute_and_release(session_id))
             return command
 
     @app.post("/api/v1/jobs/{session_id}/cancel")
@@ -1681,6 +773,7 @@ def create_app(
     async def cancel(session_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, bool]:
         try:
             await runner.cancel(session_id)
+            await asyncio.to_thread(release_operation, session_id)
         except KeyError as error:
             raise HTTPException(status_code=404, detail="command session not found") from error
         return {"cancelled": True}
@@ -1696,22 +789,17 @@ def create_app(
     async def job_events(websocket: WebSocket, session_id: str, ticket: str = Query(default="")) -> None:
         path = f"/api/v1/jobs/{session_id}/events"
         try:
-            store.consume_ticket(ticket, path)
-            store.command(session_id)
+            store.consume_ticket(ticket, path); store.command(session_id)
         except (PermissionError, KeyError):
-            await websocket.close(code=4401)
-            return
-        await websocket.accept()
-        sequence = 0
+            await websocket.close(code=4401); return
+        await websocket.accept(); sequence = 0
         try:
             while True:
                 events = store.events(session_id, sequence)
                 for event in events:
-                    sequence = event["sequence"]
-                    await websocket.send_text(json.dumps(event, ensure_ascii=False))
+                    sequence = event["sequence"]; await websocket.send_text(json.dumps(event, ensure_ascii=False))
                 if store.command(session_id)["status"] in {"completed", "failed", "cancelled", "awaiting_approval"} and not events:
-                    await websocket.close(code=1000)
-                    return
+                    await websocket.close(code=1000); return
                 await asyncio.sleep(.5)
         except WebSocketDisconnect:
             return
@@ -1720,81 +808,78 @@ def create_app(
     async def root_session(websocket: WebSocket, ticket: str = Query(default="")) -> None:
         path = "/api/v1/root-sessions"
         try:
-            uid = store.consume_ticket(ticket, path)
-            metadata_id = store.start_root_session(uid)
+            uid = store.consume_ticket(ticket, path); metadata_id = store.start_root_session(uid)
         except (PermissionError, ValueError):
-            await websocket.close(code=4401)
-            return
-        await websocket.accept()
-        reason = "client_closed"
+            await websocket.close(code=4401); return
+        await websocket.accept(); reason = "client_closed"
         try:
             reader, writer = await asyncio.open_unix_connection(str(settings.root_broker_socket))
-            writer.write(b'{"type":"terminal"}\n')
-            await writer.drain()
+            writer.write(b'{"type":"terminal"}\n'); await writer.drain()
             async def browser_to_broker() -> None:
                 while True:
-                    message = await websocket.receive_text()
-                    writer.write((message + "\n").encode())
-                    await writer.drain()
+                    message = await websocket.receive_text(); writer.write((message + "\n").encode()); await writer.drain()
             async def broker_to_browser() -> None:
-                while raw := await reader.readline():
-                    await websocket.send_text(raw.decode().rstrip("\n"))
+                while raw := await reader.readline(): await websocket.send_text(raw.decode().rstrip("\n"))
             done, pending = await asyncio.wait(
                 {asyncio.create_task(browser_to_broker()), asyncio.create_task(broker_to_browser())},
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            for task in pending:
-                task.cancel()
+            for task in pending: task.cancel()
             writer.close(); await writer.wait_closed()
             for task in done:
-                if task.exception():
-                    raise task.exception()
+                if task.exception(): raise task.exception()
         except WebSocketDisconnect:
             reason = "client_disconnected"
         except Exception as error:
-            reason = type(error).__name__
-            await websocket.close(code=1011)
+            reason = type(error).__name__; await websocket.close(code=1011)
         finally:
             store.end_root_session(metadata_id, reason)
 
     @app.get("/api/v1/docs")
     def docs(limit: int = Query(default=50, ge=1, le=50), _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return {"items": read.docs(settings.repository_path, limit)}
+        allowed = [
+            "README.md", "docs/README.md", "docs/architecture/commander-current-state.md",
+            "docs/architecture/ptw-v2-marketing-workspaces.md",
+            "docs/operations/owner-control-plane.md", "docs/operations/disaster-recovery.md",
+        ]
+        items = []
+        for relative in allowed[:limit]:
+            path = settings.repository_path / relative
+            if path.is_file():
+                body = path.read_text(); title = next((line[2:] for line in body.splitlines() if line.startswith("# ")), path.name)
+                items.append({"path": relative, "title": title, "body": body})
+        return {"items": items}
 
     @app.get("/api/v1/system/health")
-    def system_health(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+    async def system_health(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         revision = subprocess.run(
             ["git", "rev-parse", "--short=12", "HEAD"], cwd=settings.repository_path,
             text=True, capture_output=True, check=False, timeout=5,
         ).stdout.strip() or "unknown"
+        try:
+            positioning_ready = (await positioning_bridge("GET", "/readyz")).json()
+        except HTTPException as error:
+            positioning_ready = {"ready": False, "error": error.detail}
         return {
             "git_revision": revision,
-            "services": {"gateway": "ok", "root_broker": "ok" if settings.root_broker_socket.exists() else "unavailable"},
-            "emergency_stop": platform.emergency_stop(),
-            "reset": {"permitted": True},
+            "services": {
+                "gateway": "ok", "positioning": positioning_ready,
+                "root_broker": "ok" if settings.root_broker_socket.exists() else "unavailable",
+            },
+            "heavy_operation": operation_activity(), "emergency_stop": platform.emergency_stop(),
+            "reset": {"permitted": True, "target": "ptw_commander.public only"},
         }
 
     @app.post("/api/v1/system/emergency-stop")
-    async def emergency_stop(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        active = request.get("active") is True
-        actor = f"firebase:{identity.uid}"
+    async def emergency_stop(request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        active = request.get("active") is True; actor = f"firebase:{identity.uid}"
         if active:
-            platform.set_emergency_stop(True, actor=actor)
-            failures = await propagate_emergency_stop(True, actor)
+            platform.set_emergency_stop(True, actor=actor); failures = await propagate_emergency_stop(True, actor)
         else:
             failures = await propagate_emergency_stop(False, actor)
-            if not failures:
-                platform.set_emergency_stop(False, actor=actor)
+            if not failures: platform.set_emergency_stop(False, actor=actor)
         if failures:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "emergency stop remains active; unavailable services: "
-                    + ", ".join(failures)
-                ),
-            )
+            raise HTTPException(status_code=503, detail="emergency stop remains active; unavailable services: " + ", ".join(failures))
         return {"emergency_stop": active}
 
     @app.post("/api/v1/system/reset")
@@ -1803,16 +888,12 @@ def create_app(
             raise HTTPException(status_code=412, detail="exact reset confirmation is required")
         try:
             reader, writer = await asyncio.open_unix_connection(str(settings.root_broker_socket))
-            writer.write(b'{"type":"operation","name":"reset"}\n')
-            await writer.drain()
-            final: dict[str, Any] | None = None
+            writer.write(b'{"type":"operation","name":"reset"}\n'); await writer.drain(); final = None
             while raw := await asyncio.wait_for(reader.readline(), timeout=900):
                 message = json.loads(raw)
                 if message.get("type") in {"operation.completed", "operation.failed", "error"}:
-                    final = message
-                    break
-            writer.close()
-            await writer.wait_closed()
+                    final = message; break
+            writer.close(); await writer.wait_closed()
         except (OSError, asyncio.TimeoutError, json.JSONDecodeError) as error:
             raise HTTPException(status_code=503, detail="root operation channel unavailable") from error
         if not final or final.get("type") != "operation.completed" or final.get("return_code") != 0:

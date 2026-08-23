@@ -6,3 +6,6 @@ test/goldens
 test/social_post_studio/failures
 .env*
 !.env.commander.example
+commander/assets
+idea_generation
+output

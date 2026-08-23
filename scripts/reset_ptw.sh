@@ -24,6 +24,14 @@ commander_compose="docker compose --env-file $platform/.env --env-file $reposito
 positioning_compose="docker compose --env-file $platform/.env --env-file $repository/.env.commander --env-file $repository/.env.owner-gateway --project-name ptw-marketing-positioning --project-directory $repository -f $repository/docker-compose.marketing-positioning.yml"
 platform_compose="docker compose --env-file $platform/.env --project-directory $platform -f $platform/docker-compose.yml"
 
+lead_hmac_line=$(grep '^LANDING_LEAD_HMAC_SECRET=' "$repository/.env.owner-gateway" || true)
+lead_hmac_value=${lead_hmac_line#LANDING_LEAD_HMAC_SECRET=}
+[ "${#lead_hmac_value}" -ge 32 ] && [ "$lead_hmac_value" != generate-a-distinct-random-secret ] || {
+  echo "a persistent random LANDING_LEAD_HMAC_SECRET is required before reset" >&2
+  exit 1
+}
+unset lead_hmac_line lead_hmac_value
+
 if [ -z "$release_tag" ]; then
   commander_container=$($commander_compose ps -q commander-api)
   owner_container=$($commander_compose ps -q owner-gateway)

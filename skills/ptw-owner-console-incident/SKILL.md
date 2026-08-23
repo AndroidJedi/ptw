@@ -56,6 +56,11 @@ Production `docker compose run` does not accept `--no-build`; rely on the
 code-owned `pull_policy: never` plus preloaded exact image tags for one-off
 canary and migration containers. Keep `--no-build` on supported `up` commands.
 
+Before reset, require a persistent random `LANDING_LEAD_HMAC_SECRET` of at
+least 32 bytes in the root-owned Owner Gateway env. Generate it once without
+printing it; never use the example placeholder or rotate it during routine
+deployments, because stable HMACs are required for bounded IP rate limiting.
+
 Run `scripts/audit_vps_owner_dependencies.sh` on the VPS and
 `scripts/audit_live_owner_console.py` against public Hosting. Then perform the
 authenticated exact-owner journey: empty state, Positioning creation/source

@@ -35,6 +35,12 @@ deployment_started_at=$(date --iso-8601=seconds)
 [[ -f "$platform/.env" && -f "$repository/.env.commander" && -f "$repository/.env.owner-gateway" ]] || {
     echo "required production environment file is missing" >&2; exit 1;
 }
+lead_hmac_line=$(grep '^LANDING_LEAD_HMAC_SECRET=' "$repository/.env.owner-gateway" || true)
+lead_hmac_value=${lead_hmac_line#LANDING_LEAD_HMAC_SECRET=}
+[[ ${#lead_hmac_value} -ge 32 && $lead_hmac_value != generate-a-distinct-random-secret ]] || {
+    echo "a persistent random LANDING_LEAD_HMAC_SECRET is required before reset" >&2; exit 1;
+}
+unset lead_hmac_line lead_hmac_value
 [[ -z $(git -C "$repository" status --porcelain --untracked-files=no) ]] || {
     echo "production repository has tracked changes" >&2; exit 1;
 }

@@ -35,3 +35,9 @@ The next pre-reset gate also found that the production Compose CLI rejects
 `--no-build` on `compose run`. The bridge rollback restored both prior platform
 images. One-off canary/migration commands now rely on `pull_policy: never` and
 preloaded versioned images, while service `up` retains `--no-build`.
+
+After the reset began, Owner Gateway failed closed because production lacked
+the new lead-rate-limit HMAC secret. A persistent random secret was generated
+once in the root-owned Owner Gateway env without disclosure. Deploy and reset
+now reject a missing, short, or example-placeholder value before any schema
+drop.

@@ -46,3 +46,7 @@ The first post-reset audit then falsely classified the required independent
 platform bridge worker as a retired Commander worker. Retired-service checks
 now use anchored full Compose container names, preserving the platform worker
 while still failing on the removed application workers and Idea service.
+
+The first public bundle audit expected an English `Admin` nav label even though
+the code-owned chrome is Ukrainian. The live v2 bundle was correct. The audit
+now proves Admin through its stable `Docs / System / Terminal` view marker.

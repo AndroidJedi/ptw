@@ -77,7 +77,7 @@ def main() -> None:
         "Marketing Positioning workspace": "Marketing Positioning",
         "Landing workspace": "Landing",
         "Ads workspace": "Ads",
-        "Admin workspace": "Admin",
+        "Admin workspace": "Docs / System / Terminal",
     }.items():
         require(marker in app_bundle, f"Live App bundle is missing {label}")
 

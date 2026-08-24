@@ -6,9 +6,10 @@ Branch: `codex/web-only-commander`
 ## Last completed milestone
 
 The Simplified Validation Phase 1 implementation is complete. The latest
-application milestone is the Ad offer-punctuation incident correction and its
-recovered-failure-history follow-up at `d06c409`. The independent platform
-checkout remains unchanged at its release-transfer guard `6ed6d8d`:
+application milestone is the authenticated-image integrity and error-state
+safeguard at `fddacb5`, following the Ad offer-punctuation recovery. The
+independent platform checkout remains unchanged at its release-transfer guard
+`6ed6d8d`:
 
 ```text
 raw idea → Product Brief → owner approval → five Ad Creatives
@@ -67,10 +68,9 @@ Landing, Idea, Branding, and Ads tables are absent.
   Playwright journeys passed on desktop Chromium, 360 px Chromium, and iPhone
   WebKit. Failed/recovered batch panels and malformed authenticated-image
   resources are covered. Build-time source checks and computed-style assertions
-  enforce the monochrome chrome invariant. Production remains on
-  `ptw-shell-v30-validation-failure-history`; the locally verified v31 image-
-  error cache is pending deployment. The built module graph contains no retired
-  Positioning/Landing route.
+  enforce the monochrome chrome invariant. The live service-worker cache is
+  `ptw-shell-v31-authenticated-image-errors`. The built module graph contains
+  no retired Positioning/Landing route.
 - Canonical Product Brief and Ad Creative skills pass the Skill Creator
   validator; the PTW skill/link/mount validator passes. The retired Marketing
   Positioning skill and desktop link are absent; Natal is explicitly dormant.
@@ -79,8 +79,8 @@ Landing, Idea, Branding, and Ads tables are absent.
   complete suite passes 84 tests and its capabilities expose the three new
   modes while rejection tests cover the retired modes.
 - The three application Linux/amd64 images and checksum-bearing archives were
-  rebuilt from the clean `d06c409` commit with pinned non-`latest` tag
-  `incident-d06c409`. The independent platform API and worker remain on the
+  rebuilt from the clean `fddacb5` commit with pinned non-`latest` tag
+  `incident-fddacb5`. The independent platform API and worker remain on the
   previously verified `phase1-5f47722-6ed6d8d` release.
 - Shell syntax checks, Python compilation, `git diff --check`, and release
   script guards pass. Landing-specific suites were intentionally not run.
@@ -92,8 +92,9 @@ Landing, Idea, Branding, and Ads tables are absent.
 
 The owner-authorized Simplified Validation Phase 1 cutover completed on
 2026-08-24. Commander, Validation, and Owner Gateway now use matching
-Linux/amd64 images tagged `incident-d06c409`; the application repository is at
-`d06c409`. The independent platform repository remains at `6ed6d8d`, and its
+Linux/amd64 images tagged `incident-fddacb5`, built from `fddacb5`; the
+production checkout includes this documentation checkpoint. The independent
+platform repository remains at `6ed6d8d`, and its
 API and worker remain on `phase1-5f47722-6ed6d8d`. Fresh strict canaries passed
 for `product_brief`, `product_brief_revision`, and `ad_creative_batch` after
 the incident release.
@@ -114,7 +115,7 @@ existing Telegram emergency boundary, serial restart recovery, and the
 immediate 1 GB/OOM audit pass. The platform bridge was neither rebuilt nor
 restarted for this incident.
 
-The public audit passes the cache-busted v30 failure-history bundle, Auth/App Check,
+The public audit passes the cache-busted v31 authenticated-image-error bundle, Auth/App Check,
 exact CORS origin, unauthenticated rejection, Product Brief/Ads/Landing/Admin
 markers, and retired-route 404s. A real exact-owner signed-in Stage 1–2 browser
 journey remains the final interactive acceptance item.
@@ -129,15 +130,16 @@ operation guard, and exactly two notification audit events.
 
 All five authoritative creative assets independently pass stored-byte,
 SHA-256, 1080×1080 JPEG decode, internal HTTP media-type, ETag, and byte-
-equality checks. A reported malformed inline PNG is not emitted by PTW. A v31
-Owner Console safeguard that surfaces HTTP/MIME/integrity/ETag/browser-decode
-reasons with Creative UUID and bounded retry is verified locally but not yet
-deployed.
+equality checks before and after restart. A reported malformed inline PNG is
+not emitted by PTW. The live v31 Owner Console surfaces HTTP/MIME/integrity/
+ETag/browser-decode reasons with Creative UUID and a bounded retry. CORS exposes
+the authoritative ETag and Content-Length to the exact owner origins. The
+immediate 1 GB/OOM audit passes, the previous Telegram audit count is unchanged,
+and the scheduled 24-hour resource audit remains active.
 
 ## Next work
 
-Deploy the v31 authenticated-image error safeguard and repeat public, image,
-restart, and 1 GB checks. Then complete the exact-owner signed-in desktop/360 px journey: create and correct a
+Complete the exact-owner signed-in desktop/360 px journey: create and correct a
 Brief, approve its promise/offer, inspect five authenticated Ads and attribution,
 submit feedback, and inspect dormant Landing and Admin. Review the scheduled
 24-hour resource audit. Stage 3 Landing, traffic, publishing, campaigns, UTMs,

@@ -39,7 +39,11 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
 - Verification: 15 Owner web unit tests, the production build, 15 desktop/
   360 px/iPhone browser journeys, 15 active Owner Gateway built-image tests,
   Commander tests/demo, skill validation, and live five-asset integrity checks
-  pass. Production deployment of the v31 cache remains pending.
+  pass. Matching application images and the v31 Owner Console are live; the
+  independent platform release is unchanged. The public bundle/Auth/CORS audit,
+  serial restart, repeated five-asset integrity check, and immediate 1 GB/OOM
+  audit pass. The prior failure-notification audit count remains unchanged, and
+  the scheduled 24-hour resource audit remains active.
 
 ## 2026-08-24: valid Ad offer failed on terminal punctuation
 

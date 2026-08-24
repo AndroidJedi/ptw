@@ -6,6 +6,19 @@ codex_root=${CODEX_HOME:-$(python3 -c 'from pathlib import Path; print(Path.home
 desktop_skills="$codex_root/skills"
 mkdir -p "$desktop_skills"
 
+retired_skill="$desktop_skills/marketing-positioning"
+if [ -L "$retired_skill" ]; then
+  retired_target=$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve())' "$retired_skill")
+  [ "$retired_target" = "$repository_root/skills/marketing-positioning" ] || {
+    echo "refusing to remove non-canonical retired skill link: $retired_skill" >&2
+    exit 1
+  }
+  rm "$retired_skill"
+elif [ -e "$retired_skill" ]; then
+  echo "retired desktop skill is not a removable canonical symlink: $retired_skill" >&2
+  exit 1
+fi
+
 for skill_file in "$repository_root"/skills/*/SKILL.md; do
   skill_dir=$(dirname "$skill_file")
   skill_name=$(basename "$skill_dir")

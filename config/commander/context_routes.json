@@ -1,15 +1,14 @@
 {
-  "version": 2,
+  "version": 3,
   "routes": {
     "current_state": {
       "canonical": ["docs/architecture/commander-current-state.md"],
       "optional": ["docs/README.md"]
     },
-    "marketing_positioning": {
+    "product_brief": {
       "canonical": [
-        "docs/architecture/ptw-v2-marketing-workspaces.md",
-        "docs/architecture/research-to-hypothesis.md",
-        "skills/marketing-positioning/SKILL.md"
+        "docs/architecture/simplified-validation-pipeline.md",
+        "skills/product-brief-generator/SKILL.md"
       ],
       "optional": ["DESIGN_RULES.md", "docs/architecture/component-boundaries.md"]
     },
@@ -20,9 +19,12 @@
       ],
       "optional": ["natal/README.md", "DESIGN_RULES.md"]
     },
-    "ads": {
-      "canonical": ["docs/architecture/ptw-v2-marketing-workspaces.md"],
-      "optional": []
+    "ad_creatives": {
+      "canonical": [
+        "docs/architecture/simplified-validation-pipeline.md",
+        "skills/ad-creative-generator/SKILL.md"
+      ],
+      "optional": ["DESIGN_RULES.md"]
     },
     "owner_ui": {
       "canonical": ["docs/operations/owner-control-plane.md"],

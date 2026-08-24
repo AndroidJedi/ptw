@@ -45,7 +45,7 @@ class LandingDraftRepository:
     @staticmethod
     def _set_select() -> str:
         return """SELECT entity_id,request_id,positioning_project_id,positioning_revision_id,
-                         privacy_policy_url,source_brief,status,population_summary,population_invocation,
+                         source_brief,status,population_summary,population_invocation,
                          error_code,error_message,requested_by,created_at,updated_at,completed_at
                   FROM landing_draft_sets"""
 
@@ -54,11 +54,11 @@ class LandingDraftRepository:
         return {
             "id": str(row[0]), "request_id": str(row[1]),
             "positioning_project_id": str(row[2]), "positioning_revision_id": str(row[3]),
-            "privacy_policy_url": row[4], "brief": row[5], "status": row[6],
-            "population_summary": row[7], "population_invocation": row[8],
-            "error_code": row[9], "error_message": row[10], "requested_by": row[11],
-            "created_at": row[12].isoformat(), "updated_at": row[13].isoformat(),
-            "completed_at": None if row[14] is None else row[14].isoformat(),
+            "brief": row[4], "status": row[5],
+            "population_summary": row[6], "population_invocation": row[7],
+            "error_code": row[8], "error_message": row[9], "requested_by": row[10],
+            "created_at": row[11].isoformat(), "updated_at": row[12].isoformat(),
+            "completed_at": None if row[13] is None else row[13].isoformat(),
             "skill_memory_feedback_ids": [],
         }
 
@@ -179,8 +179,8 @@ class LandingDraftRepository:
         existing = self.by_request(request_id)
         if existing is not None:
             if (
-                existing["positioning_revision_id"] != str(prepared["positioning_revision_id"])
-                or existing["privacy_policy_url"] != str(prepared["brief"]["privacy_policy_url"])
+                existing["positioning_project_id"] != str(prepared["positioning_project_id"])
+                or existing["positioning_revision_id"] != str(prepared["positioning_revision_id"])
             ):
                 raise ValueError("request_id was already used for another Landing draft set")
             return existing, False
@@ -203,9 +203,9 @@ class LandingDraftRepository:
             connection.execute(
                 """INSERT INTO landing_draft_sets(
                        entity_id,request_id,positioning_project_id,positioning_revision_id,
-                       privacy_policy_url,source_brief,status,requested_by
-                   ) VALUES(%s,%s,%s,%s,%s,%s,'queued',%s)""",
-                (draft_id, UUID(request_id), project_id, revision_id, brief["privacy_policy_url"], Jsonb(brief), requested_by),
+                       source_brief,status,requested_by
+                   ) VALUES(%s,%s,%s,%s,%s,'queued',%s)""",
+                (draft_id, UUID(request_id), project_id, revision_id, Jsonb(brief), requested_by),
             )
             connection.execute(
                 "INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes) VALUES(%s,%s,'derived_from',%s,%s)",

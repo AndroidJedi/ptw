@@ -18,11 +18,10 @@ code validates the block and replaces only that key.
 ## Protected fields
 
 The agent may not change Natal assets/tokens/layouts, template ID, exact
-Positioning IDs or facts, proof items, honest limitation, HTTPS privacy URL,
-CTA destination, form fields/validation/consent/submit/success behavior,
-publication target, output path, credentials, or graph IDs. The form choices
-are `waitlist`, `contact_request`, and `community_interest`; their definitions
-come only from `natal/forms.py`.
+Positioning IDs or facts, proof items, honest limitation, CTA destination, form
+fields/validation/submit/success behavior, publication target, output path,
+credentials, or graph IDs. The form choices are `waitlist`, `contact_request`,
+and `community_interest`; their definitions come only from `natal/forms.py`.
 
 ## Snapshot rules
 

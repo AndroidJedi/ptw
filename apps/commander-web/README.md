@@ -1,26 +1,22 @@
 # PTW Owner Console
 
-Mobile-first React/Vite PWA for the four PTW v2 workspaces: Marketing
-Positioning, Landing, Ads, and Admin. Firebase supplies Google Auth and App
-Check; Owner Gateway independently verifies both on every protected request.
+The authenticated PWA exposes four workspaces:
+
+1. Product Briefs — create one hypothesis from one raw idea, correct it
+   immutably, and approve only after confirming its promise and offer.
+2. Ads — review one fixed five-creative batch, exact authenticated JPEGs,
+   Pexels attribution, copy, UUIDs, retries, feedback, and lesson proposals.
+3. Landing — truthful inactive `Stage 3 pending` placeholder.
+4. Admin — jobs, documentation, health, emergency stop, and guarded reset.
+
+The browser does not perform market research, SEO, YouTube calls, image
+generation, publishing, traffic, campaigns, UTMs, analytics, conversion
+tracking, or active Landing work. Domain state and reviewed image bytes remain
+authoritative in PostgreSQL behind Owner Gateway.
+
+Run the active checks with:
 
 ```sh
-npm ci
 npm run check
 npm run test:e2e
 ```
-
-Production defaults to
-`VITE_COMMANDER_API_URL=https://commander.proove-them-wrong.com`. The build
-verifier checks the API origin, App Check header, public reCAPTCHA Enterprise
-site key, Safari-safe Auth persistence, and service-worker markers.
-
-Positioning displays source-explicit immutable revisions and approval. Landing
-populates three fixed Natal templates from the active approved revision,
-supports eight isolated block edits, publishes the exact selected snapshot, and
-shows lead notification history. Ads is read-only and explicitly
-unimplemented. Admin contains Jobs and Docs/System/Terminal.
-
-The service worker caches only document/script/style/font shell resources. It
-does not intercept APIs, previews, images, WebSockets, lead submission, or Auth
-helper traffic.

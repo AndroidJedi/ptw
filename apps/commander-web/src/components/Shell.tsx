@@ -3,10 +3,10 @@ import type { ReactNode } from 'react'
 import type { Page } from '../types'
 
 const items: Array<{ id: Page; label: string; icon: typeof Target }> = [
-  { id: 'positioning', label: 'Позиціонування', icon: Target },
-  { id: 'landing', label: 'Лендинг', icon: LayoutTemplate },
-  { id: 'ads', label: 'Реклама', icon: Megaphone },
-  { id: 'admin', label: 'Адмін', icon: Settings },
+  { id: 'briefs', label: 'Product Briefs', icon: Target },
+  { id: 'ads', label: 'Ads', icon: Megaphone },
+  { id: 'landing', label: 'Landing', icon: LayoutTemplate },
+  { id: 'admin', label: 'Admin', icon: Settings },
 ]
 
 export function Shell({ page, onPage, children, language, onLanguage }: {
@@ -18,7 +18,7 @@ export function Shell({ page, onPage, children, language, onLanguage }: {
 }) {
   return <div className="app-shell">
     <aside className="rail" aria-label="Головна навігація">
-      <div className="brand" aria-label="PTW"><span>PTW</span><small>Маркетинг</small></div>
+      <div className="brand" aria-label="PTW"><span>PTW</span><small>Validation</small></div>
       <nav aria-label="Головна навігація на комп’ютері">
         {items.map(({ id, label, icon: Icon }) => <button key={id} className={page === id ? 'active' : ''} onClick={() => onPage(id)} aria-current={page === id ? 'page' : undefined}>
           <Icon aria-hidden="true" /><span>{label}</span>

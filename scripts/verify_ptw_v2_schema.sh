@@ -35,23 +35,28 @@ docker exec "$platform_container" psql -X -v ON_ERROR_STOP=1 -U platform -d plat
 platform_before=$(docker exec "$platform_container" psql -X -qAt -U platform -d platform -c 'SELECT count(*) FROM permanent_platform_data')
 
 apply_and_check() {
-  docker exec "$application_container" psql -X -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander \
-    -f /migrations/001_ptw_marketing_v1.sql >/dev/null
+  for migration in "$repository"/db/migrations/*.sql; do
+    docker exec "$application_container" psql -X -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander \
+      -f "/migrations/$(basename "$migration")" >/dev/null
+  done
   tables=$(docker exec "$application_container" psql -X -qAt -U ptw_commander -d ptw_commander \
     -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
-  [ "$tables" = 27 ] || { echo "expected 27 clean v1 tables, got $tables" >&2; exit 1; }
+  [ "$tables" = 19 ] || { echo "expected 19 clean validation tables, got $tables" >&2; exit 1; }
   docker exec -i "$application_container" psql -X -qAt -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander <<'SQL'
 DO $$
 BEGIN
-  IF (SELECT count(*) FROM positioning_projects) <> 0
-     OR (SELECT count(*) FROM positioning_revisions) <> 0
-     OR (SELECT count(*) FROM landing_draft_sets) <> 0
-     OR (SELECT count(*) FROM landing_builds) <> 0
-     OR (SELECT count(*) FROM landing_leads) <> 0
+  IF (SELECT count(*) FROM product_briefs) <> 0
+     OR (SELECT count(*) FROM creative_batches) <> 0
+     OR (SELECT count(*) FROM ad_creatives) <> 0
      OR (SELECT count(*) FROM commander_entities) <> 0 THEN
     RAISE EXCEPTION 'clean v1 baseline contains seeded domain data';
   END IF;
-  IF to_regclass('public.ideas') IS NOT NULL
+  IF to_regclass('public.positioning_projects') IS NOT NULL
+     OR to_regclass('public.positioning_revisions') IS NOT NULL
+     OR to_regclass('public.landing_draft_sets') IS NOT NULL
+     OR to_regclass('public.landing_builds') IS NOT NULL
+     OR to_regclass('public.landing_leads') IS NOT NULL
+     OR to_regclass('public.ideas') IS NOT NULL
      OR to_regclass('public.laval_runs') IS NOT NULL
      OR to_regclass('public.brand_runs') IS NOT NULL
      OR to_regclass('public.commander_ad_batches') IS NOT NULL THEN
@@ -71,4 +76,4 @@ platform_after=$(docker exec "$platform_container" psql -X -qAt -U platform -d p
   echo "independent platform database changed during application schema reset test" >&2
   exit 1
 }
-echo "PTW v2 PostgreSQL 16 baseline/reset verified; platform row count unchanged ($platform_after)"
+echo "PTW Validation PostgreSQL 16 baseline/reset verified; platform row count unchanged ($platform_after)"

@@ -26,7 +26,7 @@ fi
 repository=/root/ptw
 platform=/opt/ptw/platform
 commander_compose=(docker compose --env-file "$platform/.env" --env-file "$repository/.env.commander" --env-file "$repository/.env.owner-gateway" --project-directory "$repository" -f "$repository/docker-compose.commander.yml")
-positioning_compose=(docker compose --env-file "$platform/.env" --env-file "$repository/.env.commander" --env-file "$repository/.env.owner-gateway" --project-name ptw-marketing-positioning --project-directory "$repository" -f "$repository/docker-compose.marketing-positioning.yml")
+validation_compose=(docker compose --env-file "$platform/.env" --env-file "$repository/.env.commander" --env-file "$repository/.env.owner-gateway" --project-name ptw-validation --project-directory "$repository" -f "$repository/docker-compose.validation.yml")
 platform_compose=(docker compose --env-file "$platform/.env" --project-directory "$platform" -f "$platform/docker-compose.yml")
 release_directory=$(mktemp -d /var/tmp/ptw-release.XXXXXX)
 trap 'rm -rf -- "$release_directory"' EXIT
@@ -35,18 +35,15 @@ deployment_started_at=$(date --iso-8601=seconds)
 [[ -f "$platform/.env" && -f "$repository/.env.commander" && -f "$repository/.env.owner-gateway" ]] || {
     echo "required production environment file is missing" >&2; exit 1;
 }
-# DataForSEO is retired from active Positioning. Remove its root-owned legacy
-# entries without reading or printing their values before Compose injects env.
-sed -i '/^DATAFORSEO_/d;/^POSITIONING_RESEARCH_PROVIDER=/d' "$repository/.env.owner-gateway"
-if grep -Eq '^(DATAFORSEO_|POSITIONING_RESEARCH_PROVIDER=)' "$repository/.env.owner-gateway"; then
-    echo "retired Positioning provider settings remain" >&2; exit 1
-fi
-lead_hmac_line=$(grep '^LANDING_LEAD_HMAC_SECRET=' "$repository/.env.owner-gateway" || true)
-lead_hmac_value=${lead_hmac_line#LANDING_LEAD_HMAC_SECRET=}
-[[ ${#lead_hmac_value} -ge 32 && $lead_hmac_value != generate-a-distinct-random-secret ]] || {
-    echo "a persistent random LANDING_LEAD_HMAC_SECRET is required before reset" >&2; exit 1;
+# Remove retired provider and dormant Landing runtime settings without reading
+# or printing their values. The real-photo key remains root-owned and required.
+sed -i '/^DATAFORSEO_/d;/^POSITIONING_/d;/^LANDING_/d' "$repository/.env.owner-gateway"
+pexels_line=$(grep '^PEXELS_API_KEY=' "$repository/.env.owner-gateway" || true)
+pexels_value=${pexels_line#PEXELS_API_KEY=}
+[[ ${#pexels_value} -ge 20 && $pexels_value != replace-with-pexels-api-key ]] || {
+    echo "a root-owned PEXELS_API_KEY is required before cutover" >&2; exit 1;
 }
-unset lead_hmac_line lead_hmac_value
+unset pexels_line pexels_value
 [[ -z $(git -C "$repository" status --porcelain --untracked-files=no) ]] || {
     echo "production repository has tracked changes" >&2; exit 1;
 }
@@ -81,13 +78,13 @@ receive_image() {
 }
 
 receive_image commander "ptw-commander:$release_tag"
-receive_image marketing-positioning "ptw-marketing-positioning:$release_tag"
+receive_image validation "ptw-validation:$release_tag"
 receive_image owner-gateway "ptw-owner-gateway:$release_tag"
 receive_image platform-commander-api "ptw-agent-platform-commander-api:$release_tag"
 receive_image platform-commander-worker "ptw-agent-platform-commander-worker:$release_tag"
 IFS= read -r stream_end
 [[ $stream_end == END ]] || { echo "image stream did not terminate cleanly" >&2; exit 1; }
-for image in ptw-commander ptw-marketing-positioning ptw-owner-gateway; do
+for image in ptw-commander ptw-validation ptw-owner-gateway; do
     [[ $(docker image inspect "$image:$release_tag" --format '{{.RepoTags}}') == *"$image:$release_tag"* ]] || exit 1
 done
 for image in ptw-agent-platform-commander-api ptw-agent-platform-commander-worker; do
@@ -119,15 +116,25 @@ export PTW_PLATFORM_IMAGE_TAG=$release_tag
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker
 
-# Run a fresh strict-model invocation through the newly deployed API and worker
-# for every retained PTW mode. Restore the prior images if any canary fails;
-# the irreversible Commander reset has not started at this point.
-if ! "${positioning_compose[@]}" run --rm --no-deps marketing-positioning-api \
-    python -m marketing_positioning.verify_bridge_contract; then
+restore_platform_images() {
     export PTW_PLATFORM_IMAGE_TAG=$old_platform_tag
     "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api
     "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker
+}
+
+# Run a fresh strict-model invocation through the newly deployed API and worker
+# for every retained PTW mode. Restore the prior images if any canary fails;
+# the irreversible Commander reset has not started at this point.
+if ! "${validation_compose[@]}" run --rm --no-deps validation-api \
+    python -m validation_pipeline.verify_bridge_contract; then
+    restore_platform_images
     echo "platform bridge canary failed; prior platform images restored" >&2
+    exit 1
+fi
+if ! "${validation_compose[@]}" run --rm --no-deps validation-api \
+    python -m validation_pipeline.verify_pexels; then
+    restore_platform_images
+    echo "Pexels download/render canary failed; prior platform images restored" >&2
     exit 1
 fi
 sed -i "s/^PTW_PLATFORM_IMAGE_TAG=.*/PTW_PLATFORM_IMAGE_TAG=$release_tag/" "$platform/.env"
@@ -149,6 +156,7 @@ grep -qx "PTW_IMAGE_TAG=$release_tag" "$repository/.env.commander" || {
 
 "$repository/skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh"
 "${commander_compose[@]}" exec -T owner-gateway python /workspace/scripts/send_ptw_bot_canary.py
+PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/audit_ptw_1gb.sh"
 
 commander_postgres=$("${commander_compose[@]}" ps -q commander-db)
 for sample in {1..30}; do
@@ -163,4 +171,13 @@ mem_available_kb=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
 [[ $mem_available_kb -gt 256000 ]] || { echo "idle MemAvailable is below 250 MiB" >&2; exit 1; }
 new_oom_events=$(journalctl --quiet -k -b 0 --since "$deployment_started_at" --no-pager --case-sensitive=false --grep='out of memory|oom|killed process' 2>/dev/null || true)
 [[ -z $new_oom_events ]] || { echo "new OOM evidence appeared during deployment" >&2; echo "$new_oom_events"; exit 1; }
+systemctl stop ptw-validation-24h-audit.timer ptw-validation-24h-audit.service >/dev/null 2>&1 || true
+systemctl reset-failed ptw-validation-24h-audit.timer ptw-validation-24h-audit.service >/dev/null 2>&1 || true
+followup_audit_at=$(date --utc --date='+24 hours' '+%Y-%m-%d %H:%M:%S UTC')
+systemd-run --quiet --unit=ptw-validation-24h-audit --on-calendar="$followup_audit_at" \
+    --timer-property=Persistent=true "$repository/scripts/audit_ptw_1gb.sh"
+systemctl is-active --quiet ptw-validation-24h-audit.timer || {
+    echo "24-hour PTW resource audit timer was not scheduled" >&2
+    exit 1
+}
 echo "PTW v2 APIs deployed serially at $git_revision"

@@ -10,14 +10,14 @@
       "extended_validation": []
     },
     {
-      "name": "marketing-workspaces",
-      "description": "Marketing Positioning, Natal Landing, evidence/feedback lineage, persistence, and Ads stub",
-      "paths": ["commander/**", "marketing_positioning/**", "natal/**", "skills/marketing-positioning/**", "skills/natal-landing-builder/**", "tests/commander/**", "tests/marketing_positioning/**", "db/**", "docker-compose*.yml", "requirements*.txt"],
+      "name": "validation-pipeline",
+      "description": "Product Briefs, five complete Ad Creatives, real-photo assets, lineage, and dormant Natal source",
+      "paths": ["commander/**", "validation_pipeline/**", "natal/**", "skills/product-brief-generator/**", "skills/ad-creative-generator/**", "skills/natal-landing-builder/**", "tests/validation_pipeline/**", "tests/integration/**", "db/**", "docker-compose*.yml", "requirements*.txt"],
       "validation": [
-        ["python3", "-m", "unittest", "discover", "-s", "tests/commander", "-v"],
-        ["python3", "-m", "unittest", "discover", "-s", "tests/marketing_positioning", "-v"],
+        ["python3", "-m", "unittest", "discover", "-s", "tests/validation_pipeline", "-v"],
+        ["python3", "-m", "unittest", "tests.commander.test_telegram_boundary", "-v"],
         ["python3", "-m", "commander.demo", "--output-dir", ".local/commander-demo"],
-        ["python3", "-m", "compileall", "-q", "commander", "marketing_positioning", "natal", "tests/commander", "tests/marketing_positioning"]
+        ["python3", "-m", "compileall", "-q", "commander", "validation_pipeline", "tests/validation_pipeline"]
       ],
       "extended_validation": []
     },
@@ -33,7 +33,7 @@
       "description": "Firebase-authenticated owner API, job execution, system operations, and root broker",
       "paths": ["owner_gateway/**", "root_broker/**", "tests/owner_gateway/**", "deploy/owner-control-plane/**", "scripts/reset_ptw.sh"],
       "validation": [
-        ["python3", "-m", "unittest", "discover", "-s", "tests/owner_gateway", "-v"],
+        ["python3", "-m", "unittest", "tests.owner_gateway.test_auth", "tests.owner_gateway.test_control_store", "tests.owner_gateway.test_root_broker", "-v"],
         ["python3", "-m", "compileall", "-q", "owner_gateway", "root_broker", "tests/owner_gateway"]
       ],
       "extended_validation": []

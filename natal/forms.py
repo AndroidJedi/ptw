@@ -40,8 +40,6 @@ def form_definition(form_id: str, language: str) -> dict[str, Any]:
             if uk else
             "Thanks. We received your details and will contact you."
         ),
-        "consent_prefix": "Надсилаючи форму, ви погоджуєтеся з" if uk else "By submitting, you agree to the",
-        "privacy_label": "політикою конфіденційності" if uk else "privacy policy",
     }
 
 

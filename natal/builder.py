@@ -272,7 +272,6 @@ def _lead_form(
     <input type="hidden" name="form_id" value="{escape(str(definition["id"]), quote=True)}">
     <label class="honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
     {''.join(fields)}
-    <p class="consent">{escape(str(definition["consent_prefix"]))} <a href="{escape(brief.privacy_policy_url, quote=True)}" target="_blank" rel="noopener noreferrer">{escape(str(definition["privacy_label"]))}</a>.</p>
     <button class="button" type="submit"{disabled}>{escape(str(definition["submit_label"]))}</button>
     <p class="form-status" role="status" aria-live="polite" data-success="{escape(str(definition["success_copy"]), quote=True)}"></p>
   </form>

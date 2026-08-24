@@ -74,8 +74,8 @@ def main() -> None:
         "App Check header": "X-Firebase-AppCheck",
         "reCAPTCHA Enterprise site key": args.site_key,
         "Safari-safe Auth persistence": "ptw-auth-local-storage-v1",
-        "Marketing Positioning workspace": "Marketing Positioning",
-        "Landing workspace": "Landing",
+        "Product Brief workspace": "Product Briefs",
+        "Landing placeholder": "Stage 3 pending",
         "Ads workspace": "Ads",
         "Admin workspace": "Docs / System / Terminal",
     }.items():
@@ -98,7 +98,11 @@ def main() -> None:
     require(auth_status == 401, f"Unauthenticated Overview returned HTTP {auth_status}")
     require("Bearer token is required" in auth_bytes.decode(), "Unexpected auth failure body")
 
-    for retired_path in ("/api/v1/ideas", "/api/v1/branding", "/api/v1/posts"):
+    for retired_path in (
+        "/api/v1/ideas", "/api/v1/branding", "/api/v1/posts",
+        "/api/v1/positionings", "/api/v1/ads", "/api/v1/landings",
+        "/api/v1/public/landings/00000000-0000-0000-0000-000000000000/leads",
+    ):
         retired_status, _, _ = fetch(f"{args.api}{retired_path}")
         require(retired_status == 404, f"Retired route {retired_path} returned HTTP {retired_status}")
 

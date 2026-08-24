@@ -1,0 +1,5 @@
+interface:
+  display_name: "Product Brief Generator"
+  short_description: "Turn one idea into one validation hypothesis"
+  default_prompt: "Use $product-brief-generator to turn my raw idea into one strict Product Brief with a strong, low-friction validation offer."
+

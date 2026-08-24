@@ -73,20 +73,13 @@ services:
       - .env.commander
       - /opt/ptw/platform/.env
     environment:
-      POSITIONING_DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
-      POSITIONING_SERVICE_URL: http://ptw-positioning-api:8080
+      VALIDATION_DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
+      VALIDATION_SERVICE_URL: http://ptw-validation-api:8080
       COMMANDER_DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
       PLATFORM_DATABASE_URL: postgresql://${POSTGRES_USER:-ptw}:${POSTGRES_PASSWORD:?set platform POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ptw}
       PTW_REPOSITORY_PATH: /workspace
       OWNER_CONTROL_DATABASE: /var/lib/ptw-owner/control.sqlite3
       FIREBASE_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-service-account.json
-      FIREBASE_LANDING_SITE_ID: natal-landings-86123
-      FIREBASE_LANDING_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-landing-service-account.json
-      NATAL_LANDING_OUTPUT_ROOT: /var/lib/ptw-owner/landings
-      LANDING_LLM_BRIDGE_URL: ${LANDING_LLM_BRIDGE_URL:-http://ptw-agent-platform-commander-api-1:8000/internal/llm/structured}
-      LANDING_LLM_MODEL: ${LANDING_LLM_MODEL:-codex-cli-default}
-      LANDING_LEAD_API_BASE_URL: ${LANDING_LEAD_API_BASE_URL:-https://commander.proove-them-wrong.com/api/v1/public/landings}
-      LANDING_TRUSTED_PROXY_NETWORKS: ${LANDING_TRUSTED_PROXY_NETWORKS:?set exact Caddy proxy CIDR}
       ROOT_BROKER_SOCKET: /run/ptw-root-broker/control.sock
       CODEX_HOME: /run/ptw-auth
       CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
@@ -97,7 +90,6 @@ services:
       - owner-control:/var/lib/ptw-owner
       - /run/ptw-root-broker:/run/ptw-root-broker
       - /opt/ptw/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
-      - /opt/ptw/secrets/firebase-landing-service-account.json:/run/secrets/firebase-landing-service-account.json:ro
       - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
       - /root/.codex/auth.json:/run/ptw-auth/auth.json:ro
       - ./skills:/run/ptw-auth/skills

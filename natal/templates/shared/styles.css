@@ -82,7 +82,7 @@ h2 { font-size: clamp(31px,6vw,56px); line-height: 1.04; letter-spacing: -.045em
 .lead-capture input:not([type="hidden"]), .lead-capture textarea { width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid #46515e; border-radius: 12px; color: var(--text); background: #0c0e12; }
 .lead-capture textarea { min-height: 120px; resize: vertical; }
 .lead-capture input:focus, .lead-capture textarea:focus { outline: 3px solid rgba(67,189,211,.35); border-color: var(--accent); }
-.consent, .form-status { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.form-status { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .form-status[data-state="success"] { color: #7de2b2; }
 .form-status[data-state="error"] { color: #ff9e9e; }
 .honeypot { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; overflow: hidden !important; }

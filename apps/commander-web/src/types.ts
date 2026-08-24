@@ -1,5 +1,98 @@
-export type Page = 'positioning' | 'landing' | 'ads' | 'admin'
+export type Page = 'briefs' | 'ads' | 'landing' | 'admin'
 export type I18n<T = string> = { en: T; uk: T }
+
+export type BriefStatus = 'queued' | 'generating' | 'completed' | 'failed'
+export type CreativeAngle = 'emotional' | 'practical' | 'curiosity' | 'authority' | 'problem_first'
+
+export interface ProductBriefDocument {
+  schema_version: 1
+  language: 'uk' | 'en'
+  product: string
+  target_audience: string
+  main_pain: string
+  promise: string
+  key_benefits: string[]
+  cta: string
+  trust_strategy: string
+  offer: string
+}
+
+export interface ProductBrief extends Partial<ProductBriefDocument> {
+  brief_id: string
+  request_id: string
+  owner_idea_source_id: string
+  raw_idea: string
+  base_brief_id?: string | null
+  feedback_id?: string | null
+  status: BriefStatus
+  document?: ProductBriefDocument | null
+  document_sha256?: string | null
+  failure_count: number
+  error_code?: string | null
+  error_message?: string | null
+  approved: boolean
+  creative_batch_id?: string | null
+  creative_batch_status?: BriefStatus | null
+  created_at: string
+}
+
+export interface CreativeImage {
+  asset_id: string
+  url: string
+  mime_type: 'image/jpeg'
+  width: 1080
+  height: 1080
+  sha256: string
+  provider: 'pexels'
+  source_photo_id: string
+  source_url: string
+  photographer: string
+  photographer_url: string
+  license: string
+  license_url: string
+  attribution: string
+  alt: string
+}
+
+export interface AdCreative {
+  creative_id: string
+  brief_id: string
+  ordinal: number
+  angle: CreativeAngle
+  hook: string
+  primary_text: string
+  image_description: string
+  cta: string
+  desired_emotion: string
+  image_category: string
+  image_search_query: string
+  crop_focus: 'left' | 'center' | 'right'
+  content_sha256: string
+  image: CreativeImage
+}
+
+export interface CreativeBatch {
+  batch_id: string
+  brief_id: string
+  status: BriefStatus
+  batch_sha256?: string | null
+  failure_count: number
+  error_code?: string | null
+  error_message?: string | null
+  creatives: AdCreative[]
+  created_at: string
+}
+
+export interface ValidationSkillProposal {
+  proposal_id: string
+  feedback_id: string
+  target_id: string
+  lesson: string
+  status: 'pending' | 'planning' | 'promoted' | 'rejected' | 'failed'
+  command_session_id?: string | null
+  created_at: string
+  updated_at: string
+}
 
 export interface EvidenceStatement {
   text: string
@@ -129,7 +222,6 @@ export interface LandingDraftSet {
   request_id: string
   positioning_project_id: string
   positioning_revision_id: string
-  privacy_policy_url: string
   brief: Record<string, unknown>
   status: 'queued' | 'populating' | 'completed' | 'failed'
   population_summary?: string | null

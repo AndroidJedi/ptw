@@ -10,7 +10,8 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = (
-    "marketing-positioning",
+    "product-brief-generator",
+    "ad-creative-generator",
     "natal-landing-builder",
     "ptw-owner-console-incident",
     "ptw-vps-operations",
@@ -34,10 +35,10 @@ def main() -> None:
         require("description:" in frontmatter[1], f"missing description in {name}")
 
     commander_compose = (ROOT / "docker-compose.commander.yml").read_text()
-    positioning_compose = (ROOT / "docker-compose.marketing-positioning.yml").read_text()
+    validation_compose = (ROOT / "docker-compose.validation.yml").read_text()
     require(
-        positioning_compose.count("./skills:/run/ptw-auth/skills:ro") == 1,
-        "Marketing Positioning canonical read-only skill mount is missing",
+        validation_compose.count("./skills:/run/ptw-auth/skills:ro") == 1,
+        "Validation canonical read-only skill mount is missing",
     )
     require(
         commander_compose.count("./skills:/run/ptw-auth/skills\n") == 1,
@@ -70,6 +71,9 @@ def main() -> None:
                     (desktop / "SKILL.md").read_bytes() == (canonical / "SKILL.md").read_bytes(),
                     f"CLI skill {name} differs from canonical content",
                 )
+
+    require(not (canonical_root / "marketing-positioning").exists(), "retired marketing-positioning skill remains")
+    require(not (desktop_root / "marketing-positioning").exists(), "retired desktop marketing-positioning skill remains")
 
     if ROOT == Path("/root/ptw"):
         for path in canonical_root.rglob("*"):

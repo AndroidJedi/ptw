@@ -4,7 +4,7 @@
   "title": "Natal Landing Brief v2",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "brand", "language", "source", "privacy_policy_url", "business_idea", "target_audience", "pain", "promise", "honest_limitation", "key_features", "steps", "proof_points", "faq", "cta"],
+  "required": ["schema_version", "brand", "language", "source", "business_idea", "target_audience", "pain", "promise", "honest_limitation", "key_features", "steps", "proof_points", "faq", "cta"],
   "properties": {
     "schema_version": {"type": "integer", "const": 2},
     "brand": {"type": "string", "const": "Natal"},
@@ -17,7 +17,6 @@
         "positioning_revision_id": {"type": "string", "format": "uuid"}
       }
     },
-    "privacy_policy_url": {"type": "string", "format": "uri", "pattern": "^https://", "maxLength": 2000},
     "business_idea": {"type": "string", "minLength": 1, "maxLength": 500},
     "target_audience": {"type": "string", "minLength": 1, "maxLength": 500},
     "pain": {"type": "string", "minLength": 1, "maxLength": 1000},

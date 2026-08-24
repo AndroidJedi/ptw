@@ -24,7 +24,6 @@ export function LandingView({ api }: { api: ApiClient }) {
   const [device, setDevice] = useState<'mobile' | 'desktop'>('desktop')
   const [selectedBlock, setSelectedBlock] = useState<LandingBlockId>('hero')
   const [instruction, setInstruction] = useState('')
-  const [privacyUrl, setPrivacyUrl] = useState('')
   const [editRequest, setEditRequest] = useState<LandingEdit | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -113,12 +112,12 @@ export function LandingView({ api }: { api: ApiClient }) {
   }, [templateId, snapshot?.id])
 
   const createDraft = async () => {
-    if (!project?.active_approved_revision_id || !privacyUrl.trim()) return
+    if (!project?.active_approved_revision_id) return
     setBusy(true); setError('')
     try {
       const created = await api.post<LandingDraftSet>('/api/v1/landings/draft-sets', {
         request_id: crypto.randomUUID(), positioning_project_id: project.id,
-        positioning_revision_id: project.active_approved_revision_id, privacy_policy_url: privacyUrl,
+        positioning_revision_id: project.active_approved_revision_id,
       })
       setDraft(created); setNotice('One strict agent turn is populating product, community, and waitlist. All forms remain inert in preview.')
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
@@ -211,7 +210,7 @@ export function LandingView({ api }: { api: ApiClient }) {
     {error && <ErrorState message={error} />}{notice && <p className="landing-notice" role="status">{notice}</p>}
     {!projects.length ? <Empty><LayoutTemplate className="empty-mark" /><h2>No approved positioning</h2><p>Approve a completed Marketing Positioning revision first.</p></Empty> : <div className="landing-workbench">
       <section className="panel landing-source"><small>01 · APPROVED SOURCE</small><h2>Exact positioning revision</h2><select value={project?.id || ''} onChange={(event) => void selectProject(event.target.value)}>{projects.map((item) => <option key={item.id} value={item.id}>{item.raw_idea.slice(0, 100)}</option>)}</select>{project && <p>Project {project.id}<br />Revision {project.active_approved_revision_id}</p>}
-        {!draft && <><label>HTTPS privacy policy<input type="url" placeholder="https://…/privacy" value={privacyUrl} onChange={(event) => setPrivacyUrl(event.target.value)} /></label><button className="primary large" disabled={busy || !privacyUrl.startsWith('https://')} onClick={createDraft}><Sparkles />Populate three templates</button></>}
+        {!draft && <button className="primary large" disabled={busy} onClick={createDraft}><Sparkles />Populate three templates</button>}
       </section>
       {draft && <section className={`panel landing-draft-state ${draft.status}`}><Check /><div><small>DRAFT SET {draft.id}</small><h2>{draft.status}</h2><p>{draft.population_summary || draft.error_message || 'Durable progress is saved.'}</p>{draft.status === 'failed' && <button className="secondary" disabled={busy} onClick={retryDraft}>Retry population</button>}</div></section>}
       {draft?.status === 'completed' && snapshot && <>

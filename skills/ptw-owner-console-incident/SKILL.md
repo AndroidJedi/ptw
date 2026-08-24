@@ -1,93 +1,65 @@
 ---
 name: ptw-owner-console-incident
-description: Diagnose, fix, deploy, and prevent PTW v2 Owner Console incidents across Firebase Auth/App Check/Hosting/PWA caching, Marketing Positioning, Landing drafts/publication/leads, Ads stub, Admin, Commander, the platform bridge, and the existing Telegram bot. Use when a workspace fails, stale UI is served, readiness regresses, a lead notification fails, or an old route reappears.
+description: Diagnose, fix, deploy, and prevent PTW Owner Console incidents across Firebase Auth/App Check/Hosting/PWA caching, Product Briefs, Ad Creatives and authenticated images, dormant Landing, Admin, Commander, the validation API, the platform bridge, PostgreSQL, and the existing Telegram emergency boundary. Use when a workspace fails, stale UI is served, readiness regresses, an artifact fails, or a retired route reappears.
 ---
 
-# PTW v2 Owner Console Incident
+# PTW Owner Console Incident
 
-Start from the public symptom, then trace browser → Hosting/Caddy → Owner
-Gateway → exact dependency → PostgreSQL. A healthy gateway does not prove that
-Marketing Positioning, the structured bridge, Firebase publication, or
-Telegram delivery is ready.
+Trace the public symptom through browser → Hosting/Caddy → Owner Gateway →
+Validation API → PostgreSQL or the independent structured bridge/Pexels API. A
+healthy gateway alone does not prove Stage 1–2 readiness.
 
 ## Public boundary
 
-Verify the active document, hashed entry/App bundles, bumped service-worker
-cache, Auth helper bypass, Firebase Auth persistence, App Check header/site key,
-CORS from the exact Owner and Landing origins, and unauthenticated rejection.
-The primary navigation must be Marketing Positioning, Landing, Ads, Admin. Old
-page queries redirect to Positioning; old domain APIs return 404.
+- Verify hashed bundles, bumped service-worker cache, Firebase Auth persistence,
+  App Check, exact Owner CORS origins, and unauthenticated rejection.
+- Navigation is Product Briefs, Ads, Landing, Admin. Landing shows only
+  `Stage 3 pending`.
+- Legacy Positioning, research, public Landing/lead, and Ads-stub APIs must
+  return 404.
+- Image delivery is owner-authenticated and returns the stored JPEG with its
+  authoritative ETag.
 
-## Workspace checks
+## Stage checks
 
-- Positioning: verify port 8093, shared Commander DB, owner-input-only evidence,
-  authenticated document/revision bridge modes, sole owner Source UUID,
-  assumption visibility, durable attempts, terminal notification attempts, and
-  global guard state. DataForSEO must not be configured or called.
-- Landing: verify active-approved revision gating, all three snapshots, eight
-  blocks, protected proof/privacy/form data, inert private previews, exact
-  snapshot/digest publication, and no agent call during publish.
-- Leads: inspect exact published build/form allowlist, HMAC IP rate limit,
-  dedupe, committed lead row and `submitted_to` edge before notification, then
-  append-only sent/failed/ambiguous/suppressed attempts. Never retain raw IPs.
-- Ads: it may only show an approved revision and its two concepts with the
-  explicit unimplemented message. Any generation/publish mutation is a defect.
-- Admin: Jobs, Docs/System, and break-glass terminal remain owner-authenticated;
-  destructive actions retain their exact confirmation gates.
+- Product Briefs: raw idea only; inferred `uk` or `en`; one strict hypothesis;
+  three to five benefits; non-empty strong offer; no market/SEO/YouTube call;
+  immutable corrections; owner approval of promise and offer.
+- Ads: one `ad_creative_batch` bridge call receives only the approved Brief;
+  exactly five fixed angles; CTA/offer continuity; five unique creative and
+  asset UUIDs; all-or-nothing persistence.
+- Pexels: root-owned key, ten-result bound, category fallback, unique source
+  photo IDs, allowed CDN/MIME/size/dimensions, photographer/source/license
+  attribution, and deterministic 1080×1080 JPEG SHA-256.
+- Feedback: resolve the creative UUID; persist append-only HumanFeedback and
+  WeightUpdate entities with `evaluates` and `adjusts` edges; create only a
+  pending editable lesson proposal.
+- Admin: keep Jobs, Docs/System, emergency stop, reset phrase, and break-glass
+  terminal owner-authenticated.
 
-## Telegram and failure handling
+## Failure handling
 
-Use only the existing bot and allowlisted chat. Landing leads and durable
-Positioning terminal attempts may each make one direct `sendMessage`; there is
-no new webhook, poller, or worker. Escape owner and visitor text. A Telegram
-failure must not change a Positioning result or reject/erase a lead. Ambiguous
-timeouts remain ambiguous and are not auto-retried. Emergency stop records a
-suppressed attempt. Inbound bot commands remain `/help`, `/status`, and `/stop`
-only.
+Restart recovery may fail interrupted Brief or batch attempts and release only
+their guard. A failed five-asset preparation stores no creative or asset rows.
+Retry only failed targets; approval remains idempotent with one batch per Brief.
+Do not bypass schema validation, the global operation guard, App Check, owner
+approval, source lineage, or authenticated artifact delivery.
+
+Reuse the existing Telegram bot only for established notifications/emergency
+controls. Do not add a webhook, poller, worker, creative notification, or new
+command. Inbound commands remain `/help`, `/status`, and `/stop` only.
 
 ## Release acceptance
 
-Before streaming release images, render the Commander Compose configuration
-with the platform, Commander, and Owner Gateway env files in that order. Resolve
-`LANDING_TRUSTED_PROXY_NETWORKS` from the exact live Caddy-to-Owner Docker
-network subnet; never use a broad private-network range. A missing interpolation
-value must fail before bridge replacement or reset.
+Render Compose before cutover. Require a root-owned `PEXELS_API_KEY` without
+printing it. Run schema-bound canaries for `product_brief`,
+`product_brief_revision`, and `ad_creative_batch`, then a non-persisting Pexels
+download/render canary before the irreversible reset.
 
-Check lifecycle flags against the production Compose CLI before cutover.
-Production `docker compose run` does not accept `--no-build`; rely on the
-code-owned `pull_policy: never` plus preloaded exact image tags for one-off
-canary and migration containers. Keep `--no-build` on supported `up` commands.
+After deploy, run the dependency and live-console audits, then an exact-owner
+desktop/360 px journey: create Brief, correct, approve with honor confirmation,
+observe five Ads, load each authenticated image and attribution, submit feedback,
+inspect dormant Landing, and inspect Admin. Verify restart recovery, retired
+routes/containers/tables, canonical skills, no extra provider calls, and no OOM.
 
-Before reset, require a persistent random `LANDING_LEAD_HMAC_SECRET` of at
-least 32 bytes in the root-owned Owner Gateway env. Generate it once without
-printing it; never use the example placeholder or rotate it during routine
-deployments, because stable HMACs are required for bounded IP rate limiting.
-
-Retired-container audits must use anchored full Compose container names. Never
-match the bare substring `commander-worker`: the independent, required platform
-bridge worker legitimately contains that substring.
-
-Public bundle audits must respect the code-owned Ukrainian UI chrome. Prove the
-Admin workspace with its stable `Docs / System / Terminal` content marker, not
-an English `Admin` nav label that is intentionally absent from the bundle.
-
-The Owner Gateway CORS allowlist must include both code-owned Firebase Hosting
-origins for the Owner project: `.firebaseapp.com` and `.web.app`. Audit both;
-do not broaden CORS to wildcard or unrelated origins.
-
-Run `scripts/audit_vps_owner_dependencies.sh` on the VPS and
-`scripts/audit_live_owner_console.py` against public Hosting. Then perform the
-authenticated exact-owner journey: empty state, Positioning creation/source
-review/correction/approval, three Landing variants and one block edit,
-publication fixture and real form, lead history, Ads stub, and Admin. Check
-desktop, 360 px Chromium, and iPhone WebKit. Verify restart persistence,
-retired-route absence, skill links, dependency/module audit, and no OOM.
-
-Strict structured-output schemas must declare `type` on every property that
-uses `const`. A bridge job failing quickly with `invalid_json_schema` is a
-contract defect, not a model-content failure; reproduce it with a typed minimal
-canary and fix the Positioning and Landing schemas before retrying user work.
-
-Do not resolve an incident by bypassing evidence validation, approval gating,
-App Check, fixed forms, source lineage, exact-snapshot publication, the global
-guard, or the existing-bot/no-poller boundary.
+Never run Landing-specific suites during the Stage 1–2 milestone.

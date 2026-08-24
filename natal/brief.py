@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
-from urllib.parse import urlsplit
 from uuid import UUID
 
 from .catalog import recommend_template
@@ -16,14 +15,6 @@ def _bounded(value: Any, name: str, *, limit: int, required: bool = True) -> str
         raise ValueError(f"{name} is required")
     if len(result) > limit:
         raise ValueError(f"{name} must contain at most {limit} characters")
-    return result
-
-
-def _https(value: Any, name: str) -> str:
-    result = _bounded(value, name, limit=2000)
-    parsed = urlsplit(result)
-    if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
-        raise ValueError(f"{name} must be a public HTTPS URL")
     return result
 
 
@@ -73,7 +64,6 @@ class LandingBrief:
     proof_points: tuple[str, ...]
     faq: tuple[dict[str, str], ...]
     cta: dict[str, str]
-    privacy_policy_url: str
     language: str = "uk"
     source: Mapping[str, str] | None = None
 
@@ -106,7 +96,6 @@ class LandingBrief:
                 "label": _bounded(raw_cta.get("label") or ("Залишити контакти" if language == "uk" else "Leave details"), "cta.label", limit=100),
                 "url": "#lead-form",
             },
-            privacy_policy_url=_https(value.get("privacy_policy_url"), "privacy_policy_url"),
             language=language,
             source=source,
         )
@@ -114,7 +103,7 @@ class LandingBrief:
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": 2, "brand": "Natal", "language": self.language,
-            "source": dict(self.source or {}), "privacy_policy_url": self.privacy_policy_url,
+            "source": dict(self.source or {}),
             "business_idea": self.business_idea, "target_audience": self.target_audience,
             "pain": self.pain, "promise": self.promise,
             "honest_limitation": self.honest_limitation,
@@ -128,7 +117,7 @@ def _show(statement: Mapping[str, Any]) -> str:
 
 
 def brief_from_positioning(
-    project: Mapping[str, Any], revision: Mapping[str, Any], *, privacy_policy_url: str
+    project: Mapping[str, Any], revision: Mapping[str, Any]
 ) -> dict[str, Any]:
     """Map one active approved revision to the only accepted Landing source."""
     if not revision.get("approved") or revision.get("project_id") != project.get("id"):
@@ -164,7 +153,6 @@ def brief_from_positioning(
     brief = LandingBrief.from_dict({
         "language": language,
         "source": {"positioning_project_id": project["id"], "positioning_revision_id": revision["id"]},
-        "privacy_policy_url": privacy_policy_url,
         "business_idea": _show(landing["hero"]["headline"]),
         "target_audience": _show(foundation["definitive_audience"]),
         "pain": _show(foundation["pains"][0]),

@@ -17,12 +17,8 @@ def templates_response() -> dict[str, Any]:
 def prepare_draft_set(
     project: Mapping[str, Any],
     revision: Mapping[str, Any],
-    *,
-    privacy_policy_url: str,
 ) -> dict[str, Any]:
-    return brief_from_positioning(
-        project, revision, privacy_policy_url=privacy_policy_url
-    )
+    return brief_from_positioning(project, revision)
 
 
 def prepare_landing_build(

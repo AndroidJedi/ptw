@@ -1,4 +1,4 @@
-const CACHE = 'ptw-shell-v26-owner-input-positioning'
+const CACHE = 'ptw-shell-v27-validation-briefs-ads'
 const CACHE_PREFIX = 'ptw-shell-'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/ptw.svg']
 

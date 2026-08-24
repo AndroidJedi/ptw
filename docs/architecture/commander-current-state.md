@@ -1,82 +1,108 @@
 # Commander current state
 
-Updated: 2026-08-23
+Updated: 2026-08-24
 Branch: `codex/web-only-commander`
 
 ## Last completed milestone
 
-PTW v2 is deployed in production as Marketing Positioning, Landing, Ads, and a
-compact Admin workspace. The application release is `ptw-v2-24e82ef` from
-commit `24e82ef5fb5990d7f2657a2f20f42c29b6ca3c8b`; Commander, Marketing
-Positioning, and Owner Gateway all run the same prebuilt Linux/amd64 release.
-The independent platform bridge runs `ptw-v2-f944c0f` from commit
-`2f2ee9aa114de62137508ff132396568950f7335`.
+The Simplified Validation Phase 1 implementation is complete in the local
+checkout:
 
-The owner-authorized irreversible reset dropped and rebuilt only
-`ptw_commander.public`. Production now contains one owner-created Positioning
-project with one completed, approved revision; it contains no Landing draft
-sets or leads. The clean v1 baseline plus the additive Positioning notification
-migration contains 27 v2 domain tables plus the migration table and no Idea
-Laval, Branding, or legacy Ads tables. The reset verified that the independent
-`/opt/ptw/platform` database counts were unchanged.
+```text
+raw idea → Product Brief → owner approval → five Ad Creatives
+```
 
-Firebase currently serves:
+Marketing Positioning and the Ads stub have been replaced by the
+`validation_pipeline` runtime. Its only structured bridge modes are
+`product_brief`, `product_brief_revision`, and `ad_creative_batch`. Stage 1
+infers Ukrainian or English from one raw idea and produces one strict,
+immutable Product Brief with three to five benefits and an explicit
+low-friction offer. Owner approval confirms the promise and offer can be
+honored, atomically creates one batch, and reserves generation. Stage 2 sends
+only that approved Brief to one structured call and creates exactly five
+complete creatives in the fixed angle order.
 
-- Owner Console version `1fd43880dc096c7c`, application bundle
-  `App-icGGmCnv.js`, and service-worker cache
-  `ptw-shell-v26-owner-input-positioning`.
-- Natal placeholder version `a1eeff5fc3b37265`, whose active root says
-  “No landing published yet”; retired `/builds/*` content is no longer served.
+Pexels is the only photo adapter. Selection is bounded to ten square results
+plus one broader category fallback, never reuses a photo within a batch, and
+rejects rate limits, unsafe URLs or redirects, invalid MIME, oversized data,
+small images, and undecodable bytes. Pillow produces deterministic 1080×1080
+JPEGs with the hook, offer, and CTA. PostgreSQL stores the authoritative bytes,
+digest, source page, photographer, license, attribution, and complete lineage.
 
-## Production verification
+The Owner Console navigation is Product Briefs → Ads → Landing → Admin. Brief
+corrections and creative feedback create editable, owner-gated lesson
+proposals bounded to the corresponding generator's `owner-lessons.md`. Ads
+shows five authenticated artifacts and prominent Pexels/photographer links.
+Landing is an inactive `Stage 3 pending` placeholder and makes no runtime API
+call. The three Natal templates and dormant Landing source remain on disk.
 
-- Fresh strict, schema-bound platform canaries passed for
-  `marketing_positioning_document`, `marketing_positioning_revision`, and
-  `natal_landing_revision` after the structured-output schemas were updated to
-  include explicit types for every constant field.
-- Both Owner Console origins pass bundle, Auth, App Check, CORS, dependency,
-  health, retired-route, and old-domain API audits.
-- Vitest 10, the production web build, and six Playwright journeys passed on
-  desktop Chromium, 360 px Chromium, and iPhone WebKit. The journeys cover the
-  empty state, Positioning creation/correction/approval, all three Landing
-  templates, scoped edits, publication, lead capture, Ads stub, Admin, and old
-  route redirects.
-- Built-image suites passed: Commander 7, Marketing Positioning 14, and Owner
-  Gateway 24. The disposable PostgreSQL 16 reset/integration suite passed and
-  preserved the independent platform-count fixture.
-- A clearly labelled direct notification was sent through the existing PTW bot
-  without creating a fake lead or notification-attempt row and without adding
-  another poller.
-- The first real Positioning attempt failed on retired DataForSEO research. The
-  active flow now synthesizes directly from the permanent owner-idea source,
-  marks unsupported market claims as assumptions, and contains no DataForSEO
-  configuration or live fallback. A strict-schema failure on the first retry
-  was also retained; the next retry completed with all deterministic quality
-  gates passing.
-- Positioning now sends terminal completion/failure notifications directly
-  through the existing PTW bot and allowlisted chat. Both retained terminal
-  attempts were delivered and persisted before the Positioning service restart;
-  the restart created no duplicate notification.
-- Individual service restarts preserved the completed revision, approval, and
-  notification records while all readiness checks remained healthy. Immediate
-  1 GB resource audits passed with swap active and no new OOM event.
-- A locked follow-up audit is scheduled by `ptw-v2-24h-audit.timer` for
-  2026-08-24 13:13:25 UTC.
-- Canonical desktop/container skill links and the PTW skill verifier pass.
+The database is one clean 19-table reset baseline. It contains generic graph,
+source, feedback, weight, audit, Plan/Execute, guard, and control authority plus
+Product Brief, approval, attempts, provider invocation, creative batch,
+creative, asset, and lesson-proposal tables. Legacy Positioning, active
+Landing, Idea, Branding, and Ads tables are absent.
 
-## Operational guardrails learned during cutover
+## Verification
 
-Production scripts now load the root-owned Commander, Owner Gateway, and
-platform environments before Compose interpolation. They remove retired
-DataForSEO settings before Compose starts Positioning, validate the trusted
-proxy CIDR and lead HMAC secret before reset, keep `pull_policy: never` for
-preloaded release images, use exact retired-container names in audits, and
-permit exactly the two Firebase Owner Console origins without a wildcard.
+- Validation Linux/amd64 built-image suite: 21 passed, including strict Brief/creative
+  shapes, offer enforcement, language inference, bridge input isolation,
+  Pexels selection/fallback/rate-limit/download safety, deterministic JPEGs,
+  authentication, ETags, and retired API 404s.
+- Disposable PostgreSQL 16: two integration tests passed for immutable
+  corrections, idempotent approval, atomic five-asset persistence, restart and
+  retry behavior, graph edges, feedback/weights, proposal promotion, and legacy
+  table absence.
+- Baseline/reset verification passed twice with 19 application tables and the
+  independent platform fixture unchanged at three rows.
+- Owner Gateway built-image suite: 18 active non-Landing tests passed.
+- Commander built-image Telegram boundary: one passed; the deterministic
+  `ptw-validation-v1` demo was regenerated successfully.
+- Owner web: 10 Vitest tests, production TypeScript/Vite build, and six
+  Playwright journeys passed on desktop Chromium, 360 px Chromium, and iPhone
+  WebKit. The built module graph contains no retired Positioning/Landing route.
+- Canonical Product Brief and Ad Creative skills pass the Skill Creator
+  validator; the PTW skill/link/mount validator passes. The retired Marketing
+  Positioning skill and desktop link are absent; Natal is explicitly dormant.
+- The independent bridge was changed only in the separate
+  `/Users/serhiiholovaschuk/Projects/ptw-platform-validation` checkout. Its
+  complete suite passes 84 tests and its capabilities expose the three new
+  modes while rejection tests cover the retired modes.
+- All five off-host Linux/amd64 images and checksum-bearing archives were built
+  with the non-`latest` local validation tag `phase1-local-20260824`. They are
+  verification artifacts, not an approved production release.
+- Shell syntax checks, Python compilation, `git diff --check`, and release
+  script guards pass. Landing-specific suites were intentionally not run.
+
+## Production state and cutover gate
+
+Production has not been modified by this milestone. It remains on the previous
+Marketing Positioning/Landing release documented in Git history. No production
+database row, service, Firebase release, Telegram behavior, platform database,
+secret, or container was changed.
+
+Cutover remains blocked by design until all of the following are available in
+one explicit release operation:
+
+1. reviewed commits from both unrelated Git histories;
+2. a root-owned `PEXELS_API_KEY` and successful non-persisting Pexels
+   download/render canary;
+3. matching off-host Linux/amd64 Commander, Validation, Owner Gateway, platform
+   API, and platform worker images rebuilt from the reviewed commits with a
+   non-`latest` release tag;
+4. fresh schema-bound canaries for all three validation modes; and
+5. the exact owner phrase `RESET PTW PRODUCTION` immediately before the
+   allowlisted irreversible reset of `ptw_commander.public`.
+
+The serial deploy script restores the prior platform images if either the
+bridge or Pexels canary fails before reset. The reset verifies zero Briefs,
+batches, creatives, entities, and relationships; legacy tables/containers are
+absent; and the independent platform database counts are unchanged. Immediate
+and 24-hour 1 GB audits remain part of the production acceptance sequence.
 
 ## Next work
 
-The first Marketing Positioning revision is complete and approved. The next
-real action is to use that exact approved revision to populate and inspect the
-three private Landing templates, edit blocks if needed, and publish one exact
-snapshot. Ads can inspect its two prepared concepts but remains a truthful
-read-only stub until generation and publishing are implemented.
+Review and commit the PTW and independent bridge changes, provision the Pexels
+key, build the pinned Linux/amd64 release artifacts, and perform the gated
+cutover only after the owner supplies the exact reset phrase. Stage 3 Landing,
+traffic, publishing, campaigns, UTMs, analytics, and conversion tracking remain
+out of scope.

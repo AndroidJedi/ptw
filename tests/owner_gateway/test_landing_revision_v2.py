@@ -17,7 +17,6 @@ def brief() -> dict[str, object]:
             "positioning_project_id": PROJECT_ID,
             "positioning_revision_id": REVISION_ID,
         },
-        "privacy_policy_url": "https://example.com/privacy",
         "business_idea": "A focused Natal workflow",
         "target_audience": "Small teams",
         "pain": "Manual follow-up is hard to track",

@@ -6,10 +6,10 @@ import { AUTH_PERSISTENCE_MARKER, auth, googleProvider } from './firebase'
 import { Shell } from './components/Shell'
 import type { Language } from './i18n'
 import type { Page } from './types'
-import { LandingView } from './views/LandingView'
-import { PositioningView } from './views/PositioningView'
 import { AdsView } from './views/AdsView'
 import { AdminView } from './views/AdminView'
+import { LandingPlaceholderView } from './views/LandingPlaceholderView'
+import { ProductBriefView } from './views/ProductBriefView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
 export const AUTH_BOOT_TIMEOUT_MS = 10_000
@@ -17,10 +17,10 @@ export const AUTH_BOOT_TIMEOUT_MS = 10_000
 function initialConsoleLocation(): { page: Page } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const known = ['positioning', 'landing', 'ads', 'admin'].includes(requestedPage || '')
+  const known = ['briefs', 'ads', 'landing', 'admin'].includes(requestedPage || '')
   const page: Page = known
     ? requestedPage as Page
-    : 'positioning'
+    : 'briefs'
   if (requestedPage && !known) {
     params.delete('page'); params.delete('run')
     const search = params.toString()
@@ -87,7 +87,7 @@ function Console({ user }: { user: User }) {
   const api = useMemo(() => new ApiClient(user), [user])
   const navigate = (nextPage: Page) => {
     const params = new URLSearchParams(window.location.search)
-    if (nextPage === 'positioning') params.delete('page')
+    if (nextPage === 'briefs') params.delete('page')
     else params.set('page', nextPage)
     params.delete('run')
     const search = params.toString()
@@ -96,9 +96,9 @@ function Console({ user }: { user: User }) {
   }
   return <Shell page={page} onPage={navigate} language={language} onLanguage={() => setLanguage(language === 'uk' ? 'en' : 'uk')}>
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label="Вийти"><LogOut /></button></div>
-    {page === 'positioning' && <PositioningView api={api} />}
-    {page === 'landing' && <LandingView api={api} />}
+    {page === 'briefs' && <ProductBriefView api={api} />}
     {page === 'ads' && <AdsView api={api} />}
+    {page === 'landing' && <LandingPlaceholderView />}
     {page === 'admin' && <AdminView api={api} />}
   </Shell>
 }

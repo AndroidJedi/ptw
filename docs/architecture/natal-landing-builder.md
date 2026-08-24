@@ -1,30 +1,18 @@
-# Natal Landing v2
+# Natal Landing — dormant Stage 3 source
 
-Natal remains the fixed identity and three-layout system. Landing accepts only
-an explicit active approved Positioning project/revision plus request UUID and
-public HTTPS privacy URL. One strict `natal_landing_revision` call populates
-private `product`, `community`, and `waitlist` snapshots.
+Status: inactive in PTW Validation Phase 1
 
-`LandingPageContent` v2 has eight blocks: hero, problem, features, steps, proof,
-FAQ, final CTA, and lead form. Edits receive whole-page context but return only
-one selected block. Proof, Positioning facts/IDs, privacy URL, form definitions,
-publication target, and graph IDs remain protected.
+The fixed `product`, `community`, and `waitlist` templates, brand assets,
+manifests, and dormant Python source remain on disk for the later Stage 3
+conversion-checkpoint rebuild. They are not registered in Commander, Owner
+Gateway, the structured bridge, PostgreSQL baseline, or the active PWA.
 
-The form catalog is code-owned:
+The current Landing workspace is a truthful `Stage 3 pending` placeholder. It
+does not populate drafts, preview, publish, accept leads, notify Telegram, or
+call an LLM. Landing-specific suites are intentionally excluded from the
+Stage 1–2 milestone rather than repaired against an inactive contract.
 
-| Form | Fields | Submit label |
-| --- | --- | --- |
-| `waitlist` | email | Join waitlist / Приєднатися до списку |
-| `contact_request` | name, email, optional note | Send request / Надіслати запит |
-| `community_interest` | name, email, optional Telegram | I’m interested / Хочу приєднатися |
-
-The agent chooses the form ID and writes only heading/body. Validation, consent
-and privacy link, success text, notification, and fields are rendered from code.
-Authenticated previews are self-contained, no-store, sandboxed, and inert.
-
-Publication consumes the exact selected current snapshot/digest without an
-agent call and activates the form only in that public build. Private manifest
-JSON never enters the Firebase release. Published submissions enforce exact
-field allowlists, honeypot, bounds, email validation, HMAC IP rate limiting,
-and HMAC dedupe without raw IP retention. Commit precedes Telegram; send failure
-never changes visitor acceptance.
+Future activation must start from an approved Product Brief, choose one of the
+three preserved templates, use minimal information and friction, assign a
+`landing_id`, preserve `brief_id`, and define the single conversion action and
+analytics boundary as a separate approved milestone.

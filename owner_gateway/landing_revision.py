@@ -14,7 +14,7 @@ from natal.page import BLOCK_IDS, LandingPageContent, protect_page_content
 
 
 MODE = "natal_landing_revision"
-PROMPT_VERSION = "natal_landing_skill_v3"
+PROMPT_VERSION = "natal_landing_skill_v4"
 
 PAIR_SCHEMA = {
     "type": "object",

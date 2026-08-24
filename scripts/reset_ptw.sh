@@ -21,16 +21,16 @@ fi
 repository=/root/ptw
 platform=/opt/ptw/platform
 commander_compose="docker compose --env-file $platform/.env --env-file $repository/.env.commander --env-file $repository/.env.owner-gateway --project-directory $repository -f $repository/docker-compose.commander.yml"
-positioning_compose="docker compose --env-file $platform/.env --env-file $repository/.env.commander --env-file $repository/.env.owner-gateway --project-name ptw-marketing-positioning --project-directory $repository -f $repository/docker-compose.marketing-positioning.yml"
+validation_compose="docker compose --env-file $platform/.env --env-file $repository/.env.commander --env-file $repository/.env.owner-gateway --project-name ptw-validation --project-directory $repository -f $repository/docker-compose.validation.yml"
 platform_compose="docker compose --env-file $platform/.env --project-directory $platform -f $platform/docker-compose.yml"
 
-lead_hmac_line=$(grep '^LANDING_LEAD_HMAC_SECRET=' "$repository/.env.owner-gateway" || true)
-lead_hmac_value=${lead_hmac_line#LANDING_LEAD_HMAC_SECRET=}
-[ "${#lead_hmac_value}" -ge 32 ] && [ "$lead_hmac_value" != generate-a-distinct-random-secret ] || {
-  echo "a persistent random LANDING_LEAD_HMAC_SECRET is required before reset" >&2
+pexels_line=$(grep '^PEXELS_API_KEY=' "$repository/.env.owner-gateway" || true)
+pexels_value=${pexels_line#PEXELS_API_KEY=}
+[ "${#pexels_value}" -ge 20 ] && [ "$pexels_value" != replace-with-pexels-api-key ] || {
+  echo "a root-owned PEXELS_API_KEY is required before reset" >&2
   exit 1
 }
-unset lead_hmac_line lead_hmac_value
+unset pexels_line pexels_value
 
 if [ -z "$release_tag" ]; then
   commander_container=$($commander_compose ps -q commander-api)
@@ -53,7 +53,7 @@ fi
 case "$release_tag" in
   ""|latest|*[!A-Za-z0-9._-]*) echo "refusing unversioned production reset image tag" >&2; exit 1 ;;
 esac
-for image in ptw-commander ptw-marketing-positioning ptw-owner-gateway; do
+for image in ptw-commander ptw-validation ptw-owner-gateway; do
   docker image inspect "$image:$release_tag" >/dev/null || {
     echo "missing matching image $image:$release_tag" >&2
     exit 1
@@ -91,7 +91,9 @@ snapshot_platform > "$platform_snapshot_before"
 # its PostgreSQL database remain running and are never migrated by this reset.
 $commander_compose stop owner-gateway >/dev/null 2>&1 || true
 $commander_compose stop commander-api >/dev/null 2>&1 || true
-$positioning_compose stop marketing-positioning-api >/dev/null 2>&1 || true
+$validation_compose stop validation-api >/dev/null 2>&1 || true
+old_positioning_container=$(docker ps -aq --filter 'name=^/ptw-marketing-positioning-marketing-positioning-api-1$')
+[ -z "$old_positioning_container" ] || docker stop "$old_positioning_container" >/dev/null
 old_idea_container=$(docker ps -aq --filter 'name=^/ptw-idea-generation-idea-generation-api-1$')
 [ -z "$old_idea_container" ] || docker stop "$old_idea_container" >/dev/null
 
@@ -105,7 +107,7 @@ docker run --rm -v ptw_owner-control:/data alpine:3.22 sh -c \
 
 $commander_compose run --rm --no-deps commander-migrate
 $commander_compose up -d --no-deps --wait --no-build commander-api >/dev/null
-$positioning_compose up -d --no-deps --wait --no-build marketing-positioning-api >/dev/null
+$validation_compose up -d --no-deps --wait --no-build validation-api >/dev/null
 $commander_compose up -d --no-deps --wait --no-build --force-recreate owner-gateway >/dev/null
 
 $commander_compose exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander <<'SQL'
@@ -114,16 +116,19 @@ DECLARE failures text;
 BEGIN
   SELECT string_agg(label || '=' || value, ', ') INTO failures
   FROM (VALUES
-    ('positioning_projects', (SELECT count(*) FROM positioning_projects)),
-    ('positioning_revisions', (SELECT count(*) FROM positioning_revisions)),
-    ('landing_draft_sets', (SELECT count(*) FROM landing_draft_sets)),
-    ('landing_builds', (SELECT count(*) FROM landing_builds)),
-    ('landing_leads', (SELECT count(*) FROM landing_leads)),
+    ('product_briefs', (SELECT count(*) FROM product_briefs)),
+    ('creative_batches', (SELECT count(*) FROM creative_batches)),
+    ('ad_creatives', (SELECT count(*) FROM ad_creatives)),
     ('entities', (SELECT count(*) FROM commander_entities)),
     ('relationships', (SELECT count(*) FROM commander_relationships))
   ) AS counts(label,value) WHERE value <> 0;
   IF failures IS NOT NULL THEN RAISE EXCEPTION 'v2 reset postcondition failed: %', failures; END IF;
-  IF to_regclass('public.ideas') IS NOT NULL
+  IF to_regclass('public.positioning_projects') IS NOT NULL
+     OR to_regclass('public.positioning_revisions') IS NOT NULL
+     OR to_regclass('public.landing_draft_sets') IS NOT NULL
+     OR to_regclass('public.landing_builds') IS NOT NULL
+     OR to_regclass('public.landing_leads') IS NOT NULL
+     OR to_regclass('public.ideas') IS NOT NULL
      OR to_regclass('public.laval_runs') IS NOT NULL
      OR to_regclass('public.brand_runs') IS NOT NULL
      OR to_regclass('public.commander_ad_batches') IS NOT NULL THEN
@@ -145,4 +150,5 @@ cmp -s "$platform_snapshot_before" "$platform_snapshot_after" || {
 
 # Remove the retired domain container only after all v2 services are healthy.
 [ -z "$old_idea_container" ] || docker rm "$old_idea_container" >/dev/null
-echo "PTW v2 reset complete; application data is empty and platform counts are unchanged"
+[ -z "$old_positioning_container" ] || docker rm "$old_positioning_container" >/dev/null
+echo "PTW Validation reset complete; briefs/creatives are empty and platform counts are unchanged"

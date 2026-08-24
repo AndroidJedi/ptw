@@ -20,9 +20,9 @@ docker buildx build --platform linux/amd64 --load \
 docker save --output "$output_directory/commander.tar" "ptw-commander:$release_tag"
 
 docker buildx build --platform linux/amd64 --load \
-    --tag "ptw-marketing-positioning:$release_tag" \
-    --file marketing_positioning/Dockerfile .
-docker save --output "$output_directory/marketing-positioning.tar" "ptw-marketing-positioning:$release_tag"
+    --tag "ptw-validation:$release_tag" \
+    --file validation_pipeline/Dockerfile .
+docker save --output "$output_directory/validation.tar" "ptw-validation:$release_tag"
 
 docker buildx build --platform linux/amd64 --load \
     --tag "ptw-owner-gateway:$release_tag" \
@@ -31,12 +31,12 @@ docker save --output "$output_directory/owner-gateway.tar" "ptw-owner-gateway:$r
 
 if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$output_directory/commander.tar" \
-        "$output_directory/marketing-positioning.tar" \
+        "$output_directory/validation.tar" \
         "$output_directory/owner-gateway.tar" \
         > "$output_directory/SHA256SUMS"
 else
     shasum -a 256 "$output_directory/commander.tar" \
-        "$output_directory/marketing-positioning.tar" \
+        "$output_directory/validation.tar" \
         "$output_directory/owner-gateway.tar" \
         > "$output_directory/SHA256SUMS"
 fi

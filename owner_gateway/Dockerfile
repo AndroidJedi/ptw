@@ -14,8 +14,6 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
 COPY requirements-owner-gateway.txt ./
 RUN pip install --no-cache-dir -r requirements-owner-gateway.txt
 COPY commander ./commander
-COPY marketing_positioning ./marketing_positioning
-COPY natal ./natal
 COPY owner_gateway ./owner_gateway
 COPY config ./config
 RUN groupadd --system --gid 10002 owner-gateway \

@@ -25,8 +25,8 @@ vi.mock('./firebase', () => ({
 }))
 vi.mock('./api', () => ({ ApiClient: class {} }))
 vi.mock('./components/Shell', () => ({ Shell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
-vi.mock('./views/PositioningView', () => ({ PositioningView: () => <p>OWNER CONSOLE READY</p> }))
-vi.mock('./views/LandingView', () => ({ LandingView: () => null }))
+vi.mock('./views/ProductBriefView', () => ({ ProductBriefView: () => <p>OWNER CONSOLE READY</p> }))
+vi.mock('./views/LandingPlaceholderView', () => ({ LandingPlaceholderView: () => null }))
 vi.mock('./views/AdsView', () => ({ AdsView: () => null }))
 vi.mock('./views/AdminView', () => ({ AdminView: () => null }))
 

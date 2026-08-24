@@ -1,47 +1,38 @@
-# PTW v2 owner-console rules
+# PTW Validation owner-console rules
 
 Status: canonical
-Updated: 2026-08-23
+Updated: 2026-08-24
 
 ## Product and navigation
 
-- Ukrainian is the default chrome; source/output language is explicit per
-  project. IDs, source text, logs, and provider errors remain verbatim.
-- Primary navigation is Marketing Positioning, Landing, Ads, and Admin. Admin
+- The Brief/creative language is inferred as Ukrainian or English from the raw
+  idea. IDs, source text, logs, and provider errors remain verbatim.
+- Primary navigation is Product Briefs, Ads, Landing, and Admin. Admin
   contains Jobs plus Docs/System/Terminal.
-- Old page locations redirect to Positioning. Old domain APIs do not exist.
+- Old page locations redirect to Product Briefs. Old domain APIs do not exist.
 - Design first for 360 px and one-hand use, with 44×44 CSS pixel targets, no
   horizontal page overflow, keyboard access, and reduced-motion support.
 
-## Marketing Positioning
+## Product Briefs
 
-- Start from raw idea, country, market language, and output language. Another
-  idea or market creates another project.
-- Show source UUIDs and assumption markers beside claims. Never hide a failed
-  strict-synthesis attempt behind fallback output. The owner idea is the sole
-  factual Source; external research providers are not part of this flow.
-- A correction selects one section and creates a complete immutable revision.
-  The existing revision remains active until explicit approval.
-- Landing and Ads expose only the active approved revision.
+- Start from one raw idea only. Show Brief and owner-idea Source UUIDs.
+- Present one product, first customer, pain, promise, three to five benefits,
+  CTA, trust strategy, and a visually prominent strong offer.
+- A correction creates a complete immutable replacement with a new UUID.
+- Approval must explicitly say the owner can honor the promise and offer; it
+  starts exactly one five-creative batch.
 
-## Landing
+## Ads and Landing
 
-- Show exact project/revision IDs and require an HTTPS privacy policy before
-  creating the three Natal drafts.
-- The editor exposes all eight blocks. Preview uses sandboxed self-contained
-  `srcdoc`; forms and CTAs are inert. Mobile 360 px and desktop toggles are
-  explicit.
-- Proof, privacy, form behavior, source facts, publication target, and IDs are
-  protected. A correction replaces only its selected block.
-- Publication has one explicit action and consumes the exact current snapshot
-  without another rewrite. Show durable failures/retries, publication history,
-  lead UUIDs, submitted fields, and notification status.
+- Ads shows all five complete posts, exact UUIDs, angle, copy, authenticated
+  1080×1080 image, artifact digest, Pexels photographer/source/license
+  attribution, retry state, and feedback control for each creative.
+- Landing shows only `Stage 3 pending`; it has no active controls or API calls.
+- There is no campaign, publish, traffic, UTM, click, or analytics action.
+- Product/creative generation never invents proof, testimonials, ratings,
+  customer results, urgency, or scarcity.
 
-## Ads and Admin
-
-- Ads shows the two approved Positioning concepts and the literal state
-  “Generation and publishing are not implemented.” It exposes no generate,
-  campaign, post, image, or publish action.
+## Admin
 - Plan and Execute remain visibly distinct and digest-bound. The root terminal
   is labelled break-glass and retains bounded lifetimes.
 - The irreversible reset preview names only `ptw_commander.public` and requires
@@ -49,9 +40,9 @@ Updated: 2026-08-23
 
 ## Trust and caching
 
-- Empty production state is valid. Never seed fake projects, Landings, proof,
-  or leads.
-- PWA caching is limited to public shell resources. API, preview, lead,
-  terminal, and sensitive responses are never cached.
+- Empty production state is valid. Never seed fake Briefs, creatives, proof,
+  or assets.
+- PWA caching is limited to public shell resources. API, authenticated images,
+  terminal, and sensitive responses are never cached by the service worker.
 - Do not show invented metrics, proof, testimonials, urgency, scarcity,
   limitations, or competitive facts.

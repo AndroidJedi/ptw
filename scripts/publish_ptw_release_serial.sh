@@ -38,7 +38,7 @@ emit_image() {
 }
 
 emit_image commander "$image_directory/commander.tar" >> "$stream_file"
-emit_image marketing-positioning "$image_directory/marketing-positioning.tar" >> "$stream_file"
+emit_image validation "$image_directory/validation.tar" >> "$stream_file"
 emit_image owner-gateway "$image_directory/owner-gateway.tar" >> "$stream_file"
 emit_image platform-commander-api "$platform_image_directory/commander-api.tar" >> "$stream_file"
 emit_image platform-commander-worker "$platform_image_directory/commander-worker.tar" >> "$stream_file"

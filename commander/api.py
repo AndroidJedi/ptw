@@ -37,8 +37,9 @@ def create_app(settings: Settings) -> FastAPI:
             ).fetchone()
             counts = database.execute(
                 """SELECT
-                     (SELECT count(*) FROM positioning_projects),
-                     (SELECT count(*) FROM landing_builds WHERE status IN ('queued','building','publishing'))"""
+                     (SELECT count(*) FROM product_briefs),
+                     (SELECT count(*) FROM creative_batches),
+                     (SELECT count(*) FROM ad_creatives)"""
             ).fetchone()
         with psycopg.connect(settings.platform_database_url, connect_timeout=5) as platform:
             platform_control = platform.execute(
@@ -50,7 +51,9 @@ def create_app(settings: Settings) -> FastAPI:
             "active_operation": None if not operation or operation[1] is None else {
                 "kind": operation[0], "id": str(operation[1]),
             },
-            "positioning_projects": int(counts[0]), "active_landings": int(counts[1]),
+            "product_briefs": int(counts[0]),
+            "creative_batches": int(counts[1]),
+            "ad_creatives": int(counts[2]),
         }
 
     def set_stop(active: bool, actor: str) -> None:
@@ -88,7 +91,7 @@ def create_app(settings: Settings) -> FastAPI:
             current = status()
         except Exception as error:
             raise HTTPException(status_code=503, detail="v2 database unavailable") from error
-        return {"status": "ready", "domain": "marketing_v2", **current}
+        return {"status": "ready", "domain": "validation_v1", **current}
 
     @app.post("/internal/emergency-stop")
     def internal_emergency_stop(

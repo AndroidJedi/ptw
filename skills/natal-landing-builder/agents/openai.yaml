@@ -1,4 +1,4 @@
 interface:
   display_name: "Natal Landing Builder"
-  short_description: "Preview and edit three Natal landing drafts"
-  default_prompt: "Use $natal-landing-builder to populate all three Natal templates as private drafts, revise selected content blocks, and publish only an explicitly selected snapshot."
+  short_description: "Guard dormant Natal Stage 3 source"
+  default_prompt: "Use $natal-landing-builder to inspect or preserve dormant Natal template source without activating Landing runtime behavior."

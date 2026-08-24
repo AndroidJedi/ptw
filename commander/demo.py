@@ -1,4 +1,4 @@
-"""Emit a deterministic v2 graph-lineage demonstration."""
+"""Emit a deterministic Product Brief → five Ad Creatives lineage demo."""
 
 from __future__ import annotations
 
@@ -16,22 +16,29 @@ def run_demo(output_dir: Path, *, reset: bool = True) -> dict[str, object]:
             target = output_dir / name
             if target.is_file() or target.is_symlink():
                 target.unlink()
-    owner_source, research_source, positioning, draft, snapshot, landing, lead = (
-        new_uuid7(timestamp_ms=1_700_000_000_000 + index) for index in range(7)
-    )
+    identifiers = [new_uuid7(timestamp_ms=1_700_000_000_000 + index) for index in range(15)]
+    owner_source, brief, batch = identifiers[:3]
+    creatives = identifiers[3:8]
+    assets = identifiers[8:13]
+    feedback, weight = identifiers[13:]
     result = {
-        "schema": "ptw-marketing-v1",
+        "schema": "ptw-validation-v1",
         "entities": {
-            "sources": [owner_source, research_source], "positioning": positioning,
-            "landing_draft_set": draft, "landing_snapshot": snapshot,
-            "landing": landing, "lead_submission": lead,
+            "owner_idea_source": owner_source,
+            "product_brief": brief,
+            "creative_batch": batch,
+            "ad_creatives": creatives,
+            "assets": assets,
+            "feedback": feedback,
+            "weight_update": weight,
         },
-        "relationships": [
-            [positioning, "derived_from", owner_source], [positioning, "derived_from", research_source],
-            [draft, "derived_from", positioning], [draft, "contains", snapshot],
-            [landing, "derived_from", snapshot], [landing, "derived_from", positioning],
-            [lead, "submitted_to", landing],
-        ],
+        "relationships": (
+            [[brief, "derived_from", owner_source], [batch, "derived_from", brief]]
+            + [[batch, "contains", creative] for creative in creatives]
+            + [[creative, "derived_from", brief] for creative in creatives]
+            + [[creative, "contains", asset] for creative, asset in zip(creatives, assets)]
+            + [[feedback, "evaluates", creatives[0]], [weight, "adjusts", feedback]]
+        ),
     }
     (output_dir / "demo-result.json").write_text(
         json.dumps(result, indent=2) + "\n", encoding="utf-8"

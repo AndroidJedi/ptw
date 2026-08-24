@@ -19,7 +19,6 @@ def brief() -> LandingBrief:
     return LandingBrief.from_dict({
         "language": "en",
         "source": {"positioning_project_id": PROJECT_ID, "positioning_revision_id": REVISION_ID},
-        "privacy_policy_url": "https://example.com/privacy",
         "business_idea": "A focused Natal workflow",
         "target_audience": "Small teams",
         "pain": "Manual follow-up is hard to track",
@@ -62,7 +61,8 @@ class NatalV2BuilderTests(unittest.TestCase):
             )
             html = (output / "index.html").read_text()
             self.assertIn(f"https://api.example.com/api/v1/public/landings/{REVISION_ID}/leads", html)
-            self.assertIn("https://example.com/privacy", html)
+            self.assertNotIn("privacy policy", html)
+            self.assertNotIn('class="consent"', html)
             self.assertNotIn(" disabled", html)
             self.assertEqual(manifest["schema_version"], 2)
             self.assertEqual(json.loads((output / "page_content.json").read_text())["blocks"], page.to_dict()["blocks"])
@@ -80,6 +80,7 @@ class NatalV2BuilderTests(unittest.TestCase):
         self.assertEqual(protected.language, "en")
 
     def test_form_catalog_fields_and_success_copy_are_fixed(self) -> None:
+        self.assertNotIn("privacy_policy_url", brief().to_dict())
         self.assertEqual(allowed_field_names("waitlist"), {"email"})
         self.assertEqual(allowed_field_names("contact_request"), {"name", "email", "note"})
         self.assertEqual(allowed_field_names("community_interest"), {"name", "email", "telegram_handle"})
@@ -87,6 +88,8 @@ class NatalV2BuilderTests(unittest.TestCase):
             form_definition("waitlist", "en")["success_copy"],
             "Thanks. We received your details and will contact you.",
         )
+        self.assertNotIn("consent_prefix", form_definition("waitlist", "en"))
+        self.assertNotIn("privacy_label", form_definition("waitlist", "en"))
 
     def test_schema_rejects_seven_block_legacy_page(self) -> None:
         page = page_content_from_brief("product", brief()).to_dict()

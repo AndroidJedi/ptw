@@ -2,24 +2,20 @@
   "version": 3,
   "emergencyStop": false,
   "approvals": {
-    "positioningRevision": true,
-    "landingPublication": true,
+    "productBriefPromiseAndOffer": true,
     "skillLessonPromotion": true,
     "deployment": true,
     "productionResetPhrase": "RESET PTW PRODUCTION"
   },
-  "budgets": {
-    "currency": "USD",
-    "positioningResearchMaximum": 0.05
-  },
   "heavyOperations": {
     "globalConcurrentMaximum": 1,
-    "kinds": ["marketing_positioning", "landing_agent", "codex_plan", "codex_execute"]
+    "kinds": ["product_brief", "ad_creative_batch", "codex_plan", "codex_execute"]
   },
   "ads": {
-    "generation": false,
+    "generation": true,
     "publishing": false
   },
+  "landing": { "active": false, "stage": 3 },
   "telegram": {
     "reuseExistingBotOnly": true,
     "allowedInboundCommands": ["/help", "/status", "/stop"],

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Ad Creative Generator"
+  short_description: "Generate five complete ads from one approved Brief"
+  default_prompt: "Use $ad-creative-generator to generate one fixed five-angle batch from this approved Product Brief only."
+

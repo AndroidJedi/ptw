@@ -84,10 +84,12 @@ Landing, Idea, Branding, and Ads tables are absent.
 
 ## Production state and cutover gate
 
-Production has not been modified by this milestone. It remains on the previous
-Marketing Positioning/Landing release documented in Git history. No production
-database row, service, Firebase release, Telegram behavior, platform database,
-secret, or container was changed.
+The owner explicitly requested a hosting-only release after the coordinated
+cutover remained gated. Firebase Hosting now serves the monochrome Product
+Briefs → Ads → Landing → Admin shell and the v28 service worker. Production
+APIs, database rows, containers, Telegram behavior, platform database, and
+secrets remain unchanged on the previous Marketing Positioning/Landing
+release. Product Brief and Ad actions are therefore not ready yet.
 
 The read-only production preflight on 2026-08-24 found the existing services
 healthy, both production worktrees clean, the maintenance lock available, no
@@ -109,6 +111,11 @@ bridge or Pexels canary fails before reset. The reset verifies zero Briefs,
 batches, creatives, entities, and relationships; legacy tables/containers are
 absent; and the independent platform database counts are unchanged. Immediate
 and 24-hour 1 GB audits remain part of the production acceptance sequence.
+
+The hosting-only release passed cache-busted bundle, navigation, App Check,
+Auth persistence, monochrome login, and service-worker checks on desktop and
+iPhone. The full live audit intentionally remains red at the backend boundary:
+the legacy authenticated Positioning route still exists until the gated reset.
 
 ## Next work
 

@@ -18,6 +18,24 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-24: rebuilt Owner Console remained old on Hosting
+
+- Symptom: the production Firebase URL continued to show the pink Positioning
+  console after the new Product Brief/Ads shell and monochrome theme were
+  committed and verified locally.
+- Cause: the normal publisher intentionally releases Hosting only after the
+  backend bridge, Pexels canary, and irreversible schema reset. Those gates had
+  not been satisfied, so no static release had occurred.
+- Durable fix: after an explicit owner request, deploy Hosting alone as a
+  clearly labelled partial release. Never describe the new shell as Stage 1–2
+  ready while the legacy API remains active, and do not weaken the backend
+  reset or Pexels gates.
+- Verification: cache-busted public assets contain Product Briefs, Ads, the
+  dormant Landing placeholder, Admin, monochrome chrome, and the bumped service
+  worker. Desktop and iPhone login screenshots are monochrome. The full audit
+  proceeds through Hosting/Auth checks and then fails at the expected legacy
+  Positioning API boundary until backend cutover.
+
 ## 2026-08-23: first Positioning attempt timed out without notification
 
 - Symptom: the first production Positioning remained `researching` for 15

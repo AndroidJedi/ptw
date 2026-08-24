@@ -59,6 +59,11 @@ printing it. Run schema-bound canaries for `product_brief`,
 `product_brief_revision`, and `ad_creative_batch`, then a non-persisting Pexels
 download/render canary before the irreversible reset.
 
+If the owner explicitly requests a reversible Hosting-only release before the
+backend cutover, label it incomplete, verify the cache-busted bundle and service
+worker, and expect the full live audit to stop at the legacy API boundary. Never
+claim Product Brief/Ads readiness or weaken the backend reset/Pexels gates.
+
 After deploy, run the dependency and live-console audits, then an exact-owner
 desktop/360 px journey: create Brief, correct, approve with honor confirmation,
 observe five Ads, load each authenticated image and attribution, submit feedback,

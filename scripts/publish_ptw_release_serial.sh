@@ -36,12 +36,27 @@ emit_image() {
     fi
     printf '\n'
 }
+emit_file() {
+    local name=$1 path=$2 size blocks padding digest padded
+    [[ -f $path ]] || { echo "missing release artifact: $path" >&2; exit 1; }
+    size=$(stat -f %z "$path" 2>/dev/null || stat -c %s "$path")
+    blocks=$(( (size + 1048575) / 1048576 )); padding=$(( blocks * 1048576 - size )); digest=$(sha256_file "$path")
+    if [[ $padding -gt 0 ]]; then
+        padded=$(mktemp "/tmp/ptw-$name.XXXXXX"); cp "$path" "$padded"
+        dd if=/dev/zero bs=1 count="$padding" >> "$padded" 2>/dev/null; digest=$(sha256_file "$padded")
+        printf 'FILE %s %s %s\n' "$name" "$blocks" "$digest"; command cat "$padded"; rm -f -- "$padded"
+    else
+        printf 'FILE %s %s %s\n' "$name" "$blocks" "$digest"; command cat "$path"
+    fi
+    printf '\n'
+}
 
 emit_image commander "$image_directory/commander.tar" >> "$stream_file"
 emit_image validation "$image_directory/validation.tar" >> "$stream_file"
 emit_image owner-gateway "$image_directory/owner-gateway.tar" >> "$stream_file"
 emit_image platform-commander-api "$platform_image_directory/commander-api.tar" >> "$stream_file"
 emit_image platform-commander-worker "$platform_image_directory/commander-worker.tar" >> "$stream_file"
+emit_file platform-revision "$platform_image_directory/platform-revision.bundle" >> "$stream_file"
 printf 'END\n' >> "$stream_file"
 
 ssh -i "$HOME/.ssh/ptw_commander" -o IdentitiesOnly=yes root@165.245.212.184 \

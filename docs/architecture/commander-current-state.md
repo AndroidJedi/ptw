@@ -7,7 +7,7 @@ Branch: `codex/web-only-commander`
 
 The Simplified Validation Phase 1 implementation is complete and committed in
 the PTW checkout as `d40bd5b` and in the independent platform checkout as
-`f5c0bd3`:
+`f5c0bd3`. The platform release-transfer guard is committed as `6ed6d8d`:
 
 ```text
 raw idea → Product Brief → owner approval → five Ad Creatives
@@ -89,7 +89,8 @@ kernel OOM entries, and sufficient disk/swap headroom. It also confirmed that
 Cutover remains blocked by design until all of the following are available in
 one explicit release operation:
 
-1. the reviewed commits from both unrelated Git histories are pushed;
+1. the reviewed PTW commit is pushed and the exact independent platform commit
+   is included in the checksum-verified release bundle;
 2. a root-owned `PEXELS_API_KEY` and successful non-persisting Pexels
    download/render canary;
 3. matching off-host Linux/amd64 Commander, Validation, Owner Gateway, platform
@@ -107,7 +108,7 @@ and 24-hour 1 GB audits remain part of the production acceptance sequence.
 
 ## Next work
 
-Push both reviewed commits, provision the Pexels key, build the pinned
-Linux/amd64 release artifacts, and perform the gated cutover only after the
-owner supplies the exact reset phrase. Stage 3 Landing, traffic, publishing,
-campaigns, UTMs, analytics, and conversion tracking remain out of scope.
+Provision the Pexels key, build the pinned Linux/amd64 release artifacts, and
+perform the gated cutover only after the owner supplies the exact reset phrase.
+Stage 3 Landing, traffic, publishing, campaigns, UTMs, analytics, and
+conversion tracking remain out of scope.

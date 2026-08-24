@@ -82,6 +82,20 @@ receive_image validation "ptw-validation:$release_tag"
 receive_image owner-gateway "ptw-owner-gateway:$release_tag"
 receive_image platform-commander-api "ptw-agent-platform-commander-api:$release_tag"
 receive_image platform-commander-worker "ptw-agent-platform-commander-worker:$release_tag"
+receive_file() {
+    local stream_name=$1 header kind name blocks digest artifact_file checksum_line actual_digest
+    IFS=' ' read -r kind name blocks digest
+    [[ $kind == FILE && $name == "$stream_name" && $blocks =~ ^[1-9][0-9]*$ && $digest =~ ^[0-9a-f]{64}$ ]] || {
+        echo "invalid release artifact header for $stream_name" >&2; exit 1;
+    }
+    artifact_file="$release_directory/$stream_name.bundle"
+    dd iflag=fullblock bs=1048576 count="$blocks" of="$artifact_file" status=none
+    IFS= read -r header
+    [[ -z $header ]] || { echo "invalid release artifact separator" >&2; exit 1; }
+    checksum_line=$(sha256sum "$artifact_file"); actual_digest=${checksum_line%% *}
+    [[ $actual_digest == "$digest" ]] || { echo "checksum mismatch for $stream_name" >&2; exit 1; }
+}
+receive_file platform-revision
 IFS= read -r stream_end
 [[ $stream_end == END ]] || { echo "image stream did not terminate cleanly" >&2; exit 1; }
 for image in ptw-commander ptw-validation ptw-owner-gateway; do
@@ -106,7 +120,11 @@ esac
 [[ $old_platform_worker_image == "ptw-agent-platform-commander-worker:$old_platform_tag" ]] || {
     echo "deployed platform API and worker tags do not match" >&2; exit 1;
 }
-git -C "$platform" fetch origin "$platform_git_revision"
+git -C "$platform" bundle verify "$release_directory/platform-revision.bundle"
+git -C "$platform" fetch "$release_directory/platform-revision.bundle" HEAD
+[[ $(git -C "$platform" rev-parse FETCH_HEAD) == "$platform_git_revision" ]] || {
+    echo "platform revision bundle does not match the requested commit" >&2; exit 1;
+}
 git -C "$platform" merge --ff-only "$platform_git_revision"
 [[ $(git -C "$platform" rev-parse HEAD) == "$platform_git_revision" ]] || {
     echo "requested platform revision was not deployed" >&2; exit 1;

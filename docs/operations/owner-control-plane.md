@@ -25,12 +25,14 @@ scripts/publish_ptw_release_serial.sh RELEASE_TAG .local/release-images \
 
 The platform image directory must contain prebuilt Linux/amd64
 `commander-api.tar` and `commander-worker.tar` archives tagged with the same
-release. The publisher advances the independent platform history, loads and
-recreates its API and worker one at a time, and requires fresh schema-bound
-canaries for `product_brief`, `product_brief_revision`, and
-`ad_creative_batch` before starting the irreversible application reset. A
-failed bridge or Pexels render canary stops before destruction and restores the
-prior platform images.
+release plus `platform-revision.bundle` containing the exact independent
+platform HEAD. This bundle is the only code-transfer boundary between the two
+unrelated histories; the deploy verifies its digest and commit before a
+fast-forward merge. The publisher then loads and recreates the platform API
+and worker one at a time and requires fresh schema-bound canaries for
+`product_brief`, `product_brief_revision`, and `ad_creative_batch` before
+starting the irreversible application reset. A failed bridge or Pexels render
+canary stops before destruction and restores the prior platform images.
 
 The publisher keeps Natal on its clean placeholder and deploys the rebuilt
 Owner Console only after API cutover. Run authenticated Stage 1–2 acceptance, public Auth/App

@@ -35,10 +35,16 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   angle; Ads explains the rule, approved offer, atomic rollback, and Telegram
   state. A terminal failed batch reserves an append-only audit event before one
   direct send through the existing allowlisted bot, records sent/failed/
-  ambiguous/suppressed, and never auto-retries ambiguous delivery.
-- Verification: focused domain, runner, callback, Compose-boundary, and Owner
-  UI tests pass locally; production release, one labelled notification, batch
-  retry, restart, dependency, public-console, and 1 GB audits remain pending.
+  ambiguous/suppressed, and never auto-retries ambiguous delivery. The API
+  retains the latest failed attempt after a successful retry so Ads can show a
+  recovered-incident summary instead of erasing the original reason.
+- Verification: the first incident release passed built-image and disposable-
+  PostgreSQL suites, bridge/dependency/public-console audits, delivered one
+  audited message for the original attempt, and completed retry attempt 2 with
+  five unique verified 1080×1080 JPEGs. Restart persistence and the immediate
+  1 GB/OOM audit pass. The recovered-history follow-up passes 12 Owner web unit
+  tests, 12 desktop/360 px/iPhone journeys, and three disposable-PostgreSQL
+  integration tests; its production deployment remains pending.
 
 ## 2026-08-24: Validation inherited retired YouTube settings
 

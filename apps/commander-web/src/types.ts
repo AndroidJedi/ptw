@@ -81,6 +81,14 @@ export interface CreativeBatch {
   error_code?: string | null
   error_message?: string | null
   approved_offer?: string | null
+  last_failed_attempt?: {
+    attempt_id: string
+    attempt_number: number
+    error_code?: string | null
+    error_message?: string | null
+    started_at: string
+    completed_at?: string | null
+  } | null
   failure_notification?: {
     status: 'pending' | 'sent' | 'failed' | 'ambiguous' | 'suppressed'
     attempt_id?: string | null

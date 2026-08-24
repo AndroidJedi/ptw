@@ -9,8 +9,9 @@ const angleNames: Record<AdCreative['angle'], string> = {
   authority: 'Authority', problem_first: 'Problem-first',
 }
 
-export function batchFailureReason(batch: CreativeBatch) {
-  const detail = batch.error_message || batch.error_code || 'The generator stopped without a detailed error.'
+export function batchFailureReason(batch: CreativeBatch, previous = false) {
+  const attempt = previous ? batch.last_failed_attempt : batch
+  const detail = attempt?.error_message || attempt?.error_code || 'The generator stopped without a detailed error.'
   if (detail.includes('retain the Product Brief offer') || detail.includes('offer field') || detail.includes('offer wording')) {
     return {
       title: 'Approved offer continuity check failed',
@@ -117,6 +118,9 @@ export function AdsView({ api }: { api: ApiClient }) {
     catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const failure = selected?.status === 'failed' ? batchFailureReason(selected) : null
+  const recoveredFailure = selected?.status === 'completed' && selected.last_failed_attempt
+    ? batchFailureReason(selected, true)
+    : null
   if (!items) return error ? <ErrorState message={error} retry={() => void load()} /> : <Loading />
   return <>
     <PageHeader eyebrow="STAGE 2 · COMPLETE AD POSTS" title="Ads" />
@@ -133,6 +137,11 @@ export function AdsView({ api }: { api: ApiClient }) {
           <dt>Telegram</dt><dd><Bell /> {notificationText(selected)}</dd>
         </dl>
         <button className="secondary" disabled={busy} onClick={retry}>{busy ? 'Retrying…' : 'Retry entire batch'}</button>
+      </section>}
+      {selected?.status === 'completed' && recoveredFailure && <section className="panel batch-recovery" role="status">
+        <header><ShieldCheck /><div><small>RECOVERED AFTER RETRY</small><h2>Batch completed after an earlier failure</h2></div></header>
+        <p>{recoveredFailure.explanation}</p>
+        <details><summary>Previous attempt details</summary><p><code>{recoveredFailure.detail}</code></p><p>{notificationText(selected)}</p></details>
       </section>}
       {selected?.status === 'completed' && <section className="creative-grid">{selected.creatives.map((creative) => <CreativeCard key={creative.creative_id} api={api} creative={creative} onNotice={setNotice} />)}</section>}
     </div>}

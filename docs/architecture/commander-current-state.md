@@ -82,12 +82,12 @@ Landing, Idea, Branding, and Ads tables are absent.
   successfully from production's current `2f2ee9a` revision.
 - Shell syntax checks, Python compilation, `git diff --check`, and release
   script guards pass. Landing-specific suites were intentionally not run.
-- The Ad offer-punctuation incident correction is release-ready locally:
-  25 built-image Validation tests, 15 active Owner Gateway tests, three
-  disposable-PostgreSQL integration tests, 11 Owner web unit tests, the
-  production TypeScript/Vite build, and nine desktop/360 px/iPhone journeys
-  pass. Exact offer and CTA fields are schema-bound; the failed-batch UI and
-  audited existing-bot callback are covered. Production deployment is pending.
+- The Ad offer-punctuation incident correction is deployed and its recovery-
+  history follow-up is release-ready locally: 25 Validation tests, 15 active
+  Owner Gateway tests, three disposable-PostgreSQL integration tests, 12 Owner
+  web unit tests, the production TypeScript/Vite build, and 12 desktop/360 px/
+  iPhone journeys pass. Exact offer and CTA fields are schema-bound; failed and
+  recovered-batch UI states and the audited existing-bot callback are covered.
 
 ## Production state
 
@@ -118,12 +118,18 @@ exact CORS origin, unauthenticated rejection, Product Brief/Ads/Landing/Admin
 markers, and retired-route 404s. A real exact-owner signed-in Stage 1–2 browser
 journey remains the final interactive acceptance item.
 
+The offer-punctuation incident backend is on `incident-063101c` and Hosting is
+on the v29 failure-reason bundle. The original failed attempt produced one
+audited Telegram message, retry attempt 2 completed the same batch with five
+verified 1080×1080 JPEGs, and restart plus immediate 1 GB/OOM audits pass. A
+v30 follow-up that keeps the failed attempt visible after successful retry is
+verified locally but not yet deployed.
+
 ## Next work
 
-Deploy the offer-punctuation incident correction, send the already-failed batch
-notification through the new audited direct path, retry that failed batch, and
-run the post-release dependency/public/restart/1 GB audits. Then complete the
-exact-owner signed-in desktop/360 px journey: create and correct a
+Deploy the v30 recovered-failure-history follow-up and repeat the public and
+restart checks. Then complete the exact-owner signed-in desktop/360 px journey:
+create and correct a
 Brief, approve its promise/offer, inspect five authenticated Ads and attribution,
 submit feedback, and inspect dormant Landing and Admin. Review the scheduled
 24-hour resource audit. Stage 3 Landing, traffic, publishing, campaigns, UTMs,

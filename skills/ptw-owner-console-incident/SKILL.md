@@ -64,6 +64,10 @@ emergency stop, and expose notification state beside the UI failure reason. Do
 not add a webhook, poller, worker, completion notification, or new command.
 Inbound commands remain `/help`, `/status`, and `/stop` only.
 
+After retry succeeds, keep the latest failed attempt and its notification state
+visible as recovered history; clearing the current batch error must not erase
+the owner's explanation.
+
 ## Release acceptance
 
 Render Compose before cutover. Require a root-owned `PEXELS_API_KEY` without

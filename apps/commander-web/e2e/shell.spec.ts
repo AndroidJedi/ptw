@@ -228,3 +228,46 @@ test('failed Ad batch shows actionable reason and Telegram state', async ({ page
   await expectMonochromeChrome(page)
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })
+
+test('recovered Ad batch keeps its earlier failure reason visible', async ({ page }) => {
+  const recovered = {
+    batch_id: batchId,
+    brief_id: brief2,
+    status: 'completed',
+    batch_sha256: 'b'.repeat(64),
+    quality_gates: { passed: true },
+    failure_count: 1,
+    error_code: null,
+    error_message: null,
+    approved_offer: 'Free 15-minute mentor call.',
+    last_failed_attempt: {
+      attempt_id: feedbackId,
+      attempt_number: 1,
+      error_code: 'ValueError',
+      error_message: 'every creative must retain the Product Brief offer exactly',
+      started_at: '2026-08-24T09:43:50Z',
+      completed_at: '2026-08-24T09:44:17Z',
+    },
+    failure_notification: {
+      status: 'sent', attempt_id: feedbackId, recorded_at: '2026-08-24T09:44:18Z',
+    },
+    creatives: [],
+    created_at: '2026-08-24T09:43:50Z',
+  }
+  await page.route('**/api/v1/ad-batches**', async (route) => {
+    const url = new URL(route.request().url())
+    const value = url.pathname === '/api/v1/ad-batches'
+      ? { items: [recovered], next_cursor: null }
+      : recovered
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(value) })
+  })
+
+  await page.goto('/?e2e=1&page=ads')
+  await expect(page.getByRole('heading', { name: 'Batch completed after an earlier failure' })).toBeVisible()
+  await expect(page.getByText('Free 15-minute mentor call.', { exact: false })).toBeVisible()
+  await page.getByText('Previous attempt details').click()
+  await expect(page.getByText('every creative must retain the Product Brief offer exactly')).toBeVisible()
+  await expect(page.getByText('Telegram failure notification sent', { exact: false })).toBeVisible()
+  await expectMonochromeChrome(page)
+  await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
+})

@@ -230,6 +230,21 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
             self.repository.get_batch(batch["batch_id"])["failure_notification"]["status"],
         )
         self.repository.release_operation(batch["batch_id"])
+        self.repository.acquire_operation("ad_creative_batch", batch["batch_id"])
+        self.repository.queue_retry(batch["batch_id"], stage="ad_creative_batch")
+        retry_attempt, retry_number = self.repository.start_attempt(
+            batch["batch_id"], stage="ad_creative_batch"
+        )
+        self.assertEqual(2, retry_number)
+        self.repository.finish_batch(
+            batch["batch_id"], retry_attempt, brief_id=base["brief_id"],
+            creatives=prepared_creatives(), digest="c" * 64, quality={"passed": True},
+        )
+        self.repository.release_operation(batch["batch_id"])
+        recovered_batch = self.repository.get_batch(batch["batch_id"])
+        self.assertEqual("completed", recovered_batch["status"])
+        self.assertEqual(attempt_id, recovered_batch["last_failed_attempt"]["attempt_id"])
+        self.assertEqual("fixture digest failure", recovered_batch["last_failed_attempt"]["error_message"])
         replacement, created = self.repository.create_revision(
             base_brief_id=base["brief_id"], request_id=str(uuid4()),
             instruction="Narrow the first customer to first-time therapy seekers.",

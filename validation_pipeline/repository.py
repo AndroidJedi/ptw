@@ -336,6 +336,26 @@ class ValidationRepository:
             "recorded_at": row[2].isoformat(),
         }
 
+    def last_failed_attempt(self, target_id: str) -> dict[str, Any] | None:
+        with self.connection() as connection:
+            row = connection.execute(
+                """SELECT id,attempt_number,error_code,error_message,started_at,completed_at
+                   FROM validation_generation_attempts
+                   WHERE target_id=%s AND status='failed'
+                   ORDER BY attempt_number DESC LIMIT 1""",
+                (UUID(target_id),),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "attempt_id": str(row[0]),
+            "attempt_number": int(row[1]),
+            "error_code": row[2],
+            "error_message": row[3],
+            "started_at": row[4].isoformat(),
+            "completed_at": None if row[5] is None else row[5].isoformat(),
+        }
+
     def finish_brief(
         self, brief_id: str, attempt_id: str, document: Mapping[str, Any], digest: str, quality: Mapping[str, Any]
     ) -> None:
@@ -482,6 +502,7 @@ class ValidationRepository:
                 (UUID(batch_id),),
             ).fetchall()
         batch["creatives"] = [self._creative_row(item) for item in creative_rows]
+        batch["last_failed_attempt"] = self.last_failed_attempt(batch_id)
         batch["failure_notification"] = self.failure_notification(batch_id)
         return batch
 

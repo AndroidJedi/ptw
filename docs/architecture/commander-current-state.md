@@ -131,7 +131,9 @@ dependency audit then found that Validation inherited two retired `YOUTUBE_`
 setting names from the complete Owner Gateway env file. All new containers are
 healthy and retired routes already return 404, but acceptance remains incomplete
 until Validation uses the explicit runtime env allowlist, the retired entries
-are removed without disclosure, and every post-reset audit is rerun.
+are removed without disclosure, the existing platform bridge credential is
+mapped only to its dedicated in-container name, and every post-reset audit is
+rerun.
 
 ## Next work
 

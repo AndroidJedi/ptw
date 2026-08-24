@@ -28,7 +28,8 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   cutover cleanup removed retired research and Landing prefixes but omitted the
   two legacy `YOUTUBE_` entries present in the root-owned Owner Gateway env.
 - Durable fix: Validation Compose now has an explicit eight-variable runtime
-  allowlist, including the structured-bridge token, with no service-level
+  allowlist, including a dedicated in-container `LLM_BRIDGE_TOKEN` mapped from
+  the existing root-owned platform credential, with no service-level
   `env_file`. Cutover cleanup also removes the retired `YOUTUBE_` prefix. The
   incident skill forbids whole-env inheritance at this boundary.
 - Verification: render Compose against the production env files without

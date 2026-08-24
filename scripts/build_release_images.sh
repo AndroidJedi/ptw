@@ -13,6 +13,11 @@ case "$release_tag" in
 esac
 
 mkdir -p "$output_directory"
+revision=$(git rev-parse HEAD)
+[ -z "$(git status --porcelain --untracked-files=no)" ] || {
+    echo "tracked platform changes must be committed before building" >&2
+    exit 1
+}
 
 docker buildx build --platform linux/amd64 --load \
     --tag "ptw-agent-platform-commander-api:$release_tag" \
@@ -33,13 +38,21 @@ docker save --output "$output_directory/commander-api.tar" \
     "ptw-agent-platform-commander-api:$release_tag"
 docker save --output "$output_directory/commander-worker.tar" \
     "ptw-agent-platform-commander-worker:$release_tag"
+git bundle create "$output_directory/platform-revision.bundle" HEAD
+bundle_revision=$(git bundle list-heads "$output_directory/platform-revision.bundle" | awk '$2 == "HEAD" {print $1}')
+[ "$bundle_revision" = "$revision" ] || {
+    echo "platform revision bundle does not contain the built HEAD" >&2
+    exit 1
+}
 
 if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$output_directory/commander-api.tar" \
-        "$output_directory/commander-worker.tar" > "$output_directory/SHA256SUMS"
+        "$output_directory/commander-worker.tar" \
+        "$output_directory/platform-revision.bundle" > "$output_directory/SHA256SUMS"
 else
     shasum -a 256 "$output_directory/commander-api.tar" \
-        "$output_directory/commander-worker.tar" > "$output_directory/SHA256SUMS"
+        "$output_directory/commander-worker.tar" \
+        "$output_directory/platform-revision.bundle" > "$output_directory/SHA256SUMS"
 fi
 
 echo "Built Linux/amd64 platform bridge release $release_tag in $output_directory"

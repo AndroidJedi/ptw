@@ -32,9 +32,10 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   the existing root-owned platform credential, with no service-level
   `env_file`. Cutover cleanup also removes the retired `YOUTUBE_` prefix. The
   incident skill forbids whole-env inheritance at this boundary.
-- Verification: render Compose against the production env files without
-  printing values, recreate only Validation, inspect environment names, rerun
-  schema/bridge/dependency audits, and verify no retired provider is reachable.
+- Verification: production Compose rendered without printing values; Validation
+  and Owner Gateway were recreated; runtime name inspection found no retired
+  provider settings; schema, three-mode bridge, dependency, skill, Telegram,
+  restart, public-boundary, and immediate 1 GB/OOM audits passed.
 
 ## 2026-08-24: validation cutover stopped at platform bundle fetch
 
@@ -50,9 +51,10 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   padding, and only then verifies the checksum or passes the artifact to Git.
   The incident skill now requires exact-length transport and a disposable
   bundle fetch before production streaming.
-- Verification: cover the paired publisher/deployer stream contract, shell
-  parsing, exact-tag archives, an unpadded disposable bundle fetch, and a fresh
-  serial retry through all pre-reset canaries.
+- Verification: the paired publisher/deployer contract test, shell parsing,
+  exact-tag archives, padded round trip, and disposable bundle fetch passed.
+  The fresh serial retry then fetched the production bundle, passed all bridge
+  and Pexels gates, and completed the allowlisted reset.
 
 ## 2026-08-24: rebuilt Owner Console remained old on Hosting
 
@@ -71,6 +73,9 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   worker. Desktop and iPhone login screenshots are monochrome. The full audit
   proceeds through Hosting/Auth checks and then fails at the expected legacy
   Positioning API boundary until backend cutover.
+
+The later coordinated backend cutover removed that expected red boundary; the
+same public audit now passes retired-route 404s and the new API boundary.
 
 ## 2026-08-23: first Positioning attempt timed out without notification
 

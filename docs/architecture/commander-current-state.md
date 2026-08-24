@@ -48,10 +48,11 @@ Landing, Idea, Branding, and Ads tables are absent.
 
 ## Verification
 
-- Validation Linux/amd64 built-image suite: 21 passed, including strict Brief/creative
+- Validation Linux/amd64 built-image suite: 22 passed, including strict Brief/creative
   shapes, offer enforcement, language inference, bridge input isolation,
   Pexels selection/fallback/rate-limit/download safety, deterministic JPEGs,
-  authentication, ETags, and retired API 404s.
+  authentication, ETags, retired API 404s, and the explicit Compose environment
+  boundary.
 - Disposable PostgreSQL 16: two integration tests passed for immutable
   corrections, idempotent approval, atomic five-asset persistence, restart and
   retry behavior, graph edges, feedback/weights, proposal promotion, and legacy
@@ -82,62 +83,39 @@ Landing, Idea, Branding, and Ads tables are absent.
 - Shell syntax checks, Python compilation, `git diff --check`, and release
   script guards pass. Landing-specific suites were intentionally not run.
 
-## Production state and cutover gate
+## Production state
 
-The owner explicitly requested a hosting-only release after the coordinated
-cutover remained gated. Firebase Hosting now serves the monochrome Product
-Briefs → Ads → Landing → Admin shell and the v28 service worker. Production
-APIs, database rows, containers, Telegram behavior, platform database, and
-secrets remain unchanged on the previous Marketing Positioning/Landing
-release. Product Brief and Ad actions are therefore not ready yet.
+The owner-authorized Simplified Validation Phase 1 cutover completed on
+2026-08-24. Production uses the five matching Linux/amd64 images tagged
+`phase1-5f47722-6ed6d8d`; the application repository is at the environment
+isolation release and the independent platform repository is at `6ed6d8d`.
+Fresh strict canaries passed for `product_brief`, `product_brief_revision`, and
+`ad_creative_batch`, followed by a successful non-persisting Pexels
+search/download/render canary.
 
-The read-only production preflight on 2026-08-24 found the existing services
-healthy, both production worktrees clean, the maintenance lock available, no
-kernel OOM entries, and sufficient disk/swap headroom. It also confirmed that
-`PEXELS_API_KEY` is not provisioned in the root-owned runtime environment.
+The confirmation-gated reset replaced only `ptw_commander.public`. The clean
+baseline has 19 application tables plus the migration metadata table, with zero
+Briefs, batches, creatives, entities, and relationships. Legacy Positioning,
+active Landing, Idea, Branding, and Ads tables and containers are absent, and
+the independent platform database counts were unchanged.
 
-The reviewed PTW commit and the matching five-image release set are now ready.
-Cutover remains blocked by design until the remaining gates are available in
-one explicit release operation:
+Commander, Validation, Owner Gateway, platform API, and platform worker are
+healthy. Validation receives only its explicit eight-variable runtime allowlist;
+retired research, Landing, and YouTube settings are absent from both Validation
+and Owner Gateway. Dependency/schema/bridge audits, canonical skill checks, the
+existing Telegram emergency-boundary canary, serial restart recovery, and the
+immediate 1 GB/OOM audit pass. The persistent 24-hour resource audit is
+scheduled.
 
-1. a root-owned `PEXELS_API_KEY` and successful non-persisting Pexels
-   download/render canary;
-2. fresh schema-bound canaries for all three validation modes; and
-3. the exact owner phrase `RESET PTW PRODUCTION` immediately before the
-   allowlisted irreversible reset of `ptw_commander.public`.
-
-The serial deploy script restores the prior platform images if either the
-bridge or Pexels canary fails before reset. The reset verifies zero Briefs,
-batches, creatives, entities, and relationships; legacy tables/containers are
-absent; and the independent platform database counts are unchanged. Immediate
-and 24-hour 1 GB audits remain part of the production acceptance sequence.
-
-The hosting-only release passed cache-busted bundle, navigation, App Check,
-Auth persistence, monochrome login, and service-worker checks on desktop and
-iPhone. The full live audit intentionally remains red at the backend boundary:
-the legacy authenticated Positioning route still exists until the gated reset.
-
-The owner has since provisioned the root-owned Pexels credential and authorized
-the reset. The first coordinated cutover attempt loaded and verified all five
-release images, then stopped safely before the bridge change and before reset:
-block padding on the independent-platform Git bundle was accepted by the bundle
-header check but rejected by `git fetch`. The paired publisher/deployer now
-transports an exact byte length and verifies the unpadded digest; a fresh serial
-retry and all pre-reset canaries remain required.
-
-The corrected retry passed all bridge and Pexels gates and completed the clean
-application reset with independent platform counts unchanged. The post-reset
-dependency audit then found that Validation inherited two retired `YOUTUBE_`
-setting names from the complete Owner Gateway env file. All new containers are
-healthy and retired routes already return 404, but acceptance remains incomplete
-until Validation uses the explicit runtime env allowlist, the retired entries
-are removed without disclosure, the existing platform bridge credential is
-mapped only to its dedicated in-container name, and every post-reset audit is
-rerun.
+The public audit passes the cache-busted v28 monochrome bundle, Auth/App Check,
+exact CORS origin, unauthenticated rejection, Product Brief/Ads/Landing/Admin
+markers, and retired-route 404s. A real exact-owner signed-in Stage 1–2 browser
+journey remains the final interactive acceptance item.
 
 ## Next work
 
-Deploy the Validation environment-isolation fix without another reset, rerun
-dependency/live-console acceptance, and complete the immediate/24-hour resource
-audits. Stage 3 Landing, traffic, publishing, campaigns, UTMs, analytics, and
-conversion tracking remain out of scope.
+Complete the exact-owner signed-in desktop/360 px journey: create and correct a
+Brief, approve its promise/offer, inspect five authenticated Ads and attribution,
+submit feedback, and inspect dormant Landing and Admin. Review the scheduled
+24-hour resource audit. Stage 3 Landing, traffic, publishing, campaigns, UTMs,
+analytics, and conversion tracking remain out of scope.

@@ -8,7 +8,31 @@ function Diagram({ source }: { source: string }) {
   useEffect(() => {
     let active = true
     void import('mermaid').then(({ default: mermaid }) => {
-      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'dark' })
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'strict',
+        theme: 'base',
+        themeVariables: {
+          background: '#000000',
+          primaryColor: '#121212',
+          primaryTextColor: '#ffffff',
+          primaryBorderColor: '#ffffff',
+          secondaryColor: '#1f1f1f',
+          secondaryTextColor: '#ffffff',
+          secondaryBorderColor: '#a3a3a3',
+          tertiaryColor: '#000000',
+          tertiaryTextColor: '#ffffff',
+          tertiaryBorderColor: '#a3a3a3',
+          lineColor: '#ffffff',
+          textColor: '#ffffff',
+          mainBkg: '#121212',
+          nodeBorder: '#ffffff',
+          clusterBkg: '#121212',
+          clusterBorder: '#a3a3a3',
+          edgeLabelBackground: '#000000',
+          titleColor: '#ffffff',
+        },
+      })
       return mermaid.render(id, source)
     }).then(({ svg }) => { if (active && host.current) host.current.innerHTML = svg })
     return () => { active = false }

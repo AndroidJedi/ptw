@@ -14,6 +14,11 @@ generation, publishing, traffic, campaigns, UTMs, analytics, conversion
 tracking, or active Landing work. Domain state and reviewed image bytes remain
 authoritative in PostgreSQL behind Owner Gateway.
 
+Active console chrome is strictly black, white, and neutral gray. Selected,
+successful, failed, and destructive states use contrast, borders, patterns,
+icons, and text rather than chromatic accents. Reviewed Ad photos remain
+unaltered.
+
 Run the active checks with:
 
 ```sh

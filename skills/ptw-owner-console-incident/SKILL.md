@@ -13,6 +13,9 @@ healthy gateway alone does not prove Stage 1–2 readiness.
 
 - Verify hashed bundles, bumped service-worker cache, Firebase Auth persistence,
   App Check, exact Owner CORS origins, and unauthenticated rejection.
+- Verify active console chrome, the PTW icon, terminal, and Mermaid diagrams use
+  only black, white, and neutral grays. Preserve state meaning through contrast,
+  borders, patterns, icons, and text; reviewed Ad photos may remain full color.
 - Navigation is Product Briefs, Ads, Landing, Admin. Landing shows only
   `Stage 3 pending`.
 - Legacy Positioning, research, public Landing/lead, and Ads-stub APIs must

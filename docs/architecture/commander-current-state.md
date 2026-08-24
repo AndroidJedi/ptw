@@ -35,7 +35,10 @@ corrections and creative feedback create editable, owner-gated lesson
 proposals bounded to the corresponding generator's `owner-lessons.md`. Ads
 shows five authenticated artifacts and prominent Pexels/photographer links.
 Landing is an inactive `Stage 3 pending` placeholder and makes no runtime API
-call. The three Natal templates and dormant Landing source remain on disk.
+call. Active console chrome, iconography, terminal, and diagrams are strictly
+black, white, and neutral gray; state meaning does not depend on hue. Reviewed
+Ad photography remains unaltered. The three Natal templates and dormant
+Landing source remain on disk.
 
 The database is one clean 19-table reset baseline. It contains generic graph,
 source, feedback, weight, audit, Plan/Execute, guard, and control authority plus
@@ -60,7 +63,10 @@ Landing, Idea, Branding, and Ads tables are absent.
   `ptw-validation-v1` demo was regenerated successfully.
 - Owner web: 10 Vitest tests, production TypeScript/Vite build, and six
   Playwright journeys passed on desktop Chromium, 360 px Chromium, and iPhone
-  WebKit. The built module graph contains no retired Positioning/Landing route.
+  WebKit. Build-time source checks and computed-style assertions enforce the
+  monochrome chrome invariant. The service-worker cache is
+  `ptw-shell-v28-monochrome-validation`, and the built module graph contains no
+  retired Positioning/Landing route.
 - Canonical Product Brief and Ad Creative skills pass the Skill Creator
   validator; the PTW skill/link/mount validator passes. The retired Marketing
   Positioning skill and desktop link are absent; Natal is explicitly dormant.

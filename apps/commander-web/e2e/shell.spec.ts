@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
 const sourceId = '018f07ea-7f20-7000-8000-000000000001'
 const brief1 = '018f07ea-7f20-7000-8000-000000000002'
@@ -7,6 +8,27 @@ const feedbackId = '018f07ea-7f20-7000-8000-000000000004'
 const proposalId = '018f07ea-7f20-7000-8000-000000000005'
 const batchId = '018f07ea-7f20-7000-8000-000000000006'
 const angles = ['emotional', 'practical', 'curiosity', 'authority', 'problem_first'] as const
+
+async function expectMonochromeChrome(page: Page) {
+  const violations = await page.locator('body *').evaluateAll((elements) => {
+    const properties = [
+      'color', 'background-color', 'border-top-color', 'border-right-color',
+      'border-bottom-color', 'border-left-color', 'outline-color',
+      'text-decoration-color', 'fill', 'stroke',
+    ]
+    return elements.flatMap((element) => {
+      const style = getComputedStyle(element)
+      return properties.flatMap((property) => {
+        const value = style.getPropertyValue(property)
+        const match = value.match(/rgba?\(\s*(\d+)\D+(\d+)\D+(\d+)/)
+        if (!match) return []
+        const [, red, green, blue] = match.map(Number)
+        return red === green && green === blue ? [] : [`${element.tagName}.${element.className}: ${property}=${value}`]
+      })
+    }).slice(0, 20)
+  })
+  expect(violations).toEqual([])
+}
 
 const document = {
   schema_version: 1, language: 'en',
@@ -126,6 +148,7 @@ test.beforeEach(async ({ page }) => {
 test('owner completes Product Brief and five-Ad validation journey', async ({ page }) => {
   await page.goto('/?e2e=1')
   await expect(page.getByText('No Product Brief yet')).toBeVisible()
+  await expectMonochromeChrome(page)
   await page.getByPlaceholder('Describe one product idea…').fill('Online platform where psychologists provide online consultations.')
   await page.getByRole('button', { name: /Generate Product Brief/ }).click()
   await expect(page.getByText('First consultation free')).toBeVisible()
@@ -144,6 +167,7 @@ test('owner completes Product Brief and five-Ad validation journey', async ({ pa
   await expect(page.locator('.pexels-credit').first().getByRole('link', { name: 'Pexels' })).toHaveAttribute('href', 'https://www.pexels.com')
   await expect(page.locator('.creative-art img')).toHaveCount(5)
   await expect(page.getByText('Problem-first')).toBeVisible()
+  await expectMonochromeChrome(page)
   await page.locator('.creative-card summary').first().click()
   await expect(page.getByText('Photo by Photographer 1 on Pexels')).toBeVisible()
   await page.locator('.creative-card textarea').first().fill('Use a warmer crop.')
@@ -157,8 +181,10 @@ test('owner completes Product Brief and five-Ad validation journey', async ({ pa
 
   await page.getByRole('button', { name: 'Landing' }).first().click()
   await expect(page.getByRole('heading', { name: 'Stage 3 pending' })).toBeVisible()
+  await expectMonochromeChrome(page)
   await page.getByRole('button', { name: 'Admin' }).first().click()
   await expect(page.getByRole('heading', { name: 'Завдання' })).toBeVisible()
+  await expectMonochromeChrome(page)
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })
 

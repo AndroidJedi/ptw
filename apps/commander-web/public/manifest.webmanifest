@@ -4,7 +4,7 @@
   "description": "Приватна owner console PTW",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#09090b",
-  "theme_color": "#09090b",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "icons": [{ "src": "/ptw.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }

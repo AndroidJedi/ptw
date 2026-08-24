@@ -12,6 +12,10 @@ Updated: 2026-08-24
 - Old page locations redirect to Product Briefs. Old domain APIs do not exist.
 - Design first for 360 px and one-hand use, with 44×44 CSS pixel targets, no
   horizontal page overflow, keyboard access, and reduced-motion support.
+- Keep active Owner Console chrome strictly monochrome: black, white, and
+  neutral grays only. Communicate selection, success, failure, and destructive
+  state with contrast, borders, patterns, icons, and text rather than hue.
+  Reviewed Ad photography may remain full color.
 
 ## Product Briefs
 

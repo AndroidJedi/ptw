@@ -15,7 +15,7 @@ export function TerminalPane({ api }: { api: ApiClient }) {
   const connect = async () => {
     if (!host.current || status !== 'closed') return
     setStatus('connecting')
-    const term = new Terminal({ cursorBlink: true, fontSize: 13, theme: { background: '#09090b', foreground: '#f4f4f5', cursor: '#f4066e' } })
+    const term = new Terminal({ cursorBlink: true, fontSize: 13, theme: { background: '#000000', foreground: '#ffffff', cursor: '#ffffff' } })
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(host.current)

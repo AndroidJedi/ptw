@@ -46,6 +46,9 @@ generating or correcting a Brief.
 - Propose a generalized lesson from owner correction, but do not edit this
   skill automatically. Promotion may update only
   `references/owner-lessons.md` through the bounded owner workflow.
+- Keep each correction-feedback proposal UUID for lineage, while appending all
+  pending Product Brief proposals into one editable combined lesson and one
+  shared Plan/Execute command.
 
 ## Boundaries
 

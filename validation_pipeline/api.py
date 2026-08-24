@@ -264,6 +264,22 @@ def create_app(
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
+    @app.post("/internal/v1/skill-proposals/{domain}/plan", dependencies=[Depends(authorize)])
+    def plan_grouped_proposals(domain: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        if set(request) != {"proposal_ids", "command_session_id"}:
+            raise HTTPException(status_code=400, detail="proposal_ids and command_session_id are required")
+        raw_ids = request.get("proposal_ids")
+        if not isinstance(raw_ids, list):
+            raise HTTPException(status_code=400, detail="proposal_ids must be a list")
+        try:
+            proposal_ids = [str(UUID(str(value))) for value in raw_ids]
+            return repository.plan_proposals(
+                domain, proposal_ids,
+                command_session_id=str(UUID(str(request["command_session_id"]))),
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
     @app.post("/internal/v1/skill-proposals/{domain}/{proposal_id}/plan", dependencies=[Depends(authorize)])
     def plan_proposal(domain: str, proposal_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
         if set(request) != {"lesson", "command_session_id"}:

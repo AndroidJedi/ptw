@@ -436,6 +436,54 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             "POST", f"/internal/v1/skill-proposals/{domain}/{proposal_id}/dismiss", body={}
         )).json()
 
+    @app.post("/api/v1/skill-proposals/{domain}/plan", status_code=202)
+    async def plan_grouped_skill_proposals(
+        domain: str,
+        request: Mapping[str, Any],
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        if domain not in {"product_brief", "ad_creative"}:
+            raise HTTPException(status_code=404, detail="skill proposal domain not found")
+        lesson = str(request.get("lesson", "")).strip()
+        raw_ids = request.get("proposal_ids")
+        if set(request) != {"proposal_ids", "lesson"} or not isinstance(raw_ids, list):
+            raise HTTPException(status_code=400, detail="proposal_ids and lesson are required")
+        try:
+            proposal_ids = [str(UUID(str(value))) for value in raw_ids]
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="proposal_ids must contain UUIDs") from error
+        if not 1 <= len(proposal_ids) <= 100 or len(set(proposal_ids)) != len(proposal_ids):
+            raise HTTPException(status_code=400, detail="one to 100 unique proposal_ids are required")
+        if not 1 <= len(lesson) <= 4000:
+            raise HTTPException(status_code=400, detail="a 1-4000 character lesson is required")
+        path = {
+            "product_brief": "skills/product-brief-generator/references/owner-lessons.md",
+            "ad_creative": "skills/ad-creative-generator/references/owner-lessons.md",
+        }[domain]
+        instruction = (
+            f"Update only {path}. Consolidate the following owner-approved pending feedback into "
+            f"one generalized lesson without adding proposal IDs or changing any other file:\n{lesson}"
+        )
+        command: dict[str, Any] | None = None
+        async with operation_start_lock:
+            require_no_active_operation()
+            try:
+                command = store.create_command("plan", instruction)
+                acquire_operation("codex_plan", command["id"])
+                await validation_bridge(
+                    "POST", f"/internal/v1/skill-proposals/{domain}/plan",
+                    body={"proposal_ids": proposal_ids, "command_session_id": command["id"]},
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
+            except HTTPException:
+                if command is not None:
+                    store.update(command["id"], "failed", error="Validation proposals could not enter planning")
+                    release_operation(command["id"])
+                raise
+            background(plan_and_release(command["id"], instruction))
+            return command
+
     @app.post("/api/v1/skill-proposals/{domain}/{proposal_id}/plan", status_code=202)
     async def plan_skill_proposal(
         domain: str,

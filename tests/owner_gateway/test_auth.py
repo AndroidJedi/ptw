@@ -97,6 +97,7 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/briefs/{brief_id}/approve",
             "/api/v1/ad-batches", "/api/v1/ad-creatives/{creative_id}/image",
             "/api/v1/ad-creatives/{creative_id}/feedback", "/api/v1/jobs",
+            "/api/v1/skill-proposals/{domain}/plan",
             "/api/v1/system/health",
             "/internal/v1/validation-failures",
         ):

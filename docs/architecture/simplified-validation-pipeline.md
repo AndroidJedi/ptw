@@ -117,6 +117,13 @@ Required edges are:
 PostgreSQL entities, edges, attempts, invocation provenance, source attribution,
 and JPEG bytes are the complete authority.
 
+Every correction or creative review still creates its own append-only feedback,
+zero-delta weight update, and lesson-proposal UUID. The Owner Console appends
+all pending proposals within that generator domain into one editable combined
+lesson. One action places every included proposal into `planning` under the
+same command-session UUID; one successful execution promotes them together and
+updates only that generator's `owner-lessons.md`.
+
 A terminal failed Ad batch reserves one append-only audit event and makes at
 most one direct `sendMessage` through the existing allowlisted PTW bot. The
 result is appended as sent, failed, ambiguous, or emergency-stop suppressed;

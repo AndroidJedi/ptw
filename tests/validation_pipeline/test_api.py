@@ -16,10 +16,14 @@ CREATIVE_ID = "018f07ea-7f20-7000-8000-000000000001"
 
 
 class FakeRepository:
+    def __init__(self): self.grouped = None
     def recover_interrupted(self): return {"briefs": 0, "batches": 0}
     def connection(self): raise AssertionError("readiness DB is not used in this test")
     def image(self, _creative_id): return {"bytes": b"jpeg-fixture", "sha256": "a" * 64, "mime_type": "image/jpeg"}
     def list_briefs(self, _limit): return []
+    def plan_proposals(self, domain, proposal_ids, *, command_session_id):
+        self.grouped = (domain, proposal_ids, command_session_id)
+        return {"command_session_id": command_session_id, "items": []}
 
 
 class FakeRunner:
@@ -40,7 +44,8 @@ class ValidationApiTests(unittest.TestCase):
             product_brief_skill_path=root / "brief.md",
             ad_creative_skill_path=root / "creative.md",
         )
-        self.client = TestClient(create_app(settings, repository=FakeRepository(), runner=FakeRunner()))
+        self.repository = FakeRepository()
+        self.client = TestClient(create_app(settings, repository=self.repository, runner=FakeRunner()))
         self.headers = {"X-PTW-Owner-Gateway-Token": "gateway-token"}
 
     def tearDown(self) -> None:
@@ -80,6 +85,20 @@ class ValidationApiTests(unittest.TestCase):
         )
         self.assertEqual(304, cached.status_code)
         self.assertEqual(b"", cached.content)
+
+    def test_grouped_lesson_plan_preserves_all_proposal_ids(self) -> None:
+        proposal_ids = [
+            "018f07ea-7f20-7000-8000-000000000011",
+            "018f07ea-7f20-7000-8000-000000000012",
+        ]
+        command_session_id = "018f07ea-7f20-7000-8000-000000000013"
+        response = self.client.post(
+            "/internal/v1/skill-proposals/ad_creative/plan",
+            headers=self.headers,
+            json={"proposal_ids": proposal_ids, "command_session_id": command_session_id},
+        )
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(("ad_creative", proposal_ids, command_session_id), self.repository.grouped)
 
 
 if __name__ == "__main__":

@@ -60,6 +60,9 @@ atomically.
   CTA, or image.
 - Each feedback creates append-only feedback and weight entities plus an
   editable generalized lesson proposal.
+- Keep those proposal UUIDs separate for lineage, but append every pending Ad
+  feedback proposal into one editable combined lesson and promote them through
+  one shared Plan/Execute command.
 - Promotion may update only `references/owner-lessons.md` through bounded owner
   Plan/Execute. Never silently mutate this skill from performance or feedback.
 

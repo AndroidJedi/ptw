@@ -160,19 +160,36 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
             first["creative_id"], comment="Make the person feel more approachable.",
             requested_by="integration-owner",
         )
+        second_feedback = self.repository.record_creative_feedback(
+            first["creative_id"], comment="Keep the crop warm and candid.",
+            requested_by="integration-owner",
+        )
         self.assertIn("feedback_id", feedback)
         self.assertIn("weight_update_id", feedback)
-        self.assertEqual(
-            feedback["proposal_id"],
-            self.repository.proposals("ad_creative", target_id=first["creative_id"])[0]["proposal_id"],
-        )
+        pending = self.repository.proposals("ad_creative", target_id=first["creative_id"])
+        self.assertEqual([feedback["proposal_id"], second_feedback["proposal_id"]], [item["proposal_id"] for item in pending])
+        with self.assertRaisesRegex(ValueError, "must exist and be pending"):
+            self.repository.plan_proposals(
+                "ad_creative", [feedback["proposal_id"], str(uuid4())],
+                command_session_id=str(uuid4()),
+            )
+        self.assertTrue(all(
+            item["status"] == "pending"
+            for item in self.repository.proposals(
+                "ad_creative", target_id=first["creative_id"]
+            )
+        ))
         command_session_id = str(uuid4())
-        self.repository.update_proposal(
-            "ad_creative", feedback["proposal_id"], lesson="Prefer approachable real people.",
-            status="planning", command_session_id=command_session_id,
+        grouped = self.repository.plan_proposals(
+            "ad_creative", [feedback["proposal_id"], second_feedback["proposal_id"]],
+            command_session_id=command_session_id,
         )
+        self.assertEqual(2, len(grouped["items"]))
+        self.assertTrue(all(item["status"] == "planning" for item in grouped["items"]))
         promoted = self.repository.finish_proposal(command_session_id, status="promoted")
         self.assertEqual("promoted", promoted["status"])
+        self.assertEqual(2, promoted["proposal_count"])
+        self.assertTrue(all(item["status"] == "promoted" for item in promoted["items"]))
         with self.assertRaisesRegex(Exception, "append-only"):
             with self.repository.connection() as connection:
                 connection.execute(

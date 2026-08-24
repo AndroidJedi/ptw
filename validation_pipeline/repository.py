@@ -749,30 +749,64 @@ class ValidationRepository:
             raise ValueError("only a pending proposal can be updated")
         return next(item for item in self.proposals(domain) if item["proposal_id"] == proposal_id)
 
+    def plan_proposals(
+        self, domain: str, proposal_ids: list[str], *, command_session_id: str
+    ) -> dict[str, Any]:
+        if domain == "product_brief":
+            table = "product_brief_skill_proposals"
+        elif domain == "ad_creative":
+            table = "ad_creative_skill_proposals"
+        else:
+            raise ValueError("unknown skill-proposal domain")
+        if not 1 <= len(proposal_ids) <= 100:
+            raise ValueError("one to 100 proposal IDs are required")
+        normalized_ids = [UUID(value) for value in proposal_ids]
+        if len(set(normalized_ids)) != len(normalized_ids):
+            raise ValueError("proposal IDs must be unique")
+        session_uuid = UUID(command_session_id)
+        with self.connection() as connection:
+            rows = connection.execute(
+                f"SELECT id,status FROM {table} WHERE id=ANY(%s) FOR UPDATE",
+                (normalized_ids,),
+            ).fetchall()
+            if len(rows) != len(normalized_ids) or any(row[1] != "pending" for row in rows):
+                raise ValueError("all grouped proposals must exist and be pending")
+            changed = connection.execute(
+                f"""UPDATE {table} SET status='planning',command_session_id=%s,
+                            updated_at=clock_timestamp() WHERE id=ANY(%s) AND status='pending'""",
+                (session_uuid, normalized_ids),
+            ).rowcount
+            if changed != len(normalized_ids):
+                raise ValueError("all grouped proposals must enter planning together")
+        proposals = {item["proposal_id"]: item for item in self.proposals(domain)}
+        return {
+            "command_session_id": command_session_id,
+            "items": [proposals[str(proposal_id)] for proposal_id in normalized_ids],
+        }
+
     def finish_proposal(self, command_session_id: str, *, status: str) -> dict[str, Any]:
         if status not in {"promoted", "failed"}:
             raise ValueError("proposal completion status must be promoted or failed")
         session_uuid = UUID(command_session_id)
-        matched: tuple[str, str] | None = None
+        matched: tuple[str, list[str]] | None = None
         with self.connection() as connection:
             for domain, table in (
                 ("product_brief", "product_brief_skill_proposals"),
                 ("ad_creative", "ad_creative_skill_proposals"),
             ):
-                row = connection.execute(
+                rows = connection.execute(
                     f"""UPDATE {table} SET status=%s,updated_at=clock_timestamp()
                         WHERE command_session_id=%s AND status='planning' RETURNING id""",
                     (status, session_uuid),
-                ).fetchone()
-                if row is not None:
-                    matched = (domain, str(row[0]))
+                ).fetchall()
+                if rows:
+                    matched = (domain, [str(row[0]) for row in rows])
                     break
         if matched is not None:
-            domain, proposal_id = matched
-            return next(
-                item for item in self.proposals(domain)
-                if item["proposal_id"] == proposal_id
-            )
+            domain, proposal_ids = matched
+            proposals = {item["proposal_id"]: item for item in self.proposals(domain)}
+            first = proposals[proposal_ids[0]]
+            return {**first, "proposal_count": len(proposal_ids), "items": [proposals[item] for item in proposal_ids]}
         return {"matched": False, "command_session_id": command_session_id, "status": status}
 
     def recover_interrupted(self) -> dict[str, int]:

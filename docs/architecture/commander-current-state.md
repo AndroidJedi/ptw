@@ -5,10 +5,13 @@ Branch: `codex/web-only-commander`
 
 ## Last completed milestone
 
-The Simplified Validation Phase 1 implementation is complete. The latest
-deployed application milestone at `0c9feff` gives every Ad the immutable Natal
-identity and strengthens visual/copy semantic alignment. The independent
-platform checkout remains unchanged at its release-transfer guard `6ed6d8d`:
+The Simplified Validation Phase 1 implementation is complete. The latest local
+milestone replaces per-proposal Save/Plan/Dismiss controls with one combined
+lesson action: every feedback and proposal UUID remains append-only, while all
+pending proposals in one generator domain share one editable lesson and one
+Plan/Execute command. Production remains on the Natal visual milestone at
+`0c9feff` until this change is deployed. The independent platform checkout
+remains unchanged at its release-transfer guard `6ed6d8d`:
 
 ```text
 raw idea → Product Brief → owner approval → five Ad Creatives
@@ -53,7 +56,8 @@ Landing, Idea, Branding, and Ads tables are absent.
 
 ## Verification
 
-- Validation Linux/amd64 built-image suite: 25 passed, including strict Brief/creative
+- Validation Linux/amd64 built-image suite: 26 passed, including grouped lesson
+  proposal planning, strict Brief/creative
   shapes, offer enforcement, language inference, bridge input isolation,
   Pexels selection/fallback/rate-limit/download safety, deterministic JPEGs,
   authentication, ETags, retired API 404s, the explicit Compose environment
@@ -72,8 +76,8 @@ Landing, Idea, Branding, and Ads tables are absent.
   WebKit. Failed/recovered batch panels and malformed authenticated-image
   resources are covered. Build-time source checks and computed-style assertions
   enforce the monochrome chrome invariant. The live service-worker cache is
-  `ptw-shell-v31-authenticated-image-errors`. The built module graph contains
-  no retired Positioning/Landing route.
+  `ptw-shell-v32-grouped-owner-lessons` in the pending release. The built module
+  graph contains no retired Positioning/Landing route.
 - Canonical Product Brief and Ad Creative skills pass the Skill Creator
   validator; the PTW skill/link/mount validator passes. The retired Marketing
   Positioning skill and desktop link are absent. Natal Landing remains dormant;

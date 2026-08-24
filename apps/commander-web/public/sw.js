@@ -1,4 +1,4 @@
-const CACHE = 'ptw-shell-v31-authenticated-image-errors'
+const CACHE = 'ptw-shell-v32-grouped-owner-lessons'
 const CACHE_PREFIX = 'ptw-shell-'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/ptw.svg']
 

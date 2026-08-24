@@ -1,8 +1,9 @@
 import { AlertTriangle, Bell, Image as ImageIcon, Megaphone, RefreshCcw, Send, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api'
+import { OwnerLessonProposals } from '../components/OwnerLessonProposals'
 import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
-import type { AdCreative, CreativeBatch, ValidationSkillProposal } from '../types'
+import type { AdCreative, CreativeBatch } from '../types'
 
 const angleNames: Record<AdCreative['angle'], string> = {
   emotional: 'Emotional', practical: 'Practical', curiosity: 'Curiosity',
@@ -63,28 +64,12 @@ function CreativeCard({ api, creative, onNotice }: {
   const [feedback, setFeedback] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [proposals, setProposals] = useState<ValidationSkillProposal[]>([])
-  const [proposalLessons, setProposalLessons] = useState<Record<string, string>>({})
-  const loadProposals = async () => {
-    const result = await api.get<{ items: ValidationSkillProposal[] }>(`/api/v1/skill-proposals/ad_creative?target_id=${creative.creative_id}`)
-    setProposals(result.items)
-    setProposalLessons(Object.fromEntries(result.items.map((item) => [item.proposal_id, item.lesson])))
-  }
-  useEffect(() => { void loadProposals().catch((cause: Error) => setError(cause.message)) }, [api, creative.creative_id])
   const submit = async () => {
     if (!feedback.trim()) return
     setBusy(true); setError('')
     try {
       const result = await api.post<{ feedback_id: string; weight_update_id: string; proposal_id: string }>(`/api/v1/ad-creatives/${creative.creative_id}/feedback`, { comment: feedback.trim() })
-      setFeedback(''); await loadProposals(); onNotice(`Feedback ${result.feedback_id} saved; lesson proposal ${result.proposal_id} is pending owner promotion.`)
-    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
-  }
-  const proposalAction = async (proposal: ValidationSkillProposal, action: 'update' | 'dismiss' | 'plan') => {
-    setBusy(true); setError('')
-    try {
-      const lesson = (proposalLessons[proposal.proposal_id] || '').trim()
-      await api.post(`/api/v1/skill-proposals/ad_creative/${proposal.proposal_id}/${action}`, action === 'dismiss' ? {} : { lesson })
-      await loadProposals()
+      setFeedback(''); onNotice(`Feedback ${result.feedback_id} saved; lesson proposal ${result.proposal_id} was appended to the pending combined lesson.`)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   return <article className="panel creative-card">
@@ -93,7 +78,6 @@ function CreativeCard({ api, creative, onNotice }: {
       <p className="pexels-credit"><a href={creative.image.source_url} target="_blank" rel="noreferrer">Photo</a> by <a href={creative.image.photographer_url} target="_blank" rel="noreferrer">{creative.image.photographer}</a> on <a href="https://www.pexels.com" target="_blank" rel="noreferrer">Pexels</a></p>
       <details><summary>Creative metadata</summary><dl><dt>Creative UUID</dt><dd>{creative.creative_id}</dd><dt>Brief UUID</dt><dd>{creative.brief_id}</dd><dt>Asset UUID</dt><dd>{creative.image.asset_id}</dd><dt>Emotion</dt><dd>{creative.desired_emotion}</dd><dt>Image category</dt><dd>{creative.image_category}</dd><dt>Crop</dt><dd>{creative.crop_focus}</dd><dt>SHA-256</dt><dd>{creative.image.sha256}</dd><dt>License</dt><dd><a href={creative.image.license_url} target="_blank" rel="noreferrer">{creative.image.license}</a></dd></dl></details>
       <div className="creative-feedback"><label>Feedback for this complete creative<textarea rows={3} maxLength={2000} value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="What should future creatives learn?" /></label><button className="secondary" disabled={busy || !feedback.trim()} onClick={submit}>Save feedback <Send /></button>{error && <p role="alert">{error}</p>}</div>
-      {!!proposals.length && <section className="lesson-proposals"><h3>Owner lesson proposals</h3>{proposals.map((proposal) => <article key={proposal.proposal_id}><textarea rows={3} maxLength={500} disabled={proposal.status !== 'pending'} value={proposalLessons[proposal.proposal_id] || ''} onChange={(event) => setProposalLessons((items) => ({ ...items, [proposal.proposal_id]: event.target.value }))} /><small>{proposal.proposal_id} · {proposal.status}</small>{proposal.status === 'pending' && <div><button className="secondary" disabled={busy || !(proposalLessons[proposal.proposal_id] || '').trim()} onClick={() => void proposalAction(proposal, 'update')}>Save edit</button><button className="secondary" disabled={busy || !(proposalLessons[proposal.proposal_id] || '').trim()} onClick={() => void proposalAction(proposal, 'plan')}>Plan promotion</button><button className="ghost" disabled={busy} onClick={() => void proposalAction(proposal, 'dismiss')}>Dismiss</button></div>}</article>)}</section>}
     </div>
   </article>
 }
@@ -104,6 +88,7 @@ export function AdsView({ api }: { api: ApiClient }) {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [proposalRevision, setProposalRevision] = useState(0)
   const load = async (preferredId?: string) => {
     const value = await api.get<{ items: CreativeBatch[] }>('/api/v1/ad-batches?limit=100')
     setItems(value.items)
@@ -149,7 +134,7 @@ export function AdsView({ api }: { api: ApiClient }) {
         <p>{recoveredFailure.explanation}</p>
         <details><summary>Previous attempt details</summary><p><code>{recoveredFailure.detail}</code></p><p>{notificationText(selected)}</p></details>
       </section>}
-      {selected?.status === 'completed' && <section className="creative-grid">{selected.creatives.map((creative) => <CreativeCard key={creative.creative_id} api={api} creative={creative} onNotice={setNotice} />)}</section>}
+      {selected?.status === 'completed' && <><section className="creative-grid">{selected.creatives.map((creative) => <CreativeCard key={creative.creative_id} api={api} creative={creative} onNotice={(message) => { setNotice(message); setProposalRevision((value) => value + 1) }} />)}</section><OwnerLessonProposals api={api} domain="ad_creative" refreshKey={proposalRevision} /></>}
     </div>}
   </>
 }

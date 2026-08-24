@@ -6,6 +6,7 @@ const brief1 = '018f07ea-7f20-7000-8000-000000000002'
 const brief2 = '018f07ea-7f20-7000-8000-000000000003'
 const feedbackId = '018f07ea-7f20-7000-8000-000000000004'
 const proposalId = '018f07ea-7f20-7000-8000-000000000005'
+const proposalId2 = '018f07ea-7f20-7000-8000-000000000007'
 const batchId = '018f07ea-7f20-7000-8000-000000000006'
 const imageSha256 = 'b6694b7a1b1eaa1228fcea9a46d4987cd406b650ce2e3c59e62be638ac166ced'
 const angles = ['emotional', 'practical', 'curiosity', 'authority', 'problem_first'] as const
@@ -49,7 +50,9 @@ test.beforeEach(async ({ page }) => {
   let approved = false
   let batchCreated = false
   let creativeFeedbackSaved = false
+  let groupedLessonPlanned = false
   let creativeLesson = 'Prefer a warmer crop with approachable real people.'
+  const creativeLesson2 = 'Keep candid human tension in the frame.'
   const currentId = () => corrected ? brief2 : brief1
   const brief = (id = currentId()) => ({
     brief_id: id, request_id: id, owner_idea_source_id: sourceId,
@@ -121,13 +124,21 @@ test.beforeEach(async ({ page }) => {
       return json({ items: corrected ? [{ proposal_id: proposalId, feedback_id: feedbackId, target_id: brief2, lesson: 'Narrow the first audience when relevant.', status: 'pending', command_session_id: null, created_at: '2026-08-24T08:02:00Z', updated_at: '2026-08-24T08:02:00Z' }] : [] })
     }
     if (url.pathname === '/api/v1/skill-proposals/ad_creative' && method === 'GET') {
-      const targetId = url.searchParams.get('target_id')
       const firstCreativeId = creative('emotional', 0).creative_id
-      return json({ items: creativeFeedbackSaved && targetId === firstCreativeId ? [{ proposal_id: proposalId, feedback_id: feedbackId, target_id: firstCreativeId, lesson: creativeLesson, status: 'pending', command_session_id: null, created_at: '2026-08-24T08:06:00Z', updated_at: '2026-08-24T08:06:00Z' }] : [] })
+      const status = groupedLessonPlanned ? 'planning' : 'pending'
+      return json({ items: creativeFeedbackSaved ? [
+        { proposal_id: proposalId, feedback_id: feedbackId, target_id: firstCreativeId, lesson: creativeLesson, status, command_session_id: groupedLessonPlanned ? brief1 : null, created_at: '2026-08-24T08:06:00Z', updated_at: '2026-08-24T08:06:00Z' },
+        { proposal_id: proposalId2, feedback_id: brief2, target_id: creative('practical', 1).creative_id, lesson: creativeLesson2, status, command_session_id: groupedLessonPlanned ? brief1 : null, created_at: '2026-08-24T08:07:00Z', updated_at: '2026-08-24T08:07:00Z' },
+      ] : [] })
     }
-    if (url.pathname === `/api/v1/skill-proposals/ad_creative/${proposalId}/update` && method === 'POST') {
-      creativeLesson = route.request().postDataJSON().lesson
-      return json({ proposal_id: proposalId, feedback_id: feedbackId, target_id: creative('emotional', 0).creative_id, lesson: creativeLesson, status: 'pending' })
+    if (url.pathname === '/api/v1/skill-proposals/ad_creative/plan' && method === 'POST') {
+      expect(route.request().postDataJSON()).toEqual({
+        proposal_ids: [proposalId, proposalId2],
+        lesson: 'Prefer warmer real-person crops.\nKeep candid human tension in the frame.',
+      })
+      creativeLesson = 'Prefer warmer real-person crops.'
+      groupedLessonPlanned = true
+      return json({ id: brief1, status: 'planning' }, 202)
     }
     if (url.pathname === '/api/v1/ad-batches' && method === 'GET') return json({ items: batchCreated ? [batch()] : [], next_cursor: null })
     if (url.pathname === `/api/v1/ad-batches/${batchId}`) return json(batch())
@@ -174,11 +185,14 @@ test('owner completes Product Brief and five-Ad validation journey', async ({ pa
   await page.locator('.creative-card textarea').first().fill('Use a warmer crop.')
   await page.locator('.creative-card').first().getByRole('button', { name: /Save feedback/ }).click()
   await expect(page.getByRole('status')).toContainText(`Feedback ${feedbackId} saved`)
-  const creativeProposal = page.locator('.creative-card').first().locator('.lesson-proposals')
+  const creativeProposal = page.locator('.ads-workspace > .lesson-proposals')
   await expect(creativeProposal.getByRole('heading', { name: 'Owner lesson proposals' })).toBeVisible()
-  await creativeProposal.locator('textarea').fill('Prefer warmer real-person crops.')
-  await creativeProposal.getByRole('button', { name: 'Save edit' }).click()
-  await expect(creativeProposal.locator('textarea')).toHaveValue('Prefer warmer real-person crops.')
+  await expect(creativeProposal.locator('textarea')).toHaveValue('Prefer a warmer crop with approachable real people.\nKeep candid human tension in the frame.')
+  await creativeProposal.locator('textarea').fill('Prefer warmer real-person crops.\nKeep candid human tension in the frame.')
+  await expect(creativeProposal.getByRole('button')).toHaveCount(1)
+  await creativeProposal.getByRole('button', { name: 'Plan combined lesson' }).click()
+  await expect(creativeProposal.getByText('No pending feedback lessons.')).toBeVisible()
+  await expect(creativeProposal.getByRole('button', { name: 'Save edit' })).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Landing' }).first().click()
   await expect(page.getByRole('heading', { name: 'Stage 3 pending' })).toBeVisible()

@@ -7,7 +7,7 @@
 - **Commander API** owns Telegram long polling, deterministic authorization and
   routing, migrations, and internal health endpoints.
 - **Commander worker** atomically claims PostgreSQL jobs, runs bounded commands,
-  fresh schema-bound Laval/Branding model calls, and built-in Branding image
+  fresh schema-bound validation model calls, and built-in legacy image
   generation, then sends Telegram replies where the command contract requires.
 - **PostgreSQL 16** stores users, sessions, jobs, heartbeats, and append-oriented
   events. It has no host-published port.
@@ -37,7 +37,8 @@ trusted only after exact numeric allowlist matching. The backend Compose network
 is internal; API and worker additionally use an outbound edge network. Host state
 is not mounted broadly into containers.
 
-The internal bridge advertises exact Laval and Branding mode sets. Branding
+The internal bridge advertises exactly `product_brief`,
+`product_brief_revision`, and `ad_creative_batch` for PTW validation. Legacy Branding
 image jobs may invoke built-in image generation once, require `gpt-image-2`,
 persist one bounded square PNG into the external Commander asset volume, and
 return digest/provenance metadata instead of binary database payloads. The

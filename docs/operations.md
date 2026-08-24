@@ -24,13 +24,24 @@ curl -fsS http://127.0.0.1:8080/health/ready
 curl -fsS https://commander.proove-them-wrong.com/health
 ```
 
-The authenticated structured capabilities response must expose exactly the three
-Marketing Positioning modes plus `natal_landing_revision`; retired Laval and
-Branding modes are not accepted. The Commander API and
+The authenticated structured capabilities response must expose exactly
+`product_brief`, `product_brief_revision`, and `ad_creative_batch`. Retired
+Marketing Positioning, Landing, Laval, and Branding modes are not accepted. The Commander API and
 worker images are both prebuilt and pinned with `PTW_PLATFORM_IMAGE_TAG`; never
 build either on the 1 GB production host. Recreate them one at a time and run
-the PTW Owner Gateway dependency audit before starting a Positioning or Landing
-run. Require a fresh schema-bound canary for every advertised PTW mode.
+the PTW Owner Gateway dependency audit before starting a Product Brief or Ad
+Creative run. Require a fresh schema-bound canary for every advertised mode.
+
+Build the matching API and worker archives off-host; never build them on the
+1 GB production VPS:
+
+```bash
+./scripts/build_release_images.sh RELEASE_TAG OUTPUT_DIRECTORY
+```
+
+The script rejects `latest`, builds both images for Linux/amd64, verifies their
+architecture, and writes `commander-api.tar`, `commander-worker.tar`, and
+`SHA256SUMS` for the PTW serial publisher.
 
 ## Migrations
 

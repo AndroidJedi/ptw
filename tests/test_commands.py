@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from commander.main import (IDEA_COMMANDS, LANDING_MODES, MARKETING_POSITIONING_MODES, MAX_STRUCTURED_LLM_REQUEST_BYTES, STRUCTURED_LLM_MODES, SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
+from commander.main import (IDEA_COMMANDS, VALIDATION_MODES, MAX_STRUCTURED_LLM_REQUEST_BYTES, STRUCTURED_LLM_MODES, SUPPORTED_COMMANDS, TRACKED_BRIDGE_COMMANDS,
                             bridge_target, engineering_task, normalized_command,
                             get_structured_llm_capabilities, public_health, safe_bridge_error, structured_llm_capabilities, task_research_reference,
                             validate_structured_llm_request)
@@ -63,31 +63,36 @@ def test_task_can_consume_an_explicit_research_hypothesis() -> None:
     assert task_research_reference("implement onboarding") == (None, "implement onboarding")
 
 
-def test_structured_bridge_accepts_ptw_v2_modes_and_full_contract() -> None:
-    positioning_modes = {
-        "marketing_positioning_research_plan",
-        "marketing_positioning_document",
-        "marketing_positioning_revision",
+def test_structured_bridge_accepts_validation_modes_and_full_contract() -> None:
+    validation_modes = {
+        "product_brief",
+        "product_brief_revision",
+        "ad_creative_batch",
     }
-    assert MARKETING_POSITIONING_MODES == positioning_modes
-    assert LANDING_MODES == {"natal_landing_revision"}
+    assert VALIDATION_MODES == validation_modes
     assert structured_llm_capabilities() == {
-        "marketing_positioning_modes": sorted(positioning_modes),
-        "landing_modes": ["natal_landing_revision"],
+        "validation_modes": sorted(validation_modes),
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
     }
-    for mode in positioning_modes | LANDING_MODES:
+    for mode in validation_modes:
         validate_structured_llm_request({
             "mode": mode,
-            "system_prompt": "Return structured evidence.",
-            "input_payload": {"evidence_ids": ["e-1"]},
+            "system_prompt": "Return the requested validation artifact.",
+            "input_payload": {"brief_id": "01900000-0000-7000-8000-000000000001"},
             "output_schema": {"type": "object"},
             "prompt_template_version": "contract-v1",
             "context_hash": "sha256:abc",
         })
 
 
-@pytest.mark.parametrize("mode", ["laval_owner_dna", "branding_direction_synthesis"])
+@pytest.mark.parametrize("mode", [
+    "marketing_positioning_research_plan",
+    "marketing_positioning_document",
+    "marketing_positioning_revision",
+    "natal_landing_revision",
+    "laval_owner_dna",
+    "branding_direction_synthesis",
+])
 def test_structured_bridge_rejects_retired_ptw_modes(mode: str) -> None:
     with pytest.raises(ValueError, match="unsupported structured LLM mode"):
         validate_structured_llm_request({
@@ -100,14 +105,14 @@ def test_structured_bridge_rejects_retired_ptw_modes(mode: str) -> None:
 
 def test_structured_bridge_rejects_unknown_and_oversized_requests() -> None:
     request = {
-        "mode": "marketing_positioning_not_registered",
+        "mode": "validation_not_registered",
         "system_prompt": "Return structured output.",
         "input_payload": {},
         "output_schema": {"type": "object"},
     }
     with pytest.raises(ValueError, match="unsupported structured LLM mode"):
         validate_structured_llm_request(request)
-    request["mode"] = "marketing_positioning_research_plan"
+    request["mode"] = "product_brief"
     request["input_payload"] = {"content": "x" * MAX_STRUCTURED_LLM_REQUEST_BYTES}
     with pytest.raises(ValueError, match="too large"):
         validate_structured_llm_request(request)
@@ -135,8 +140,8 @@ def test_platform_api_release_is_explicitly_tagged_and_never_built_on_production
 @pytest.mark.parametrize("missing", ["system_prompt", "input_payload", "output_schema"])
 def test_structured_bridge_rejects_incomplete_contract(missing: str) -> None:
     request = {
-        "mode": "marketing_positioning_document",
-        "system_prompt": "Return DNA.",
+        "mode": "product_brief",
+        "system_prompt": "Return a Product Brief.",
         "input_payload": {},
         "output_schema": {"type": "object"},
     }

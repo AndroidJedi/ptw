@@ -44,16 +44,13 @@ GENERIC_STRUCTURED_LLM_MODES = frozenset({
     "normalize_human",
     "telegram_chat",
 })
-MARKETING_POSITIONING_MODES = frozenset({
-    "marketing_positioning_research_plan",
-    "marketing_positioning_document",
-    "marketing_positioning_revision",
-})
-LANDING_MODES = frozenset({
-    "natal_landing_revision",
+VALIDATION_MODES = frozenset({
+    "product_brief",
+    "product_brief_revision",
+    "ad_creative_batch",
 })
 STRUCTURED_LLM_MODES = frozenset(
-    GENERIC_STRUCTURED_LLM_MODES | MARKETING_POSITIONING_MODES | LANDING_MODES
+    GENERIC_STRUCTURED_LLM_MODES | VALIDATION_MODES
 )
 MAX_STRUCTURED_LLM_REQUEST_BYTES = 1_000_000
 
@@ -79,8 +76,7 @@ def validate_structured_llm_request(request: dict) -> None:
 def structured_llm_capabilities() -> dict:
     """Expose authenticated structured and image contracts without queueing work."""
     return {
-        "marketing_positioning_modes": sorted(MARKETING_POSITIONING_MODES),
-        "landing_modes": sorted(LANDING_MODES),
+        "validation_modes": sorted(VALIDATION_MODES),
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
     }
 

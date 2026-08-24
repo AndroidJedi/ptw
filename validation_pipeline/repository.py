@@ -295,6 +295,47 @@ class ValidationRepository:
                 (Jsonb({"error_code": type(error).__name__, "error_message": str(error)[:1000]}), UUID(invocation_id)),
             )
 
+    def record_notification_callback_failure(
+        self, target_id: str, attempt_id: str, *, error: Exception
+    ) -> None:
+        from psycopg.types.json import Jsonb
+        with self.connection() as connection:
+            connection.execute(
+                """INSERT INTO commander_audit_events(id,actor,action,target_id,details)
+                   VALUES(%s,'validation','telegram_generation_failure_callback_failed',%s,%s)""",
+                (
+                    UUID(new_uuid7()),
+                    UUID(target_id),
+                    Jsonb({
+                        "attempt_id": str(UUID(attempt_id)),
+                        "status": "failed",
+                        "error_code": type(error).__name__,
+                        "error_message": "Owner Gateway notification callback failed",
+                    }),
+                ),
+            )
+
+    def failure_notification(self, target_id: str) -> dict[str, Any] | None:
+        with self.connection() as connection:
+            row = connection.execute(
+                """SELECT action,details,created_at FROM commander_audit_events
+                   WHERE target_id=%s AND action IN (
+                       'telegram_generation_failure_reserved',
+                       'telegram_generation_failure_result',
+                       'telegram_generation_failure_callback_failed'
+                   )
+                   ORDER BY created_at DESC LIMIT 1""",
+                (UUID(target_id),),
+            ).fetchone()
+        if row is None:
+            return None
+        details = dict(row[1])
+        return {
+            "status": details.get("status", "pending"),
+            "attempt_id": details.get("attempt_id"),
+            "recorded_at": row[2].isoformat(),
+        }
+
     def finish_brief(
         self, brief_id: str, attempt_id: str, document: Mapping[str, Any], digest: str, quality: Mapping[str, Any]
     ) -> None:
@@ -411,12 +452,16 @@ class ValidationRepository:
             "error_code": row[6], "error_message": row[7], "created_at": row[8].isoformat(),
             "updated_at": row[9].isoformat(),
             "completed_at": None if row[10] is None else row[10].isoformat(),
+            "approved_offer": row[11],
         }
 
     @staticmethod
     def _batch_select() -> str:
         return """SELECT entity_id,brief_id,status,batch_sha256,quality_gates,failure_count,
-                         error_code,error_message,created_at,updated_at,completed_at FROM creative_batches"""
+                         error_code,error_message,created_at,updated_at,completed_at,
+                         (SELECT brief.document->>'offer' FROM product_briefs brief
+                          WHERE brief.entity_id=creative_batches.brief_id) AS approved_offer
+                  FROM creative_batches"""
 
     def get_batch(self, batch_id: str) -> dict[str, Any]:
         with self.connection() as connection:
@@ -437,6 +482,7 @@ class ValidationRepository:
                 (UUID(batch_id),),
             ).fetchall()
         batch["creatives"] = [self._creative_row(item) for item in creative_rows]
+        batch["failure_notification"] = self.failure_notification(batch_id)
         return batch
 
     @staticmethod

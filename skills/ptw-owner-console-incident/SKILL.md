@@ -52,9 +52,17 @@ Retry only failed targets; approval remains idempotent with one batch per Brief.
 Do not bypass schema validation, the global operation guard, App Check, owner
 approval, source lineage, or authenticated artifact delivery.
 
-Reuse the existing Telegram bot only for established notifications/emergency
-controls. Do not add a webhook, poller, worker, creative notification, or new
-command. Inbound commands remain `/help`, `/status`, and `/stop` only.
+For an offer-continuity failure, compare the approved Brief offer with the exact
+structured bridge response, including terminal punctuation. Bind exact CTA and
+offer fields in the output schema; require offer wording in visible copy while
+allowing surrounding sentence punctuation.
+
+A terminal failed Ad batch may make one audited direct `sendMessage` through
+the existing allowlisted bot only after the failure is durable. Reserve the
+attempt before sending, never auto-retry ambiguous delivery, suppress under
+emergency stop, and expose notification state beside the UI failure reason. Do
+not add a webhook, poller, worker, completion notification, or new command.
+Inbound commands remain `/help`, `/status`, and `/stop` only.
 
 ## Release acceptance
 

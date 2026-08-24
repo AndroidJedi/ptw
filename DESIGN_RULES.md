@@ -31,6 +31,8 @@ Updated: 2026-08-24
 - Ads shows all five complete posts, exact UUIDs, angle, copy, authenticated
   1080×1080 image, artifact digest, Pexels photographer/source/license
   attribution, retry state, and feedback control for each creative.
+- A failed batch shows the actionable validation rule, approved offer when
+  relevant, atomic rollback outcome, and audited Telegram delivery state.
 - Landing shows only `Stage 3 pending`; it has no active controls or API calls.
 - There is no campaign, publish, traffic, UTM, click, or analytics action.
 - Product/creative generation never invents proof, testimonials, ratings,

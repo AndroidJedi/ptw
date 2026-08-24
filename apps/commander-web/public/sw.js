@@ -1,4 +1,4 @@
-const CACHE = 'ptw-shell-v28-monochrome-validation'
+const CACHE = 'ptw-shell-v29-validation-failure-reasons'
 const CACHE_PREFIX = 'ptw-shell-'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/ptw.svg']
 

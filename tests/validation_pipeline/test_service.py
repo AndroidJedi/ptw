@@ -32,6 +32,7 @@ def creative_result():
             "primary_text": "First consultation free. Meet a real psychologist.",
             "image_description": "Real professional conversation.",
             "cta": BRIEF["cta"],
+            "offer": BRIEF["offer"],
             "desired_emotion": "confidence",
             "image_category": "professional conversation",
             "image_search_query": f"real {angle} professional conversation",
@@ -75,6 +76,36 @@ class FakeBridge:
         if kwargs["mode"] == "product_brief":
             return BRIEF
         return creative_result()
+
+
+class FailingCreativeBridge(FakeBridge):
+    def generate(self, **kwargs):
+        self.calls.append(kwargs)
+        result = creative_result()
+        result["creatives"][2]["offer"] = "Reworded offer"
+        return result
+
+
+class FailureRepository(FakeRepository):
+    def __init__(self) -> None:
+        super().__init__()
+        self.failed = None
+        self.callback_failure = None
+
+    def fail_attempt(self, target_id, attempt_id, **values):
+        self.failed = (target_id, attempt_id, values)
+
+    def record_notification_callback_failure(self, target_id, attempt_id, *, error):
+        self.callback_failure = (target_id, attempt_id, error)
+
+
+class FakeNotifier:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def notify(self, **values):
+        self.calls.append(values)
+        return {"status": "sent"}
 
 
 class FakePexels:
@@ -141,6 +172,23 @@ class ValidationRunnerTests(unittest.TestCase):
         self.assertEqual(5, len(repository.finished_batch["creatives"]))
         self.assertEqual(5, len({item["creative_id"] for item in repository.finished_batch["creatives"]}))
         self.assertEqual(5, len({item["photo"]["external_id"] for item in repository.finished_batch["creatives"]}))
+
+    def test_failed_batch_notifies_once_after_persisting_the_failure(self) -> None:
+        repository, bridge, notifier = FailureRepository(), FailingCreativeBridge(), FakeNotifier()
+        with TemporaryDirectory() as directory:
+            runner = self.runner(Path(directory), repository, bridge)
+            runner.failure_notifier = notifier
+            with self.assertRaisesRegex(ValueError, "offer field"):
+                runner.generate_batch(repository.batch["batch_id"], operation_reserved=True)
+
+        self.assertIsNotNone(repository.failed)
+        self.assertEqual([{
+            "target_id": repository.batch["batch_id"],
+            "attempt_id": "018f07ea-7f20-7000-8000-000000000003",
+            "stage": "ad_creative_batch",
+        }], notifier.calls)
+        self.assertIsNone(repository.finished_batch)
+        self.assertEqual([repository.batch["batch_id"]], repository.released)
 
 
 if __name__ == "__main__":

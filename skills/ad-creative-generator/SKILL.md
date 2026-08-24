@@ -19,8 +19,9 @@ Read `references/output-contract.md`, `references/real-photo-policy.md`, and
 - Never request or use its raw idea, research, market context, performance data,
   previous creatives, landing copy, campaigns, or owner history.
 - Preserve the Product Brief CTA exactly in all five creatives.
-- Carry the exact offer through every complete concept. Do not weaken, silently
-  alter, or invent an alternative promotion.
+- Copy the exact Product Brief offer into every creative's `offer` field. Keep
+  the same wording visible in the hook or primary text; surrounding sentence
+  punctuation may differ, but do not weaken, reword, or replace the promotion.
 
 ## Generation method
 
@@ -33,8 +34,9 @@ this fixed order:
 4. `authority`
 5. `problem_first`
 
-Each is a coherent post: hook, primary text, real-photo description, CTA,
-desired emotion, image category, English Pexels search query, and crop focus.
+Each is a coherent post: hook, primary text, real-photo description, exact
+offer, exact CTA, desired emotion, image category, English Pexels search query,
+and crop focus.
 Explore the five angles intentionally; do not call the result optimized.
 
 Use authority through clarity, a real expert, transparent process, or supplied
@@ -60,7 +62,7 @@ atomically.
 - Do not publish ads, purchase traffic, create campaigns, add UTMs, or consume
   click/conversion analytics.
 - Do not split generation into hook, CTA, copy, or image sub-generators.
-- Do not add fields or change angle order.
+- Do not add fields beyond the output contract or change angle order.
 
 ## Verification
 

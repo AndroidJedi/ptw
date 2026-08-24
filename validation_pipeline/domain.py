@@ -37,6 +37,7 @@ VALIDATION_OFFER_PATTERN = re.compile(
     r"безкоштовн|безоплатн|знижк|промокод|ранн(?:ій|ього|ьому)?\s+доступ|пробн(?:ий|ого|ому)?\s+період|запрошенн)",
     re.IGNORECASE,
 )
+OFFER_SENTENCE_PUNCTUATION = " .!?\u2026\u3002\uff01\uff1f"
 
 
 def _exact(value: Mapping[str, Any], keys: set[str], name: str) -> None:
@@ -63,6 +64,13 @@ def _items(value: Any, name: str, minimum: int, maximum: int) -> Sequence[Any]:
     if not isinstance(value, (list, tuple)) or not minimum <= len(value) <= maximum:
         raise ValueError(f"{name} must contain {minimum}-{maximum} items")
     return value
+
+
+def _offer_is_visible(copy: str, offer: str) -> bool:
+    """Keep offer wording exact while allowing surrounding sentence punctuation."""
+    normalized_copy = " ".join(copy.split()).casefold()
+    visible_offer = " ".join(offer.split()).rstrip(OFFER_SENTENCE_PUNCTUATION).casefold()
+    return bool(visible_offer) and visible_offer in normalized_copy
 
 
 def infer_language(raw_idea: str) -> str:
@@ -146,25 +154,37 @@ class CreativeSetV1:
                 raise ValueError("creative items must be objects")
             _exact(item, {
                 "angle", "hook", "primary_text", "image_description", "cta",
-                "desired_emotion", "image_category", "image_search_query", "crop_focus",
+                "offer", "desired_emotion", "image_category", "image_search_query", "crop_focus",
             }, f"creatives[{index}]")
             if item.get("angle") != expected_angle:
                 raise ValueError(f"creatives[{index}].angle must be {expected_angle}")
             if str(item.get("cta") or "").strip() != brief["cta"]:
-                raise ValueError("every creative CTA must exactly match the Product Brief")
+                raise ValueError(
+                    f"creative {index + 1} ({expected_angle}) CTA must exactly match the Product Brief"
+                )
+            offer = _text(item.get("offer"), f"creatives[{index}].offer", 500)
+            if offer != brief["offer"]:
+                raise ValueError(
+                    f"creative {index + 1} ({expected_angle}) offer field must exactly match "
+                    f"the Product Brief offer: {brief['offer']}"
+                )
             crop = str(item.get("crop_focus") or "")
             if crop not in CROP_FOCI:
                 raise ValueError("crop_focus must be left, center, or right")
             hook = _text(item.get("hook"), f"creatives[{index}].hook", 160)
             primary_text = _text(item.get("primary_text"), f"creatives[{index}].primary_text", 1000)
-            if brief["offer"].casefold() not in f"{hook} {primary_text}".casefold():
-                raise ValueError("every creative must retain the Product Brief offer exactly")
+            if not _offer_is_visible(f"{hook} {primary_text}", brief["offer"]):
+                raise ValueError(
+                    f"creative {index + 1} ({expected_angle}) copy must visibly retain "
+                    f"the Product Brief offer wording: {brief['offer']}"
+                )
             creatives.append({
                 "angle": expected_angle,
                 "hook": hook,
                 "primary_text": primary_text,
                 "image_description": _text(item.get("image_description"), f"creatives[{index}].image_description", 500),
                 "cta": brief["cta"],
+                "offer": offer,
                 "desired_emotion": _text(item.get("desired_emotion"), f"creatives[{index}].desired_emotion", 160),
                 "image_category": _text(item.get("image_category"), f"creatives[{index}].image_category", 160),
                 "image_search_query": _text(item.get("image_search_query"), f"creatives[{index}].image_search_query", 160),
@@ -205,7 +225,12 @@ def product_brief_schema() -> dict[str, Any]:
     }
 
 
-def creative_set_schema() -> dict[str, Any]:
+def creative_set_schema(*, brief: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    cta = {"type": "string", "minLength": 1, "maxLength": 100}
+    offer = {"type": "string", "minLength": 1, "maxLength": 500}
+    if brief is not None:
+        cta = {"type": "string", "const": str(brief["cta"])}
+        offer = {"type": "string", "const": str(brief["offer"])}
     item = {
         "type": "object",
         "properties": {
@@ -213,7 +238,8 @@ def creative_set_schema() -> dict[str, Any]:
             "hook": {"type": "string", "minLength": 1, "maxLength": 160},
             "primary_text": {"type": "string", "minLength": 1, "maxLength": 1000},
             "image_description": {"type": "string", "minLength": 1, "maxLength": 500},
-            "cta": {"type": "string", "minLength": 1, "maxLength": 100},
+            "cta": cta,
+            "offer": offer,
             "desired_emotion": {"type": "string", "minLength": 1, "maxLength": 160},
             "image_category": {"type": "string", "minLength": 1, "maxLength": 160},
             "image_search_query": {"type": "string", "minLength": 1, "maxLength": 160},
@@ -221,7 +247,7 @@ def creative_set_schema() -> dict[str, Any]:
         },
         "required": [
             "angle", "hook", "primary_text", "image_description", "cta",
-            "desired_emotion", "image_category", "image_search_query", "crop_focus",
+            "offer", "desired_emotion", "image_category", "image_search_query", "crop_focus",
         ],
         "additionalProperties": False,
     }

@@ -69,7 +69,7 @@ test.beforeEach(async ({ page }) => {
     hook: `${angle.replace('_', ' ')}: a calmer first step`,
     primary_text: 'First consultation free. Meet a real psychologist without a high-commitment start.',
     image_description: 'A real adult having a calm conversation with a professional.',
-    cta: document.cta, desired_emotion: 'calm confidence',
+    cta: document.cta, offer: document.offer, desired_emotion: 'calm confidence',
     image_category: 'professional conversation', image_search_query: `real ${angle} conversation`,
     crop_focus: 'center', content_sha256: 'c'.repeat(64),
     image: {
@@ -192,4 +192,39 @@ test('retired page query redirects to Product Briefs', async ({ page }) => {
   await page.goto('/?e2e=1&page=positioning&run=legacy')
   await expect(page).not.toHaveURL(/page=positioning|run=legacy/)
   await expect(page.getByText('No Product Brief yet')).toBeVisible()
+})
+
+test('failed Ad batch shows actionable reason and Telegram state', async ({ page }) => {
+  const failed = {
+    batch_id: batchId,
+    brief_id: brief2,
+    status: 'failed',
+    batch_sha256: null,
+    quality_gates: null,
+    failure_count: 1,
+    error_code: 'ValueError',
+    error_message: 'every creative must retain the Product Brief offer exactly',
+    approved_offer: 'Free 15-minute mentor call.',
+    failure_notification: {
+      status: 'sent', attempt_id: feedbackId, recorded_at: '2026-08-24T09:44:18Z',
+    },
+    creatives: [],
+    created_at: '2026-08-24T09:43:50Z',
+  }
+  await page.route('**/api/v1/ad-batches**', async (route) => {
+    const url = new URL(route.request().url())
+    const value = url.pathname === '/api/v1/ad-batches'
+      ? { items: [failed], next_cursor: null }
+      : failed
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(value) })
+  })
+
+  await page.goto('/?e2e=1&page=ads')
+  await expect(page.getByRole('heading', { name: 'Approved offer continuity check failed' })).toBeVisible()
+  await expect(page.getByText('Free 15-minute mentor call.', { exact: false })).toBeVisible()
+  await expect(page.getByText('no partial creatives or images were saved', { exact: false })).toBeVisible()
+  await expect(page.getByText('Telegram failure notification sent', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Retry entire batch' })).toBeVisible()
+  await expectMonochromeChrome(page)
+  await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })

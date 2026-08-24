@@ -54,6 +54,7 @@ def prepared_creatives() -> list[dict[str, object]]:
                 "primary_text": "First consultation free. Meet a real psychologist.",
                 "image_description": "Real people in a professional conversation.",
                 "cta": "Get free consultation",
+                "offer": "First consultation free",
                 "desired_emotion": "confidence",
                 "image_category": "professional conversation",
                 "image_search_query": f"real {angle} professional conversation",
@@ -217,6 +218,16 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
         self.repository.fail_attempt(
             batch["batch_id"], attempt_id, stage="ad_creative_batch",
             error=ValueError("fixture digest failure"),
+        )
+        failed_batch = self.repository.get_batch(batch["batch_id"])
+        self.assertEqual(base["offer"], failed_batch["approved_offer"])
+        self.assertIsNone(failed_batch["failure_notification"])
+        self.repository.record_notification_callback_failure(
+            batch["batch_id"], attempt_id, error=RuntimeError("fixture callback failure")
+        )
+        self.assertEqual(
+            "failed",
+            self.repository.get_batch(batch["batch_id"])["failure_notification"]["status"],
         )
         self.repository.release_operation(batch["batch_id"])
         replacement, created = self.repository.create_revision(

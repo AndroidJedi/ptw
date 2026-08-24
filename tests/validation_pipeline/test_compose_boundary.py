@@ -13,6 +13,7 @@ class ValidationComposeBoundaryTests(unittest.TestCase):
         for setting in (
             "DATABASE_URL",
             "OWNER_GATEWAY_BRIDGE_TOKEN",
+            "VALIDATION_FAILURE_NOTIFICATION_URL",
             "VALIDATION_LLM_BRIDGE_URL",
             "LLM_BRIDGE_TOKEN",
             "VALIDATION_LLM_MODEL",

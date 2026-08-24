@@ -11,6 +11,7 @@ services:
     environment:
       DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD:?set COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
       OWNER_GATEWAY_BRIDGE_TOKEN: ${OWNER_GATEWAY_BRIDGE_TOKEN:?set OWNER_GATEWAY_BRIDGE_TOKEN}
+      VALIDATION_FAILURE_NOTIFICATION_URL: ${VALIDATION_FAILURE_NOTIFICATION_URL:-http://ptw-owner-gateway:8088/internal/v1/validation-failures}
       VALIDATION_LLM_BRIDGE_URL: ${VALIDATION_LLM_BRIDGE_URL:-http://ptw-agent-platform-commander-api-1:8000/internal/llm/structured}
       LLM_BRIDGE_TOKEN: ${LLM_BRIDGE_TOKEN:-${TELEGRAM_BOT_TOKEN:?set the existing platform bridge credential}}
       VALIDATION_LLM_MODEL: ${VALIDATION_LLM_MODEL:-codex-cli-default}

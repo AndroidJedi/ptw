@@ -11,6 +11,7 @@ from commander.ids import new_uuid7
 
 from .domain import CreativeSetV1, ProductBriefV1, creative_set_schema, product_brief_schema
 from .images import PexelsClient, SquareCreativeRenderer
+from .notifications import FailureNotificationClient
 from .provider import StructuredBridge
 from .repository import ValidationRepository
 
@@ -25,6 +26,7 @@ class ValidationRunner:
         *,
         product_brief_skill_path: Path,
         ad_creative_skill_path: Path,
+        failure_notifier: FailureNotificationClient | None = None,
     ) -> None:
         self.repository = repository
         self.bridge = bridge
@@ -32,6 +34,7 @@ class ValidationRunner:
         self.renderer = renderer
         self.product_brief_skill = self._skill(product_brief_skill_path)
         self.ad_creative_skill = self._skill(ad_creative_skill_path)
+        self.failure_notifier = failure_notifier
 
     @staticmethod
     def _skill(path: Path) -> str:
@@ -142,14 +145,16 @@ class ValidationRunner:
                     system_prompt=(
                         "Use the canonical Ad Creative Generator skill below. Return only one strict CreativeSetV1 object. "
                         "Generate exactly five complete creatives in the required fixed angle order. Use only the approved "
-                        "Product Brief as business input. Preserve its CTA exactly and carry its offer through the copy. "
+                        "Product Brief as business input. Copy its CTA and offer exactly into the corresponding fields of "
+                        "every creative. Keep the offer wording visibly intact in each hook or primary_text; sentence "
+                        "punctuation may surround it but must not change its words. "
                         "Describe authentic real photography and emit useful English Pexels search queries even when the ad "
                         "copy is Ukrainian. Do not create AI artwork, publish an ad, invent proof, or optimize from performance.\n\n"
                         "CANONICAL_SKILL:\n" + self.ad_creative_skill
                     ),
                     input_payload=payload,
-                    output_schema=creative_set_schema(),
-                    prompt_version="ad_creative_batch_v1",
+                    output_schema=creative_set_schema(brief=brief["document"]),
+                    prompt_version="ad_creative_batch_v2_exact_offer",
                 )
                 creative_set = CreativeSetV1.from_dict(result, brief=brief["document"])
                 self.repository.complete_invocation(
@@ -172,6 +177,19 @@ class ValidationRunner:
         except Exception as error:
             if attempt_id:
                 self.repository.fail_attempt(batch_id, attempt_id, stage="ad_creative_batch", error=error)
+                if self.failure_notifier is not None:
+                    try:
+                        self.failure_notifier.notify(
+                            target_id=batch_id,
+                            attempt_id=attempt_id,
+                            stage="ad_creative_batch",
+                        )
+                    except Exception as notification_error:
+                        self.repository.record_notification_callback_failure(
+                            batch_id,
+                            attempt_id,
+                            error=notification_error,
+                        )
             raise
         finally:
             self.repository.release_operation(batch_id)
@@ -222,4 +240,3 @@ def validate_revision_input(value: Mapping[str, Any]) -> dict[str, str]:
     if not 1 <= len(instruction) <= 2000:
         raise ValueError("instruction must contain 1-2000 characters")
     return {"request_id": str(UUID(str(value["request_id"]))), "instruction": instruction}
-

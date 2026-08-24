@@ -63,6 +63,7 @@ export interface AdCreative {
   primary_text: string
   image_description: string
   cta: string
+  offer: string
   desired_emotion: string
   image_category: string
   image_search_query: string
@@ -79,6 +80,12 @@ export interface CreativeBatch {
   failure_count: number
   error_code?: string | null
   error_message?: string | null
+  approved_offer?: string | null
+  failure_notification?: {
+    status: 'pending' | 'sent' | 'failed' | 'ambiguous' | 'suppressed'
+    attempt_id?: string | null
+    recorded_at: string
+  } | null
   creatives: AdCreative[]
   created_at: string
 }

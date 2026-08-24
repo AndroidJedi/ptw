@@ -43,7 +43,8 @@ feedback, and relationship rows; legacy Positioning/Landing tables and
 containers absent; platform counts unchanged; database-backed readiness;
 restart persistence; canonical skill links; Landing placeholder; service-worker
 cache bump; exact-owner Stage 1–2 browser acceptance; Pexels attribution and
-ETags; and retired APIs returning 404.
+ETags; retired APIs returning 404; and one labelled, audit-backed failed-batch
+notification canary without adding a poller or inbound command.
 
 Run the 1 GB audit immediately and through one locked 24-hour follow-up. Fail
 on new OOM evidence, unexpected processes/pollers, missing swap, unstable

@@ -10,6 +10,7 @@ from fastapi.responses import Response
 
 from .config import Settings
 from .images import PexelsClient, SquareCreativeRenderer
+from .notifications import FailureNotificationClient
 from .provider import StructuredBridge
 from .repository import ValidationRepository
 from .service import ValidationRunner, validate_create_input, validate_revision_input
@@ -33,6 +34,10 @@ def create_app(
                 SquareCreativeRenderer(),
                 product_brief_skill_path=settings.product_brief_skill_path,
                 ad_creative_skill_path=settings.ad_creative_skill_path,
+                failure_notifier=FailureNotificationClient(
+                    settings.failure_notification_url,
+                    settings.owner_gateway_token,
+                ),
             )
         except Exception as error:
             runner_error = error

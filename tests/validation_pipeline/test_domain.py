@@ -39,6 +39,7 @@ def creative_set(**item_changes):
                 "primary_text": "First consultation free. Meet a real psychologist with less friction.",
                 "image_description": "A real adult speaking calmly with a professional.",
                 "cta": "Get free consultation",
+                "offer": "First consultation free",
                 "desired_emotion": "calm confidence",
                 "image_category": "professional conversation",
                 "image_search_query": f"real people {angle} professional conversation",
@@ -92,10 +93,24 @@ class ProductBriefContractTests(unittest.TestCase):
             CreativeSetV1.from_dict(creative_set(cta="Click"), brief=brief())
         with self.assertRaisesRegex(ValueError, "offer"):
             CreativeSetV1.from_dict(creative_set(primary_text="A lower-friction next step."), brief=brief())
+        with self.assertRaisesRegex(ValueError, "offer field"):
+            CreativeSetV1.from_dict(creative_set(offer="First session discounted"), brief=brief())
+
+    def test_offer_field_is_exact_but_copy_allows_sentence_punctuation(self) -> None:
+        product_brief = brief(offer="Free 15-minute mentor call.")
+        value = creative_set(
+            offer=product_brief["offer"],
+            primary_text="Continue with a Free 15-minute mentor call from a real mentor.",
+        )
+        result = CreativeSetV1.from_dict(value, brief=product_brief)
+        self.assertTrue(result.quality_gates["brief_offer_preserved"])
 
     def test_json_schemas_type_every_const_and_forbid_extra_fields(self) -> None:
         self.assertEqual({"type": "integer", "const": 1}, product_brief_schema()["properties"]["schema_version"])
         self.assertEqual({"type": "integer", "const": 1}, creative_set_schema()["properties"]["schema_version"])
+        bound = creative_set_schema(brief=brief())["properties"]["creatives"]["items"]["properties"]
+        self.assertEqual({"type": "string", "const": brief()["offer"]}, bound["offer"])
+        self.assertEqual({"type": "string", "const": brief()["cta"]}, bound["cta"])
         self.assertFalse(product_brief_schema()["additionalProperties"])
         self.assertEqual(5, creative_set_schema()["properties"]["creatives"]["minItems"])
 

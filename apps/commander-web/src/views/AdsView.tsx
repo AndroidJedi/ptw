@@ -1,4 +1,4 @@
-import { Image as ImageIcon, Megaphone, RefreshCcw, Send } from 'lucide-react'
+import { AlertTriangle, Bell, Image as ImageIcon, Megaphone, RefreshCcw, Send, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
@@ -7,6 +7,30 @@ import type { AdCreative, CreativeBatch, ValidationSkillProposal } from '../type
 const angleNames: Record<AdCreative['angle'], string> = {
   emotional: 'Emotional', practical: 'Practical', curiosity: 'Curiosity',
   authority: 'Authority', problem_first: 'Problem-first',
+}
+
+export function batchFailureReason(batch: CreativeBatch) {
+  const detail = batch.error_message || batch.error_code || 'The generator stopped without a detailed error.'
+  if (detail.includes('retain the Product Brief offer') || detail.includes('offer field') || detail.includes('offer wording')) {
+    return {
+      title: 'Approved offer continuity check failed',
+      detail,
+      explanation: batch.approved_offer
+        ? `At least one generated draft did not preserve the approved offer as required: “${batch.approved_offer}”.`
+        : 'At least one generated draft did not preserve the approved Product Brief offer as required.',
+    }
+  }
+  return { title: 'Creative batch generation failed', detail, explanation: detail }
+}
+
+function notificationText(batch: CreativeBatch) {
+  const status = batch.failure_notification?.status
+  if (status === 'sent') return 'Telegram failure notification sent to the allowlisted owner chat.'
+  if (status === 'ambiguous') return 'Telegram delivery timed out; delivery is unknown and was not retried.'
+  if (status === 'suppressed') return 'Telegram notification was suppressed by emergency stop.'
+  if (status === 'failed') return 'Telegram notification could not be delivered; the failure remains recorded here.'
+  if (status === 'pending') return 'Telegram notification is being delivered through the existing PTW bot.'
+  return 'This attempt predates audited Telegram failure notifications.'
 }
 
 function AuthenticatedImage({ api, creative }: { api: ApiClient; creative: AdCreative }) {
@@ -58,7 +82,7 @@ function CreativeCard({ api, creative, onNotice }: {
   }
   return <article className="panel creative-card">
     <div className="creative-art"><AuthenticatedImage api={api} creative={creative} /></div>
-    <div className="creative-copy"><small>{String(creative.ordinal + 1).padStart(2, '0')} · {angleNames[creative.angle]}</small><h2>{creative.hook}</h2><p>{creative.primary_text}</p><p className="creative-cta">CTA · {creative.cta}</p>
+    <div className="creative-copy"><small>{String(creative.ordinal + 1).padStart(2, '0')} · {angleNames[creative.angle]}</small><h2>{creative.hook}</h2><p>{creative.primary_text}</p><p className="creative-offer">Offer · {creative.offer}</p><p className="creative-cta">CTA · {creative.cta}</p>
       <p className="pexels-credit"><a href={creative.image.source_url} target="_blank" rel="noreferrer">Photo</a> by <a href={creative.image.photographer_url} target="_blank" rel="noreferrer">{creative.image.photographer}</a> on <a href="https://www.pexels.com" target="_blank" rel="noreferrer">Pexels</a></p>
       <details><summary>Creative metadata</summary><dl><dt>Creative UUID</dt><dd>{creative.creative_id}</dd><dt>Brief UUID</dt><dd>{creative.brief_id}</dd><dt>Asset UUID</dt><dd>{creative.image.asset_id}</dd><dt>Emotion</dt><dd>{creative.desired_emotion}</dd><dt>Image category</dt><dd>{creative.image_category}</dd><dt>Crop</dt><dd>{creative.crop_focus}</dd><dt>SHA-256</dt><dd>{creative.image.sha256}</dd><dt>License</dt><dd><a href={creative.image.license_url} target="_blank" rel="noreferrer">{creative.image.license}</a></dd></dl></details>
       <div className="creative-feedback"><label>Feedback for this complete creative<textarea rows={3} maxLength={2000} value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="What should future creatives learn?" /></label><button className="secondary" disabled={busy || !feedback.trim()} onClick={submit}>Save feedback <Send /></button>{error && <p role="alert">{error}</p>}</div>
@@ -92,6 +116,7 @@ export function AdsView({ api }: { api: ApiClient }) {
     try { await api.post(`/api/v1/ad-batches/${selected.batch_id}/retry`, {}); await load(selected.batch_id) }
     catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
+  const failure = selected?.status === 'failed' ? batchFailureReason(selected) : null
   if (!items) return error ? <ErrorState message={error} retry={() => void load()} /> : <Loading />
   return <>
     <PageHeader eyebrow="STAGE 2 · COMPLETE AD POSTS" title="Ads" />
@@ -99,7 +124,16 @@ export function AdsView({ api }: { api: ApiClient }) {
     {!items.length ? <Empty><Megaphone className="empty-mark" /><h2>No creative batch yet</h2><p>Approve a completed Product Brief to generate exactly five complete Ad Creatives.</p></Empty> : <div className="ads-workspace">
       <section className="panel"><label>Creative batch<select value={selected?.batch_id || ''} onChange={(event) => void load(event.target.value)}>{items.map((item) => <option key={item.batch_id} value={item.batch_id}>{item.batch_id} · {item.status}</option>)}</select></label>{selected && <p className="uuid-line">Brief {selected.brief_id} · batch {selected.batch_id}</p>}</section>
       {selected && ['queued', 'generating'].includes(selected.status) && <section className="panel generation-state"><RefreshCcw className="spin" /><div><h2>Building five creatives</h2><p>One structured call, fixed angles, real Pexels photos, deterministic 1080×1080 renders.</p></div></section>}
-      {selected?.status === 'failed' && <section className="panel state error"><p>{selected.error_message || selected.error_code || 'Creative batch failed atomically.'}</p><button className="secondary" disabled={busy} onClick={retry}>Retry entire batch</button></section>}
+      {selected?.status === 'failed' && failure && <section className="panel batch-failure" role="alert">
+        <header><AlertTriangle /><div><small>FAILED AT VALIDATION · {selected.error_code || 'GenerationError'}</small><h2>{failure.title}</h2></div></header>
+        <dl>
+          <dt>Reason</dt><dd>{failure.explanation}</dd>
+          <dt>Recorded detail</dt><dd><code>{failure.detail}</code></dd>
+          <dt>Safety outcome</dt><dd><ShieldCheck /> The batch is atomic: no partial creatives or images were saved.</dd>
+          <dt>Telegram</dt><dd><Bell /> {notificationText(selected)}</dd>
+        </dl>
+        <button className="secondary" disabled={busy} onClick={retry}>{busy ? 'Retrying…' : 'Retry entire batch'}</button>
+      </section>}
       {selected?.status === 'completed' && <section className="creative-grid">{selected.creatives.map((creative) => <CreativeCard key={creative.creative_id} api={api} creative={creative} onNotice={setNotice} />)}</section>}
     </div>}
   </>

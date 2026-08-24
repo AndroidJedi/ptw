@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager, contextmanager
+import hmac
 import json
 import re
 import subprocess
@@ -19,6 +20,10 @@ from .control_store import ControlStore
 from .execution import CommandRunner
 from .platform import PlatformRepository
 from .settings import Settings
+from .validation_notifications import (
+    ExistingBotValidationFailureNotifier,
+    ValidationFailureNotificationRepository,
+)
 
 
 def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> FastAPI:
@@ -29,6 +34,13 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     owner = OwnerDependency(verifier or FirebaseVerifier(settings))
     tasks: set[asyncio.Task[Any]] = set()
     operation_start_lock = asyncio.Lock()
+    failure_notifier = ExistingBotValidationFailureNotifier(
+        ValidationFailureNotificationRepository(settings.validation_database_url),
+        bot_token=settings.telegram_bot_token,
+        owner_chat_id=settings.owner_chat_id,
+        allowed_chat_ids=settings.telegram_allowed_chat_ids,
+        owner_console_url=settings.public_origin,
+    )
 
     for interrupted in store.recover_interrupted_commands():
         if interrupted.get("platform_job_id") is not None:
@@ -84,6 +96,13 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
                 status_code=423,
                 detail="PTW emergency stop is active; resume it from Admin / System",
             )
+
+    def authorize_validation(x_ptw_owner_gateway_token: str = Header(default="")) -> None:
+        if not settings.validation_service_token or not hmac.compare_digest(
+            x_ptw_owner_gateway_token,
+            settings.validation_service_token,
+        ):
+            raise HTTPException(status_code=401, detail="Validation callback authentication required")
 
     async def validation_bridge(
         method: str,
@@ -231,6 +250,25 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     @app.get("/healthz")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.post(
+        "/internal/v1/validation-failures",
+        dependencies=[Depends(authorize_validation)],
+    )
+    def validation_failure_notification(request: Mapping[str, Any]) -> dict[str, Any]:
+        if set(request) != {"target_id", "attempt_id", "stage"}:
+            raise HTTPException(status_code=400, detail="target_id, attempt_id, and stage are required")
+        stage = str(request.get("stage") or "")
+        if stage != "ad_creative_batch":
+            raise HTTPException(status_code=400, detail="unsupported Validation notification stage")
+        try:
+            return failure_notifier.notify(
+                str(UUID(str(request["target_id"]))),
+                str(UUID(str(request["attempt_id"]))),
+                stage,
+            )
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.get("/api/v1/overview")
     async def overview(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:

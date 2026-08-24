@@ -177,6 +177,16 @@ main#main-content { min-width: 0; min-height: 100vh; padding: 20px 16px calc(92p
 .creative-copy details dl { margin-top: 14px; font-size: 10px; }
 .creative-copy details p { margin: 12px 0 0; font-size: 11px; }
 .creative-cta { color: var(--white); font-weight: 850; }
+.creative-offer { margin-bottom: 8px; color: var(--soft); font-weight: 750; }
+.batch-failure { border-style: dashed; background: var(--panel-strong); }
+.batch-failure header { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 13px; align-items: center; }
+.batch-failure header > svg { width: 42px; height: 42px; padding: 9px; border: 1px solid var(--white); border-radius: 50%; }
+.batch-failure h2 { margin: 5px 0 0; font-size: clamp(1.35rem, 5vw, 2rem); }
+.batch-failure dl { margin: 22px 0; display: grid; grid-template-columns: minmax(100px, .35fr) minmax(0, 1fr); gap: 12px 18px; }
+.batch-failure dt { color: var(--muted); font-size: 11px; font-weight: 850; text-transform: uppercase; }
+.batch-failure dd { margin: 0; overflow-wrap: anywhere; color: var(--soft); }
+.batch-failure dd svg { width: 17px; height: 17px; margin-right: 5px; vertical-align: -3px; }
+.batch-failure code { color: var(--white); font: 11px/1.5 ui-monospace, monospace; }
 .creative-feedback { padding-top: 14px; border-top: 1px solid var(--line); }
 .creative-feedback label { color: var(--muted); font-size: 11px; }
 .creative-feedback button { width: 100%; }

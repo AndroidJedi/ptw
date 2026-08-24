@@ -18,6 +18,28 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-24: valid Ad offer failed on terminal punctuation
+
+- Symptom: creative batch `01a03327-a038-72a6-85ae-e50983b0e6f4` failed with
+  only `every creative must retain the Product Brief offer exactly` in Ads and
+  no Telegram notification.
+- Cause: the approved offer was `Free 15-minute mentor call.`. All five bridge
+  drafts preserved its words, but curiosity and problem-first continued the
+  sentence after `call`, so a raw substring check required the Brief's terminal
+  period in the middle of a sentence. The documented per-creative offer was
+  also absent from the structured output schema, and the UI exposed only the
+  validator exception.
+- Durable fix: every creative now has exact schema-bound `cta` and `offer`
+  fields. Visible copy must retain normalized offer wording but may use normal
+  surrounding sentence punctuation. Failure messages identify the ordinal and
+  angle; Ads explains the rule, approved offer, atomic rollback, and Telegram
+  state. A terminal failed batch reserves an append-only audit event before one
+  direct send through the existing allowlisted bot, records sent/failed/
+  ambiguous/suppressed, and never auto-retries ambiguous delivery.
+- Verification: focused domain, runner, callback, Compose-boundary, and Owner
+  UI tests pass locally; production release, one labelled notification, batch
+  retry, restart, dependency, public-console, and 1 GB audits remain pending.
+
 ## 2026-08-24: Validation inherited retired YouTube settings
 
 - Symptom: the authorized validation reset completed and all new services and

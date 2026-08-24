@@ -82,6 +82,12 @@ Landing, Idea, Branding, and Ads tables are absent.
   successfully from production's current `2f2ee9a` revision.
 - Shell syntax checks, Python compilation, `git diff --check`, and release
   script guards pass. Landing-specific suites were intentionally not run.
+- The Ad offer-punctuation incident correction is release-ready locally:
+  25 built-image Validation tests, 15 active Owner Gateway tests, three
+  disposable-PostgreSQL integration tests, 11 Owner web unit tests, the
+  production TypeScript/Vite build, and nine desktop/360 px/iPhone journeys
+  pass. Exact offer and CTA fields are schema-bound; the failed-batch UI and
+  audited existing-bot callback are covered. Production deployment is pending.
 
 ## Production state
 
@@ -114,7 +120,10 @@ journey remains the final interactive acceptance item.
 
 ## Next work
 
-Complete the exact-owner signed-in desktop/360 px journey: create and correct a
+Deploy the offer-punctuation incident correction, send the already-failed batch
+notification through the new audited direct path, retry that failed batch, and
+run the post-release dependency/public/restart/1 GB audits. Then complete the
+exact-owner signed-in desktop/360 px journey: create and correct a
 Brief, approve its promise/offer, inspect five authenticated Ads and attribution,
 submit feedback, and inspect dormant Landing and Admin. Review the scheduled
 24-hour resource audit. Stage 3 Landing, traffic, publishing, campaigns, UTMs,

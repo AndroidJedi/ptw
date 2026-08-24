@@ -66,9 +66,11 @@ complete creatives in this order:
 5. problem-first
 
 Each creative contains hook, primary text, image description, exact Brief CTA,
-exact Brief offer, desired emotion, image category, English image search query,
-and left/center/right crop focus. The server assigns `creative_id` and keeps the
-`brief_id` on every record.
+an exact schema-bound Brief offer field, desired emotion, image category,
+English image search query, and left/center/right crop focus. The offer wording
+must remain visible in the copy, while surrounding sentence punctuation may
+follow normal grammar. The server assigns `creative_id` and keeps the `brief_id`
+on every record.
 
 ## Real-photo artifacts
 
@@ -105,6 +107,12 @@ Required edges are:
 PostgreSQL entities, edges, attempts, invocation provenance, source attribution,
 and JPEG bytes are the complete authority.
 
+A terminal failed Ad batch reserves one append-only audit event and makes at
+most one direct `sendMessage` through the existing allowlisted PTW bot. The
+result is appended as sent, failed, ambiguous, or emergency-stop suppressed;
+ambiguous sends are never retried automatically. This adds no webhook, poller,
+worker, inbound command, or completion notification.
+
 ## APIs and workspaces
 
 Owner-authenticated routes provide Brief create/list/detail/correct/retry/
@@ -115,7 +123,9 @@ registered and return 404.
 
 The PWA navigation is Product Briefs → Ads → Landing → Admin. Ads shows all
 five finished posts, UUIDs, retry state, copy, Pexels attribution, digests, and
-one feedback control per creative. Landing says `Stage 3 pending` and performs
+one feedback control per creative. For a failed batch it shows the validation
+rule, approved offer when relevant, atomic rollback outcome, and Telegram
+notification status before retry. Landing says `Stage 3 pending` and performs
 no API call.
 
 ## Deployment boundary

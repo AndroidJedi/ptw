@@ -3,7 +3,6 @@ from __future__ import annotations
 from io import BytesIO
 import importlib.util
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -104,24 +103,24 @@ class PexelsAndRenderTests(unittest.TestCase):
                 client.download(candidate)
 
     def test_render_is_valid_square_jpeg_with_matching_deterministic_digest(self) -> None:
-        with TemporaryDirectory() as directory:
-            font = Path(directory) / "font.ttf"
-            system_font = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
-            if not system_font.exists():
-                self.skipTest("DejaVu font is unavailable")
-            font.write_bytes(system_font.read_bytes())
-            renderer = SquareCreativeRenderer(font)
-            first, first_digest = renderer.render(
-                jpeg(), hook="Перший спокійний крок", offer="Перша консультація безкоштовно",
-                cta="Записатися", crop_focus="left",
-            )
-            second, second_digest = renderer.render(
-                jpeg(), hook="Перший спокійний крок", offer="Перша консультація безкоштовно",
-                cta="Записатися", crop_focus="left",
-            )
+        root = Path(__file__).resolve().parents[2]
+        renderer = SquareCreativeRenderer(
+            root / "natal/assets/inter.ttf",
+            root / "natal/assets/logo-natal.png",
+        )
+        first, first_digest = renderer.render(
+            jpeg(), hook="Перший спокійний крок", offer="Перша консультація безкоштовно",
+            cta="Записатися", crop_focus="left",
+        )
+        second, second_digest = renderer.render(
+            jpeg(), hook="Перший спокійний крок", offer="Перша консультація безкоштовно",
+            cta="Записатися", crop_focus="left",
+        )
         image = Image.open(BytesIO(first))
         self.assertEqual((1080, 1080), image.size)
         self.assertEqual("JPEG", image.format)
+        self.assertGreater(sum(1 for red, green, blue in image.crop((60, 48, 306, 143)).getdata()
+                               if green > red + 25 and blue > red + 35), 100)
         self.assertEqual(first, second)
         self.assertEqual(first_digest, second_digest)
         self.assertEqual(64, len(first_digest))

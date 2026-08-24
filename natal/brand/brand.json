@@ -20,6 +20,7 @@
     "body_weight": 400
   },
   "assets": [
+    {"file": "inter.ttf", "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"},
     {"file": "logo-natal.png", "sha256": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba"},
     {"file": "logo-icon.svg", "sha256": "33cf41e1c0d67e3ae8d8b67cbc96f776edb72827058a1278f082e153a6c8bea8"},
     {"file": "convenient.svg", "sha256": "4646f9aa99e88ec17ac92dd67a3a4bbf6e36d4a84249a72f9628d5fe47bac8d5"},

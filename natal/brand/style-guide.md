@@ -7,8 +7,9 @@ identity.
 
 Use the dark near-black background, cool charcoal surfaces, white copy, muted
 blue-grey supporting text, and teal/cyan only for intent and progress. Inter is
-the primary typeface with system fallbacks. Headlines are compact, direct, and
-high contrast; body copy is short and readable. Controls are at least 44 CSS
+the primary typeface with system fallbacks; the renderable canonical file is
+`natal/assets/inter.ttf`. Headlines are compact, direct, and high contrast;
+body copy is short and readable. Controls are at least 44 CSS
 pixels high. Layouts start at 360 px, avoid horizontal scrolling, and respect
 reduced-motion preferences.
 

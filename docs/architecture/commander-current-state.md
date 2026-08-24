@@ -6,10 +6,11 @@ Branch: `codex/web-only-commander`
 ## Last completed milestone
 
 The Simplified Validation Phase 1 implementation is complete. The latest
-application milestone is the authenticated-image integrity and error-state
-safeguard at `fddacb5`, following the Ad offer-punctuation recovery. The
-independent platform checkout remains unchanged at its release-transfer guard
-`6ed6d8d`:
+locally verified application milestone gives every Ad the immutable Natal
+identity and strengthens visual/copy semantic alignment; production still runs
+the authenticated-image safeguard at `fddacb5` until this revision is deployed.
+The independent platform checkout remains unchanged at its release-transfer
+guard `6ed6d8d`:
 
 ```text
 raw idea → Product Brief → owner approval → five Ad Creatives
@@ -28,9 +29,13 @@ complete creatives in the fixed angle order.
 Pexels is the only photo adapter. Selection is bounded to ten square results
 plus one broader category fallback, never reuses a photo within a batch, and
 rejects rate limits, unsafe URLs or redirects, invalid MIME, oversized data,
-small images, and undecodable bytes. Pillow produces deterministic 1080×1080
-JPEGs with the hook, offer, and CTA. PostgreSQL stores the authoritative bytes,
-digest, source page, photographer, license, attribution, and complete lineage.
+small images, and undecodable bytes. The generator now silently drafts multiple
+headline candidates per proposed visual and selects the strongest only after
+emotion-match, narrative-completion, specificity, human-tension, and scroll
+tests. Pillow produces deterministic 1080×1080 JPEGs with the canonical Natal
+logo, Inter font, palette, hook, offer, and CTA. PostgreSQL stores the
+authoritative bytes, digest, source page, photographer, license, attribution,
+and complete lineage.
 
 The Owner Console navigation is Product Briefs → Ads → Landing → Admin. Brief
 corrections and creative feedback create editable, owner-gated lesson
@@ -73,7 +78,8 @@ Landing, Idea, Branding, and Ads tables are absent.
   no retired Positioning/Landing route.
 - Canonical Product Brief and Ad Creative skills pass the Skill Creator
   validator; the PTW skill/link/mount validator passes. The retired Marketing
-  Positioning skill and desktop link are absent; Natal is explicitly dormant.
+  Positioning skill and desktop link are absent. Natal Landing remains dormant;
+  its canonical identity is now shared by active Ad rendering.
 - The independent bridge was changed only in the separate
   `/Users/serhiiholovaschuk/Projects/ptw-platform-validation` checkout. Its
   complete suite passes 84 tests and its capabilities expose the three new

@@ -149,12 +149,15 @@ class ValidationRunner:
                         "every creative. Keep the offer wording visibly intact in each hook or primary_text; sentence "
                         "punctuation may surround it but must not change its words. "
                         "Describe authentic real photography and emit useful English Pexels search queries even when the ad "
-                        "copy is Ukrainian. Do not create AI artwork, publish an ad, invent proof, or optimize from performance.\n\n"
+                        "copy is Ukrainian. Apply the immutable Natal identity. For each proposed visual, silently generate "
+                        "multiple headline candidates, apply the skill's semantic-alignment self-check, and return only the "
+                        "strongest hook in the strict output. Do not create AI artwork, publish an ad, invent proof, or "
+                        "optimize from performance.\n\n"
                         "CANONICAL_SKILL:\n" + self.ad_creative_skill
                     ),
                     input_payload=payload,
                     output_schema=creative_set_schema(brief=brief["document"]),
-                    prompt_version="ad_creative_batch_v2_exact_offer",
+                    prompt_version="ad_creative_batch_v3_natal_visual_alignment",
                 )
                 creative_set = CreativeSetV1.from_dict(result, brief=brief["document"])
                 self.repository.complete_invocation(

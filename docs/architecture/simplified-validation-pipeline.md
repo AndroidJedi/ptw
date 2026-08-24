@@ -1,6 +1,6 @@
 # PTW Simplified Validation Pipeline — Phase 1
 
-Status: implemented locally; production cutover pending owner reset confirmation
+Status: Phase 1 production cutover complete; Natal Ad identity update pending deployment
 Updated: 2026-08-24
 
 ## Scope
@@ -72,6 +72,15 @@ must remain visible in the copy, while surrounding sentence punctuation may
 follow normal grammar. The server assigns `creative_id` and keeps the `brief_id`
 on every record.
 
+Natal is the immutable umbrella identity for every creative. The generator
+silently drafts multiple headline candidates for each proposed visual, checks
+image/headline semantic alignment, and returns only the strongest hook without
+changing the strict schema. Acceptance requires emotion match, narrative
+completion, industry specificity, visible human tension, and a frame that can
+pass the half-second scroll test without its text overlay. Visual direction
+must also retain direction, movement, meaningful symbolism, and immediate
+emotional clarity.
+
 ## Real-photo artifacts
 
 Pexels is the sole active stock-photo adapter. Its credential stays only in the
@@ -80,8 +89,9 @@ ten square results, skips small or reused photos, and tries one broader category
 fallback. It rejects unsupported MIME, oversized data, images outside the
 Pexels CDN, undecodable data, and dimensions below 1080×1080.
 
-The Validation image contains a Ukrainian-capable DejaVu font. Pillow performs
-a deterministic focus crop, gradient, and hook/offer/CTA overlay, then stores
+The Validation image contains the canonical Inter font and Natal logo. Pillow
+performs a deterministic focus crop and applies the Natal near-black, white,
+and cyan palette plus the canonical logo, hook, offer, and CTA. It then stores
 the exact 1080×1080 JPEG bytes and SHA-256 in PostgreSQL. Source page,
 photographer, photographer URL, Pexels license, and attribution remain attached
 to the authenticated artifact. If any of five assets fails, no creative or

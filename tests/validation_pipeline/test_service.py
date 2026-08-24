@@ -163,6 +163,7 @@ class ValidationRunnerTests(unittest.TestCase):
         self.assertEqual(1, len(bridge.calls))
         call = bridge.calls[0]
         self.assertEqual("ad_creative_batch", call["mode"])
+        self.assertEqual("ad_creative_batch_v3_natal_visual_alignment", call["prompt_version"])
         self.assertEqual({"brief"}, set(call["input_payload"]))
         supplied = call["input_payload"]["brief"]
         self.assertEqual({"brief_id", *BRIEF.keys()}, set(supplied))

@@ -10,8 +10,9 @@ nothing else.
 
 ## Required references
 
-Read `references/output-contract.md`, `references/real-photo-policy.md`, and
-`references/owner-lessons.md` before generating a batch.
+Read `references/output-contract.md`, `references/natal-brand.md`,
+`references/real-photo-policy.md`, and `references/owner-lessons.md` before
+generating a batch.
 
 ## Input boundary
 
@@ -38,6 +39,12 @@ Each is a coherent post: hook, primary text, real-photo description, exact
 offer, exact CTA, desired emotion, image category, English Pexels search query,
 and crop focus.
 Explore the five angles intentionally; do not call the result optimized.
+
+Treat the proposed visual as part of the copy problem. For each creative,
+silently draft multiple headline candidates specifically for its image
+description, evaluate them against the visual and approved Brief, and return
+only the strongest hook in the strict output. Do not expose candidate lists or
+add fields. A merely adequate first headline is not sufficient.
 
 Use authority through clarity, a real expert, transparent process, or supplied
 credentials—not fabricated testimonials, ratings, client counts, outcomes, or
@@ -67,9 +74,9 @@ atomically.
 ## Verification
 
 Check the input boundary, one structured call, five fixed distinct angles,
-exact CTA and offer continuity, unique IDs, real-photo selection, deterministic
-1080×1080 JPEG output, attribution, atomic failure, retries, and feedback
-lineage.
+exact CTA and offer continuity, Natal identity, image/headline semantic
+alignment, unique IDs, real-photo selection, deterministic branded 1080×1080
+JPEG output, attribution, atomic failure, retries, and feedback lineage.
 
 Run:
 

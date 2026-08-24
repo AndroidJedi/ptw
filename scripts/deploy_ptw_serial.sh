@@ -83,15 +83,19 @@ receive_image owner-gateway "ptw-owner-gateway:$release_tag"
 receive_image platform-commander-api "ptw-agent-platform-commander-api:$release_tag"
 receive_image platform-commander-worker "ptw-agent-platform-commander-worker:$release_tag"
 receive_file() {
-    local stream_name=$1 header kind name blocks digest artifact_file checksum_line actual_digest
-    IFS=' ' read -r kind name blocks digest
-    [[ $kind == FILE && $name == "$stream_name" && $blocks =~ ^[1-9][0-9]*$ && $digest =~ ^[0-9a-f]{64}$ ]] || {
+    local stream_name=$1 header kind name blocks size digest artifact_file checksum_line actual_digest
+    IFS=' ' read -r kind name blocks size digest
+    [[ $kind == FILE && $name == "$stream_name" && $blocks =~ ^[1-9][0-9]*$ && $size =~ ^[1-9][0-9]*$ && $digest =~ ^[0-9a-f]{64}$ ]] || {
         echo "invalid release artifact header for $stream_name" >&2; exit 1;
+    }
+    (( size <= blocks * 1048576 && size > (blocks - 1) * 1048576 )) || {
+        echo "invalid exact size for $stream_name" >&2; exit 1;
     }
     artifact_file="$release_directory/$stream_name.bundle"
     dd iflag=fullblock bs=1048576 count="$blocks" of="$artifact_file" status=none
     IFS= read -r header
     [[ -z $header ]] || { echo "invalid release artifact separator" >&2; exit 1; }
+    truncate --size "$size" "$artifact_file"
     checksum_line=$(sha256sum "$artifact_file"); actual_digest=${checksum_line%% *}
     [[ $actual_digest == "$digest" ]] || { echo "checksum mismatch for $stream_name" >&2; exit 1; }
 }

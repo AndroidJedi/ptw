@@ -59,6 +59,11 @@ printing it. Run schema-bound canaries for `product_brief`,
 `product_brief_revision`, and `ad_creative_batch`, then a non-persisting Pexels
 download/render canary before the irreversible reset.
 
+Block-framed non-tar release artifacts must declare their exact byte length.
+After transport, remove framing padding before checksum verification, bundle
+fetch, or another strict parser. Prove the exact platform bundle with a
+disposable fetch before streaming it to production.
+
 If the owner explicitly requests a reversible Hosting-only release before the
 backend cutover, label it incomplete, verify the cache-busted bundle and service
 worker, and expect the full live audit to stop at the legacy API boundary. Never

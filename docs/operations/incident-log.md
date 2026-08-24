@@ -18,6 +18,24 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-24: validation cutover stopped at platform bundle fetch
+
+- Symptom: the serial Phase 1 release loaded and verified all five images, then
+  stopped while fetching the transferred independent-platform Git bundle.
+  The bridge was not replaced and the application reset did not start.
+- Cause: the binary stream protocol padded every file to a 1 MiB boundary.
+  Docker accepts zero-padded tar archives, and `git bundle verify` accepted the
+  bundle header, but `git fetch` correctly rejected trailing bytes as pack
+  junk.
+- Durable fix: non-tar stream frames now include the original byte length and
+  original SHA-256. The receiver validates the framing bounds, truncates the
+  padding, and only then verifies the checksum or passes the artifact to Git.
+  The incident skill now requires exact-length transport and a disposable
+  bundle fetch before production streaming.
+- Verification: cover the paired publisher/deployer stream contract, shell
+  parsing, exact-tag archives, an unpadded disposable bundle fetch, and a fresh
+  serial retry through all pre-reset canaries.
+
 ## 2026-08-24: rebuilt Owner Console remained old on Hosting
 
 - Symptom: the production Firebase URL continued to show the pink Positioning

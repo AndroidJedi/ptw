@@ -43,10 +43,10 @@ emit_file() {
     blocks=$(( (size + 1048575) / 1048576 )); padding=$(( blocks * 1048576 - size )); digest=$(sha256_file "$path")
     if [[ $padding -gt 0 ]]; then
         padded=$(mktemp "/tmp/ptw-$name.XXXXXX"); cp "$path" "$padded"
-        dd if=/dev/zero bs=1 count="$padding" >> "$padded" 2>/dev/null; digest=$(sha256_file "$padded")
-        printf 'FILE %s %s %s\n' "$name" "$blocks" "$digest"; command cat "$padded"; rm -f -- "$padded"
+        dd if=/dev/zero bs=1 count="$padding" >> "$padded" 2>/dev/null
+        printf 'FILE %s %s %s %s\n' "$name" "$blocks" "$size" "$digest"; command cat "$padded"; rm -f -- "$padded"
     else
-        printf 'FILE %s %s %s\n' "$name" "$blocks" "$digest"; command cat "$path"
+        printf 'FILE %s %s %s %s\n' "$name" "$blocks" "$size" "$digest"; command cat "$path"
     fi
     printf '\n'
 }

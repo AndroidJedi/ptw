@@ -117,8 +117,17 @@ Auth persistence, monochrome login, and service-worker checks on desktop and
 iPhone. The full live audit intentionally remains red at the backend boundary:
 the legacy authenticated Positioning route still exists until the gated reset.
 
+The owner has since provisioned the root-owned Pexels credential and authorized
+the reset. The first coordinated cutover attempt loaded and verified all five
+release images, then stopped safely before the bridge change and before reset:
+block padding on the independent-platform Git bundle was accepted by the bundle
+header check but rejected by `git fetch`. The paired publisher/deployer now
+transports an exact byte length and verifies the unpadded digest; a fresh serial
+retry and all pre-reset canaries remain required.
+
 ## Next work
 
-Provision the Pexels key and perform the gated cutover only after the owner
-supplies the exact reset phrase. Stage 3 Landing, traffic, publishing,
+Rerun the fixed, confirmation-gated serial cutover through the bridge and Pexels
+canaries, irreversible allowlisted reset, dependency/live-console acceptance,
+and immediate/24-hour resource audits. Stage 3 Landing, traffic, publishing,
 campaigns, UTMs, analytics, and conversion tracking remain out of scope.

@@ -5,8 +5,9 @@ Branch: `codex/web-only-commander`
 
 ## Last completed milestone
 
-The Simplified Validation Phase 1 implementation is complete in the local
-checkout:
+The Simplified Validation Phase 1 implementation is complete and committed in
+the PTW checkout as `d40bd5b` and in the independent platform checkout as
+`f5c0bd3`:
 
 ```text
 raw idea → Product Brief → owner approval → five Ad Creatives
@@ -80,10 +81,15 @@ Marketing Positioning/Landing release documented in Git history. No production
 database row, service, Firebase release, Telegram behavior, platform database,
 secret, or container was changed.
 
+The read-only production preflight on 2026-08-24 found the existing services
+healthy, both production worktrees clean, the maintenance lock available, no
+kernel OOM entries, and sufficient disk/swap headroom. It also confirmed that
+`PEXELS_API_KEY` is not provisioned in the root-owned runtime environment.
+
 Cutover remains blocked by design until all of the following are available in
 one explicit release operation:
 
-1. reviewed commits from both unrelated Git histories;
+1. the reviewed commits from both unrelated Git histories are pushed;
 2. a root-owned `PEXELS_API_KEY` and successful non-persisting Pexels
    download/render canary;
 3. matching off-host Linux/amd64 Commander, Validation, Owner Gateway, platform
@@ -101,8 +107,7 @@ and 24-hour 1 GB audits remain part of the production acceptance sequence.
 
 ## Next work
 
-Review and commit the PTW and independent bridge changes, provision the Pexels
-key, build the pinned Linux/amd64 release artifacts, and perform the gated
-cutover only after the owner supplies the exact reset phrase. Stage 3 Landing,
-traffic, publishing, campaigns, UTMs, analytics, and conversion tracking remain
-out of scope.
+Push both reviewed commits, provision the Pexels key, build the pinned
+Linux/amd64 release artifacts, and perform the gated cutover only after the
+owner supplies the exact reset phrase. Stage 3 Landing, traffic, publishing,
+campaigns, UTMs, analytics, and conversion tracking remain out of scope.

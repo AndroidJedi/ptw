@@ -63,13 +63,14 @@ Landing, Idea, Branding, and Ads tables are absent.
 - Owner Gateway built-image suite: 15 active non-Landing tests passed.
 - Commander built-image Telegram boundary: one passed; the deterministic
   `ptw-validation-v1` demo was regenerated successfully.
-- Owner web: 12 Vitest tests, production TypeScript/Vite build, and 12
+- Owner web: 15 Vitest tests, production TypeScript/Vite build, and 15
   Playwright journeys passed on desktop Chromium, 360 px Chromium, and iPhone
-  WebKit. Failed and recovered batch panels are covered. Build-time source
-  checks and computed-style assertions enforce the monochrome chrome invariant.
-  The live service-worker cache is
-  `ptw-shell-v30-validation-failure-history`, and the built module graph
-  contains no retired Positioning/Landing route.
+  WebKit. Failed/recovered batch panels and malformed authenticated-image
+  resources are covered. Build-time source checks and computed-style assertions
+  enforce the monochrome chrome invariant. Production remains on
+  `ptw-shell-v30-validation-failure-history`; the locally verified v31 image-
+  error cache is pending deployment. The built module graph contains no retired
+  Positioning/Landing route.
 - Canonical Product Brief and Ad Creative skills pass the Skill Creator
   validator; the PTW skill/link/mount validator passes. The retired Marketing
   Positioning skill and desktop link are absent; Natal is explicitly dormant.
@@ -126,9 +127,17 @@ reservation/result pair. No retry or success message was sent. Restart checks
 preserve the completed batch, recovered reason, notification state, empty
 operation guard, and exactly two notification audit events.
 
+All five authoritative creative assets independently pass stored-byte,
+SHA-256, 1080×1080 JPEG decode, internal HTTP media-type, ETag, and byte-
+equality checks. A reported malformed inline PNG is not emitted by PTW. A v31
+Owner Console safeguard that surfaces HTTP/MIME/integrity/ETag/browser-decode
+reasons with Creative UUID and bounded retry is verified locally but not yet
+deployed.
+
 ## Next work
 
-Complete the exact-owner signed-in desktop/360 px journey: create and correct a
+Deploy the v31 authenticated-image error safeguard and repeat public, image,
+restart, and 1 GB checks. Then complete the exact-owner signed-in desktop/360 px journey: create and correct a
 Brief, approve its promise/offer, inspect five authenticated Ads and attribution,
 submit feedback, and inspect dormant Landing and Admin. Review the scheduled
 24-hour resource audit. Stage 3 Landing, traffic, publishing, campaigns, UTMs,

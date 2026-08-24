@@ -37,18 +37,24 @@ function notificationText(batch: CreativeBatch) {
 function AuthenticatedImage({ api, creative }: { api: ApiClient; creative: AdCreative }) {
   const [url, setUrl] = useState('')
   const [error, setError] = useState('')
+  const [retry, setRetry] = useState(0)
   useEffect(() => {
     let active = true
     let objectUrl = ''
-    void api.blob(creative.image.url).then((blob) => {
+    setUrl(''); setError('')
+    void api.image(creative.image.url, creative.image.mime_type, creative.image.sha256).then((blob) => {
       if (!active) return
       objectUrl = URL.createObjectURL(blob); setUrl(objectUrl)
-    }).catch((cause: Error) => setError(cause.message))
+    }).catch((cause: Error) => { if (active) setError(cause.message) })
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl) }
-  }, [api, creative.creative_id, creative.image.url])
-  if (error) return <div className="creative-image-fallback"><ImageIcon /><span>{error}</span></div>
+  }, [api, creative.creative_id, creative.image.url, creative.image.mime_type, creative.image.sha256, retry])
+  const decodeFailure = () => {
+    setUrl('')
+    setError('Authenticated image bytes passed transport checks, but this browser could not decode them.')
+  }
+  if (error) return <div className="creative-image-fallback" role="alert"><ImageIcon /><strong>Creative image unavailable</strong><span>{error}</span><small>Creative {creative.creative_id}</small><button className="secondary" onClick={() => setRetry((value) => value + 1)}>Retry image</button></div>
   if (!url) return <div className="creative-image-fallback"><RefreshCcw className="spin" /><span>Loading authenticated image…</span></div>
-  return <img src={url} alt={creative.image.alt || creative.image_description} />
+  return <img src={url} alt={creative.image.alt || creative.image_description} onError={decodeFailure} />
 }
 
 function CreativeCard({ api, creative, onNotice }: {

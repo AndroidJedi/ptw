@@ -126,8 +126,11 @@ five finished posts, UUIDs, retry state, copy, Pexels attribution, digests, and
 one feedback control per creative. For a failed batch it shows the validation
 rule, approved offer when relevant, atomic rollback outcome, and Telegram
 notification status. After a successful retry, the latest failed attempt remains
-visible in a recovered-incident summary. Landing says `Stage 3 pending` and
-performs no API call.
+visible in a recovered-incident summary. Authenticated creative loads verify
+the `image/jpeg` media type, exact stored SHA-256, exposed ETag, and browser
+decode result before display; failures show the Creative UUID, exact reason,
+and a bounded retry. PTW does not create inline `data:image/png` Ad resources.
+Landing says `Stage 3 pending` and performs no API call.
 
 ## Deployment boundary
 

@@ -83,6 +83,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         allow_credentials=False,
         allow_methods=["GET", "POST"],
         allow_headers=["Authorization", "Content-Type", "X-Firebase-AppCheck"],
+        expose_headers=["ETag", "Content-Length"],
     )
 
     def background(coroutine: Any) -> None:

@@ -64,6 +64,7 @@ class OwnerClaimsTests(unittest.TestCase):
             if item.cls is CORSMiddleware
         )
         self.assertEqual([firebaseapp, webapp], middleware.kwargs["allow_origins"])
+        self.assertEqual(["ETag", "Content-Length"], middleware.kwargs["expose_headers"])
 
     def test_disabled_gateway_import_does_not_load_pillow_or_ad_runtime(self) -> None:
         result = subprocess.run(

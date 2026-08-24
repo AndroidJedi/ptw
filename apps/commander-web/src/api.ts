@@ -63,6 +63,35 @@ async function jsonBody(response: Response): Promise<unknown> {
   return response.json()
 }
 
+function sha256Hex(bytes: ArrayBuffer) {
+  return crypto.subtle.digest('SHA-256', bytes).then((digest) =>
+    Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join(''),
+  )
+}
+
+export async function validateImageResponse(
+  response: Response,
+  expectedMimeType: string,
+  expectedSha256: string,
+): Promise<Blob> {
+  if (!response.ok) throw new Error(`Authenticated image request failed (HTTP ${response.status}).`)
+  const contentType = (response.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase()
+  if (contentType !== expectedMimeType.toLowerCase()) {
+    throw new Error(`Authenticated image returned ${contentType || 'no content type'}; expected ${expectedMimeType}.`)
+  }
+  const bytes = await response.arrayBuffer()
+  if (!bytes.byteLength) throw new Error('Authenticated image response was empty.')
+  const digest = await sha256Hex(bytes)
+  if (digest !== expectedSha256.toLowerCase()) {
+    throw new Error('Authenticated image bytes failed the stored SHA-256 integrity check.')
+  }
+  const etag = response.headers.get('etag')
+  if (etag && etag !== `"${expectedSha256}"`) {
+    throw new Error('Authenticated image ETag does not match the stored asset digest.')
+  }
+  return new Blob([bytes], { type: contentType })
+}
+
 export class ApiClient {
   constructor(private readonly user: User) {}
 
@@ -101,12 +130,11 @@ export class ApiClient {
     return this.request<T>(path, { method: 'POST', body: JSON.stringify(body) })
   }
 
-  async blob(path: string): Promise<Blob> {
+  async image(path: string, expectedMimeType: string, expectedSha256: string): Promise<Blob> {
     const response = await fetchWithDeadline(`${baseUrl}${path}`, {
       cache: 'no-store', credentials: 'omit', headers: await this.headers(),
     })
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    return response.blob()
+    return validateImageResponse(response, expectedMimeType, expectedSha256)
   }
 
   async websocketUrl(path: string): Promise<string> {

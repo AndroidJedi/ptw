@@ -7,6 +7,7 @@ const brief2 = '018f07ea-7f20-7000-8000-000000000003'
 const feedbackId = '018f07ea-7f20-7000-8000-000000000004'
 const proposalId = '018f07ea-7f20-7000-8000-000000000005'
 const batchId = '018f07ea-7f20-7000-8000-000000000006'
+const imageSha256 = 'b6694b7a1b1eaa1228fcea9a46d4987cd406b650ce2e3c59e62be638ac166ced'
 const angles = ['emotional', 'practical', 'curiosity', 'authority', 'problem_first'] as const
 
 async function expectMonochromeChrome(page: Page) {
@@ -75,7 +76,7 @@ test.beforeEach(async ({ page }) => {
     image: {
       asset_id: `018f07ea-7f20-7000-8001-${String(100 + ordinal).padStart(12, '0')}`,
       url: `/api/v1/ad-creatives/018f07ea-7f20-7000-8000-${String(100 + ordinal).padStart(12, '0')}/image`,
-      mime_type: 'image/jpeg', width: 1080, height: 1080, sha256: 'a'.repeat(64),
+      mime_type: 'image/jpeg', width: 1080, height: 1080, sha256: imageSha256,
       provider: 'pexels', source_photo_id: String(9000 + ordinal),
       source_url: `https://www.pexels.com/photo/${9000 + ordinal}/`,
       photographer: `Photographer ${ordinal + 1}`,
@@ -131,7 +132,7 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname === '/api/v1/ad-batches' && method === 'GET') return json({ items: batchCreated ? [batch()] : [], next_cursor: null })
     if (url.pathname === `/api/v1/ad-batches/${batchId}`) return json(batch())
     if (/\/api\/v1\/ad-creatives\/[^/]+\/image$/.test(url.pathname)) {
-      return route.fulfill({ status: 200, contentType: 'image/jpeg', headers: { ETag: `"${'a'.repeat(64)}"` }, body: Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAEf/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9oADAMBAAIAAwAAABD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/EH//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/EH//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/EH//2Q==', 'base64') })
+      return route.fulfill({ status: 200, contentType: 'image/jpeg', headers: { ETag: `"${imageSha256}"` }, body: Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAEf/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9oADAMBAAIAAwAAABD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/EH//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/EH//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/EH//2Q==', 'base64') })
     }
     if (/\/api\/v1\/ad-creatives\/[^/]+\/feedback$/.test(url.pathname) && method === 'POST') {
       expect(route.request().postDataJSON()).toEqual({ comment: 'Use a warmer crop.' })
@@ -186,6 +187,28 @@ test('owner completes Product Brief and five-Ad validation journey', async ({ pa
   await expect(page.getByRole('heading', { name: 'Завдання' })).toBeVisible()
   await expectMonochromeChrome(page)
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
+})
+
+test('malformed creative resources show their reason and a bounded retry', async ({ page }) => {
+  await page.route('**/api/v1/ad-creatives/**/image', (route) => route.fulfill({
+    status: 200,
+    contentType: 'image/png',
+    body: Buffer.from('iVBORw0KGgBX2EQZQBOnoA=', 'base64'),
+  }))
+  await page.goto('/?e2e=1')
+  await page.getByPlaceholder('Describe one product idea…').fill('Online platform where psychologists provide online consultations.')
+  await page.getByRole('button', { name: /Generate Product Brief/ }).click()
+  await page.getByPlaceholder('One correction for the complete Brief…').fill('Narrow the audience to first-time therapy seekers.')
+  await page.getByRole('button', { name: /Create replacement/ }).click()
+  await page.getByRole('button', { name: /I can honor this promise and offer/ }).click()
+  await page.getByRole('button', { name: 'Ads' }).first().click()
+
+  const failures = page.locator('.creative-image-fallback[role="alert"]')
+  await expect(failures).toHaveCount(5)
+  await expect(failures.first()).toContainText('Authenticated image returned image/png; expected image/jpeg.')
+  await expect(failures.first()).toContainText('Creative 018f07ea-7f20-7000-8000-000000000100')
+  await expect(failures.first().getByRole('button', { name: 'Retry image' })).toBeVisible()
+  await expectMonochromeChrome(page)
 })
 
 test('retired page query redirects to Product Briefs', async ({ page }) => {

@@ -18,6 +18,29 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-24: malformed inline PNG reported as a resource failure
+
+- Symptom: the browser reported a resource-load error for an inline
+  `data:image/png;base64,...` payload while the owner was inspecting Ads.
+- Cause: the supplied payload is not a valid PNG. Its eight-byte signature ends
+  in `00` instead of the required `0a`, it has no valid initial image chunk, and
+  the 683 decoded bytes are incomplete. PTW does not emit inline PNGs for Ads:
+  it owner-authenticates the authoritative JPEG response and displays a local
+  `blob:` URL. All five production assets independently decode as 1080×1080
+  JPEGs, match their stored SHA-256 values, and pass HTTP media-type, ETag, and
+  byte-equality checks. No PTW API or stored-asset failure was found.
+- Durable fix: the Owner Console now verifies the authenticated response's
+  exact `image/jpeg` media type, SHA-256, and exposed ETag before constructing
+  the browser Blob. HTTP, empty-body, MIME, integrity, ETag, and browser-decode
+  failures render an explicit Ads alert with the Creative UUID and one bounded
+  retry instead of leaving only a browser resource error. The incident skill
+  records how to distinguish PTW JPEG/blob delivery from unrelated malformed
+  inline PNG resources.
+- Verification: 15 Owner web unit tests, the production build, 15 desktop/
+  360 px/iPhone browser journeys, 15 active Owner Gateway built-image tests,
+  Commander tests/demo, skill validation, and live five-asset integrity checks
+  pass. Production deployment of the v31 cache remains pending.
+
 ## 2026-08-24: valid Ad offer failed on terminal punctuation
 
 - Symptom: creative batch `01a03327-a038-72a6-85ae-e50983b0e6f4` failed with

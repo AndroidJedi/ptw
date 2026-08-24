@@ -22,6 +22,13 @@ healthy gateway alone does not prove Stage 1–2 readiness.
   return 404.
 - Image delivery is owner-authenticated and returns the stored JPEG with its
   authoritative ETag.
+- PTW Ad images are fetched as authenticated `image/jpeg` responses and shown
+  through browser `blob:` URLs; they are not inline `data:image/png` resources.
+  For a load incident, first validate stored bytes, SHA-256, dimensions, HTTP
+  media type, ETag, and proxy byte equality. Treat a malformed or truncated
+  inline PNG as a separate browser/extension resource unless its provenance to
+  PTW is demonstrated. Still expose MIME, integrity, and browser-decode failures
+  in Ads with the Creative UUID and a bounded retry.
 - Validation Compose injects only its explicit runtime allowlist. Never attach
   whole Owner Gateway, Commander, or platform env files to that container;
   remove retired `DATAFORSEO_`, `POSITIONING_`, `LANDING_`, and `YOUTUBE_`

@@ -1,6 +1,6 @@
 # PTW Simplified Validation Pipeline — Phase 1
 
-Status: Phase 1 production cutover complete; Natal Ad identity update pending deployment
+Status: Phase 1 and the Natal Ad identity update are deployed
 Updated: 2026-08-24
 
 ## Scope

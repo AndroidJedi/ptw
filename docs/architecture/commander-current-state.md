@@ -6,11 +6,9 @@ Branch: `codex/web-only-commander`
 ## Last completed milestone
 
 The Simplified Validation Phase 1 implementation is complete. The latest
-locally verified application milestone gives every Ad the immutable Natal
-identity and strengthens visual/copy semantic alignment; production still runs
-the authenticated-image safeguard at `fddacb5` until this revision is deployed.
-The independent platform checkout remains unchanged at its release-transfer
-guard `6ed6d8d`:
+deployed application milestone at `0c9feff` gives every Ad the immutable Natal
+identity and strengthens visual/copy semantic alignment. The independent
+platform checkout remains unchanged at its release-transfer guard `6ed6d8d`:
 
 ```text
 raw idea → Product Brief → owner approval → five Ad Creatives
@@ -85,8 +83,8 @@ Landing, Idea, Branding, and Ads tables are absent.
   complete suite passes 84 tests and its capabilities expose the three new
   modes while rejection tests cover the retired modes.
 - The three application Linux/amd64 images and checksum-bearing archives were
-  rebuilt from the clean `fddacb5` commit with pinned non-`latest` tag
-  `incident-fddacb5`. The independent platform API and worker remain on the
+  rebuilt from the clean `0c9feff` commit with pinned non-`latest` tag
+  `natal-visual-0c9feff`. The independent platform API and worker remain on the
   previously verified `phase1-5f47722-6ed6d8d` release.
 - Shell syntax checks, Python compilation, `git diff --check`, and release
   script guards pass. Landing-specific suites were intentionally not run.
@@ -98,12 +96,12 @@ Landing, Idea, Branding, and Ads tables are absent.
 
 The owner-authorized Simplified Validation Phase 1 cutover completed on
 2026-08-24. Commander, Validation, and Owner Gateway now use matching
-Linux/amd64 images tagged `incident-fddacb5`, built from `fddacb5`; the
+Linux/amd64 images tagged `natal-visual-0c9feff`, built from `0c9feff`; the
 production checkout includes this documentation checkpoint. The independent
-platform repository remains at `6ed6d8d`, and its
-API and worker remain on `phase1-5f47722-6ed6d8d`. Fresh strict canaries passed
-for `product_brief`, `product_brief_revision`, and `ad_creative_batch` after
-the incident release.
+platform repository remains at `6ed6d8d`, and its API and worker remain on
+`phase1-5f47722-6ed6d8d`. Two fresh strict canaries passed for `product_brief`,
+`product_brief_revision`, and `ad_creative_batch`, and the non-persisting
+Pexels search/download/Natal-render canary passed after the in-place release.
 
 The confirmation-gated Phase 1 reset replaced only `ptw_commander.public` and
 established 19 application tables plus the migration metadata table. Production
@@ -118,8 +116,9 @@ including the non-secret Owner Gateway failure-callback URL;
 retired research, Landing, and YouTube settings are absent from both Validation
 and Owner Gateway. Dependency/schema/bridge audits, canonical skill checks, the
 existing Telegram emergency boundary, serial restart recovery, and the
-immediate 1 GB/OOM audit pass. The platform bridge was neither rebuilt nor
-restarted for this incident.
+immediate 1 GB/OOM audit pass. The in-place release performed no reset: all five
+stored creative rows, assets, digests, and decodable 1080×1080 JPEG bytes were
+preserved. The platform bridge was neither rebuilt nor restarted.
 
 The public audit passes the cache-busted v31 authenticated-image-error bundle, Auth/App Check,
 exact CORS origin, unauthenticated rejection, Product Brief/Ads/Landing/Admin
@@ -141,7 +140,7 @@ not emitted by PTW. The live v31 Owner Console surfaces HTTP/MIME/integrity/
 ETag/browser-decode reasons with Creative UUID and a bounded retry. CORS exposes
 the authoritative ETag and Content-Length to the exact owner origins. The
 immediate 1 GB/OOM audit passes, the previous Telegram audit count is unchanged,
-and the scheduled 24-hour resource audit remains active.
+and a fresh 24-hour resource audit is scheduled for the Natal visual release.
 
 ## Next work
 

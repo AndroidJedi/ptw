@@ -41,10 +41,15 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
 - Verification: the first incident release passed built-image and disposable-
   PostgreSQL suites, bridge/dependency/public-console audits, delivered one
   audited message for the original attempt, and completed retry attempt 2 with
-  five unique verified 1080×1080 JPEGs. Restart persistence and the immediate
-  1 GB/OOM audit pass. The recovered-history follow-up passes 12 Owner web unit
-  tests, 12 desktop/360 px/iPhone journeys, and three disposable-PostgreSQL
-  integration tests; its production deployment remains pending.
+  five unique verified 1080×1080 JPEGs whose offers and CTAs match the approved
+  Brief exactly. The recovered-history follow-up passed 25 Validation tests,
+  15 active Owner Gateway tests, 12 Owner web unit tests, 12 desktop/360 px/
+  iPhone journeys, and three disposable-PostgreSQL integration tests. Production
+  runs matching application images, the public v30 cache/Auth/CORS/retired-route
+  audit passes, and the independent platform release is unchanged. Serial
+  restart preserved the completed batch, original reason, sent notification,
+  empty operation guard, and exactly one notification reservation/result pair;
+  the immediate 1 GB/OOM audit also passes.
 
 ## 2026-08-24: Validation inherited retired YouTube settings
 

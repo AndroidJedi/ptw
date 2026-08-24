@@ -5,9 +5,10 @@ Branch: `codex/web-only-commander`
 
 ## Last completed milestone
 
-The Simplified Validation Phase 1 implementation is complete and committed in
-the PTW checkout as `d40bd5b` and in the independent platform checkout as
-`f5c0bd3`. The platform release-transfer guard is committed as `6ed6d8d`:
+The Simplified Validation Phase 1 implementation is complete. The latest
+application milestone is the Ad offer-punctuation incident correction and its
+recovered-failure-history follow-up at `d06c409`. The independent platform
+checkout remains unchanged at its release-transfer guard `6ed6d8d`:
 
 ```text
 raw idea → Product Brief → owner approval → five Ad Creatives
@@ -48,26 +49,27 @@ Landing, Idea, Branding, and Ads tables are absent.
 
 ## Verification
 
-- Validation Linux/amd64 built-image suite: 22 passed, including strict Brief/creative
+- Validation Linux/amd64 built-image suite: 25 passed, including strict Brief/creative
   shapes, offer enforcement, language inference, bridge input isolation,
   Pexels selection/fallback/rate-limit/download safety, deterministic JPEGs,
-  authentication, ETags, retired API 404s, and the explicit Compose environment
-  boundary.
-- Disposable PostgreSQL 16: two integration tests passed for immutable
+  authentication, ETags, retired API 404s, the explicit Compose environment
+  boundary, failure notification, and recovered failure history.
+- Disposable PostgreSQL 16: three integration tests passed for immutable
   corrections, idempotent approval, atomic five-asset persistence, restart and
-  retry behavior, graph edges, feedback/weights, proposal promotion, and legacy
-  table absence.
+  retry behavior, at-most-once failure notification, recovered failure history,
+  graph edges, feedback/weights, proposal promotion, and legacy table absence.
 - Baseline/reset verification passed twice with 19 application tables and the
   independent platform fixture unchanged at three rows.
-- Owner Gateway built-image suite: 18 active non-Landing tests passed.
+- Owner Gateway built-image suite: 15 active non-Landing tests passed.
 - Commander built-image Telegram boundary: one passed; the deterministic
   `ptw-validation-v1` demo was regenerated successfully.
-- Owner web: 10 Vitest tests, production TypeScript/Vite build, and six
+- Owner web: 12 Vitest tests, production TypeScript/Vite build, and 12
   Playwright journeys passed on desktop Chromium, 360 px Chromium, and iPhone
-  WebKit. Build-time source checks and computed-style assertions enforce the
-  monochrome chrome invariant. The service-worker cache is
-  `ptw-shell-v28-monochrome-validation`, and the built module graph contains no
-  retired Positioning/Landing route.
+  WebKit. Failed and recovered batch panels are covered. Build-time source
+  checks and computed-style assertions enforce the monochrome chrome invariant.
+  The live service-worker cache is
+  `ptw-shell-v30-validation-failure-history`, and the built module graph
+  contains no retired Positioning/Landing route.
 - Canonical Product Brief and Ad Creative skills pass the Skill Creator
   validator; the PTW skill/link/mount validator passes. The retired Marketing
   Positioning skill and desktop link are absent; Natal is explicitly dormant.
@@ -75,61 +77,58 @@ Landing, Idea, Branding, and Ads tables are absent.
   `/Users/serhiiholovaschuk/Projects/ptw-platform-validation` checkout. Its
   complete suite passes 84 tests and its capabilities expose the three new
   modes while rejection tests cover the retired modes.
-- All five off-host Linux/amd64 images and checksum-bearing archives were
-  rebuilt from clean commits with the pinned non-`latest` release tag
-  `phase1-5f47722-6ed6d8d`. The platform archive also contains a verified Git
-  bundle whose HEAD is exactly `6ed6d8d`; a disposable import fast-forwarded
-  successfully from production's current `2f2ee9a` revision.
+- The three application Linux/amd64 images and checksum-bearing archives were
+  rebuilt from the clean `d06c409` commit with pinned non-`latest` tag
+  `incident-d06c409`. The independent platform API and worker remain on the
+  previously verified `phase1-5f47722-6ed6d8d` release.
 - Shell syntax checks, Python compilation, `git diff --check`, and release
   script guards pass. Landing-specific suites were intentionally not run.
-- The Ad offer-punctuation incident correction is deployed and its recovery-
-  history follow-up is release-ready locally: 25 Validation tests, 15 active
-  Owner Gateway tests, three disposable-PostgreSQL integration tests, 12 Owner
-  web unit tests, the production TypeScript/Vite build, and 12 desktop/360 px/
-  iPhone journeys pass. Exact offer and CTA fields are schema-bound; failed and
+- The Ad offer-punctuation incident correction and recovery-history follow-up
+  are deployed. Exact offer and CTA fields are schema-bound; failed and
   recovered-batch UI states and the audited existing-bot callback are covered.
 
 ## Production state
 
 The owner-authorized Simplified Validation Phase 1 cutover completed on
-2026-08-24. Production uses the five matching Linux/amd64 images tagged
-`phase1-5f47722-6ed6d8d`; the application repository is at the environment
-isolation release and the independent platform repository is at `6ed6d8d`.
-Fresh strict canaries passed for `product_brief`, `product_brief_revision`, and
-`ad_creative_batch`, followed by a successful non-persisting Pexels
-search/download/render canary.
+2026-08-24. Commander, Validation, and Owner Gateway now use matching
+Linux/amd64 images tagged `incident-d06c409`; the application repository is at
+`d06c409`. The independent platform repository remains at `6ed6d8d`, and its
+API and worker remain on `phase1-5f47722-6ed6d8d`. Fresh strict canaries passed
+for `product_brief`, `product_brief_revision`, and `ad_creative_batch` after
+the incident release.
 
-The confirmation-gated reset replaced only `ptw_commander.public`. The clean
-baseline has 19 application tables plus the migration metadata table, with zero
-Briefs, batches, creatives, entities, and relationships. Legacy Positioning,
-active Landing, Idea, Branding, and Ads tables and containers are absent, and
-the independent platform database counts were unchanged.
+The confirmation-gated Phase 1 reset replaced only `ptw_commander.public` and
+established 19 application tables plus the migration metadata table. Production
+has since persisted the owner-created Brief, recovered batch, five creatives,
+assets, attempts, and audit lineage. Legacy Positioning, active Landing, Idea,
+Branding, and Ads tables and containers remain absent, and the independent
+platform database was not changed by the incident release.
 
 Commander, Validation, Owner Gateway, platform API, and platform worker are
-healthy. Validation receives only its explicit eight-variable runtime allowlist;
+healthy. Validation receives only its explicit nine-variable runtime allowlist,
+including the non-secret Owner Gateway failure-callback URL;
 retired research, Landing, and YouTube settings are absent from both Validation
 and Owner Gateway. Dependency/schema/bridge audits, canonical skill checks, the
-existing Telegram emergency-boundary canary, serial restart recovery, and the
-immediate 1 GB/OOM audit pass. The persistent 24-hour resource audit is
-scheduled.
+existing Telegram emergency boundary, serial restart recovery, and the
+immediate 1 GB/OOM audit pass. The platform bridge was neither rebuilt nor
+restarted for this incident.
 
-The public audit passes the cache-busted v28 monochrome bundle, Auth/App Check,
+The public audit passes the cache-busted v30 failure-history bundle, Auth/App Check,
 exact CORS origin, unauthenticated rejection, Product Brief/Ads/Landing/Admin
 markers, and retired-route 404s. A real exact-owner signed-in Stage 1–2 browser
 journey remains the final interactive acceptance item.
 
-The offer-punctuation incident backend is on `incident-063101c` and Hosting is
-on the v29 failure-reason bundle. The original failed attempt produced one
-audited Telegram message, retry attempt 2 completed the same batch with five
-verified 1080×1080 JPEGs, and restart plus immediate 1 GB/OOM audits pass. A
-v30 follow-up that keeps the failed attempt visible after successful retry is
-verified locally but not yet deployed.
+Batch `01a03327-a038-72a6-85ae-e50983b0e6f4` retains failed attempt 1 and its
+exact reason after retry attempt 2 completed. The batch has five unique,
+verified 1080×1080 JPEGs; every stored creative has the approved exact offer
+and CTA. The original failure produced one audited Telegram message with one
+reservation/result pair. No retry or success message was sent. Restart checks
+preserve the completed batch, recovered reason, notification state, empty
+operation guard, and exactly two notification audit events.
 
 ## Next work
 
-Deploy the v30 recovered-failure-history follow-up and repeat the public and
-restart checks. Then complete the exact-owner signed-in desktop/360 px journey:
-create and correct a
+Complete the exact-owner signed-in desktop/360 px journey: create and correct a
 Brief, approve its promise/offer, inspect five authenticated Ads and attribution,
 submit feedback, and inspect dormant Landing and Admin. Review the scheduled
 24-hour resource audit. Stage 3 Landing, traffic, publishing, campaigns, UTMs,

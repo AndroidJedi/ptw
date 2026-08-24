@@ -68,9 +68,11 @@ Landing, Idea, Branding, and Ads tables are absent.
   `/Users/serhiiholovaschuk/Projects/ptw-platform-validation` checkout. Its
   complete suite passes 84 tests and its capabilities expose the three new
   modes while rejection tests cover the retired modes.
-- All five off-host Linux/amd64 images and checksum-bearing archives were built
-  with the non-`latest` local validation tag `phase1-local-20260824`. They are
-  verification artifacts, not an approved production release.
+- All five off-host Linux/amd64 images and checksum-bearing archives were
+  rebuilt from clean commits with the pinned non-`latest` release tag
+  `phase1-5f47722-6ed6d8d`. The platform archive also contains a verified Git
+  bundle whose HEAD is exactly `6ed6d8d`; a disposable import fast-forwarded
+  successfully from production's current `2f2ee9a` revision.
 - Shell syntax checks, Python compilation, `git diff --check`, and release
   script guards pass. Landing-specific suites were intentionally not run.
 
@@ -86,18 +88,14 @@ healthy, both production worktrees clean, the maintenance lock available, no
 kernel OOM entries, and sufficient disk/swap headroom. It also confirmed that
 `PEXELS_API_KEY` is not provisioned in the root-owned runtime environment.
 
-Cutover remains blocked by design until all of the following are available in
+The reviewed PTW commit and the matching five-image release set are now ready.
+Cutover remains blocked by design until the remaining gates are available in
 one explicit release operation:
 
-1. the reviewed PTW commit is pushed and the exact independent platform commit
-   is included in the checksum-verified release bundle;
-2. a root-owned `PEXELS_API_KEY` and successful non-persisting Pexels
+1. a root-owned `PEXELS_API_KEY` and successful non-persisting Pexels
    download/render canary;
-3. matching off-host Linux/amd64 Commander, Validation, Owner Gateway, platform
-   API, and platform worker images rebuilt from the reviewed commits with a
-   non-`latest` release tag;
-4. fresh schema-bound canaries for all three validation modes; and
-5. the exact owner phrase `RESET PTW PRODUCTION` immediately before the
+2. fresh schema-bound canaries for all three validation modes; and
+3. the exact owner phrase `RESET PTW PRODUCTION` immediately before the
    allowlisted irreversible reset of `ptw_commander.public`.
 
 The serial deploy script restores the prior platform images if either the
@@ -108,7 +106,6 @@ and 24-hour 1 GB audits remain part of the production acceptance sequence.
 
 ## Next work
 
-Provision the Pexels key, build the pinned Linux/amd64 release artifacts, and
-perform the gated cutover only after the owner supplies the exact reset phrase.
-Stage 3 Landing, traffic, publishing, campaigns, UTMs, analytics, and
-conversion tracking remain out of scope.
+Provision the Pexels key and perform the gated cutover only after the owner
+supplies the exact reset phrase. Stage 3 Landing, traffic, publishing,
+campaigns, UTMs, analytics, and conversion tracking remain out of scope.

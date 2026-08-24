@@ -5,12 +5,12 @@ Branch: `codex/web-only-commander`
 
 ## Last completed milestone
 
-The Simplified Validation Phase 1 implementation is complete. The latest local
-milestone replaces per-proposal Save/Plan/Dismiss controls with one combined
-lesson action: every feedback and proposal UUID remains append-only, while all
+The Simplified Validation Phase 1 implementation is complete. The latest
+deployed milestone replaces per-proposal Save/Plan/Dismiss controls with one
+combined lesson action: every feedback and proposal UUID remains append-only, while all
 pending proposals in one generator domain share one editable lesson and one
-Plan/Execute command. Production remains on the Natal visual milestone at
-`0c9feff` until this change is deployed. The independent platform checkout
+Plan/Execute command. Production application images are built from `a49d663`.
+The independent platform checkout
 remains unchanged at its release-transfer guard `6ed6d8d`:
 
 ```text
@@ -76,7 +76,7 @@ Landing, Idea, Branding, and Ads tables are absent.
   WebKit. Failed/recovered batch panels and malformed authenticated-image
   resources are covered. Build-time source checks and computed-style assertions
   enforce the monochrome chrome invariant. The live service-worker cache is
-  `ptw-shell-v32-grouped-owner-lessons` in the pending release. The built module
+  `ptw-shell-v32-grouped-owner-lessons`. The built module
   graph contains no retired Positioning/Landing route.
 - Canonical Product Brief and Ad Creative skills pass the Skill Creator
   validator; the PTW skill/link/mount validator passes. The retired Marketing
@@ -87,9 +87,9 @@ Landing, Idea, Branding, and Ads tables are absent.
   complete suite passes 84 tests and its capabilities expose the three new
   modes while rejection tests cover the retired modes.
 - The three application Linux/amd64 images and checksum-bearing archives were
-  rebuilt from the clean `0c9feff` commit with pinned non-`latest` tag
-  `natal-visual-0c9feff`. The independent platform API and worker remain on the
-  previously verified `phase1-5f47722-6ed6d8d` release.
+  rebuilt from the clean `a49d663` commit with pinned non-`latest` tag
+  `grouped-lessons-a49d663`. The independent platform API and worker remain on
+  the previously verified `phase1-5f47722-6ed6d8d` release.
 - Shell syntax checks, Python compilation, `git diff --check`, and release
   script guards pass. Landing-specific suites were intentionally not run.
 - The Ad offer-punctuation incident correction and recovery-history follow-up
@@ -100,12 +100,15 @@ Landing, Idea, Branding, and Ads tables are absent.
 
 The owner-authorized Simplified Validation Phase 1 cutover completed on
 2026-08-24. Commander, Validation, and Owner Gateway now use matching
-Linux/amd64 images tagged `natal-visual-0c9feff`, built from `0c9feff`; the
+Linux/amd64 images tagged `grouped-lessons-a49d663`, built from `a49d663`; the
 production checkout includes this documentation checkpoint. The independent
 platform repository remains at `6ed6d8d`, and its API and worker remain on
 `phase1-5f47722-6ed6d8d`. Two fresh strict canaries passed for `product_brief`,
 `product_brief_revision`, and `ad_creative_batch`, and the non-persisting
 Pexels search/download/Natal-render canary passed after the in-place release.
+The live Owner Console exposes only `Plan combined lesson` for pending lesson
+proposals; the retired Save edit, Plan promotion, and Dismiss controls are not
+present in its shipped application bundle.
 
 The confirmation-gated Phase 1 reset replaced only `ptw_commander.public` and
 established 19 application tables plus the migration metadata table. Production
@@ -120,14 +123,17 @@ including the non-secret Owner Gateway failure-callback URL;
 retired research, Landing, and YouTube settings are absent from both Validation
 and Owner Gateway. Dependency/schema/bridge audits, canonical skill checks, the
 existing Telegram emergency boundary, serial restart recovery, and the
-immediate 1 GB/OOM audit pass. The in-place release performed no reset: all five
-stored creative rows, assets, digests, and decodable 1080×1080 JPEG bytes were
-preserved. The platform bridge was neither rebuilt nor restarted.
+immediate 1 GB/OOM audit pass. The in-place release performed no reset: all nine
+HumanFeedback rows, nine WeightUpdate rows, four Product Brief proposals, five
+Ad Creative proposals, and five stored assets matched their pre-release row
+fingerprints exactly. All five creative bytes, digests, and decodable 1080×1080
+JPEGs were also reverified. The platform bridge was neither rebuilt nor
+restarted.
 
-The public audit passes the cache-busted v31 authenticated-image-error bundle, Auth/App Check,
-exact CORS origin, unauthenticated rejection, Product Brief/Ads/Landing/Admin
-markers, and retired-route 404s. A real exact-owner signed-in Stage 1–2 browser
-journey remains the final interactive acceptance item.
+The public audit passes the cache-busted v32 grouped-owner-lessons bundle,
+Auth/App Check, exact CORS origin, unauthenticated rejection, Product
+Brief/Ads/Landing/Admin markers, and retired-route 404s. A real exact-owner
+signed-in Stage 1–2 browser journey remains the final interactive acceptance item.
 
 Batch `01a03327-a038-72a6-85ae-e50983b0e6f4` retains failed attempt 1 and its
 exact reason after retry attempt 2 completed. The batch has five unique,
@@ -140,11 +146,11 @@ operation guard, and exactly two notification audit events.
 All five authoritative creative assets independently pass stored-byte,
 SHA-256, 1080×1080 JPEG decode, internal HTTP media-type, ETag, and byte-
 equality checks before and after restart. A reported malformed inline PNG is
-not emitted by PTW. The live v31 Owner Console surfaces HTTP/MIME/integrity/
+not emitted by PTW. The live v32 Owner Console surfaces HTTP/MIME/integrity/
 ETag/browser-decode reasons with Creative UUID and a bounded retry. CORS exposes
 the authoritative ETag and Content-Length to the exact owner origins. The
 immediate 1 GB/OOM audit passes, the previous Telegram audit count is unchanged,
-and a fresh 24-hour resource audit is scheduled for the Natal visual release.
+and a fresh 24-hour resource audit is scheduled for the grouped-lesson release.
 
 ## Next work
 

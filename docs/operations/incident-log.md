@@ -18,6 +18,23 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-24: Validation inherited retired YouTube settings
+
+- Symptom: the authorized validation reset completed and all new services and
+  bridge canaries were healthy, but the post-reset dependency audit rejected
+  the Validation container for exposing retired provider setting names.
+- Cause: Validation Compose attached the complete Owner Gateway, Commander, and
+  platform env files instead of injecting only its required variables. The
+  cutover cleanup removed retired research and Landing prefixes but omitted the
+  two legacy `YOUTUBE_` entries present in the root-owned Owner Gateway env.
+- Durable fix: Validation Compose now has an explicit eight-variable runtime
+  allowlist, including the structured-bridge token, with no service-level
+  `env_file`. Cutover cleanup also removes the retired `YOUTUBE_` prefix. The
+  incident skill forbids whole-env inheritance at this boundary.
+- Verification: render Compose against the production env files without
+  printing values, recreate only Validation, inspect environment names, rerun
+  schema/bridge/dependency audits, and verify no retired provider is reachable.
+
 ## 2026-08-24: validation cutover stopped at platform bundle fetch
 
 - Symptom: the serial Phase 1 release loaded and verified all five images, then

@@ -22,6 +22,10 @@ healthy gateway alone does not prove Stage 1–2 readiness.
   return 404.
 - Image delivery is owner-authenticated and returns the stored JPEG with its
   authoritative ETag.
+- Validation Compose injects only its explicit runtime allowlist. Never attach
+  whole Owner Gateway, Commander, or platform env files to that container;
+  remove retired `DATAFORSEO_`, `POSITIONING_`, `LANDING_`, and `YOUTUBE_`
+  settings from the root-owned application env during cutover.
 
 ## Stage checks
 

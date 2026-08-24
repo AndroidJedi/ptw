@@ -125,9 +125,17 @@ header check but rejected by `git fetch`. The paired publisher/deployer now
 transports an exact byte length and verifies the unpadded digest; a fresh serial
 retry and all pre-reset canaries remain required.
 
+The corrected retry passed all bridge and Pexels gates and completed the clean
+application reset with independent platform counts unchanged. The post-reset
+dependency audit then found that Validation inherited two retired `YOUTUBE_`
+setting names from the complete Owner Gateway env file. All new containers are
+healthy and retired routes already return 404, but acceptance remains incomplete
+until Validation uses the explicit runtime env allowlist, the retired entries
+are removed without disclosure, and every post-reset audit is rerun.
+
 ## Next work
 
-Rerun the fixed, confirmation-gated serial cutover through the bridge and Pexels
-canaries, irreversible allowlisted reset, dependency/live-console acceptance,
-and immediate/24-hour resource audits. Stage 3 Landing, traffic, publishing,
-campaigns, UTMs, analytics, and conversion tracking remain out of scope.
+Deploy the Validation environment-isolation fix without another reset, rerun
+dependency/live-console acceptance, and complete the immediate/24-hour resource
+audits. Stage 3 Landing, traffic, publishing, campaigns, UTMs, analytics, and
+conversion tracking remain out of scope.

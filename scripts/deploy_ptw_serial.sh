@@ -37,7 +37,7 @@ deployment_started_at=$(date --iso-8601=seconds)
 }
 # Remove retired provider and dormant Landing runtime settings without reading
 # or printing their values. The real-photo key remains root-owned and required.
-sed -i '/^DATAFORSEO_/d;/^POSITIONING_/d;/^LANDING_/d' "$repository/.env.owner-gateway"
+sed -i '/^DATAFORSEO_/d;/^POSITIONING_/d;/^LANDING_/d;/^YOUTUBE_/d' "$repository/.env.owner-gateway"
 pexels_line=$(grep '^PEXELS_API_KEY=' "$repository/.env.owner-gateway" || true)
 pexels_value=${pexels_line#PEXELS_API_KEY=}
 [[ ${#pexels_value} -ge 20 && $pexels_value != replace-with-pexels-api-key ]] || {

@@ -894,6 +894,10 @@ class StudioRenderer:
                     fitted = ImageEnhance.Contrast(fitted).enhance(1.12)
                 alpha = fitted if fitted.mode == "RGBA" else None
                 canvas.paste(fitted, (box[0], box[1]), alpha)
+                # Pillow may replace or detach the destination image core during a
+                # paste.  Rebind ImageDraw before the next frame so text following
+                # a composited media/logo layer is always drawn on the live canvas.
+                draw = ImageDraw.Draw(canvas)
             elif tool_id == "studio.frame.shape.v1":
                 opacity = max(0.0, min(1.0, float(params.get("opacity", 1))))
                 fill = (*_hex(str(params.get("background") or ""), colors[1]), round(255 * opacity))
@@ -903,6 +907,10 @@ class StudioRenderer:
                     overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
                     ImageDraw.Draw(overlay).rounded_rectangle(box, radius=int(params.get("radius", 18)), fill=fill)
                     canvas.paste(overlay.convert("RGB"), (0, 0), overlay)
+                    # In particular, CTA text commonly follows its RGB button
+                    # shape immediately.  A stale drawing context made that label
+                    # disappear nondeterministically while the shape remained.
+                    draw = ImageDraw.Draw(canvas)
             elif tool_id.startswith("studio.frame.") or tool_id == "studio.motion.ugc_caption.v1":
                 text = str(params.get("text") or "")
                 fill = _hex(str(params.get("color") or ""), colors[-1])

@@ -261,6 +261,37 @@ class StudioContractTests(unittest.TestCase):
 
 @unittest.skipUnless(importlib.util.find_spec("PIL") is not None, "Pillow is required")
 class StudioRenderTests(unittest.TestCase):
+    def test_rgb_shape_composite_keeps_following_cta_text_on_live_canvas(self) -> None:
+        value = recipe()
+        value["tools"].insert(1, {
+            "instance_id": "018f07ea-7f20-7000-8000-000000000008",
+            "tool_id": "studio.frame.shape.v1",
+            "frame": {"x": .05, "y": .81, "width": .58, "height": .13},
+            "z_index": 2,
+            "params": {"background": "#43BDD3", "opacity": 1, "radius": 24},
+            "timeline": None, "source_asset_ids": [],
+        })
+        value["tools"][2]["z_index"] = 3
+        value["tools"][2]["params"]["color"] = "#0C0E12"
+        contract = StudioRecipeV1.from_dict(
+            value, project_id=PROJECT_ID, brief_id=BRIEF_ID, brand_kit_id=KIT_ID, brief=brief()
+        )
+        kit = {
+            "brand_kit_id": KIT_ID,
+            "document": {"colors": ["#101010", "#FFFFFF", "#4466AA", "#F0C040"], "fonts": ["Inter"]},
+        }
+        canvas = StudioRenderer(font_path=Path("natal/assets/inter.ttf"))._canvas(
+            contract.value, kit, {},
+        )
+        # The cyan button has no near-black pixels of its own.  A meaningful
+        # population inside the CTA frame proves the label survived the shape
+        # composite rather than accepting a blank share button.
+        dark_pixels = sum(
+            1 for red, green, blue in canvas.crop((86, 886, 626, 994)).getdata()
+            if red < 80 and green < 80 and blue < 80
+        )
+        self.assertGreater(dark_pixels, 50)
+
     def test_image_inspection_render_metadata_and_manifest_agree(self) -> None:
         from PIL import Image
         source = BytesIO(); Image.new("RGB", (256, 256), "#445566").save(source, "PNG")

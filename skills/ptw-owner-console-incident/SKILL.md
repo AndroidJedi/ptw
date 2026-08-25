@@ -31,6 +31,11 @@ healthy gateway alone does not prove Stage 1–2 readiness.
   render, then verify pixel-based Unicode wrapping, auto-fit bounds, frame
   clipping, media fit/focal settings, and protected offer/CTA overflow. Never
   mask the incident by truncating the approved offer or CTA.
+- A visible CTA container does not prove the CTA rendered. After any Pillow
+  paste/composite into an RGB canvas, rebind the drawing context before the
+  next text layer. Acceptance must inspect the authoritative export and assert
+  foreground-text pixels inside every offer/CTA frame; a blank colored button
+  blocks the release even when the recipe and manifest contain the exact copy.
 - PTW Ad images are fetched as authenticated `image/jpeg` responses and shown
   through browser `blob:` URLs; they are not inline `data:image/png` resources.
   For a load incident, first validate stored bytes, SHA-256, dimensions, HTTP

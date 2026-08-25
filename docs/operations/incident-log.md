@@ -18,6 +18,26 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-25: Studio CTA labels disappeared after RGB compositing
+
+- Symptom: production sample-set creation completed with valid recipes,
+  manifests, and 1080×1080 JPEGs, but visual inspection found blank cyan CTA
+  buttons in two of the five exports. Re-rendering an unchanged recipe could
+  restore the label, proving that copy validation alone did not cover the
+  failure.
+- Cause: the Pillow renderer retained an `ImageDraw` context across an RGB
+  `canvas.paste` used to composite the button shape. The paste can detach the
+  context from the live image core, so the immediately following CTA text was
+  written nondeterministically to stale image state.
+- Durable fix: every media/logo and RGB shape paste now rebinds `ImageDraw` to
+  the live canvas. A pixel-level regression requires near-black foreground
+  pixels inside a cyan CTA frame after the composite. The Owner Console
+  incident skill now treats a visible container without its label as a release
+  blocker and requires authoritative visual plus pixel acceptance.
+- Verification: the focused pixel regression and all 49 Validation unit tests
+  pass in the Linux/amd64 runtime image. Production hotfix, sample-set rebuild,
+  and five-image visual reinspection are pending.
+
 ## 2026-08-25: Studio graphic canary rejected the current Codex trace shape
 
 - Symptom: the in-place five-post release passed the three retained validation

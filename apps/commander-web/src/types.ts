@@ -1,8 +1,23 @@
-export type Page = 'briefs' | 'ads' | 'landing' | 'admin'
+export type Page = 'briefs' | 'studio' | 'ads' | 'landing' | 'admin'
 export type I18n<T = string> = { en: T; uk: T }
 
 export type BriefStatus = 'queued' | 'generating' | 'completed' | 'failed'
 export type CreativeAngle = 'emotional' | 'practical' | 'curiosity' | 'authority' | 'problem_first'
+
+export interface ValidationProject {
+  project_id: string
+  request_id: string
+  owner_idea_source_id: string
+  name: string
+  name_source: 'raw_idea' | 'product_brief' | 'owner'
+  requested_by: string
+  latest_brief_id?: string | null
+  latest_brief_status?: BriefStatus | null
+  brief_count: number
+  ad_batch_count: number
+  created_at: string
+  updated_at: string
+}
 
 export interface ProductBriefDocument {
   schema_version: 1
@@ -19,6 +34,8 @@ export interface ProductBriefDocument {
 
 export interface ProductBrief extends Partial<ProductBriefDocument> {
   brief_id: string
+  project_id: string
+  project_name: string
   request_id: string
   owner_idea_source_id: string
   raw_idea: string
@@ -33,6 +50,202 @@ export interface ProductBrief extends Partial<ProductBriefDocument> {
   approved: boolean
   creative_batch_id?: string | null
   creative_batch_status?: BriefStatus | null
+  created_at: string
+}
+
+export interface StudioToolDefinition {
+  tool_id: string
+  kind: 'placement' | 'frame' | 'layout' | 'color' | 'effect' | 'motion' | 'strategy' | 'guard'
+  label: string
+  parameter_schema: Record<string, unknown>
+  supported_placements: Array<'static' | 'motion'>
+  renderer_handler: string
+  defaults: Record<string, unknown>
+  bounds: Record<string, unknown>
+  source_refs: string[]
+  deprecated: boolean
+}
+
+export interface StudioBrandKit {
+  brand_kit_id: string
+  project_id: string
+  parent_brand_kit_id?: string | null
+  document: {
+    name: string
+    colors: string[]
+    fonts: string[]
+    tone_notes: string
+    logo_source_asset_id?: string | null
+  }
+  document_sha256: string
+  created_by: string
+  created_at: string
+}
+
+export interface StudioSourceAsset {
+  source_asset_id: string
+  project_id: string
+  origin: 'owner_upload' | 'pexels' | 'canonical_brand' | 'ai_generated'
+  title: string
+  mime_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'video/mp4' | 'video/quicktime'
+  width: number
+  height: number
+  duration_seconds?: number | null
+  bytes_sha256: string
+  source_uri?: string | null
+  provider: string
+  external_id?: string | null
+  license?: string | null
+  attribution?: string | null
+  metadata: Record<string, unknown>
+  asset_url?: string
+  created_at: string
+}
+
+export interface StudioToolInstance {
+  instance_id: string
+  tool_id: string
+  frame: { x: number; y: number; width: number; height: number }
+  z_index: number
+  params: Record<string, string | number | boolean>
+  timeline?: { start: number; end: number } | null
+  source_asset_ids: string[]
+}
+
+export interface StudioRecipeDocumentV1 {
+  schema_version: 1
+  parent_recipe_id?: string | null
+  placement_tool_id: string
+  duration_seconds?: number | null
+  frame_rate?: number | null
+  tools: StudioToolInstance[]
+  strategy_ids: string[]
+  validation_ids: string[]
+  source_reference_ids: string[]
+}
+
+export interface StudioModifierInstance {
+  instance_id: string
+  tool_id: string
+  params: Record<string, string | number | boolean>
+}
+
+export interface StudioRecipeDocumentV2 {
+  schema_version: 2
+  parent_recipe_id?: string | null
+  placement_tool_id: string
+  duration_seconds?: number | null
+  frame_rate?: number | null
+  frames: StudioToolInstance[]
+  modifiers: StudioModifierInstance[]
+  strategy_ids: string[]
+  validation_ids: string[]
+  source_reference_ids: string[]
+  share: {
+    caption: string
+    alt_text: string
+  }
+}
+
+export type StudioRecipeDocument = StudioRecipeDocumentV1 | StudioRecipeDocumentV2
+
+export interface StudioTemplate {
+  template_id: string
+  project_id: string
+  name: string
+  placement_tool_id: string
+  document: {
+    schema_version: 1 | 2
+    placement_tool_id: string
+    duration_seconds?: number | null
+    frame_rate?: number | null
+    tools?: StudioToolInstance[]
+    frames?: StudioToolInstance[]
+    modifiers?: StudioModifierInstance[]
+    strategy_ids: string[]
+    bindings?: Record<string, unknown>
+  }
+  document_sha256: string
+  created_by: string
+  created_at: string
+}
+
+export interface StudioRecipe {
+  recipe_id: string
+  project_id: string
+  brief_id: string
+  brand_kit_id: string
+  parent_recipe_id?: string | null
+  placement_tool_id: string
+  document: StudioRecipeDocument & {
+    width: number; height: number; source_asset_ids: string[]; renderer_version: string
+  }
+  document_sha256: string
+  renderer_version: string
+  created_by: string
+  created_at: string
+}
+
+export interface StudioRender {
+  render_id: string
+  recipe_id: string
+  mime_type: 'image/jpeg' | 'video/mp4'
+  width: number
+  height: number
+  duration_seconds?: number | null
+  bytes_sha256: string
+  manifest: Record<string, unknown>
+  manifest_sha256: string
+  renderer_version: string
+  published: boolean
+  created_at: string
+  asset_url: string
+  manifest_url: string
+}
+
+export interface StudioSampleSetItem {
+  ordinal: 0 | 1 | 2 | 3 | 4
+  angle: CreativeAngle
+  name: string
+  source_creative_id?: string
+  template_id: string
+  recipe_id: string
+  render_id: string
+  caption: string
+  alt_text: string
+  template: StudioTemplate
+  recipe: StudioRecipe
+  render: StudioRender
+}
+
+export interface StudioSampleSet {
+  sample_set_id: string
+  project_id: string
+  brief_id: string
+  batch_id: string
+  brand_kit_id: string
+  status: 'building' | 'completed' | 'failed'
+  error_message?: string | null
+  created_at: string
+  download_url: string
+  download_sha256?: string
+  download_mime_type?: 'application/zip'
+  items: StudioSampleSetItem[]
+}
+
+export interface StudioWizardProposal {
+  proposal_id: string
+  recipe_id: string
+  status: 'previewed' | 'applied' | 'failed'
+  instruction: string
+  target_instance_id?: string | null
+  patch: Record<string, unknown>
+  before_sha256: string
+  after_sha256: string
+  preview_url: string
+  preview_sha256?: string
+  preview_mime_type?: 'image/jpeg'
+  applied_recipe_id?: string | null
   created_at: string
 }
 
@@ -75,6 +288,9 @@ export interface AdCreative {
 export interface CreativeBatch {
   batch_id: string
   brief_id: string
+  project_id: string
+  project_name: string
+  brief_product?: string | null
   status: BriefStatus
   batch_sha256?: string | null
   failure_count: number

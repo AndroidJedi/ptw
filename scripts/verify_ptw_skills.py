@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILLS = (
     "product-brief-generator",
     "ad-creative-generator",
+    "ad-studio-composer",
     "natal-landing-builder",
     "ptw-owner-console-incident",
     "ptw-vps-operations",

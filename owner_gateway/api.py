@@ -25,6 +25,8 @@ from .validation_notifications import (
     ValidationFailureNotificationRepository,
 )
 
+MAX_STUDIO_UPLOAD_BASE64 = ((50 * 1024 * 1024 + 2) // 3) * 4
+
 
 def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> FastAPI:
     store = ControlStore(settings.control_database_path)
@@ -295,6 +297,26 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             "emergency_stop": platform.emergency_stop(),
         }
 
+    @app.get("/api/v1/projects")
+    async def list_projects(
+        limit: int = Query(default=100, ge=1, le=100),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", "/internal/v1/projects", params={"limit": limit}
+        )).json()
+
+    @app.post("/api/v1/projects/{project_id}/rename")
+    async def rename_project(
+        project_id: str,
+        request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/projects/{project_id}/rename", body=request,
+            actor=f"firebase:{identity.uid}",
+        )).json()
+
     @app.post("/api/v1/briefs", status_code=202)
     async def create_brief(
         request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
@@ -306,11 +328,15 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
 
     @app.get("/api/v1/briefs")
     async def list_briefs(
+        project_id: str | None = None,
         limit: int = Query(default=100, ge=1, le=100),
         _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
+        params: dict[str, Any] = {"limit": limit}
+        if project_id:
+            params["project_id"] = project_id
         return (await validation_bridge(
-            "GET", "/internal/v1/briefs", params={"limit": limit}
+            "GET", "/internal/v1/briefs", params=params
         )).json()
 
     @app.get("/api/v1/briefs/{brief_id}")
@@ -355,12 +381,15 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     @app.get("/api/v1/ad-batches")
     async def list_batches(
         brief_id: str | None = None,
+        project_id: str | None = None,
         limit: int = Query(default=100, ge=1, le=100),
         _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         params: dict[str, Any] = {"limit": limit}
         if brief_id:
             params["brief_id"] = brief_id
+        if project_id:
+            params["project_id"] = project_id
         return (await validation_bridge(
             "GET", "/internal/v1/ad-batches", params=params
         )).json()
@@ -435,6 +464,277 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             actor=f"firebase:{identity.uid}",
         )).json()
 
+    @app.get("/api/v1/ad-studio/tools")
+    async def studio_tools(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", "/internal/v1/ad-studio/tools")).json()
+
+    @app.get("/api/v1/ad-studio/brand-kits")
+    async def studio_brand_kits(
+        project_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", "/internal/v1/ad-studio/brand-kits", params={"project_id": project_id}
+        )).json()
+
+    @app.post("/api/v1/ad-studio/brand-kits", status_code=201)
+    async def create_studio_brand_kit(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", "/internal/v1/ad-studio/brand-kits", body=request,
+            actor=f"firebase:{identity.uid}",
+        )).json()
+
+    @app.get("/api/v1/ad-studio/templates")
+    async def studio_templates(
+        project_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", "/internal/v1/ad-studio/templates", params={"project_id": project_id}
+        )).json()
+
+    @app.post("/api/v1/ad-studio/templates", status_code=201)
+    async def create_studio_template(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", "/internal/v1/ad-studio/templates", body=request,
+            actor=f"firebase:{identity.uid}",
+        )).json()
+
+    @app.post("/api/v1/ad-studio/templates/{template_id}/apply")
+    async def apply_studio_template(
+        template_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/ad-studio/templates/{template_id}/apply", body=request,
+            actor=f"firebase:{identity.uid}", timeout=120,
+        )).json()
+
+    @app.get("/api/v1/ad-studio/sources")
+    async def studio_sources(
+        project_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", "/internal/v1/ad-studio/sources", params={"project_id": project_id}
+        )).json()
+
+    @app.get("/api/v1/ad-studio/sources/{source_asset_id}/asset")
+    async def studio_source_asset(
+        source_asset_id: str, if_none_match: str = Header(default=""),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> Response:
+        response = await validation_bridge(
+            "GET", f"/internal/v1/ad-studio/sources/{source_asset_id}/asset", timeout=60,
+            extra_headers={} if not if_none_match else {"If-None-Match": if_none_match},
+        )
+        headers = {key: value for key, value in response.headers.items() if key.lower() in {"etag", "cache-control"}}
+        if response.status_code == 304:
+            return Response(status_code=304, headers=headers)
+        return Response(response.content, media_type=response.headers.get("content-type", "application/octet-stream"), headers=headers)
+
+    @app.post("/api/v1/ad-studio/sources/upload", status_code=201)
+    async def upload_studio_source(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        encoded = request.get("base64")
+        if not isinstance(encoded, str) or len(encoded) > MAX_STUDIO_UPLOAD_BASE64:
+            raise HTTPException(status_code=413, detail="Studio upload exceeds the bounded size")
+        return (await validation_bridge(
+            "POST", "/internal/v1/ad-studio/sources/upload", body=request,
+            actor=f"firebase:{identity.uid}", timeout=60,
+        )).json()
+
+    @app.get("/api/v1/ad-studio/pexels/search")
+    async def search_studio_pexels(
+        query: str = Query(min_length=1, max_length=160),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", "/internal/v1/ad-studio/pexels/search", params={"query": query}, timeout=60,
+        )).json()
+
+    @app.post("/api/v1/ad-studio/sources/pexels", status_code=201)
+    async def import_studio_pexels(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", "/internal/v1/ad-studio/sources/pexels", body=request,
+            actor=f"firebase:{identity.uid}", timeout=60,
+        )).json()
+
+    @app.get("/api/v1/ad-studio/sample-sets")
+    async def studio_sample_sets(
+        project_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", "/internal/v1/ad-studio/sample-sets", params={"project_id": project_id}, timeout=300,
+        )).json()
+
+    @app.post("/api/v1/ad-studio/sample-sets", status_code=201)
+    async def create_studio_sample_set(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_running()
+        return (await validation_bridge(
+            "POST", "/internal/v1/ad-studio/sample-sets", body=request,
+            actor=f"firebase:{identity.uid}", timeout=300,
+        )).json()
+
+    @app.get("/api/v1/ad-studio/sample-sets/{sample_set_id}")
+    async def studio_sample_set(
+        sample_set_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", f"/internal/v1/ad-studio/sample-sets/{sample_set_id}", timeout=300,
+        )).json()
+
+    @app.get("/api/v1/ad-studio/sample-sets/{sample_set_id}/download")
+    async def studio_sample_set_download(
+        sample_set_id: str, if_none_match: str = Header(default=""),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> Response:
+        response = await validation_bridge(
+            "GET", f"/internal/v1/ad-studio/sample-sets/{sample_set_id}/download", timeout=300,
+            extra_headers={} if not if_none_match else {"If-None-Match": if_none_match},
+        )
+        headers = {key: value for key, value in response.headers.items() if key.lower() in {"etag", "cache-control", "content-disposition"}}
+        if response.status_code == 304:
+            return Response(status_code=304, headers=headers)
+        return Response(response.content, media_type="application/zip", headers=headers)
+
+    @app.get("/api/v1/ad-studio/recipes")
+    async def studio_recipes(
+        project_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", "/internal/v1/ad-studio/recipes", params={"project_id": project_id}
+        )).json()
+
+    @app.get("/api/v1/ad-studio/recipes/{recipe_id}")
+    async def studio_recipe(
+        recipe_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", f"/internal/v1/ad-studio/recipes/{recipe_id}"
+        )).json()
+
+    @app.post("/api/v1/ad-studio/recipes", status_code=201)
+    async def create_studio_recipe(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", "/internal/v1/ad-studio/recipes", body=request,
+            actor=f"firebase:{identity.uid}",
+        )).json()
+
+    @app.post("/api/v1/ad-studio/recipes/{recipe_id}/render", status_code=201)
+    async def render_studio_recipe(
+        recipe_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_running()
+        return (await validation_bridge(
+            "POST", f"/internal/v1/ad-studio/recipes/{recipe_id}/render", body={}, timeout=60,
+        )).json()
+
+    @app.get("/api/v1/ad-studio/recipes/{recipe_id}/renders")
+    async def studio_recipe_renders(
+        recipe_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", f"/internal/v1/ad-studio/recipes/{recipe_id}/renders"
+        )).json()
+
+    @app.post("/api/v1/ad-studio/recipes/{recipe_id}/wizard-proposals", status_code=201)
+    async def create_studio_wizard_proposal(
+        recipe_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_running()
+        return (await validation_bridge(
+            "POST", f"/internal/v1/ad-studio/recipes/{recipe_id}/wizard-proposals",
+            body=request, actor=f"firebase:{identity.uid}", timeout=600,
+        )).json()
+
+    @app.get("/api/v1/ad-studio/recipes/{recipe_id}/wizard-proposals")
+    async def studio_wizard_proposals(
+        recipe_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", f"/internal/v1/ad-studio/recipes/{recipe_id}/wizard-proposals"
+        )).json()
+
+    @app.get("/api/v1/ad-studio/wizard-proposals/{proposal_id}/preview")
+    async def studio_wizard_preview(
+        proposal_id: str, if_none_match: str = Header(default=""),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> Response:
+        response = await validation_bridge(
+            "GET", f"/internal/v1/ad-studio/wizard-proposals/{proposal_id}/preview", timeout=60,
+            extra_headers={} if not if_none_match else {"If-None-Match": if_none_match},
+        )
+        headers = {key: value for key, value in response.headers.items() if key.lower() in {"etag", "cache-control"}}
+        if response.status_code == 304:
+            return Response(status_code=304, headers=headers)
+        return Response(response.content, media_type="image/jpeg", headers=headers)
+
+    @app.post("/api/v1/ad-studio/wizard-proposals/{proposal_id}/apply")
+    async def apply_studio_wizard_proposal(
+        proposal_id: str, identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_running()
+        return (await validation_bridge(
+            "POST", f"/internal/v1/ad-studio/wizard-proposals/{proposal_id}/apply", body={},
+            actor=f"firebase:{identity.uid}", timeout=300,
+        )).json()
+
+    @app.get("/api/v1/ad-studio/renders/{render_id}/asset")
+    async def studio_render_asset(
+        render_id: str,
+        if_none_match: str = Header(default=""),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> Response:
+        response = await validation_bridge(
+            "GET", f"/internal/v1/ad-studio/renders/{render_id}/asset", timeout=60,
+            extra_headers={} if not if_none_match else {"If-None-Match": if_none_match},
+        )
+        headers = {
+            key: value for key, value in response.headers.items()
+            if key.lower() in {"etag", "cache-control"}
+        }
+        if response.status_code == 304:
+            return Response(status_code=304, headers=headers)
+        return Response(
+            content=response.content,
+            media_type=response.headers.get("content-type", "application/octet-stream"),
+            headers=headers,
+        )
+
+    @app.get("/api/v1/ad-studio/renders/{render_id}/manifest")
+    async def studio_render_manifest(
+        render_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", f"/internal/v1/ad-studio/renders/{render_id}/manifest"
+        )).json()
+
+    @app.post("/api/v1/ad-studio/renders/{render_id}/publish")
+    async def publish_studio_render(
+        render_id: str, identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/ad-studio/renders/{render_id}/publish", body={},
+            actor=f"firebase:{identity.uid}",
+        )).json()
+
+    @app.post("/api/v1/ad-studio/renders/{render_id}/feedback")
+    async def studio_render_feedback(
+        render_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/ad-studio/renders/{render_id}/feedback", body=request,
+            actor=f"firebase:{identity.uid}",
+        )).json()
+
     @app.get("/api/v1/skill-proposals/{domain}")
     async def skill_proposals(
         domain: str,
@@ -473,7 +773,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         request: Mapping[str, Any],
         _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
-        if domain not in {"product_brief", "ad_creative"}:
+        if domain not in {"product_brief", "ad_creative", "ad_studio"}:
             raise HTTPException(status_code=404, detail="skill proposal domain not found")
         lesson = str(request.get("lesson", "")).strip()
         raw_ids = request.get("proposal_ids")
@@ -490,6 +790,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         path = {
             "product_brief": "skills/product-brief-generator/references/owner-lessons.md",
             "ad_creative": "skills/ad-creative-generator/references/owner-lessons.md",
+            "ad_studio": "skills/ad-studio-composer/references/owner-lessons.md",
         }[domain]
         instruction = (
             f"Update only {path}. Consolidate the following owner-approved pending feedback into "
@@ -522,7 +823,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         request: Mapping[str, Any],
         _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
-        if domain not in {"product_brief", "ad_creative"}:
+        if domain not in {"product_brief", "ad_creative", "ad_studio"}:
             raise HTTPException(status_code=404, detail="skill proposal domain not found")
         lesson = str(request.get("lesson", "")).strip()
         if set(request) != {"lesson"} or not 1 <= len(lesson) <= 4000:
@@ -530,6 +831,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         path = {
             "product_brief": "skills/product-brief-generator/references/owner-lessons.md",
             "ad_creative": "skills/ad-creative-generator/references/owner-lessons.md",
+            "ad_studio": "skills/ad-studio-composer/references/owner-lessons.md",
         }[domain]
         instruction = (
             f"Update only {path}. Incorporate this owner-approved lesson without changing any "

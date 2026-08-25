@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { CreativeBatch } from '../types'
-import { batchFailureReason, batchLessonRerunState } from './AdsView'
+import { batchFailureReason, batchLessonRerunState, batchSelectorLabel } from './AdsView'
+
+const project = {
+  project_id: '01a03327-1111-7111-8111-111111111111',
+  project_name: 'Online psychologist consultations',
+}
 
 describe('Ads failure reason', () => {
   it('turns the legacy offer validator error into an actionable explanation', () => {
     const failure = batchFailureReason({
+      ...project,
       batch_id: '01a03327-a038-72a6-85ae-e50983b0e6f4',
       brief_id: '01a03327-3006-7449-848e-7153ec4d572e',
       status: 'failed',
@@ -23,6 +29,7 @@ describe('Ads failure reason', () => {
 
   it('keeps the same reason available after a successful retry', () => {
     const failure = batchFailureReason({
+      ...project,
       batch_id: '01a03327-a038-72a6-85ae-e50983b0e6f4',
       brief_id: '01a03327-3006-7449-848e-7153ec4d572e',
       status: 'completed',
@@ -47,6 +54,7 @@ describe('Ads failure reason', () => {
 
 describe('Ads learned rerun state', () => {
   const batch = {
+    ...project,
     batch_id: '01a03327-a038-72a6-85ae-e50983b0e6f4',
     brief_id: '01a03327-3006-7449-848e-7153ec4d572e',
     status: 'completed', failure_count: 0, creatives: [], created_at: '2026-08-24T09:43:50Z',
@@ -66,5 +74,11 @@ describe('Ads learned rerun state', () => {
       ...batch, rerun_batch_id: '01a03327-a038-72a6-85ae-e50983b0ffff',
       lesson_status_counts: { promoted: 4 },
     })).toEqual({ kind: 'created', batchId: '01a03327-a038-72a6-85ae-e50983b0ffff' })
+  })
+
+  it('uses a readable label while keeping UUIDs out of the selector text', () => {
+    const label = batchSelectorLabel({ ...batch, brief_product: 'Online consultations' })
+    expect(label).toContain('Ads from Brief · Online consultations · completed')
+    expect(label).not.toContain(batch.batch_id)
   })
 })

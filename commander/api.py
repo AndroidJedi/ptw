@@ -37,6 +37,7 @@ def create_app(settings: Settings) -> FastAPI:
             ).fetchone()
             counts = database.execute(
                 """SELECT
+                     (SELECT count(*) FROM validation_projects),
                      (SELECT count(*) FROM product_briefs),
                      (SELECT count(*) FROM creative_batches),
                      (SELECT count(*) FROM ad_creatives)"""
@@ -51,9 +52,10 @@ def create_app(settings: Settings) -> FastAPI:
             "active_operation": None if not operation or operation[1] is None else {
                 "kind": operation[0], "id": str(operation[1]),
             },
-            "product_briefs": int(counts[0]),
-            "creative_batches": int(counts[1]),
-            "ad_creatives": int(counts[2]),
+            "validation_projects": int(counts[0]),
+            "product_briefs": int(counts[1]),
+            "creative_batches": int(counts[2]),
+            "ad_creatives": int(counts[3]),
         }
 
     def set_stop(active: bool, actor: str) -> None:

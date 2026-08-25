@@ -28,11 +28,18 @@ credentials between them or mutate platform data during a Commander reset.
 
 - Validation is the independent `ptw-validation` Compose project on local port
   8093, sharing the Commander DB network and platform backend network.
-- Active bridge modes are exactly `product_brief`, `product_brief_revision`,
-  and `ad_creative_batch`. Require a fresh strict-schema canary for all three.
+- Core validation bridge modes remain exactly `product_brief`,
+  `product_brief_revision`, and `ad_creative_batch`. The additive Studio
+  capability advertises `ad_studio_recipe_revision` and
+  `ad_studio_graphic_generation` separately so old Stage 1–2 clients remain
+  compatible. Require a fresh strict-schema canary for every advertised mode
+  and an authenticated digest/ETag canary for generated Studio assets.
 - Run a non-persisting Pexels search/download/render canary before reset.
 - No SEO, DataForSEO, YouTube, market-research, Landing, publishing, traffic,
-  campaign, UTM, analytics, or AI-image provider is active.
+  campaign, UTM, or analytics provider is active. The only AI-image boundary is
+  the explicit Studio graphic mode: one bounded square PNG, no synthetic
+  people or embedded brand/copy, immutable provider/prompt/digest lineage, and
+  owner preview before Apply.
 - One database guard serializes Brief, creative-batch, and Codex Plan/Execute
   work. Restart recovery releases only the owning operation.
 

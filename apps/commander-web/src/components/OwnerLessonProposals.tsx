@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api'
 import type { ValidationSkillProposal } from '../types'
 
-type LessonDomain = 'product_brief' | 'ad_creative'
+type LessonDomain = 'product_brief' | 'ad_creative' | 'ad_studio'
 
 const labels: Record<LessonDomain, { heading: string; scope: string }> = {
   product_brief: { heading: 'Use feedback next time', scope: 'Product Briefs' },
   ad_creative: { heading: 'Use feedback next time', scope: 'Ads' },
+  ad_studio: { heading: 'Train the Studio composer', scope: 'Studio recipes' },
 }
 
 export function OwnerLessonProposals({ api, domain, refreshKey = 0 }: {

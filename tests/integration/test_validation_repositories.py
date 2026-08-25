@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 import hashlib
 import importlib.util
+import json
 import os
+from pathlib import Path
+from threading import Barrier
 import unittest
 from uuid import UUID, uuid4
 
@@ -14,6 +18,9 @@ if HAS_PILLOW:
 from commander.ids import new_uuid7
 from validation_pipeline.domain import CREATIVE_ANGLES, ProductBriefV1
 from validation_pipeline.repository import ValidationRepository
+from validation_pipeline.studio import (
+    ADS_SOURCE, COLOR_SOURCE, DEFAULT_GUARDS, SAMPLE_ANGLES, StudioRenderer, _v2_submission,
+)
 
 
 DATABASE_URL = os.environ.get("PTW_VALIDATION_TEST_DATABASE_URL", "")
@@ -92,6 +99,10 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
         )
         self.assertTrue(created)
         self.assertEqual(7, UUID(brief["brief_id"]).version)
+        self.assertEqual(7, UUID(brief["project_id"]).version)
+        project = self.repository.get_project(brief["project_id"])
+        self.assertEqual("Online psychologist consultations", project["name"])
+        self.assertEqual("raw_idea", project["name_source"])
         duplicate, duplicate_created = self.repository.create_brief(
             request_id=request_id,
             raw_idea="Online psychologist consultations",
@@ -99,6 +110,7 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
         )
         self.assertFalse(duplicate_created)
         self.assertEqual(brief["brief_id"], duplicate["brief_id"])
+        self.assertEqual(brief["project_id"], duplicate["project_id"])
         with self.assertRaisesRegex(ValueError, "different Product Brief input"):
             self.repository.create_brief(
                 request_id=request_id, raw_idea="Different idea", requested_by="integration-owner"
@@ -111,7 +123,82 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
         self.repository.finish_brief(
             brief["brief_id"], attempt_id, value.to_dict(), value.digest, value.quality_gates
         )
+        named_project = self.repository.get_project(brief["project_id"])
+        self.assertEqual("Online psychologist consultations.", named_project["name"])
+        self.assertEqual("product_brief", named_project["name_source"])
         return self.repository.get_brief(brief["brief_id"])
+
+    def test_project_membership_filters_rename_and_generated_name_protection(self) -> None:
+        base = self.complete_brief()
+        project_id = base["project_id"]
+        with self.assertRaisesRegex(Exception, "product_briefs_one_root_per_project_key"):
+            with self.repository.connection() as connection:
+                second_root_id = new_uuid7()
+                connection.execute(
+                    "INSERT INTO commander_entities(id,kind) VALUES(%s,'product_brief')",
+                    (second_root_id,),
+                )
+                connection.execute(
+                    """INSERT INTO product_briefs(
+                           entity_id,project_id,request_id,owner_idea_source_id,status,requested_by
+                       ) VALUES(%s,%s,%s,%s,'queued','integration-owner')""",
+                    (second_root_id, project_id, str(uuid4()), base["owner_idea_source_id"]),
+                )
+        renamed = self.repository.rename_project(
+            project_id, name="  Owner   validation workspace  ", requested_by="integration-owner"
+        )
+        self.assertEqual("Owner validation workspace", renamed["name"])
+        self.assertEqual("owner", renamed["name_source"])
+        with self.assertRaisesRegex(ValueError, "1-120"):
+            self.repository.rename_project(
+                project_id, name="x" * 121, requested_by="integration-owner"
+            )
+
+        replacement, created = self.repository.create_revision(
+            base_brief_id=base["brief_id"], request_id=str(uuid4()),
+            instruction="Use a narrower first customer.", requested_by="integration-owner",
+        )
+        self.assertTrue(created)
+        self.assertEqual(project_id, replacement["project_id"])
+        attempt_id, _ = self.repository.start_attempt(
+            replacement["brief_id"], stage="product_brief"
+        )
+        replacement_document = {**document(), "product": "A generated replacement name."}
+        value = ProductBriefV1.from_dict(
+            replacement_document, raw_idea="Online psychologist consultations"
+        )
+        self.repository.finish_brief(
+            replacement["brief_id"], attempt_id, value.to_dict(), value.digest, value.quality_gates
+        )
+        self.assertEqual("Owner validation workspace", self.repository.get_project(project_id)["name"])
+        self.assertEqual(
+            [replacement["brief_id"], base["brief_id"]],
+            [item["brief_id"] for item in self.repository.list_briefs(project_id=project_id)],
+        )
+
+        other = self.complete_brief()
+        self.assertNotEqual(project_id, other["project_id"])
+        self.assertEqual(
+            [other["brief_id"]],
+            [item["brief_id"] for item in self.repository.list_briefs(project_id=other["project_id"])],
+        )
+        with self.repository.connection() as connection:
+            audit = connection.execute(
+                """SELECT actor,details->>'previous_name',details->>'name'
+                     FROM commander_audit_events
+                    WHERE target_id=%s AND action='validation_project_renamed'""",
+                (project_id,),
+            ).fetchone()
+            containment = connection.execute(
+                """SELECT count(*) FROM commander_relationships
+                    WHERE source_id=%s AND relation='contains'""",
+                (project_id,),
+            ).fetchone()[0]
+        self.assertEqual(
+            ("integration-owner", "Online psychologist consultations.", "Owner validation workspace"),
+            tuple(audit),
+        )
+        self.assertEqual(2, containment)
 
     def test_immutable_brief_approval_atomic_batch_assets_feedback_and_lineage(self) -> None:
         brief = self.complete_brief()
@@ -144,6 +231,11 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
         self.repository.release_operation(batch["batch_id"])
         completed = self.repository.get_batch(batch["batch_id"])
         self.assertEqual("completed", completed["status"])
+        self.assertEqual(brief["project_id"], completed["project_id"])
+        self.assertEqual(
+            [batch["batch_id"]],
+            [item["batch_id"] for item in self.repository.list_batches(project_id=brief["project_id"])],
+        )
         self.assertEqual(list(CREATIVE_ANGLES), [item["angle"] for item in completed["creatives"]])
         self.assertEqual(5, len({item["creative_id"] for item in completed["creatives"]}))
         self.assertTrue(all(UUID(item["creative_id"]).version == 7 for item in completed["creatives"]))
@@ -229,6 +321,7 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
         self.assertNotEqual(batch["batch_id"], rerun["batch_id"])
         self.assertEqual(batch["batch_id"], rerun["rerun_of_batch_id"])
         self.assertEqual(brief["brief_id"], rerun["brief_id"])
+        self.assertEqual(brief["project_id"], rerun["project_id"])
         self.assertEqual("c" * 64, rerun["skill_sha256"])
         self.assertEqual(rerun["batch_id"], self.repository.get_batch(batch["batch_id"])["rerun_batch_id"])
         self.repository.release_operation(rerun["batch_id"])
@@ -340,6 +433,240 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
         self.assertIn("supersedes", relations)
         self.assertIn("derived_from", relations)
         self.assertEqual([None] * len(legacy), legacy)
+
+    def test_ad_studio_templates_revisions_manifest_publication_and_feedback(self) -> None:
+        brief = self.complete_brief()
+        batch, _ = self.repository.approve_and_queue_batch(brief["brief_id"], "integration-owner")
+        self.repository.release_operation(batch["batch_id"])
+
+        source_bytes = BytesIO()
+        Image.new("RGB", (320, 240), "#4a6278").save(source_bytes, "PNG")
+        source = self.repository.create_studio_source_asset(
+            brief["project_id"], title="Owner product photo", data=source_bytes.getvalue(),
+            mime_type="image/png", origin="owner_upload", provider="owner",
+            external_id=None, source_uri=None, license_name="Owner supplied",
+            attribution="Owner-supplied media", metadata={"fixture": True},
+            requested_by="integration-owner",
+        )
+        kit = self.repository.create_studio_brand_kit(
+            brief["project_id"], parent_brand_kit_id=None, requested_by="integration-owner",
+            document={
+                "name": "Project brand", "colors": ["#101010", "#FFFFFF", "#4466AA", "#F0C040"],
+                "fonts": ["Inter"], "tone_notes": "Calm and direct", "logo_source_asset_id": None,
+            },
+        )
+
+        def tools(offer: str, cta: str) -> list[dict[str, object]]:
+            return [
+                {
+                    "instance_id": new_uuid7(), "tool_id": "studio.frame.media.v1",
+                    "frame": {"x": 0, "y": 0, "width": 1, "height": .62}, "z_index": 0,
+                    "params": {}, "timeline": None, "source_asset_ids": [source["source_asset_id"]],
+                },
+                {
+                    "instance_id": new_uuid7(), "tool_id": "studio.frame.offer.v1",
+                    "frame": {"x": .08, "y": .68, "width": .84, "height": .1}, "z_index": 1,
+                    "params": {"text": offer, "color": "#FFFFFF"}, "timeline": None,
+                    "source_asset_ids": [],
+                },
+                {
+                    "instance_id": new_uuid7(), "tool_id": "studio.frame.cta.v1",
+                    "frame": {"x": .08, "y": .82, "width": .5, "height": .1}, "z_index": 2,
+                    "params": {"text": cta, "color": "#FFFFFF"}, "timeline": None,
+                    "source_asset_ids": [],
+                },
+            ]
+
+        template = self.repository.create_studio_template(
+            brief["project_id"], name="Reusable square", requested_by="integration-owner",
+            document={
+                "schema_version": 1,
+                "placement_tool_id": "studio.placement.instagram.feed_square.v1",
+                "duration_seconds": None, "frame_rate": None,
+                "tools": tools("{{offer}}", "{{cta}}"),
+                "strategy_ids": ["studio.strategy.one_message.v1"],
+            },
+        )
+        self.assertEqual("{{offer}}", template["document"]["tools"][1]["params"]["text"])
+        self.assertEqual(7, UUID(template["template_id"]).version)
+
+        recipe_document = {
+            "schema_version": 1, "parent_recipe_id": None,
+            "placement_tool_id": "studio.placement.instagram.feed_square.v1",
+            "duration_seconds": None, "frame_rate": None,
+            "tools": tools(brief["offer"], brief["cta"]),
+            "strategy_ids": ["studio.strategy.one_message.v1"],
+            "validation_ids": list(DEFAULT_GUARDS),
+            "source_reference_ids": [COLOR_SOURCE, ADS_SOURCE],
+        }
+        recipe = self.repository.create_studio_recipe(
+            brief["project_id"], brief_id=brief["brief_id"], brand_kit_id=kit["brand_kit_id"],
+            document=recipe_document, requested_by="integration-owner",
+        )
+        render = self.repository.render_studio_recipe(
+            recipe["recipe_id"], StudioRenderer(font_path=Path("/missing/inter.ttf")),
+        )
+        stored = self.repository.studio_render_asset(render["render_id"])
+        self.assertEqual(render["bytes_sha256"], hashlib.sha256(stored["bytes"]).hexdigest())
+        self.assertEqual(render["bytes_sha256"], render["manifest"]["output"]["bytes_sha256"])
+        embedded = json.loads(Image.open(BytesIO(stored["bytes"])).getexif()[0x9286])
+        self.assertEqual(recipe["document_sha256"], embedded["recipe_sha256"])
+        self.assertIn("studio.frame.offer.v1", embedded["tool_ids"])
+
+        published = self.repository.publish_studio_render(
+            render["render_id"], requested_by="integration-owner"
+        )
+        self.assertTrue(published["published"])
+        feedback = self.repository.record_studio_feedback(
+            render["render_id"], comment="Keep stronger contrast around the CTA.",
+            requested_by="integration-owner",
+        )
+        self.assertEqual(
+            feedback["proposal_id"], self.repository.proposals("ad_studio")[0]["proposal_id"]
+        )
+        with self.assertRaisesRegex(Exception, "append-only"):
+            with self.repository.connection() as connection:
+                connection.execute(
+                    "UPDATE ad_studio_templates SET name='Changed' WHERE entity_id=%s",
+                    (template["template_id"],),
+                )
+        with self.repository.connection() as connection:
+            edges = {
+                (row[0], row[1]) for row in connection.execute(
+                    "SELECT relation,target_id FROM commander_relationships WHERE source_id=%s",
+                    (recipe["recipe_id"],),
+                ).fetchall()
+            }
+        self.assertIn(("derived_from", UUID(source["source_asset_id"])), edges)
+        self.assertIn(("contains", UUID(render["render_id"])), edges)
+
+    def test_five_sample_set_template_apply_and_wizard_are_atomic_and_idempotent(self) -> None:
+        brief = self.complete_brief()
+        batch, _ = self.repository.approve_and_queue_batch(brief["brief_id"], "integration-owner")
+        attempt_id, _ = self.repository.start_attempt(batch["batch_id"], stage="ad_creative_batch")
+        prepared = prepared_creatives()
+        self.repository.finish_batch(
+            batch["batch_id"], attempt_id, brief_id=brief["brief_id"], creatives=prepared,
+            digest="e" * 64, quality={"passed": True},
+        )
+        self.repository.release_operation(batch["batch_id"])
+
+        def source(title: str, color: str, *, origin: str = "owner_upload") -> dict[str, object]:
+            output = BytesIO(); Image.new("RGB", (1254, 1254), color).save(output, "PNG")
+            return self.repository.create_studio_source_asset(
+                brief["project_id"], title=title, data=output.getvalue(), mime_type="image/png",
+                origin=origin, provider="integration", external_id=title, source_uri=None,
+                license_name="Integration fixture", attribution="Integration fixture",
+                metadata={"no_synthetic_people": origin == "ai_generated"}, requested_by="integration-owner",
+            )
+
+        logo = source("canonical-logo", "#f4f6fa", origin="canonical_brand")
+        kit = self.repository.create_studio_brand_kit(
+            brief["project_id"], parent_brand_kit_id=None, requested_by="integration-owner",
+            document={
+                "name": "Natal", "colors": ["#0C0E12", "#181C25", "#F4F6FA", "#A3ADBD", "#43BDD3", "#87D0DD"],
+                "fonts": ["Inter"], "tone_notes": "Direct and calm",
+                "logo_source_asset_id": logo["source_asset_id"],
+            },
+        )
+        media = {
+            angle: source(f"sample-{angle}", f"#{index + 2:02x}6677")["source_asset_id"]
+            for index, angle in enumerate(SAMPLE_ANGLES)
+        }
+        renderer = StudioRenderer(font_path=Path("/missing/inter.ttf"))
+        sample = self.repository.create_studio_sample_set(
+            batch["batch_id"], brand_kit_id=kit["brand_kit_id"],
+            media_by_angle=media, renderer=renderer, requested_by="integration-owner",
+        )
+        self.assertEqual(5, len(sample["items"]))
+        self.assertEqual(
+            [item["creative_id"] for item in self.repository.get_batch(batch["batch_id"])["creatives"]],
+            [item["source_creative_id"] for item in sample["items"]],
+        )
+        self.assertEqual(sample["sample_set_id"], self.repository.create_studio_sample_set(
+            batch["batch_id"], brand_kit_id=kit["brand_kit_id"],
+            media_by_angle=media, renderer=renderer, requested_by="integration-owner",
+        )["sample_set_id"])
+        package = self.repository.studio_sample_set_download(sample["sample_set_id"])
+        self.assertEqual(package["sha256"], hashlib.sha256(package["bytes"]).hexdigest())
+
+        selected = sample["items"][2]
+        application_id = str(uuid4())
+        applied_template = self.repository.apply_studio_template(
+            selected["template_id"], brief_id=brief["brief_id"],
+            creative_id=selected["source_creative_id"], brand_kit_id=kit["brand_kit_id"],
+            photo_source_asset_id=media["curiosity"], request_id=application_id,
+            requested_by="integration-owner",
+        )
+        self.assertTrue(applied_template["created"])
+        same_application = self.repository.apply_studio_template(
+            selected["template_id"], brief_id=brief["brief_id"],
+            creative_id=selected["source_creative_id"], brand_kit_id=kit["brand_kit_id"],
+            photo_source_asset_id=media["curiosity"], request_id=application_id,
+            requested_by="integration-owner",
+        )
+        self.assertFalse(same_application["created"])
+        self.assertEqual(applied_template["recipe"]["recipe_id"], same_application["recipe"]["recipe_id"])
+
+        concurrent_request_id = str(uuid4())
+        start = Barrier(2)
+        def concurrent_apply():
+            start.wait()
+            return self.repository.apply_studio_template(
+                selected["template_id"], brief_id=brief["brief_id"],
+                creative_id=selected["source_creative_id"], brand_kit_id=kit["brand_kit_id"],
+                photo_source_asset_id=media["curiosity"], request_id=concurrent_request_id,
+                requested_by="integration-owner",
+            )
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            concurrent = [future.result() for future in (
+                executor.submit(concurrent_apply), executor.submit(concurrent_apply),
+            )]
+        self.assertEqual({True, False}, {item["created"] for item in concurrent})
+        self.assertEqual(1, len({item["recipe"]["recipe_id"] for item in concurrent}))
+
+        other_brief = self.complete_brief()
+        with self.assertRaisesRegex(ValueError, "same Project"):
+            self.repository.apply_studio_template(
+                selected["template_id"], brief_id=other_brief["brief_id"],
+                creative_id=None, brand_kit_id=kit["brand_kit_id"],
+                photo_source_asset_id=None, request_id=str(uuid4()),
+                requested_by="integration-owner",
+            )
+
+        generated = source("wizard-generated", "#43bdd3", origin="ai_generated")
+        root_recipe = selected["recipe"]
+        media_frame = next(
+            item for item in root_recipe["document"]["frames"]
+            if item["tool_id"] == "studio.frame.media.v1"
+        )
+        def builder(document, **_values):
+            proposed = _v2_submission(document)
+            proposed = json.loads(json.dumps(proposed))
+            next(item for item in proposed["frames"] if item["instance_id"] == media_frame["instance_id"])["source_asset_ids"] = [generated["source_asset_id"]]
+            return [], proposed, {
+                "generated_source_asset_id": generated["source_asset_id"],
+                "provider_provenance": {"mode": "ad_studio_graphic_generation", "request_id": "fixture"},
+            }
+        proposal = self.repository.create_studio_wizard_proposal(
+            root_recipe["recipe_id"], instruction="Replace the background with a generated graphic",
+            target_instance_id=media_frame["instance_id"], proposal_builder=builder,
+            renderer=renderer, requested_by="integration-owner",
+        )
+        self.assertEqual(generated["source_asset_id"], proposal["generated_source_asset_id"])
+        first_apply = self.repository.apply_studio_wizard_proposal(
+            proposal["proposal_id"], renderer=renderer, requested_by="integration-owner",
+        )
+        second_apply = self.repository.apply_studio_wizard_proposal(
+            proposal["proposal_id"], renderer=renderer, requested_by="integration-owner",
+        )
+        self.assertEqual(first_apply["recipe"]["recipe_id"], second_apply["recipe"]["recipe_id"])
+        with self.repository.connection() as connection:
+            self.assertEqual(1, connection.execute(
+                """SELECT count(*) FROM commander_relationships
+                     WHERE source_id=%s AND relation='derived_from' AND target_id=%s""",
+                (proposal["proposal_id"], generated["source_asset_id"]),
+            ).fetchone()[0])
 
 
 if __name__ == "__main__":

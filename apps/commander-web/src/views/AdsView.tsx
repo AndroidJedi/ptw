@@ -45,6 +45,14 @@ export function batchLessonRerunState(batch: CreativeBatch) {
   return { kind: 'unavailable' as const }
 }
 
+export function batchSelectorLabel(batch: CreativeBatch) {
+  const kind = batch.rerun_of_batch_id ? 'Feedback rerun' : 'Ads from Brief'
+  const product = batch.brief_product || 'Product Brief'
+  const created = new Date(batch.created_at)
+  const date = Number.isNaN(created.valueOf()) ? batch.created_at : created.toLocaleString()
+  return `${kind} · ${product} · ${batch.status} · ${date}`
+}
+
 function AuthenticatedImage({ api, creative }: { api: ApiClient; creative: AdCreative }) {
   const [url, setUrl] = useState('')
   const [error, setError] = useState('')
@@ -92,7 +100,7 @@ function CreativeCard({ api, creative, onNotice }: {
   </article>
 }
 
-export function AdsView({ api }: { api: ApiClient }) {
+export function AdsView({ api, projectId }: { api: ApiClient; projectId: string | null }) {
   const [items, setItems] = useState<CreativeBatch[] | null>(null)
   const [selected, setSelected] = useState<CreativeBatch | null>(null)
   const [error, setError] = useState('')
@@ -100,13 +108,14 @@ export function AdsView({ api }: { api: ApiClient }) {
   const [busy, setBusy] = useState(false)
   const [proposalRevision, setProposalRevision] = useState(0)
   const load = async (preferredId?: string) => {
-    const value = await api.get<{ items: CreativeBatch[] }>('/api/v1/ad-batches?limit=100')
+    if (!projectId) { setItems([]); setSelected(null); return }
+    const value = await api.get<{ items: CreativeBatch[] }>(`/api/v1/ad-batches?limit=100&project_id=${encodeURIComponent(projectId)}`)
     setItems(value.items)
-    const id = preferredId || selected?.batch_id || value.items[0]?.batch_id
+    const id = preferredId || (value.items.some((item) => item.batch_id === selected?.batch_id) ? selected?.batch_id : undefined) || value.items[0]?.batch_id
     if (!id) { setSelected(null); return }
     setSelected(await api.get<CreativeBatch>(`/api/v1/ad-batches/${id}`))
   }
-  useEffect(() => { void load().catch((cause: Error) => setError(cause.message)) }, [api])
+  useEffect(() => { void load().catch((cause: Error) => setError(cause.message)) }, [api, projectId])
   useEffect(() => {
     if (!selected || !['queued', 'generating'].includes(selected.status)) return
     const timer = window.setInterval(() => void load(selected.batch_id).catch((cause: Error) => setError(cause.message)), 1500)
@@ -141,8 +150,8 @@ export function AdsView({ api }: { api: ApiClient }) {
   return <>
     <PageHeader eyebrow="STAGE 2 · COMPLETE AD POSTS" title="Ads" />
     {error && <ErrorState message={error} />}{notice && <p className="landing-notice" role="status">{notice}</p>}
-    {!items.length ? <Empty><Megaphone className="empty-mark" /><h2>No creative batch yet</h2><p>Approve a completed Product Brief to generate exactly five complete Ad Creatives.</p></Empty> : <div className="ads-workspace">
-      <section className="panel"><label>Creative batch<select value={selected?.batch_id || ''} onChange={(event) => void load(event.target.value)}>{items.map((item) => <option key={item.batch_id} value={item.batch_id}>{item.batch_id} · {item.status}</option>)}</select></label>{selected && <><p className="uuid-line">Brief {selected.brief_id} · batch {selected.batch_id}</p>{selected.rerun_of_batch_id && <p className="batch-lineage">Learned rerun of batch <button className="text-action" onClick={() => void load(selected.rerun_of_batch_id || undefined)}>{selected.rerun_of_batch_id}</button></p>}</>}</section>
+    {!items.length ? <Empty><Megaphone className="empty-mark" /><h2>{projectId ? 'No Ads in this Project yet' : 'No Project selected'}</h2><p>Approve a completed Product Brief in this Project to generate exactly five complete Ad Creatives.</p></Empty> : <div className="ads-workspace">
+      <section className="panel"><label>Ad generation<select value={selected?.batch_id || ''} onChange={(event) => void load(event.target.value)}>{items.map((item) => <option key={item.batch_id} value={item.batch_id}>{batchSelectorLabel(item)}</option>)}</select></label>{selected && <><p className="uuid-line">Project {selected.project_id} · Brief {selected.brief_id} · Batch {selected.batch_id}</p>{selected.rerun_of_batch_id && <p className="batch-lineage">Learned rerun of batch <button className="text-action" onClick={() => void load(selected.rerun_of_batch_id || undefined)}>{selected.rerun_of_batch_id}</button></p>}</>}</section>
       {selected && ['queued', 'generating'].includes(selected.status) && <section className="panel generation-state"><RefreshCcw className="spin" /><div><h2>Building five creatives</h2><p>One structured call, fixed angles, real Pexels photos, deterministic 1080×1080 renders.</p></div></section>}
       {selected?.status === 'failed' && failure && <section className="panel batch-failure" role="alert">
         <header><AlertTriangle /><div><small>FAILED AT VALIDATION · {selected.error_code || 'GenerationError'}</small><h2>{failure.title}</h2></div></header>

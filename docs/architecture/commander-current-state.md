@@ -5,233 +5,115 @@ Branch: `codex/web-only-commander`
 
 ## Last completed milestone
 
-The latest deployed milestone simplifies Admin Jobs and feedback learning into
-plain sequential workflows. Jobs now has one instruction field and one
-**Review steps** action; nothing changes until the owner reviews the read-only
-steps and explicitly chooses **Run job** or **Apply future rule**. The redundant
-Plan/Execute mode switch is gone, and the UI states that only one job runs at a
-time. Feedback is described as a future rule that does not change the reviewed
-artifact or rerun its agent. The Owner Console is deployed from `0e0ae8a` with
-service-worker cache `ptw-shell-v35-simple-jobs`.
+The five-post Ad Studio v2 milestone is implemented and verified locally. It
+uses approved Product Brief `01a0376d-1e97-7874-a46e-392c867593dd` and completed
+Ad batch `01a03794-acfa-7a2a-830b-5bf6bd54e953` to build one immutable,
+idempotent `StudioSampleSet` containing exactly five ordered Instagram-square
+posts: emotional, practical, curiosity, authority, and problem-first. Each item
+links its source Creative, reusable `StudioTemplateV2`, root `StudioRecipeV2`,
+clean 1080 x 1080 JPEG render, editable caption and alt text, source assets, and
+complete lineage. The bulk ZIP contains all five JPEGs plus captions, alt text,
+attribution, and a manifest. Partial sets are never returned.
 
-The prior deployed milestone closed the learned-feedback loop for Stage 2. After
-all feedback lessons from a completed Ad batch are promoted or dismissed, Ads
-offers one confirmed **Generate new Ads with feedback** action. It creates a
-distinct five-creative child batch from the same approved Brief, keeps the
-original batch immutable, records `rerun_of` lineage plus the exact skill
-snapshot, and prevents duplicate children. The Validation runner now reloads
-canonical owner lessons immediately before each generation, so a service
-restart is not needed to apply a promoted lesson. Production runs matching
-application images tagged `learned-reruns-311dae9`, built from `311dae9`.
+The five posts use the selected batch's real Ukrainian hooks and primary text,
+the approved Brief's exact offer and CTA, the canonical Natal logo and palette,
+and either the required original Pexels photo or one reviewed non-human abstract
+graphic. Pexels sources are re-fetched by IDs `16664910`, `19232289`, and
+`7640442`; already-rendered Ad JPEGs are not reused as backgrounds. The two
+packaged generated graphics contain no people, embedded text, logo, zodiac
+glyph, or watermark and carry prompt, provider/model, request, digest, review,
+and no-synthetic-people provenance. Mismatched photos `34183731` and `32446190`
+are excluded.
 
-The Simplified Validation Phase 1 implementation is complete. The earlier
-grouped-lesson milestone replaced per-proposal Save/Plan/Dismiss controls with
-one combined lesson action: every feedback and proposal UUID remains append-only,
-while all
-pending proposals in one generator domain share one editable lesson and one
-Plan/Execute command.
-The independent platform checkout
-remains unchanged at its release-transfer guard `6ed6d8d`:
+Studio has separate Preview and Edit modes. Preview and every export contain
+only the shareable design: no dashed guides, tool IDs, `shape` labels, handles,
+or selection chrome. Edit mode exposes authenticated media and logo previews,
+layers, drag/resize, crop and focal controls, logo containment, typography,
+shapes, caption, alt text, and persisted render history. Responsive inspectors
+work at desktop and 360 px widths, and the component-selection black-screen
+regression is covered in browser tests.
 
-```text
-raw idea → Product Brief → owner approval → five Ad Creatives
-```
+`StudioRecipeV2` separates visual frames from layout, color, effect, and
+strategy modifiers. Unicode text layout uses pixel measurement, wrapping,
+auto-fit, line height, maximum lines, vertical alignment, and hard overflow
+rejection; protected offer and CTA frames may never truncate. `StudioTemplateV2`
+uses typed bindings for Creative hook/photo/caption, Brief benefits/trust/offer/
+CTA, and brand logo. Applying a template resolves bindings server-side into
+fresh frame UUIDs and is idempotent by request UUID.
 
-The latest deployed incident correction replaces the Admin checkbox-like cancel
-icon with labelled Run, Restore, and confirmed Cancel controls, makes full job
-details available for every status, and prevents cancellation/planner races.
-Unexecuted failed or cancelled lesson commands can restore the preserved plan
-or regenerate it while restoring the complete linked proposal group.
+The review-first Studio wizard creates append-only `StudioWizardProposalV1`
+records for one selected component or the whole recipe. It receives the current
+recipe, selected Brief, brand kit, Project source catalog, current tool catalog,
+and canonical Studio skill snapshot. Preview never mutates the recipe. Apply
+validates a server-derived typed diff, protects the exact offer/CTA, rejects
+cross-Project sources or scope expansion, and creates one immutable child
+recipe and render exactly once. Proposal history reloads after browser or
+service restart. An explicitly requested generated graphic is limited to one
+bounded, digest-checked, reviewed non-human PNG with complete graph lineage.
 
-Marketing Positioning and the Ads stub have been replaced by the
-`validation_pipeline` runtime. Its only structured bridge modes are
-`product_brief`, `product_brief_revision`, and `ad_creative_batch`. Stage 1
-infers Ukrainian or English from one raw idea and produces one strict,
-immutable Product Brief with three to five benefits and an explicit
-low-friction offer. Owner approval confirms the promise and offer can be
-honored, atomically creates one batch, and reserves generation. Stage 2 sends
-only that approved Brief to one structured call and creates exactly five
-complete creatives in the fixed angle order.
+The automatic five-Ad generator remains unchanged. The independent AI bridge
+still advertises exactly `product_brief`, `product_brief_revision`, and
+`ad_creative_batch` as its validation modes. Studio adds the separate
+`ad_studio_recipe_revision` and `ad_studio_graphic_generation` modes. Generated
+bytes cross an authenticated, ETag- and digest-checked bridge asset endpoint;
+the platform and Validation services share no database, filesystem, or
+credentials.
 
-Pexels is the only photo adapter. Selection is bounded to ten square results
-plus one broader category fallback, never reuses a photo within a batch, and
-rejects rate limits, unsafe URLs or redirects, invalid MIME, oversized data,
-small images, and undecodable bytes. The generator now silently drafts multiple
-headline candidates per proposed visual and selects the strongest only after
-emotion-match, narrative-completion, specificity, human-tension, and scroll
-tests. Pillow produces deterministic 1080×1080 JPEGs with the canonical Natal
-logo, Inter font, palette, hook, offer, and CTA. PostgreSQL stores the
-authoritative bytes, digest, source page, photographer, license, attribution,
-and complete lineage.
-
-The Owner Console navigation is Product Briefs → Ads → Landing → Admin. Brief
-corrections and creative feedback create editable, owner-gated lesson
-proposals bounded to the corresponding generator's `owner-lessons.md`. Ads
-shows five authenticated artifacts and prominent Pexels/photographer links.
-Landing is an inactive `Stage 3 pending` placeholder and makes no runtime API
-call. Active console chrome, iconography, terminal, and diagrams are strictly
-black, white, and neutral gray; state meaning does not depend on hue. Reviewed
-Ad photography remains unaltered. The three Natal templates and dormant
-Landing source remain on disk.
-
-The database is one clean 19-table reset baseline. It contains generic graph,
-source, feedback, weight, audit, Plan/Execute, guard, and control authority plus
-Product Brief, approval, attempts, provider invocation, creative batch,
-creative, asset, and lesson-proposal tables. Legacy Positioning, active
-Landing, Idea, Branding, and Ads tables are absent.
+Forward migrations `003_validation_projects.sql` and `004_ad_studio.sql` are
+additive. The complete schema has 31 application tables, including 11 Studio
+tables, without changing prior validation rows. Production rollout uses the
+explicit `DEPLOY PTW IN PLACE` path: migrate, start and verify the new services,
+preserve existing Briefs/batches/creatives/assets, and restore the prior
+application images on startup, preservation, or readiness failure. The
+irreversible reset path is not part of this release. Platform rollout puts the
+enforcing worker before the Studio-capable API and restores API before worker.
 
 ## Verification
 
-- Simple-Jobs verification: 21 Owner web Vitest tests and the production build
-  pass; 15 Playwright journeys pass on desktop Chromium, 360 px Chromium, and
-  iPhone WebKit. The production bundle contains **Review steps**, the serial-job
-  explanation, **Use feedback next time**, and **Generate new Ads with
-  feedback**, while the retired mode and lesson labels are absent. The public
-  Auth/App Check/CORS/API audit passes against cache
-  `ptw-shell-v35-simple-jobs`. Canonical PTW skill validation, the deterministic
-  Commander demo, all eight containerized Commander tests, the three-mode live
-  bridge audit, and the locked 1 GB audit pass. No backend image, database, or
-  runtime configuration changed.
-- Learned-rerun local verification: 20 Owner web Vitest tests and the production
-  build pass; 15 Playwright journeys pass on desktop Chromium, 360 px Chromium,
-  and iPhone WebKit. The Validation Linux/amd64 image passes 28 tests, the
-  Owner Gateway Linux/amd64 image passes 25 focused active non-Landing tests, the
-  disposable PostgreSQL 16 baseline applies both migrations, and all three
-  integration tests pass for immutable child lineage, idempotency, skill
-  snapshots, existing retry/failure history, and atomic assets.
-  The prior live Owner Console cache was `ptw-shell-v34-learned-reruns`.
-- Validation Linux/amd64 built-image suite: 26 passed, including grouped lesson
-  proposal planning, strict Brief/creative
-  shapes, offer enforcement, language inference, bridge input isolation,
-  Pexels selection/fallback/rate-limit/download safety, deterministic JPEGs,
-  authentication, ETags, retired API 404s, the explicit Compose environment
-  boundary, failure notification, and recovered failure history.
-- Disposable PostgreSQL 16: three integration tests passed for immutable
-  corrections, idempotent approval, atomic five-asset persistence, restart and
-  retry behavior, at-most-once failure notification, recovered failure history,
-  graph edges, feedback/weights, atomic proposal failure/restoration/promotion,
-  and legacy table absence.
-- Baseline/reset verification passed twice with 19 application tables and the
-  independent platform fixture unchanged at three rows.
-- Owner Gateway production-equivalent image: 18 focused active non-Landing
-  tests passed for auth/CORS, control-store restoration, destructive gates,
-  root-broker boundaries, and existing notification behavior.
-- Commander built-image Telegram boundary: one passed; the deterministic
-  `ptw-validation-v1` demo was regenerated successfully.
-- Owner web: 17 Vitest tests, production TypeScript/Vite build, and 15
-  Playwright journeys passed on desktop Chromium, 360 px Chromium, and iPhone
-  WebKit. Failed/recovered batch panels and malformed authenticated-image
-  resources are covered. Build-time source checks and computed-style assertions
-  enforce the monochrome chrome invariant. The prior service-worker cache was
-  `ptw-shell-v33-safe-job-controls`. The built module
-  graph contains no retired Positioning/Landing route.
-- Canonical Product Brief and Ad Creative skills pass the Skill Creator
-  validator; the PTW skill/link/mount validator passes. The retired Marketing
-  Positioning skill and desktop link are absent. Natal Landing remains dormant;
-  its canonical identity is now shared by active Ad rendering.
-- The independent bridge was changed only in the separate
-  `/Users/serhiiholovaschuk/Projects/ptw-platform-validation` checkout. Its
-  complete suite passes 84 tests and its capabilities expose the three new
-  modes while rejection tests cover the retired modes.
-- The three application Linux/amd64 images and checksum-bearing archives were
-  rebuilt from the clean `311dae9` commit with pinned non-`latest` tag
-  `learned-reruns-311dae9`. The independent platform API and worker remain on
-  the previously verified `phase1-5f47722-6ed6d8d` release.
-- Shell syntax checks, Python compilation, `git diff --check`, and release
-  script guards pass. Landing-specific suites were intentionally not run.
-- The Ad offer-punctuation incident correction and recovery-history follow-up
-  are deployed. Exact offer and CTA fields are schema-bound; failed and
-  recovered-batch UI states and the audited existing-bot callback are covered.
+- Populated `001`/`002` through `003`/`004` migration verification and a fresh
+  PostgreSQL 16 schema pass at 31 application tables; the independent platform
+  fixture is unchanged.
+- Validation's built-runtime suite passes 48 tests. Focused API/provider/
+  renderer coverage includes five ordered angles, exact offer/CTA, truthful alt
+  text, clean JPEGs, Unicode overflow, crop/focal controls, logo transparency
+  and containment, deterministic ZIPs, ETags, template idempotency, wizard
+  non-mutation, protected fields, cross-Project rejection, generated-source
+  provenance, Apply-once behavior, and restart recovery.
+- Five disposable PostgreSQL repository integration journeys and ten Owner
+  Gateway authentication/proxy tests pass.
+- Owner web verification passes 31 Vitest tests, its production build, and 21
+  Playwright journeys on desktop Chromium, 360 px Chromium, and iPhone WebKit
+  with cache `ptw-shell-v40-studio-share-posts`.
+- The independent platform bridge passes 94 tests. Its capabilities preserve
+  the three core validation modes while enforcing the two additive Studio
+  modes, exactly one image-generation call, bounded square PNG output, policy
+  provenance, authenticated bytes, and ETag/digest checks.
+- Commander unit tests, the deterministic demo, release-script contract tests,
+  shell syntax, canonical PTW skill validation, Skill Creator validation for
+  the updated skills, generated-asset manifest/digest checks, and
+  `git diff --check` pass.
 
 ## Production state
 
-Firebase Hosting serves the simplified Owner Console from source revision
-`0e0ae8a`. The cache-busted live app uses `ptw-shell-v35-simple-jobs`; its
-hashed public bundle, Auth/App Check markers, exact CORS origin,
-unauthenticated rejection, gateway health, and retired-route 404s pass. This
-was a reversible Hosting-only release: no reset ran and all backend containers,
-PostgreSQL data, existing jobs, feedback, lessons, batches, creatives, and
-assets remain unchanged.
+This milestone is not deployed yet. Production still serves the prior
+in-place application release `learned-reruns-311dae9`, the Owner Console cache
+`ptw-shell-v35-simple-jobs`, and independent platform release
+`phase1-5f47722-6ed6d8d`. The existing completed Product Brief, batch, five Ad
+Creatives, assets, feedback, lessons, and graph history remain authoritative.
+No production reset has run for this milestone.
 
-The learned-rerun release completed in place without a reset on 2026-08-25.
-Commander, Validation, and Owner Gateway now use matching Linux/amd64 images
-tagged `learned-reruns-311dae9`, built from `311dae9`. Migration
-`002_lesson_driven_creative_reruns.sql` is applied; the original completed
-batch remains immutable and no child batch exists until the owner confirms the
-new generation action. The exact promoted Ad owner lesson was reconciled into
-the tracked canonical skill with SHA-256
-`4b235a16fc2e16fac506e0b555a69815f4df3974e38b786e5d485a4aa85ea6f1`.
-The independent platform repository remains at `6ed6d8d`, and its API and
-worker remain on `phase1-5f47722-6ed6d8d`. Two fresh strict canaries passed for
-`product_brief`, `product_brief_revision`, and `ad_creative_batch`, and the
-non-persisting Pexels search/download/Natal-render canary passed after the
-in-place release. The live Owner Console exposes one **Use feedback next time**
-section for pending feedback. After every future rule for a completed batch is
-terminal, Ads exposes **Run the Ad agent again**, a confirmation-gated
-**Generate new Ads with feedback** action, and then **Open new Ads** for the
-resulting child batch.
-The retired Save edit, Plan promotion, and Dismiss controls are not present.
-
-After an ambiguous square cancel control was pressed on Ad lesson command
-`f520e7f2-9652-46bd-94eb-f7b58d87b32c`, its already completed planner result
-was recovered from immutable command events. The owner subsequently executed
-the recovered plan, and its four linked Ad proposals are now promoted together.
-The no-reset releases preserved the complete command/event history, the four
-proposal rows, and every existing feedback, weight, proposal, and Ad asset row.
-
-The confirmation-gated Phase 1 reset replaced only `ptw_commander.public` and
-established 19 application tables plus the migration metadata table. Production
-has since persisted the owner-created Brief, recovered batch, five creatives,
-assets, attempts, and audit lineage. Legacy Positioning, active Landing, Idea,
-Branding, and Ads tables and containers remain absent, and the independent
-platform database was not changed by the incident release.
-
-Commander, Validation, Owner Gateway, platform API, and platform worker are
-healthy. Validation receives only its explicit nine-variable runtime allowlist,
-including the non-secret Owner Gateway failure-callback URL;
-retired research, Landing, and YouTube settings are absent from both Validation
-and Owner Gateway. Dependency/schema/bridge audits, canonical skill checks, the
-existing Telegram emergency boundary, serial restart recovery, and the
-immediate 1 GB/OOM audit pass. The in-place release performed no reset: all nine
-HumanFeedback rows, nine WeightUpdate rows, four Product Brief proposals, five
-Ad Creative proposals, and five stored assets matched their pre-release row
-fingerprints exactly. All five creative bytes, digests, and decodable 1080×1080
-JPEGs were also reverified. The platform bridge was neither rebuilt nor
-restarted.
-
-The public audit passes the cache-busted v34 learned-reruns bundle,
-Auth/App Check, exact CORS origin, unauthenticated rejection, Product
-Brief/Ads/Landing/Admin markers, and retired-route 404s. A real exact-owner
-signed-in Stage 1–2 browser journey remains the final interactive acceptance item.
-
-Batch `01a03327-a038-72a6-85ae-e50983b0e6f4` retains failed attempt 1 and its
-exact reason after retry attempt 2 completed. The batch has five unique,
-verified 1080×1080 JPEGs; every stored creative has the approved exact offer
-and CTA. The original failure produced one audited Telegram message with one
-reservation/result pair. No retry or success message was sent. Restart checks
-preserve the completed batch, recovered reason, notification state, empty
-operation guard, and exactly two notification audit events.
-
-All five authoritative creative assets independently pass stored-byte,
-SHA-256, 1080×1080 JPEG decode, internal HTTP media-type, ETag, and byte-
-equality checks before and after restart. A reported malformed inline PNG is
-not emitted by PTW. The live v34 Owner Console surfaces HTTP/MIME/integrity/
-ETag/browser-decode reasons with Creative UUID and a bounded retry. CORS exposes
-the authoritative ETag and Content-Length to the exact owner origins.
-
-The learned-rerun release preserved all existing feedback, weight, proposal,
-batch, creative, asset, and command/event fingerprints. Its immediate 1 GB/OOM
-audit passes with 374 MB available memory and 1.67 GB free swap; a fresh locked
-24-hour resource audit is scheduled. The operation guard is empty, emergency
-stop is false, all three health endpoints return 200, four Ad lesson proposals
-remain promoted, and the one historical failed proposal remains visible.
+The release gate that remains is operational rather than architectural: commit
+and push both clean repositories, build pinned Linux/amd64 application and
+platform images off-host, run the live five-mode bridge and Pexels canaries,
+deploy in place, create the selected real sample set, visually inspect all five
+authoritative JPEGs and the downloaded share ZIP, and then record the resulting
+release tag and sample-set UUID here.
 
 ## Next work
 
-Use the completed Ads batch to confirm **Generate new Ads with feedback**, wait for its
-distinct five-creative child batch, and open it from the source batch. Then
-complete the exact-owner signed-in desktop/360 px journey: create and correct a
-Brief, approve its promise/offer, inspect five authenticated Ads and attribution,
-submit feedback, and inspect dormant Landing and Admin. Review the scheduled
-24-hour resource audit. Stage 3 Landing, traffic, publishing, campaigns, UTMs,
-analytics, and conversion tracking remain out of scope.
+Complete the release gate above. After acceptance, normal owner work is to edit
+a sample, review wizard proposals before Apply, publish only deliberate
+training examples, and capture feedback through the existing append-only
+lesson flow. Landing remains a dormant Stage 3 placeholder. Ad publication,
+campaigns, traffic purchase, UTMs, analytics, and automatic social posting are
+out of scope.

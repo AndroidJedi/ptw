@@ -7,8 +7,11 @@ Updated: 2026-08-24
 
 - The Brief/creative language is inferred as Ukrainian or English from the raw
   idea. IDs, source text, logs, and provider errors remain verbatim.
-- Primary navigation is Product Briefs, Ads, Landing, and Admin. Admin
+- Primary navigation is Product Briefs, Ad Studio, Ads, Landing, and Admin. Admin
   contains Jobs plus Docs/System/Terminal.
+- A global human-readable Project switcher scopes Product Briefs, Ad Studio, Ads, and
+  Landing. Keep Project, Brief, and batch UUIDs visible as metadata rather than
+  using raw UUIDs as selector labels. Admin remains global.
 - Old page locations redirect to Product Briefs. Old domain APIs do not exist.
 - Design first for 360 px and one-hand use, with 44×44 CSS pixel targets, no
   horizontal page overflow, keyboard access, and reduced-motion support.
@@ -19,7 +22,8 @@ Updated: 2026-08-24
 
 ## Product Briefs
 
-- Start from one raw idea only. Show Brief and owner-idea Source UUIDs.
+- Start from one raw idea only. Generating the initial Brief atomically creates
+  and selects its Project. Show Project, Brief, and owner-idea Source UUIDs.
 - Present one product, first customer, pain, promise, three to five benefits,
   CTA, trust strategy, and a visually prominent strong offer.
 - A correction creates a complete immutable replacement with a new UUID.
@@ -28,7 +32,18 @@ Updated: 2026-08-24
 
 ## Ads and Landing
 
-- Ads shows all five complete posts, exact UUIDs, angle, copy, authenticated
+- Ad Studio is a parallel manual workspace and does not replace the automatic
+  five-Ad generator. It uses constrained framed tools with visible semantic IDs,
+  immutable Project brand-kit and recipe revisions, and reusable Project
+  templates. Applying a template rebinds the selected approved Brief's exact
+  offer and CTA.
+- Studio canvas output may use Project colors; all editor chrome remains
+  monochrome. Only explicitly published renders become feedback targets and
+  training examples.
+
+- Ads shows only batches from the selected Project and labels generations by
+  origin, product, status, and time. It still shows all five complete posts,
+  exact UUIDs, angle, copy, authenticated
   1080×1080 image, artifact digest, Pexels photographer/source/license
   attribution, retry state, and feedback control for each creative.
 - A failed batch shows the actionable validation rule, approved offer when

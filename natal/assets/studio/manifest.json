@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "provider": "codex_chatgpt_imagegen",
+  "resolved_model": "gpt-image-2",
+  "request_id": "01a03846-133d-7121-aef6-f47993f302c3",
+  "policy": {
+    "synthetic_people": false,
+    "embedded_text": false,
+    "embedded_logo": false,
+    "owner_review_required": true
+  },
+  "review": {
+    "status": "approved",
+    "reviewed_by": "codex_root",
+    "reviewed_at": "2026-08-25T11:45:19Z",
+    "criteria": [
+      "no synthetic people or faces",
+      "no embedded text or logo",
+      "no watermark",
+      "brand-compatible negative space",
+      "truthful non-human abstract subject"
+    ]
+  },
+  "assets": [
+    {
+      "file": "astrology-hidden-route-v1.png",
+      "sha256": "fbaec2ea6d7a08d465199abb0d7cb1b866ebcfcc80ed8b4a55c5dd94488d9821",
+      "output_sha256": "fbaec2ea6d7a08d465199abb0d7cb1b866ebcfcc80ed8b4a55c5dd94488d9821",
+      "prompt_sha256": "6a62dd0ac1d4e061a452363812ecfe26619a5b8e1fbe3632b05bbc99729d0bd5",
+      "reviewed": true,
+      "width": 1254,
+      "height": 1254,
+      "prompt": "Premium abstract editorial square for an editable Instagram post: one luminous cyan route separates from layered charcoal orbital paths and converges toward a calm focal point on the right. Preserve quiet negative space on the left and lower-left. Use Natal near-black, charcoal, cyan, light cyan, and white. No people, faces, text, letters, numbers, logo, watermark, zodiac glyphs, horoscope wheel, stars-as-cliche, crystals, tarot cards, planets, product mockups, or unrelated objects."
+    },
+    {
+      "file": "astrology-generic-vs-personal-v1.png",
+      "sha256": "13bde66353ce6e603d956af289ef43b7f3b7e15cba6623f31d1f14d7e61c8cd9",
+      "output_sha256": "13bde66353ce6e603d956af289ef43b7f3b7e15cba6623f31d1f14d7e61c8cd9",
+      "prompt_sha256": "491f4b7c3fd098e2276228807db74d4bd02e563aadeb5cdcb080c4de6a2ca7ae",
+      "reviewed": true,
+      "width": 1254,
+      "height": 1254,
+      "prompt": "Premium abstract editorial square contrasting generic advice with one personal route: many dim repetitive charcoal cards and circular marks lose coherence while one cyan contour and path breaks free. Concentrate generic forms in the upper and right areas and preserve negative space on the left and lower-left. No people, faces, text, letters, numbers, logo, watermark, zodiac glyphs, horoscope charts, tarot cards, planets, crystals, app screens, UI labels, or branded objects."
+    }
+  ]
+}

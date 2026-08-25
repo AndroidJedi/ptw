@@ -6,6 +6,10 @@ const PRODUCTION_API_URL = 'https://commander.proove-them-wrong.com'
 export const API_DEADLINE_MS = 15_000
 export const FIREBASE_TOKEN_DEADLINE_MS = 10_000
 
+export interface ApiRequestOptions {
+  deadlineMs?: number
+}
+
 export function resolveApiBaseUrl(configured: string | undefined, production: boolean) {
   return (configured || (production ? PRODUCTION_API_URL : '')).replace(/\/$/, '')
 }
@@ -27,7 +31,9 @@ export async function fetchWithDeadline(
     return await fetch(input, { ...init, signal: controller.signal })
   } catch (cause) {
     if (controller.signal.aborted && !callerSignal?.aborted) {
-      throw new Error('API не відповідає протягом 15 секунд. Стан на сервері міг уже змінитися — натисніть «Повторити», щоб безпечно оновити екран.')
+      const seconds = Math.ceil(deadlineMs / 1000)
+      const duration = seconds >= 120 ? `${Math.ceil(seconds / 60)} хвилин` : `${seconds} секунд`
+      throw new Error(`API не відповідає протягом ${duration}. Стан на сервері міг уже змінитися — натисніть «Повторити», щоб безпечно оновити екран.`)
     }
     throw cause
   } finally {
@@ -106,13 +112,13 @@ export class ApiClient {
     return headers
   }
 
-  async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  async request<T>(path: string, init: RequestInit = {}, options: ApiRequestOptions = {}): Promise<T> {
     const response = await fetchWithDeadline(`${baseUrl}${path}`, {
       ...init,
       cache: 'no-store',
       credentials: 'omit',
       headers: { ...(await this.headers(Boolean(init.body))), ...init.headers },
-    })
+    }, options.deadlineMs ?? API_DEADLINE_MS)
     const body = await jsonBody(response).catch((cause) => {
       if (!response.ok) return {}
       throw cause
@@ -125,9 +131,9 @@ export class ApiClient {
     return body as T
   }
 
-  get<T>(path: string): Promise<T> { return this.request<T>(path) }
-  post<T>(path: string, body: unknown): Promise<T> {
-    return this.request<T>(path, { method: 'POST', body: JSON.stringify(body) })
+  get<T>(path: string, options: ApiRequestOptions = {}): Promise<T> { return this.request<T>(path, {}, options) }
+  post<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Promise<T> {
+    return this.request<T>(path, { method: 'POST', body: JSON.stringify(body) }, options)
   }
 
   async image(path: string, expectedMimeType: string, expectedSha256: string): Promise<Blob> {
@@ -135,6 +141,10 @@ export class ApiClient {
       cache: 'no-store', credentials: 'omit', headers: await this.headers(),
     })
     return validateImageResponse(response, expectedMimeType, expectedSha256)
+  }
+
+  async media(path: string, expectedMimeType: string, expectedSha256: string): Promise<Blob> {
+    return this.image(path, expectedMimeType, expectedSha256)
   }
 
   async websocketUrl(path: string): Promise<string> {

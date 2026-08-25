@@ -116,9 +116,15 @@ DECLARE failures text;
 BEGIN
   SELECT string_agg(label || '=' || value, ', ') INTO failures
   FROM (VALUES
+    ('validation_projects', (SELECT count(*) FROM validation_projects)),
     ('product_briefs', (SELECT count(*) FROM product_briefs)),
     ('creative_batches', (SELECT count(*) FROM creative_batches)),
     ('ad_creatives', (SELECT count(*) FROM ad_creatives)),
+    ('studio_brand_kits', (SELECT count(*) FROM ad_studio_brand_kits)),
+    ('studio_source_assets', (SELECT count(*) FROM ad_studio_source_assets)),
+    ('studio_templates', (SELECT count(*) FROM ad_studio_templates)),
+    ('studio_recipes', (SELECT count(*) FROM ad_studio_recipes)),
+    ('studio_renders', (SELECT count(*) FROM ad_studio_renders)),
     ('entities', (SELECT count(*) FROM commander_entities)),
     ('relationships', (SELECT count(*) FROM commander_relationships))
   ) AS counts(label,value) WHERE value <> 0;
@@ -151,4 +157,4 @@ cmp -s "$platform_snapshot_before" "$platform_snapshot_after" || {
 # Remove the retired domain container only after all v2 services are healthy.
 [ -z "$old_idea_container" ] || docker rm "$old_idea_container" >/dev/null
 [ -z "$old_positioning_container" ] || docker rm "$old_positioning_container" >/dev/null
-echo "PTW Validation reset complete; briefs/creatives are empty and platform counts are unchanged"
+echo "PTW Validation reset complete; projects/briefs/creatives are empty and platform counts are unchanged"

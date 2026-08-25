@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 if [[ $# -ne 4 ]]; then
-    echo "usage: $0 RELEASE_TAG GIT_REVISION PLATFORM_GIT_REVISION 'RESET PTW PRODUCTION'" >&2
+    echo "usage: $0 RELEASE_TAG GIT_REVISION PLATFORM_GIT_REVISION 'RESET PTW PRODUCTION|DEPLOY PTW IN PLACE'" >&2
     exit 2
 fi
 release_tag=$1
@@ -12,7 +12,9 @@ confirmation=$4
 [[ $release_tag =~ ^[A-Za-z0-9._-]+$ && $release_tag != latest ]] || { echo "invalid or unversioned release tag" >&2; exit 2; }
 [[ $git_revision =~ ^[0-9a-f]{40}$ ]] || { echo "GIT_REVISION must be a full commit SHA" >&2; exit 2; }
 [[ $platform_git_revision =~ ^[0-9a-f]{40}$ ]] || { echo "PLATFORM_GIT_REVISION must be a full commit SHA" >&2; exit 2; }
-[[ $confirmation == "RESET PTW PRODUCTION" ]] || { echo "exact reset confirmation is required" >&2; exit 2; }
+[[ $confirmation == "RESET PTW PRODUCTION" || $confirmation == "DEPLOY PTW IN PLACE" ]] || {
+    echo "exact reset or in-place deployment confirmation is required" >&2; exit 2;
+}
 [[ $(id -u) -eq 0 ]] || { echo "production deployment must run as root" >&2; exit 1; }
 
 if [[ ${PTW_MAINTENANCE_LOCK_HELD:-0} != 1 ]]; then
@@ -109,6 +111,26 @@ for image in ptw-agent-platform-commander-api ptw-agent-platform-commander-worke
     [[ $(docker image inspect "$image:$release_tag" --format '{{.RepoTags}}') == *"$image:$release_tag"* ]] || exit 1
 done
 
+old_commander_container=$("${commander_compose[@]}" ps -q commander-api)
+old_validation_container=$("${validation_compose[@]}" ps -q validation-api)
+old_gateway_container=$("${commander_compose[@]}" ps -q owner-gateway)
+[[ -n $old_commander_container && -n $old_validation_container && -n $old_gateway_container ]] || {
+    echo "deployed application containers are unavailable for rollback" >&2; exit 1;
+}
+old_commander_image=$(docker inspect "$old_commander_container" --format '{{.Config.Image}}')
+old_validation_image=$(docker inspect "$old_validation_container" --format '{{.Config.Image}}')
+old_gateway_image=$(docker inspect "$old_gateway_container" --format '{{.Config.Image}}')
+case "$old_commander_image" in
+    ptw-commander:*) old_application_tag=${old_commander_image#ptw-commander:} ;;
+    *) echo "unexpected deployed Commander image: $old_commander_image" >&2; exit 1 ;;
+esac
+[[ $old_validation_image == "ptw-validation:$old_application_tag" ]] || {
+    echo "deployed Commander and Validation tags do not match" >&2; exit 1;
+}
+[[ $old_gateway_image == "ptw-owner-gateway:$old_application_tag" ]] || {
+    echo "deployed Commander and Owner Gateway tags do not match" >&2; exit 1;
+}
+
 export PTW_IMAGE_TAG=$release_tag
 "${commander_compose[@]}" up -d --no-deps --wait commander-db
 
@@ -135,13 +157,22 @@ git -C "$platform" merge --ff-only "$platform_git_revision"
 }
 
 export PTW_PLATFORM_IMAGE_TAG=$release_tag
-"${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api
+# Put the enforcing worker behind the still-rejecting old API before the new
+# Studio-capable API can admit either Studio mode.
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker
+"${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api
 
 restore_platform_images() {
     export PTW_PLATFORM_IMAGE_TAG=$old_platform_tag
     "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api
     "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker
+}
+
+restore_application_images() {
+    export PTW_IMAGE_TAG=$old_application_tag
+    "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api
+    "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api
+    "${commander_compose[@]}" up -d --no-deps --no-build --wait --force-recreate owner-gateway
 }
 
 # Run a fresh strict-model invocation through the newly deployed API and worker
@@ -164,8 +195,66 @@ grep -qx "PTW_PLATFORM_IMAGE_TAG=$release_tag" "$platform/.env" || {
     echo "platform release tag was not persisted" >&2; exit 1;
 }
 
-PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/reset_ptw.sh" \
-    --confirm "$confirmation" --release-tag "$release_tag"
+if [[ $confirmation == "RESET PTW PRODUCTION" ]]; then
+    PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/reset_ptw.sh" \
+        --confirm "$confirmation" --release-tag "$release_tag"
+    release_kind=reset
+else
+    # Preserve every existing Project, Brief, batch, creative, asset, feedback,
+    # proposal, and graph row. Forward migrations run before the new services
+    # start; migration failure leaves the current application containers in
+    # place and aborts without invoking the irreversible reset path.
+    "${commander_compose[@]}" run --rm --no-deps commander-migrate
+    if ! "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api; then
+        restore_application_images
+        echo "Commander startup failed; prior application images restored" >&2
+        exit 1
+    fi
+    if ! "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api; then
+        restore_application_images
+        echo "Validation startup failed; prior application images restored" >&2
+        exit 1
+    fi
+    if ! "${commander_compose[@]}" up -d --no-deps --no-build --wait --force-recreate owner-gateway; then
+        restore_application_images
+        echo "Owner Gateway startup failed; prior application images restored" >&2
+        exit 1
+    fi
+    if ! "${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 \
+        -U ptw_commander -d ptw_commander <<'SQL'
+DO $$
+BEGIN
+  IF NOT EXISTS (
+      SELECT 1 FROM commander_schema_migrations
+       WHERE name='003_validation_projects.sql'
+  ) OR NOT EXISTS (
+      SELECT 1 FROM commander_schema_migrations
+       WHERE name='004_ad_studio.sql'
+  ) THEN
+    RAISE EXCEPTION 'required in-place Studio migrations are missing';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM product_briefs)
+     OR NOT EXISTS (SELECT 1 FROM creative_batches)
+     OR NOT EXISTS (SELECT 1 FROM ad_creatives)
+     OR NOT EXISTS (SELECT 1 FROM ad_creative_assets) THEN
+    RAISE EXCEPTION 'in-place deployment did not preserve the validation artifacts';
+  END IF;
+END $$;
+SQL
+    then
+        restore_application_images
+        echo "post-migration preservation verification failed; prior application images restored" >&2
+        exit 1
+    fi
+    if ! curl --fail --max-time 3 --silent http://127.0.0.1:8091/readyz >/dev/null \
+       || ! curl --fail --max-time 3 --silent http://127.0.0.1:8093/readyz >/dev/null \
+       || ! curl --fail --max-time 3 --silent http://127.0.0.1:8092/healthz >/dev/null; then
+        restore_application_images
+        echo "application readiness failed; prior application images restored" >&2
+        exit 1
+    fi
+    release_kind=in-place
+fi
 
 if grep -q '^PTW_IMAGE_TAG=' "$repository/.env.commander"; then
     sed -i "s/^PTW_IMAGE_TAG=.*/PTW_IMAGE_TAG=$release_tag/" "$repository/.env.commander"
@@ -202,4 +291,4 @@ systemctl is-active --quiet ptw-validation-24h-audit.timer || {
     echo "24-hour PTW resource audit timer was not scheduled" >&2
     exit 1
 }
-echo "PTW v2 APIs deployed serially at $git_revision"
+echo "PTW v2 APIs deployed serially ($release_kind) at $git_revision"

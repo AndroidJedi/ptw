@@ -5,9 +5,15 @@ from enum import Enum
 
 class EntityKind(str, Enum):
     SOURCE = "source"
+    VALIDATION_PROJECT = "validation_project"
     PRODUCT_BRIEF = "product_brief"
     CREATIVE_BATCH = "creative_batch"
     AD_CREATIVE = "ad_creative"
+    STUDIO_SOURCE_ASSET = "studio_source_asset"
+    STUDIO_BRAND_KIT = "studio_brand_kit"
+    STUDIO_TEMPLATE = "studio_template"
+    STUDIO_RECIPE = "studio_recipe"
+    STUDIO_RENDER = "studio_render"
     HUMAN_FEEDBACK = "human_feedback"
     WEIGHT_UPDATE = "weight_update"
     TASK = "task"

@@ -22,6 +22,15 @@ healthy gateway alone does not prove Stage 1–2 readiness.
   return 404.
 - Image delivery is owner-authenticated and returns the stored JPEG with its
   authoritative ETag.
+- Ad Studio has two distinct surfaces: clean Preview and Edit. Preview and
+  exported artifacts never contain frame outlines, semantic IDs, tool labels,
+  handles, or safe-zone guides. Edit must display the real authenticated source
+  media/logo beneath bounded selection chrome; a black canvas or a visible
+  `shape`/tool ID is an incident, not a valid preview.
+- For clipped Studio copy, compare the browser preview with the authoritative
+  render, then verify pixel-based Unicode wrapping, auto-fit bounds, frame
+  clipping, media fit/focal settings, and protected offer/CTA overflow. Never
+  mask the incident by truncating the approved offer or CTA.
 - PTW Ad images are fetched as authenticated `image/jpeg` responses and shown
   through browser `blob:` URLs; they are not inline `data:image/png` resources.
   For a load incident, first validate stored bytes, SHA-256, dimensions, HTTP

@@ -1,4 +1,4 @@
-"""Emit a deterministic Product Brief → five Ad Creatives lineage demo."""
+"""Emit a deterministic Project → Product Brief → five Ad Creatives lineage demo."""
 
 from __future__ import annotations
 
@@ -16,15 +16,16 @@ def run_demo(output_dir: Path, *, reset: bool = True) -> dict[str, object]:
             target = output_dir / name
             if target.is_file() or target.is_symlink():
                 target.unlink()
-    identifiers = [new_uuid7(timestamp_ms=1_700_000_000_000 + index) for index in range(15)]
-    owner_source, brief, batch = identifiers[:3]
-    creatives = identifiers[3:8]
-    assets = identifiers[8:13]
-    feedback, weight = identifiers[13:]
+    identifiers = [new_uuid7(timestamp_ms=1_700_000_000_000 + index) for index in range(16)]
+    owner_source, project, brief, batch = identifiers[:4]
+    creatives = identifiers[4:9]
+    assets = identifiers[9:14]
+    feedback, weight = identifiers[14:]
     result = {
         "schema": "ptw-validation-v1",
         "entities": {
             "owner_idea_source": owner_source,
+            "validation_project": project,
             "product_brief": brief,
             "creative_batch": batch,
             "ad_creatives": creatives,
@@ -33,7 +34,8 @@ def run_demo(output_dir: Path, *, reset: bool = True) -> dict[str, object]:
             "weight_update": weight,
         },
         "relationships": (
-            [[brief, "derived_from", owner_source], [batch, "derived_from", brief]]
+            [[project, "derived_from", owner_source], [project, "contains", brief],
+             [brief, "derived_from", owner_source], [batch, "derived_from", brief]]
             + [[batch, "contains", creative] for creative in creatives]
             + [[creative, "derived_from", brief] for creative in creatives]
             + [[creative, "contains", asset] for creative, asset in zip(creatives, assets)]

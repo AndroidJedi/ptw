@@ -1,14 +1,14 @@
 # PTW Simplified Validation Pipeline — Phase 1
 
-Status: Phase 1 and the Natal Ad identity update are deployed
-Updated: 2026-08-24
+Status: Phase 1 is deployed; Validation Projects and additive Ad Studio are implemented locally
+Updated: 2026-08-25
 
 ## Scope
 
 Phase 1 exists to test whether people react positively to one value proposition:
 
 ```text
-raw idea → Product Brief → owner approval → five Ad Creatives
+raw idea → Validation Project + Product Brief → owner approval → five Ad Creatives
 ```
 
 It does not build the product. It does not perform market research, SEO,
@@ -16,6 +16,16 @@ YouTube analysis, AI image generation, ad publication, traffic purchase,
 campaign/UTM work, analytics, conversion tracking, or Landing generation.
 Landing is a dormant Stage 3 placeholder; its three Natal template families and
 source assets remain on disk.
+
+## Validation Projects
+
+One initial Product Brief request atomically creates one `ValidationProject`,
+its permanent owner-idea Source, and its root Brief. The Project is the durable
+workspace aggregate: immutable Brief corrections remain inside it, and every
+initial or learned-rerun Ad batch inherits Project membership through its Brief.
+Project names begin as a normalized raw-idea excerpt, follow the latest generated
+Brief product, and stop changing automatically after an owner rename. This adds
+no Project input to the Product Brief provider contract.
 
 ## Stage 1 — Product Brief
 
@@ -106,23 +116,47 @@ photographer, photographer URL, Pexels license, and attribution remain attached
 to the authenticated artifact. If any of five assets fails, no creative or
 asset row is persisted.
 
+## Parallel Ad Studio
+
+The Project-scoped Ad Studio is an additive manual-training path between
+Product Briefs and Ads. It does not replace the fixed five-Ad generator or pass
+Studio history into its provider call. The owner composes framed static or
+vertical-motion recipes with visible versioned tool IDs, saves immutable recipe
+revisions and reusable Project templates, renders authoritative artifacts, and
+explicitly publishes selected renders as training examples. Saved templates
+use protected offer/CTA placeholders and rebind them from the selected approved
+Brief. Studio v2 adds typed Creative/Brief/brand bindings, validated captions and
+alt text, immutable five-angle sample sets, clean Preview versus instrumented
+Edit modes, authoritative render history, and review-before-Apply wizard
+proposals. Generated media is confined to an explicitly requested, reviewed,
+non-human Studio graphic and never enters the fixed Ad generator. See
+[`ad-studio.md`](ad-studio.md) for the catalog, recipe, source,
+manifest, persistence, and rollout contracts.
+
 ## Authority and lineage
 
 `db/migrations/001_ptw_validation_v1.sql` remains the reset baseline;
-`002_lesson_driven_creative_reruns.sql` is its non-destructive forward
-migration. Together they retain the same generic graph/source/feedback/weight/
+`002_lesson_driven_creative_reruns.sql`, `003_validation_projects.sql`, and
+`004_ad_studio.sql` are
+non-destructive forward migrations. Together they retain the generic graph/source/feedback/weight/
 audit/Plan-Execute/control tables plus Brief, approval, attempt, provider
-invocation, batch, creative, asset, and the two lesson-proposal tables. No
+invocation, Project, batch, creative, asset, and the two lesson-proposal tables. No
 active Positioning or Landing table exists.
 
 Required edges are:
 
+- Validation Project `derived_from` its owner-idea Source and `contains` every
+  immutable Product Brief in its revision lineage.
 - Product Brief `derived_from` owner-idea Source.
 - Replacement `supersedes` base and `derived_from` feedback.
 - Batch `derived_from` approved Brief and `contains` five creatives.
 - Learned child batch `rerun_of` its reviewed source batch.
 - Creative `derived_from` Brief and `contains` its exact asset.
 - Asset `derived_from` permanent Pexels Source.
+- Studio sample set `derived_from` one completed batch and `contains` its five
+  ordered template, root recipe, render, caption, alt-text, and source lineages.
+- Studio child recipe `supersedes` its reviewed base recipe; wizard Apply links
+  the immutable proposal to exactly one child recipe and render.
 - HumanFeedback `evaluates` the resolved Brief or creative.
 - Append-only WeightUpdate `adjusts` that feedback.
 
@@ -158,13 +192,16 @@ worker, inbound command, or completion notification.
 
 ## APIs and workspaces
 
-Owner-authenticated routes provide Brief create/list/detail/correct/retry/
+Owner-authenticated routes provide Project list/rename, Brief create/list/detail/correct/retry/
 approve, batch list/detail/retry/learned-rerun, creative feedback, authenticated image
-delivery with immutable ETag, and bounded skill proposals. Old Positioning,
+delivery with immutable ETag, Studio catalog/brand-kit/template/source/recipe/render/
+manifest/publication/feedback operations, five-post sample-set gallery/ZIP, private
+source preview, render history, and preview/Apply wizard proposals. Old Positioning,
 Ads-stub, active Landing, lead, catalog, export, and public Landing APIs are not
 registered and return 404.
 
-The PWA navigation is Product Briefs → Ads → Landing → Admin. Ads shows all
+The PWA navigation is Product Briefs → Ad Studio → Ads → Landing → Admin. One URL-backed
+Project switcher scopes the first four workspaces; Admin remains global. Ads shows all
 five finished posts, UUIDs, retry state, copy, Pexels attribution, digests, and
 one feedback control per creative. For a failed batch it shows the validation
 rule, approved offer when relevant, atomic rollback outcome, and Telegram
@@ -173,7 +210,8 @@ visible in a recovered-incident summary. Authenticated creative loads verify
 the `image/jpeg` media type, exact stored SHA-256, exposed ETag, and browser
 decode result before display; failures show the Creative UUID, exact reason,
 and a bounded retry. PTW does not create inline `data:image/png` Ad resources.
-Landing says `Stage 3 pending` and performs no API call.
+Landing says `Stage 3 pending`, identifies the selected Project from shell state,
+and performs no Landing API call.
 
 For a completed batch, Ads shows the learning lifecycle explicitly. Unfinished
 feedback says to apply its future rule in Admin. Applied feedback exposes one
@@ -183,12 +221,16 @@ shows normal queued/generating/completed states.
 
 ## Deployment boundary
 
-The independent `/opt/ptw/platform` repository must add the three validation
-bridge modes without sharing Git history or database credentials. Before the
-irreversible reset, run strict-schema canaries for all modes plus a
-non-persisting Pexels download/render canary. Build matching Linux/amd64 images
-off-host and deploy serially with a non-`latest` tag.
+The independent `/opt/ptw/platform` repository retains the three core
+validation modes and separately advertises `ad_studio_recipe_revision` and
+`ad_studio_graphic_generation`, without sharing Git history, database,
+filesystem, or credentials. Generated bytes leave the platform only through
+the authenticated digest-checked job asset route. Deploy the enforcing worker
+before the Studio-capable platform API, then run strict-schema and asset
+canaries before migrating or restarting the Validation stack.
 
-The reset may drop only `ptw_commander.public` and requires the exact phrase
-`RESET PTW PRODUCTION` immediately before destruction. Production remains on
-its previous release until that phrase is supplied in an explicit cutover turn.
+Build matching Linux/amd64 images off-host and deploy serially with a
+non-`latest` tag. This rollout uses additive `003`/`004` migrations and the
+exact `DEPLOY PTW IN PLACE` release confirmation so existing Briefs, batches,
+creatives, assets, feedback, and graph rows are preserved. The reset path and
+its destructive confirmation are outside this rollout.

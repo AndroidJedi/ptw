@@ -21,6 +21,13 @@ const requiredMarkers = {
   'Firebase App Check request header': 'X-Firebase-AppCheck',
   'PTW reCAPTCHA Enterprise site key': '6LfFjYstAAAAAJaFuUPZYS9U17vROLcN7Fx6iOQL',
   'Safari-safe Auth persistence': 'ptw-auth-local-storage-v1',
+  'Validation Project workspace': 'PROJECT WORKSPACE',
+  'Readable Ad generation label': 'Ads from Brief',
+  'Dedicated Ad Studio workspace': 'Ad Studio',
+  'Reusable Studio templates': 'Save current template',
+  'Visible Studio tool IDs': 'studio.frame.headline.v1',
+  'Five-post Studio gallery': 'Five real editable posts',
+  'Review-first Studio wizard': 'AI WIZARD · REVIEW FIRST',
 }
 
 const missing = Object.entries(requiredMarkers)
@@ -33,6 +40,9 @@ if (missing.length) {
 
 if (!worker.includes("url.pathname.startsWith('/__/auth/')")) {
   throw new Error('Unsafe Commander service worker; Firebase Auth helper traffic is not bypassed')
+}
+if (!worker.includes("ptw-shell-v40-studio-share-posts")) {
+  throw new Error('Unsafe Commander service worker; Project workspace cache version is stale')
 }
 
 const expandHex = (value) => {

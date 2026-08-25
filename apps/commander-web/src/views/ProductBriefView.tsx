@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api'
 import { OwnerLessonProposals } from '../components/OwnerLessonProposals'
 import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
-import type { ProductBrief, ProductBriefDocument } from '../types'
+import type { ProductBrief, ProductBriefDocument, ValidationProject } from '../types'
 
 const activeStatuses = new Set(['queued', 'generating'])
 
@@ -16,7 +16,13 @@ function BriefDocument({ value }: { value: ProductBriefDocument }) {
   </div>
 }
 
-export function ProductBriefView({ api }: { api: ApiClient }) {
+export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBriefChanged, onProjectsRefresh }: {
+  api: ApiClient
+  projectId: string | null
+  onProjectCreated: (project: ValidationProject) => void
+  onProjectBriefChanged: (projectId: string, name: string, briefId: string, status: ProductBrief['status']) => void
+  onProjectsRefresh: (preferredId?: string) => Promise<void>
+}) {
   const [items, setItems] = useState<ProductBrief[] | null>(null)
   const [selected, setSelected] = useState<ProductBrief | null>(null)
   const [rawIdea, setRawIdea] = useState('')
@@ -24,15 +30,20 @@ export function ProductBriefView({ api }: { api: ApiClient }) {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
-  const load = async (preferredId?: string) => {
-    const value = await api.get<{ items: ProductBrief[] }>('/api/v1/briefs?limit=100')
+  const load = async (preferredId?: string, targetProjectId = projectId) => {
+    if (!targetProjectId) { setItems([]); setSelected(null); return }
+    const value = await api.get<{ items: ProductBrief[] }>(`/api/v1/briefs?limit=100&project_id=${encodeURIComponent(targetProjectId)}`)
     setItems(value.items)
-    const id = preferredId || selected?.brief_id || value.items[0]?.brief_id
+    const id = preferredId || (value.items.some((item) => item.brief_id === selected?.brief_id) ? selected?.brief_id : undefined) || value.items[0]?.brief_id
     if (!id) { setSelected(null); return }
     const detail = await api.get<ProductBrief>(`/api/v1/briefs/${id}`)
     setSelected(detail)
+    onProjectBriefChanged(detail.project_id, detail.project_name, detail.brief_id, detail.status)
   }
-  useEffect(() => { void load().catch((cause: Error) => setError(cause.message)) }, [api])
+  useEffect(() => {
+    setItems(null); setSelected(null); setError('')
+    void load().catch((cause: Error) => setError(cause.message))
+  }, [api, projectId])
   useEffect(() => {
     if (!selected || !activeStatuses.has(selected.status)) return
     const timer = window.setInterval(() => void load(selected.brief_id).catch((cause: Error) => setError(cause.message)), 1500)
@@ -43,10 +54,11 @@ export function ProductBriefView({ api }: { api: ApiClient }) {
     if (!rawIdea.trim()) return
     setBusy(true); setError(''); setNotice('')
     try {
-      const result = await api.post<{ brief: ProductBrief }>('/api/v1/briefs', {
+      const result = await api.post<{ project: ValidationProject; brief: ProductBrief }>('/api/v1/briefs', {
         request_id: crypto.randomUUID(), raw_idea: rawIdea.trim(),
       })
-      setRawIdea(''); setNotice('One Product Brief is being generated from the idea.'); await load(result.brief.brief_id)
+      onProjectCreated(result.project)
+      setRawIdea(''); setNotice('Project created. One Product Brief is being generated from the idea.'); await load(result.brief.brief_id, result.project.project_id)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const correct = async () => {
@@ -57,6 +69,7 @@ export function ProductBriefView({ api }: { api: ApiClient }) {
         request_id: crypto.randomUUID(), instruction: correction.trim(),
       })
       setCorrection(''); setNotice('A complete immutable replacement Brief is being generated.'); await load(result.brief.brief_id)
+      await onProjectsRefresh(result.brief.project_id)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const approve = async () => {
@@ -65,6 +78,7 @@ export function ProductBriefView({ api }: { api: ApiClient }) {
     try {
       await api.post(`/api/v1/briefs/${selected.brief_id}/approve`, { honor_confirmed: true })
       setNotice('Approved. Exactly five Ad Creatives are now being generated.'); await load(selected.brief_id)
+      await onProjectsRefresh(selected.project_id)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const retry = async () => {
@@ -77,13 +91,13 @@ export function ProductBriefView({ api }: { api: ApiClient }) {
   return <>
     <PageHeader eyebrow="STAGE 1 · ONE HYPOTHESIS" title="Product Briefs" />
     {error && <ErrorState message={error} />}{notice && <p className="landing-notice" role="status">{notice}</p>}
-    <section className="panel brief-create"><div><small>RAW IDEA ONLY</small><h2>What do you want to validate?</h2><p>No market research, SEO, YouTube, evidence reports, or alternative hypotheses.</p></div>
-      <textarea rows={5} maxLength={10000} value={rawIdea} onChange={(event) => setRawIdea(event.target.value)} placeholder="Describe one product idea…" />
-      <button className="primary large" disabled={busy || !rawIdea.trim()} onClick={create}><Sparkles />Generate Product Brief</button>
+    <section className="panel brief-create"><div><small>NEW PROJECT · RAW IDEA ONLY</small><h2>What do you want to validate?</h2><p>Generating an initial Brief creates and selects a new Project. No market research, SEO, YouTube, evidence reports, or alternative hypotheses.</p></div>
+      <textarea id="new-project-idea" rows={5} maxLength={10000} value={rawIdea} onChange={(event) => setRawIdea(event.target.value)} placeholder="Describe one product idea…" />
+      <button className="primary large" disabled={busy || !rawIdea.trim()} onClick={create}><Sparkles />Generate Product Brief & Create Project</button>
     </section>
-    {!items.length ? <Empty><Target className="empty-mark" /><h2>No Product Brief yet</h2><p>Enter one raw idea above to start the smallest validation loop.</p></Empty> : <div className="brief-workspace">
-      <aside className="panel brief-list"><small>BRIEFS</small>{items.map((item) => <button key={item.brief_id} className={selected?.brief_id === item.brief_id ? 'selected' : ''} onClick={() => void load(item.brief_id)}><strong>{item.raw_idea.slice(0, 100)}</strong><span>{item.status} · {item.language?.toUpperCase() || '—'} · {item.approved ? 'approved' : 'not approved'}</span></button>)}</aside>
-      {selected && <div className="panel brief-detail"><small>BRIEF {selected.brief_id}</small><p className="uuid-line">Source {selected.owner_idea_source_id}{selected.base_brief_id ? ` · supersedes ${selected.base_brief_id}` : ''}</p>
+    {!items.length ? <Empty><Target className="empty-mark" /><h2>{projectId ? 'No Product Brief in this Project' : 'No Project yet'}</h2><p>Enter one raw idea above to create a Project and start the smallest validation loop.</p></Empty> : <div className="brief-workspace">
+      <aside className="panel brief-list"><small>BRIEF HISTORY</small>{items.map((item, index) => <button key={item.brief_id} className={selected?.brief_id === item.brief_id ? 'selected' : ''} onClick={() => void load(item.brief_id)}><strong>{index === 0 ? 'Current Brief' : 'Earlier Brief'} · {item.product || item.raw_idea.slice(0, 70)}</strong><span>{item.status} · {item.language?.toUpperCase() || '—'} · {item.approved ? 'approved' : 'not approved'} · {new Date(item.created_at).toLocaleDateString()}</span></button>)}</aside>
+      {selected && <div className="panel brief-detail"><small>{selected.base_brief_id ? 'REPLACEMENT BRIEF' : 'ROOT BRIEF'}</small><p className="uuid-line">Project {selected.project_id} · Brief {selected.brief_id}<br />Source {selected.owner_idea_source_id}{selected.base_brief_id ? ` · supersedes ${selected.base_brief_id}` : ''}</p>
         {activeStatuses.has(selected.status) && <p className="generation-state"><RefreshCcw className="spin" /> Generating one testable positioning…</p>}
         {selected.status === 'failed' && <div className="state error"><p>{selected.error_message || selected.error_code || 'Generation failed'}</p><button className="secondary" disabled={busy} onClick={retry}>Retry</button></div>}
         {selected.document && <><BriefDocument value={selected.document} />

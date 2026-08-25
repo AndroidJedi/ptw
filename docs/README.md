@@ -7,6 +7,7 @@ needed for the task.
 | --- | --- | --- |
 | Current checkpoint | [`architecture/commander-current-state.md`](architecture/commander-current-state.md) | Relevant route below |
 | Product Briefs, Ads, schema, APIs | [`architecture/simplified-validation-pipeline.md`](architecture/simplified-validation-pipeline.md) | Product Brief and Ad Creative skills |
+| Ad Studio, templates, recipes, rendering | [`architecture/ad-studio.md`](architecture/ad-studio.md) | Ad Studio Composer skill |
 | Dormant Natal Stage 3 source | [`architecture/natal-landing-builder.md`](architecture/natal-landing-builder.md) | [`../natal/README.md`](../natal/README.md) |
 | Owner UI/Auth/App Check | [`operations/owner-control-plane.md`](operations/owner-control-plane.md) | [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
 | Services/deployment/1 GB host | [`operations/commander.md`](operations/commander.md) | PTW VPS Operations skill |

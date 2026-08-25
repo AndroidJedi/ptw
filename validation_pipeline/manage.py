@@ -17,6 +17,11 @@ def main() -> None:
     required = {
         "product_briefs", "creative_batches", "ad_creatives", "ad_creative_assets",
         "validation_generation_attempts", "validation_provider_invocations",
+        "ad_studio_source_assets", "ad_studio_brand_kits", "ad_studio_recipes",
+        "ad_studio_templates",
+        "ad_studio_render_attempts", "ad_studio_renders", "ad_studio_publications",
+        "ad_studio_skill_proposals",
+        "ad_studio_sample_sets", "ad_studio_sample_set_items", "ad_studio_wizard_proposals",
     }
     with repository.connection() as connection:
         rows = connection.execute(
@@ -30,4 +35,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

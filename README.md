@@ -17,6 +17,13 @@ angles. Pexels supplies real photographs; Pillow renders deterministic
 1080×1080 JPEGs with hook, offer, and CTA. PostgreSQL stores exact image bytes,
 digests, source attribution, UUID lineage, feedback, and append-only weights.
 
+An additive, not-yet-deployed Ad Studio sits between Product Briefs and Ads in
+the Project navigation. It lets the owner compose constrained Instagram/TikTok
+recipes from visible versioned tool IDs, save reusable immutable templates,
+bind exports to Project brand-kit revisions, render authenticated JPEG/MP4
+artifacts, and explicitly publish reviewed training examples. It does not
+change or add context to the existing five-Ad generator.
+
 Landing is inactive and appears only as `Stage 3 pending`. The three Natal
 template families and source assets stay preserved for a later simplified
 conversion checkpoint. No publishing, traffic, campaigns, UTMs, analytics, or
@@ -34,6 +41,7 @@ python3 -m unittest tests.owner_gateway.test_auth tests.owner_gateway.test_contr
 python3 -m unittest tests.commander.test_telegram_boundary -v
 python3 -m commander.demo --output-dir .local/commander-demo
 npm --prefix apps/commander-web run check
+npm --prefix apps/commander-web run test:e2e
 scripts/verify_ptw_v2_schema.sh
 python3 scripts/verify_ptw_skills.py
 git diff --check

@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./firebase', () => ({ appCheck: {} }))
+vi.mock('firebase/app-check', () => ({ getToken: vi.fn(async () => ({ token: 'app-check-test' })) }))
 
-import { fetchWithDeadline, resolveApiBaseUrl, resolveFirebaseTokens, validateImageResponse } from './api'
+import { ApiClient, fetchWithDeadline, resolveApiBaseUrl, resolveFirebaseTokens, validateImageResponse } from './api'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -45,6 +46,18 @@ describe('API deadline', () => {
     const rejected = expect(tokens).rejects.toThrow(/Firebase ID token \/ App Check.*Повторити/)
     await vi.advanceTimersByTimeAsync(25)
     await rejected
+  })
+
+  it('keeps the short default but accepts an explicit bounded deadline per API call', async () => {
+    const timeout = vi.spyOn(window, 'setTimeout')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    })))
+    const client = new ApiClient({ getIdToken: vi.fn(async () => 'owner-token') } as any)
+
+    await client.post('/api/v1/ad-studio/sample-sets', { batch_id: 'batch' }, { deadlineMs: 300_000 })
+
+    expect(timeout).toHaveBeenCalledWith(expect.any(Function), 300_000)
   })
 })
 

@@ -16,6 +16,7 @@ class Settings:
     failure_notification_url: str = "http://ptw-owner-gateway:8088/internal/v1/validation-failures"
     product_brief_skill_path: Path = Path("/run/ptw-auth/skills/product-brief-generator/SKILL.md")
     ad_creative_skill_path: Path = Path("/run/ptw-auth/skills/ad-creative-generator/SKILL.md")
+    ad_studio_skill_path: Path = Path("/run/ptw-auth/skills/ad-studio-composer/SKILL.md")
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -45,5 +46,8 @@ class Settings:
             )),
             ad_creative_skill_path=Path(os.environ.get(
                 "AD_CREATIVE_SKILL_PATH", "/run/ptw-auth/skills/ad-creative-generator/SKILL.md"
+            )),
+            ad_studio_skill_path=Path(os.environ.get(
+                "AD_STUDIO_SKILL_PATH", "/run/ptw-auth/skills/ad-studio-composer/SKILL.md"
             )),
         )

@@ -89,30 +89,58 @@ class PexelsClient:
             raise ValueError("Pexels search returned invalid JSON")
         result: list[PexelsPhoto] = []
         for item in photos:
-            if not isinstance(item, dict) or not isinstance(item.get("src"), dict):
-                continue
-            image_url = str(item["src"].get("large2x") or item["src"].get("original") or "")
-            page_url = str(item.get("url") or "")
-            photographer_url = str(item.get("photographer_url") or "")
-            photo_id = str(item.get("id") or "")
-            if (
-                not photo_id
-                or not _is_https_host(image_url, PEXELS_IMAGE_HOST)
-                or not _is_pexels_page(page_url)
-                or not _is_pexels_page(photographer_url)
-            ):
-                continue
-            result.append(PexelsPhoto(
-                photo_id=photo_id,
-                width=int(item.get("width") or 0),
-                height=int(item.get("height") or 0),
-                image_url=image_url,
-                page_url=page_url,
-                photographer=str(item.get("photographer") or "Pexels contributor"),
-                photographer_url=photographer_url,
-                alt=str(item.get("alt") or "Real stock photograph"),
-            ))
+            parsed = self._parse_photo(item)
+            if parsed is not None:
+                result.append(parsed)
         return result
+
+    @staticmethod
+    def _parse_photo(item: Any) -> PexelsPhoto | None:
+        if not isinstance(item, dict) or not isinstance(item.get("src"), dict):
+            return None
+        image_url = str(item["src"].get("large2x") or item["src"].get("original") or "")
+        page_url = str(item.get("url") or "")
+        photographer_url = str(item.get("photographer_url") or "")
+        photo_id = str(item.get("id") or "")
+        if (
+            not photo_id
+            or not _is_https_host(image_url, PEXELS_IMAGE_HOST)
+            or not _is_pexels_page(page_url)
+            or not _is_pexels_page(photographer_url)
+        ):
+            return None
+        return PexelsPhoto(
+            photo_id=photo_id, width=int(item.get("width") or 0), height=int(item.get("height") or 0),
+            image_url=image_url, page_url=page_url,
+            photographer=str(item.get("photographer") or "Pexels contributor"),
+            photographer_url=photographer_url, alt=str(item.get("alt") or "Real stock photograph"),
+        )
+
+    def get(self, photo_id: str) -> PexelsPhoto:
+        normalized = str(photo_id).strip()
+        if not normalized.isdigit():
+            raise ValueError("Pexels photo ID must be numeric")
+        request = urllib.request.Request(
+            f"https://{PEXELS_API_HOST}/v1/photos/{normalized}",
+            headers={"Authorization": self.api_key, "User-Agent": "PTW-Validation/1"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                raw = response.read(MAX_DOWNLOAD_BYTES + 1)
+        except urllib.error.HTTPError as error:
+            if error.code == 429:
+                raise RuntimeError("Pexels photo lookup rate limit reached") from error
+            raise RuntimeError(f"Pexels photo lookup failed with HTTP {error.code}") from error
+        if len(raw) > MAX_DOWNLOAD_BYTES:
+            raise ValueError("Pexels photo response exceeds the bounded size")
+        try:
+            value = json.loads(raw)
+        except (TypeError, json.JSONDecodeError) as error:
+            raise ValueError("Pexels photo lookup returned invalid JSON") from error
+        photo = self._parse_photo(value)
+        if photo is None or photo.photo_id != normalized:
+            raise ValueError("Pexels photo lookup returned an invalid source")
+        return photo
 
     def select(self, query: str, category: str, *, used_ids: set[str]) -> tuple[PexelsPhoto, bytes]:
         for search_term in (query, category):

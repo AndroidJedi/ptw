@@ -43,9 +43,10 @@ The internal bridge keeps `validation_modes` at exactly `product_brief`,
 `product_brief_revision`, and `ad_creative_batch`. It separately advertises additive
 `studio_modes` for JSON-only `ad_studio_recipe_revision` and bounded
 `ad_studio_graphic_generation`. A Studio graphic must produce exactly one completed
-built-in imagegen trace, whether Codex reports the call as a dedicated image-generation
-item or an MCP-shaped item, and one 512-2048px square PNG. It is stored by SHA-256 under
-the Studio provider subtree with prompt, tool-trace, model, request, output-digest,
+built-in imagegen call proof and one 512-2048px square PNG. The proof is either a
+completed dedicated/MCP-shaped JSONL call event or, for a CLI version that omits that
+event, exactly one session-scoped `exec-<request-uuid>.png` receipt. It is stored by
+SHA-256 under the Studio provider subtree with prompt, tool-proof, model, request, output-digest,
 and non-human generation-policy provenance. The poll response never exposes the
 filesystem path; authenticated callers retrieve bytes through
 `GET /internal/llm/structured/{job_id}/asset`, which rechecks the completed job,

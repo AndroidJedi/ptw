@@ -43,10 +43,11 @@ Do not read the worker asset path from another service or make the asset volume
 writable in Commander API.
 
 If the graphic canary fails with `must call imagegen exactly once`, inspect the
-sanitized issue before retrying. The worker must count one completed call in
-either the dedicated built-in image-generation JSONL representation or the
-MCP-shaped compatibility representation. Prompt text and the presence of a PNG
-alone are not proof of one tool call; duplicate completed call IDs still fail.
+sanitized issue before retrying. The worker must count one completed dedicated
+or MCP-shaped call event when Codex emits it. If that event is absent, require
+exactly one PNG whose name is the session-scoped built-in
+`exec-<request-uuid>.png` receipt. Prompt text and an arbitrary PNG filename are
+not proof of one tool call; duplicate events or zero/multiple receipts still fail.
 
 Build the matching API and worker archives off-host; never build them on the
 1 GB production VPS:

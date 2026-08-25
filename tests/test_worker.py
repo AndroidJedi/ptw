@@ -301,6 +301,42 @@ def test_studio_graphic_accepts_native_image_generation_completion(
     assert len(result["image"]["tool_trace_digest"]) == 64
 
 
+def test_studio_graphic_accepts_one_session_scoped_imagegen_receipt_without_trace(
+    monkeypatch, tmp_path: Path
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    asset_root = tmp_path / "assets" / "studio-provider"
+    request_id = "8788cf54-8fe8-4fe1-93cf-86e83c000f5b"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("STUDIO_PROVIDER_ASSET_DIR", str(asset_root))
+
+    def fake_run(command, **_kwargs):
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"generated":true}', encoding="utf-8"
+        )
+        generated = codex_home / "generated_images" / "studio-receipt"
+        generated.mkdir(parents=True)
+        (generated / f"exec-{request_id}.png").write_bytes(png_header(1080, 1080))
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout='{"type":"thread.started","thread_id":"studio-receipt"}\n',
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    result = execute_structured_llm({
+        "mode": "ad_studio_graphic_generation",
+        "system_prompt": "Generate one abstract graphic.",
+        "input_payload": {},
+        "output_schema": {"type": "object"},
+    })
+
+    assert result["image"]["request_id"] == request_id
+    assert result["image"]["tool_proof_kind"] == "session_scoped_exec_receipt"
+    assert len(result["image"]["tool_trace_digest"]) == 64
+
+
 @pytest.mark.parametrize("trace_count", [0, 2])
 def test_studio_graphic_rejects_missing_or_multiple_imagegen_calls(
     monkeypatch, tmp_path: Path, trace_count: int

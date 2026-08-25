@@ -171,6 +171,22 @@ def _generated_session_has_png(codex_home: Path, session_id: str) -> bool:
     return session_directory.is_dir() and any(session_directory.glob("*.png"))
 
 
+def _imagegen_receipt_ids(codex_home: Path, session_id: str) -> list[str]:
+    """Return request UUIDs from imagegen's session-scoped exec-UUID receipts."""
+    session_directory = _generated_session_directory(codex_home, session_id)
+    if not session_directory.is_dir():
+        return []
+    receipt_ids: list[str] = []
+    pattern = re.compile(
+        r"exec-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.png"
+    )
+    for path in sorted(session_directory.glob("*.png")):
+        match = pattern.fullmatch(path.name)
+        if match:
+            receipt_ids.append(match.group(1))
+    return receipt_ids
+
+
 def _imagegen_tool_traces(stdout: str) -> list[str]:
     """Return completed built-in image calls across Codex JSONL representations."""
     traces: list[str] = []
@@ -286,7 +302,9 @@ def _persist_studio_graphic(
     session_id: str,
     *,
     prompt: str,
-    traces: list[str],
+    proof_records: list[str],
+    request_id: str,
+    proof_kind: str,
 ) -> dict:
     image = _persist_generated_image(
         codex_home,
@@ -296,9 +314,13 @@ def _persist_studio_graphic(
         default_asset_directory="/var/lib/ptw/assets/studio-provider",
     )
     image.update({
+        "request_id": request_id,
         "output_digest": image["digest"],
         "prompt_digest": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
-        "tool_trace_digest": hashlib.sha256("\n".join(traces).encode("utf-8")).hexdigest(),
+        "tool_trace_digest": hashlib.sha256(
+            "\n".join(proof_records).encode("utf-8")
+        ).hexdigest(),
+        "tool_proof_kind": proof_kind,
         "generation_policy": {
             "non_human_graphics_only": True,
             "synthetic_people": "prohibited",
@@ -448,14 +470,37 @@ def execute_structured_llm(parameters: dict) -> dict:
         session_id = _codex_session_id(completed.stdout)
         imagegen_traces = _imagegen_tool_traces(completed.stdout)
         mode = parameters.get("mode")
+        imagegen_receipts = (
+            _imagegen_receipt_ids(codex_home, session_id)
+            if mode == "ad_studio_graphic_generation"
+            else []
+        )
         if mode == "ad_studio_recipe_revision" and (
             imagegen_traces or _generated_session_has_png(codex_home, session_id)
         ):
             _remove_generated_session(codex_home, session_id)
             raise RuntimeError("Studio recipe revision must remain JSON-only")
-        if mode == "ad_studio_graphic_generation" and len(imagegen_traces) != 1:
-            _remove_generated_session(codex_home, session_id)
-            raise RuntimeError("Studio graphic generation must call imagegen exactly once")
+        proof_records = imagegen_traces
+        proof_kind = "completed_call_event"
+        image_request_id = session_id
+        if mode == "ad_studio_graphic_generation":
+            if imagegen_traces:
+                if len(imagegen_traces) != 1:
+                    _remove_generated_session(codex_home, session_id)
+                    raise RuntimeError("Studio graphic generation must call imagegen exactly once")
+                if len(imagegen_receipts) == 1:
+                    image_request_id = imagegen_receipts[0]
+            else:
+                if len(imagegen_receipts) != 1:
+                    _remove_generated_session(codex_home, session_id)
+                    raise RuntimeError("Studio graphic generation must call imagegen exactly once")
+                image_request_id = imagegen_receipts[0]
+                proof_kind = "session_scoped_exec_receipt"
+                proof_records = [json.dumps({
+                    "type": "imagegen.session_receipt",
+                    "session_id": session_id,
+                    "request_id": image_request_id,
+                }, sort_keys=True, separators=(",", ":"))]
         invocation = {
             "session_id": session_id,
             "session_mode": "fresh",
@@ -478,7 +523,9 @@ def execute_structured_llm(parameters: dict) -> dict:
                 codex_home,
                 session_id,
                 prompt=prompt,
-                traces=imagegen_traces,
+                proof_records=proof_records,
+                request_id=image_request_id,
+                proof_kind=proof_kind,
             )
         return result
 

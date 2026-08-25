@@ -6,16 +6,20 @@ Updated: 2026-08-25
 
 ## Boundary
 
-Ad Studio is a Project-scoped, owner-operated composition workspace between
+Ad Studio is a Project-scoped, owner-operated AI composition workspace between
 Product Briefs and Ads. It does not replace or add inputs to
 `ad_creative_batch`. The current five-angle generator, its Pexels renderer,
 learned reruns, and immutable batches remain unchanged until the owner reviews
 published Studio examples and separately authorizes a migration.
 
-The Studio is constrained, not freeform: normalized frames can be added,
-dragged, resized, reordered, snapped, and timed only inside a selected
-placement and its safe zones. Owner Console chrome remains monochrome; the
-creative canvas uses the selected Project brand-kit revision.
+The active Owner Console Studio is Wizard-only, not a manual editor. The owner
+chooses one of five posts, sees one large current or proposed render, describes
+one whole-post change, reviews the non-mutating preview, and explicitly Applies
+or downloads. Normalized frames, source selection, layout, copy, accessibility
+text, and styling remain constrained recipe data changed through the validated
+Wizard proposal; they are not exposed as canvas, layer, inspector, asset,
+template, or copy fields. Owner Console chrome remains monochrome; creative
+output uses the selected Project brand-kit revision.
 
 ## Stable catalog and shared recipe
 
@@ -45,16 +49,17 @@ rating, result, urgency, or scarcity copy is rejected.
 `StudioTemplateV2` stores typed bindings for Creative hook, photo, and caption;
 Brief benefits, trust, offer, and CTA; and the Project brand logo. Applying one
 creates fresh UUIDv7 frame instances, resolves bindings server-side, and remains
-fully editable. The first canonical sample set contains exactly five ordered
-Instagram square templates: emotional, practical, curiosity, authority, and
-problem-first.
+revisable through the Wizard. The first canonical sample set contains exactly
+five ordered Instagram square templates: emotional, practical, curiosity,
+authority, and problem-first.
 
-Templates are immutable, Project-scoped framed compositions. **Save current
-template** stores the selected placement, timing, ordered tools, parameters,
-frames, and Project source references. It replaces the protected copy with the
-literal `{{offer}}` and `{{cta}}` placeholders. Applying a template assigns new
-tool-instance UUIDs and resolves those placeholders internally from the
-selected approved Brief. The owner never enters database UUIDs manually.
+Templates are immutable, Project-scoped framed compositions. The backend
+template contract stores the selected placement, timing, ordered tools,
+parameters, frames, and Project source references. It replaces protected copy
+with the literal `{{offer}}` and `{{cta}}` placeholders. Applying a template
+assigns new tool-instance UUIDs and resolves those placeholders internally from
+the selected approved Brief. Template administration is not exposed in the
+active Studio screen, and the owner never enters database UUIDs manually.
 
 ## Sources, rendering, and manifests
 
@@ -81,13 +86,15 @@ instance, frame/timeline/order, parameter digest, brand-kit/renderer revision,
 source origin/license/byte digest, and final output metadata.
 
 Preview and export render real source media and the contained transparent logo
-without guides, instance IDs, tool labels, or selection chrome. Edit mode adds
-selection, layer, crop/focal, frame, type, color, and share-copy controls around
-the same authoritative render history.
+without guides, instance IDs, tool labels, or selection chrome. The active
+owner surface never adds manual selection, layer, crop/focal, frame, type,
+color, share-copy, render-history, manifest, or raw-diff controls around that
+output.
 
-Only an explicit **Publish training example** action makes a render eligible
-for feedback. Feedback appends HumanFeedback, zero-delta WeightUpdate, graph
-edges, and an `ad_studio` lesson proposal. The canonical
+Only an explicit publication outside the normal Wizard screen makes a render
+eligible for feedback; the active Studio UI exposes no training or feedback
+controls. Feedback appends HumanFeedback, zero-delta WeightUpdate, graph edges,
+and an `ad_studio` lesson proposal. The canonical
 `ad-studio-composer` skill and owner lesson file are read through the existing
 review-first Plan/Execute flow; nothing learns silently.
 

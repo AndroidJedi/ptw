@@ -24,10 +24,10 @@ const requiredMarkers = {
   'Validation Project workspace': 'PROJECT WORKSPACE',
   'Readable Ad generation label': 'Ads from Brief',
   'Dedicated Ad Studio workspace': 'Ad Studio',
-  'Reusable Studio templates': 'Save current template',
-  'Visible Studio tool IDs': 'studio.frame.headline.v1',
-  'Five-post Studio gallery': 'Five real editable posts',
-  'Review-first Studio wizard': 'AI WIZARD · REVIEW FIRST',
+  'Simple five-post Studio chooser': 'Choose a post',
+  'Wizard-only Studio instruction': 'What should change?',
+  'Explicit unsaved Studio preview': 'NEW PREVIEW · NOT SAVED',
+  'Explicit Studio apply': 'Use this version',
 }
 
 const missing = Object.entries(requiredMarkers)
@@ -38,10 +38,26 @@ if (missing.length) {
   throw new Error(`Unsafe Commander web build; missing: ${missing.join(', ')}`)
 }
 
+const forbiddenStudioMarkers = {
+  'manual template editor': 'Save current template',
+  'manual source library': 'Source library',
+  'manual share-copy editor': 'Share copy',
+  'technical render identifiers': 'Render UUID',
+  'technical manifest download': 'Download JSON manifest',
+  'training publication control': 'Publish training example',
+  'raw Wizard diff': 'Review typed diff',
+}
+const exposed = Object.entries(forbiddenStudioMarkers)
+  .filter(([, marker]) => bundle.includes(marker))
+  .map(([label]) => label)
+if (exposed.length) {
+  throw new Error(`Unsafe Commander web build; advanced Studio controls exposed: ${exposed.join(', ')}`)
+}
+
 if (!worker.includes("url.pathname.startsWith('/__/auth/')")) {
   throw new Error('Unsafe Commander service worker; Firebase Auth helper traffic is not bypassed')
 }
-if (!worker.includes("ptw-shell-v41-studio-wizard-progress")) {
+if (!worker.includes("ptw-shell-v42-studio-wizard-only")) {
   throw new Error('Unsafe Commander service worker; Project workspace cache version is stale')
 }
 

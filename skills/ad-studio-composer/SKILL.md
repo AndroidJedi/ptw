@@ -1,6 +1,6 @@
 ---
 name: ad-studio-composer
-description: Compose, revise, template, or inspect PTW Ad Studio recipes, five-angle editable sample sets, reviewed non-human graphics, and published training examples using the versioned framed-tool catalog. Use for manual or agent-facing Instagram/TikTok Studio work. Do not use for changing the existing automatic five-angle Ad batch, publishing, campaigns, traffic, or analytics.
+description: Compose, revise, template, or inspect PTW Ad Studio recipes, five-angle sample sets, reviewed non-human graphics, and training examples using the versioned framed-tool catalog. Use for Wizard-facing or backend Instagram/TikTok Studio work. Do not use for changing the existing automatic five-angle Ad batch, publishing, campaigns, traffic, or analytics.
 ---
 
 # Ad Studio Composer
@@ -37,25 +37,36 @@ composition.
 
 ## Templates and learning
 
+The active Owner Console Studio is Wizard-only. Keep its normal journey to one
+five-post chooser, one large current/proposed preview, one whole-post
+instruction, explicit review and Apply, and downloads. Do not expose manual
+canvas or component editing, layers, tool/source/template administration,
+caption or alt-text fields, render history, IDs, manifests, raw typed diffs,
+training publication, feedback, or lesson controls in that screen. Those remain
+internal recipe, lineage, and administrative contracts.
+
 Templates preserve framed composition and tool IDs with typed bindings for the
 approved Brief, selected completed Creative, and Project brand kit. Applying a
 template creates fresh instance UUIDs and resolves every binding server-side;
 stale copy or media from another Brief or Project must never leak into it.
 
 An AI revision is always a proposal. It receives one immutable base recipe,
-one owner instruction, an optional selected frame, the approved Brief, brand
-kit, Project sources, and the live catalog. Previewing is non-mutating. Explicit
-Apply creates one validated immutable child recipe and render. Offer, CTA,
-Brief, Project, and brand identity remain protected.
+one owner instruction, the approved Brief, brand kit, Project sources, and the
+live catalog. The backend contract may retain an optional selected-frame target
+for compatibility, but the active Owner Console always requests the whole open
+post. Previewing is non-mutating. Explicit Apply creates one validated immutable
+child recipe and render. Offer, CTA, Brief, Project, and brand identity remain
+protected.
 
-Keep the owner-facing Wizard lifecycle explicit. Label whole-recipe scope as
-the currently open post, never as all sample posts or saved templates. During a
-long proposal or Apply request, replace the button label immediately, lock the
-submitted fields, show an accessible indeterminate activity state with elapsed
-time and the bounded request limit, and keep saying whether the post has
-changed. A returned preview must say that nothing changed yet; a failure must
-preserve the instruction and expose a bounded retry. State the generated-media
-restriction before submission when the request may involve a person or face.
+Keep the owner-facing Wizard lifecycle explicit without rendering a scope
+selector: its instruction always targets the currently open post, never all
+sample posts or saved templates. During a long proposal or Apply request,
+replace the button label immediately, lock the submitted fields, show an
+accessible indeterminate activity state with elapsed time, and keep saying
+whether the post has changed. A returned preview must say that nothing changed
+yet; a failure must preserve the instruction and expose a bounded retry. State
+the generated-media restriction before submission when the request may involve
+a person or face.
 
 Only explicitly published renders are training examples. Feedback targets the
 resolved render UUID and creates append-only feedback, weight, and proposal

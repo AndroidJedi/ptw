@@ -3,6 +3,24 @@
 Updated: 2026-08-25
 Branch: `codex/web-only-commander`
 
+## Current unreleased follow-up
+
+The active Owner Console Studio is reduced to one Wizard-only flow: choose one
+of five posts, inspect one large current or proposed image, describe a
+whole-post change, review, Apply, or download. The normal screen no longer
+renders or fetches the manual canvas, Preview/Edit modes, undo/redo, layers,
+component inspector, brand/source/template administration, caption and alt-text
+fields, recipe history, UUID/digest metadata, JSON manifests, raw typed diffs,
+training publication, feedback, or lesson proposals. The structured recipe,
+template, source, lineage, exact offer/CTA, non-mutating preview, and immutable
+Apply contracts remain enforced behind the Wizard.
+
+The production build gate now requires the simple choose/instruct/review/Apply
+markers and rejects the removed advanced controls if they return. Cache
+`ptw-shell-v42-studio-wizard-only` prevents the prior editor shell from masking
+the change. The follow-up passes 30 Owner web tests, the production build, and
+all 21 desktop/360 px/iPhone browser journeys. It is not deployed.
+
 ## Last completed milestone
 
 The Owner Console Studio Wizard now makes its long synchronous lifecycle
@@ -161,8 +179,7 @@ lessons, and graph history remain authoritative. No production reset ran.
 
 ## Next work
 
-Normal owner work is to edit a sample, review Wizard proposals before Apply,
-publish only deliberate training examples, and capture feedback through the
-existing append-only lesson flow. Landing remains a dormant Stage 3
-placeholder. Ad publication, campaigns, traffic purchase, UTMs, analytics,
-and automatic social posting are out of scope.
+Normal owner work is to choose a sample, request a whole-post Wizard change,
+review before Apply, and download the chosen result. Landing remains a dormant
+Stage 3 placeholder. Ad publication, campaigns, traffic purchase, UTMs,
+analytics, and automatic social posting are out of scope.

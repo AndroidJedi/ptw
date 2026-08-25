@@ -32,11 +32,15 @@ Updated: 2026-08-24
 
 ## Ads and Landing
 
-- Ad Studio is a parallel manual workspace and does not replace the automatic
-  five-Ad generator. It uses constrained framed tools with visible semantic IDs,
-  immutable Project brand-kit and recipe revisions, and reusable Project
-  templates. Applying a template rebinds the selected approved Brief's exact
-  offer and CTA.
+- Ad Studio is a parallel AI-guided workspace and does not replace the automatic
+  five-Ad generator. Its active owner surface is Wizard-only: choose one of five
+  posts, view one large current/proposed image, describe the whole-post change,
+  review, Apply, or download. Do not expose a manual canvas, layers, component
+  inspectors, source/template administration, caption or alt-text fields,
+  history, recipe/render IDs, manifests, raw diffs, or training controls there.
+  Constrained framed tools, immutable Project brand-kit and recipe revisions,
+  reusable templates, lineage, and exact offer/CTA protection remain internal
+  server contracts.
 - Studio canvas output may use Project colors; all editor chrome remains
   monochrome. Only explicitly published renders become feedback targets and
   training examples.

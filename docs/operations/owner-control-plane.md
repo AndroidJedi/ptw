@@ -7,15 +7,16 @@ switcher scopes Product Briefs, Ad Studio, Ads, and the dormant Landing placehol
 remains system-wide. API/domain data is never stored in Firebase or service-worker
 caches.
 
-Ad Studio uses the same owner Auth/App Check boundary for its catalog, Project
-brand kits, reusable templates, source uploads and Pexels import, immutable
-recipe revisions, previews/final renders, artifacts/manifests, explicit
-training-example publication, feedback, five-post sample sets, private source
-previews, render history, and review-before-Apply wizard proposals. Upload bytes travel as bounded
-base64 JSON through the existing bridge; authoritative source and render bytes
-remain in PostgreSQL. The bounded Studio wizard uses separate bridge modes and
-an authenticated digest-checked generated-asset endpoint; it never calls or
-changes the fixed Stage 2 provider mode.
+Ad Studio uses the same owner Auth/App Check boundary. Its active owner flow is
+only: choose one of five posts, view the current or proposed render, give one
+whole-post Wizard instruction, review, Apply, or download. Manual canvas,
+component, asset/template, copy, history, identifier, manifest, raw-diff,
+training-publication, and feedback controls are not part of the normal Studio
+screen. The catalog, Project brand kits, reusable templates, sources,
+immutable recipes, artifacts/manifests, lineage, and publication records remain
+authoritative backend contracts. The bounded Studio wizard uses separate bridge
+modes and an authenticated digest-checked generated-asset endpoint; it never
+calls or changes the fixed Stage 2 provider mode.
 
 Jobs use one sequential workflow: the owner describes one job, Codex prepares
 read-only steps, and the owner explicitly runs those exact digest-bound steps.

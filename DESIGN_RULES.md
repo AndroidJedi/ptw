@@ -40,8 +40,10 @@ Updated: 2026-08-24
   customer results, urgency, or scarcity.
 
 ## Admin
-- Plan and Execute remain visibly distinct and digest-bound. The root terminal
-  is labelled break-glass and retains bounded lifetimes.
+- Jobs use one review-first flow: describe the job, review the read-only steps,
+  then explicitly run them. Planning and execution remain visibly distinct and
+  digest-bound without exposing a misleading mode switch. The root terminal is
+  labelled break-glass and retains bounded lifetimes.
 - The irreversible reset preview names only `ptw_commander.public` and requires
   `RESET PTW PRODUCTION`.
 

@@ -57,6 +57,11 @@ healthy gateway alone does not prove Stage 1–2 readiness.
   must not race a completed planner result into a false failed state. An
   unexecuted failed or cancelled lesson plan may restore its preserved plan or
   regenerate it while restoring every linked proposal as one atomic group.
+- Keep Jobs as one review-first workflow: describe one job, prepare read-only
+  steps, then explicitly run the exact digest-bound steps. Do not expose a
+  Plan/Execute mode switch when both choices enter the same planning path.
+  Explain feedback lessons as future rules, state that they do not change the
+  reviewed artifact or rerun its agent, and keep heavy work serial.
 
 ## Failure handling
 

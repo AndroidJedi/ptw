@@ -136,13 +136,13 @@ lesson. One action places every included proposal into `planning` under the
 same command-session UUID; one successful execution promotes them together and
 updates only that generator's `owner-lessons.md`.
 
-Admin exposes the complete instruction, plan, error, and state for every lesson
-job. A ready plan has one labelled Run action. Cancellation is limited to active
-work, uses a labelled control plus explicit browser and server confirmation,
-and cannot turn a later planner result into a false failure. An unexecuted
-failed or cancelled command can restore the same completed plan, or regenerate
-one when no completed plan exists, while restoring all linked proposals as one
-atomic group.
+Admin exposes the complete instruction, read-only steps, error, and state for
+every future-rule job. A ready job has one labelled Apply action. Cancellation
+is limited to active work, uses a labelled control plus explicit browser and
+server confirmation, and cannot turn a later planner result into a false
+failure. An unexecuted failed or cancelled command can restore the same
+completed plan, or regenerate one when no completed plan exists, while
+restoring all linked proposals as one atomic group.
 
 The Validation runner reads the canonical skill and owner lessons immediately
 before every generation instead of only at process startup. A learned rerun

@@ -5,10 +5,11 @@ UID, and App Check. Owner Gateway is the only normal instruction API. Primary
 navigation is Product Briefs, Ads, Landing, Admin. API/domain data is never stored
 in Firebase or service-worker caches.
 
-Plan mode is read-only and persists an immutable digest. Execute requires that
-exact digest; destructive plans retain their separate confirmation. The root
-broker accepts only Owner Gateway UID/GID over its Unix socket and provides one
-bounded break-glass shell.
+Jobs use one sequential workflow: the owner describes one job, Codex prepares
+read-only steps, and the owner explicitly runs those exact digest-bound steps.
+Destructive work retains its separate confirmation. The root broker accepts
+only Owner Gateway UID/GID over its Unix socket and provides one bounded
+break-glass shell.
 
 One global PostgreSQL guard serializes Product Brief, creative-batch, and Codex
 Plan/Execute work. Emergency stop fans out to Commander and Validation and

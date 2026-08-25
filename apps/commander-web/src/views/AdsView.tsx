@@ -79,7 +79,7 @@ function CreativeCard({ api, creative, onNotice }: {
     setBusy(true); setError('')
     try {
       const result = await api.post<{ feedback_id: string; weight_update_id: string; proposal_id: string }>(`/api/v1/ad-creatives/${creative.creative_id}/feedback`, { comment: feedback.trim() })
-      setFeedback(''); onNotice(`Feedback ${result.feedback_id} saved; lesson proposal ${result.proposal_id} was appended to the pending combined lesson.`)
+      setFeedback(''); onNotice(`Feedback ${result.feedback_id} saved. Future rule ${result.proposal_id} is ready below.`)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   return <article className="panel creative-card">
@@ -120,7 +120,7 @@ export function AdsView({ api }: { api: ApiClient }) {
   }
   const rerun = async () => {
     if (!selected || !window.confirm(
-      'Generate a new immutable batch of five Ad Creatives from the same approved Brief using the current promoted lessons? The completed batch will stay unchanged.',
+      'Generate five new Ads from the same approved Product Brief using your saved feedback? This batch will stay unchanged.',
     )) return
     setBusy(true); setError(''); setNotice('')
     try {
@@ -128,7 +128,7 @@ export function AdsView({ api }: { api: ApiClient }) {
         `/api/v1/ad-batches/${selected.batch_id}/rerun`,
         { request_id: crypto.randomUUID(), confirmation: 'GENERATE NEW BATCH' },
       )
-      setNotice(`Learned rerun ${result.batch.batch_id} started. The original batch remains unchanged.`)
+      setNotice(`New Ad batch ${result.batch.batch_id} started. This batch remains unchanged.`)
       await load(result.batch.batch_id)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
@@ -160,18 +160,18 @@ export function AdsView({ api }: { api: ApiClient }) {
         <details><summary>Previous attempt details</summary><p><code>{recoveredFailure.detail}</code></p><p>{notificationText(selected)}</p></details>
       </section>}
       {selected?.status === 'completed' && lessonRerun?.kind === 'unfinished' && <section className="panel learned-rerun-state">
-        <header><RefreshCcw /><div><small>LEARNING IN PROGRESS</small><h2>Finish the lesson before rerunning</h2></div></header>
-        <p>{lessonRerun.unfinished} feedback {lessonRerun.unfinished === 1 ? 'item is' : 'items are'} still pending, planning, or failed. Complete the lesson in Admin → Jobs, then return here.</p>
+        <header><RefreshCcw /><div><small>FEEDBACK NOT APPLIED YET</small><h2>Apply feedback before rerunning</h2></div></header>
+        <p>{lessonRerun.unfinished} feedback {lessonRerun.unfinished === 1 ? 'item still needs' : 'items still need'} a future rule. Finish it in Admin → Jobs, then return here.</p>
       </section>}
       {selected?.status === 'completed' && lessonRerun?.kind === 'ready' && <section className="panel learned-rerun-state ready">
-        <header><Play /><div><small>{lessonRerun.promoted} PROMOTED {lessonRerun.promoted === 1 ? 'LESSON' : 'LESSONS'}</small><h2>Run the Ad agent again</h2></div></header>
-        <p>Create a new immutable batch of five creatives from the same approved Product Brief using the current promoted owner lessons. This completed batch and all of its creatives stay unchanged.</p>
-        <button className="primary" disabled={busy} onClick={() => void rerun()}>{busy ? 'Starting agent…' : 'Generate learned rerun'}</button>
+        <header><Play /><div><small>FEEDBACK APPLIED</small><h2>Run the Ad agent again</h2></div></header>
+        <p>Create five new Ads from the same approved Product Brief using your saved feedback. This batch stays unchanged.</p>
+        <button className="primary" disabled={busy} onClick={() => void rerun()}>{busy ? 'Starting agent…' : 'Generate new Ads with feedback'}</button>
       </section>}
       {selected?.status === 'completed' && lessonRerun?.kind === 'created' && <section className="panel learned-rerun-state" role="status">
-        <header><ShieldCheck /><div><small>LEARNED RERUN CREATED</small><h2>The next agent run is preserved separately</h2></div></header>
-        <p>Batch {lessonRerun.batchId} was generated from this reviewed batch. Open it to inspect its five new creatives.</p>
-        <button className="secondary" onClick={() => void load(lessonRerun.batchId)}>Open learned rerun</button>
+        <header><ShieldCheck /><div><small>NEW ADS CREATED</small><h2>Your feedback was used in a separate batch</h2></div></header>
+        <p>Batch {lessonRerun.batchId} was generated from this reviewed batch. Open it to inspect the five new Ads.</p>
+        <button className="secondary" onClick={() => void load(lessonRerun.batchId)}>Open new Ads</button>
       </section>}
       {selected?.status === 'completed' && <><section className="creative-grid">{selected.creatives.map((creative) => <CreativeCard key={creative.creative_id} api={api} creative={creative} onNotice={(message) => { setNotice(message); setProposalRevision((value) => value + 1) }} />)}</section><OwnerLessonProposals api={api} domain="ad_creative" refreshKey={proposalRevision} /></>}
     </div>}

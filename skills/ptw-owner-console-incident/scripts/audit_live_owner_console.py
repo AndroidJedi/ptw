@@ -78,8 +78,14 @@ def main() -> None:
         "Landing placeholder": "Stage 3 pending",
         "Ads workspace": "Ads",
         "Admin workspace": "Docs / System / Terminal",
+        "review-first Jobs action": "Review steps",
+        "serial Jobs explanation": "One job runs at a time.",
+        "plain-language feedback rule": "Use feedback next time",
+        "plain-language feedback rerun": "Generate new Ads with feedback",
     }.items():
         require(marker in app_bundle, f"Live App bundle is missing {label}")
+    for retired_label in ("Plan · read only", "Plan combined lesson", "Generate learned rerun"):
+        require(retired_label not in app_bundle, f"Live App bundle still exposes {retired_label!r}")
 
     status, _, worker_bytes = fetch(f"{args.origin}/sw.js?{cache_bust}")
     require(status == 200, f"Service worker returned HTTP {status}")

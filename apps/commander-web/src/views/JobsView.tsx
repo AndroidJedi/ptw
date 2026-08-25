@@ -9,7 +9,6 @@ const activeStatuses = new Set(['planning', 'queued', 'running', 'cancel_request
 export function JobsView({ api }: { api: ApiClient }) {
   const [jobs, setJobs] = useState<Job[] | null>(null)
   const [prompt, setPrompt] = useState('')
-  const [mode, setMode] = useState<'plan' | 'execute'>('plan')
   const [events, setEvents] = useState<string[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -24,7 +23,7 @@ export function JobsView({ api }: { api: ApiClient }) {
     if (!prompt.trim()) return
     setBusy(true); setEvents([]); setError('')
     try {
-      const job = await api.post<Job>('/api/v1/jobs', { mode, instruction: prompt })
+      const job = await api.post<Job>('/api/v1/jobs', { mode: 'plan', instruction: prompt })
       setPrompt(''); await load()
       await watch(job.id)
     } catch (cause) { setError((cause as Error).message); setBusy(false) }
@@ -52,7 +51,7 @@ export function JobsView({ api }: { api: ApiClient }) {
     } catch (cause) { setError((cause as Error).message); setBusy(false) }
   }
   const cancel = async (job: Job) => {
-    if (!window.confirm('Cancel this active job? You can restore an unexecuted lesson plan afterward.')) return
+    if (!window.confirm('Cancel this active job? You can restore its unexecuted steps afterward.')) return
     setBusy(true); setError('')
     try {
       await api.post(`/api/v1/jobs/${job.id}/cancel`, { confirmation: 'CANCEL JOB' })
@@ -64,23 +63,23 @@ export function JobsView({ api }: { api: ApiClient }) {
     <PageHeader eyebrow="CODEX CONTROL" title="Jobs" />
     {error && <ErrorState message={error} retry={load} />}
     <section className="command-pane">
-      <div className="mode-switch" role="group" aria-label="Command mode"><button className={mode === 'plan' ? 'selected' : ''} onClick={() => setMode('plan')}>Plan · read only</button><button className={mode === 'execute' ? 'selected' : ''} onClick={() => setMode('execute')}>Execute</button></div>
-      <label htmlFor="instruction">Commander instruction</label>
-      <textarea id="instruction" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Describe one bounded job…" rows={5} />
-      <button className="primary large" onClick={submit} disabled={!prompt.trim() || busy}><TerminalSquare />{busy ? 'Working…' : mode === 'plan' ? 'Build plan' : 'Execute'}</button>
+      <p className="command-explainer"><strong>Tell Codex what to do.</strong> You will review the steps before anything changes. One job runs at a time.</p>
+      <label htmlFor="instruction">What should Codex do?</label>
+      <textarea id="instruction" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Describe one job…" rows={5} />
+      <button className="primary large" onClick={submit} disabled={!prompt.trim() || busy}><TerminalSquare />{busy ? 'Preparing…' : 'Review steps'}</button>
       {events.length > 0 && <pre className="event-log" aria-live="polite">{events.join('\n')}</pre>}
     </section>
     <section className="jobs-list">{jobs?.map((job) => <article key={job.id}>
       <div className={`job-state ${job.status}`}>{statusIcon(job.status)}</div>
-      <div className="job-summary"><small>{job.id} · {job.mode}{job.destructive ? ' · DESTRUCTIVE' : ''} · {statusLabel(job.status)}</small><h2>{job.title}</h2><p>{job.plan_digest ? `Plan ready · ${job.plan_digest.slice(0, 12)}…` : job.error ? 'Needs attention' : 'Preparing plan…'}</p></div>
+      <div className="job-summary"><small>{job.id}{job.destructive ? ' · DESTRUCTIVE' : ''} · {statusLabel(job.status)}</small><h2>{job.title}</h2><p>{job.plan_digest ? 'Steps ready for your approval' : job.error ? 'Needs attention' : 'Preparing safe steps…'}</p></div>
       <div className="job-actions">
-        {job.status === 'awaiting_approval' && <button className="primary" disabled={busy} onClick={() => void approve(job)}><Play />{isLesson(job) ? 'Run lesson' : 'Run approved plan'}</button>}
-        {['failed', 'cancelled'].includes(job.status) && (job.execution_count || 0) === 0 && <button disabled={busy} onClick={() => void restore(job)}><RotateCcw />Restore plan</button>}
+        {job.status === 'awaiting_approval' && <button className="primary" disabled={busy} onClick={() => void approve(job)}><Play />{isLesson(job) ? 'Apply future rule' : 'Run job'}</button>}
+        {['failed', 'cancelled'].includes(job.status) && (job.execution_count || 0) === 0 && <button disabled={busy} onClick={() => void restore(job)}><RotateCcw />Restore steps</button>}
         {activeStatuses.has(job.status) && <button className="cancel-job" disabled={busy} onClick={() => void cancel(job)}><StopCircle />Cancel</button>}
       </div>
       <details className="job-details" open={job.status === 'awaiting_approval' ? true : undefined}>
         <summary>Open details</summary>
-        <dl><dt>Status</dt><dd>{statusLabel(job.status)}</dd><dt>Instruction</dt><dd><pre>{job.instruction || job.title}</pre></dd>{job.error && <><dt>Error</dt><dd role="alert">{job.error}</dd></>}{job.plan && <><dt>Approved plan</dt><dd><pre>{job.plan}</pre></dd></>}{job.created_at && <><dt>Created</dt><dd>{job.created_at}</dd></>}{job.updated_at && <><dt>Updated</dt><dd>{job.updated_at}</dd></>}</dl>
+        <dl><dt>Status</dt><dd>{statusLabel(job.status)}</dd><dt>Requested job</dt><dd><pre>{job.instruction || job.title}</pre></dd>{job.error && <><dt>Error</dt><dd role="alert">{job.error}</dd></>}{job.plan && <><dt>Steps Codex will run</dt><dd><pre>{job.plan}</pre></dd></>}{job.created_at && <><dt>Created</dt><dd>{job.created_at}</dd></>}{job.updated_at && <><dt>Updated</dt><dd>{job.updated_at}</dd></>}</dl>
       </details>
       {job.deployment_revision && <p className="job-revision">Deployment {job.deployment_revision}</p>}
     </article>)}</section>
@@ -98,5 +97,5 @@ function statusIcon(status: string) {
 }
 
 export function statusLabel(status: string) {
-  return ({ queued: 'queued', planning: 'planning', awaiting_approval: 'ready to run', running: 'running', completed: 'completed', failed: 'failed', cancelled: 'cancelled', cancel_requested: 'cancellation requested' } as Record<string, string>)[status] || status
+  return ({ queued: 'queued', planning: 'preparing steps', awaiting_approval: 'waiting for you', running: 'running', completed: 'completed', failed: 'failed', cancelled: 'cancelled', cancel_requested: 'cancellation requested' } as Record<string, string>)[status] || status
 }

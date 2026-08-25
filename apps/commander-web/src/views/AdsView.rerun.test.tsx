@@ -25,14 +25,14 @@ function client() {
   } as unknown as ApiClient
 }
 
-describe('Ads learned rerun action', () => {
+describe('Ads feedback rerun action', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it('shows one confirmed action and starts a separate learned batch', async () => {
+  it('shows one confirmed action and starts a separate batch using feedback', async () => {
     const api = client()
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<AdsView api={api} />)
-    const action = await screen.findByRole('button', { name: 'Generate learned rerun' })
+    const action = await screen.findByRole('button', { name: 'Generate new Ads with feedback' })
     expect(screen.getByRole('heading', { name: 'Run the Ad agent again' })).toBeVisible()
 
     fireEvent.click(action)

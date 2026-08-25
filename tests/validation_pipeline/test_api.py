@@ -16,7 +16,7 @@ CREATIVE_ID = "018f07ea-7f20-7000-8000-000000000001"
 
 
 class FakeRepository:
-    def __init__(self): self.grouped = None; self.restored = None
+    def __init__(self): self.grouped = None; self.restored = None; self.rerun = None
     def recover_interrupted(self): return {"briefs": 0, "batches": 0}
     def connection(self): raise AssertionError("readiness DB is not used in this test")
     def image(self, _creative_id): return {"bytes": b"jpeg-fixture", "sha256": "a" * 64, "mime_type": "image/jpeg"}
@@ -27,10 +27,14 @@ class FakeRepository:
     def restore_proposals(self, command_session_id):
         self.restored = command_session_id
         return {"matched": True, "command_session_id": command_session_id, "proposal_count": 2}
+    def create_lesson_rerun(self, source_batch_id, **values):
+        self.rerun = (source_batch_id, values)
+        return ({"batch_id": CREATIVE_ID, "status": "queued"}, False)
 
 
 class FakeRunner:
     def verify_ready(self): return {"ready": True}
+    def ad_creative_skill_snapshot(self): return ("skill", "a" * 64)
 
 
 @unittest.skipUnless(HAS_FASTAPI_TEST, "FastAPI TestClient is verified in the Validation image")
@@ -110,6 +114,24 @@ class ValidationApiTests(unittest.TestCase):
         )
         self.assertEqual(200, restored.status_code)
         self.assertEqual(command_session_id, self.repository.restored)
+
+    def test_lesson_rerun_records_the_current_skill_snapshot(self) -> None:
+        request_id = "018f07ea-7f20-7000-8000-000000000021"
+        response = self.client.post(
+            f"/internal/v1/ad-batches/{CREATIVE_ID}/rerun",
+            headers={**self.headers, "X-PTW-Actor": "firebase:owner"},
+            json={"request_id": request_id},
+        )
+        self.assertEqual(202, response.status_code)
+        self.assertFalse(response.json()["generation_started"])
+        self.assertEqual(
+            (CREATIVE_ID, {
+                "request_id": request_id,
+                "requested_by": "firebase:owner",
+                "skill_sha256": "a" * 64,
+            }),
+            self.repository.rerun,
+        )
 
 
 if __name__ == "__main__":

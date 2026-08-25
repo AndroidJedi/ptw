@@ -1,4 +1,4 @@
-const CACHE = 'ptw-shell-v33-safe-job-controls'
+const CACHE = 'ptw-shell-v34-learned-reruns'
 const CACHE_PREFIX = 'ptw-shell-'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/ptw.svg']
 

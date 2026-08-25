@@ -174,6 +174,15 @@ class ValidationRunnerTests(unittest.TestCase):
         self.assertEqual(5, len({item["creative_id"] for item in repository.finished_batch["creatives"]}))
         self.assertEqual(5, len({item["photo"]["external_id"] for item in repository.finished_batch["creatives"]}))
 
+    def test_stage_two_reloads_promoted_owner_lessons_before_each_new_batch(self) -> None:
+        repository, bridge = FakeRepository(), FakeBridge()
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = self.runner(root, repository, bridge)
+            (root / "creative.md").write_text("creative skill\nPROMOTED OWNER LESSON")
+            runner.generate_batch(repository.batch["batch_id"], operation_reserved=True)
+        self.assertIn("PROMOTED OWNER LESSON", bridge.calls[0]["system_prompt"])
+
     def test_failed_batch_notifies_once_after_persisting_the_failure(self) -> None:
         repository, bridge, notifier = FailureRepository(), FailingCreativeBridge(), FakeNotifier()
         with TemporaryDirectory() as directory:

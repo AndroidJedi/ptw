@@ -8,7 +8,7 @@ const feedbackId = '018f07ea-7f20-7000-8000-000000000004'
 const proposalId = '018f07ea-7f20-7000-8000-000000000005'
 const proposalId2 = '018f07ea-7f20-7000-8000-000000000007'
 const batchId = '018f07ea-7f20-7000-8000-000000000006'
-const imageSha256 = 'b6694b7a1b1eaa1228fcea9a46d4987cd406b650ce2e3c59e62be638ac166ced'
+const imageSha256 = 'b5b0c61e6fe8c4f91957b5e48c30326121e24d26898e45f5ebc250c7d129c98b'
 const angles = ['emotional', 'practical', 'curiosity', 'authority', 'problem_first'] as const
 
 async function expectMonochromeChrome(page: Page) {
@@ -143,7 +143,7 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname === '/api/v1/ad-batches' && method === 'GET') return json({ items: batchCreated ? [batch()] : [], next_cursor: null })
     if (url.pathname === `/api/v1/ad-batches/${batchId}`) return json(batch())
     if (/\/api\/v1\/ad-creatives\/[^/]+\/image$/.test(url.pathname)) {
-      return route.fulfill({ status: 200, contentType: 'image/jpeg', headers: { ETag: `"${imageSha256}"` }, body: Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAEf/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9oADAMBAAIAAwAAABD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/EH//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/EH//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/EH//2Q==', 'base64') })
+      return route.fulfill({ status: 200, contentType: 'image/jpeg', headers: { ETag: `"${imageSha256}"` }, body: Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAAIAAgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwAooooA/9k=', 'base64') })
     }
     if (/\/api\/v1\/ad-creatives\/[^/]+\/feedback$/.test(url.pathname) && method === 'POST') {
       expect(route.request().postDataJSON()).toEqual({ comment: 'Use a warmer crop.' })

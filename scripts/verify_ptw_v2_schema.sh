@@ -62,6 +62,18 @@ BEGIN
      OR to_regclass('public.commander_ad_batches') IS NOT NULL THEN
     RAISE EXCEPTION 'retired domain table exists';
   END IF;
+  IF (SELECT count(*) FROM information_schema.columns
+       WHERE table_schema='public' AND table_name='creative_batches'
+         AND column_name IN ('request_id','rerun_of_batch_id','requested_by','skill_sha256')) <> 4 THEN
+    RAISE EXCEPTION 'learned-rerun creative batch columns are incomplete';
+  END IF;
+  IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+       WHERE conname='commander_relationships_relation_check'
+         AND pg_get_constraintdef(oid) LIKE '%rerun_of%'
+  ) THEN
+    RAISE EXCEPTION 'rerun_of relationship lineage is unavailable';
+  END IF;
 END $$;
 SQL
 }

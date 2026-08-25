@@ -49,8 +49,9 @@ creates a complete immutable replacement with a new UUID. The replacement
 owner-idea Source. It requires fresh approval.
 
 Approval explicitly confirms that the exact promise and offer can be honored.
-The approval, one creative batch, and reservation of the global generation
-guard commit atomically. Repeated approval never creates a second batch.
+The approval, one initial creative batch, and reservation of the global
+generation guard commit atomically. Repeated approval never creates a second
+initial batch.
 
 ## Stage 2 — Ad Creatives
 
@@ -71,6 +72,14 @@ English image search query, and left/center/right crop focus. The offer wording
 must remain visible in the copy, while surrounding sentence punctuation may
 follow normal grammar. The server assigns `creative_id` and keeps the `brief_id`
 on every record.
+
+After all feedback lessons from one completed batch are promoted or dismissed,
+the owner may explicitly generate one learned rerun. The rerun is a new batch
+of exactly five creatives from the same approved Brief; it never overwrites or
+supersedes the reviewed batch. A `rerun_of` edge and parent/child batch UUIDs
+retain its lineage. One child per source batch plus an idempotent request UUID
+prevents duplicate generation. A further learning cycle starts from feedback
+on that child batch.
 
 Natal is the immutable umbrella identity for every creative. The generator
 silently drafts multiple headline candidates for each proposed visual, checks
@@ -99,16 +108,19 @@ asset row is persisted.
 
 ## Authority and lineage
 
-`db/migrations/001_ptw_validation_v1.sql` is the only reset baseline. It has
-generic graph/source/feedback/weight/audit/Plan-Execute/control tables plus
-Brief, approval, attempt, provider invocation, batch, creative, asset, and the
-two lesson-proposal tables. No active Positioning or Landing table exists.
+`db/migrations/001_ptw_validation_v1.sql` remains the reset baseline;
+`002_lesson_driven_creative_reruns.sql` is its non-destructive forward
+migration. Together they retain the same generic graph/source/feedback/weight/
+audit/Plan-Execute/control tables plus Brief, approval, attempt, provider
+invocation, batch, creative, asset, and the two lesson-proposal tables. No
+active Positioning or Landing table exists.
 
 Required edges are:
 
 - Product Brief `derived_from` owner-idea Source.
 - Replacement `supersedes` base and `derived_from` feedback.
 - Batch `derived_from` approved Brief and `contains` five creatives.
+- Learned child batch `rerun_of` its reviewed source batch.
 - Creative `derived_from` Brief and `contains` its exact asset.
 - Asset `derived_from` permanent Pexels Source.
 - HumanFeedback `evaluates` the resolved Brief or creative.
@@ -132,6 +144,12 @@ failed or cancelled command can restore the same completed plan, or regenerate
 one when no completed plan exists, while restoring all linked proposals as one
 atomic group.
 
+The Validation runner reads the canonical skill and owner lessons immediately
+before every generation instead of only at process startup. A learned rerun
+records the SHA-256 of that complete skill snapshot when it is queued and fails
+closed if the file changes before execution. The global operation guard keeps
+lesson promotion and generation from racing.
+
 A terminal failed Ad batch reserves one append-only audit event and makes at
 most one direct `sendMessage` through the existing allowlisted PTW bot. The
 result is appended as sent, failed, ambiguous, or emergency-stop suppressed;
@@ -141,7 +159,7 @@ worker, inbound command, or completion notification.
 ## APIs and workspaces
 
 Owner-authenticated routes provide Brief create/list/detail/correct/retry/
-approve, batch list/detail/retry, creative feedback, authenticated image
+approve, batch list/detail/retry/learned-rerun, creative feedback, authenticated image
 delivery with immutable ETag, and bounded skill proposals. Old Positioning,
 Ads-stub, active Landing, lead, catalog, export, and public Landing APIs are not
 registered and return 404.
@@ -156,6 +174,12 @@ the `image/jpeg` media type, exact stored SHA-256, exposed ETag, and browser
 decode result before display; failures show the Creative UUID, exact reason,
 and a bounded retry. PTW does not create inline `data:image/png` Ad resources.
 Landing says `Stage 3 pending` and performs no API call.
+
+For a completed batch, Ads shows the learning lifecycle explicitly. Unfinished
+feedback says to complete the lesson in Admin. Promoted feedback exposes one
+confirmed **Generate learned rerun** action. After creation, the source batch
+offers **Open learned rerun**, while the child identifies its source batch and
+shows normal queued/generating/completed states.
 
 ## Deployment boundary
 

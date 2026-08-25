@@ -1,4 +1,4 @@
-import { AlertTriangle, Bell, Image as ImageIcon, Megaphone, RefreshCcw, Send, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Bell, Image as ImageIcon, Megaphone, Play, RefreshCcw, Send, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api'
 import { OwnerLessonProposals } from '../components/OwnerLessonProposals'
@@ -33,6 +33,16 @@ function notificationText(batch: CreativeBatch) {
   if (status === 'failed') return 'Telegram notification could not be delivered; the failure remains recorded here.'
   if (status === 'pending') return 'Telegram notification is being delivered through the existing PTW bot.'
   return 'This attempt predates audited Telegram failure notifications.'
+}
+
+export function batchLessonRerunState(batch: CreativeBatch) {
+  if (batch.rerun_batch_id) return { kind: 'created' as const, batchId: batch.rerun_batch_id }
+  const counts = batch.lesson_status_counts || {}
+  const promoted = counts.promoted || 0
+  const unfinished = (counts.pending || 0) + (counts.planning || 0) + (counts.failed || 0)
+  if (unfinished) return { kind: 'unfinished' as const, promoted, unfinished }
+  if (promoted) return { kind: 'ready' as const, promoted }
+  return { kind: 'unavailable' as const }
 }
 
 function AuthenticatedImage({ api, creative }: { api: ApiClient; creative: AdCreative }) {
@@ -108,16 +118,31 @@ export function AdsView({ api }: { api: ApiClient }) {
     try { await api.post(`/api/v1/ad-batches/${selected.batch_id}/retry`, {}); await load(selected.batch_id) }
     catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
+  const rerun = async () => {
+    if (!selected || !window.confirm(
+      'Generate a new immutable batch of five Ad Creatives from the same approved Brief using the current promoted lessons? The completed batch will stay unchanged.',
+    )) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const result = await api.post<{ batch: CreativeBatch; generation_started: boolean }>(
+        `/api/v1/ad-batches/${selected.batch_id}/rerun`,
+        { request_id: crypto.randomUUID(), confirmation: 'GENERATE NEW BATCH' },
+      )
+      setNotice(`Learned rerun ${result.batch.batch_id} started. The original batch remains unchanged.`)
+      await load(result.batch.batch_id)
+    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+  }
   const failure = selected?.status === 'failed' ? batchFailureReason(selected) : null
   const recoveredFailure = selected?.status === 'completed' && selected.last_failed_attempt
     ? batchFailureReason(selected, true)
     : null
+  const lessonRerun = selected?.status === 'completed' ? batchLessonRerunState(selected) : null
   if (!items) return error ? <ErrorState message={error} retry={() => void load()} /> : <Loading />
   return <>
     <PageHeader eyebrow="STAGE 2 · COMPLETE AD POSTS" title="Ads" />
     {error && <ErrorState message={error} />}{notice && <p className="landing-notice" role="status">{notice}</p>}
     {!items.length ? <Empty><Megaphone className="empty-mark" /><h2>No creative batch yet</h2><p>Approve a completed Product Brief to generate exactly five complete Ad Creatives.</p></Empty> : <div className="ads-workspace">
-      <section className="panel"><label>Creative batch<select value={selected?.batch_id || ''} onChange={(event) => void load(event.target.value)}>{items.map((item) => <option key={item.batch_id} value={item.batch_id}>{item.batch_id} · {item.status}</option>)}</select></label>{selected && <p className="uuid-line">Brief {selected.brief_id} · batch {selected.batch_id}</p>}</section>
+      <section className="panel"><label>Creative batch<select value={selected?.batch_id || ''} onChange={(event) => void load(event.target.value)}>{items.map((item) => <option key={item.batch_id} value={item.batch_id}>{item.batch_id} · {item.status}</option>)}</select></label>{selected && <><p className="uuid-line">Brief {selected.brief_id} · batch {selected.batch_id}</p>{selected.rerun_of_batch_id && <p className="batch-lineage">Learned rerun of batch <button className="text-action" onClick={() => void load(selected.rerun_of_batch_id || undefined)}>{selected.rerun_of_batch_id}</button></p>}</>}</section>
       {selected && ['queued', 'generating'].includes(selected.status) && <section className="panel generation-state"><RefreshCcw className="spin" /><div><h2>Building five creatives</h2><p>One structured call, fixed angles, real Pexels photos, deterministic 1080×1080 renders.</p></div></section>}
       {selected?.status === 'failed' && failure && <section className="panel batch-failure" role="alert">
         <header><AlertTriangle /><div><small>FAILED AT VALIDATION · {selected.error_code || 'GenerationError'}</small><h2>{failure.title}</h2></div></header>
@@ -133,6 +158,20 @@ export function AdsView({ api }: { api: ApiClient }) {
         <header><ShieldCheck /><div><small>RECOVERED AFTER RETRY</small><h2>Batch completed after an earlier failure</h2></div></header>
         <p>{recoveredFailure.explanation}</p>
         <details><summary>Previous attempt details</summary><p><code>{recoveredFailure.detail}</code></p><p>{notificationText(selected)}</p></details>
+      </section>}
+      {selected?.status === 'completed' && lessonRerun?.kind === 'unfinished' && <section className="panel learned-rerun-state">
+        <header><RefreshCcw /><div><small>LEARNING IN PROGRESS</small><h2>Finish the lesson before rerunning</h2></div></header>
+        <p>{lessonRerun.unfinished} feedback {lessonRerun.unfinished === 1 ? 'item is' : 'items are'} still pending, planning, or failed. Complete the lesson in Admin → Jobs, then return here.</p>
+      </section>}
+      {selected?.status === 'completed' && lessonRerun?.kind === 'ready' && <section className="panel learned-rerun-state ready">
+        <header><Play /><div><small>{lessonRerun.promoted} PROMOTED {lessonRerun.promoted === 1 ? 'LESSON' : 'LESSONS'}</small><h2>Run the Ad agent again</h2></div></header>
+        <p>Create a new immutable batch of five creatives from the same approved Product Brief using the current promoted owner lessons. This completed batch and all of its creatives stay unchanged.</p>
+        <button className="primary" disabled={busy} onClick={() => void rerun()}>{busy ? 'Starting agent…' : 'Generate learned rerun'}</button>
+      </section>}
+      {selected?.status === 'completed' && lessonRerun?.kind === 'created' && <section className="panel learned-rerun-state" role="status">
+        <header><ShieldCheck /><div><small>LEARNED RERUN CREATED</small><h2>The next agent run is preserved separately</h2></div></header>
+        <p>Batch {lessonRerun.batchId} was generated from this reviewed batch. Open it to inspect its five new creatives.</p>
+        <button className="secondary" onClick={() => void load(lessonRerun.batchId)}>Open learned rerun</button>
       </section>}
       {selected?.status === 'completed' && <><section className="creative-grid">{selected.creatives.map((creative) => <CreativeCard key={creative.creative_id} api={api} creative={creative} onNotice={(message) => { setNotice(message); setProposalRevision((value) => value + 1) }} />)}</section><OwnerLessonProposals api={api} domain="ad_creative" refreshKey={proposalRevision} /></>}
     </div>}

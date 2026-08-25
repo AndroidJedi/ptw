@@ -81,6 +81,12 @@ export interface CreativeBatch {
   error_code?: string | null
   error_message?: string | null
   approved_offer?: string | null
+  request_id?: string | null
+  rerun_of_batch_id?: string | null
+  requested_by?: string | null
+  skill_sha256?: string | null
+  rerun_batch_id?: string | null
+  lesson_status_counts?: Partial<Record<ValidationSkillProposal['status'], number>>
   last_failed_attempt?: {
     attempt_id: string
     attempt_number: number

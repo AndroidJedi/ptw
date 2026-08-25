@@ -149,6 +149,11 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
         self.assertTrue(all(UUID(item["creative_id"]).version == 7 for item in completed["creatives"]))
         self.assertTrue(all(UUID(item["image"]["asset_id"]).version == 7 for item in completed["creatives"]))
         self.assertTrue(all(item["brief_id"] == brief["brief_id"] for item in completed["creatives"]))
+        with self.assertRaisesRegex(ValueError, "promote feedback"):
+            self.repository.create_lesson_rerun(
+                batch["batch_id"], request_id=str(uuid4()),
+                requested_by="integration-owner", skill_sha256="c" * 64,
+            )
 
         first = completed["creatives"][0]
         stored = self.repository.image(first["creative_id"])
@@ -186,6 +191,11 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(2, len(grouped["items"]))
         self.assertTrue(all(item["status"] == "planning" for item in grouped["items"]))
+        with self.assertRaisesRegex(ValueError, "finish or dismiss"):
+            self.repository.create_lesson_rerun(
+                batch["batch_id"], request_id=str(uuid4()),
+                requested_by="integration-owner", skill_sha256="c" * 64,
+            )
         failed_group = self.repository.finish_proposal(command_session_id, status="failed")
         self.assertEqual(2, failed_group["proposal_count"])
         restored_group = self.repository.restore_proposals(command_session_id)
@@ -207,10 +217,31 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
         )
         self.assertFalse(restarted)
         self.assertEqual(batch["batch_id"], same_batch["batch_id"])
+
+        source_with_lesson = self.repository.get_batch(batch["batch_id"])
+        self.assertEqual(2, source_with_lesson["lesson_status_counts"]["promoted"])
+        rerun_request_id = str(uuid4())
+        rerun, rerun_started = self.repository.create_lesson_rerun(
+            batch["batch_id"], request_id=rerun_request_id,
+            requested_by="integration-owner", skill_sha256="c" * 64,
+        )
+        self.assertTrue(rerun_started)
+        self.assertNotEqual(batch["batch_id"], rerun["batch_id"])
+        self.assertEqual(batch["batch_id"], rerun["rerun_of_batch_id"])
+        self.assertEqual(brief["brief_id"], rerun["brief_id"])
+        self.assertEqual("c" * 64, rerun["skill_sha256"])
+        self.assertEqual(rerun["batch_id"], self.repository.get_batch(batch["batch_id"])["rerun_batch_id"])
+        self.repository.release_operation(rerun["batch_id"])
+        same_rerun, duplicate_rerun_start = self.repository.create_lesson_rerun(
+            batch["batch_id"], request_id=rerun_request_id,
+            requested_by="integration-owner", skill_sha256="c" * 64,
+        )
+        self.assertFalse(duplicate_rerun_start)
+        self.assertEqual(rerun["batch_id"], same_rerun["batch_id"])
         with self.repository.connection() as connection:
             edges = connection.execute(
                 """SELECT relation,count(*) FROM commander_relationships
-                   WHERE relation IN ('derived_from','contains','evaluates','adjusts')
+                   WHERE relation IN ('derived_from','rerun_of','contains','evaluates','adjusts')
                    GROUP BY relation"""
             ).fetchall()
         edge_counts = dict(edges)
@@ -218,6 +249,7 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
         self.assertGreaterEqual(edge_counts["contains"], 10)
         self.assertGreaterEqual(edge_counts["evaluates"], 1)
         self.assertGreaterEqual(edge_counts["adjusts"], 1)
+        self.assertEqual(1, edge_counts["rerun_of"])
 
     def test_correction_retry_recovery_atomic_failure_and_legacy_absence(self) -> None:
         base = self.complete_brief()

@@ -65,6 +65,13 @@ atomically.
   one shared Plan/Execute command.
 - Promotion may update only `references/owner-lessons.md` through bounded owner
   Plan/Execute. Never silently mutate this skill from performance or feedback.
+- After feedback from a completed batch is promoted, allow one owner-confirmed
+  learned rerun from that batch. Preserve the original batch and its five
+  creatives, create a distinct child batch from the same approved Product
+  Brief, record its `rerun_of` lineage and exact skill snapshot, and reload the
+  canonical skill immediately before generation. A rerun still receives only
+  the approved Product Brief as business input; it never receives the previous
+  creatives.
 
 ## Boundaries
 

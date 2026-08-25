@@ -32,8 +32,11 @@ class ValidationRunner:
         self.bridge = bridge
         self.pexels = pexels
         self.renderer = renderer
-        self.product_brief_skill = self._skill(product_brief_skill_path)
-        self.ad_creative_skill = self._skill(ad_creative_skill_path)
+        self.product_brief_skill_path = product_brief_skill_path
+        self.ad_creative_skill_path = ad_creative_skill_path
+        # Fail readiness at startup when either canonical skill is unavailable.
+        self._skill(product_brief_skill_path)
+        self._skill(ad_creative_skill_path)
         self.failure_notifier = failure_notifier
 
     @staticmethod
@@ -46,6 +49,10 @@ class ValidationRunner:
             for item in sorted(references.glob("*.md")):
                 parts.append(f"\nREFERENCE {item.name}:\n{item.read_text(encoding='utf-8')}")
         return "\n".join(parts)[:40_000]
+
+    def ad_creative_skill_snapshot(self) -> tuple[str, str]:
+        content = self._skill(self.ad_creative_skill_path)
+        return content, hashlib.sha256(content.encode()).hexdigest()
 
     def verify_ready(self) -> dict[str, Any]:
         return {
@@ -63,6 +70,7 @@ class ValidationRunner:
             self.repository.acquire_operation("product_brief", brief_id)
         attempt_id = ""
         try:
+            product_brief_skill = self._skill(self.product_brief_skill_path)
             attempt_id, attempt_number = self.repository.start_attempt(brief_id, stage="product_brief")
             source = self.repository.source(brief_id)
             base = None
@@ -96,7 +104,7 @@ class ValidationRunner:
                         "English when ambiguous. Choose one promising hypothesis, not alternatives. Always include one strong, "
                         "low-friction validation offer. The offer is marketing, not a product change. Do not research, browse, "
                         "use SEO or YouTube data, invent testimonials, ratings, customer results, or proof. A correction returns "
-                        "a complete coherent replacement.\n\nCANONICAL_SKILL:\n" + self.product_brief_skill
+                        "a complete coherent replacement.\n\nCANONICAL_SKILL:\n" + product_brief_skill
                     ),
                     input_payload=payload,
                     output_schema=product_brief_schema(),
@@ -127,6 +135,10 @@ class ValidationRunner:
         attempt_id = ""
         try:
             attempt_id, attempt_number = self.repository.start_attempt(batch_id, stage="ad_creative_batch")
+            ad_creative_skill, skill_sha256 = self.ad_creative_skill_snapshot()
+            expected_skill_sha256 = batch.get("skill_sha256")
+            if expected_skill_sha256 and expected_skill_sha256 != skill_sha256:
+                raise RuntimeError("the promoted Ad Creative skill changed after this rerun was queued")
             brief = self.repository.get_brief(batch["brief_id"])
             if not brief["approved"] or not brief.get("document"):
                 raise RuntimeError("creative generation requires the approved Product Brief")
@@ -153,7 +165,7 @@ class ValidationRunner:
                         "multiple headline candidates, apply the skill's semantic-alignment self-check, and return only the "
                         "strongest hook in the strict output. Do not create AI artwork, publish an ad, invent proof, or "
                         "optimize from performance.\n\n"
-                        "CANONICAL_SKILL:\n" + self.ad_creative_skill
+                        "CANONICAL_SKILL:\n" + ad_creative_skill
                     ),
                     input_payload=payload,
                     output_schema=creative_set_schema(brief=brief["document"]),

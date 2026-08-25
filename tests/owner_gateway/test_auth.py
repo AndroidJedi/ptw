@@ -96,7 +96,8 @@ class OwnerClaimsTests(unittest.TestCase):
         for required in (
             "/api/v1/briefs", "/api/v1/briefs/{brief_id}/correct",
             "/api/v1/briefs/{brief_id}/approve",
-            "/api/v1/ad-batches", "/api/v1/ad-creatives/{creative_id}/image",
+            "/api/v1/ad-batches", "/api/v1/ad-batches/{batch_id}/rerun",
+            "/api/v1/ad-creatives/{creative_id}/image",
             "/api/v1/ad-creatives/{creative_id}/feedback", "/api/v1/jobs",
             "/api/v1/jobs/{session_id}/restore",
             "/api/v1/skill-proposals/{domain}/plan",
@@ -137,6 +138,21 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/jobs/018f07ea-7f20-7000-8000-000000000001/cancel",
             headers={"Authorization": "Bearer owner", "X-Firebase-AppCheck": "app"},
             json={},
+        )
+        self.assertEqual(412, response.status_code)
+        self.assertIn("explicit confirmation", response.json()["detail"])
+        client.close()
+
+    def test_learned_batch_rerun_requires_explicit_server_confirmation(self) -> None:
+        class Verifier:
+            def verify(inner, _token, _app_check):
+                return OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
+
+        client = TestClient(create_app(self.settings, verifier=Verifier()))
+        response = client.post(
+            "/api/v1/ad-batches/018f07ea-7f20-7000-8000-000000000001/rerun",
+            headers={"Authorization": "Bearer owner", "X-Firebase-AppCheck": "app"},
+            json={"request_id": "018f07ea-7f20-7000-8000-000000000002"},
         )
         self.assertEqual(412, response.status_code)
         self.assertIn("explicit confirmation", response.json()["detail"])

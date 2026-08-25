@@ -379,6 +379,31 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             actor=f"firebase:{identity.uid}",
         )).json()
 
+    @app.post("/api/v1/ad-batches/{batch_id}/rerun", status_code=202)
+    async def rerun_batch(
+        batch_id: str,
+        request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        if (
+            set(request) != {"request_id", "confirmation"}
+            or request.get("confirmation") != "GENERATE NEW BATCH"
+        ):
+            raise HTTPException(
+                status_code=412,
+                detail="generating a learned rerun requires explicit confirmation",
+            )
+        try:
+            request_id = str(UUID(str(request["request_id"])))
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="request_id must be a UUID") from error
+        require_running()
+        return (await validation_bridge(
+            "POST", f"/internal/v1/ad-batches/{batch_id}/rerun",
+            body={"request_id": request_id},
+            actor=f"firebase:{identity.uid}",
+        )).json()
+
     @app.get("/api/v1/ad-creatives/{creative_id}/image")
     async def creative_image(
         creative_id: str,

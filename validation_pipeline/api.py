@@ -216,6 +216,31 @@ def create_app(
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
+    @app.post("/internal/v1/ad-batches/{batch_id}/rerun", dependencies=[Depends(authorize)], status_code=202)
+    async def rerun_batch(
+        batch_id: str,
+        request: Mapping[str, Any],
+        x_ptw_actor: str = Header(default="owner-web"),
+    ) -> dict[str, Any]:
+        active = require_runner()
+        if set(request) != {"request_id"}:
+            raise HTTPException(status_code=400, detail="request_id is required")
+        try:
+            _, skill_sha256 = active.ad_creative_skill_snapshot()
+            value, should_start = repository.create_lesson_rerun(
+                str(UUID(batch_id)),
+                request_id=str(UUID(str(request["request_id"]))),
+                requested_by=x_ptw_actor[:200],
+                skill_sha256=skill_sha256,
+            )
+            if should_start:
+                background(active.generate_batch, value["batch_id"], reserved=True)
+            return {"batch": value, "generation_started": should_start}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="creative batch not found") from error
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
     @app.get("/internal/v1/ad-creatives/{creative_id}/image", dependencies=[Depends(authorize)])
     def creative_image(creative_id: str, if_none_match: str = Header(default="")) -> Response:
         try:

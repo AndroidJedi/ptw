@@ -198,6 +198,15 @@ main#main-content { min-width: 0; min-height: 100vh; padding: 20px 16px calc(92p
 .batch-recovery details { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .batch-recovery summary { cursor: pointer; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
 .batch-recovery code { color: var(--white); font: 11px/1.5 ui-monospace, monospace; }
+.batch-lineage { color: var(--soft); font-size: 11px; }
+.text-action { min-height: auto; padding: 0; border: 0; color: var(--white); background: transparent; font: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.learned-rerun-state { border-style: dashed; }
+.learned-rerun-state.ready { border-style: double; }
+.learned-rerun-state header { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 13px; align-items: center; }
+.learned-rerun-state header > svg { width: 42px; height: 42px; padding: 9px; border: 1px solid var(--white); border-radius: 50%; }
+.learned-rerun-state h2 { margin: 5px 0 0; font-size: clamp(1.2rem, 5vw, 1.8rem); }
+.learned-rerun-state > p { margin: 18px 0; color: var(--soft); }
+.learned-rerun-state > button { display: inline-flex; align-items: center; gap: 7px; }
 .creative-feedback { padding-top: 14px; border-top: 1px solid var(--line); }
 .creative-feedback label { color: var(--muted); font-size: 11px; }
 .creative-feedback button { width: 100%; }

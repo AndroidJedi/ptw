@@ -38,7 +38,10 @@ class ValidationRepository:
                          batch.entity_id,batch.status
                   FROM product_briefs brief
                   JOIN commander_sources source ON source.entity_id=brief.owner_idea_source_id
-                  LEFT JOIN creative_batches batch ON batch.brief_id=brief.entity_id"""
+                  LEFT JOIN LATERAL (
+                      SELECT entity_id,status FROM creative_batches
+                       WHERE brief_id=brief.entity_id ORDER BY created_at DESC LIMIT 1
+                  ) batch ON true"""
 
     @staticmethod
     def _brief_row(row: Sequence[Any]) -> dict[str, Any]:
@@ -417,7 +420,8 @@ class ValidationRepository:
             if child is not None:
                 raise ValueError("a superseded Product Brief cannot be approved")
             existing = connection.execute(
-                "SELECT entity_id,status FROM creative_batches WHERE brief_id=%s", (UUID(brief_id),)
+                """SELECT entity_id,status FROM creative_batches WHERE brief_id=%s
+                    ORDER BY created_at DESC LIMIT 1""", (UUID(brief_id),)
             ).fetchone()
             if existing is not None:
                 batch_id = str(existing[0])
@@ -464,6 +468,101 @@ class ValidationRepository:
                 )
         return self.get_batch(batch_id), should_start
 
+    def create_lesson_rerun(
+        self,
+        source_batch_id: str,
+        *,
+        request_id: str,
+        requested_by: str,
+        skill_sha256: str,
+    ) -> tuple[dict[str, Any], bool]:
+        """Create one immutable child batch after the source feedback lesson was promoted."""
+        from psycopg.types.json import Jsonb
+
+        source_uuid, request_uuid = UUID(source_batch_id), UUID(request_id)
+        if len(skill_sha256) != 64:
+            raise ValueError("the Ad Creative skill snapshot digest is invalid")
+        should_start = False
+        with self.connection() as connection:
+            existing_request = connection.execute(
+                """SELECT entity_id,rerun_of_batch_id FROM creative_batches
+                    WHERE request_id=%s FOR UPDATE""",
+                (request_uuid,),
+            ).fetchone()
+            if existing_request is not None:
+                if existing_request[1] != source_uuid:
+                    raise ValueError("request_id was already used for another creative rerun")
+                return self.get_batch(str(existing_request[0])), False
+
+            source = connection.execute(
+                """SELECT brief_id,status FROM creative_batches
+                    WHERE entity_id=%s FOR UPDATE""",
+                (source_uuid,),
+            ).fetchone()
+            if source is None:
+                raise KeyError(source_batch_id)
+            if source[1] != "completed":
+                raise ValueError("only a completed creative batch can start a learned rerun")
+
+            existing_child = connection.execute(
+                """SELECT entity_id FROM creative_batches
+                    WHERE rerun_of_batch_id=%s FOR UPDATE""",
+                (source_uuid,),
+            ).fetchone()
+            if existing_child is not None:
+                return self.get_batch(str(existing_child[0])), False
+
+            lesson_counts = connection.execute(
+                """SELECT proposal.status,count(*)
+                     FROM ad_creative_skill_proposals proposal
+                     JOIN ad_creatives creative ON creative.entity_id=proposal.creative_id
+                    WHERE creative.batch_id=%s GROUP BY proposal.status""",
+                (source_uuid,),
+            ).fetchall()
+            counts = {str(row[0]): int(row[1]) for row in lesson_counts}
+            unfinished = sum(counts.get(status, 0) for status in ("pending", "planning", "failed"))
+            if unfinished:
+                raise ValueError("finish or dismiss every feedback lesson from this batch before rerunning")
+            if counts.get("promoted", 0) < 1:
+                raise ValueError("promote feedback from this batch before generating its learned rerun")
+
+            guard = connection.execute(
+                "SELECT operation_kind,operation_id FROM commander_operation_guard WHERE singleton FOR UPDATE"
+            ).fetchone()
+            if guard is None or guard[1] is not None:
+                active = "unknown" if guard is None else f"{guard[0]} {guard[1]}"
+                raise ValueError(f"heavy operation {active} is already active")
+
+            batch_uuid = UUID(new_uuid7())
+            connection.execute(
+                "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'creative_batch',%s)",
+                (batch_uuid, Jsonb({"creative_count": 5, "reason": "owner_lesson_rerun"})),
+            )
+            connection.execute(
+                """INSERT INTO creative_batches(
+                       entity_id,brief_id,status,request_id,rerun_of_batch_id,requested_by,skill_sha256
+                   ) VALUES(%s,%s,'queued',%s,%s,%s,%s)""",
+                (batch_uuid, source[0], request_uuid, source_uuid, requested_by, skill_sha256),
+            )
+            for relation, target_id, attributes in (
+                ("derived_from", source[0], {"input": "approved_product_brief"}),
+                ("rerun_of", source_uuid, {"reason": "promoted_owner_lesson"}),
+            ):
+                connection.execute(
+                    """INSERT INTO commander_relationships(
+                           id,source_id,relation,target_id,attributes
+                       ) VALUES(%s,%s,%s,%s,%s)""",
+                    (UUID(new_uuid7()), batch_uuid, relation, target_id, Jsonb(attributes)),
+                )
+            connection.execute(
+                """UPDATE commander_operation_guard
+                   SET operation_kind='ad_creative_batch',operation_id=%s,acquired_at=clock_timestamp()
+                   WHERE singleton""",
+                (batch_uuid,),
+            )
+            should_start = True
+        return self.get_batch(str(batch_uuid)), should_start
+
     @staticmethod
     def _batch_row(row: Sequence[Any]) -> dict[str, Any]:
         return {
@@ -473,6 +572,11 @@ class ValidationRepository:
             "updated_at": row[9].isoformat(),
             "completed_at": None if row[10] is None else row[10].isoformat(),
             "approved_offer": row[11],
+            "request_id": None if row[12] is None else str(row[12]),
+            "rerun_of_batch_id": None if row[13] is None else str(row[13]),
+            "requested_by": row[14], "skill_sha256": row[15],
+            "rerun_batch_id": None if row[16] is None else str(row[16]),
+            "lesson_status_counts": dict(row[17] or {}),
         }
 
     @staticmethod
@@ -480,7 +584,17 @@ class ValidationRepository:
         return """SELECT entity_id,brief_id,status,batch_sha256,quality_gates,failure_count,
                          error_code,error_message,created_at,updated_at,completed_at,
                          (SELECT brief.document->>'offer' FROM product_briefs brief
-                          WHERE brief.entity_id=creative_batches.brief_id) AS approved_offer
+                          WHERE brief.entity_id=creative_batches.brief_id) AS approved_offer,
+                         request_id,rerun_of_batch_id,requested_by,skill_sha256,
+                         (SELECT child.entity_id FROM creative_batches child
+                           WHERE child.rerun_of_batch_id=creative_batches.entity_id) AS rerun_batch_id,
+                         (SELECT jsonb_object_agg(status,total) FROM (
+                              SELECT proposal.status,count(*) AS total
+                                FROM ad_creative_skill_proposals proposal
+                                JOIN ad_creatives creative ON creative.entity_id=proposal.creative_id
+                               WHERE creative.batch_id=creative_batches.entity_id
+                               GROUP BY proposal.status
+                          ) lesson_counts) AS lesson_status_counts
                   FROM creative_batches"""
 
     def get_batch(self, batch_id: str) -> dict[str, Any]:

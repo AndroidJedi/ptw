@@ -5,6 +5,16 @@ Branch: `codex/web-only-commander`
 
 ## Last completed milestone
 
+The next local milestone closes the learned-feedback loop for Stage 2. After
+all feedback lessons from a completed Ad batch are promoted or dismissed, Ads
+offers one confirmed **Generate learned rerun** action. It creates a distinct
+five-creative child batch from the same approved Brief, keeps the original
+batch immutable, records `rerun_of` lineage plus the exact skill snapshot, and
+prevents duplicate children. The Validation runner now reloads canonical owner
+lessons immediately before each generation, so a service restart is not needed
+to apply a promoted lesson. This milestone is verified locally and is not yet
+deployed; production remains on `safe-jobs-477ebd2`.
+
 The Simplified Validation Phase 1 implementation is complete. The latest
 deployed milestone replaces per-proposal Save/Plan/Dismiss controls with one
 combined lesson action: every feedback and proposal UUID remains append-only,
@@ -63,6 +73,14 @@ Landing, Idea, Branding, and Ads tables are absent.
 
 ## Verification
 
+- Learned-rerun local verification: 20 Owner web Vitest tests and the production
+  build pass; 15 Playwright journeys pass on desktop Chromium, 360 px Chromium,
+  and iPhone WebKit. The Validation Linux/amd64 image passes 28 tests, the
+  Owner Gateway Linux/amd64 image passes 25 focused active non-Landing tests, the
+  disposable PostgreSQL 16 baseline applies both migrations, and all three
+  integration tests pass for immutable child lineage, idempotency, skill
+  snapshots, existing retry/failure history, and atomic assets.
+  The next Owner Console cache is `ptw-shell-v34-learned-reruns`.
 - Validation Linux/amd64 built-image suite: 26 passed, including grouped lesson
   proposal planning, strict Brief/creative
   shapes, offer enforcement, language inference, bridge input isolation,
@@ -174,8 +192,10 @@ and a fresh 24-hour resource audit is scheduled for the grouped-lesson release.
 
 ## Next work
 
-Run the restored Ad owner lesson from Admin → Jobs → Run lesson. Complete the
-exact-owner signed-in desktop/360 px journey: create and correct a
+Deploy the learned-rerun milestone without resetting either database, reconcile
+the exact owner-approved production lesson into the tracked canonical skill,
+and verify the new batch migration and public UI. Then complete the exact-owner
+signed-in desktop/360 px journey: create and correct a
 Brief, approve its promise/offer, inspect five authenticated Ads and attribution,
 submit feedback, and inspect dormant Landing and Admin. Review the scheduled
 24-hour resource audit. Stage 3 Landing, traffic, publishing, campaigns, UTMs,

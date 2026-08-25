@@ -1,6 +1,6 @@
 import {
   Box, ChevronDown, ChevronUp, Download, Eye, Image as ImageIcon, Layers3, Move,
-  Package, Palette, Pencil, Play, Redo2, Save, Search, Send, Sparkles, Undo2,
+  Package, Palette, Pencil, Play, Redo2, RefreshCcw, Save, Search, Send, Sparkles, Undo2,
   Upload, WandSparkles, X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
@@ -150,19 +150,99 @@ function SampleGallery({ api, sampleSet, selectedRecipeId, busy, onOpen, onDownl
 function WizardPreview({ api, proposal }: { api: ApiClient; proposal: StudioWizardProposal }) {
   const { url, error } = useAuthenticatedUrl(api, proposal.preview_url, proposal.preview_mime_type || 'image/jpeg', proposal.preview_sha256)
   if (error) return <ErrorState message={error} />
-  if (!url) return <Loading />
+  if (!url) return <div className="studio-wizard-media-loading" role="status"><RefreshCcw className="spin" /> Loading the verified preview…</div>
   return <img className="studio-wizard-preview" src={url} alt="Preview of the proposed AI Studio update" />
 }
+function elapsedLabel(seconds: number) {
+  if (seconds < 60) return `${seconds}s`
+  return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`
+}
 function WizardPanel({ api, recipe, target, recoveredProposal, onApplied }: { api: ApiClient; recipe: StudioRecipe; target: StudioToolInstance | null; recoveredProposal: StudioWizardProposal | null; onApplied: (recipe: StudioRecipe, render: StudioRender) => void }) {
-  const [instruction, setInstruction] = useState(''); const [scope, setScope] = useState<'component' | 'post'>(target ? 'component' : 'post'); const [proposal, setProposal] = useState<StudioWizardProposal | null>(recoveredProposal); const [busy, setBusy] = useState(false); const [error, setError] = useState('')
+  const [instruction, setInstruction] = useState('')
+  const [scope, setScope] = useState<'component' | 'post'>(target ? 'component' : 'post')
+  const [proposal, setProposal] = useState<StudioWizardProposal | null>(recoveredProposal)
+  const [operation, setOperation] = useState<'preview' | 'apply' | null>(null)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [error, setError] = useState<{ message: string; operation: 'preview' | 'apply' } | null>(null)
+  const busy = operation !== null
   useEffect(() => { if (!target) setScope('post') }, [target?.instance_id])
   useEffect(() => { setProposal(recoveredProposal); setInstruction(recoveredProposal?.instruction || '') }, [recipe.recipe_id, recoveredProposal?.proposal_id])
-  const preview = async () => { if (!instruction.trim()) return; setBusy(true); setError(''); setProposal(null); try { setProposal(await api.post<StudioWizardProposal>(`/api/v1/ad-studio/recipes/${recipe.recipe_id}/wizard-proposals`, { instruction: instruction.trim(), target_instance_id: scope === 'component' ? target?.instance_id || null : null }, { deadlineMs: STUDIO_WIZARD_DEADLINE_MS })) } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) } }
-  const apply = async () => { if (!proposal) return; setBusy(true); setError(''); try { const result = await api.post<{ proposal: StudioWizardProposal; recipe: StudioRecipe; render: StudioRender }>(`/api/v1/ad-studio/wizard-proposals/${proposal.proposal_id}/apply`, {}, { deadlineMs: STUDIO_WIZARD_DEADLINE_MS }); setProposal(result.proposal); onApplied(result.recipe, result.render); setInstruction('') } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) } }
-  return <section className="panel studio-wizard" aria-label="AI wizard"><header><WandSparkles /><div><small>AI WIZARD · REVIEW FIRST</small><h2>Ask for a focused change</h2></div></header><p>The wizard prepares an immutable typed patch. Your post does not change until you review the preview and choose Apply.</p>
-    <label>Scope<select value={scope} onChange={(event) => setScope(event.target.value as 'component' | 'post')}><option value="post">Whole post</option>{target && <option value="component">Selected component · {target.tool_id}</option>}</select></label>
-    <label>Instruction<textarea rows={3} maxLength={1000} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="Make the headline calmer and move it away from the face" /></label><button className="secondary" disabled={busy || !instruction.trim()} onClick={() => void preview()}><WandSparkles /> Preview AI update</button>{error && <ErrorState message={error} />}
-    {proposal && <div className="studio-wizard-proposal"><div><span className="studio-angle">PROPOSED PATCH</span><code>{proposal.before_sha256.slice(0, 10)} → {proposal.after_sha256.slice(0, 10)}</code></div>{proposal.preview_sha256 ? <WizardPreview api={api} proposal={proposal} /> : <p className="studio-preview-pending">Preview render is being verified.</p>}<details><summary>Review typed diff</summary><pre>{JSON.stringify(proposal.patch, null, 2)}</pre></details>{proposal.status === 'previewed' && <button className="primary" disabled={busy} onClick={() => void apply()}><Save /> Apply as new version</button>}{proposal.status === 'applied' && <p role="status">Applied as immutable recipe {proposal.applied_recipe_id}.</p>}</div>}
+  useEffect(() => {
+    setElapsedSeconds(0)
+    if (!operation) return
+    const startedAt = Date.now()
+    const timer = window.setInterval(() => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000)
+    return () => window.clearInterval(timer)
+  }, [operation])
+  const preview = async () => {
+    const normalizedInstruction = instruction.trim()
+    if (!normalizedInstruction || busy) return
+    setOperation('preview'); setError(null); setProposal(null)
+    try {
+      setProposal(await api.post<StudioWizardProposal>(`/api/v1/ad-studio/recipes/${recipe.recipe_id}/wizard-proposals`, {
+        instruction: normalizedInstruction,
+        target_instance_id: scope === 'component' ? target?.instance_id || null : null,
+      }, { deadlineMs: STUDIO_WIZARD_DEADLINE_MS }))
+    } catch (cause) {
+      setError({ message: (cause as Error).message, operation: 'preview' })
+    } finally {
+      setOperation(null)
+    }
+  }
+  const apply = async () => {
+    if (!proposal || busy) return
+    setOperation('apply'); setError(null)
+    try {
+      const result = await api.post<{ proposal: StudioWizardProposal; recipe: StudioRecipe; render: StudioRender }>(`/api/v1/ad-studio/wizard-proposals/${proposal.proposal_id}/apply`, {}, { deadlineMs: STUDIO_WIZARD_DEADLINE_MS })
+      setProposal(result.proposal); onApplied(result.recipe, result.render); setInstruction('')
+    } catch (cause) {
+      setError({ message: (cause as Error).message, operation: 'apply' })
+    } finally {
+      setOperation(null)
+    }
+  }
+  const retry = () => error?.operation === 'apply' ? void apply() : void preview()
+  const statusTitle = operation === 'apply' ? 'Applying the approved preview…' : 'Creating your review preview…'
+  const statusDetail = operation === 'apply'
+    ? 'The reviewed change is being saved and rendered as a new version.'
+    : elapsedSeconds < 30
+      ? 'Your request is running. The post has not changed.'
+      : 'Still working. AI and image verification can take several minutes; keep this tab open.'
+  return <section className="panel studio-wizard" aria-label="AI wizard" aria-busy={busy}>
+    <header><WandSparkles /><div><small>AI WIZARD · REVIEW FIRST</small><h2>Revise this open post</h2></div></header>
+    <p>Describe the result you want. The wizard creates one review preview; only Apply saves it as a new version.</p>
+    <label>Scope
+      <select disabled={busy} value={scope} onChange={(event) => setScope(event.target.value as 'component' | 'post')}>
+        <option value="post">This post · all elements</option>
+        {target && <option value="component">Selected component · {target.tool_id}</option>}
+      </select>
+    </label>
+    <p className="studio-wizard-scope-note">{scope === 'post'
+      ? 'This revises only the post open above. The other four posts and your saved templates stay unchanged.'
+      : 'Only the selected component can change. The wizard cannot expand the request to the rest of the post.'}</p>
+    <label>Instruction
+      <textarea disabled={busy} rows={3} maxLength={1000} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="Make the headline calmer and move it away from the face" />
+    </label>
+    <p className="studio-wizard-policy-note">Use approved Project photos for people. AI-generated media is limited to abstract or symbolic graphics without people, faces, logos, or embedded text.</p>
+    <button className="primary" disabled={busy || !instruction.trim()} onClick={() => void preview()}>
+      {operation === 'preview' ? <RefreshCcw className="spin" /> : <WandSparkles />}
+      {operation === 'preview' ? 'Creating preview…' : 'Create review preview'}
+    </button>
+    {!operation && !proposal && !error && <p className="studio-wizard-submit-note">This may take several minutes. Nothing is applied automatically.</p>}
+    {operation && <div className="studio-wizard-progress" role="status" aria-live="polite">
+      <RefreshCcw className="spin" />
+      <div><strong>{statusTitle}</strong><p>{statusDetail}</p><small aria-hidden="true">Elapsed {elapsedLabel(elapsedSeconds)} · 10-minute request limit</small></div>
+      <div className="studio-wizard-progress-bar" role="progressbar" aria-label={statusTitle} aria-valuetext="In progress" />
+    </div>}
+    {error && <div className="studio-wizard-error" role="alert"><strong>{error.operation === 'apply' ? 'Could not apply the preview.' : 'Could not create the preview.'}</strong><p>{error.message}</p><button className="secondary" disabled={busy} onClick={retry}><RefreshCcw /> Try again</button></div>}
+    {proposal && <div className="studio-wizard-proposal">
+      {proposal.status === 'previewed' && <p className="studio-wizard-ready" role="status"><strong>Preview ready — nothing changed yet.</strong><span>Compare the image below, then apply it only if it is right.</span></p>}
+      <div className="studio-wizard-patch-header"><span className="studio-angle">PROPOSED PATCH</span><code>{proposal.before_sha256.slice(0, 10)} → {proposal.after_sha256.slice(0, 10)}</code></div>
+      {proposal.preview_sha256 ? <WizardPreview api={api} proposal={proposal} /> : <p className="studio-preview-pending">Preview render is being verified.</p>}
+      <details><summary>Review typed diff</summary><pre>{JSON.stringify(proposal.patch, null, 2)}</pre></details>
+      {proposal.status === 'previewed' && <button className="primary" disabled={busy} onClick={() => void apply()}>{operation === 'apply' ? <RefreshCcw className="spin" /> : <Save />} {operation === 'apply' ? 'Applying new version…' : 'Apply preview as new version'}</button>}
+      {proposal.status === 'applied' && <p role="status">Applied as immutable recipe {proposal.applied_recipe_id}.</p>}
+    </div>}
   </section>
 }
 

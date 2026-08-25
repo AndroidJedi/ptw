@@ -126,9 +126,34 @@ describe('StudioView', () => {
   it('reviews a targetable wizard diff before applying a new immutable recipe', async () => {
     const client = api(true); render(<StudioView api={client as any} projectId={projectId} />)
     const gallery = await screen.findByLabelText('Five ready-to-share Studio posts'); fireEvent.click(within(gallery).getByRole('button', { name: 'Open Вікно ясності editable post' })); const wizard = await screen.findByLabelText('AI wizard')
-    fireEvent.change(within(wizard).getByLabelText('Instruction'), { target: { value: 'Make it calmer' } }); fireEvent.click(within(wizard).getByRole('button', { name: /Preview AI update/ }))
+    fireEvent.change(within(wizard).getByLabelText('Instruction'), { target: { value: 'Make it calmer' } }); fireEvent.click(within(wizard).getByRole('button', { name: /Create review preview/ }))
     expect(await within(wizard).findByText('Review typed diff')).toBeInTheDocument(); expect(client.post).toHaveBeenCalledWith(expect.stringContaining('/wizard-proposals'), { instruction: 'Make it calmer', target_instance_id: null }, { deadlineMs: 600_000 })
-    fireEvent.click(within(wizard).getByRole('button', { name: /Apply as new version/ })); await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/v1/ad-studio/wizard-proposals/proposal-1/apply', {}, { deadlineMs: 600_000 }))
+    expect(within(wizard).getByText('Preview ready — nothing changed yet.')).toBeInTheDocument()
+    fireEvent.click(within(wizard).getByRole('button', { name: /Apply preview as new version/ })); await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/v1/ad-studio/wizard-proposals/proposal-1/apply', {}, { deadlineMs: 600_000 }))
+  })
+
+  it('shows durable, honest progress while the wizard request is running', async () => {
+    const client = api(true)
+    const post = client.post.getMockImplementation()!
+    let release = () => {}
+    client.post.mockImplementation(async (path: string, body: any) => {
+      if (path.endsWith('/wizard-proposals')) await new Promise<void>((resolve) => { release = resolve })
+      return post(path, body)
+    })
+    render(<StudioView api={client as any} projectId={projectId} />)
+    const gallery = await screen.findByLabelText('Five ready-to-share Studio posts')
+    fireEvent.click(within(gallery).getByRole('button', { name: 'Open Вікно ясності editable post' }))
+    const wizard = await screen.findByLabelText('AI wizard')
+    expect(within(wizard).getByLabelText('Scope')).toHaveValue('post')
+    expect(within(wizard).getByText('This revises only the post open above. The other four posts and your saved templates stay unchanged.')).toBeInTheDocument()
+    fireEvent.change(within(wizard).getByLabelText('Instruction'), { target: { value: 'Make it calmer' } })
+    fireEvent.click(within(wizard).getByRole('button', { name: /Create review preview/ }))
+    expect(within(wizard).getByRole('button', { name: /Creating preview/ })).toBeDisabled()
+    expect(within(wizard).getByRole('status')).toHaveTextContent('Creating your review preview')
+    expect(within(wizard).getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'In progress')
+    expect(within(wizard).getByLabelText('Instruction')).toBeDisabled()
+    release()
+    expect(await within(wizard).findByText('Preview ready — nothing changed yet.')).toBeInTheDocument()
   })
 
   it('uses the bounded generation deadline for the five-post build', async () => {

@@ -41,7 +41,7 @@ if (missing.length) {
 if (!worker.includes("url.pathname.startsWith('/__/auth/')")) {
   throw new Error('Unsafe Commander service worker; Firebase Auth helper traffic is not bypassed')
 }
-if (!worker.includes("ptw-shell-v40-studio-share-posts")) {
+if (!worker.includes("ptw-shell-v41-studio-wizard-progress")) {
   throw new Error('Unsafe Commander service worker; Project workspace cache version is stale')
 }
 

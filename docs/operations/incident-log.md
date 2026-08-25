@@ -18,6 +18,29 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-25: Studio Wizard request looked inactive while it was running
+
+- Symptom: after submitting a whole-post Studio Wizard instruction, the owner
+  saw no progress and could not tell whether the request was running, had
+  failed, or had changed the five templates. The request did complete and
+  persisted a review-only proposal; the open recipe was not mutated.
+- Cause: the browser waits on one synchronous proposal call with a bounded
+  ten-minute deadline, but its only in-flight feedback was disabling a button
+  without changing the label. “Whole post” did not say that scope meant only
+  the currently open post, and the returned preview appeared below the form
+  without an explicit nothing-changed-yet handoff.
+- Durable fix: Wizard Preview and Apply now replace their button labels
+  immediately, lock the submitted fields, and show an accessible indeterminate
+  activity panel with elapsed time, the request limit, and mutation state.
+  Scope explicitly excludes the other four posts and saved templates. Preview
+  success says nothing changed yet; failure preserves the instruction and
+  exposes the correct retry. The generated-person restriction is visible
+  before submission, and the service-worker cache is bumped. The canonical Ad
+  Studio skill now requires this lifecycle for long Wizard calls.
+- Verification: 32 Owner web tests, the production build, all 21 desktop/360
+  px/iPhone browser journeys, built-runtime Commander tests, the deterministic
+  demo, skill validation, and diff hygiene pass before release.
+
 ## 2026-08-25: real Studio Wizard revision failed beyond the minimal canary
 
 - Symptom: the deployed `ad_studio_recipe_revision` canary passed, but two

@@ -216,6 +216,19 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname === '/api/v1/ad-studio/sample-sets' && method === 'GET') return json({ items: studioSamplesCreated ? [sampleSet()] : [] })
     if (url.pathname === '/api/v1/ad-studio/sample-sets' && method === 'POST') { expect(route.request().postDataJSON()).toEqual({ batch_id: batchId }); studioSamplesCreated = true; return json(sampleSet(), 201) }
     if (/\/api\/v1\/ad-studio\/recipes\/[^/]+\/renders$/.test(url.pathname)) return json({ items: [] })
+    if (/\/api\/v1\/ad-studio\/recipes\/[^/]+\/wizard-proposals$/.test(url.pathname) && method === 'GET') return json({ items: [] })
+    if (/\/api\/v1\/ad-studio\/recipes\/[^/]+\/wizard-proposals$/.test(url.pathname) && method === 'POST') {
+      const body = route.request().postDataJSON()
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      return json({
+        proposal_id: proposalId, recipe_id: sampleSet().items[0].recipe_id, status: 'previewed',
+        instruction: body.instruction, target_instance_id: body.target_instance_id,
+        patch: [{ op: 'replace', path: '/frames/0/params/text', value: 'A calmer first step' }],
+        before_sha256: '1'.repeat(64), after_sha256: '2'.repeat(64),
+        preview_url: creative('emotional', 0).image.url, preview_sha256: imageSha256,
+        preview_mime_type: 'image/jpeg', created_at: '2026-08-24T09:03:00Z',
+      }, 201)
+    }
     if (url.pathname === '/api/v1/skill-proposals/ad_studio' && method === 'GET') return json({ items: [] })
     if (url.pathname === '/api/v1/jobs') return json({ items: [], next_cursor: null })
     if (url.pathname === '/api/v1/system/health') return json({ git_revision: 'validation-fixture', services: { gateway: 'ok', validation: { ready: true }, root_broker: 'ok' }, emergency_stop: false, reset: { permitted: true, target: 'ptw_commander.public only' } })
@@ -257,6 +270,16 @@ test('Ad Studio is a dedicated Project tab and saves a reusable template', async
   await expect(gallery.getByRole('button', { name: /Open .* editable post/ })).toHaveCount(5)
   await expect(gallery.getByRole('button', { name: /Download .* JPEG/ })).toHaveCount(5)
   await expect(gallery.getByText('Вікно ясності')).toBeVisible()
+  await gallery.getByRole('button', { name: 'Open Вікно ясності editable post' }).click()
+  const wizard = page.getByLabel('AI wizard')
+  await expect(wizard.getByRole('heading', { name: 'Revise this open post' })).toBeVisible()
+  await expect(wizard.getByText('The other four posts and your saved templates stay unchanged.', { exact: false })).toBeVisible()
+  await wizard.getByLabel('Instruction').fill('Make the copy shorter and the composition calmer.')
+  await wizard.getByRole('button', { name: 'Create review preview' }).click()
+  await expect(wizard.getByRole('status')).toContainText('Creating your review preview')
+  await expect(wizard.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'In progress')
+  await expect(wizard.getByText('Preview ready — nothing changed yet.')).toBeVisible()
+  await expect(wizard.getByRole('button', { name: 'Apply preview as new version' })).toBeVisible()
   await expectMonochromeChrome(page)
 })
 

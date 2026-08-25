@@ -48,6 +48,15 @@ kit, Project sources, and the live catalog. Previewing is non-mutating. Explicit
 Apply creates one validated immutable child recipe and render. Offer, CTA,
 Brief, Project, and brand identity remain protected.
 
+Keep the owner-facing Wizard lifecycle explicit. Label whole-recipe scope as
+the currently open post, never as all sample posts or saved templates. During a
+long proposal or Apply request, replace the button label immediately, lock the
+submitted fields, show an accessible indeterminate activity state with elapsed
+time and the bounded request limit, and keep saying whether the post has
+changed. A returned preview must say that nothing changed yet; a failure must
+preserve the instruction and expose a bounded retry. State the generated-media
+restriction before submission when the request may involve a person or face.
+
 Only explicitly published renders are training examples. Feedback targets the
 resolved render UUID and creates append-only feedback, weight, and proposal
 entities. Promotion may update only this skill's `references/owner-lessons.md`

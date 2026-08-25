@@ -3,6 +3,23 @@
 Updated: 2026-08-25
 Branch: `codex/web-only-commander`
 
+## Current unreleased follow-up
+
+The Owner Console Studio Wizard now makes its long synchronous lifecycle
+visible instead of presenting a silent disabled button. Scope is labelled as
+the currently open post and explicitly excludes the other four posts and saved
+templates. Preview and Apply show an accessible indeterminate activity panel,
+elapsed time, the bounded request limit, and whether the post has changed;
+submitted fields remain locked until completion. Preview success clearly says
+nothing changed yet, failure preserves the instruction and offers the correct
+retry, and the UI states the generated-person restriction before submission.
+The PWA shell marker is bumped to
+`ptw-shell-v41-studio-wizard-progress` so the follow-up cannot be hidden by the
+prior cached shell. This follow-up passes 32 Owner web Vitest tests, the
+production build, all 21 desktop/360 px/iPhone browser journeys, the Commander
+regression/demo checks, and canonical PTW skill verification. It is not
+deployed.
+
 ## Last completed milestone
 
 The five-post Ad Studio v2 milestone is implemented, deployed, and verified in

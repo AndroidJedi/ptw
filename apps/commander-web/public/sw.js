@@ -1,4 +1,4 @@
-const CACHE = 'ptw-shell-v40-studio-share-posts'
+const CACHE = 'ptw-shell-v41-studio-wizard-progress'
 const CACHE_PREFIX = 'ptw-shell-'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/ptw.svg']
 

@@ -5,15 +5,24 @@ Branch: `codex/web-only-commander`
 
 ## Last completed milestone
 
-The latest deployed milestone closes the learned-feedback loop for Stage 2. After
+The latest deployed milestone simplifies Admin Jobs and feedback learning into
+plain sequential workflows. Jobs now has one instruction field and one
+**Review steps** action; nothing changes until the owner reviews the read-only
+steps and explicitly chooses **Run job** or **Apply future rule**. The redundant
+Plan/Execute mode switch is gone, and the UI states that only one job runs at a
+time. Feedback is described as a future rule that does not change the reviewed
+artifact or rerun its agent. The Owner Console is deployed from `0e0ae8a` with
+service-worker cache `ptw-shell-v35-simple-jobs`.
+
+The prior deployed milestone closed the learned-feedback loop for Stage 2. After
 all feedback lessons from a completed Ad batch are promoted or dismissed, Ads
-offers one confirmed **Generate learned rerun** action. It creates a distinct
-five-creative child batch from the same approved Brief, keeps the original
-batch immutable, records `rerun_of` lineage plus the exact skill snapshot, and
-prevents duplicate children. The Validation runner now reloads canonical owner
-lessons immediately before each generation, so a service restart is not needed
-to apply a promoted lesson. Production runs matching application images tagged
-`learned-reruns-311dae9`, built from `311dae9`.
+offers one confirmed **Generate new Ads with feedback** action. It creates a
+distinct five-creative child batch from the same approved Brief, keeps the
+original batch immutable, records `rerun_of` lineage plus the exact skill
+snapshot, and prevents duplicate children. The Validation runner now reloads
+canonical owner lessons immediately before each generation, so a service
+restart is not needed to apply a promoted lesson. Production runs matching
+application images tagged `learned-reruns-311dae9`, built from `311dae9`.
 
 The Simplified Validation Phase 1 implementation is complete. The earlier
 grouped-lesson milestone replaced per-proposal Save/Plan/Dismiss controls with
@@ -73,6 +82,16 @@ Landing, Idea, Branding, and Ads tables are absent.
 
 ## Verification
 
+- Simple-Jobs verification: 21 Owner web Vitest tests and the production build
+  pass; 15 Playwright journeys pass on desktop Chromium, 360 px Chromium, and
+  iPhone WebKit. The production bundle contains **Review steps**, the serial-job
+  explanation, **Use feedback next time**, and **Generate new Ads with
+  feedback**, while the retired mode and lesson labels are absent. The public
+  Auth/App Check/CORS/API audit passes against cache
+  `ptw-shell-v35-simple-jobs`. Canonical PTW skill validation, the deterministic
+  Commander demo, all eight containerized Commander tests, the three-mode live
+  bridge audit, and the locked 1 GB audit pass. No backend image, database, or
+  runtime configuration changed.
 - Learned-rerun local verification: 20 Owner web Vitest tests and the production
   build pass; 15 Playwright journeys pass on desktop Chromium, 360 px Chromium,
   and iPhone WebKit. The Validation Linux/amd64 image passes 28 tests, the
@@ -80,7 +99,7 @@ Landing, Idea, Branding, and Ads tables are absent.
   disposable PostgreSQL 16 baseline applies both migrations, and all three
   integration tests pass for immutable child lineage, idempotency, skill
   snapshots, existing retry/failure history, and atomic assets.
-  The live Owner Console cache is `ptw-shell-v34-learned-reruns`.
+  The prior live Owner Console cache was `ptw-shell-v34-learned-reruns`.
 - Validation Linux/amd64 built-image suite: 26 passed, including grouped lesson
   proposal planning, strict Brief/creative
   shapes, offer enforcement, language inference, bridge input isolation,
@@ -126,6 +145,14 @@ Landing, Idea, Branding, and Ads tables are absent.
 
 ## Production state
 
+Firebase Hosting serves the simplified Owner Console from source revision
+`0e0ae8a`. The cache-busted live app uses `ptw-shell-v35-simple-jobs`; its
+hashed public bundle, Auth/App Check markers, exact CORS origin,
+unauthenticated rejection, gateway health, and retired-route 404s pass. This
+was a reversible Hosting-only release: no reset ran and all backend containers,
+PostgreSQL data, existing jobs, feedback, lessons, batches, creatives, and
+assets remain unchanged.
+
 The learned-rerun release completed in place without a reset on 2026-08-25.
 Commander, Validation, and Owner Gateway now use matching Linux/amd64 images
 tagged `learned-reruns-311dae9`, built from `311dae9`. Migration
@@ -138,10 +165,11 @@ The independent platform repository remains at `6ed6d8d`, and its API and
 worker remain on `phase1-5f47722-6ed6d8d`. Two fresh strict canaries passed for
 `product_brief`, `product_brief_revision`, and `ad_creative_batch`, and the
 non-persisting Pexels search/download/Natal-render canary passed after the
-in-place release. The live Owner Console exposes one grouped lesson action for
-pending proposals. After every proposal for a completed batch is terminal,
-Ads exposes **Run the Ad agent again**, a confirmation-gated **Generate learned
-rerun** action, and then **Open learned rerun** for the resulting child batch.
+in-place release. The live Owner Console exposes one **Use feedback next time**
+section for pending feedback. After every future rule for a completed batch is
+terminal, Ads exposes **Run the Ad agent again**, a confirmation-gated
+**Generate new Ads with feedback** action, and then **Open new Ads** for the
+resulting child batch.
 The retired Save edit, Plan promotion, and Dismiss controls are not present.
 
 After an ambiguous square cancel control was pressed on Ad lesson command
@@ -200,7 +228,7 @@ remain promoted, and the one historical failed proposal remains visible.
 
 ## Next work
 
-Use the completed Ads batch to confirm **Generate learned rerun**, wait for its
+Use the completed Ads batch to confirm **Generate new Ads with feedback**, wait for its
 distinct five-creative child batch, and open it from the source batch. Then
 complete the exact-owner signed-in desktop/360 px journey: create and correct a
 Brief, approve its promise/offer, inspect five authenticated Ads and attribution,

@@ -176,9 +176,9 @@ and a bounded retry. PTW does not create inline `data:image/png` Ad resources.
 Landing says `Stage 3 pending` and performs no API call.
 
 For a completed batch, Ads shows the learning lifecycle explicitly. Unfinished
-feedback says to complete the lesson in Admin. Promoted feedback exposes one
-confirmed **Generate learned rerun** action. After creation, the source batch
-offers **Open learned rerun**, while the child identifies its source batch and
+feedback says to apply its future rule in Admin. Applied feedback exposes one
+confirmed **Generate new Ads with feedback** action. After creation, the source
+batch offers **Open new Ads**, while the child identifies its source batch and
 shows normal queued/generating/completed states.
 
 ## Deployment boundary

@@ -18,6 +18,26 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-25: Studio graphic canary rejected the current Codex trace shape
+
+- Symptom: the in-place five-post release passed the three retained validation
+  modes and the JSON-only Studio revision mode, then stopped before migrations
+  because the Studio graphic canary reported `must call imagegen exactly once`.
+  The release guard restored the prior platform API and worker; Commander,
+  Validation, Owner Gateway, PostgreSQL, and Hosting were not cut over.
+- Cause: the bridge worker counted only the older
+  `item.completed`/`mcp_tool_call`/`image_gen`/`imagegen` JSONL tuple. Built-in
+  image generation can instead be represented as a dedicated completed
+  image-generation call, so a real bounded generation was not counted.
+- Durable fix: the detector accepts only completed MCP-shaped or dedicated
+  built-in image-generation call events, deduplicates explicit call IDs, and
+  still requires exactly one trace and exactly one bounded PNG. Prompt text or
+  the presence of image bytes is never accepted as call proof. The platform
+  operations contract and VPS skill now require both representations in tests.
+- Verification: pending a complete platform suite, fresh live five-mode bridge
+  canary with authenticated digest/ETag asset download, and successful
+  in-place release retry.
+
 ## 2026-08-24: malformed inline PNG reported as a resource failure
 
 - Symptom: the browser reported a resource-load error for an inline

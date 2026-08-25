@@ -84,7 +84,7 @@ enforcing worker before the Studio-capable API and restores API before worker.
 - Owner web verification passes 31 Vitest tests, its production build, and 21
   Playwright journeys on desktop Chromium, 360 px Chromium, and iPhone WebKit
   with cache `ptw-shell-v40-studio-share-posts`.
-- The independent platform bridge passes 94 tests. Its capabilities preserve
+- The independent platform bridge passes 95 tests. Its capabilities preserve
   the three core validation modes while enforcing the two additive Studio
   modes, exactly one image-generation call, bounded square PNG output, policy
   provenance, authenticated bytes, and ETag/digest checks.

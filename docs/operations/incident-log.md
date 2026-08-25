@@ -36,8 +36,15 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   validation remain independent of model output. The incident skill now
   requires a real recipe-shaped Wizard canary, not only a minimal mode canary.
 - Verification: the recursive strict-schema regression and all 50 Validation
-  unit tests pass in the Linux/amd64 runtime image. Live preview non-mutation,
-  Apply-once, and restart-history verification are pending the in-place fix.
+  unit tests pass in the Linux/amd64 runtime image. A real selected-headline
+  production preview persisted proposal
+  `01a03913-eef8-7f72-b69f-cc16503d87fb` without changing its root recipe
+  digest. Apply changed only the requested font size, preserved the exact
+  headline text/offer/CTA, and created child recipe
+  `01a03915-594d-73ee-a7e2-13a1b2ae5e66` plus render
+  `01a03915-594d-7fc5-af8a-fcf4232e539b`. Two repeat Apply calls returned the
+  same IDs. The applied proposal, preview digest/ETag, child, and render history
+  all reloaded after restarting Validation.
 
 ## 2026-08-25: combined Studio inspection mis-displayed repeated CTA regions
 
@@ -83,9 +90,11 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   filenames, zero or multiple receipts/events, prompt-text claims, unsafe
   paths, invalid bytes, or digest disagreement. The platform operations
   contract and VPS skill cover both proof forms.
-- Verification: pending a complete platform suite, fresh live five-mode bridge
-  canary with authenticated digest/ETag asset download, and successful
-  in-place release retry.
+- Verification: the complete platform suite passes. The successful in-place
+  retry ran fresh live five-mode bridge canaries twice, including exactly one
+  bounded Studio graphic and authenticated digest/ETag asset download, before
+  and after the application dependency gate. The serial release, services,
+  PostgreSQL schema, resource audit, and public Owner Console checks passed.
 
 ## 2026-08-24: malformed inline PNG reported as a resource failure
 

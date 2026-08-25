@@ -5,7 +5,8 @@ Branch: `codex/web-only-commander`
 
 ## Last completed milestone
 
-The five-post Ad Studio v2 milestone is implemented and verified locally. It
+The five-post Ad Studio v2 milestone is implemented, deployed, and verified in
+production. It
 uses approved Product Brief `01a0376d-1e97-7874-a46e-392c867593dd` and completed
 Ad batch `01a03794-acfa-7a2a-830b-5bf6bd54e953` to build one immutable,
 idempotent `StudioSampleSet` containing exactly five ordered Instagram-square
@@ -73,7 +74,7 @@ enforcing worker before the Studio-capable API and restores API before worker.
 - Populated `001`/`002` through `003`/`004` migration verification and a fresh
   PostgreSQL 16 schema pass at 31 application tables; the independent platform
   fixture is unchanged.
-- Validation's built-runtime suite passes 48 tests. Focused API/provider/
+- Validation's built-runtime suite passes 50 tests. Focused API/provider/
   renderer coverage includes five ordered angles, exact offer/CTA, truthful alt
   text, clean JPEGs, Unicode overflow, crop/focal controls, logo transparency
   and containment, deterministic ZIPs, ETags, template idempotency, wizard
@@ -95,25 +96,40 @@ enforcing worker before the Studio-capable API and restores API before worker.
 
 ## Production state
 
-This milestone is not deployed yet. Production still serves the prior
-in-place application release `learned-reruns-311dae9`, the Owner Console cache
-`ptw-shell-v35-simple-jobs`, and independent platform release
-`phase1-5f47722-6ed6d8d`. The existing completed Product Brief, batch, five Ad
-Creatives, assets, feedback, lessons, and graph history remain authoritative.
-No production reset has run for this milestone.
+Production serves application release `studio-wizard-8cb687f` from commit
+`8cb687f39ed0873b91288e0d03c4f148afee0216`, Owner Console cache
+`ptw-shell-v40-studio-share-posts`, and independent platform commit
+`7ec2b6e4a4dd05f9aa277850d48d021fc65b7cf4`. The serial in-place release passed
+fresh five-mode bridge canaries, authenticated generated-asset digest/ETag
+checks, Pexels, schema, dependency, service health, restart, 1 GB resource,
+frontend build, Firebase Hosting, and public-console audits.
 
-The release gate that remains is operational rather than architectural: commit
-and push both clean repositories, build pinned Linux/amd64 application and
-platform images off-host, run the live five-mode bridge and Pexels canaries,
-deploy in place, create the selected real sample set, visually inspect all five
-authoritative JPEGs and the downloaded share ZIP, and then record the resulting
-release tag and sample-set UUID here.
+The authoritative production sample set is
+`01a038ff-66eb-7ef9-94a8-20201a7526fd`. Its deterministic share ZIP SHA-256 is
+`884b9ee1fe254fc4fdc3de5e34c968970642f0ce4e21f363c9868e4638cc919f`.
+It contains the five ordered 1080 x 1080 JPEGs, five captions, five alt-text
+files, and the attribution/lineage manifest. Database acceptance confirms one
+completed set for the selected batch, five distinct angles, 41 distinct frame
+instance UUIDs, the exact protected offer and CTA on every root recipe, the
+three required Pexels IDs, the canonical Natal logo, two reviewed generated
+graphics with complete provenance, and no references to `34183731` or
+`32446190`.
+
+Live Wizard proposal `01a03913-eef8-7f72-b69f-cc16503d87fb` changed only the
+selected emotional headline font size to 68 in preview. Preview preserved root
+recipe digest `ee749d3f4961c61e7610dd3e73d936adde395d1d42221e7071b1ea114ce13144`.
+Apply created child recipe `01a03915-594d-73ee-a7e2-13a1b2ae5e66` and render
+`01a03915-594d-7fc5-af8a-fcf4232e539b`; repeated Apply returned those same IDs.
+After a Validation service restart, the applied proposal, preview ETag/digest,
+child recipe, and render history reloaded from PostgreSQL.
+
+The prior completed Product Brief, batch, five Ad Creatives, assets, feedback,
+lessons, and graph history remain authoritative. No production reset ran.
 
 ## Next work
 
-Complete the release gate above. After acceptance, normal owner work is to edit
-a sample, review wizard proposals before Apply, publish only deliberate
-training examples, and capture feedback through the existing append-only
-lesson flow. Landing remains a dormant Stage 3 placeholder. Ad publication,
-campaigns, traffic purchase, UTMs, analytics, and automatic social posting are
-out of scope.
+Normal owner work is to edit a sample, review Wizard proposals before Apply,
+publish only deliberate training examples, and capture feedback through the
+existing append-only lesson flow. Landing remains a dormant Stage 3
+placeholder. Ad publication, campaigns, traffic purchase, UTMs, analytics,
+and automatic social posting are out of scope.

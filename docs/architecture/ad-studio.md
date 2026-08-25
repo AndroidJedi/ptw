@@ -1,7 +1,7 @@
 # PTW Ad Studio
 
-Status: Studio v2 and the first five-post sample-set rollout are implemented
-locally beside the existing five-Ad generator; production verification pending
+Status: Studio v2 and the first five-post sample-set rollout are deployed and
+verified in production beside the unchanged five-Ad generator
 Updated: 2026-08-25
 
 ## Boundary

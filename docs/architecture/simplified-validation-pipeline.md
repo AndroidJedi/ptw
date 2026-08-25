@@ -1,6 +1,6 @@
 # PTW Simplified Validation Pipeline — Phase 1
 
-Status: Phase 1 is deployed; Validation Projects and additive Ad Studio are implemented locally
+Status: Phase 1, Validation Projects, and additive Ad Studio are deployed
 Updated: 2026-08-25
 
 ## Scope

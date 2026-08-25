@@ -10,7 +10,7 @@ deployed milestone replaces per-proposal Save/Plan/Dismiss controls with one
 combined lesson action: every feedback and proposal UUID remains append-only,
 while all
 pending proposals in one generator domain share one editable lesson and one
-Plan/Execute command. Production application images are built from `a49d663`.
+Plan/Execute command. Production application images are built from `477ebd2`.
 The independent platform checkout
 remains unchanged at its release-transfer guard `6ed6d8d`:
 
@@ -18,12 +18,11 @@ remains unchanged at its release-transfer guard `6ed6d8d`:
 raw idea → Product Brief → owner approval → five Ad Creatives
 ```
 
-The latest local incident correction replaces the Admin checkbox-like cancel
+The latest deployed incident correction replaces the Admin checkbox-like cancel
 icon with labelled Run, Restore, and confirmed Cancel controls, makes full job
 details available for every status, and prevents cancellation/planner races.
 Unexecuted failed or cancelled lesson commands can restore the preserved plan
-or regenerate it while restoring the complete linked proposal group. It is
-verified locally and pending a no-reset application release.
+or regenerate it while restoring the complete linked proposal group.
 
 Marketing Positioning and the Ads stub have been replaced by the
 `validation_pipeline` runtime. Its only structured bridge modes are
@@ -87,8 +86,7 @@ Landing, Idea, Branding, and Ads tables are absent.
   WebKit. Failed/recovered batch panels and malformed authenticated-image
   resources are covered. Build-time source checks and computed-style assertions
   enforce the monochrome chrome invariant. The live service-worker cache is
-  `ptw-shell-v32-grouped-owner-lessons`; the verified pending incident release
-  uses `ptw-shell-v33-safe-job-controls`. The built module
+  `ptw-shell-v33-safe-job-controls`. The built module
   graph contains no retired Positioning/Landing route.
 - Canonical Product Brief and Ad Creative skills pass the Skill Creator
   validator; the PTW skill/link/mount validator passes. The retired Marketing
@@ -99,8 +97,8 @@ Landing, Idea, Branding, and Ads tables are absent.
   complete suite passes 84 tests and its capabilities expose the three new
   modes while rejection tests cover the retired modes.
 - The three application Linux/amd64 images and checksum-bearing archives were
-  rebuilt from the clean `a49d663` commit with pinned non-`latest` tag
-  `grouped-lessons-a49d663`. The independent platform API and worker remain on
+  rebuilt from the clean `477ebd2` commit with pinned non-`latest` tag
+  `safe-jobs-477ebd2`. The independent platform API and worker remain on
   the previously verified `phase1-5f47722-6ed6d8d` release.
 - Shell syntax checks, Python compilation, `git diff --check`, and release
   script guards pass. Landing-specific suites were intentionally not run.
@@ -112,7 +110,7 @@ Landing, Idea, Branding, and Ads tables are absent.
 
 The owner-authorized Simplified Validation Phase 1 cutover completed on
 2026-08-24. Commander, Validation, and Owner Gateway now use matching
-Linux/amd64 images tagged `grouped-lessons-a49d663`, built from `a49d663`; the
+Linux/amd64 images tagged `safe-jobs-477ebd2`, built from `477ebd2`; the
 production checkout includes this documentation checkpoint. The independent
 platform repository remains at `6ed6d8d`, and its API and worker remain on
 `phase1-5f47722-6ed6d8d`. Two fresh strict canaries passed for `product_brief`,
@@ -127,6 +125,10 @@ After an ambiguous square cancel control was pressed on Ad lesson command
 was recovered from immutable command events. The exact plan digest
 `f628d4b6fb28…` is restored in `awaiting_approval`, and its four linked Ad
 proposals are restored together in `planning`; it is ready for owner execution.
+The no-reset safe-job release preserved the complete command/event fingerprint,
+the four proposal rows, and every existing feedback, weight, proposal, and Ad
+asset row. The restored command remains `awaiting_approval` after restart with
+zero executions and the same digest.
 
 The confirmation-gated Phase 1 reset replaced only `ptw_commander.public` and
 established 19 application tables plus the migration metadata table. Production
@@ -148,7 +150,7 @@ fingerprints exactly. All five creative bytes, digests, and decodable 1080×1080
 JPEGs were also reverified. The platform bridge was neither rebuilt nor
 restarted.
 
-The public audit passes the cache-busted v32 grouped-owner-lessons bundle,
+The public audit passes the cache-busted v33 safe-job-controls bundle,
 Auth/App Check, exact CORS origin, unauthenticated rejection, Product
 Brief/Ads/Landing/Admin markers, and retired-route 404s. A real exact-owner
 signed-in Stage 1–2 browser journey remains the final interactive acceptance item.
@@ -164,7 +166,7 @@ operation guard, and exactly two notification audit events.
 All five authoritative creative assets independently pass stored-byte,
 SHA-256, 1080×1080 JPEG decode, internal HTTP media-type, ETag, and byte-
 equality checks before and after restart. A reported malformed inline PNG is
-not emitted by PTW. The live v32 Owner Console surfaces HTTP/MIME/integrity/
+not emitted by PTW. The live v33 Owner Console surfaces HTTP/MIME/integrity/
 ETag/browser-decode reasons with Creative UUID and a bounded retry. CORS exposes
 the authoritative ETag and Content-Length to the exact owner origins. The
 immediate 1 GB/OOM audit passes, the previous Telegram audit count is unchanged,
@@ -172,7 +174,8 @@ and a fresh 24-hour resource audit is scheduled for the grouped-lesson release.
 
 ## Next work
 
-Complete the exact-owner signed-in desktop/360 px journey: create and correct a
+Run the restored Ad owner lesson from Admin → Jobs → Run lesson. Complete the
+exact-owner signed-in desktop/360 px journey: create and correct a
 Brief, approve its promise/offer, inspect five authenticated Ads and attribution,
 submit feedback, and inspect dormant Landing and Admin. Review the scheduled
 24-hour resource audit. Stage 3 Landing, traffic, publishing, campaigns, UTMs,

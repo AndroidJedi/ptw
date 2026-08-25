@@ -433,6 +433,93 @@ def _v2_submission(value: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _strict_revision_value_schema(value: Any) -> dict[str, Any]:
+    """Describe the existing V2 value shape without permitting untyped objects."""
+    if value is None:
+        return {"type": "null"}
+    if isinstance(value, bool):
+        return {"type": "boolean"}
+    if isinstance(value, int):
+        return {"type": "integer"}
+    if isinstance(value, float):
+        return {"type": "number"}
+    if isinstance(value, str):
+        return {"type": "string"}
+    if isinstance(value, list):
+        if not value:
+            return {"type": "array", "items": {"type": "string"}, "maxItems": 0}
+        item_types = {_strict_revision_value_schema(item).get("type") for item in value}
+        items = (
+            _strict_revision_value_schema(value[0])
+            if len(item_types) == 1 and not isinstance(value[0], Mapping)
+            else {"anyOf": [_strict_revision_value_schema(item) for item in value]}
+        )
+        return {
+            "type": "array", "items": items,
+            "minItems": len(value), "maxItems": len(value),
+        }
+    if isinstance(value, Mapping):
+        properties = {str(key): _strict_revision_value_schema(item) for key, item in value.items()}
+        return {
+            "type": "object", "additionalProperties": False,
+            "required": list(properties), "properties": properties,
+        }
+    raise TypeError("Studio revision schema encountered an unsupported value")
+
+
+def studio_recipe_revision_output_schema(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Build one strict structured-output contract for an existing V2 recipe."""
+    document = _v2_submission(value)
+
+    def instance_schema(item: Mapping[str, Any]) -> dict[str, Any]:
+        schema = _strict_revision_value_schema(item)
+        schema["properties"]["instance_id"] = {
+            "type": "string", "enum": [str(item["instance_id"])],
+        }
+        schema["properties"]["tool_id"] = {
+            "type": "string", "enum": [str(item["tool_id"])],
+        }
+        return schema
+
+    document_schema = _strict_revision_value_schema(document)
+    for name in ("frames", "modifiers"):
+        items = document[name]
+        document_schema["properties"][name] = {
+            "type": "array", "minItems": len(items), "maxItems": len(items),
+            "items": (
+                {"anyOf": [instance_schema(item) for item in items]}
+                if items else {
+                    "type": "object", "additionalProperties": False,
+                    "required": [], "properties": {},
+                }
+            ),
+        }
+    targets = [
+        *[f'frames/{item["instance_id"]}' for item in document["frames"]],
+        *[f'modifiers/{item["instance_id"]}' for item in document["modifiers"]],
+        "share",
+    ]
+    return {
+        "type": "object", "additionalProperties": False,
+        "required": ["patch", "document"],
+        "properties": {
+            "patch": {
+                "type": "array", "minItems": 1, "maxItems": 32,
+                "items": {
+                    "type": "object", "additionalProperties": False,
+                    "required": ["op", "target", "summary"],
+                    "properties": {
+                        "op": {"type": "string", "enum": ["replace"]},
+                        "target": {"type": "string", "enum": targets},
+                        "summary": {"type": "string", "minLength": 1, "maxLength": 500},
+                    },
+                },
+            },
+            "document": document_schema,
+        },
+    }
+
+
 def recipe_tools(value: Mapping[str, Any]) -> list[dict[str, Any]]:
     """Expose one renderer view across the immutable V1 and V2 contracts."""
     if int(value.get("schema_version") or 1) == 1:

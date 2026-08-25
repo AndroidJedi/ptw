@@ -22,6 +22,7 @@ from validation_pipeline.studio import (
     build_manifest,
     build_sample_documents,
     inspect_media,
+    studio_recipe_revision_output_schema,
     tool_catalog,
     validate_brand_kit,
     validate_recipe_revision_diff,
@@ -72,6 +73,44 @@ def recipe(**changes):
 
 
 class StudioContractTests(unittest.TestCase):
+    def test_wizard_revision_output_schema_types_every_object_and_existing_instance(self) -> None:
+        approved = {"offer": "Free first consultation", "cta": "Book a call"}
+        value = {
+            "schema_version": 2, "parent_recipe_id": None,
+            "placement_tool_id": "studio.placement.instagram.feed_square.v1",
+            "duration_seconds": None, "frame_rate": None,
+            "frames": recipe()["tools"], "modifiers": [],
+            "strategy_ids": ["studio.strategy.one_message.v1"],
+            "validation_ids": list(DEFAULT_GUARDS),
+            "source_reference_ids": [COLOR_SOURCE, ADS_SOURCE],
+            "share": {"caption": "A clear caption", "alt_text": "A clear visual"},
+        }
+        contract = StudioRecipeV2.from_dict(
+            value, project_id=PROJECT_ID, brief_id=BRIEF_ID,
+            brand_kit_id=KIT_ID, brief=approved,
+        )
+        schema = studio_recipe_revision_output_schema(contract.value)
+
+        def assert_strict(node: Any) -> None:
+            if isinstance(node, dict):
+                if node.get("type") == "object":
+                    self.assertIs(node.get("additionalProperties"), False)
+                    self.assertEqual(set(node.get("properties") or {}), set(node.get("required") or []))
+                for child in node.values():
+                    assert_strict(child)
+            elif isinstance(node, list):
+                for child in node:
+                    assert_strict(child)
+
+        assert_strict(schema)
+        frame_variants = schema["properties"]["document"]["properties"]["frames"]["items"]["anyOf"]
+        self.assertEqual(
+            {OFFER_ID, CTA_ID},
+            {item["properties"]["instance_id"]["enum"][0] for item in frame_variants},
+        )
+        patch = schema["properties"]["patch"]["items"]
+        self.assertEqual(["replace"], patch["properties"]["op"]["enum"])
+
     def test_catalog_has_immutable_ids_and_complete_registry_fields(self) -> None:
         catalog = tool_catalog()
         ids = [item["tool_id"] for item in catalog["items"]]
@@ -280,17 +319,18 @@ class StudioRenderTests(unittest.TestCase):
             "brand_kit_id": KIT_ID,
             "document": {"colors": ["#101010", "#FFFFFF", "#4466AA", "#F0C040"], "fonts": ["Inter"]},
         }
-        canvas = StudioRenderer(font_path=Path("natal/assets/inter.ttf"))._canvas(
-            contract.value, kit, {},
-        )
-        # The cyan button has no near-black pixels of its own.  A meaningful
-        # population inside the CTA frame proves the label survived the shape
-        # composite rather than accepting a blank share button.
-        dark_pixels = sum(
-            1 for red, green, blue in canvas.crop((86, 886, 626, 994)).getdata()
-            if red < 80 and green < 80 and blue < 80
-        )
-        self.assertGreater(dark_pixels, 50)
+        renderer = StudioRenderer(font_path=Path("natal/assets/inter.ttf"))
+        for attempt in range(6):
+            with self.subTest(attempt=attempt):
+                canvas = renderer._canvas(contract.value, kit, {})
+                # The cyan button has no near-black pixels of its own.  A
+                # meaningful population inside the CTA frame proves the label
+                # survived the shape composite on every consecutive render.
+                dark_pixels = sum(
+                    1 for red, green, blue in canvas.crop((86, 886, 626, 994)).getdata()
+                    if red < 80 and green < 80 and blue < 80
+                )
+                self.assertGreater(dark_pixels, 50)
 
     def test_image_inspection_render_metadata_and_manifest_agree(self) -> None:
         from PIL import Image

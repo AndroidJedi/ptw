@@ -18,25 +18,50 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
-## 2026-08-25: Studio CTA labels disappeared after RGB compositing
+## 2026-08-25: real Studio Wizard revision failed beyond the minimal canary
+
+- Symptom: the deployed `ad_studio_recipe_revision` canary passed, but two
+  selected-headline Wizard previews returned 409 after the platform jobs failed
+  during structured model execution. Neither attempt persisted a proposal or
+  changed the root recipe.
+- Cause: the canary used a small fully typed schema, while the real Wizard
+  schema left `patch.items` and `document` as unconstrained objects. The Codex
+  structured-output boundary rejected that production schema before returning
+  model content.
+- Durable fix: the Wizard now builds a strict schema from the immutable V2
+  recipe instance. Every object forbids additional properties and requires its
+  declared fields; frame and modifier variants retain existing instance/tool
+  IDs and cardinality; patch entries have typed replace/target/summary fields.
+  Server-side diff, component-scope, exact offer/CTA, Project, and lineage
+  validation remain independent of model output. The incident skill now
+  requires a real recipe-shaped Wizard canary, not only a minimal mode canary.
+- Verification: the recursive strict-schema regression and all 50 Validation
+  unit tests pass in the Linux/amd64 runtime image. Live preview non-mutation,
+  Apply-once, and restart-history verification are pending the in-place fix.
+
+## 2026-08-25: combined Studio inspection mis-displayed repeated CTA regions
 
 - Symptom: production sample-set creation completed with valid recipes,
-  manifests, and 1080×1080 JPEGs, but visual inspection found blank cyan CTA
-  buttons in two of the five exports. Re-rendering an unchanged recipe could
-  restore the label, proving that copy validation alone did not cover the
-  failure.
-- Cause: the Pillow renderer retained an `ImageDraw` context across an RGB
-  `canvas.paste` used to composite the button shape. The paste can detach the
-  context from the live image core, so the immediately following CTA text was
-  written nondeterministically to stale image state.
-- Durable fix: every media/logo and RGB shape paste now rebinds `ImageDraw` to
-  the live canvas. A pixel-level regression requires near-black foreground
-  pixels inside a cyan CTA frame after the composite. The Owner Console
-  incident skill now treats a visible container without its label as a release
-  blocker and requires authoritative visual plus pixel acceptance.
-- Verification: the focused pixel regression and all 49 Validation unit tests
-  pass in the Linux/amd64 runtime image. Production hotfix, sample-set rebuild,
-  and five-image visual reinspection are pending.
+  manifests, and 1080×1080 JPEGs, while a combined five-image inspection
+  response appeared to replace alternating CTA labels with dark rectangles.
+  Opening the same files in different response positions changed which labels
+  appeared absent.
+- Cause: the inspection presentation mis-composited repeated CTA regions. The
+  stored JPEGs were not corrupt: Pillow and ffmpeg independently decoded the
+  complete CTA crops to identical pixel hashes, and OCR read the same two-line
+  CTA from every file. A first diagnosis incorrectly attributed the display to
+  a stale Pillow drawing context.
+- Durable fix: Studio acceptance now verifies authoritative bytes, decoded crop
+  hashes, OCR/pixel structure, and one-at-a-time views before classifying a
+  render defect. The renderer still defensively rebinds `ImageDraw` after RGB
+  composites, with a repeated-render pixel regression, but inspection chrome
+  alone is no longer evidence that persisted output changed.
+- Verification: the focused repeated-render regression and all 49 Validation
+  unit tests pass in the Linux/amd64 runtime image. The in-place release passed
+  fresh five-mode bridge, Pexels, schema, dependency, restart, resource, and
+  public-console audits. All five replacement JPEGs are 1080×1080, their ZIP
+  matches its declared SHA-256, and independent ffmpeg crop hashes plus OCR
+  confirm the exact CTA in every export.
 
 ## 2026-08-25: Studio graphic canary rejected the current Codex trace shape
 

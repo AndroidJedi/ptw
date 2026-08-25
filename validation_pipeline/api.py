@@ -20,7 +20,7 @@ from .repository import ValidationRepository
 from .service import ValidationRunner, validate_create_input, validate_revision_input
 from .studio import (
     MAX_VIDEO_BYTES, StudioRenderer, _v2_submission, inspect_media,
-    tool_catalog,
+    studio_recipe_revision_output_schema, tool_catalog,
 )
 
 
@@ -176,7 +176,8 @@ def create_app(
                 skill_snapshot
                 + "\nReturn one bounded typed recipe revision. Preserve exact offer and CTA text. "
                   "Return only the requested JSON object. Use only IDs already present in the recipe, "
-                  "plus exactly generated_source_asset_id when it is non-null."
+                  "plus exactly generated_source_asset_id when it is non-null. Each patch entry must "
+                  "use op=replace, one schema-listed target, and a concise summary."
             ),
             input_payload={
                 "recipe": _v2_submission(recipe), "instruction": instruction,
@@ -187,14 +188,7 @@ def create_app(
                 "project_sources": project_sources,
                 "tool_catalog": tool_catalog(),
             },
-            output_schema={
-                "type": "object", "additionalProperties": False,
-                "required": ["patch", "document"],
-                "properties": {
-                    "patch": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"type": "object"}},
-                    "document": {"type": "object"},
-                },
-            },
+            output_schema=studio_recipe_revision_output_schema(recipe),
         )
         response = revision["response"]
         if set(response) != {"patch", "document"} or not isinstance(response["patch"], list) or not isinstance(response["document"], Mapping):

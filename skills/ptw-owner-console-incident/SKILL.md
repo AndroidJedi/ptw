@@ -31,11 +31,18 @@ healthy gateway alone does not prove Stage 1–2 readiness.
   render, then verify pixel-based Unicode wrapping, auto-fit bounds, frame
   clipping, media fit/focal settings, and protected offer/CTA overflow. Never
   mask the incident by truncating the approved offer or CTA.
-- A visible CTA container does not prove the CTA rendered. After any Pillow
-  paste/composite into an RGB canvas, rebind the drawing context before the
-  next text layer. Acceptance must inspect the authoritative export and assert
-  foreground-text pixels inside every offer/CTA frame; a blank colored button
-  blocks the release even when the recipe and manifest contain the exact copy.
+- A visible CTA container does not by itself prove the CTA rendered, but a
+  multi-image inspection surface can also mis-composite repeated regions. Read
+  the authoritative bytes independently, compare decoded crop hashes, and run
+  OCR/pixel assertions before classifying stored output as corrupt. After any
+  Pillow paste/composite into an RGB canvas, rebind the drawing context before
+  the next text layer. A genuinely blank exported button still blocks release.
+- A minimal Studio-mode canary does not prove a real Wizard revision schema.
+  Every object in the bridge output schema, including patch items and the full
+  recipe document, must declare typed properties, the complete required set,
+  and `additionalProperties: false`. Bind frame/modifier variants to existing
+  instance and tool IDs, then keep server-side scope, lineage, offer, and CTA
+  validation authoritative after model output.
 - PTW Ad images are fetched as authenticated `image/jpeg` responses and shown
   through browser `blob:` URLs; they are not inline `data:image/png` resources.
   For a load incident, first validate stored bytes, SHA-256, dimensions, HTTP

@@ -16,7 +16,7 @@ CREATIVE_ID = "018f07ea-7f20-7000-8000-000000000001"
 
 
 class FakeRepository:
-    def __init__(self): self.grouped = None
+    def __init__(self): self.grouped = None; self.restored = None
     def recover_interrupted(self): return {"briefs": 0, "batches": 0}
     def connection(self): raise AssertionError("readiness DB is not used in this test")
     def image(self, _creative_id): return {"bytes": b"jpeg-fixture", "sha256": "a" * 64, "mime_type": "image/jpeg"}
@@ -24,6 +24,9 @@ class FakeRepository:
     def plan_proposals(self, domain, proposal_ids, *, command_session_id):
         self.grouped = (domain, proposal_ids, command_session_id)
         return {"command_session_id": command_session_id, "items": []}
+    def restore_proposals(self, command_session_id):
+        self.restored = command_session_id
+        return {"matched": True, "command_session_id": command_session_id, "proposal_count": 2}
 
 
 class FakeRunner:
@@ -99,6 +102,14 @@ class ValidationApiTests(unittest.TestCase):
         )
         self.assertEqual(200, response.status_code)
         self.assertEqual(("ad_creative", proposal_ids, command_session_id), self.repository.grouped)
+
+        restored = self.client.post(
+            f"/internal/v1/skill-proposals/by-command/{command_session_id}/restore",
+            headers=self.headers,
+            json={},
+        )
+        self.assertEqual(200, restored.status_code)
+        self.assertEqual(command_session_id, self.repository.restored)
 
 
 if __name__ == "__main__":

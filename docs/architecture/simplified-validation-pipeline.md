@@ -124,6 +124,14 @@ lesson. One action places every included proposal into `planning` under the
 same command-session UUID; one successful execution promotes them together and
 updates only that generator's `owner-lessons.md`.
 
+Admin exposes the complete instruction, plan, error, and state for every lesson
+job. A ready plan has one labelled Run action. Cancellation is limited to active
+work, uses a labelled control plus explicit browser and server confirmation,
+and cannot turn a later planner result into a false failure. An unexecuted
+failed or cancelled command can restore the same completed plan, or regenerate
+one when no completed plan exists, while restoring all linked proposals as one
+atomic group.
+
 A terminal failed Ad batch reserves one append-only audit event and makes at
 most one direct `sendMessage` through the existing allowlisted PTW bot. The
 result is appended as sent, failed, ambiguous, or emergency-stop suppressed;

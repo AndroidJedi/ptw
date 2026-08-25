@@ -809,6 +809,44 @@ class ValidationRepository:
             return {**first, "proposal_count": len(proposal_ids), "items": [proposals[item] for item in proposal_ids]}
         return {"matched": False, "command_session_id": command_session_id, "status": status}
 
+    def restore_proposals(self, command_session_id: str) -> dict[str, Any]:
+        session_uuid = UUID(command_session_id)
+        matches: list[tuple[str, str, list[tuple[Any, ...]]]] = []
+        with self.connection() as connection:
+            for domain, table in (
+                ("product_brief", "product_brief_skill_proposals"),
+                ("ad_creative", "ad_creative_skill_proposals"),
+            ):
+                rows = connection.execute(
+                    f"SELECT id,status FROM {table} WHERE command_session_id=%s FOR UPDATE",
+                    (session_uuid,),
+                ).fetchall()
+                if rows:
+                    matches.append((domain, table, rows))
+            if len(matches) > 1:
+                raise ValueError("one command session cannot restore proposals from multiple domains")
+            if not matches:
+                return {"matched": False, "command_session_id": command_session_id}
+            domain, table, rows = matches[0]
+            if any(row[1] != "failed" for row in rows):
+                raise ValueError("only a wholly failed proposal group can be restored")
+            changed = connection.execute(
+                f"""UPDATE {table} SET status='planning',updated_at=clock_timestamp()
+                    WHERE command_session_id=%s AND status='failed'""",
+                (session_uuid,),
+            ).rowcount
+            if changed != len(rows):
+                raise ValueError("all grouped proposals must be restored together")
+        proposals = {item["proposal_id"]: item for item in self.proposals(domain)}
+        proposal_ids = [str(row[0]) for row in rows]
+        return {
+            "matched": True,
+            "domain": domain,
+            "command_session_id": command_session_id,
+            "proposal_count": len(proposal_ids),
+            "items": [proposals[proposal_id] for proposal_id in proposal_ids],
+        }
+
     def recover_interrupted(self) -> dict[str, int]:
         with self.connection() as connection:
             briefs = connection.execute(

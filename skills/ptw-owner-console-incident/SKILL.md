@@ -49,7 +49,14 @@ healthy gateway alone does not prove Stage 1–2 readiness.
   WeightUpdate entities with `evaluates` and `adjusts` edges; create only a
   pending editable lesson proposal.
 - Admin: keep Jobs, Docs/System, emergency stop, reset phrase, and break-glass
-  terminal owner-authenticated.
+  terminal owner-authenticated. Every job must expose its instruction, plan,
+  error, and status through an explicit details control. Use labelled Run,
+  Restore, and Cancel actions; never represent cancellation with an ambiguous
+  checkbox-like icon. Cancellation requires both a browser confirmation and a
+  server-validated confirmation payload, applies only to an active job, and
+  must not race a completed planner result into a false failed state. An
+  unexecuted failed or cancelled lesson plan may restore its preserved plan or
+  regenerate it while restoring every linked proposal as one atomic group.
 
 ## Failure handling
 

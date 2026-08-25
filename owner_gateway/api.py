@@ -194,17 +194,23 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             store.event(session_id, event)
         try:
             plan = await planner.plan(instruction, sink)
+            if store.command(session_id)["status"] != "planning":
+                store.event(session_id, {"type": "plan.discarded_after_cancel"})
+                return
             store.set_plan(session_id, plan)
         except Exception as error:
-            store.update(session_id, "failed", error=f"{type(error).__name__}: {str(error)[:1000]}")
-            store.event(session_id, {"type": "plan.failed", "error": type(error).__name__})
-            try:
-                await validation_bridge(
-                    "POST", f"/internal/v1/skill-proposals/by-command/{session_id}/finish",
-                    body={"status": "failed"},
-                )
-            except HTTPException:
-                pass
+            if store.command(session_id)["status"] == "cancelled":
+                store.event(session_id, {"type": "plan.discarded_after_cancel"})
+            else:
+                store.update(session_id, "failed", error=f"{type(error).__name__}: {str(error)[:1000]}")
+                store.event(session_id, {"type": "plan.failed", "error": type(error).__name__})
+                try:
+                    await validation_bridge(
+                        "POST", f"/internal/v1/skill-proposals/by-command/{session_id}/finish",
+                        body={"status": "failed"},
+                    )
+                except HTTPException:
+                    pass
         finally:
             await asyncio.to_thread(release_operation, session_id)
 
@@ -599,23 +605,74 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             background(execute_and_release(session_id))
             return command
 
+    @app.post("/api/v1/jobs/{session_id}/restore", status_code=202)
+    async def restore_command_plan(
+        session_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        require_running()
+        async with operation_start_lock:
+            require_no_active_operation()
+            proposal_result: dict[str, Any] | None = None
+            command_restored = False
+            try:
+                existing = store.command(session_id)
+                if existing["status"] not in {"failed", "cancelled"} or existing["execution_count"] != 0:
+                    raise ValueError("only an unexecuted failed or cancelled plan can be restored")
+                proposal_result = (await validation_bridge(
+                    "POST", f"/internal/v1/skill-proposals/by-command/{session_id}/restore",
+                    body={},
+                )).json()
+                command = store.restore_plan(session_id)
+                command_restored = True
+                if command["status"] == "planning":
+                    acquire_operation("codex_plan", session_id)
+                    background(plan_and_release(session_id, command["instruction"]))
+                return {**command, "restored_proposal_count": proposal_result.get("proposal_count", 0)}
+            except KeyError as error:
+                raise HTTPException(status_code=404, detail="command session not found") from error
+            except (ValueError, HTTPException) as error:
+                if command_restored and store.command(session_id)["status"] == "planning":
+                    store.update(session_id, "failed", error="plan restoration could not start")
+                if proposal_result and proposal_result.get("matched"):
+                    try:
+                        await validation_bridge(
+                            "POST", f"/internal/v1/skill-proposals/by-command/{session_id}/finish",
+                            body={"status": "failed"},
+                        )
+                    except HTTPException:
+                        pass
+                if isinstance(error, ValueError):
+                    raise HTTPException(status_code=409, detail=str(error)) from error
+                raise
+
     @app.post("/api/v1/jobs/{session_id}/cancel")
     @app.post("/api/v1/command-sessions/{session_id}/cancel")
     async def cancel_command(
-        session_id: str, _identity: OwnerIdentity = Depends(owner)
+        session_id: str,
+        request: Mapping[str, Any],
+        _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, bool]:
+        if set(request) != {"confirmation"} or request.get("confirmation") != "CANCEL JOB":
+            raise HTTPException(status_code=412, detail="cancellation requires explicit confirmation")
         try:
-            await runner.cancel(session_id)
-            await asyncio.to_thread(release_operation, session_id)
-            try:
-                await validation_bridge(
-                    "POST", f"/internal/v1/skill-proposals/by-command/{session_id}/finish",
-                    body={"status": "failed"},
-                )
-            except HTTPException:
-                pass
+            async with operation_start_lock:
+                command = store.command(session_id)
+                if command["status"] not in {"planning", "queued", "running", "cancel_requested"}:
+                    raise ValueError("only an active job can be cancelled")
+                await runner.cancel(session_id)
+                if command["status"] != "planning":
+                    await asyncio.to_thread(release_operation, session_id)
+                try:
+                    await validation_bridge(
+                        "POST", f"/internal/v1/skill-proposals/by-command/{session_id}/finish",
+                        body={"status": "failed"},
+                    )
+                except HTTPException:
+                    pass
         except KeyError as error:
             raise HTTPException(status_code=404, detail="command session not found") from error
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
         return {"cancelled": True}
 
     @app.post("/api/v1/ws-tickets")

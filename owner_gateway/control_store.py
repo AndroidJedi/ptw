@@ -206,6 +206,44 @@ class ControlStore:
         self.event(session_id, {"type": "plan.approved", "plan_digest": digest})
         return self.command(session_id)
 
+    def restore_plan(self, session_id: str) -> dict[str, Any]:
+        """Restore an unexecuted failed/cancelled plan without losing its history."""
+
+        with self.connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT * FROM command_sessions WHERE id=?", (session_id,)
+            ).fetchone()
+            if row is None:
+                raise KeyError(session_id)
+            if row["status"] not in {"failed", "cancelled"} or row["execution_count"] != 0:
+                raise ValueError("only an unexecuted failed or cancelled plan can be restored")
+            active = connection.execute(
+                """SELECT id,status FROM command_sessions
+                   WHERE id<>? AND status IN ('planning','queued','running','cancel_requested')
+                   ORDER BY created_at LIMIT 1""",
+                (session_id,),
+            ).fetchone()
+            if active is not None:
+                raise ValueError(
+                    f"Codex operation {active['id']} is already active ({active['status']})"
+                )
+            has_plan = bool(row["plan"] and row["plan_digest"])
+            if bool(row["plan"]) != bool(row["plan_digest"]):
+                raise ValueError("stored plan and digest are inconsistent")
+            status = "awaiting_approval" if has_plan else "planning"
+            connection.execute(
+                "UPDATE command_sessions SET status=?,error=NULL,updated_at=? WHERE id=?",
+                (status, self.now(), session_id),
+            )
+        restored = self.command(session_id)
+        self.event(session_id, {
+            "type": "plan.restored",
+            "reused_completed_plan": has_plan,
+            "plan_digest": restored.get("plan_digest"),
+        })
+        return restored
+
     def update(self, session_id: str, status: str, **values: Any) -> None:
         allowed = {"platform_job_id", "error"}
         if not set(values).issubset(allowed):

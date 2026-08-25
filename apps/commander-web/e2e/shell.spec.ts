@@ -198,7 +198,7 @@ test('owner completes Product Brief and five-Ad validation journey', async ({ pa
   await expect(page.getByRole('heading', { name: 'Stage 3 pending' })).toBeVisible()
   await expectMonochromeChrome(page)
   await page.getByRole('button', { name: 'Admin' }).first().click()
-  await expect(page.getByRole('heading', { name: 'Завдання' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Jobs' })).toBeVisible()
   await expectMonochromeChrome(page)
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })

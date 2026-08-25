@@ -14,7 +14,8 @@ HAS_FASTAPI = importlib.util.find_spec("fastapi") is not None
 if HAS_FASTAPI:
     from fastapi import HTTPException
     from fastapi.middleware.cors import CORSMiddleware
-    from owner_gateway.auth import validate_owner_claims
+    from fastapi.testclient import TestClient
+    from owner_gateway.auth import OwnerIdentity, validate_owner_claims
     from owner_gateway.api import create_app
 
 
@@ -97,6 +98,7 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/briefs/{brief_id}/approve",
             "/api/v1/ad-batches", "/api/v1/ad-creatives/{creative_id}/image",
             "/api/v1/ad-creatives/{creative_id}/feedback", "/api/v1/jobs",
+            "/api/v1/jobs/{session_id}/restore",
             "/api/v1/skill-proposals/{domain}/plan",
             "/api/v1/system/health",
             "/internal/v1/validation-failures",
@@ -124,3 +126,18 @@ class OwnerClaimsTests(unittest.TestCase):
             validate_owner_claims(self.settings, self.claims, {})
         with self.assertRaises(HTTPException):
             validate_owner_claims(self.settings, self.claims, {"app_id": "wrong-app"})
+
+    def test_job_cancel_requires_explicit_server_confirmation(self) -> None:
+        class Verifier:
+            def verify(inner, _token, _app_check):
+                return OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
+
+        client = TestClient(create_app(self.settings, verifier=Verifier()))
+        response = client.post(
+            "/api/v1/jobs/018f07ea-7f20-7000-8000-000000000001/cancel",
+            headers={"Authorization": "Bearer owner", "X-Firebase-AppCheck": "app"},
+            json={},
+        )
+        self.assertEqual(412, response.status_code)
+        self.assertIn("explicit confirmation", response.json()["detail"])
+        client.close()

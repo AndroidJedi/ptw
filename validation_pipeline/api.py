@@ -303,6 +303,13 @@ def create_app(
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
+    @app.post("/internal/v1/skill-proposals/by-command/{command_session_id}/restore", dependencies=[Depends(authorize)])
+    def restore_proposals(command_session_id: str) -> dict[str, Any]:
+        try:
+            return repository.restore_proposals(str(UUID(command_session_id)))
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
     return app
 
 

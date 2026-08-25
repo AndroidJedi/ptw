@@ -53,6 +53,28 @@ class ControlStoreTests(unittest.TestCase):
         replacement = self.store.create_command("plan", "fresh process")
         self.assertEqual("planning", replacement["status"])
 
+    def test_unexecuted_cancelled_or_failed_plan_can_be_restored(self) -> None:
+        completed_plan = self.store.create_command("plan", "prepare lesson")
+        digest = self.store.set_plan(completed_plan["id"], "1. Update one lesson")
+        self.store.update(completed_plan["id"], "cancelled")
+        restored = self.store.restore_plan(completed_plan["id"])
+        self.assertEqual("awaiting_approval", restored["status"])
+        self.assertEqual(digest, restored["plan_digest"])
+
+        failed_plan = self.store.create_command("plan", "prepare another lesson")
+        self.store.update(failed_plan["id"], "failed", error="interrupted")
+        restored_failed = self.store.restore_plan(failed_plan["id"])
+        self.assertEqual("planning", restored_failed["status"])
+        self.assertIsNone(restored_failed["error"])
+
+    def test_executed_plan_cannot_be_restored(self) -> None:
+        command = self.store.create_command("plan", "execute once")
+        digest = self.store.set_plan(command["id"], "1. Run once")
+        self.store.approve_once(command["id"], digest, destructive_allowed=False)
+        self.store.update(command["id"], "failed", error="execution failed")
+        with self.assertRaisesRegex(ValueError, "unexecuted"):
+            self.store.restore_plan(command["id"])
+
     def test_websocket_ticket_is_bound_single_use_and_short_lived(self) -> None:
         ticket = self.store.issue_ticket("owner", "/api/v1/root-sessions")
         self.assertEqual("owner", self.store.consume_ticket(ticket, "/api/v1/root-sessions"))

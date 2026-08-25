@@ -1,13 +1,14 @@
 # Commander current state
 
-Updated: 2026-08-24
+Updated: 2026-08-25
 Branch: `codex/web-only-commander`
 
 ## Last completed milestone
 
 The Simplified Validation Phase 1 implementation is complete. The latest
 deployed milestone replaces per-proposal Save/Plan/Dismiss controls with one
-combined lesson action: every feedback and proposal UUID remains append-only, while all
+combined lesson action: every feedback and proposal UUID remains append-only,
+while all
 pending proposals in one generator domain share one editable lesson and one
 Plan/Execute command. Production application images are built from `a49d663`.
 The independent platform checkout
@@ -16,6 +17,13 @@ remains unchanged at its release-transfer guard `6ed6d8d`:
 ```text
 raw idea → Product Brief → owner approval → five Ad Creatives
 ```
+
+The latest local incident correction replaces the Admin checkbox-like cancel
+icon with labelled Run, Restore, and confirmed Cancel controls, makes full job
+details available for every status, and prevents cancellation/planner races.
+Unexecuted failed or cancelled lesson commands can restore the preserved plan
+or regenerate it while restoring the complete linked proposal group. It is
+verified locally and pending a no-reset application release.
 
 Marketing Positioning and the Ads stub have been replaced by the
 `validation_pipeline` runtime. Its only structured bridge modes are
@@ -65,18 +73,22 @@ Landing, Idea, Branding, and Ads tables are absent.
 - Disposable PostgreSQL 16: three integration tests passed for immutable
   corrections, idempotent approval, atomic five-asset persistence, restart and
   retry behavior, at-most-once failure notification, recovered failure history,
-  graph edges, feedback/weights, proposal promotion, and legacy table absence.
+  graph edges, feedback/weights, atomic proposal failure/restoration/promotion,
+  and legacy table absence.
 - Baseline/reset verification passed twice with 19 application tables and the
   independent platform fixture unchanged at three rows.
-- Owner Gateway built-image suite: 15 active non-Landing tests passed.
+- Owner Gateway production-equivalent image: 18 focused active non-Landing
+  tests passed for auth/CORS, control-store restoration, destructive gates,
+  root-broker boundaries, and existing notification behavior.
 - Commander built-image Telegram boundary: one passed; the deterministic
   `ptw-validation-v1` demo was regenerated successfully.
-- Owner web: 15 Vitest tests, production TypeScript/Vite build, and 15
+- Owner web: 17 Vitest tests, production TypeScript/Vite build, and 15
   Playwright journeys passed on desktop Chromium, 360 px Chromium, and iPhone
   WebKit. Failed/recovered batch panels and malformed authenticated-image
   resources are covered. Build-time source checks and computed-style assertions
   enforce the monochrome chrome invariant. The live service-worker cache is
-  `ptw-shell-v32-grouped-owner-lessons`. The built module
+  `ptw-shell-v32-grouped-owner-lessons`; the verified pending incident release
+  uses `ptw-shell-v33-safe-job-controls`. The built module
   graph contains no retired Positioning/Landing route.
 - Canonical Product Brief and Ad Creative skills pass the Skill Creator
   validator; the PTW skill/link/mount validator passes. The retired Marketing
@@ -109,6 +121,12 @@ Pexels search/download/Natal-render canary passed after the in-place release.
 The live Owner Console exposes only `Plan combined lesson` for pending lesson
 proposals; the retired Save edit, Plan promotion, and Dismiss controls are not
 present in its shipped application bundle.
+
+After an ambiguous square cancel control was pressed on Ad lesson command
+`f520e7f2-9652-46bd-94eb-f7b58d87b32c`, its already completed planner result
+was recovered from immutable command events. The exact plan digest
+`f628d4b6fb28…` is restored in `awaiting_approval`, and its four linked Ad
+proposals are restored together in `planning`; it is ready for owner execution.
 
 The confirmation-gated Phase 1 reset replaced only `ptw_commander.public` and
 established 19 application tables plus the migration metadata table. Production

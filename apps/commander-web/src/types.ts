@@ -282,9 +282,14 @@ export interface Job {
   id: string
   mode: 'plan' | 'execute'
   title: string
+  instruction?: string
   status: string
   destructive?: boolean
   plan?: string
   plan_digest?: string
+  execution_count?: number
+  error?: string | null
+  created_at?: string
+  updated_at?: string
   deployment_revision?: string
 }

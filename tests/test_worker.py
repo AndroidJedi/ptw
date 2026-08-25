@@ -19,6 +19,18 @@ def png_header(width: int = 1254, height: int = 1254) -> bytes:
     )
 
 
+def imagegen_event(arguments: dict | None = None) -> str:
+    return json.dumps({
+        "type": "item.completed",
+        "item": {
+            "type": "mcp_tool_call",
+            "server": "image_gen",
+            "tool": "imagegen",
+            "arguments": arguments or {"prompt": "abstract cyan route"},
+        },
+    })
+
+
 def test_installed_command_detection() -> None:
     assert command_available("python") is True
     assert command_available("ptw-command-that-does-not-exist") is False
@@ -136,6 +148,173 @@ def test_structured_llm_cli_default_omits_model_override(monkeypatch) -> None:
     })
     assert "--model" not in observed["command"]
     assert result["invocation"]["model"] == "codex-cli-default"
+
+
+def test_studio_recipe_revision_is_json_only(monkeypatch, tmp_path: Path) -> None:
+    codex_home = tmp_path / "codex-home"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    def fake_run(command, **_kwargs):
+        output_path = Path(command[command.index("--output-last-message") + 1])
+        output_path.write_text('{"patch":[]}', encoding="utf-8")
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout='{"type":"thread.started","thread_id":"studio-revision-1"}\n',
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    result = execute_structured_llm({
+        "mode": "ad_studio_recipe_revision",
+        "system_prompt": "Propose a typed recipe patch.",
+        "input_payload": {"instruction": "Move the headline left."},
+        "output_schema": {"type": "object"},
+    })
+    assert json.loads(result["response"]) == {"patch": []}
+    assert "image" not in result
+
+
+def test_studio_recipe_revision_rejects_imagegen(monkeypatch, tmp_path: Path) -> None:
+    codex_home = tmp_path / "codex-home"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    def fake_run(command, **_kwargs):
+        output_path = Path(command[command.index("--output-last-message") + 1])
+        output_path.write_text('{"patch":[]}', encoding="utf-8")
+        generated = codex_home / "generated_images" / "studio-revision-image"
+        generated.mkdir(parents=True)
+        (generated / "unexpected.png").write_bytes(png_header())
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout=(
+                '{"type":"thread.started","thread_id":"studio-revision-image"}\n'
+                + imagegen_event() + "\n"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    with pytest.raises(RuntimeError, match="JSON-only"):
+        execute_structured_llm({
+            "mode": "ad_studio_recipe_revision",
+            "system_prompt": "Propose a typed recipe patch.",
+            "input_payload": {},
+            "output_schema": {"type": "object"},
+        })
+    assert not (codex_home / "generated_images" / "studio-revision-image").exists()
+
+
+def test_studio_graphic_uses_exactly_one_imagegen_and_persists_provenance(
+    monkeypatch, tmp_path: Path
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    asset_root = tmp_path / "assets" / "studio-provider"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("STUDIO_PROVIDER_ASSET_DIR", str(asset_root))
+    observed = {}
+
+    def fake_run(command, **kwargs):
+        observed["input"] = kwargs["input"]
+        output_path = Path(command[command.index("--output-last-message") + 1])
+        output_path.write_text('{"generated":true}', encoding="utf-8")
+        generated = codex_home / "generated_images" / "studio-graphic-1"
+        generated.mkdir(parents=True)
+        (generated / "graphic.png").write_bytes(png_header(1080, 1080))
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout=(
+                '{"type":"thread.started","thread_id":"studio-graphic-1"}\n'
+                + imagegen_event() + "\n"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    result = execute_structured_llm({
+        "mode": "ad_studio_graphic_generation",
+        "system_prompt": "Create an abstract cyan route on near-black.",
+        "input_payload": {"template": "curiosity"},
+        "output_schema": {"type": "object"},
+    })
+    image = result["image"]
+    assert image["output_digest"] == image["digest"]
+    assert Path(image["path"]).read_bytes() == png_header(1080, 1080)
+    assert image["provider"] == "codex_chatgpt_imagegen"
+    assert image["requested_model"] == "gpt-image-2"
+    assert image["resolved_model"] == "gpt-image-2"
+    assert image["request_id"] == "studio-graphic-1"
+    assert len(image["prompt_digest"]) == 64
+    assert len(image["tool_trace_digest"]) == 64
+    assert image["generation_policy"]["synthetic_people"] == "prohibited"
+    assert image["generation_policy"]["non_human_graphics_only"] is True
+    assert "Call the built-in $imagegen tool exactly once" in observed["input"]
+    assert "must not contain people" in observed["input"]
+    assert not (codex_home / "generated_images" / "studio-graphic-1").exists()
+
+
+@pytest.mark.parametrize("trace_count", [0, 2])
+def test_studio_graphic_rejects_missing_or_multiple_imagegen_calls(
+    monkeypatch, tmp_path: Path, trace_count: int
+) -> None:
+    codex_home = tmp_path / f"codex-home-{trace_count}"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    def fake_run(command, **_kwargs):
+        output_path = Path(command[command.index("--output-last-message") + 1])
+        output_path.write_text('{"generated":true}', encoding="utf-8")
+        generated = codex_home / "generated_images" / f"studio-traces-{trace_count}"
+        generated.mkdir(parents=True)
+        (generated / "graphic.png").write_bytes(png_header())
+        traces = "".join(imagegen_event() + "\n" for _ in range(trace_count))
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout=(
+                f'{{"type":"thread.started","thread_id":"studio-traces-{trace_count}"}}\n'
+                + traces
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    with pytest.raises(RuntimeError, match="call imagegen exactly once"):
+        execute_structured_llm({
+            "mode": "ad_studio_graphic_generation",
+            "system_prompt": "Generate one abstract graphic.",
+            "input_payload": {},
+            "output_schema": {"type": "object"},
+        })
+
+
+def test_studio_graphic_rejects_multiple_pngs_from_one_call(monkeypatch, tmp_path: Path) -> None:
+    codex_home = tmp_path / "codex-home"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("STUDIO_PROVIDER_ASSET_DIR", str(tmp_path / "assets"))
+
+    def fake_run(command, **_kwargs):
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"generated":true}', encoding="utf-8"
+        )
+        generated = codex_home / "generated_images" / "studio-many-pngs"
+        generated.mkdir(parents=True)
+        (generated / "one.png").write_bytes(png_header())
+        (generated / "two.png").write_bytes(png_header())
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout=(
+                '{"type":"thread.started","thread_id":"studio-many-pngs"}\n'
+                + imagegen_event() + "\n"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    with pytest.raises(RuntimeError, match="exactly one PNG"):
+        execute_structured_llm({
+            "mode": "ad_studio_graphic_generation",
+            "system_prompt": "Generate one abstract graphic.",
+            "input_payload": {},
+            "output_schema": {"type": "object"},
+        })
 
 
 def test_branding_logo_uses_one_builtin_image_and_persists_digest_asset(

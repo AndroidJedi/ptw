@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -10,7 +11,7 @@ from contextlib import asynccontextmanager
 import httpx
 import psycopg
 from psycopg.types.json import Jsonb
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Response
 
 from common.database import apply_migrations, database_url
 from common.events import append_event
@@ -49,10 +50,15 @@ VALIDATION_MODES = frozenset({
     "product_brief_revision",
     "ad_creative_batch",
 })
+STUDIO_MODES = frozenset({
+    "ad_studio_recipe_revision",
+    "ad_studio_graphic_generation",
+})
 STRUCTURED_LLM_MODES = frozenset(
-    GENERIC_STRUCTURED_LLM_MODES | VALIDATION_MODES
+    GENERIC_STRUCTURED_LLM_MODES | VALIDATION_MODES | STUDIO_MODES
 )
 MAX_STRUCTURED_LLM_REQUEST_BYTES = 1_000_000
+MAX_STUDIO_GRAPHIC_BYTES = 10_000_000
 
 
 def validate_structured_llm_request(request: dict) -> None:
@@ -77,8 +83,70 @@ def structured_llm_capabilities() -> dict:
     """Expose authenticated structured and image contracts without queueing work."""
     return {
         "validation_modes": sorted(VALIDATION_MODES),
+        "studio_modes": sorted(STUDIO_MODES),
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
     }
+
+
+def _validated_studio_graphic(result: dict) -> tuple[bytes, str]:
+    """Resolve a completed Studio graphic only from its immutable digest path."""
+    image = result.get("image") if isinstance(result, dict) else None
+    if not isinstance(image, dict):
+        raise ValueError("Studio graphic result has no image")
+    digest = image.get("digest")
+    output_digest = image.get("output_digest")
+    if (
+        not isinstance(digest, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", digest)
+        or output_digest != digest
+        or image.get("mime_type") != "image/png"
+    ):
+        raise ValueError("Studio graphic metadata is invalid")
+    asset_root = Path(
+        os.environ.get("STUDIO_PROVIDER_ASSET_DIR", "/var/lib/ptw/assets/studio-provider")
+    ).resolve()
+    raw_path = image.get("path")
+    if not isinstance(raw_path, str) or not raw_path:
+        raise ValueError("Studio graphic path is invalid")
+    unresolved_path = Path(raw_path)
+    if unresolved_path.is_symlink():
+        raise ValueError("Studio graphic path may not be a symlink")
+    path = unresolved_path.resolve()
+    expected = (asset_root / digest[:2] / f"{digest}.png").resolve()
+    if path != expected or asset_root not in path.parents:
+        raise ValueError("Studio graphic path is outside its asset root")
+    try:
+        content = path.read_bytes()
+    except OSError as exc:
+        raise ValueError("Studio graphic asset is unavailable") from exc
+    if (
+        len(content) < 33
+        or len(content) > MAX_STUDIO_GRAPHIC_BYTES
+        or not content.startswith(b"\x89PNG\r\n\x1a\n")
+        or hashlib.sha256(content).hexdigest() != digest
+    ):
+        raise ValueError("Studio graphic asset failed digest validation")
+    width = int.from_bytes(content[16:20], "big")
+    height = int.from_bytes(content[20:24], "big")
+    if width != height or not 512 <= width <= 2048:
+        raise ValueError("Studio graphic asset is not a bounded square PNG")
+    return content, digest
+
+
+def _private_asset_headers(digest: str) -> dict[str, str]:
+    return {
+        "ETag": f'"{digest}"',
+        "Cache-Control": "private, immutable, max-age=31536000",
+        "X-Content-Type-Options": "nosniff",
+    }
+
+
+def _etag_matches(if_none_match: str, digest: str) -> bool:
+    expected = f'"{digest}"'
+    return any(
+        candidate.strip() in {expected, f"W/{expected}"}
+        for candidate in if_none_match.split(",")
+    )
 
 
 def bridge_target(command: str, text: str) -> str | None:
@@ -671,9 +739,50 @@ def structured_llm_result(job_id: int, x_ptw_bridge_token: str = Header(default=
     if not hmac.compare_digest(x_ptw_bridge_token, secrets.get("TELEGRAM_BOT_TOKEN")):
         raise HTTPException(status_code=403, detail="invalid bridge token")
     with psycopg.connect(database_url(secrets)) as connection:
-        row = connection.execute("SELECT status,result,error_code FROM jobs WHERE id=%s AND type='llm_structured'", (job_id,)).fetchone()
+        row = connection.execute("SELECT status,result,error_code,parameters FROM jobs WHERE id=%s AND type='llm_structured'", (job_id,)).fetchone()
     if not row: raise HTTPException(status_code=404, detail="unknown request")
-    return {"status":row[0], "result":row[1], "error":row[2]}
+    result = row[1]
+    parameters = row[3] if isinstance(row[3], dict) else {}
+    if parameters.get("mode") == "ad_studio_graphic_generation" and isinstance(result, dict):
+        result = dict(result)
+        if isinstance(result.get("image"), dict):
+            image = dict(result["image"])
+            image.pop("path", None)
+            image["asset_url"] = f"/internal/llm/structured/{job_id}/asset"
+            result["image"] = image
+    return {"status":row[0], "result":result, "error":row[2]}
+
+
+@app.get("/internal/llm/structured/{job_id}/asset")
+def structured_llm_asset(
+    job_id: int,
+    x_ptw_bridge_token: str = Header(default=""),
+    if_none_match: str = Header(default="", alias="If-None-Match"),
+) -> Response:
+    """Serve one completed Studio graphic after rechecking its immutable bytes."""
+    if not hmac.compare_digest(x_ptw_bridge_token, secrets.get("TELEGRAM_BOT_TOKEN")):
+        raise HTTPException(status_code=403, detail="invalid bridge token")
+    with psycopg.connect(database_url(secrets)) as connection:
+        row = connection.execute(
+            "SELECT status,result,parameters FROM jobs "
+            "WHERE id=%s AND type='llm_structured'",
+            (job_id,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="unknown request")
+    if row[0] != "completed":
+        raise HTTPException(status_code=409, detail="request is not completed")
+    parameters = row[2] if isinstance(row[2], dict) else {}
+    if parameters.get("mode") != "ad_studio_graphic_generation":
+        raise HTTPException(status_code=404, detail="request has no Studio graphic asset")
+    try:
+        content, digest = _validated_studio_graphic(row[1])
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    headers = _private_asset_headers(digest)
+    if _etag_matches(if_none_match, digest):
+        return Response(status_code=304, headers=headers)
+    return Response(content=content, media_type="image/png", headers=headers)
 
 
 @app.get("/health/live")

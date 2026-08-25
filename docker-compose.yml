@@ -20,6 +20,7 @@ x-app-environment: &app-environment
   CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
   CODEX_MAX_RETRIES: ${CODEX_MAX_RETRIES:-2}
   BRAND_PROVIDER_ASSET_DIR: /var/lib/ptw/assets/brand-provider
+  STUDIO_PROVIDER_ASSET_DIR: /var/lib/ptw/assets/studio-provider
   ATTACHMENT_INBOX_ROOT: /opt/ptw/workspaces/incoming
   CREATIVE_SERVICE_URL: http://ptw-creative-api:8080/internal/telegram/update
   GIT_MAIN_WATCH_INTERVAL_SECONDS: ${GIT_MAIN_WATCH_INTERVAL_SECONDS:-300}
@@ -89,6 +90,7 @@ services:
       - /tmp:size=16m,mode=1777
     volumes:
       - /opt/ptw/workspaces/incoming:/opt/ptw/workspaces/incoming
+      - commander-assets:/var/lib/ptw/assets:ro
     security_opt:
       - no-new-privileges:true
     networks: [backend, edge]

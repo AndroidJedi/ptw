@@ -24,13 +24,23 @@ curl -fsS http://127.0.0.1:8080/health/ready
 curl -fsS https://commander.proove-them-wrong.com/health
 ```
 
-The authenticated structured capabilities response must expose exactly
-`product_brief`, `product_brief_revision`, and `ad_creative_batch`. Retired
+The authenticated structured capabilities response must keep `validation_modes`
+at exactly `product_brief`, `product_brief_revision`, and `ad_creative_batch`.
+Its separate `studio_modes` list contains `ad_studio_recipe_revision` and
+`ad_studio_graphic_generation`; adding Studio must never change the validation list. Retired
 Marketing Positioning, Landing, Laval, and Branding modes are not accepted. The Commander API and
 worker images are both prebuilt and pinned with `PTW_PLATFORM_IMAGE_TAG`; never
-build either on the 1 GB production host. Recreate them one at a time and run
-the PTW Owner Gateway dependency audit before starting a Product Brief or Ad
+build either on the 1 GB production host. Roll out the enforcing worker first
+behind the old API that still rejects Studio, then the Studio-capable API. On a
+canary failure, restore the old API before the old worker. Recreate them one at
+a time and run the PTW Owner Gateway dependency audit before starting a Product Brief or Ad
 Creative run. Require a fresh schema-bound canary for every advertised mode.
+
+A completed Studio graphic is downloaded with the same bridge token from
+`GET /internal/llm/structured/{job_id}/asset`. Verify a 200 `image/png`, a quoted
+SHA-256 `ETag`, private immutable caching, and a 304 response to `If-None-Match`.
+Do not read the worker asset path from another service or make the asset volume
+writable in Commander API.
 
 Build the matching API and worker archives off-host; never build them on the
 1 GB production VPS:

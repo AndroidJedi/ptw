@@ -28,6 +28,8 @@ Host Codex check -> read-only metadata -> Commander worker /status
 Idea Branding -> authenticated planner/reference-edit bridge -> Codex `$imagegen`
 Approved immutable PNG -> exact CLI image attachment -> one attached image-tool input
 Codex image -> SHA-256 immutable `ptw_commander-assets` entry -> Idea Branding
+Ad Studio -> authenticated recipe/graphic bridge -> schema JSON or one `$imagegen` call
+Studio graphic -> immutable digest entry -> authenticated private asset response
 Future job -> per-job /opt/ptw/workspaces/jobs/<job-id> -> tests/commit/PR -> cleanup
 GitHub main -> ls-remote -> PostgreSQL state/outbox -> authorized Telegram users
 ```
@@ -37,9 +39,20 @@ trusted only after exact numeric allowlist matching. The backend Compose network
 is internal; API and worker additionally use an outbound edge network. Host state
 is not mounted broadly into containers.
 
-The internal bridge advertises exactly `product_brief`,
-`product_brief_revision`, and `ad_creative_batch` for PTW validation. Legacy Branding
-image jobs may invoke built-in image generation once, require `gpt-image-2`,
+The internal bridge keeps `validation_modes` at exactly `product_brief`,
+`product_brief_revision`, and `ad_creative_batch`. It separately advertises additive
+`studio_modes` for JSON-only `ad_studio_recipe_revision` and bounded
+`ad_studio_graphic_generation`. A Studio graphic must produce exactly one completed
+built-in imagegen trace and one 512-2048px square PNG. It is stored by SHA-256 under
+the Studio provider subtree with prompt, tool-trace, model, request, output-digest,
+and non-human generation-policy provenance. The poll response never exposes the
+filesystem path; authenticated callers retrieve bytes through
+`GET /internal/llm/structured/{job_id}/asset`, which rechecks the completed job,
+canonical path, PNG bounds, and digest and returns a private immutable ETag response.
+Commander API mounts the existing asset volume read-only; the worker remains its only
+writer.
+
+Legacy Branding image jobs may invoke built-in image generation once, require `gpt-image-2`,
 persist one bounded square PNG into the external Commander asset volume, and
 return digest/provenance metadata instead of binary database payloads. The
 worker removes the temporary per-session Codex image directory after the asset

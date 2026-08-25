@@ -150,34 +150,83 @@ def _codex_usage(stdout: str) -> dict[str, int]:
     return usage
 
 
-def _persist_brand_image(codex_home: Path, session_id: str) -> dict:
+def _generated_session_directory(codex_home: Path, session_id: str) -> Path:
     if not re.fullmatch(r"[A-Za-z0-9-]{1,100}", session_id):
         raise RuntimeError("image generation returned an invalid session ID")
     generated_root = (codex_home / "generated_images").resolve()
     session_directory = (generated_root / session_id).resolve()
     if generated_root not in session_directory.parents:
         raise RuntimeError("image generation resolved outside its temporary root")
+    return session_directory
+
+
+def _remove_generated_session(codex_home: Path, session_id: str) -> None:
+    session_directory = _generated_session_directory(codex_home, session_id)
+    if session_directory.is_dir():
+        shutil.rmtree(session_directory)
+
+
+def _generated_session_has_png(codex_home: Path, session_id: str) -> bool:
+    session_directory = _generated_session_directory(codex_home, session_id)
+    return session_directory.is_dir() and any(session_directory.glob("*.png"))
+
+
+def _imagegen_tool_traces(stdout: str) -> list[str]:
+    """Return completed built-in imagegen calls, counting each invocation once."""
+    traces: list[str] = []
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") != "item.completed":
+            continue
+        item = event.get("item")
+        if not isinstance(item, dict):
+            continue
+        if (
+            item.get("type") == "mcp_tool_call"
+            and item.get("server") == "image_gen"
+            and item.get("tool") == "imagegen"
+        ):
+            traces.append(json.dumps(event, sort_keys=True, separators=(",", ":")))
+    return traces
+
+
+def _persist_generated_image(
+    codex_home: Path,
+    session_id: str,
+    *,
+    label: str,
+    asset_directory_environment: str,
+    default_asset_directory: str,
+) -> dict:
+    session_directory = _generated_session_directory(codex_home, session_id)
     try:
         images = sorted(path for path in session_directory.glob("*.png") if path.is_file())
         if len(images) != 1:
-            raise RuntimeError("Branding image generation must return exactly one PNG")
+            raise RuntimeError(f"{label} must return exactly one PNG")
         content = images[0].read_bytes()
         if len(content) < 33 or len(content) > 10_000_000 or not content.startswith(b"\x89PNG\r\n\x1a\n"):
-            raise RuntimeError("Branding image generation returned an invalid PNG")
+            raise RuntimeError(f"{label} returned an invalid PNG")
         width = struct.unpack(">I", content[16:20])[0]
         height = struct.unpack(">I", content[20:24])[0]
         if width != height or not 512 <= width <= 2048:
-            raise RuntimeError("Branding image generation must return a bounded square image")
+            raise RuntimeError(f"{label} must return a bounded square image")
         digest = hashlib.sha256(content).hexdigest()
         asset_root = Path(
-            os.environ.get("BRAND_PROVIDER_ASSET_DIR", "/var/lib/ptw/assets/brand-provider")
+            os.environ.get(asset_directory_environment, default_asset_directory)
         ).resolve()
-        destination_directory = asset_root / digest[:2]
+        destination_directory = (asset_root / digest[:2]).resolve()
+        if asset_root not in destination_directory.parents:
+            raise RuntimeError(f"{label} resolved outside its immutable asset root")
         destination_directory.mkdir(mode=0o750, parents=True, exist_ok=True)
-        destination = destination_directory / f"{digest}.png"
+        destination = (destination_directory / f"{digest}.png").resolve()
+        if asset_root not in destination.parents:
+            raise RuntimeError(f"{label} resolved outside its immutable asset root")
         if destination.exists():
             if hashlib.sha256(destination.read_bytes()).hexdigest() != digest:
-                raise RuntimeError("immutable Branding provider asset digest collision")
+                raise RuntimeError(f"immutable {label} asset digest collision")
         else:
             with tempfile.NamedTemporaryFile(
                 mode="wb", dir=destination_directory, prefix=f".{digest}.", delete=False
@@ -200,6 +249,45 @@ def _persist_brand_image(codex_home: Path, session_id: str) -> dict:
     finally:
         if session_directory.is_dir():
             shutil.rmtree(session_directory)
+
+
+def _persist_brand_image(codex_home: Path, session_id: str) -> dict:
+    return _persist_generated_image(
+        codex_home,
+        session_id,
+        label="Branding image generation",
+        asset_directory_environment="BRAND_PROVIDER_ASSET_DIR",
+        default_asset_directory="/var/lib/ptw/assets/brand-provider",
+    )
+
+
+def _persist_studio_graphic(
+    codex_home: Path,
+    session_id: str,
+    *,
+    prompt: str,
+    traces: list[str],
+) -> dict:
+    image = _persist_generated_image(
+        codex_home,
+        session_id,
+        label="Studio graphic generation",
+        asset_directory_environment="STUDIO_PROVIDER_ASSET_DIR",
+        default_asset_directory="/var/lib/ptw/assets/studio-provider",
+    )
+    image.update({
+        "output_digest": image["digest"],
+        "prompt_digest": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+        "tool_trace_digest": hashlib.sha256("\n".join(traces).encode("utf-8")).hexdigest(),
+        "generation_policy": {
+            "non_human_graphics_only": True,
+            "synthetic_people": "prohibited",
+            "embedded_text": "prohibited",
+            "embedded_logos": "prohibited",
+            "watermarks": "prohibited",
+        },
+    })
+    return image
 
 
 def _validate_brand_reference(parameters: dict) -> dict | None:
@@ -280,6 +368,14 @@ def execute_structured_llm(parameters: dict) -> dict:
         + "\nINPUT_PAYLOAD:\n"
         + json.dumps(parameters["input_payload"], ensure_ascii=False, sort_keys=True)
     )
+    if parameters.get("mode") == "ad_studio_graphic_generation":
+        prompt += (
+            "\nSTUDIO_GRAPHIC_POLICY: Call the built-in $imagegen tool exactly once and create "
+            "exactly one square PNG between 512 and 2048 pixels per side. The raster must be "
+            "an abstract or symbolic non-human graphic. It must not contain people, synthetic "
+            "faces or bodies, text, logos, zodiac glyphs, or watermarks. Return the requested "
+            "schema-bound JSON separately after the tool call."
+        )
     if reference is not None:
         prompt += (
             "\nREFERENCE_ATTACHMENT: The bridge attached the digest-checked source image to this "
@@ -330,6 +426,16 @@ def execute_structured_llm(parameters: dict) -> dict:
             raise RuntimeError("structured model execution failed")
         data = json.loads(output.read_text(encoding="utf-8"))
         session_id = _codex_session_id(completed.stdout)
+        imagegen_traces = _imagegen_tool_traces(completed.stdout)
+        mode = parameters.get("mode")
+        if mode == "ad_studio_recipe_revision" and (
+            imagegen_traces or _generated_session_has_png(codex_home, session_id)
+        ):
+            _remove_generated_session(codex_home, session_id)
+            raise RuntimeError("Studio recipe revision must remain JSON-only")
+        if mode == "ad_studio_graphic_generation" and len(imagegen_traces) != 1:
+            _remove_generated_session(codex_home, session_id)
+            raise RuntimeError("Studio graphic generation must call imagegen exactly once")
         invocation = {
             "session_id": session_id,
             "session_mode": "fresh",
@@ -347,6 +453,13 @@ def execute_structured_llm(parameters: dict) -> dict:
             reference_trace = _prove_brand_reference(completed.stdout, reference)
             if reference_trace is not None:
                 result["image"]["reference"] = reference_trace
+        if mode == "ad_studio_graphic_generation":
+            result["image"] = _persist_studio_graphic(
+                codex_home,
+                session_id,
+                prompt=prompt,
+                traces=imagegen_traces,
+            )
         return result
 
 

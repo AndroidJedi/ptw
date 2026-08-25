@@ -172,24 +172,44 @@ def _generated_session_has_png(codex_home: Path, session_id: str) -> bool:
 
 
 def _imagegen_tool_traces(stdout: str) -> list[str]:
-    """Return completed built-in imagegen calls, counting each invocation once."""
+    """Return completed built-in image calls across Codex JSONL representations."""
     traces: list[str] = []
+    completed_ids: set[str] = set()
     for line in stdout.splitlines():
         try:
             event = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if event.get("type") != "item.completed":
+        event_type = str(event.get("type") or "").lower()
+        item = event.get("item") if isinstance(event.get("item"), dict) else {}
+        item_type = str(item.get("type") or "").lower().replace("-", "_")
+        marker = " ".join(
+            str(item.get(key) or "") for key in ("type", "server", "tool", "name")
+        ).lower()
+        completed_mcp_call = (
+            event_type == "item.completed"
+            and item_type == "mcp_tool_call"
+            and "image_gen" in marker
+            and "imagegen" in marker
+        )
+        # Current Codex/Responses runtimes may expose built-in image generation
+        # as its own completed call item instead of an MCP-shaped item.
+        completed_native_call = (
+            event_type == "item.completed"
+            and item_type in {"image_generation", "image_generation_call", "image_gen_call"}
+            and item.get("status") in {None, "completed"}
+        ) or event_type in {
+            "response.image_generation_call.completed",
+            "image_generation_call.completed",
+        }
+        if not (completed_mcp_call or completed_native_call):
             continue
-        item = event.get("item")
-        if not isinstance(item, dict):
-            continue
-        if (
-            item.get("type") == "mcp_tool_call"
-            and item.get("server") == "image_gen"
-            and item.get("tool") == "imagegen"
-        ):
-            traces.append(json.dumps(event, sort_keys=True, separators=(",", ":")))
+        call_id = item.get("id") or item.get("call_id") or event.get("item_id")
+        if isinstance(call_id, str) and call_id:
+            if call_id in completed_ids:
+                continue
+            completed_ids.add(call_id)
+        traces.append(json.dumps(event, sort_keys=True, separators=(",", ":")))
     return traces
 
 

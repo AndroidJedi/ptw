@@ -42,6 +42,12 @@ SHA-256 `ETag`, private immutable caching, and a 304 response to `If-None-Match`
 Do not read the worker asset path from another service or make the asset volume
 writable in Commander API.
 
+If the graphic canary fails with `must call imagegen exactly once`, inspect the
+sanitized issue before retrying. The worker must count one completed call in
+either the dedicated built-in image-generation JSONL representation or the
+MCP-shaped compatibility representation. Prompt text and the presence of a PNG
+alone are not proof of one tool call; duplicate completed call IDs still fail.
+
 Build the matching API and worker archives off-host; never build them on the
 1 GB production VPS:
 

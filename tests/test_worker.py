@@ -31,6 +31,17 @@ def imagegen_event(arguments: dict | None = None) -> str:
     })
 
 
+def native_imagegen_event(call_id: str = "image-call-1") -> str:
+    return json.dumps({
+        "type": "item.completed",
+        "item": {
+            "id": call_id,
+            "type": "image_generation",
+            "status": "completed",
+        },
+    })
+
+
 def test_installed_command_detection() -> None:
     assert command_available("python") is True
     assert command_available("ptw-command-that-does-not-exist") is False
@@ -250,6 +261,44 @@ def test_studio_graphic_uses_exactly_one_imagegen_and_persists_provenance(
     assert "Call the built-in $imagegen tool exactly once" in observed["input"]
     assert "must not contain people" in observed["input"]
     assert not (codex_home / "generated_images" / "studio-graphic-1").exists()
+
+
+def test_studio_graphic_accepts_native_image_generation_completion(
+    monkeypatch, tmp_path: Path
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    asset_root = tmp_path / "assets" / "studio-provider"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("STUDIO_PROVIDER_ASSET_DIR", str(asset_root))
+
+    def fake_run(command, **_kwargs):
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"generated":true}', encoding="utf-8"
+        )
+        generated = codex_home / "generated_images" / "studio-native-trace"
+        generated.mkdir(parents=True)
+        (generated / "graphic.png").write_bytes(png_header(1080, 1080))
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=(
+                '{"type":"thread.started","thread_id":"studio-native-trace"}\n'
+                + native_imagegen_event()
+                + "\n"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    result = execute_structured_llm({
+        "mode": "ad_studio_graphic_generation",
+        "system_prompt": "Generate one abstract graphic.",
+        "input_payload": {},
+        "output_schema": {"type": "object"},
+    })
+
+    assert result["image"]["request_id"] == "studio-native-trace"
+    assert len(result["image"]["tool_trace_digest"]) == 64
 
 
 @pytest.mark.parametrize("trace_count", [0, 2])

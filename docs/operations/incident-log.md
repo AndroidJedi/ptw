@@ -39,7 +39,12 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   Studio skill now requires this lifecycle for long Wizard calls.
 - Verification: 32 Owner web tests, the production build, all 21 desktop/360
   px/iPhone browser journeys, built-runtime Commander tests, the deterministic
-  demo, skill validation, and diff hygiene pass before release.
+  demo, skill validation, and diff hygiene passed before release. The in-place
+  rollout then passed two fresh five-mode bridge canary rounds, Pexels,
+  preservation, readiness, Firebase Hosting, and both public-console audits.
+  Deliberate Commander, Validation, and Owner Gateway restarts preserved every
+  baseline artifact count and the owner's existing 195023-byte review-only
+  proposal; the 1 GB audit passed and its 24-hour follow-up is scheduled.
 
 ## 2026-08-25: real Studio Wizard revision failed beyond the minimal canary
 

@@ -3,7 +3,7 @@
 Updated: 2026-08-25
 Branch: `codex/web-only-commander`
 
-## Current unreleased follow-up
+## Last completed milestone
 
 The Owner Console Studio Wizard now makes its long synchronous lifecycle
 visible instead of presenting a silent disabled button. Scope is labelled as
@@ -17,10 +17,17 @@ The PWA shell marker is bumped to
 `ptw-shell-v41-studio-wizard-progress` so the follow-up cannot be hidden by the
 prior cached shell. This follow-up passes 32 Owner web Vitest tests, the
 production build, all 21 desktop/360 px/iPhone browser journeys, the Commander
-regression/demo checks, and canonical PTW skill verification. It is not
-deployed.
+regression/demo checks, and canonical PTW skill verification. It is deployed
+as application release `studio-wizard-ui-5a6575c` and Owner Console
+cache `ptw-shell-v41-studio-wizard-progress`.
 
-## Last completed milestone
+The in-place production release preserved every baseline artifact count and the
+owner's existing review-only proposal. Commander, Validation, and Owner Gateway
+then passed deliberate restart recovery, readiness, and the 1 GB resource
+audit. Both Firebase Hosting origins serve the new bundle and cache marker; the
+24-hour follow-up resource audit is scheduled.
+
+## Previous completed milestone
 
 The five-post Ad Studio v2 milestone is implemented, deployed, and verified in
 production. It
@@ -99,9 +106,9 @@ enforcing worker before the Studio-capable API and restores API before worker.
   provenance, Apply-once behavior, and restart recovery.
 - Five disposable PostgreSQL repository integration journeys and ten Owner
   Gateway authentication/proxy tests pass.
-- Owner web verification passes 31 Vitest tests, its production build, and 21
+- Owner web verification passes 32 Vitest tests, its production build, and 21
   Playwright journeys on desktop Chromium, 360 px Chromium, and iPhone WebKit
-  with cache `ptw-shell-v40-studio-share-posts`.
+  with cache `ptw-shell-v41-studio-wizard-progress`.
 - The independent platform bridge passes 96 tests. Its capabilities preserve
   the three core validation modes while enforcing the two additive Studio
   modes, exactly one image-generation call, bounded square PNG output, policy
@@ -113,13 +120,14 @@ enforcing worker before the Studio-capable API and restores API before worker.
 
 ## Production state
 
-Production serves application release `studio-wizard-8cb687f` from commit
-`8cb687f39ed0873b91288e0d03c4f148afee0216`, Owner Console cache
-`ptw-shell-v40-studio-share-posts`, and independent platform commit
+Production serves application release `studio-wizard-ui-5a6575c` from commit
+`5a6575c1a6638bcd4568b50672f565e92d0f171f`, Owner Console cache
+`ptw-shell-v41-studio-wizard-progress`, and independent platform commit
 `7ec2b6e4a4dd05f9aa277850d48d021fc65b7cf4`. The serial in-place release passed
-fresh five-mode bridge canaries, authenticated generated-asset digest/ETag
-checks, Pexels, schema, dependency, service health, restart, 1 GB resource,
-frontend build, Firebase Hosting, and public-console audits.
+two fresh five-mode bridge canary rounds, authenticated generated-asset
+digest/ETag checks, Pexels, schema, dependency, service health, restart, 1 GB
+resource, frontend build, Firebase Hosting, and public-console audits on both
+hosting origins.
 
 The authoritative production sample set is
 `01a038ff-66eb-7ef9-94a8-20201a7526fd`. Its deterministic share ZIP SHA-256 is
@@ -139,6 +147,14 @@ Apply created child recipe `01a03915-594d-73ee-a7e2-13a1b2ae5e66` and render
 `01a03915-594d-7fc5-af8a-fcf4232e539b`; repeated Apply returned those same IDs.
 After a Validation service restart, the applied proposal, preview ETag/digest,
 child recipe, and render history reloaded from PostgreSQL.
+
+The owner's 2026-08-25 17:39 Kyiv Wizard submission persisted proposal
+`01a0395c-829e-7ecb-a9cf-2efb013d2c57` for recipe
+`01a038ff-6804-79ff-aa82-e1d0672b45ee`. It remains `previewed`, not applied,
+with a 195023-byte verified preview at SHA-256
+`d2d9bc31aa69176183d459aa4a96995b5a971af03b7b1dd517a20b911a65ddf7`.
+The same IDs, status, bytes, digest, and all production artifact counts survived
+the post-release service restarts.
 
 The prior completed Product Brief, batch, five Ad Creatives, assets, feedback,
 lessons, and graph history remain authoritative. No production reset ran.

@@ -26,14 +26,18 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   The release guard restored the prior platform API and worker; Commander,
   Validation, Owner Gateway, PostgreSQL, and Hosting were not cut over.
 - Cause: the bridge worker counted only the older
-  `item.completed`/`mcp_tool_call`/`image_gen`/`imagegen` JSONL tuple. Built-in
-  image generation can instead be represented as a dedicated completed
-  image-generation call, so a real bounded generation was not counted.
-- Durable fix: the detector accepts only completed MCP-shaped or dedicated
-  built-in image-generation call events, deduplicates explicit call IDs, and
-  still requires exactly one trace and exactly one bounded PNG. Prompt text or
-  the presence of image bytes is never accepted as call proof. The platform
-  operations contract and VPS skill now require both representations in tests.
+  `item.completed`/`mcp_tool_call`/`image_gen`/`imagegen` JSONL tuple. The live
+  CLI completed image generation but emitted no distinct tool-completion item;
+  its fresh session instead contained one built-in
+  `exec-<request-uuid>.png` receipt. The first recovery broadened event parsing
+  but still rejected that verified receipt-only behavior.
+- Durable fix: when Codex emits a completed MCP-shaped or dedicated image call,
+  the worker counts and deduplicates that event. When it emits no call event,
+  the worker requires exactly one session-scoped `exec-<request-uuid>.png`
+  receipt. It still validates exactly one bounded PNG, and rejects arbitrary
+  filenames, zero or multiple receipts/events, prompt-text claims, unsafe
+  paths, invalid bytes, or digest disagreement. The platform operations
+  contract and VPS skill cover both proof forms.
 - Verification: pending a complete platform suite, fresh live five-mode bridge
   canary with authenticated digest/ETag asset download, and successful
   in-place release retry.

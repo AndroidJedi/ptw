@@ -34,11 +34,12 @@ credentials between them or mutate platform data during a Commander reset.
   `ad_studio_graphic_generation` separately so old Stage 1–2 clients remain
   compatible. Require a fresh strict-schema canary for every advertised mode
   and an authenticated digest/ETag canary for generated Studio assets.
-- A Studio graphic canary must prove exactly one completed built-in image call
-  across both supported Codex JSONL forms: the dedicated image-generation call
-  item and the MCP-shaped `image_gen`/`imagegen` compatibility item. Count and
-  deduplicate explicit call IDs. Never infer a tool call from prompt text or
-  from a generated PNG alone; still require exactly one bounded PNG afterward.
+- A Studio graphic canary must prove exactly one completed built-in image call.
+  Count and deduplicate a dedicated or MCP-shaped JSONL completion when Codex
+  emits one. When the CLI emits no call event, accept only exactly one
+  session-scoped `exec-<request-uuid>.png` receipt. Never infer a call from
+  prompt text or an arbitrary PNG filename; still require exactly one bounded,
+  digest-checked PNG afterward.
 - Run a non-persisting Pexels search/download/render canary before reset.
 - No SEO, DataForSEO, YouTube, market-research, Landing, publishing, traffic,
   campaign, UTM, or analytics provider is active. The only AI-image boundary is

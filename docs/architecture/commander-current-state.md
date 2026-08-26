@@ -49,15 +49,24 @@ upgraded additively and preserved.
 - full disposable PostgreSQL Result lifecycle: five initial candidates, four
   improvements, three passes, one Result, and append-only feedback lineage;
 - content corpus and PTW skill verification;
-- 26 focused independent-platform tests and disposable platform migration journey;
+- 27 focused independent-platform tests and disposable platform migration journey;
 - Validation, Owner Gateway, and Commander built-image suites;
-- Owner Console unit tests and production build;
+- Owner Console unit tests, production build, and Playwright coverage on desktop,
+  360 px Chromium, and iPhone WebKit;
 - Commander demo and `git diff --check` at intermediate checkpoints.
 
-## Next release action
+## Production deployment
 
-Complete the final built-image/browser/regression pass, commit both unrelated
-histories, build matching release archives, deploy the enforcing platform
-worker and API, run capability/multimodal canaries, then invoke the irreversible
-application reset with exact confirmation `RESET PTW PRODUCTION`. Production
-has not yet been reset in this milestone.
+Result v1 was deployed on 2026-08-26 as release
+`result-v1-20260826-1345`. The application reset completed from commit
+`02556ec4f90ba8c73802411c2dc4f5cbb8113090`; the independent Result bridge is
+at `4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`.
+
+The production Commander database contains only `001_ptw_result_v1.sql`, all
+business rows are empty, and no retired table family remains. The obsolete
+owner-control volume, Git watcher, credential agent, Positioning, and idea
+containers are absent. Independent platform table counts were unchanged by
+the reset. Structured/multimodal bridge, Pexels, Telegram, schema, dependency,
+resource, public bundle, retired-route, CORS, and readiness canaries passed.
+All five Result services are healthy on the matching release tag and the locked
+24-hour resource follow-up timer is active.

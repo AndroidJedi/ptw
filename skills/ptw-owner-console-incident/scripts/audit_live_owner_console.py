@@ -45,6 +45,15 @@ def require(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
+def resolve_app_bundle_url(origin: str, entry_url: str, entry_bundle: str) -> str:
+    match = re.search(r'["\']([^"\']*?App-[^"\']+\.js)["\']', entry_bundle)
+    require(match is not None, "Unable to resolve the lazy App bundle")
+    path = match.group(1)
+    if path.startswith("assets/"):
+        return urljoin(f"{origin}/", path)
+    return urljoin(entry_url, path)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--origin", default=DEFAULT_ORIGIN)
@@ -62,9 +71,7 @@ def main() -> None:
 
     status, _, main_bytes = fetch(main_url)
     require(status == 200, f"Entry bundle returned HTTP {status}")
-    app_match = re.search(r'["\'](assets/App-[^"\']+\.js)["\']', main_bytes.decode())
-    require(app_match is not None, "Unable to resolve the lazy App bundle")
-    app_url = urljoin(f"{args.origin}/", app_match.group(1))
+    app_url = resolve_app_bundle_url(args.origin, main_url, main_bytes.decode())
 
     status, _, app_bytes = fetch(app_url)
     require(status == 200, f"App bundle returned HTTP {status}")

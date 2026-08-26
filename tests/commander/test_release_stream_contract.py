@@ -1,4 +1,5 @@
 import unittest
+import importlib.util
 from pathlib import Path
 
 
@@ -6,6 +7,24 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class ReleaseStreamContractTests(unittest.TestCase):
+    def test_public_auditor_resolves_current_vite_lazy_bundle_forms(self) -> None:
+        script = ROOT / "skills/ptw-owner-console-incident/scripts/audit_live_owner_console.py"
+        spec = importlib.util.spec_from_file_location("audit_live_owner_console", script)
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        origin = "https://owner.example"
+        entry = f"{origin}/assets/index-main.js"
+        self.assertEqual(
+            f"{origin}/assets/App-lazy.js",
+            module.resolve_app_bundle_url(origin, entry, 'import("./App-lazy.js")'),
+        )
+        self.assertEqual(
+            f"{origin}/assets/App-lazy.js",
+            module.resolve_app_bundle_url(origin, entry, '"assets/App-lazy.js"'),
+        )
+
     def test_non_tar_artifacts_preserve_exact_size_across_transport(self) -> None:
         publisher = (ROOT / "scripts/publish_ptw_release_serial.sh").read_text()
         deployer = (ROOT / "scripts/deploy_ptw_serial.sh").read_text()

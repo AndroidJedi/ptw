@@ -3,7 +3,7 @@
 Updated: 2026-08-26
 Branch: `codex/web-only-commander`
 
-## Current incident follow-up
+## Current deployed incident follow-up
 
 The 2026-08-26 07:44 Kyiv owner Wizard attempt exposed two connected failures.
 Its rough English instruction correctly requested short Ukrainian copy that
@@ -26,9 +26,9 @@ rough multilingual owner prose as a creative outcome while preserving the
 approved offer, CTA, honest claims, Project sources, and personal-data boundary.
 
 On mobile, the current action is fixed above the bottom navigation and changes
-from Preview to Apply after review; reserved Wizard space keeps progress,
-failure, retry, and receipts reachable. The five-post header stacks cleanly,
-the textarea is height-bounded, and the service-worker marker is
+from Preview change to Use this version after review; reserved Wizard space
+keeps progress, failure, retry, and receipts reachable. The five-post header
+stacks cleanly, the textarea is height-bounded, and the service-worker marker is
 `ptw-shell-v44-studio-wizard-recovery`. Regression coverage uses the owner's
 event-personalized Ukrainian-copy request and asserts both real document width
 and action viewport intersection in 360 px Chromium and iPhone WebKit.
@@ -36,10 +36,24 @@ and action viewport intersection in 360 px Chromium and iPhone WebKit.
 Verification passes all 59 built-runtime Validation tests, 13 focused Owner
 Gateway auth/proxy/notification tests, all 30 Owner web tests, the production
 build, all 21 browser journeys, Commander regression/demo checks, canonical PTW
-skill sync, and `git diff --check`. The in-place production release is pending;
-the previously deployed validator release below remains live until cutover.
+skill sync, and `git diff --check`.
 
-## Current deployed follow-up
+The recovery is deployed in place as tag
+`studio-wizard-recovery-937a0c7` from application commit
+`937a0c70b407c70d5a0227f626011cd18d8024ad` and independent platform commit
+`705518aa64735dcda2493ff1945bccec755ac11a`. Fresh bridge rounds `226`-`231`
+and `232`-`237` passed all three core and all three Studio modes, including
+authenticated image bytes and the exact creative-validation JPEG digest; the
+nonpersisting Pexels render canary also passed. The pre-release 7 Briefs, 4
+batches, 20 creatives, 20 creative assets, and 2 complete Wizard proposals are
+unchanged, no partial proposal or validation row was introduced, and the
+operation guard is clear. All five release containers are healthy with no new
+OOM evidence. Both Owner Console hosting origins serve cache
+`ptw-shell-v44-studio-wizard-recovery` and pass public gateway, Auth/App Check,
+and CORS auditing. The locked resource follow-up is scheduled for 2026-08-27
+05:09 UTC.
+
+## Previous deployed follow-up
 
 Studio now has a separate automatic Ad Creative Validator agent with canonical
 skill `ad-creative-validator`. It starts after every initial five-post render
@@ -206,7 +220,7 @@ enforcing worker before the Studio-capable API and restores API before worker.
   the updated skills, generated-asset manifest/digest checks, and
   `git diff --check` pass.
 
-## Production state
+## Prior five-post production state
 
 Production serves application release `studio-wizard-ui-5a6575c` from commit
 `5a6575c1a6638bcd4568b50672f565e92d0f171f`, Owner Console cache

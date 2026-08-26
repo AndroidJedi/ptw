@@ -55,7 +55,7 @@ generating or correcting a Brief.
 - Do not browse, search the market, or call SEO, YouTube, paid research, social,
   competitor, keyword, trend, or analytics providers.
 - Do not cite model knowledge as evidence or manufacture proof.
-- Do not generate Ad Creatives or Landing content.
+- Do not generate Result candidates or channel content.
 - Do not add fields outside the v1 contract.
 
 ## Verification

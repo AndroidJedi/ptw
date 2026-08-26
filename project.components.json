@@ -11,8 +11,8 @@
     },
     {
       "name": "validation-pipeline",
-      "description": "Product Briefs, five complete Ad Creatives, real-photo assets, lineage, and dormant Natal source",
-      "paths": ["commander/**", "validation_pipeline/**", "natal/**", "skills/product-brief-generator/**", "skills/ad-creative-generator/**", "skills/natal-landing-builder/**", "tests/validation_pipeline/**", "tests/integration/**", "db/**", "docker-compose*.yml", "requirements*.txt"],
+      "description": "Product Briefs, five isolated Result candidates, three critic passes, rendering, and immutable lineage",
+      "paths": ["commander/**", "validation_pipeline/**", "skills/product-brief-generator/**", "skills/content-candidate-generator/**", "skills/content-result-critic/**", "tests/validation_pipeline/**", "db/**", "docker-compose*.yml", "requirements*.txt"],
       "validation": [
         ["python3", "-m", "unittest", "discover", "-s", "tests/validation_pipeline", "-v"],
         ["python3", "-m", "unittest", "tests.commander.test_telegram_boundary", "-v"],
@@ -29,12 +29,12 @@
       "extended_validation": [["npm", "--prefix", "apps/commander-web", "run", "test:e2e"]]
     },
     {
-      "name": "owner-control-plane",
-      "description": "Firebase-authenticated owner API, job execution, system operations, and root broker",
-      "paths": ["owner_gateway/**", "root_broker/**", "tests/owner_gateway/**", "deploy/owner-control-plane/**", "scripts/reset_ptw.sh"],
+      "name": "owner-gateway",
+      "description": "Firebase-authenticated Product Brief and Result API gateway",
+      "paths": ["owner_gateway/**", "tests/owner_gateway/**", "deploy/owner-gateway/**", "scripts/reset_ptw.sh"],
       "validation": [
-        ["python3", "-m", "unittest", "tests.owner_gateway.test_auth", "tests.owner_gateway.test_control_store", "tests.owner_gateway.test_root_broker", "-v"],
-        ["python3", "-m", "compileall", "-q", "owner_gateway", "root_broker", "tests/owner_gateway"]
+        ["python3", "-m", "unittest", "discover", "-s", "tests/owner_gateway", "-v"],
+        ["python3", "-m", "compileall", "-q", "owner_gateway", "tests/owner_gateway"]
       ],
       "extended_validation": []
     }

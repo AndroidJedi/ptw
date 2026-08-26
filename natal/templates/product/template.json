@@ -1,8 +1,0 @@
-{
-  "id": "product",
-  "version": 1,
-  "name": {"uk": "Продукт", "en": "Product"},
-  "description": {"uk": "Функції, цінність і чіткий шлях до першої дії.", "en": "Features, value, and a clear path to first action."},
-  "best_for": ["saas", "software", "service", "b2b"],
-  "adapted_from": "natal/product-v1"
-}

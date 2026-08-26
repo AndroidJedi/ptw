@@ -1,76 +1,49 @@
-# PTW Validation owner-console rules
+# PTW Result owner-console rules
 
 Status: canonical
-Updated: 2026-08-24
+Updated: 2026-08-26
 
-## Product and navigation
+## Navigation and trust
 
-- The Brief/creative language is inferred as Ukrainian or English from the raw
-  idea. IDs, source text, logs, and provider errors remain verbatim.
-- Primary navigation is Product Briefs, Ad Studio, Ads, Landing, and Admin. Admin
-  contains Jobs plus Docs/System/Terminal.
-- A global human-readable Project switcher scopes Product Briefs, Ad Studio, Ads, and
-  Landing. Keep Project, Brief, and batch UUIDs visible as metadata rather than
-  using raw UUIDs as selector labels. Admin remains global.
-- Old page locations redirect to Product Briefs. Old domain APIs do not exist.
-- Design first for 360 px and one-hand use, with 44×44 CSS pixel targets, no
-  horizontal page overflow, keyboard access, and reduced-motion support.
-- Keep active Owner Console chrome strictly monochrome: black, white, and
-  neutral grays only. Communicate selection, success, failure, and destructive
-  state with contrast, borders, patterns, icons, and text rather than hue.
-  Reviewed Ad photography may remain full color.
+- Primary navigation is Product Briefs and Result, scoped by a human-readable
+  Project switcher.
+- Old page locations and retired domain APIs do not exist.
+- Design first for 360 px and one-hand use with 44×44 CSS-pixel targets, no
+  horizontal overflow, keyboard access, and reduced-motion support.
+- Console chrome is monochrome. A final reviewed creative may use Project
+  colors and full-color approved photography.
+- Empty production state is valid. Never seed fake Briefs, creatives, metrics,
+  proof, testimonials, urgency, scarcity, or assets.
 
-## Product Briefs
+## Product Brief
 
-- Start from one raw idea only. Generating the initial Brief atomically creates
-  and selects its Project. Show Project, Brief, and owner-idea Source UUIDs.
-- Present one product, first customer, pain, promise, three to five benefits,
-  CTA, trust strategy, and a visually prominent strong offer.
-- A correction creates a complete immutable replacement with a new UUID.
-- Approval must explicitly say the owner can honor the promise and offer; it
-  starts exactly one five-creative batch.
+- One raw idea creates one Project, permanent Source, and complete immutable
+  Brief.
+- A correction creates a new UUID and complete replacement.
+- Approval explicitly confirms that the promise and exact offer can be
+  honored, then opens the Result task form. It does not auto-generate.
 
-## Ads and Landing
+## Result
 
-- Ad Studio is a parallel AI-guided workspace and does not replace the automatic
-  five-Ad generator. Its active owner surface is Wizard-only: choose one of five
-  posts, view one large current/proposed image, describe the whole-post change,
-  review, Apply, or download. Do not expose a manual canvas, layers, component
-  inspectors, source/template administration, caption or alt-text fields,
-  history, recipe/render IDs, manifests, raw diffs, or training controls there.
-  Constrained framed tools, immutable Project brand-kit and recipe revisions,
-  reusable templates, lineage, and exact offer/CTA protection remain internal
-  server contracts.
-- Studio canvas output may use Project colors; all editor chrome remains
-  monochrome. Only explicitly published renders become feedback targets and
-  training examples.
+- Normal input is approved Brief summary, Text or Instagram post, one task,
+  and Create result.
+- Running state shows only: Creating five directions, Improving the strongest
+  direction, Final review, elapsed/bounded maximum, and retry/failure state.
+- Completed state shows one final text or post, caption when applicable,
+  two-to-four selection observations, Download/Use result, Create another,
+  and simple feedback.
+- Do not expose templates, sliders, alternate candidates, UUID entry, layers,
+  recipes, prompts, or model controls in the normal journey.
+- A collapsed owner-only debug view may expose bounded versions, IDs, scores,
+  gates, actions, digests, retry counts, and lineage, never chain-of-thought,
+  credentials, raw attachment base64, or unrestricted source contents.
+- There is no publishing, campaign, traffic, UTM, analytics, or optimization
+  action.
 
-- Ads shows only batches from the selected Project and labels generations by
-  origin, product, status, and time. It still shows all five complete posts,
-  exact UUIDs, angle, copy, authenticated
-  1080×1080 image, artifact digest, Pexels photographer/source/license
-  attribution, retry state, and feedback control for each creative.
-- A failed batch shows the actionable validation rule, approved offer when
-  relevant, atomic rollback outcome, and audited Telegram delivery state. Keep
-  the latest failed attempt visible after a successful retry.
-- Landing shows only `Stage 3 pending`; it has no active controls or API calls.
-- There is no campaign, publish, traffic, UTM, click, or analytics action.
-- Product/creative generation never invents proof, testimonials, ratings,
-  customer results, urgency, or scarcity.
+## Caching and reset
 
-## Admin
-- Jobs use one review-first flow: describe the job, review the read-only steps,
-  then explicitly run them. Planning and execution remain visibly distinct and
-  digest-bound without exposing a misleading mode switch. The root terminal is
-  labelled break-glass and retains bounded lifetimes.
-- The irreversible reset preview names only `ptw_commander.public` and requires
+- Cache only public shell resources. Never cache API, authenticated render,
+  debug, or feedback responses.
+- The reset preview names only `ptw_commander.public`, explicitly states that
+  the independent platform database is preserved, and requires
   `RESET PTW PRODUCTION`.
-
-## Trust and caching
-
-- Empty production state is valid. Never seed fake Briefs, creatives, proof,
-  or assets.
-- PWA caching is limited to public shell resources. API, authenticated images,
-  terminal, and sensitive responses are never cached by the service worker.
-- Do not show invented metrics, proof, testimonials, urgency, scarcity,
-  limitations, or competitive facts.

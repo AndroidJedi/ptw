@@ -23,7 +23,7 @@ ps -eo pid,ppid,rss,etimes,stat,comm --sort=-rss
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
 docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}'
 
-for retired_container in ptw-idea-generation-idea-generation-api-1 ptw-commander-worker-1 ptw-commander-ad-worker-1 ptw-marketing-positioning-marketing-positioning-api-1; do
+for retired_container in ptw-idea-generation-idea-generation-api-1 ptw-commander-worker-1 ptw-commander-ad-worker-1 ptw-marketing-positioning-marketing-positioning-api-1 ptw-agent-platform-git-watcher-1 ptw-agent-platform-git-credential-agent-1; do
     retired=$(docker ps -q --filter "name=^/$retired_container$")
     [[ -z $retired ]] || {
         echo "retired container $retired_container is running" >&2

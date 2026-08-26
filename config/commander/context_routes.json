@@ -12,22 +12,16 @@
       ],
       "optional": ["DESIGN_RULES.md", "docs/architecture/component-boundaries.md"]
     },
-    "landing": {
+    "content_result": {
       "canonical": [
-        "docs/architecture/natal-landing-builder.md",
-        "skills/natal-landing-builder/SKILL.md"
-      ],
-      "optional": ["natal/README.md", "DESIGN_RULES.md"]
-    },
-    "ad_creatives": {
-      "canonical": [
-        "docs/architecture/simplified-validation-pipeline.md",
-        "skills/ad-creative-generator/SKILL.md"
+        "docs/architecture/content-result-agent.md",
+        "skills/content-candidate-generator/SKILL.md",
+        "skills/content-result-critic/SKILL.md"
       ],
       "optional": ["DESIGN_RULES.md"]
     },
     "owner_ui": {
-      "canonical": ["docs/operations/owner-control-plane.md"],
+      "canonical": ["docs/operations/owner-gateway.md"],
       "optional": ["DESIGN_RULES.md"]
     },
     "operations": {

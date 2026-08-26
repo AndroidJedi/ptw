@@ -1,4 +1,0 @@
-interface:
-  display_name: "Ad Studio Composer"
-  short_description: "Compose editable Studio posts and reviewed graphics"
-  default_prompt: "Use $ad-studio-composer to compose or revise a validated editable Studio recipe or five-post sample set from this approved Brief, Project brand kit, explicitly selected completed Creative data, and approved source assets."

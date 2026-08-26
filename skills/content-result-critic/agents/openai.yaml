@@ -1,0 +1,4 @@
+interface:
+  display_name: "Content Result Critic"
+  short_description: "Reviews PTW Result candidates in three bounded passes"
+  default_prompt: "Evaluate the supplied anonymized Result candidates under the typed critic contract."

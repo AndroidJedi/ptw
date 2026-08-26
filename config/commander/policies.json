@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 1,
   "emergencyStop": false,
   "approvals": {
     "productBriefPromiseAndOffer": true,
@@ -9,13 +9,8 @@
   },
   "heavyOperations": {
     "globalConcurrentMaximum": 1,
-    "kinds": ["product_brief", "ad_creative_batch", "codex_plan", "codex_execute"]
+    "kinds": ["product_brief", "content_result"]
   },
-  "ads": {
-    "generation": true,
-    "publishing": false
-  },
-  "landing": { "active": false, "stage": 3 },
   "telegram": {
     "reuseExistingBotOnly": true,
     "allowedInboundCommands": ["/help", "/status", "/stop"],

@@ -1,7 +1,6 @@
 import { Check, RefreshCcw, Send, Sparkles, Target } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api'
-import { OwnerLessonProposals } from '../components/OwnerLessonProposals'
 import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
 import type { ProductBrief, ProductBriefDocument, ValidationProject } from '../types'
 
@@ -16,12 +15,13 @@ function BriefDocument({ value }: { value: ProductBriefDocument }) {
   </div>
 }
 
-export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBriefChanged, onProjectsRefresh }: {
+export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBriefChanged, onProjectsRefresh, onOpenResult }: {
   api: ApiClient
   projectId: string | null
   onProjectCreated: (project: ValidationProject) => void
   onProjectBriefChanged: (projectId: string, name: string, briefId: string, status: ProductBrief['status']) => void
   onProjectsRefresh: (preferredId?: string) => Promise<void>
+  onOpenResult: () => void
 }) {
   const [items, setItems] = useState<ProductBrief[] | null>(null)
   const [selected, setSelected] = useState<ProductBrief | null>(null)
@@ -77,7 +77,7 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     setBusy(true); setError('')
     try {
       await api.post(`/api/v1/briefs/${selected.brief_id}/approve`, { honor_confirmed: true })
-      setNotice('Approved. Exactly five Ad Creatives are now being generated.'); await load(selected.brief_id)
+      setNotice('Approved. Add the task in Result when you are ready.'); await load(selected.brief_id)
       await onProjectsRefresh(selected.project_id)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
@@ -90,21 +90,20 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
   if (!items) return error ? <ErrorState message={error} retry={() => void load()} /> : <Loading />
   return <>
     <PageHeader eyebrow="STAGE 1 · ONE HYPOTHESIS" title="Product Briefs" />
-    {error && <ErrorState message={error} />}{notice && <p className="landing-notice" role="status">{notice}</p>}
+    {error && <ErrorState message={error} />}{notice && <p className="notice" role="status">{notice}</p>}
     <section className="panel brief-create"><div><small>NEW PROJECT · RAW IDEA ONLY</small><h2>What do you want to validate?</h2><p>Generating an initial Brief creates and selects a new Project. No market research, SEO, YouTube, evidence reports, or alternative hypotheses.</p></div>
       <textarea id="new-project-idea" rows={5} maxLength={10000} value={rawIdea} onChange={(event) => setRawIdea(event.target.value)} placeholder="Describe one product idea…" />
       <button className="primary large" disabled={busy || !rawIdea.trim()} onClick={create}><Sparkles />Generate Product Brief & Create Project</button>
     </section>
     {!items.length ? <Empty><Target className="empty-mark" /><h2>{projectId ? 'No Product Brief in this Project' : 'No Project yet'}</h2><p>Enter one raw idea above to create a Project and start the smallest validation loop.</p></Empty> : <div className="brief-workspace">
       <aside className="panel brief-list"><small>BRIEF HISTORY</small>{items.map((item, index) => <button key={item.brief_id} className={selected?.brief_id === item.brief_id ? 'selected' : ''} onClick={() => void load(item.brief_id)}><strong>{index === 0 ? 'Current Brief' : 'Earlier Brief'} · {item.product || item.raw_idea.slice(0, 70)}</strong><span>{item.status} · {item.language?.toUpperCase() || '—'} · {item.approved ? 'approved' : 'not approved'} · {new Date(item.created_at).toLocaleDateString()}</span></button>)}</aside>
-      {selected && <div className="panel brief-detail"><small>{selected.base_brief_id ? 'REPLACEMENT BRIEF' : 'ROOT BRIEF'}</small><p className="uuid-line">Project {selected.project_id} · Brief {selected.brief_id}<br />Source {selected.owner_idea_source_id}{selected.base_brief_id ? ` · supersedes ${selected.base_brief_id}` : ''}</p>
-        {activeStatuses.has(selected.status) && <p className="generation-state"><RefreshCcw className="spin" /> Generating one testable positioning…</p>}
+      {selected && <div className="panel brief-detail"><small>{selected.base_brief_id ? 'REPLACEMENT BRIEF' : 'CURRENT IMMUTABLE BRIEF'}</small>
+        {activeStatuses.has(selected.status) && <p className="generation-state"><RefreshCcw className="spin" /> Generating one testable hypothesis…</p>}
         {selected.status === 'failed' && <div className="state error"><p>{selected.error_message || selected.error_code || 'Generation failed'}</p><button className="secondary" disabled={busy} onClick={retry}>Retry</button></div>}
         {selected.document && <><BriefDocument value={selected.document} />
-          <div className="approval-row">{selected.approved ? <p><Check /> Approved · creative batch {selected.creative_batch_id}</p> : <button className="primary" disabled={busy} onClick={approve}><Check />I can honor this promise and offer — approve</button>}</div>
+          <div className="approval-row">{selected.approved ? <><p><Check /> Approved for Result generation</p><button className="primary" onClick={onOpenResult}><Sparkles />Create result</button></> : <button className="primary" disabled={busy} onClick={approve}><Check />I can honor this promise and offer — approve</button>}</div>
           <section className="brief-correction"><h2>Correct this hypothesis</h2><p>Creates a new immutable Brief that must be approved again.</p><textarea rows={4} maxLength={2000} value={correction} onChange={(event) => setCorrection(event.target.value)} placeholder="One correction for the complete Brief…" /><button className="secondary" disabled={busy || !correction.trim()} onClick={correct}>Create replacement <Send /></button></section>
         </>}
-        <OwnerLessonProposals api={api} domain="product_brief" refreshKey={selected.brief_id} />
       </div>}
     </div>}
   </>

@@ -1,69 +1,73 @@
 ---
 name: ptw-vps-operations
-description: Safely inspect, deploy, verify, and troubleshoot PTW Validation production across Commander, the Validation API, Owner Gateway, the independent platform bridge, PostgreSQL, Caddy, Pexels, and the existing Telegram emergency boundary. Use for releases, migrations, resets, service health, logs, restart recovery, or 1 GB resource audits.
+description: Safely inspect, deploy, reset, verify, and troubleshoot PTW Result production across Commander, Validation, Owner Gateway, the independent platform bridge, PostgreSQL, Caddy, Pexels, Firebase Hosting, and the existing Telegram emergency boundary.
 ---
 
-# PTW Validation VPS Operations
+# PTW Result VPS Operations
 
 Operate `/root/ptw` and `/opt/ptw/platform` as unrelated histories and
-databases. The platform bridge is the one explicit integration. Never move
-credentials between them or mutate platform data during a Commander reset.
+databases. The structured bridge is their only application integration. Never
+move credentials between them or mutate platform data during a Commander reset.
 
 ## Start safely
 
-1. Read the current-state document and narrow operations route. Check both
-   worktrees, exact image tags, containers, memory/swap, disk, OOM evidence,
-   database readiness, and emergency stop.
+1. Read the current-state and operations documents. Inspect both worktrees,
+   exact image tags, containers, memory/swap, disk, OOM evidence, database
+   readiness, and emergency stop without printing environment values.
 2. Use one locked serial SSH session. Build matching Linux/amd64 Commander,
    Validation, Owner Gateway, platform API, and platform worker images off-host
-   with one non-`latest` tag.
-3. Provision `PEXELS_API_KEY` only in the root-owned runtime environment. Never
-   print, copy to Git, rotate casually, or embed it in an image.
-4. Treat `scripts/reset_ptw.sh` as irreversible. Run only after the owner gives
-   the exact phrase `RESET PTW PRODUCTION`. It may drop only
-   `ptw_commander.public`; it must snapshot and compare independent platform
-   table counts.
+   with one versioned, non-`latest` tag.
+3. Keep `PEXELS_API_KEY`, Firebase credentials, bridge tokens, and the existing
+   Telegram bot token root-owned. Never print, rotate, or copy them into Git.
+4. Treat `scripts/reset_ptw.sh` as irreversible. Run it only after the owner
+   provides exactly `RESET PTW PRODUCTION`. It may drop only
+   `ptw_commander.public` and the obsolete explicit `ptw_owner-control` volume.
+   It must snapshot and compare all independent platform table counts.
 
-## Service contract
+## Result service contract
 
-- Validation is the independent `ptw-validation` Compose project on local port
-  8093, sharing the Commander DB network and platform backend network.
-- Core validation bridge modes remain exactly `product_brief`,
-  `product_brief_revision`, and `ad_creative_batch`. The additive Studio
-  capability advertises `ad_studio_recipe_revision`,
-  `ad_studio_graphic_generation`, and `ad_studio_creative_validation`
-  separately so old Stage 1–2 clients remain compatible. Require a fresh
-  strict-schema canary for every advertised mode, an exact digest-checked JPEG
-  attachment canary for creative validation, and an authenticated digest/ETag
-  canary for generated Studio assets.
-- A Studio graphic canary must prove exactly one completed built-in image call.
-  Count and deduplicate a dedicated or MCP-shaped JSONL completion when Codex
-  emits one. When the CLI emits no call event, accept only exactly one
-  session-scoped `exec-<request-uuid>.png` receipt. Never infer a call from
-  prompt text or an arbitrary PNG filename; still require exactly one bounded,
-  digest-checked PNG afterward.
-- Run a non-persisting Pexels search/download/render canary before reset.
-- No SEO, DataForSEO, YouTube, market-research, Landing, publishing, traffic,
-  campaign, UTM, or analytics provider is active. The only AI-image boundary is
-  the explicit Studio graphic mode: one bounded square PNG, no synthetic
-  people or embedded brand/copy, immutable provider/prompt/digest lineage, and
-  owner preview before Apply.
-- One database guard serializes Brief, creative-batch, and Codex Plan/Execute
-  work. Restart recovery releases only the owning operation.
+- Validation is the separate `ptw-validation` Compose project on local port
+  8093 and shares only the Commander database network and platform backend.
+- JSON modes are exactly `product_brief`, `product_brief_revision`,
+  `content_candidate_generation`, and `content_result_critic`. Media mode is
+  exactly `content_non_human_graphic_generation`.
+- Run strict-schema canaries for Product Brief, one isolated candidate, and one
+  multimodal critic call. The critic accepts one to five explicitly mapped,
+  digest-checked JPEGs, at most 1.5 MB each and 8 MB total, and cannot generate
+  images.
+- JSON-only candidate and critic calls may receive one fresh retry within the
+  original deadline. A non-human graphic call is single-shot and must never be
+  retried after an ambiguous result.
+- Run a non-persisting Pexels search/download/image-policy canary before reset.
+  Require approved Project assets or Pexels real photography; synthetic people
+  and faces remain forbidden.
+- Production concurrency is at most two generator JSON calls and one critic
+  multimodal call. A run permits five initial calls, four improvements, exactly
+  three critic passes, one optional non-human graphic, and 45 minutes total.
 
-## Cutover verification
+## Clean reset acceptance
 
-After the clean baseline require zero Product Brief, batch, creative, asset,
-feedback, and relationship rows; legacy Positioning/Landing tables and
-containers absent; platform counts unchanged; database-backed readiness;
-restart persistence; canonical skill links; Landing placeholder; service-worker
-cache bump; exact-owner Stage 1–2 browser acceptance; Pexels attribution and
-ETags; retired APIs returning 404; and one labelled, audit-backed failed-batch
-notification canary without adding a poller or inbound command.
+After reset require:
 
-Run the 1 GB audit immediately and through one locked 24-hour follow-up. Fail
-on new OOM evidence, unexpected processes/pollers, missing swap, unstable
-readiness, or documented low-memory boundaries.
+- exactly the single `001_ptw_result_v1.sql` migration;
+- zero Projects, Briefs, sources, assets, brand kits, recipes, renders, runs,
+  candidates, elements, critic passes, actions, Results, outcomes, feedback,
+  weights, attempts, invocations, and graph rows;
+- no Ads, batch, Landing, Positioning, idea, publication, campaign, job-control,
+  or SQLite owner-control tables/volumes/containers;
+- independent platform table counts unchanged;
+- database-backed readiness for Commander and Validation plus Gateway health;
+- canonical skills, exact Result-only route table, restarted services, current
+  service-worker cache, authenticated Result image digest/ETag, and retired
+  public/API paths returning 404.
 
-Never print secrets, reset without the exact phrase, use `latest`, build on the
-1 GB VPS, or claim a capability from health checks alone.
+Deploy the enforcing platform worker before the platform API, run bridge and
+Pexels canaries before the irreversible reset, then deploy/reset Commander,
+Validation, and Owner Gateway serially. Run the 1 GB audit immediately and
+schedule its locked 24-hour follow-up. Fail on new OOM evidence, missing swap,
+unexpected pollers/containers, unstable readiness, or less than 250 MiB idle
+available memory.
+
+Never reset without the exact phrase, use `latest`, build on the 1 GB VPS,
+clear `/opt/ptw/platform` data, touch unrelated databases, or claim readiness
+from health checks alone.

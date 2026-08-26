@@ -1,13 +1,10 @@
-import { Clapperboard, LayoutTemplate, Megaphone, Settings, Target } from 'lucide-react'
+import { Sparkles, Target } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Page } from '../types'
 
 const items: Array<{ id: Page; label: string; icon: typeof Target }> = [
   { id: 'briefs', label: 'Product Briefs', icon: Target },
-  { id: 'studio', label: 'Ad Studio', icon: Clapperboard },
-  { id: 'ads', label: 'Ads', icon: Megaphone },
-  { id: 'landing', label: 'Landing', icon: LayoutTemplate },
-  { id: 'admin', label: 'Admin', icon: Settings },
+  { id: 'result', label: 'Result', icon: Sparkles },
 ]
 
 export function Shell({ page, onPage, children, language, onLanguage }: {

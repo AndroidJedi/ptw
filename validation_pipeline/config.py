@@ -13,12 +13,12 @@ class Settings:
     bridge_token: str
     pexels_api_key: str
     model: str = "codex-cli-default"
-    failure_notification_url: str = "http://ptw-owner-gateway:8088/internal/v1/validation-failures"
     product_brief_skill_path: Path = Path("/run/ptw-auth/skills/product-brief-generator/SKILL.md")
-    ad_creative_skill_path: Path = Path("/run/ptw-auth/skills/ad-creative-generator/SKILL.md")
-    ad_studio_skill_path: Path = Path("/run/ptw-auth/skills/ad-studio-composer/SKILL.md")
-    ad_creative_validator_skill_path: Path = Path(
-        "/run/ptw-auth/skills/ad-creative-validator/SKILL.md"
+    content_candidate_generator_skill_path: Path = Path(
+        "/run/ptw-auth/skills/content-candidate-generator/SKILL.md"
+    )
+    content_result_critic_skill_path: Path = Path(
+        "/run/ptw-auth/skills/content-result-critic/SKILL.md"
     )
 
     @classmethod
@@ -40,21 +40,15 @@ class Settings:
             bridge_token=required["LLM_BRIDGE_TOKEN"],
             pexels_api_key=required["PEXELS_API_KEY"],
             model=os.environ.get("VALIDATION_LLM_MODEL", "codex-cli-default").strip(),
-            failure_notification_url=os.environ.get(
-                "VALIDATION_FAILURE_NOTIFICATION_URL",
-                "http://ptw-owner-gateway:8088/internal/v1/validation-failures",
-            ).strip(),
             product_brief_skill_path=Path(os.environ.get(
                 "PRODUCT_BRIEF_SKILL_PATH", "/run/ptw-auth/skills/product-brief-generator/SKILL.md"
             )),
-            ad_creative_skill_path=Path(os.environ.get(
-                "AD_CREATIVE_SKILL_PATH", "/run/ptw-auth/skills/ad-creative-generator/SKILL.md"
+            content_candidate_generator_skill_path=Path(os.environ.get(
+                "CONTENT_CANDIDATE_GENERATOR_SKILL_PATH",
+                "/run/ptw-auth/skills/content-candidate-generator/SKILL.md",
             )),
-            ad_studio_skill_path=Path(os.environ.get(
-                "AD_STUDIO_SKILL_PATH", "/run/ptw-auth/skills/ad-studio-composer/SKILL.md"
-            )),
-            ad_creative_validator_skill_path=Path(os.environ.get(
-                "AD_CREATIVE_VALIDATOR_SKILL_PATH",
-                "/run/ptw-auth/skills/ad-creative-validator/SKILL.md",
+            content_result_critic_skill_path=Path(os.environ.get(
+                "CONTENT_RESULT_CRITIC_SKILL_PATH",
+                "/run/ptw-auth/skills/content-result-critic/SKILL.md",
             )),
         )

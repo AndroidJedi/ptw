@@ -75,16 +75,17 @@ def main() -> None:
         "reCAPTCHA Enterprise site key": args.site_key,
         "Safari-safe Auth persistence": "ptw-auth-local-storage-v1",
         "Product Brief workspace": "Product Briefs",
-        "Landing placeholder": "Stage 3 pending",
-        "Ads workspace": "Ads",
-        "Admin workspace": "Docs / System / Terminal",
-        "review-first Jobs action": "Review steps",
-        "serial Jobs explanation": "One job runs at a time.",
-        "plain-language feedback rule": "Use feedback next time",
-        "plain-language feedback rerun": "Generate new Ads with feedback",
+        "Result workspace": "ONE TASK · ONE FINAL CREATIVE",
+        "five-direction progress": "Creating five directions",
+        "critic progress": "Improving the strongest direction",
+        "final review progress": "Final review",
+        "selection summary": "WHY THIS DIRECTION",
     }.items():
         require(marker in app_bundle, f"Live App bundle is missing {label}")
-    for retired_label in ("Plan · read only", "Plan combined lesson", "Generate learned rerun"):
+    for retired_label in (
+        "Stage 3 pending", "Generate new Ads", "Ad Studio", "Review steps",
+        "Docs / System / Terminal",
+    ):
         require(retired_label not in app_bundle, f"Live App bundle still exposes {retired_label!r}")
 
     status, _, worker_bytes = fetch(f"{args.origin}/sw.js?{cache_bust}")
@@ -106,7 +107,8 @@ def main() -> None:
 
     for retired_path in (
         "/api/v1/ideas", "/api/v1/branding", "/api/v1/posts",
-        "/api/v1/positionings", "/api/v1/ads", "/api/v1/landings",
+        "/api/v1/positionings", "/api/v1/ads", "/api/v1/ad-batches",
+        "/api/v1/ad-studio", "/api/v1/landings", "/api/v1/jobs",
         "/api/v1/public/landings/00000000-0000-0000-0000-000000000000/leads",
     ):
         retired_status, _, _ = fetch(f"{args.api}{retired_path}")

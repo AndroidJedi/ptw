@@ -14,7 +14,7 @@ class TelegramBoundaryTests(unittest.TestCase):
         self.assertEqual("/help", telegram_command("/help"))
         self.assertEqual("/status", telegram_command("/status@ptw_commander_bot"))
         self.assertEqual("/stop", telegram_command("/stop emergency"))
-        for value in ("help", "status", "stop", "/start", "/create", "build landing"):
+        for value in ("help", "status", "stop", "/start", "/create", "publish campaign"):
             with self.subTest(value=value):
                 self.assertEqual("", telegram_command(value))
 

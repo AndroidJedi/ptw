@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 if [[ $# -ne 6 || $5 != --confirm ]]; then
-    echo "usage: $0 RELEASE_TAG IMAGE_DIRECTORY PLATFORM_GIT_REVISION PLATFORM_IMAGE_DIRECTORY --confirm 'RESET PTW PRODUCTION|DEPLOY PTW IN PLACE'" >&2
+    echo "usage: $0 RELEASE_TAG IMAGE_DIRECTORY PLATFORM_GIT_REVISION PLATFORM_IMAGE_DIRECTORY --confirm 'RESET PTW PRODUCTION'" >&2
     exit 2
 fi
 release_tag=$1
@@ -10,8 +10,8 @@ image_directory=$2
 platform_revision=$3
 platform_image_directory=$4
 confirmation=$6
-[[ $confirmation == "RESET PTW PRODUCTION" || $confirmation == "DEPLOY PTW IN PLACE" ]] || {
-    echo "exact reset or in-place deployment confirmation is required" >&2; exit 2;
+[[ $confirmation == "RESET PTW PRODUCTION" ]] || {
+    echo "exact production reset confirmation is required" >&2; exit 2;
 }
 [[ $release_tag =~ ^[A-Za-z0-9._-]+$ && $release_tag != latest ]] || { echo "invalid release tag" >&2; exit 2; }
 [[ $platform_revision =~ ^[0-9a-f]{40}$ ]] || { echo "PLATFORM_GIT_REVISION must be a full commit SHA" >&2; exit 2; }
@@ -67,6 +67,5 @@ ssh -i "$HOME/.ssh/ptw_commander" -o IdentitiesOnly=yes root@165.245.212.184 \
     < "$stream_file"
 
 npm --prefix apps/commander-web run check
-firebase deploy --only hosting --config firebase.natal-placeholder.json
 firebase deploy --only hosting
 python3 skills/ptw-owner-console-incident/scripts/audit_live_owner_console.py

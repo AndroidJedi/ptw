@@ -1,148 +1,77 @@
 ---
 name: ptw-owner-console-incident
-description: Diagnose, fix, deploy, and prevent PTW Owner Console incidents across Firebase Auth/App Check/Hosting/PWA caching, Product Briefs, Ad Creatives and authenticated images, dormant Landing, Admin, Commander, the validation API, the platform bridge, PostgreSQL, and the existing Telegram emergency boundary. Use when a workspace fails, stale UI is served, readiness regresses, an artifact fails, or a retired route reappears.
+description: Diagnose, fix, deploy, and prevent PTW Owner Console incidents across Firebase Auth/App Check/Hosting/PWA caching, Product Briefs, Results, Commander, Validation, the platform bridge, PostgreSQL, Pexels, deterministic rendering, and the existing Telegram emergency boundary.
 ---
 
 # PTW Owner Console Incident
 
-Trace the public symptom through browser → Hosting/Caddy → Owner Gateway →
-Validation API → PostgreSQL or the independent structured bridge/Pexels API. A
-healthy gateway alone does not prove Stage 1–2 readiness.
+Trace a public symptom through browser → Firebase Hosting/Caddy → Owner Gateway
+→ Validation → PostgreSQL or the independent structured bridge/Pexels API. A
+healthy Gateway alone does not prove Product Brief or Result readiness.
 
 ## Public boundary
 
-- Verify hashed bundles, bumped service-worker cache, Firebase Auth persistence,
-  App Check, exact Owner CORS origins, and unauthenticated rejection.
-- Verify active console chrome, the PTW icon, terminal, and Mermaid diagrams use
-  only black, white, and neutral grays. Preserve state meaning through contrast,
-  borders, patterns, icons, and text; reviewed Ad photos may remain full color.
-- Navigation is Product Briefs, Ads, Landing, Admin. Landing shows only
-  `Stage 3 pending`.
-- Legacy Positioning, research, public Landing/lead, and Ads-stub APIs must
-  return 404.
-- Image delivery is owner-authenticated and returns the stored JPEG with its
-  authoritative ETag.
-- Ad Studio has two distinct surfaces: clean Preview and Edit. Preview and
-  exported artifacts never contain frame outlines, semantic IDs, tool labels,
-  handles, or safe-zone guides. Edit must display the real authenticated source
-  media/logo beneath bounded selection chrome; a black canvas or a visible
-  `shape`/tool ID is an incident, not a valid preview.
-- For clipped Studio copy, compare the browser preview with the authoritative
-  render, then verify pixel-based Unicode wrapping, auto-fit bounds, frame
-  clipping, media fit/focal settings, and protected offer/CTA overflow. Never
-  mask the incident by truncating the approved offer or CTA.
-- A visible CTA container does not by itself prove the CTA rendered, but a
-  multi-image inspection surface can also mis-composite repeated regions. Read
-  the authoritative bytes independently, compare decoded crop hashes, and run
-  OCR/pixel assertions before classifying stored output as corrupt. After any
-  Pillow paste/composite into an RGB canvas, rebind the drawing context before
-  the next text layer. A genuinely blank exported button still blocks release.
-- A minimal Studio-mode canary does not prove a real Wizard revision schema.
-  Every object in the bridge output schema, including patch items and the full
-  recipe document, must declare typed properties, the complete required set,
-  and `additionalProperties: false`. Bind frame/modifier variants to existing
-  instance and tool IDs, then keep server-side scope, lineage, offer, and CTA
-  validation authoritative after model output.
-- A Wizard 409 may occur after the recipe-revision bridge job succeeded but
-  before an approved proposal could be persisted. Correlate the Owner Gateway
-  request time with the independent platform's `llm_structured` jobs by Studio
-  mode, then inspect the retained sanitized issue summary. No new Wizard row is
-  expected when automatic creative validation fails because proposal creation
-  is atomic. One fresh retry is allowed inside the existing deadline for failed
-  JSON-only recipe revision or creative validation. Never automatically retry
-  graphic generation after an ambiguous failure because an image call may
-  already have occurred.
-- On mobile, keep the current Wizard primary action fixed above the bottom
-  navigation and reserve enough panel space that progress, failure, retry, and
-  review receipts remain reachable. Assert actual document width and action
-  viewport intersection in iPhone WebKit and 360 px Chromium; `overflow-x:
-  hidden` alone can mask a broken layout.
-- PTW Ad images are fetched as authenticated `image/jpeg` responses and shown
-  through browser `blob:` URLs; they are not inline `data:image/png` resources.
-  For a load incident, first validate stored bytes, SHA-256, dimensions, HTTP
-  media type, ETag, and proxy byte equality. Treat a malformed or truncated
-  inline PNG as a separate browser/extension resource unless its provenance to
-  PTW is demonstrated. Still expose MIME, integrity, and browser-decode failures
-  in Ads with the Creative UUID and a bounded retry.
-- Validation Compose injects only its explicit runtime allowlist. Never attach
-  whole Owner Gateway, Commander, or platform env files to that container;
-  remove retired `DATAFORSEO_`, `POSITIONING_`, `LANDING_`, and `YOUTUBE_`
-  settings from the root-owned application env during cutover.
+- Verify hashed bundles, the `ptw-result-v1` service-worker cache, Firebase Auth
+  persistence, App Check, exact Owner CORS origins, and unauthenticated
+  rejection.
+- Navigation is exactly Product Briefs and Result. The normal Result journey
+  exposes one approved Brief, Text/Instagram choice, one task, three bounded
+  progress labels, one final immutable Result, its selection summary,
+  Download/Use, retry, feedback, and a collapsed bounded trace.
+- Ads, batches, Studio editor/Wizard, Landing, Admin/Jobs/terminal, Positioning,
+  research, publishing, campaign, traffic, UTM, and public lead routes must be
+  absent and return 404.
+- Result images are owner-authenticated JPEG responses displayed through
+  `blob:` URLs. Validate stored bytes, SHA-256, dimensions, content type, ETag,
+  and proxy byte equality before debugging browser decode failures.
+- Never expose template controls, internal alternatives, prompt secrets, raw
+  base64, credentials, or require the owner to enter a UUID.
 
 ## Stage checks
 
-- Product Briefs: raw idea only; inferred `uk` or `en`; one strict hypothesis;
-  three to five benefits; non-empty strong offer; no market/SEO/YouTube call;
-  immutable corrections; owner approval of promise and offer.
-- Ads: one `ad_creative_batch` bridge call receives only the approved Brief;
-  exactly five fixed angles; CTA/offer continuity; five unique creative and
-  asset UUIDs; all-or-nothing persistence.
-- Pexels: root-owned key, ten-result bound, category fallback, unique source
-  photo IDs, allowed CDN/MIME/size/dimensions, photographer/source/license
-  attribution, and deterministic 1080×1080 JPEG SHA-256.
-- Feedback: resolve the creative UUID; persist append-only HumanFeedback and
-  WeightUpdate entities with `evaluates` and `adjusts` edges; create only a
-  pending editable lesson proposal.
-- Admin: keep Jobs, Docs/System, emergency stop, reset phrase, and break-glass
-  terminal owner-authenticated. Every job must expose its instruction, plan,
-  error, and status through an explicit details control. Use labelled Run,
-  Restore, and Cancel actions; never represent cancellation with an ambiguous
-  checkbox-like icon. Cancellation requires both a browser confirmation and a
-  server-validated confirmation payload, applies only to an active job, and
-  must not race a completed planner result into a false failed state. An
-  unexecuted failed or cancelled lesson plan may restore its preserved plan or
-  regenerate it while restoring every linked proposal as one atomic group.
-- Keep Jobs as one review-first workflow: describe one job, prepare read-only
-  steps, then explicitly run the exact digest-bound steps. Do not expose a
-  Plan/Execute mode switch when both choices enter the same planning path.
-  Explain feedback lessons as future rules, state that they do not change the
-  reviewed artifact or rerun its agent, and keep heavy work serial.
+- Product Brief: raw idea only; inferred `uk` or `en`; one strict hypothesis;
+  exact bounded document; immutable correction; owner approval of promise and
+  offer; no research/SEO/YouTube call.
+- Context: only approved Brief, task Source, current Project brand kit, approved
+  Project assets, bounded tool catalog, one template, deterministic writing
+  references, and four to six positive excerpts. Overflow fails explicitly.
+- Generation: exactly five distinct template IDs, isolated calls, server UUIDv7
+  elements, exact offer/CTA, honest claims, and candidate eligibility only after
+  schema/media/recipe/render/protected-copy checks.
+- Critic: exactly three logical passes; anonymous template identity; five, five,
+  then two active candidates maximum; four improvement calls total; bounded
+  slider changes; no generation in pass three; fail closed when nothing is
+  eligible.
+- Instagram: approved/Pexels real image or explicitly allowed reviewed
+  non-human graphic; one square `StudioRecipeV2`; exact 1080×1080 JPEG; safe
+  crop, collision, hierarchy, legibility, brand, caption, and alt-text gates.
+- Feedback: resolve the displayed final Creative UUID server-side and append
+  HumanFeedback, zero-delta WeightUpdate, generator and critic lesson proposals,
+  outcomes, and required `evaluates`, `adjusts`, `contains`, and `derived_from`
+  edges. Skills never learn silently.
 
 ## Failure handling
 
-Restart recovery may fail interrupted Brief or batch attempts and release only
-their guard. A failed five-asset preparation stores no creative or asset rows.
-Retry only failed targets; approval remains idempotent with one batch per Brief.
-Do not bypass schema validation, the global operation guard, App Check, owner
-approval, source lineage, or authenticated artifact delivery.
-
-For an offer-continuity failure, compare the approved Brief offer with the exact
-structured bridge response, including terminal punctuation. Bind exact CTA and
-offer fields in the output schema; require offer wording in visible copy while
-allowing surrounding sentence punctuation.
-
-A terminal failed Ad batch may make one audited direct `sendMessage` through
-the existing allowlisted bot only after the failure is durable. Reserve the
-attempt before sending, never auto-retry ambiguous delivery, suppress under
-emergency stop, and expose notification state beside the UI failure reason. Do
-not add a webhook, poller, worker, completion notification, or new command.
-Inbound commands remain `/help`, `/status`, and `/stop` only.
-
-After retry succeeds, keep the latest failed attempt and its notification state
-visible as recovered history; clearing the current batch error must not erase
-the owner's explanation.
+- Persist checkpoints after every candidate, render, critic pass, action, and
+  final materialization. Resume only idempotent JSON stages and deterministic
+  rendering. Never duplicate reserved candidates, actions, Results, or calls.
+- A failed initial template after its one fresh JSON retry fails the run. An
+  ambiguous graphic call terminates it without retry. Incomplete runs remain
+  internal and are never exposed as a Result.
+- Preserve exact provider request IDs and failed retry provenance. Present an
+  actionable failure and create a new immutable child run on owner retry.
+- For offer/CTA failures, compare byte-exact protected fields from Brief,
+  candidate, recipe, rendered text, and final Result. Never truncate or rewrite
+  protected copy to make a render pass.
 
 ## Release acceptance
 
-Render Compose before cutover. Require a root-owned `PEXELS_API_KEY` without
-printing it. Run schema-bound canaries for `product_brief`,
-`product_brief_revision`, and `ad_creative_batch`, then a non-persisting Pexels
-download/render canary before the irreversible reset.
+Run the clean-schema verifier, bridge and Pexels canaries, built-image tests,
+Commander tests/demo, skill verification, Owner Gateway tests, Owner web
+tests/build/Playwright at desktop/360 px/iPhone widths, restart-stage tests,
+`git diff --check`, the dependency audit, public live audit, and the 1 GB audit.
 
-Block-framed non-tar release artifacts must declare their exact byte length.
-After transport, remove framing padding before checksum verification, bundle
-fetch, or another strict parser. Prove the exact platform bundle with a
-disposable fetch before streaming it to production.
-
-If the owner explicitly requests a reversible Hosting-only release before the
-backend cutover, label it incomplete, verify the cache-busted bundle and service
-worker, and expect the full live audit to stop at the legacy API boundary. Never
-claim Product Brief/Ads readiness or weaken the backend reset/Pexels gates.
-
-After deploy, run the dependency and live-console audits, then an exact-owner
-desktop/360 px journey: create Brief, correct, approve with honor confirmation,
-observe five Ads, load each authenticated image and attribution, submit feedback,
-inspect dormant Landing, and inspect Admin. Verify restart recovery, retired
-routes/containers/tables, canonical skills, no extra provider calls, and no OOM.
-
-Never run Landing-specific suites during the Stage 1–2 milestone.
+Telegram remains notifications plus `/help`, `/status`, and `/stop`. Before
+claiming it works, verify the deployed help text, authorization, established
+poller ownership, real end-to-end response, emergency persistence/restart, and
+failure path. Do not add another poller, webhook, command, or token.

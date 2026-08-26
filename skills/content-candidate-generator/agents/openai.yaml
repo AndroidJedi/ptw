@@ -1,0 +1,4 @@
+interface:
+  display_name: "Content Candidate Generator"
+  short_description: "Generate one isolated Result candidate"
+  default_prompt: "Use $content-candidate-generator to generate one isolated Result candidate from the approved Product Brief and assigned strategy only."

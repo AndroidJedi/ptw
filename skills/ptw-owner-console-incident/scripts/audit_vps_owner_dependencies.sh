@@ -40,7 +40,7 @@ fi
 docker inspect "$validation_container" --format '{{range .Config.Env}}{{println .}}{{end}}' \
   | grep -q '^PEXELS_API_KEY=....................' || { echo "Pexels runtime key is missing" >&2; exit 1; }
 
-for retired_container in ptw-idea-generation-idea-generation-api-1 ptw-commander-worker-1 ptw-commander-ad-worker-1 ptw-marketing-positioning-marketing-positioning-api-1; do
+for retired_container in ptw-idea-generation-idea-generation-api-1 ptw-commander-worker-1 ptw-commander-ad-worker-1 ptw-marketing-positioning-marketing-positioning-api-1 ptw-ad-studio-local-relay ptw-ad-studio-local-validation ptw-ad-studio-local-db; do
   test -z "$(docker ps -q --filter "name=^/$retired_container$")" || {
     echo "retired container $retired_container is running" >&2
     exit 1
@@ -51,7 +51,7 @@ import sys
 import owner_gateway.api
 for name in ("idea_generation", "marketing_positioning", "owner_gateway.landing", "commander.ad_generation", "commander.worker"):
     assert name not in sys.modules, name
-print("Owner Gateway dependency boundary ready")
+print("Result-only Owner Gateway dependency boundary ready")
 '
 
 python3 scripts/verify_ptw_skills.py

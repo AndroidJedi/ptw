@@ -7,11 +7,8 @@ import { Shell } from './components/Shell'
 import { ProjectSwitcher } from './components/ProjectSwitcher'
 import type { Language } from './i18n'
 import type { Page, ValidationProject } from './types'
-import { AdsView } from './views/AdsView'
-import { AdminView } from './views/AdminView'
-import { LandingPlaceholderView } from './views/LandingPlaceholderView'
 import { ProductBriefView } from './views/ProductBriefView'
-import { StudioView } from './views/StudioView'
+import { ResultView } from './views/ResultView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
 export const AUTH_BOOT_TIMEOUT_MS = 10_000
@@ -19,7 +16,7 @@ export const AUTH_BOOT_TIMEOUT_MS = 10_000
 function initialConsoleLocation(): { page: Page; projectId: string | null } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const known = ['briefs', 'studio', 'ads', 'landing', 'admin'].includes(requestedPage || '')
+  const known = ['briefs', 'result'].includes(requestedPage || '')
   const page: Page = known
     ? requestedPage as Page
     : 'briefs'
@@ -146,16 +143,12 @@ function Console({ user }: { user: User }) {
     navigate('briefs')
     window.setTimeout(() => document.getElementById('new-project-idea')?.focus(), 0)
   }
-  const selectedProject = projects?.find((project) => project.project_id === projectId) || null
   return <Shell page={page} onPage={navigate} language={language} onLanguage={() => setLanguage(language === 'uk' ? 'en' : 'uk')}>
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label="Вийти"><LogOut /></button></div>
-    {page !== 'admin' && <ProjectSwitcher projects={projects} projectId={projectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} />}
-    {projectError && <p className="landing-notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>Retry projects</button></p>}
-    {page === 'briefs' && <ProductBriefView api={api} projectId={projectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} />}
-    {page === 'studio' && <StudioView key={projectId || 'no-project'} api={api} projectId={projectId} />}
-    {page === 'ads' && <AdsView key={projectId || 'no-project'} api={api} projectId={projectId} />}
-    {page === 'landing' && <LandingPlaceholderView project={selectedProject} />}
-    {page === 'admin' && <AdminView api={api} />}
+    <ProjectSwitcher projects={projects} projectId={projectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} />
+    {projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>Retry projects</button></p>}
+    {page === 'briefs' && <ProductBriefView api={api} projectId={projectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onOpenResult={() => navigate('result')} />}
+    {page === 'result' && <ResultView key={projectId || 'no-project'} api={api} projectId={projectId} />}
   </Shell>
 }
 

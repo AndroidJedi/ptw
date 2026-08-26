@@ -15,13 +15,17 @@ def main() -> None:
         print(repository.recover_interrupted())
         return
     required = {
-        "product_briefs", "creative_batches", "ad_creatives", "ad_creative_assets",
+        "validation_projects", "product_briefs", "product_brief_approvals",
         "validation_generation_attempts", "validation_provider_invocations",
-        "ad_studio_source_assets", "ad_studio_brand_kits", "ad_studio_recipes",
-        "ad_studio_templates",
-        "ad_studio_render_attempts", "ad_studio_renders", "ad_studio_publications",
-        "ad_studio_skill_proposals",
-        "ad_studio_sample_sets", "ad_studio_sample_set_items", "ad_studio_wizard_proposals",
+        "project_assets", "project_brand_kits", "studio_recipes", "studio_renders",
+        "content_generation_runs", "content_candidates", "content_elements",
+        "content_critic_passes", "content_improvement_actions", "content_results",
+        "content_generation_outcomes", "content_generation_checkpoints",
+    }
+    forbidden = {
+        "creative_batches", "ad_creatives", "ad_creative_assets", "ad_studio_templates",
+        "ad_studio_sample_sets", "ad_studio_wizard_proposals", "ad_studio_publications",
+        "landing_builds", "landing_draft_sets", "commander_ad_batches",
     }
     with repository.connection() as connection:
         rows = connection.execute(
@@ -29,8 +33,11 @@ def main() -> None:
         ).fetchall()
     missing = required - {row[0] for row in rows}
     if missing:
-        raise SystemExit(f"Validation schema is incomplete: {sorted(missing)}")
-    print("PTW Validation schema: OK")
+        raise SystemExit(f"Result schema is incomplete: {sorted(missing)}")
+    present_forbidden = forbidden & {row[0] for row in rows}
+    if present_forbidden:
+        raise SystemExit(f"legacy tables are forbidden: {sorted(present_forbidden)}")
+    print("PTW Result schema: OK")
 
 
 if __name__ == "__main__":

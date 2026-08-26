@@ -12,8 +12,6 @@ const monochromeSources = await Promise.all([
   join(appRoot, 'public', 'manifest.webmanifest'),
   join(appRoot, 'public', 'ptw.svg'),
   join(appRoot, 'src', 'styles.css'),
-  join(appRoot, 'src', 'components', 'MarkdownDoc.tsx'),
-  join(appRoot, 'src', 'components', 'TerminalPane.tsx'),
 ].map(async (path) => [path, await readFile(path, 'utf8')]))
 
 const requiredMarkers = {
@@ -22,13 +20,11 @@ const requiredMarkers = {
   'PTW reCAPTCHA Enterprise site key': '6LfFjYstAAAAAJaFuUPZYS9U17vROLcN7Fx6iOQL',
   'Safari-safe Auth persistence': 'ptw-auth-local-storage-v1',
   'Validation Project workspace': 'PROJECT WORKSPACE',
-  'Readable Ad generation label': 'Ads from Brief',
-  'Dedicated Ad Studio workspace': 'Ad Studio',
-  'Simple five-post Studio chooser': 'Choose a post',
-  'Wizard-only Studio instruction': 'What should change?',
-  'Explicit unsaved Studio preview': 'NEW PREVIEW · NOT SAVED',
-  'Explicit Studio apply': 'Use this version',
-  'Automatic creative validation receipt': 'Automatically reviewed',
+  'Result workspace': 'ONE TASK · ONE FINAL CREATIVE',
+  'Bounded initial stage': 'Creating five directions',
+  'Bounded improvement stage': 'Improving the strongest direction',
+  'Bounded final stage': 'Final review',
+  'Single public explanation': 'WHY THIS DIRECTION',
 }
 
 const missing = Object.entries(requiredMarkers)
@@ -39,27 +35,26 @@ if (missing.length) {
   throw new Error(`Unsafe Commander web build; missing: ${missing.join(', ')}`)
 }
 
-const forbiddenStudioMarkers = {
-  'manual template editor': 'Save current template',
-  'manual source library': 'Source library',
-  'manual share-copy editor': 'Share copy',
-  'technical render identifiers': 'Render UUID',
-  'technical manifest download': 'Download JSON manifest',
-  'training publication control': 'Publish training example',
-  'raw Wizard diff': 'Review typed diff',
+const forbiddenMarkers = {
+  'batch UI': 'Ad batch',
+  'Studio UI': 'Ad Studio',
+  'publication control': 'Publish',
+  'campaign control': 'Campaign',
+  'Landing UI': 'Landing',
+  'manual template controls': 'Template controls',
 }
-const exposed = Object.entries(forbiddenStudioMarkers)
+const exposed = Object.entries(forbiddenMarkers)
   .filter(([, marker]) => bundle.includes(marker))
   .map(([label]) => label)
 if (exposed.length) {
-  throw new Error(`Unsafe Commander web build; advanced Studio controls exposed: ${exposed.join(', ')}`)
+  throw new Error(`Unsafe Result web build; forbidden surfaces exposed: ${exposed.join(', ')}`)
 }
 
 if (!worker.includes("url.pathname.startsWith('/__/auth/')")) {
   throw new Error('Unsafe Commander service worker; Firebase Auth helper traffic is not bypassed')
 }
-if (!worker.includes("ptw-shell-v44-studio-wizard-recovery")) {
-  throw new Error('Unsafe Commander service worker; Project workspace cache version is stale')
+if (!worker.includes("ptw-result-v1")) {
+  throw new Error('Unsafe Result service worker; cache version is stale')
 }
 
 const expandHex = (value) => {
@@ -82,4 +77,4 @@ if (chromatic.length) {
   throw new Error(`Commander chrome must remain monochrome; found: ${chromatic.join(', ')}`)
 }
 
-process.stdout.write('Verified Commander API, App Check, Safari Auth, monochrome chrome, and service-worker markers in production build.\n')
+process.stdout.write('Verified Result API, App Check, Safari Auth, monochrome chrome, and service-worker markers in production build.\n')

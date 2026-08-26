@@ -1,2 +1,1 @@
-"""PTW Product Brief and Ad Creative validation runtime."""
-
+"""PTW Product Brief and five-template Result runtime."""

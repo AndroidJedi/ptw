@@ -1,0 +1,13 @@
+{
+  "template_id": "contrast_reframe",
+  "version": 1,
+  "active": true,
+  "philosophy": "Define the product through a sharp but truthful contrast, negation, misconception, or not-X-but-Y reframe, then make the mechanism concrete enough to avoid slogan-only copy.",
+  "narrative_sequence": ["familiar assumption", "short contrast", "new frame", "concrete mechanism", "exact offer and CTA"],
+  "visual_grammar": ["two controlled visual states or one decisive interruption", "short contrast typography", "one shared focal subject", "no disconnected collage"],
+  "defaults": {"hook_pressure": 80, "emotional_intensity": 58, "conceptual_novelty": 86, "information_density": 38, "visual_complexity": 64},
+  "envelopes": {"hook_pressure": [55, 90], "emotional_intensity": [30, 75], "conceptual_novelty": [65, 95], "information_density": [25, 65], "visual_complexity": [40, 80]},
+  "strengths": ["curiosity", "memorable rhythm", "conceptual distinctiveness"],
+  "failure_modes": ["vague slogan", "forced negation", "contrast without product mechanism"],
+  "prompt_fragment": "Use one compact contrast that changes how the supplied product is understood. Follow it immediately with tangible process, timing, actors, or action so novelty never replaces clarity."
+}

@@ -1,8 +1,0 @@
-{
-  "id": "community",
-  "version": 1,
-  "name": {"uk": "Спільнота / подія", "en": "Community / event"},
-  "description": {"uk": "Емоційний вступ, формат участі й простий запис.", "en": "Emotional entry, participation format, and simple registration."},
-  "best_for": ["community", "event", "offline", "group"],
-  "adapted_from": "natal/community-v1"
-}

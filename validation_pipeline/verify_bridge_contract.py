@@ -1,3 +1,5 @@
+"""Deployment canaries for the Result-only bridge modes."""
+
 from __future__ import annotations
 
 from io import BytesIO
@@ -6,12 +8,12 @@ import json
 from uuid import uuid4
 
 from .config import Settings
-from .provider import STUDIO_MODES, StructuredBridge, VALIDATION_MODES
+from .provider import StructuredBridge
 
 
 CANARY_SCHEMA = {
     "type": "object",
-    "properties": {"canary": {"type": "string", "const": "ptw-validation-ok"}},
+    "properties": {"canary": {"type": "string", "const": "ptw-result-ok"}},
     "required": ["canary"],
     "additionalProperties": False,
 }
@@ -20,78 +22,57 @@ CANARY_SCHEMA = {
 def main() -> None:
     settings = Settings.from_environment()
     provider = StructuredBridge(settings.bridge_url, settings.bridge_token, settings.model)
-    provider.capabilities()
+    capabilities = provider.capabilities()
     marker = str(uuid4())
-    invocations = []
-    for mode in VALIDATION_MODES:
-        result = provider.generate(
+    invocations: list[dict[str, object]] = []
+    for mode in ("product_brief", "product_brief_revision"):
+        value = provider.generate(
             mode=mode,
-            system_prompt="Deployment canary. Return only the object allowed by the schema.",
+            system_prompt="Deployment canary. Return only the schema object.",
             input_payload={"canary_id": marker, "mode": mode},
             output_schema=CANARY_SCHEMA,
-            prompt_version="ptw_validation_canary_v1",
+            prompt_version="ptw_result_bridge_canary_v1",
+            idempotency_key=f"canary:{marker}:{mode}",
         )
-        if result != {"canary": "ptw-validation-ok"}:
-            raise SystemExit(f"schema-bound bridge canary failed for {mode}")
-        invocations.append({"mode": mode, "bridge_request_id": provider.last_invocation.get("bridge_request_id")})
-    revision = provider.generate_studio_recipe_revision(
-        system_prompt="Deployment canary. Do not use image generation. Return only the schema object.",
-        input_payload={"canary_id": marker, "mode": "ad_studio_recipe_revision"},
+        if value != {"canary": "ptw-result-ok"}:
+            raise SystemExit(f"bridge canary failed for {mode}")
+        invocations.append({"mode": mode, "request_id": provider.last_invocation.get("bridge_request_id")})
+
+    candidate = provider.generate_content_candidate(
+        system_prompt="Deployment canary. Return only the schema object.",
+        input_payload={"canary_id": marker, "mode": "content_candidate_generation"},
         output_schema=CANARY_SCHEMA,
-        prompt_version="ptw_studio_recipe_canary_v1",
+        prompt_version="ptw_result_bridge_canary_v1",
+        idempotency_key=f"canary:{marker}:content_candidate_generation",
     )
-    if revision["response"] != {"canary": "ptw-validation-ok"}:
-        raise SystemExit("schema-bound bridge canary failed for ad_studio_recipe_revision")
-    invocations.append({
-        "mode": "ad_studio_recipe_revision",
-        "bridge_request_id": revision["invocation"].get("bridge_request_id"),
-    })
+    if candidate["response"] != {"canary": "ptw-result-ok"}:
+        raise SystemExit("bridge canary failed for content_candidate_generation")
+    invocations.append({"mode": "content_candidate_generation", "request_id": candidate["invocation"].get("bridge_request_id")})
+
     from PIL import Image
-    image_output = BytesIO()
-    Image.new("RGB", (1080, 1080), "#181C25").save(
-        image_output, format="JPEG", quality=85, progressive=False,
-    )
-    image_bytes = image_output.getvalue()
-    image_sha256 = hashlib.sha256(image_bytes).hexdigest()
-    validation = provider.validate_studio_creative(
-        system_prompt=(
-            "Deployment canary. Inspect the attached image, do not use image generation, "
-            "and return only the schema object."
-        ),
-        input_payload={"canary_id": marker, "mode": "ad_studio_creative_validation"},
-        image_bytes=image_bytes, image_sha256=image_sha256,
+    output = BytesIO()
+    Image.new("RGB", (1080, 1080), "#181C25").save(output, format="JPEG", quality=85)
+    image = output.getvalue()
+    digest = hashlib.sha256(image).hexdigest()
+    critic = provider.generate_content_critic(
+        system_prompt="Deployment canary. Inspect the mapped image and return only the schema object.",
+        input_payload={"canary_id": marker, "mode": "content_result_critic"},
+        images=[{
+            "candidate_id": str(uuid4()), "bytes": image, "sha256": digest,
+            "width": 1080, "height": 1080,
+        }],
         output_schema=CANARY_SCHEMA,
-        prompt_version="ptw_studio_creative_validation_canary_v1",
+        prompt_version="ptw_result_bridge_canary_v1",
+        idempotency_key=f"canary:{marker}:content_result_critic",
     )
-    if validation["response"] != {"canary": "ptw-validation-ok"}:
-        raise SystemExit("schema-bound bridge canary failed for ad_studio_creative_validation")
-    attached = validation["invocation"].get("input_image") or {}
-    if attached.get("digest") != image_sha256 or attached.get("transport") != "codex_cli_image_attachment":
-        raise SystemExit("Studio creative validation canary did not prove exact image attachment")
-    invocations.append({
-        "mode": "ad_studio_creative_validation",
-        "bridge_request_id": validation["invocation"].get("bridge_request_id"),
-        "input_sha256": image_sha256,
-    })
-    graphic = provider.generate_studio_graphic(
-        system_prompt=(
-            "Deployment canary. Generate exactly one abstract non-human square PNG with no text, "
-            "people, faces, logos, or watermark, then return only the schema object."
-        ),
-        input_payload={"canary_id": marker, "mode": "ad_studio_graphic_generation"},
-        output_schema=CANARY_SCHEMA,
-        prompt_version="ptw_studio_graphic_canary_v1",
-    )
-    if graphic["response"] != {"canary": "ptw-validation-ok"}:
-        raise SystemExit("schema-bound bridge canary failed for ad_studio_graphic_generation")
-    if graphic["image"]["bytes_sha256"] != graphic["image"]["output_digest"]:
-        raise SystemExit("Studio graphic canary asset digest mismatch")
-    invocations.append({
-        "mode": "ad_studio_graphic_generation",
-        "bridge_request_id": graphic["invocation"].get("bridge_request_id"),
-        "asset_sha256": graphic["image"]["bytes_sha256"],
-    })
-    print(json.dumps({"status": "ok", "canary_id": marker, "invocations": invocations}, indent=2))
+    if critic["response"] != {"canary": "ptw-result-ok"}:
+        raise SystemExit("bridge canary failed for content_result_critic")
+    invocations.append({"mode": "content_result_critic", "request_id": critic["invocation"].get("bridge_request_id"), "input_sha256": digest})
+
+    print(json.dumps({
+        "status": "ok", "canary_id": marker, "capabilities": capabilities,
+        "invocations": invocations,
+    }, indent=2))
 
 
 if __name__ == "__main__":

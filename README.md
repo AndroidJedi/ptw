@@ -1,57 +1,42 @@
-# PTW — Simplified Validation Phase 1
+# PTW Result v1
 
-PTW is an owner-operated validation loop:
+PTW is an owner-operated content validation loop:
 
 ```text
-one raw idea → one Product Brief → owner approval → five Ad Creatives
+one idea -> one approved Product Brief -> one owner task
+  -> five isolated candidates -> three critic passes -> one Result
 ```
 
-Stage 1 infers Ukrainian or English, chooses one marketer-led hypothesis, and
-always includes a strong low-friction offer that the owner can honor. It does
-not run market research, SEO, YouTube, evidence reports, AEO, or messaging
-frameworks.
+Result generation uses only the approved Brief, owner task, Project brand kit,
+approved Project assets/sources, and versioned writing/template contracts. It
+supports structured marketing text and a deterministic Instagram square post.
+Exact offer/CTA, honest claims, real-photo policy, no synthetic people/faces,
+bounded retries, immutable lineage, and fail-closed final selection are
+mandatory.
 
-Stage 2 receives only the approved Product Brief and makes one five-creative
-batch in fixed emotional, practical, curiosity, authority, and problem-first
-angles. Pexels supplies real photographs; Pillow renders deterministic
-1080×1080 JPEGs with hook, offer, and CTA. PostgreSQL stores exact image bytes,
-digests, source attribution, UUID lineage, feedback, and append-only weights.
-
-An additive, not-yet-deployed Ad Studio sits between Product Briefs and Ads in
-the Project navigation. It lets the owner compose constrained Instagram/TikTok
-recipes from visible versioned tool IDs, save reusable immutable templates,
-bind exports to Project brand-kit revisions, render authenticated JPEG/MP4
-artifacts, and explicitly publish reviewed training examples. It does not
-change or add context to the existing five-Ad generator.
-
-Landing is inactive and appears only as `Stage 3 pending`. The three Natal
-template families and source assets stay preserved for a later simplified
-conversion checkpoint. No publishing, traffic, campaigns, UTMs, analytics, or
-conversion tracking exists in this release.
-
-Firebase Auth and App Check protect the React Owner Console. Owner Gateway is
-the only normal instruction channel. The independent platform repository owns
-the authenticated structured LLM bridge; it has unrelated Git/database history.
+There is no legacy five-Ad batch, separate Ads or Studio workspace, Landing,
+Admin job system, publishing, campaign, traffic, UTM, analytics, or automatic
+optimization surface. Removed systems remain only in Git history.
 
 ## Local verification
 
 ```sh
-python3 -m unittest discover -s tests/validation_pipeline -v
-python3 -m unittest tests.owner_gateway.test_auth tests.owner_gateway.test_control_store tests.owner_gateway.test_root_broker -v
-python3 -m unittest tests.commander.test_telegram_boundary -v
+scripts/verify_ptw_result_schema.sh
+python3 scripts/verify_content_corpus.py
+python3 scripts/verify_ptw_skills.py
+python3 -m unittest discover -s tests/commander -v
 python3 -m commander.demo --output-dir .local/commander-demo
 npm --prefix apps/commander-web run check
 npm --prefix apps/commander-web run test:e2e
-scripts/verify_ptw_v2_schema.sh
-python3 scripts/verify_ptw_skills.py
 git diff --check
 ```
 
-Pillow and FastAPI runtime tests run in the built Validation and Owner Gateway
-images. Landing-specific suites are deliberately excluded from this milestone.
-
-Use [`docs/README.md`](docs/README.md) for selective context and
+FastAPI, Pillow, and PostgreSQL lifecycle tests run in built images or a
+disposable PostgreSQL container. See [`docs/README.md`](docs/README.md) for
+selective context and
 [`docs/architecture/commander-current-state.md`](docs/architecture/commander-current-state.md)
-for the resume point. Production reset is irreversible, backup-free, limited
-to `ptw_commander.public`, and requires the exact phrase
-`RESET PTW PRODUCTION` immediately before cutover.
+for the resume point.
+
+The production reset is backup-free, limited to the Commander-owned
+application schema, and requires exact confirmation `RESET PTW PRODUCTION`.
+The independent platform database and unrelated local databases are preserved.

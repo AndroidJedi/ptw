@@ -1,0 +1,13 @@
+{
+  "template_id": "moment_tension",
+  "version": 1,
+  "active": true,
+  "philosophy": "Open on one observable time, action, object, or unresolved customer moment. Turn that pain into tension, then reveal the supplied mechanism and exact offer without exaggeration.",
+  "narrative_sequence": ["visible moment", "unresolved tension", "supplied mechanism", "exact offer", "exact CTA"],
+  "visual_grammar": ["one candid real scene", "one obvious focal action", "headline names the moment", "product or process visibly resolves the tension"],
+  "defaults": {"hook_pressure": 88, "emotional_intensity": 82, "conceptual_novelty": 60, "information_density": 42, "visual_complexity": 58},
+  "envelopes": {"hook_pressure": [60, 95], "emotional_intensity": [55, 95], "conceptual_novelty": [35, 80], "information_density": [25, 65], "visual_complexity": [35, 75]},
+  "strengths": ["immediate relevance", "strong concrete hooks", "photographable customer moments"],
+  "failure_modes": ["manufactured drama", "an overly narrow scene", "solution arrives too late"],
+  "prompt_fragment": "Write from one visible moment the customer could recognize instantly. Keep the tension honest and specific. Let the visual demonstrate the unresolved action and the copy reveal the supplied mechanism."
+}

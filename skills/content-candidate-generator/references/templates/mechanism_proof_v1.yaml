@@ -1,0 +1,13 @@
+{
+  "template_id": "mechanism_proof",
+  "version": 1,
+  "active": true,
+  "philosophy": "Show how the promised result happens through supplied steps, visible product UI, process, timing, actors, or transparent proof. Credibility comes from mechanism, never invented evidence.",
+  "narrative_sequence": ["customer outcome", "small sequence", "visible mechanism", "honest reassurance", "exact offer and CTA"],
+  "visual_grammar": ["approved product or process is visible", "ordered hierarchy", "real context around the mechanism", "proof and promise share one scene"],
+  "defaults": {"hook_pressure": 60, "emotional_intensity": 35, "conceptual_novelty": 45, "information_density": 82, "visual_complexity": 56},
+  "envelopes": {"hook_pressure": [40, 80], "emotional_intensity": [20, 60], "conceptual_novelty": [25, 70], "information_density": [55, 90], "visual_complexity": [35, 75]},
+  "strengths": ["clarity", "credibility", "strong product demonstration"],
+  "failure_modes": ["research-like hook", "feature inventory", "dense copy before the problem"],
+  "prompt_fragment": "Explain the product as a small observable sequence. Use only supplied facts and approved product evidence. Lead with the customer outcome, not an internal feature name or research summary."
+}

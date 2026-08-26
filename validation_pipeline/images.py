@@ -1,13 +1,9 @@
-"""Pexels selection and deterministic square-ad rendering."""
+"""Bounded Pexels real-photo selection for Instagram Result generation."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from io import BytesIO
-import hashlib
 import json
-from pathlib import Path
-import textwrap
 from typing import Any
 from urllib.parse import urlparse
 import urllib.error
@@ -167,75 +163,3 @@ class PexelsClient:
         if not data or len(data) > MAX_DOWNLOAD_BYTES:
             raise ValueError("Pexels download exceeds the bounded size")
         return data
-
-
-class SquareCreativeRenderer:
-    WIDTH = 1080
-    HEIGHT = 1080
-    BACKGROUND = (12, 14, 18)
-    TEXT = (244, 246, 250)
-    MUTED = (163, 173, 189)
-    ACCENT = (67, 189, 211)
-    ACCENT_LIGHT = (135, 208, 221)
-
-    def __init__(
-        self,
-        font_path: Path = Path("/app/natal/assets/inter.ttf"),
-        logo_path: Path = Path("/app/natal/assets/logo-natal.png"),
-    ) -> None:
-        self.font_path = font_path
-        self.logo_path = logo_path
-
-    def _font(self, size: int, variation: str | None = None):
-        from PIL import ImageFont
-
-        font = ImageFont.truetype(str(self.font_path), size)
-        if variation:
-            try:
-                font.set_variation_by_name(variation)
-            except (AttributeError, OSError):
-                pass
-        return font
-
-    def render(self, source: bytes, *, hook: str, offer: str, cta: str, crop_focus: str) -> tuple[bytes, str]:
-        from PIL import Image, ImageDraw, ImageOps
-
-        try:
-            original = Image.open(BytesIO(source))
-            original.load()
-        except Exception as error:
-            raise ValueError("downloaded photo cannot be decoded") from error
-        if original.width < self.WIDTH or original.height < self.HEIGHT:
-            raise ValueError("downloaded photo is too small")
-        centering = {"left": (0.25, 0.5), "center": (0.5, 0.5), "right": (0.75, 0.5)}[crop_focus]
-        image = ImageOps.fit(original.convert("RGB"), (self.WIDTH, self.HEIGHT), centering=centering)
-        overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
-        gradient = Image.new("L", (1, self.HEIGHT))
-        gradient.putdata([int(35 + 180 * (y / (self.HEIGHT - 1))) for y in range(self.HEIGHT)])
-        alpha = gradient.resize(image.size)
-        overlay.paste((*self.BACKGROUND, 230), (0, 0, self.WIDTH, self.HEIGHT), alpha)
-        composed = Image.alpha_composite(image.convert("RGBA"), overlay)
-        draw = ImageDraw.Draw(composed)
-        font_regular = self._font(42)
-        font_hook = self._font(74, "Bold")
-        font_cta = self._font(36, "Bold")
-        try:
-            with Image.open(self.logo_path) as source_logo:
-                logo = source_logo.convert("RGBA").resize((210, 71), Image.Resampling.LANCZOS)
-        except Exception as error:
-            raise ValueError("canonical Natal logo cannot be decoded") from error
-        draw.rounded_rectangle((60, 48, 306, 143), radius=18, fill=(*self.TEXT, 238))
-        composed.alpha_composite(logo, (78, 60))
-        hook_lines = textwrap.wrap(hook, width=24)[:4]
-        draw.multiline_text((72, 250), "\n".join(hook_lines), font=font_hook, fill=self.TEXT, spacing=16)
-        offer_lines = textwrap.wrap(offer, width=42)[:3]
-        draw.multiline_text((72, 760), "\n".join(offer_lines), font=font_regular, fill=self.ACCENT_LIGHT, spacing=10)
-        cta_text = textwrap.shorten(cta, width=42, placeholder="…")
-        box = draw.textbbox((0, 0), cta_text, font=font_cta)
-        box_width = box[2] - box[0]
-        draw.rounded_rectangle((72, 930, min(1008, 128 + box_width), 1008), radius=18, fill=(*self.ACCENT, 245))
-        draw.text((100, 948), cta_text, font=font_cta, fill=self.BACKGROUND)
-        output = BytesIO()
-        composed.convert("RGB").save(output, format="JPEG", quality=88, optimize=True, progressive=True)
-        data = output.getvalue()
-        return data, hashlib.sha256(data).hexdigest()

@@ -1,0 +1,137 @@
+from __future__ import annotations
+
+from pathlib import Path
+import unittest
+
+from commander.ids import new_uuid7
+from validation_pipeline.content import (
+    CandidateV2, CorpusStore, TemplateRegistry, final_eligible, weighted_candidate_score,
+)
+from validation_pipeline.content_adapters import InstagramStaticAdapter
+from validation_pipeline.studio import validate_recipe
+
+
+ROOT = Path(__file__).resolve().parents[2]
+REFERENCES = ROOT / "skills/content-candidate-generator/references"
+
+
+class ResultContractsTests(unittest.TestCase):
+    def test_registry_contains_exactly_five_distinct_strategies(self) -> None:
+        templates = TemplateRegistry(REFERENCES / "templates").load_active()
+        self.assertEqual(5, len(templates))
+        self.assertEqual(5, len({item.template_id for item in templates}))
+        self.assertEqual(
+            [
+                "moment_tension", "contrast_reframe", "mechanism_proof",
+                "human_story", "direct_offer",
+            ],
+            [item.template_id for item in templates],
+        )
+
+    def test_slider_adjustments_are_meaningful_and_bounded(self) -> None:
+        template = TemplateRegistry(REFERENCES / "templates").load_active()[0]
+        current = dict(template.defaults)
+        invalid = dict(current); invalid["hook_pressure"] -= 5
+        with self.assertRaisesRegex(ValueError, "at least ten"):
+            template.validate_adjustment(current, invalid)
+        valid = dict(current); valid["hook_pressure"] -= 10
+        self.assertEqual(valid, template.validate_adjustment(current, valid))
+
+    def test_corpus_is_exactly_40_and_negative_examples_are_not_retrieved(self) -> None:
+        store = CorpusStore(REFERENCES / "corpus/manifest.json", REFERENCES / "corpus/examples.jsonl")
+        _manifest, examples, _digest = store.load()
+        self.assertEqual(40, len(examples))
+        selected = store.retrieve(
+            examples, language="uk", output_profile="instagram_static_ad_v1",
+            technique="hooks", audience="small business owner", count=6,
+        )
+        self.assertTrue(all(item.quality_tier != "negative" for item in selected))
+        self.assertTrue(all(sum(one.source_project == item.source_project for one in selected) <= 2 for item in selected))
+
+    def test_candidate_preserves_exact_offer_and_cta(self) -> None:
+        brief = {"offer": "First consultation free", "cta": "Book now"}
+        value = {
+            "schema_version": 2, "hook": "At 23:00, the question is still open.",
+            "headline": "Start with one conversation", "primary_text": "A clear first step.",
+            "supporting_text": "Real people. Transparent process.",
+            "offer": brief["offer"], "cta": brief["cta"], "caption": "One next step.",
+            "alt_text": "Text-only marketing result.", "desired_emotion": "calm confidence",
+            "visual_concept": "No visual for text profile.",
+            "media_request": {"kind": "none", "query": "", "source_asset_id": None, "reason": "Text profile."},
+            "visual_components": [],
+        }
+        self.assertEqual(brief["offer"], CandidateV2.from_dict(
+            value, brief=brief, output_profile="marketing_copy_v1"
+        ).value["offer"])
+        value["cta"] = "Different"
+        with self.assertRaisesRegex(ValueError, "exact Product Brief"):
+            CandidateV2.from_dict(value, brief=brief, output_profile="marketing_copy_v1")
+
+    def test_final_thresholds_fail_closed(self) -> None:
+        scores = {
+            "task_brief_suitability": 8, "hook_strength": 7, "message_clarity": 8,
+            "persuasion_action": 7, "coherence": 8, "specificity_credibility": 10,
+            "composition_legibility": 10, "originality_tone": 10,
+        }
+        self.assertGreaterEqual(weighted_candidate_score(scores, "none"), 80)
+        evaluation = {
+            "complexity": "none", "hard_gates": {"all": True}, "scores": scores,
+            "element_scores": {"hook": {"contribution": 7}},
+        }
+        self.assertTrue(final_eligible(evaluation))
+        evaluation["element_scores"] = {"hook": {"contribution": 6}}
+        self.assertFalse(final_eligible(evaluation))
+
+    def test_five_templates_map_to_five_valid_distinct_instagram_layouts(self) -> None:
+        templates = TemplateRegistry(REFERENCES / "templates").load_active()
+        project_id, brief_id, brand_kit_id, logo_id, media_id = [new_uuid7() for _ in range(5)]
+        element_ids = {
+            role: new_uuid7() for role in (
+                "background", "primary_subject", "headline_block", "supporting_text_block",
+                "offer_block", "cta_block", "brand_mark",
+            )
+        }
+        candidate = {
+            "hook": "One visible customer moment",
+            "headline": "A specific headline",
+            "supporting_text": "A short, concrete mechanism.",
+            "offer": "First consultation free",
+            "cta": "Book now",
+            "caption": "A complete caption.",
+            "alt_text": "A real scene that demonstrates the customer moment.",
+            "visual_components": [
+                {"role": "composition", "content": "Subject on the right", "source_ids": []},
+                {"role": "lighting_style", "content": "Natural daylight", "source_ids": []},
+            ],
+        }
+        brand = {
+            "name": "PTW Test", "colors": ["#111111", "#FFFFFF", "#43BDD3", "#F4F2EC"],
+            "fonts": ["Inter"], "tone_notes": "Direct", "logo_source_asset_id": logo_id,
+        }
+        adapter = InstagramStaticAdapter(None, None, None, None)
+        layouts = set()
+        for template in templates:
+            run = {
+                "candidate_template_id": template.template_id,
+                "candidate_parameters": dict(template.defaults),
+                "context_bundle": {"brand_kit": {"document": brand}},
+            }
+            recipe = adapter._recipe(
+                candidate=candidate, run=run, element_ids=element_ids, media_id=media_id,
+            )
+            contract = validate_recipe(
+                recipe, project_id=project_id, brief_id=brief_id,
+                brand_kit_id=brand_kit_id,
+                brief={"offer": candidate["offer"], "cta": candidate["cta"]},
+            )
+            frame_map = tuple(
+                (frame["tool_id"], tuple(frame["frame"].values()))
+                for frame in contract.value["frames"]
+                if frame["tool_id"] in {"studio.frame.media.v1", "studio.frame.headline.v1"}
+            )
+            layouts.add(frame_map)
+        self.assertEqual(5, len(layouts))
+
+
+if __name__ == "__main__":
+    unittest.main()

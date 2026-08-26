@@ -71,30 +71,11 @@ services:
     env_file:
       - .env.owner-gateway
       - .env.commander
-      - /opt/ptw/platform/.env
     environment:
-      VALIDATION_DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
       VALIDATION_SERVICE_URL: http://ptw-validation-api:8080
-      COMMANDER_DATABASE_URL: postgresql://ptw_commander:${COMMANDER_DB_PASSWORD}@commander-db:5432/ptw_commander
-      PLATFORM_DATABASE_URL: postgresql://${POSTGRES_USER:-ptw}:${POSTGRES_PASSWORD:?set platform POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ptw}
-      PTW_REPOSITORY_PATH: /workspace
-      OWNER_CONTROL_DATABASE: /var/lib/ptw-owner/control.sqlite3
       FIREBASE_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-service-account.json
-      ROOT_BROKER_SOCKET: /run/ptw-root-broker/control.sock
-      CODEX_HOME: /run/ptw-auth
-      CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
-      GH_CONFIG_DIR: /run/ptw-gh
-    group_add: ["10001"]
     volumes:
-      - /root/ptw:/workspace
-      - owner-control:/var/lib/ptw-owner
-      - /run/ptw-root-broker:/run/ptw-root-broker
       - /opt/ptw/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
-      - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
-      - /root/.codex/auth.json:/run/ptw-auth/auth.json:ro
-      - ./skills:/run/ptw-auth/skills
-      - /root/.config/gh:/run/ptw-gh:ro
-      - /usr/bin/gh:/usr/local/bin/gh:ro
     networks:
       default:
       existing-ptw-backend:
@@ -109,7 +90,6 @@ services:
 
 volumes:
   commander-db-data:
-  owner-control:
 
 networks:
   existing-ptw-backend:

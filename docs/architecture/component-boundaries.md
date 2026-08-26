@@ -1,20 +1,16 @@
-# PTW Validation component boundaries
+# PTW component boundaries
 
-- `validation-pipeline`: isolated Product Brief and five-Ad service, strict
-  bridge contracts, Pexels selection, deterministic image rendering, immutable
-  persistence, approval, feedback, and skill proposals.
-- `natal`: dormant fixed brand/templates and source assets for Stage 3; no
-  active runtime registration.
-- `commander`: minimal health/readiness and established Telegram emergency
-  command adapter plus shared UUID/graph vocabulary.
-- `owner-control-plane`: Firebase-authenticated Validation proxy, Jobs,
-  Docs/System, emergency controls, and root-broker channel.
-- `commander-web`: four-workspace PWA; no domain authority.
-- `platform-bridge`: independent repository/database, authenticated structured
-  execution only. It never owns PTW domain rows.
+- `validation-pipeline`: Product Brief and channel-neutral Result contracts,
+  orchestration, policy, persistence, adapters, rendering, and recovery.
+- `commander`: health/readiness, graph vocabulary, demo, and the three-command
+  Telegram emergency adapter.
+- `owner-gateway`: Firebase-authenticated Project, Product Brief, and Result
+  proxy. It owns no domain rows and runs no job system.
+- `commander-web`: Product Brief and Result PWA. It is not an authority.
+- `platform-bridge`: unrelated repository/database; authenticated ephemeral
+  structured execution and reviewed graphic bytes only.
 
-PostgreSQL relationships and immutable entities cross the active boundaries.
-Stage 1 may not call an external research provider. Stage 2 may receive only
-the approved Product Brief as business input. No feature may bypass Brief
-approval, authenticated image delivery, or Owner Gateway for normal
-instructions.
+PostgreSQL relationships and immutable entities cross application boundaries.
+No component may bypass Brief approval, Project/source ownership, protected
+copy, authenticated artifact delivery, or Owner Gateway for normal owner
+instructions. Channel behavior belongs in an adapter.

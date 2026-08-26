@@ -55,7 +55,7 @@ describe('API deadline', () => {
     })))
     const client = new ApiClient({ getIdToken: vi.fn(async () => 'owner-token') } as any)
 
-    await client.post('/api/v1/ad-studio/sample-sets', { batch_id: 'batch' }, { deadlineMs: 300_000 })
+    await client.post('/api/v1/content-runs', { task: 'result' }, { deadlineMs: 300_000 })
 
     expect(timeout).toHaveBeenCalledWith(expect.any(Function), 300_000)
   })

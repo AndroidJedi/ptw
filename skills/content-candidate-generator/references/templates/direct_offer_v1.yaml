@@ -1,0 +1,13 @@
+{
+  "template_id": "direct_offer",
+  "version": 1,
+  "active": true,
+  "philosophy": "Reduce the creative to the clearest supplied value, exact offer, reassurance, and next action. Specificity keeps the direction from becoming generic.",
+  "narrative_sequence": ["dominant promise", "one concrete support", "exact offer", "effort price or risk reassurance", "exact CTA"],
+  "visual_grammar": ["one subject", "minimal typography", "large offer hierarchy", "obvious CTA", "brand mark without decoration"],
+  "defaults": {"hook_pressure": 74, "emotional_intensity": 42, "conceptual_novelty": 35, "information_density": 28, "visual_complexity": 24},
+  "envelopes": {"hook_pressure": [50, 85], "emotional_intensity": [20, 60], "conceptual_novelty": [20, 55], "information_density": [15, 50], "visual_complexity": [10, 45]},
+  "strengths": ["fast comprehension", "low complexity", "strong action"],
+  "failure_modes": ["generic promise", "low novelty", "unsupported reassurance"],
+  "prompt_fragment": "State the one strongest supplied value plainly. Support it with one concrete mechanism or reassurance, preserve the exact offer and CTA, and remove every line that does not help the next action."
+}

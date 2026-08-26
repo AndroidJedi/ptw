@@ -11,10 +11,8 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = (
     "product-brief-generator",
-    "ad-creative-generator",
-    "ad-creative-validator",
-    "ad-studio-composer",
-    "natal-landing-builder",
+    "content-candidate-generator",
+    "content-result-critic",
     "ptw-owner-console-incident",
     "ptw-vps-operations",
 )
@@ -36,17 +34,11 @@ def main() -> None:
         require(f"name: {name}" in frontmatter[1], f"wrong skill name in {name}")
         require("description:" in frontmatter[1], f"missing description in {name}")
 
-    commander_compose = (ROOT / "docker-compose.commander.yml").read_text()
     validation_compose = (ROOT / "docker-compose.validation.yml").read_text()
     require(
         validation_compose.count("./skills:/run/ptw-auth/skills:ro") == 1,
         "Validation canonical read-only skill mount is missing",
     )
-    require(
-        commander_compose.count("./skills:/run/ptw-auth/skills\n") == 1,
-        "Owner Gateway canonical writable skill mount is missing",
-    )
-
     hook = Path(
         subprocess.run(
             ["git", "rev-parse", "--git-path", "hooks/post-merge"],
@@ -74,8 +66,12 @@ def main() -> None:
                     f"CLI skill {name} differs from canonical content",
                 )
 
-    require(not (canonical_root / "marketing-positioning").exists(), "retired marketing-positioning skill remains")
-    require(not (desktop_root / "marketing-positioning").exists(), "retired desktop marketing-positioning skill remains")
+    for retired in (
+        "marketing-positioning", "ad-creative-generator", "ad-creative-validator", "ad-studio-composer",
+        "natal-landing-builder",
+    ):
+        require(not (canonical_root / retired).exists(), f"retired {retired} skill remains")
+        require(not (desktop_root / retired).exists(), f"retired desktop {retired} skill remains")
 
     if ROOT == Path("/root/ptw"):
         for path in canonical_root.rglob("*"):

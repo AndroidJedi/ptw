@@ -17,6 +17,10 @@ move credentials between them or mutate platform data during a Commander reset.
 2. Use one locked serial SSH session. Build matching Linux/amd64 Commander,
    Validation, Owner Gateway, platform API, and platform worker images off-host
    with one versioned, non-`latest` tag.
+   Render the production Compose configuration before deployment and inspect
+   every `tmpfs` entry. A mount containing comma-separated options must be one
+   quoted YAML list item (for example `"/tmp:size=64m,mode=1777"`); a flow-style
+   list can split `mode=1777` into an invalid mount path.
 3. Keep `PEXELS_API_KEY`, Firebase credentials, bridge tokens, and the existing
    Telegram bot token root-owned. Never print, rotate, or copy them into Git.
 4. Treat `scripts/reset_ptw.sh` as irreversible. Run it only after the owner

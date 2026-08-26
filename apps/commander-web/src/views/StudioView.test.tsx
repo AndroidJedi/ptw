@@ -7,6 +7,7 @@ const briefId = '018f07ea-7f20-7000-8000-000000000002'
 const kitId = '018f07ea-7f20-7000-8000-000000000003'
 const batchId = '018f07ea-7f20-7000-8000-000000000004'
 const now = '2026-08-25T12:00:00Z'
+const personalizedUkrainianInstruction = 'Create a post with simple, short Ukrainian copy that hits the customer pain and shows the service solution. Make it more personalized around life events—for example name, birthday, and a personal horoscope for someone looking for a job.'
 const validation = (recreation_count = 0) => ({
   validation_id: `validation-${recreation_count}`, recipe_id: recipe(1).recipe_id,
   status: 'approved', attempt_count: recreation_count + 1, recreation_count,
@@ -102,11 +103,12 @@ describe('StudioView', () => {
     const client = api(true)
     render(<StudioView api={client as any} projectId={projectId} />)
     const wizard = await screen.findByLabelText('AI wizard')
-    fireEvent.change(within(wizard).getByLabelText('What should change?'), { target: { value: 'Make it calmer' } })
+    fireEvent.change(within(wizard).getByLabelText('What should change?'), { target: { value: personalizedUkrainianInstruction } })
     fireEvent.click(within(wizard).getByRole('button', { name: 'Preview change' }))
     expect(await within(wizard).findByText('New preview ready.')).toBeInTheDocument()
     expect(within(wizard).getByText(/improved and rechecked for 1 round/)).toBeInTheDocument()
-    expect(client.post).toHaveBeenCalledWith(expect.stringContaining('/wizard-proposals'), { instruction: 'Make it calmer', target_instance_id: null }, { deadlineMs: 2_400_000 })
+    expect(client.post).toHaveBeenCalledWith(expect.stringContaining('/wizard-proposals'), { instruction: personalizedUkrainianInstruction, target_instance_id: null }, { deadlineMs: 2_400_000 })
+    expect(within(wizard).getByRole('button', { name: 'Use this version' }).closest('.studio-wizard-submit')).not.toBeNull()
     expect(await screen.findByAltText('Preview of proposed change')).toBeInTheDocument()
     expect(within(screen.getByLabelText('Post preview')).getByText('NEW PREVIEW · NOT SAVED')).toBeInTheDocument()
     fireEvent.click(within(wizard).getByRole('button', { name: 'Use this version' }))

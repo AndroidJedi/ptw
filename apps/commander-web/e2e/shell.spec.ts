@@ -14,6 +14,7 @@ const studioKitId = '018f07ea-7f20-7000-8000-000000000020'
 const studioTemplateId = '018f07ea-7f20-7000-8000-000000000021'
 const imageSha256 = 'b5b0c61e6fe8c4f91957b5e48c30326121e24d26898e45f5ebc250c7d129c98b'
 const angles = ['emotional', 'practical', 'curiosity', 'authority', 'problem_first'] as const
+const personalizedUkrainianInstruction = 'Create a post with simple, short Ukrainian copy that hits the customer pain and shows the service solution. Make it more personalized around life events—for example name, birthday, and a personal horoscope for someone looking for a job.'
 
 async function expectMonochromeChrome(page: Page) {
   const violations = await page.locator('body *').evaluateAll((elements) => {
@@ -219,6 +220,7 @@ test.beforeEach(async ({ page }) => {
     if (/\/api\/v1\/ad-studio\/recipes\/[^/]+\/wizard-proposals$/.test(url.pathname) && method === 'GET') return json({ items: [] })
     if (/\/api\/v1\/ad-studio\/recipes\/[^/]+\/wizard-proposals$/.test(url.pathname) && method === 'POST') {
       const body = route.request().postDataJSON()
+      expect(body).toEqual({ instruction: personalizedUkrainianInstruction, target_instance_id: null })
       await new Promise((resolve) => setTimeout(resolve, 500))
       return json({
         proposal_id: proposalId, recipe_id: sampleSet().items[0].recipe_id, status: 'previewed',
@@ -263,8 +265,13 @@ test('Ad Studio exposes one Wizard-only post revision flow', async ({ page }) =>
   await expect(page.getByLabel('Post preview').getByRole('heading', { name: 'Вікно ясності' })).toBeVisible()
   const wizard = page.getByLabel('AI wizard')
   await expect(wizard.getByRole('heading', { name: 'Change this post' })).toBeVisible()
-  await wizard.getByLabel('What should change?').fill('Make the copy shorter and the composition calmer.')
-  await wizard.getByRole('button', { name: 'Preview change' }).click()
+  await wizard.getByLabel('What should change?').fill(personalizedUkrainianInstruction)
+  const previewButton = wizard.getByRole('button', { name: 'Preview change' })
+  if (test.info().project.name !== 'desktop') {
+    await expect(previewButton).toBeInViewport()
+    expect(await page.locator('html').evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  }
+  await previewButton.click()
   await expect(wizard.getByRole('status')).toContainText('Working on your preview')
   await expect(wizard.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'In progress')
   await expect(wizard.getByText('New preview ready.')).toBeVisible()

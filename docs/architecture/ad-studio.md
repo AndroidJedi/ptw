@@ -151,6 +151,10 @@ imagegen traces. Preview is
 non-mutating. Explicit Apply validates the typed patch and creates one immutable
 child recipe and render; generated image bytes cross an authenticated,
 digest-checked asset endpoint rather than a shared database or filesystem.
+Failed JSON-only recipe-revision and creative-validation bridge jobs may make
+one fresh retry inside the same bounded deadline and retain the failed request
+ID in successful invocation provenance. Graphic generation is never retried
+after an ambiguous failure because the image call may already have occurred.
 
 All Studio routes are owner-authenticated and App-Check-protected through Owner
 Gateway. A completed `StudioSampleSet` exposes a five-card gallery and a ZIP

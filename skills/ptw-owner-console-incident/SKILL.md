@@ -43,6 +43,20 @@ healthy gateway alone does not prove Stage 1–2 readiness.
   and `additionalProperties: false`. Bind frame/modifier variants to existing
   instance and tool IDs, then keep server-side scope, lineage, offer, and CTA
   validation authoritative after model output.
+- A Wizard 409 may occur after the recipe-revision bridge job succeeded but
+  before an approved proposal could be persisted. Correlate the Owner Gateway
+  request time with the independent platform's `llm_structured` jobs by Studio
+  mode, then inspect the retained sanitized issue summary. No new Wizard row is
+  expected when automatic creative validation fails because proposal creation
+  is atomic. One fresh retry is allowed inside the existing deadline for failed
+  JSON-only recipe revision or creative validation. Never automatically retry
+  graphic generation after an ambiguous failure because an image call may
+  already have occurred.
+- On mobile, keep the current Wizard primary action fixed above the bottom
+  navigation and reserve enough panel space that progress, failure, retry, and
+  review receipts remain reachable. Assert actual document width and action
+  viewport intersection in iPhone WebKit and 360 px Chromium; `overflow-x:
+  hidden` alone can mask a broken layout.
 - PTW Ad images are fetched as authenticated `image/jpeg` responses and shown
   through browser `blob:` URLs; they are not inline `data:image/png` resources.
   For a load incident, first validate stored bytes, SHA-256, dimensions, HTTP

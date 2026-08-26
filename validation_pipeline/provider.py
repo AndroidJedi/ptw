@@ -18,6 +18,10 @@ STUDIO_MODES = (
     "ad_studio_recipe_revision",
     "ad_studio_creative_validation",
 )
+RETRYABLE_STUDIO_MODES = {
+    "ad_studio_recipe_revision",
+    "ad_studio_creative_validation",
+}
 MAX_STUDIO_ASSET_BYTES = 10 * 1024 * 1024
 MAX_STUDIO_VALIDATION_IMAGE_BYTES = 2 * 1024 * 1024
 
@@ -192,35 +196,59 @@ class StructuredBridge:
             request["input_image"] = dict(input_image)
         if self.model != "codex-cli-default":
             request["model"] = self.model
-        queued = self._request(self.url, request)
-        request_id = int(queued["request_id"])
         deadline = time.monotonic() + self.timeout_seconds
-        while time.monotonic() < deadline:
-            state = self._request(f"{self.url}/{request_id}", None)
-            if state.get("status") == "completed":
-                result = state.get("result") or {}
-                response = result.get("response")
-                decoded = json.loads(response) if isinstance(response, str) else response
-                if not isinstance(decoded, dict):
-                    raise ValueError("structured Studio response is not one JSON object")
-                invocation = {
-                    "bridge_request_id": request_id, "prompt_template_version": prompt_version,
-                    "context_hash": context_hash, **dict(result.get("invocation") or {}),
+        maximum_attempts = 2 if mode in RETRYABLE_STUDIO_MODES else 1
+        failed_request_ids: list[int] = []
+        for attempt in range(1, maximum_attempts + 1):
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Automatic Studio work timed out. Try the Wizard again.")
+            queued = self._request(self.url, request)
+            request_id = int(queued["request_id"])
+            while time.monotonic() < deadline:
+                state = self._request(f"{self.url}/{request_id}", None)
+                status = state.get("status")
+                if status == "completed":
+                    result = state.get("result") or {}
+                    response = result.get("response")
+                    decoded = json.loads(response) if isinstance(response, str) else response
+                    if not isinstance(decoded, dict):
+                        raise ValueError("structured Studio response is not one JSON object")
+                    invocation = {
+                        "bridge_request_id": request_id, "prompt_template_version": prompt_version,
+                        "context_hash": context_hash, "bridge_attempt": attempt,
+                        "prior_failed_request_ids": failed_request_ids,
+                        **dict(result.get("invocation") or {}),
+                    }
+                    self.last_invocation = invocation
+                    value: dict[str, Any] = {"response": decoded, "invocation": invocation}
+                    image = result.get("image")
+                    if expect_image:
+                        if not isinstance(image, Mapping):
+                            raise ValueError("Studio graphic response is missing image provenance")
+                        value["image"] = {**dict(image), **self._download_studio_asset(request_id, image)}
+                    elif image is not None:
+                        raise ValueError("Studio recipe revision must not return generated media")
+                    return value
+                if status == "failed":
+                    failed_request_ids.append(request_id)
+                    break
+                if status == "cancelled":
+                    raise RuntimeError("Automatic Studio work was cancelled. Try the Wizard again.")
+                time.sleep(1)
+            else:
+                raise TimeoutError("Automatic Studio work timed out. Try the Wizard again.")
+            if attempt == maximum_attempts:
+                labels = {
+                    "ad_studio_creative_validation": "Automatic creative review",
+                    "ad_studio_recipe_revision": "Studio change",
+                    "ad_studio_graphic_generation": "Studio graphic generation",
                 }
-                self.last_invocation = invocation
-                value: dict[str, Any] = {"response": decoded, "invocation": invocation}
-                image = result.get("image")
-                if expect_image:
-                    if not isinstance(image, Mapping):
-                        raise ValueError("Studio graphic response is missing image provenance")
-                    value["image"] = {**dict(image), **self._download_studio_asset(request_id, image)}
-                elif image is not None:
-                    raise ValueError("Studio recipe revision must not return generated media")
-                return value
-            if state.get("status") in {"failed", "cancelled"}:
-                raise RuntimeError(f"structured bridge request {request_id} {state.get('status')}")
-            time.sleep(1)
-        raise TimeoutError(f"structured bridge request {request_id} timed out")
+                attempt_label = "attempt" if maximum_attempts == 1 else "attempts"
+                raise RuntimeError(
+                    f"{labels[mode]} could not finish after {maximum_attempts} {attempt_label}. "
+                    "Try the Wizard again."
+                )
+        raise RuntimeError("Automatic Studio work did not complete")
 
     def _download_studio_asset(self, job_id: int, image: Mapping[str, Any]) -> dict[str, Any]:
         digest = str(image.get("digest") or "")

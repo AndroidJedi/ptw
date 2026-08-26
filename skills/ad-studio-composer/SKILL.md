@@ -58,6 +58,14 @@ post. Previewing is non-mutating. Explicit Apply creates one validated immutable
 child recipe and render. Offer, CTA, Brief, Project, and brand identity remain
 protected.
 
+Treat rough, conversational, multilingual owner prose as a requested creative
+outcome, not as finished ad copy. Apply an explicit output-language request to
+editable visual copy, caption, and alt text while preserving the approved offer
+and CTA exactly. Event examples such as a name, birthday, horoscope, or job
+search may frame the customer pain and service solution when they remain honest
+and compatible with the approved Brief; they are not permission to invent
+personal data, proof, targeting access, or a new product promise.
+
 After the Composer renders a proposal, the separate canonical Ad Creative
 Validator starts automatically and inspects the exact pixels. Do not represent
 the Composer's own recipe checks as that independent review. The validator may

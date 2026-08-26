@@ -132,6 +132,65 @@ class ProviderAndInputTests(unittest.TestCase):
         self.assertEqual(digest, requests[0]["input_image"]["digest"])
         self.assertNotIn("bytes_base64", requests[0]["input_payload"])
 
+    def test_creative_validation_retries_one_failed_json_only_bridge_job(self) -> None:
+        provider = StructuredBridge("https://bridge.example/internal/llm/structured", "token", "model")
+        requests = []
+        states = iter([
+            {"request_id": 225},
+            {"status": "failed", "error": "RuntimeError"},
+            {"request_id": 226},
+            {"status": "completed", "result": {
+                "response": '{"verdict":"approve"}',
+                "invocation": {"session_id": "fresh-review-retry"},
+            }},
+        ])
+        provider._request = lambda _url, payload, **_kwargs: (requests.append(payload) or next(states))  # type: ignore[method-assign]
+        image = b"\xff\xd8bounded-jpeg\xff\xd9"
+        digest = hashlib.sha256(image).hexdigest()
+
+        result = provider.validate_studio_creative(
+            system_prompt="Inspect attached pixels.", input_payload={"recipe": {}},
+            image_bytes=image, image_sha256=digest, output_schema={"type": "object"},
+        )
+
+        submitted = [item for item in requests if item is not None]
+        self.assertEqual(2, len(submitted))
+        self.assertEqual("approve", result["response"]["verdict"])
+        self.assertEqual(226, result["invocation"]["bridge_request_id"])
+        self.assertEqual(2, result["invocation"]["bridge_attempt"])
+        self.assertEqual([225], result["invocation"]["prior_failed_request_ids"])
+
+    def test_creative_validation_exhaustion_has_one_actionable_failure(self) -> None:
+        provider = StructuredBridge("https://bridge.example/internal/llm/structured", "token", "model")
+        states = iter([
+            {"request_id": 225}, {"status": "failed"},
+            {"request_id": 226}, {"status": "failed"},
+        ])
+        provider._request = lambda *_args, **_kwargs: next(states)  # type: ignore[method-assign]
+        image = b"\xff\xd8bounded-jpeg\xff\xd9"
+        digest = hashlib.sha256(image).hexdigest()
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "Automatic creative review could not finish after 2 attempts. Try the Wizard again.",
+        ):
+            provider.validate_studio_creative(
+                system_prompt="Inspect attached pixels.", input_payload={"recipe": {}},
+                image_bytes=image, image_sha256=digest, output_schema={"type": "object"},
+            )
+
+    def test_studio_graphic_failure_is_not_retried_after_possible_image_generation(self) -> None:
+        provider = StructuredBridge("https://bridge.example/internal/llm/structured", "token", "model")
+        requests = []
+        states = iter([{"request_id": 227}, {"status": "failed"}])
+        provider._request = lambda _url, payload, **_kwargs: (requests.append(payload) or next(states))  # type: ignore[method-assign]
+
+        with self.assertRaisesRegex(RuntimeError, "after 1 attempt"):
+            provider.generate_studio_graphic(
+                system_prompt="Generate once.", input_payload={}, output_schema={"type": "object"},
+            )
+        self.assertEqual(1, len([item for item in requests if item is not None]))
+
     def test_stage_one_inputs_are_raw_idea_only_and_corrections_are_bounded(self) -> None:
         request_id = str(uuid4())
         self.assertEqual(

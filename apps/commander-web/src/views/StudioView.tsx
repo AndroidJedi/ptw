@@ -192,11 +192,6 @@ function WizardPanel({ api, recipe, recoveredProposal, onProposalChange, onAppli
       <textarea disabled={busy} rows={6} maxLength={1000} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="For example: make it feel more personal, use a horoscope visual, and shorten the copy." />
     </label>
     <p className="studio-wizard-policy-note">People must use approved photos. Generated graphics cannot show people.</p>
-    <button className="primary" disabled={busy || !instruction.trim()} onClick={() => void preview()}>
-      {operation === 'preview' ? <RefreshCcw className="spin" /> : <WandSparkles />}
-      {operation === 'preview' ? 'Creating preview…' : proposal?.status === 'previewed' ? 'Preview another change' : 'Preview change'}
-    </button>
-    {!operation && !proposal && !error && <p className="studio-wizard-submit-note">You will review it before anything changes.</p>}
     {operation && <div className="studio-wizard-progress" role="status" aria-live="polite">
       <RefreshCcw className="spin" />
       <div><strong>{operation === 'apply' ? 'Saving your new version…' : 'Working on your preview…'}</strong><p>{operation === 'apply' ? 'The approved preview is being saved.' : 'Nothing has changed yet. Keep this page open.'}</p><small>Elapsed {elapsedLabel(elapsedSeconds)}</small></div>
@@ -205,8 +200,17 @@ function WizardPanel({ api, recipe, recoveredProposal, onProposalChange, onAppli
     {error && <div className="studio-wizard-error" role="alert"><strong>{error.operation === 'apply' ? 'Could not save this version.' : 'Could not create the preview.'}</strong><p>{error.message}</p><button className="secondary" disabled={busy} onClick={retry}><RefreshCcw /> Try again</button></div>}
     {proposal?.status === 'previewed' && <div className="studio-wizard-ready" role="status">
       <div><strong>New preview ready.</strong><span>Nothing changed yet. Review it beside this panel.</span>{proposal.creative_validation && <span>{validationReceipt(proposal.creative_validation)}</span>}</div>
-      <button className="primary" disabled={busy} onClick={() => void apply()}>{operation === 'apply' ? <RefreshCcw className="spin" /> : <Check />} {operation === 'apply' ? 'Saving…' : 'Use this version'}</button>
+      <button className="secondary" disabled={busy || !instruction.trim()} onClick={() => void preview()}><WandSparkles /> Preview another change</button>
     </div>}
+    <div className="studio-wizard-submit">
+      {proposal?.status === 'previewed'
+        ? <button className="primary" disabled={busy} onClick={() => void apply()}>{operation === 'apply' ? <RefreshCcw className="spin" /> : <Check />} {operation === 'apply' ? 'Saving…' : 'Use this version'}</button>
+        : <button className="primary" disabled={busy || !instruction.trim()} onClick={() => void preview()}>
+          {operation === 'preview' ? <RefreshCcw className="spin" /> : <WandSparkles />}
+          {operation === 'preview' ? 'Creating preview…' : 'Preview change'}
+        </button>}
+      {!operation && !proposal && !error && <p className="studio-wizard-submit-note">You will review it before anything changes.</p>}
+    </div>
   </section>
 }
 

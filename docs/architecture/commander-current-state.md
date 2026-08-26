@@ -3,6 +3,42 @@
 Updated: 2026-08-26
 Branch: `codex/web-only-commander`
 
+## Current incident follow-up
+
+The 2026-08-26 07:44 Kyiv owner Wizard attempt exposed two connected failures.
+Its rough English instruction correctly requested short Ukrainian copy that
+connects customer pain to the service solution and uses honest event framing
+such as name, birthday, horoscope, and job search. Production completed recipe
+revision bridge request `224`, then automatic creative-validation request `225`
+failed in the one-shot structured model process. Proposal creation is atomic,
+so no incomplete Wizard row or preview was persisted; Owner Gateway returned
+409. The screen also left the action and resulting failure below the fixed
+mobile navigation.
+
+The recovery keeps the current atomic review-first contract. Failed JSON-only
+Studio recipe revision and creative validation now receive one fresh retry
+inside their original bounded deadline, with the successful invocation
+retaining the attempt number and prior failed bridge request IDs. Graphic
+generation remains single-attempt because an ambiguous retry could duplicate an
+image call. Exhaustion returns a plain bounded retry instruction instead of an
+opaque bridge request failure. The Composer skill now explicitly interprets
+rough multilingual owner prose as a creative outcome while preserving the
+approved offer, CTA, honest claims, Project sources, and personal-data boundary.
+
+On mobile, the current action is fixed above the bottom navigation and changes
+from Preview to Apply after review; reserved Wizard space keeps progress,
+failure, retry, and receipts reachable. The five-post header stacks cleanly,
+the textarea is height-bounded, and the service-worker marker is
+`ptw-shell-v44-studio-wizard-recovery`. Regression coverage uses the owner's
+event-personalized Ukrainian-copy request and asserts both real document width
+and action viewport intersection in 360 px Chromium and iPhone WebKit.
+
+Verification passes all 59 built-runtime Validation tests, 13 focused Owner
+Gateway auth/proxy/notification tests, all 30 Owner web tests, the production
+build, all 21 browser journeys, Commander regression/demo checks, canonical PTW
+skill sync, and `git diff --check`. The in-place production release is pending;
+the previously deployed validator release below remains live until cutover.
+
 ## Current deployed follow-up
 
 Studio now has a separate automatic Ad Creative Validator agent with canonical

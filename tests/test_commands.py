@@ -117,6 +117,13 @@ def test_platform_api_release_is_explicitly_tagged_and_never_built_on_production
     assert "commander-assets:/var/lib/ptw/assets" in worker
 
 
+def test_tmpfs_mount_options_remain_one_quoted_compose_item() -> None:
+    compose = (SOURCE_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    assert '      - "/tmp:size=16m,mode=1777"' in compose
+    assert '      - "/tmp:size=64m,mode=1777"' in compose
+    assert "tmpfs: [" not in compose
+
+
 @pytest.mark.parametrize("missing", ["system_prompt", "input_payload", "output_schema", "idempotency_key"])
 def test_structured_bridge_rejects_incomplete_contract(missing: str) -> None:
     request = {

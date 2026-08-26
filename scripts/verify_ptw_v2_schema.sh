@@ -41,7 +41,7 @@ apply_and_check() {
   done
   tables=$(docker exec "$application_container" psql -X -qAt -U ptw_commander -d ptw_commander \
     -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
-  [ "$tables" = 31 ] || { echo "expected 31 clean validation tables, got $tables" >&2; exit 1; }
+  [ "$tables" = 32 ] || { echo "expected 32 clean validation tables, got $tables" >&2; exit 1; }
   docker exec -i "$application_container" psql -X -qAt -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander <<'SQL'
 DO $$
 BEGIN
@@ -93,7 +93,7 @@ BEGIN
     RAISE EXCEPTION 'rerun_of relationship lineage is unavailable';
   END IF;
   IF (SELECT count(*) FROM information_schema.tables
-       WHERE table_schema='public' AND table_name LIKE 'ad_studio_%') <> 11 THEN
+       WHERE table_schema='public' AND table_name LIKE 'ad_studio_%') <> 12 THEN
     RAISE EXCEPTION 'Ad Studio persistence tables are incomplete';
   END IF;
   IF NOT EXISTS (
@@ -169,6 +169,8 @@ echo "Populated Validation Project migration verified; existing Brief fingerprin
 
 docker exec "$application_container" psql -X -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander \
   -f '/migrations/004_ad_studio.sql' >/dev/null
+docker exec "$application_container" psql -X -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander \
+  -f '/migrations/005_ad_studio_creative_validation.sql' >/dev/null
 briefs_after_studio=$(docker exec "$application_container" psql -X -qAt -U ptw_commander -d ptw_commander \
   -c "SELECT md5(string_agg((to_jsonb(brief)-'project_id')::text,'' ORDER BY entity_id)) FROM product_briefs brief")
 [ "$briefs_after_studio" = "$briefs_after" ] || { echo "Product Brief fingerprints changed during Studio upgrade" >&2; exit 1; }
@@ -176,12 +178,12 @@ docker exec "$application_container" psql -X -qAt -v ON_ERROR_STOP=1 -U ptw_comm
 DO $$
 BEGIN
   IF (SELECT count(*) FROM information_schema.tables
-       WHERE table_schema='public' AND table_name LIKE 'ad_studio_%') <> 11 THEN
-    RAISE EXCEPTION 'populated Studio upgrade is incomplete';
+       WHERE table_schema='public' AND table_name LIKE 'ad_studio_%') <> 12 THEN
+    RAISE EXCEPTION 'populated Studio validation upgrade is incomplete';
   END IF;
 END $$;
 SQL
-echo "Populated 001/002 through Project and Studio migrations verified"
+echo "Populated 001/002 through Project, Studio, and creative-validation migrations verified"
 
 docker exec "$application_container" psql -X -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander \
   -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION ptw_commander;' >/dev/null

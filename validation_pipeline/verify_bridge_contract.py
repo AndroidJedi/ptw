@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from io import BytesIO
+import hashlib
 import json
 from uuid import uuid4
 
@@ -43,6 +45,33 @@ def main() -> None:
     invocations.append({
         "mode": "ad_studio_recipe_revision",
         "bridge_request_id": revision["invocation"].get("bridge_request_id"),
+    })
+    from PIL import Image
+    image_output = BytesIO()
+    Image.new("RGB", (1080, 1080), "#181C25").save(
+        image_output, format="JPEG", quality=85, progressive=False,
+    )
+    image_bytes = image_output.getvalue()
+    image_sha256 = hashlib.sha256(image_bytes).hexdigest()
+    validation = provider.validate_studio_creative(
+        system_prompt=(
+            "Deployment canary. Inspect the attached image, do not use image generation, "
+            "and return only the schema object."
+        ),
+        input_payload={"canary_id": marker, "mode": "ad_studio_creative_validation"},
+        image_bytes=image_bytes, image_sha256=image_sha256,
+        output_schema=CANARY_SCHEMA,
+        prompt_version="ptw_studio_creative_validation_canary_v1",
+    )
+    if validation["response"] != {"canary": "ptw-validation-ok"}:
+        raise SystemExit("schema-bound bridge canary failed for ad_studio_creative_validation")
+    attached = validation["invocation"].get("input_image") or {}
+    if attached.get("digest") != image_sha256 or attached.get("transport") != "codex_cli_image_attachment":
+        raise SystemExit("Studio creative validation canary did not prove exact image attachment")
+    invocations.append({
+        "mode": "ad_studio_creative_validation",
+        "bridge_request_id": validation["invocation"].get("bridge_request_id"),
+        "input_sha256": image_sha256,
     })
     graphic = provider.generate_studio_graphic(
         system_prompt=(

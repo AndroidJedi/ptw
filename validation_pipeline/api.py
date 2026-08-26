@@ -22,6 +22,7 @@ from .studio import (
     MAX_VIDEO_BYTES, StudioRenderer, _v2_submission, inspect_media,
     studio_recipe_revision_output_schema, tool_catalog,
 )
+from .studio_validation import StudioCreativeValidator
 
 
 def _matches_media(data: bytes, mime_type: str) -> bool:
@@ -52,6 +53,9 @@ def create_app(
     studio_renderer = studio_renderer or StudioRenderer()
     studio_pexels = PexelsClient(settings.pexels_api_key)
     studio_bridge = StructuredBridge(settings.bridge_url, settings.bridge_token, settings.model)
+    studio_creative_validator = StudioCreativeValidator(
+        studio_bridge, studio_renderer, skill_path=settings.ad_creative_validator_skill_path,
+    )
     runner_error: Exception | None = None
     if runner is None:
         try:
@@ -705,7 +709,8 @@ def create_app(
                 brand_kit, media_by_angle = bootstrap_sample_sources(batch["project_id"], actor)
                 return repository.create_studio_sample_set(
                     batch_id, brand_kit_id=brand_kit["brand_kit_id"],
-                    media_by_angle=media_by_angle, renderer=studio_renderer, requested_by=actor,
+                    media_by_angle=media_by_angle, renderer=studio_renderer,
+                    creative_validator=studio_creative_validator, requested_by=actor,
                 )
             finally:
                 repository.release_operation(batch_id)
@@ -812,6 +817,7 @@ def create_app(
                     normalized_recipe_id, instruction=str(request["instruction"]),
                     target_instance_id=(None if request["target_instance_id"] is None else str(UUID(str(request["target_instance_id"])))),
                     proposal_builder=wizard_proposal_builder, renderer=studio_renderer,
+                    creative_validator=studio_creative_validator,
                     requested_by=x_ptw_actor[:200],
                 )
             finally:

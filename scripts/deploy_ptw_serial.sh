@@ -230,8 +230,11 @@ BEGIN
   ) OR NOT EXISTS (
       SELECT 1 FROM commander_schema_migrations
        WHERE name='004_ad_studio.sql'
+  ) OR NOT EXISTS (
+      SELECT 1 FROM commander_schema_migrations
+       WHERE name='005_ad_studio_creative_validation.sql'
   ) THEN
-    RAISE EXCEPTION 'required in-place Studio migrations are missing';
+    RAISE EXCEPTION 'required in-place Studio and creative-validation migrations are missing';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM product_briefs)
      OR NOT EXISTS (SELECT 1 FROM creative_batches)

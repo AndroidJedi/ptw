@@ -208,6 +208,8 @@ main#main-content { min-width: 0; min-height: 100vh; padding: 20px 16px calc(92p
 .studio-focus > header { margin-bottom: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center; }
 .studio-focus h2 { margin: 4px 0 0; }
 .studio-focus > p { margin: 12px 0 0; color: var(--muted); font-size: 12px; text-align: center; }
+.studio-focus > .studio-validation-receipt { display: flex; justify-content: center; align-items: center; gap: 6px; color: var(--soft); }
+.studio-validation-receipt svg { width: 14px; height: 14px; color: var(--white); }
 .studio-download-action { display: grid; justify-items: stretch; }
 .studio-download-action button { min-height: 40px; }
 .studio-download-action svg { width: 16px; }

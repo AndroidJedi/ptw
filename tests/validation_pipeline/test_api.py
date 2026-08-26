@@ -110,7 +110,9 @@ class ValidationApiTests(unittest.TestCase):
             pexels_api_key="pexels-key",
             product_brief_skill_path=root / "brief.md",
             ad_creative_skill_path=root / "creative.md",
+            ad_creative_validator_skill_path=root / "validator.md",
         )
+        (root / "validator.md").write_text("validator skill", encoding="utf-8")
         self.repository = FakeRepository()
         self.client = TestClient(create_app(
             settings, repository=self.repository, runner=FakeRunner(),

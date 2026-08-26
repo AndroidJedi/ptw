@@ -1793,6 +1793,89 @@ class ValidationRepository:
             raise KeyError(render_id)
         return {"bytes": bytes(row[0]), "sha256": row[1], "mime_type": row[2]}
 
+    def _insert_studio_creative_validation(
+        self,
+        connection: Any,
+        *,
+        recipe_id: UUID,
+        render_id: UUID | None,
+        wizard_proposal_id: UUID | None,
+        value: Mapping[str, Any],
+    ) -> str:
+        from psycopg.types.json import Jsonb
+
+        validation_id = UUID(new_uuid7())
+        attempts = list(value.get("attempts") or [])
+        attempt_count = int(value.get("attempt_count") or 0)
+        raw_recreation_count = value.get("recreation_count")
+        recreation_count = -1 if raw_recreation_count is None else int(raw_recreation_count)
+        if (
+            value.get("status") != "approved"
+            or not 1 <= attempt_count <= 4
+            or recreation_count != attempt_count - 1
+            or len(attempts) != attempt_count
+        ):
+            raise ValueError("Studio creative validation persistence is inconsistent")
+        connection.execute(
+            "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'studio_creative_validation',%s)",
+            (validation_id, Jsonb({
+                "schema_version": 1, "status": "approved",
+                "attempt_count": attempt_count, "recreation_count": recreation_count,
+            })),
+        )
+        connection.execute(
+            """INSERT INTO ad_studio_creative_validations(
+                   entity_id,recipe_id,wizard_proposal_id,render_id,status,attempt_count,
+                   recreation_count,skill_sha256,attempts
+               ) VALUES(%s,%s,%s,%s,'approved',%s,%s,%s,%s)""",
+            (
+                validation_id, recipe_id, wizard_proposal_id, render_id,
+                attempt_count, recreation_count, str(value["skill_sha256"]), Jsonb(attempts),
+            ),
+        )
+        evaluated = wizard_proposal_id or render_id
+        if evaluated is None:
+            raise ValueError("approved Studio creative validation requires an evaluated artifact")
+        for relation, target_id, attributes in (
+            ("derived_from", recipe_id, {"input": "studio_recipe"}),
+            ("evaluates", evaluated, {"result": "approved"}),
+        ):
+            connection.execute(
+                """INSERT INTO commander_relationships(
+                       id,source_id,relation,target_id,attributes
+                   ) VALUES(%s,%s,%s,%s,%s)""",
+                (UUID(new_uuid7()), validation_id, relation, target_id, Jsonb(attributes)),
+            )
+        return str(validation_id)
+
+    def _studio_creative_validation(
+        self, *, render_id: str | None = None, wizard_proposal_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        if (render_id is None) == (wizard_proposal_id is None):
+            raise ValueError("creative validation lookup requires exactly one target")
+        field, target = (
+            ("render_id", render_id) if render_id is not None
+            else ("wizard_proposal_id", wizard_proposal_id)
+        )
+        with self.connection() as connection:
+            row = connection.execute(
+                f"""SELECT entity_id,recipe_id,status,attempt_count,recreation_count,
+                            skill_sha256,attempts,created_at
+                       FROM ad_studio_creative_validations WHERE {field}=%s""",
+                (UUID(str(target)),),
+            ).fetchone()
+        if row is None:
+            return None
+        attempts = list(row[6])
+        final = dict(attempts[-1]) if attempts else {}
+        return {
+            "validation_id": str(row[0]), "recipe_id": str(row[1]), "status": row[2],
+            "attempt_count": int(row[3]), "recreation_count": int(row[4]),
+            "skill_sha256": row[5], "attempts": attempts,
+            "final_summary": final.get("summary"), "final_scores": final.get("scores"),
+            "created_at": row[7].isoformat(),
+        }
+
     def create_studio_sample_set(
         self,
         batch_id: str,
@@ -1800,13 +1883,14 @@ class ValidationRepository:
         brand_kit_id: str,
         media_by_angle: Mapping[str, str],
         renderer: Any,
+        creative_validator: Any,
         requested_by: str,
     ) -> dict[str, Any]:
         from psycopg.errors import UniqueViolation
         from psycopg.types.json import Jsonb
         from .studio import (
             SAMPLE_ANGLES, build_manifest, build_sample_documents,
-            recipe_tools, validate_recipe, validate_template,
+            recipe_tools, template_from_validated_recipe, validate_recipe, validate_template,
         )
 
         batch_uuid = UUID(batch_id)
@@ -1852,9 +1936,19 @@ class ValidationRepository:
                 asset_id: self.get_studio_source_asset(asset_id, include_bytes=True)
                 for asset_id in recipe_contract.value["source_asset_ids"]
             }
-            rendered = renderer.render(
-                recipe_id=str(recipe_id), recipe_digest=recipe_contract.digest,
-                recipe=recipe_contract.value, brand_kit=kit, assets=assets,
+            validation = creative_validator.review_and_recreate(
+                recipe_id=str(recipe_id), recipe=recipe_contract.value,
+                project_id=project_id, brief_id=batch["brief_id"],
+                brand_kit_id=brand_kit_id, brief=brief, brand_kit=kit, assets=assets,
+                context={
+                    "workflow": "studio_sample_set", "batch_id": batch_id,
+                    "angle": item["angle"], "source_creative_id": item["source_creative_id"],
+                },
+            )
+            recipe_contract = validation.contract
+            rendered = validation.rendered
+            template_document = template_from_validated_recipe(
+                template_document, recipe_contract.value,
             )
             manifest = build_manifest(
                 render_id=str(render_id), recipe_id=str(recipe_id),
@@ -1866,6 +1960,9 @@ class ValidationRepository:
                 "attempt_id": attempt_id, "render_id": render_id,
                 "template_document": template_document, "recipe_contract": recipe_contract,
                 "rendered": rendered, "manifest": manifest,
+                "creative_validation": validation.persistence(),
+                "caption": recipe_contract.value["share"]["caption"],
+                "alt_text": recipe_contract.value["share"]["alt_text"],
             })
         try:
             with self.connection() as connection:
@@ -1930,6 +2027,10 @@ class ValidationRepository:
                             rendered["bytes"], manifest["output"]["bytes_sha256"], Jsonb(manifest),
                             _sha(manifest), rendered["embedded_manifest"], contract.value["renderer_version"],
                         ),
+                    )
+                    self._insert_studio_creative_validation(
+                        connection, recipe_id=recipe_id, render_id=render_id,
+                        wizard_proposal_id=None, value=item["creative_validation"],
                     )
                     connection.execute(
                         """INSERT INTO ad_studio_sample_set_items(
@@ -2010,6 +2111,7 @@ class ValidationRepository:
             "template": self.get_studio_template(str(item[4])),
             "recipe": self.get_studio_recipe(str(item[5])),
             "render": self.get_studio_render(str(item[6])),
+            "creative_validation": self._studio_creative_validation(render_id=str(item[6])),
         } for item in item_rows]
         result = {
             "sample_set_id": str(row[0]), "project_id": str(row[1]), "brief_id": str(row[2]),
@@ -2099,7 +2201,11 @@ class ValidationRepository:
             ).fetchone()
         if row is None:
             raise KeyError(proposal_id)
-        return self._studio_wizard_row(row)
+        result = self._studio_wizard_row(row)
+        result["creative_validation"] = self._studio_creative_validation(
+            wizard_proposal_id=proposal_id,
+        )
+        return result
 
     def list_studio_wizard_proposals(self, recipe_id: str) -> list[dict[str, Any]]:
         with self.connection() as connection:
@@ -2112,7 +2218,12 @@ class ValidationRepository:
                      ORDER BY created_at DESC LIMIT 50""",
                 (UUID(recipe_id),),
             ).fetchall()
-        return [self._studio_wizard_row(row) for row in rows]
+        values = [self._studio_wizard_row(row) for row in rows]
+        for value in values:
+            value["creative_validation"] = self._studio_creative_validation(
+                wizard_proposal_id=value["proposal_id"],
+            )
+        return values
 
     def create_studio_wizard_proposal(
         self,
@@ -2122,10 +2233,14 @@ class ValidationRepository:
         target_instance_id: str | None,
         proposal_builder: Any,
         renderer: Any,
+        creative_validator: Any,
         requested_by: str,
     ) -> dict[str, Any]:
         from psycopg.types.json import Jsonb
-        from .studio import validate_recipe, validate_recipe_revision_diff
+        from .studio import (
+            validate_recipe, validate_recipe_recomposition_diff,
+            validate_recipe_revision_diff,
+        )
 
         recipe = self.get_studio_recipe(recipe_id)
         brief = self.get_brief(recipe["brief_id"])
@@ -2171,10 +2286,22 @@ class ValidationRepository:
             for asset_id in contract.value["source_asset_ids"]
         }
         proposal_id = UUID(new_uuid7())
-        rendered = renderer.render(
-            recipe_id=str(proposal_id), recipe_digest=contract.digest,
-            recipe=contract.value, brand_kit=brand_kit, assets=assets,
+        validation = creative_validator.review_and_recreate(
+            recipe_id=str(proposal_id), recipe=contract.value,
+            project_id=recipe["project_id"], brief_id=recipe["brief_id"],
+            brand_kit_id=recipe["brand_kit_id"], brief=brief,
+            brand_kit=brand_kit, assets=assets,
+            context={
+                "workflow": "studio_wizard_preview", "base_recipe_id": recipe_id,
+                "owner_instruction": " ".join(instruction.split()),
+                "target_instance_id": target_instance_id,
+            },
         )
+        contract = validation.contract
+        rendered = validation.rendered
+        if generated_uuid is not None and str(generated_uuid) not in contract.value["source_asset_ids"]:
+            raise ValueError("creative validator cannot discard the explicitly generated Wizard source")
+        patch = validate_recipe_recomposition_diff(recipe["document"], contract.value)
         if rendered["mime_type"] != "image/jpeg":
             raise ValueError("wizard preview currently supports square static JPEG recipes")
         preview_sha256 = hashlib.sha256(rendered["bytes"]).hexdigest()
@@ -2206,6 +2333,10 @@ class ValidationRepository:
                     "INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes) VALUES(%s,%s,'derived_from',%s,%s)",
                     (UUID(new_uuid7()), proposal_id, generated_uuid, Jsonb({"input": "generated_studio_source"})),
                 )
+            self._insert_studio_creative_validation(
+                connection, recipe_id=UUID(recipe_id), render_id=None,
+                wizard_proposal_id=proposal_id, value=validation.persistence(),
+            )
         return self.get_studio_wizard_proposal(str(proposal_id))
 
     def studio_wizard_preview(self, proposal_id: str) -> dict[str, Any]:

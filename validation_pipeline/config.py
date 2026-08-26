@@ -17,6 +17,9 @@ class Settings:
     product_brief_skill_path: Path = Path("/run/ptw-auth/skills/product-brief-generator/SKILL.md")
     ad_creative_skill_path: Path = Path("/run/ptw-auth/skills/ad-creative-generator/SKILL.md")
     ad_studio_skill_path: Path = Path("/run/ptw-auth/skills/ad-studio-composer/SKILL.md")
+    ad_creative_validator_skill_path: Path = Path(
+        "/run/ptw-auth/skills/ad-creative-validator/SKILL.md"
+    )
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -49,5 +52,9 @@ class Settings:
             )),
             ad_studio_skill_path=Path(os.environ.get(
                 "AD_STUDIO_SKILL_PATH", "/run/ptw-auth/skills/ad-studio-composer/SKILL.md"
+            )),
+            ad_creative_validator_skill_path=Path(os.environ.get(
+                "AD_CREATIVE_VALIDATOR_SKILL_PATH",
+                "/run/ptw-auth/skills/ad-creative-validator/SKILL.md",
             )),
         )

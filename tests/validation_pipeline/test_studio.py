@@ -25,6 +25,7 @@ from validation_pipeline.studio import (
     studio_recipe_revision_output_schema,
     tool_catalog,
     validate_brand_kit,
+    validate_recipe_recomposition_diff,
     validate_recipe_revision_diff,
     validate_template,
     resolve_template_v2,
@@ -296,6 +297,32 @@ class StudioContractTests(unittest.TestCase):
         malformed["frames"] = ["not-an-object"]
         with self.assertRaisesRegex(ValueError, "frames must contain objects"):
             validate_recipe_revision_diff(contract.value, malformed, target_instance_id=None)
+
+    def test_validator_recomposition_diff_can_add_and_remove_components_but_not_scope(self) -> None:
+        base = {
+            "schema_version": 2, "parent_recipe_id": None,
+            "placement_tool_id": "studio.placement.instagram.feed_square.v1",
+            "duration_seconds": None, "frame_rate": None,
+            "frames": recipe()["tools"], "modifiers": [],
+            "strategy_ids": ["studio.strategy.one_message.v1"],
+            "validation_ids": list(DEFAULT_GUARDS), "source_reference_ids": [COLOR_SOURCE, ADS_SOURCE],
+            "share": {"caption": "A clear caption", "alt_text": "A clear visual"},
+        }
+        proposed = json.loads(json.dumps(base))
+        proposed["frames"].append({
+            "instance_id": new_uuid7(), "tool_id": "studio.frame.shape.v1",
+            "frame": {"x": .06, "y": .06, "width": .88, "height": .2},
+            "z_index": 0, "params": {"background": "#181C25", "opacity": .8},
+            "timeline": None, "source_asset_ids": [],
+        })
+        patch = validate_recipe_recomposition_diff(base, proposed)
+        self.assertEqual("add", patch[0]["op"])
+        removed = json.loads(json.dumps(proposed))
+        removed["frames"] = [item for item in removed["frames"] if item["tool_id"] != "studio.frame.shape.v1"]
+        self.assertEqual("remove", validate_recipe_recomposition_diff(proposed, removed)[0]["op"])
+        proposed["placement_tool_id"] = "studio.placement.instagram.feed_portrait.v1"
+        with self.assertRaisesRegex(ValueError, "placement"):
+            validate_recipe_recomposition_diff(base, proposed)
 
 
 @unittest.skipUnless(importlib.util.find_spec("PIL") is not None, "Pillow is required")

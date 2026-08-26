@@ -1,4 +1,4 @@
-const CACHE = 'ptw-shell-v42-studio-wizard-only'
+const CACHE = 'ptw-shell-v43-studio-auto-validation'
 const CACHE_PREFIX = 'ptw-shell-'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/ptw.svg']
 

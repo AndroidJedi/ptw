@@ -30,10 +30,12 @@ credentials between them or mutate platform data during a Commander reset.
   8093, sharing the Commander DB network and platform backend network.
 - Core validation bridge modes remain exactly `product_brief`,
   `product_brief_revision`, and `ad_creative_batch`. The additive Studio
-  capability advertises `ad_studio_recipe_revision` and
-  `ad_studio_graphic_generation` separately so old Stage 1–2 clients remain
-  compatible. Require a fresh strict-schema canary for every advertised mode
-  and an authenticated digest/ETag canary for generated Studio assets.
+  capability advertises `ad_studio_recipe_revision`,
+  `ad_studio_graphic_generation`, and `ad_studio_creative_validation`
+  separately so old Stage 1–2 clients remain compatible. Require a fresh
+  strict-schema canary for every advertised mode, an exact digest-checked JPEG
+  attachment canary for creative validation, and an authenticated digest/ETag
+  canary for generated Studio assets.
 - A Studio graphic canary must prove exactly one completed built-in image call.
   Count and deduplicate a dedicated or MCP-shaped JSONL completion when Codex
   emits one. When the CLI emits no call event, accept only exactly one

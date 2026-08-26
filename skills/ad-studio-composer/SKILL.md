@@ -58,6 +58,14 @@ post. Previewing is non-mutating. Explicit Apply creates one validated immutable
 child recipe and render. Offer, CTA, Brief, Project, and brand identity remain
 protected.
 
+After the Composer renders a proposal, the separate canonical Ad Creative
+Validator starts automatically and inspects the exact pixels. Do not represent
+the Composer's own recipe checks as that independent review. The validator may
+perform a whole-recipe recomposition, including server-ID-assigned new frames,
+and rerender up to three times. Return a preview only after validator approval;
+otherwise fail closed with the last actionable review comments. This validation
+does not mutate the base recipe or bypass explicit owner Apply.
+
 Keep the owner-facing Wizard lifecycle explicit without rendering a scope
 selector: its instruction always targets the currently open post, never all
 sample posts or saved templates. During a long proposal or Apply request,

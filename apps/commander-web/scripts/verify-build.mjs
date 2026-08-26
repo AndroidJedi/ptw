@@ -28,6 +28,7 @@ const requiredMarkers = {
   'Wizard-only Studio instruction': 'What should change?',
   'Explicit unsaved Studio preview': 'NEW PREVIEW · NOT SAVED',
   'Explicit Studio apply': 'Use this version',
+  'Automatic creative validation receipt': 'Automatically reviewed',
 }
 
 const missing = Object.entries(requiredMarkers)
@@ -57,7 +58,7 @@ if (exposed.length) {
 if (!worker.includes("url.pathname.startsWith('/__/auth/')")) {
   throw new Error('Unsafe Commander service worker; Firebase Auth helper traffic is not bypassed')
 }
-if (!worker.includes("ptw-shell-v42-studio-wizard-only")) {
+if (!worker.includes("ptw-shell-v43-studio-auto-validation")) {
   throw new Error('Unsafe Commander service worker; Project workspace cache version is stale')
 }
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ad Creative Validator"
+  short_description: "Review and repair complete Studio creatives"
+  default_prompt: "Use $ad-creative-validator to inspect this exact rendered Studio creative and return an approval or bounded full-recipe revision."

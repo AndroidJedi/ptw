@@ -203,6 +203,19 @@ export interface StudioRender {
   manifest_url: string
 }
 
+export interface StudioCreativeValidation {
+  validation_id: string
+  recipe_id: string
+  status: 'approved'
+  attempt_count: number
+  recreation_count: number
+  skill_sha256: string
+  attempts: Array<Record<string, unknown>>
+  final_summary?: string | null
+  final_scores?: Record<string, number> | null
+  created_at: string
+}
+
 export interface StudioSampleSetItem {
   ordinal: 0 | 1 | 2 | 3 | 4
   angle: CreativeAngle
@@ -216,6 +229,7 @@ export interface StudioSampleSetItem {
   template: StudioTemplate
   recipe: StudioRecipe
   render: StudioRender
+  creative_validation?: StudioCreativeValidation | null
 }
 
 export interface StudioSampleSet {
@@ -247,6 +261,7 @@ export interface StudioWizardProposal {
   preview_mime_type?: 'image/jpeg'
   applied_recipe_id?: string | null
   created_at: string
+  creative_validation?: StudioCreativeValidation | null
 }
 
 export interface CreativeImage {

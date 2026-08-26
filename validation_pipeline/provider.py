@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import time
@@ -12,8 +13,13 @@ import urllib.request
 
 
 VALIDATION_MODES = ("product_brief", "product_brief_revision", "ad_creative_batch")
-STUDIO_MODES = ("ad_studio_graphic_generation", "ad_studio_recipe_revision")
+STUDIO_MODES = (
+    "ad_studio_graphic_generation",
+    "ad_studio_recipe_revision",
+    "ad_studio_creative_validation",
+)
 MAX_STUDIO_ASSET_BYTES = 10 * 1024 * 1024
+MAX_STUDIO_VALIDATION_IMAGE_BYTES = 2 * 1024 * 1024
 
 
 class StructuredBridge:
@@ -126,6 +132,41 @@ class StructuredBridge:
             prompt_version=prompt_version, expect_image=True,
         )
 
+    def validate_studio_creative(
+        self,
+        *,
+        system_prompt: str,
+        input_payload: Mapping[str, Any],
+        image_bytes: bytes,
+        image_sha256: str,
+        output_schema: Mapping[str, Any],
+        prompt_version: str = "ptw-ad-studio-creative-validation-v1",
+    ) -> dict[str, Any]:
+        data = bytes(image_bytes)
+        digest = hashlib.sha256(data).hexdigest()
+        if (
+            not data.startswith(b"\xff\xd8")
+            or not data.endswith(b"\xff\xd9")
+            or not 1 <= len(data) <= MAX_STUDIO_VALIDATION_IMAGE_BYTES
+            or digest != image_sha256
+        ):
+            raise ValueError("Studio creative validation image is not an exact bounded JPEG")
+        return self._generate_studio(
+            mode="ad_studio_creative_validation",
+            system_prompt=system_prompt,
+            input_payload=input_payload,
+            output_schema=output_schema,
+            prompt_version=prompt_version,
+            expect_image=False,
+            input_image={
+                "mime_type": "image/jpeg",
+                "digest": digest,
+                "width": 1080,
+                "height": 1080,
+                "bytes_base64": base64.b64encode(data).decode("ascii"),
+            },
+        )
+
     def _generate_studio(
         self,
         *,
@@ -135,6 +176,7 @@ class StructuredBridge:
         output_schema: Mapping[str, Any],
         prompt_version: str,
         expect_image: bool,
+        input_image: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         if mode not in STUDIO_MODES:
             raise ValueError("unsupported Studio bridge mode")
@@ -146,6 +188,8 @@ class StructuredBridge:
             "input_payload": dict(input_payload), "output_schema": dict(output_schema),
             "prompt_template_version": prompt_version, "context_hash": context_hash,
         }
+        if input_image is not None:
+            request["input_image"] = dict(input_image)
         if self.model != "codex-cli-default":
             request["model"] = self.model
         queued = self._request(self.url, request)

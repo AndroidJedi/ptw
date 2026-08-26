@@ -3,15 +3,22 @@ import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
 import type {
-  ProductBrief, StudioRecipe, StudioRender, StudioSampleSet, StudioSampleSetItem,
+  ProductBrief, StudioCreativeValidation, StudioRecipe, StudioRender, StudioSampleSet, StudioSampleSetItem,
   StudioWizardProposal,
 } from '../types'
 
-const STUDIO_GENERATION_DEADLINE_MS = 300_000
-const STUDIO_WIZARD_DEADLINE_MS = 600_000
+const STUDIO_GENERATION_DEADLINE_MS = 7_200_000
+const STUDIO_WIZARD_DEADLINE_MS = 2_400_000
 const ANGLE_LABELS: Record<StudioSampleSetItem['angle'], string> = {
   emotional: 'Emotional', practical: 'Practical', curiosity: 'Curiosity',
   authority: 'Authority', problem_first: 'Problem-first',
+}
+
+function validationReceipt(validation?: StudioCreativeValidation | null) {
+  if (!validation) return ''
+  if (validation.recreation_count === 0) return 'Automatically reviewed · passed the first quality check.'
+  const rounds = validation.recreation_count === 1 ? 'round' : 'rounds'
+  return `Automatically reviewed · improved and rechecked for ${validation.recreation_count} ${rounds}.`
 }
 
 function downloadBlob(blob: Blob, fileName: string) {
@@ -118,7 +125,7 @@ function WizardPanel({ api, recipe, recoveredProposal, onProposalChange, onAppli
   recipe: StudioRecipe
   recoveredProposal: StudioWizardProposal | null
   onProposalChange: (proposal: StudioWizardProposal | null) => void
-  onApplied: (recipe: StudioRecipe, render: StudioRender) => void
+  onApplied: (recipe: StudioRecipe, render: StudioRender, validation?: StudioCreativeValidation | null) => void
 }) {
   const [instruction, setInstruction] = useState('')
   const [proposal, setProposal] = useState<StudioWizardProposal | null>(recoveredProposal)
@@ -169,7 +176,7 @@ function WizardPanel({ api, recipe, recoveredProposal, onProposalChange, onAppli
       setProposal(result.proposal)
       setInstruction('')
       onProposalChange(null)
-      onApplied(result.recipe, result.render)
+      onApplied(result.recipe, result.render, result.proposal.creative_validation)
     } catch (cause) {
       setError({ message: (cause as Error).message, operation: 'apply' })
     } finally {
@@ -197,13 +204,13 @@ function WizardPanel({ api, recipe, recoveredProposal, onProposalChange, onAppli
     </div>}
     {error && <div className="studio-wizard-error" role="alert"><strong>{error.operation === 'apply' ? 'Could not save this version.' : 'Could not create the preview.'}</strong><p>{error.message}</p><button className="secondary" disabled={busy} onClick={retry}><RefreshCcw /> Try again</button></div>}
     {proposal?.status === 'previewed' && <div className="studio-wizard-ready" role="status">
-      <div><strong>New preview ready.</strong><span>Nothing changed yet. Review it beside this panel.</span></div>
+      <div><strong>New preview ready.</strong><span>Nothing changed yet. Review it beside this panel.</span>{proposal.creative_validation && <span>{validationReceipt(proposal.creative_validation)}</span>}</div>
       <button className="primary" disabled={busy} onClick={() => void apply()}>{operation === 'apply' ? <RefreshCcw className="spin" /> : <Check />} {operation === 'apply' ? 'Saving…' : 'Use this version'}</button>
     </div>}
   </section>
 }
 
-function PostPreview({ api, name, render, proposal }: { api: ApiClient; name: string; render: StudioRender; proposal: StudioWizardProposal | null }) {
+function PostPreview({ api, name, render, proposal, validation }: { api: ApiClient; name: string; render: StudioRender; proposal: StudioWizardProposal | null; validation?: StudioCreativeValidation | null }) {
   const proposed = proposal?.status === 'previewed'
   return <section className="panel studio-focus" aria-label="Post preview">
     <header>
@@ -214,6 +221,7 @@ function PostPreview({ api, name, render, proposal }: { api: ApiClient; name: st
       {proposed ? <WizardPreview api={api} proposal={proposal} /> : <RenderImage api={api} render={render} alt={name} />}
     </div>
     <p>{proposed ? 'Review this preview. Use this version only if it is right.' : 'Use the Wizard to change anything in this post.'}</p>
+    {validation && <p className="studio-validation-receipt" role="status"><Check /> {validationReceipt(validation)}</p>}
   </section>
 }
 
@@ -226,6 +234,7 @@ export function StudioView({ api, projectId }: { api: ApiClient; projectId: stri
   const [render, setRender] = useState<StudioRender | null>(null)
   const [recoveredProposal, setRecoveredProposal] = useState<StudioWizardProposal | null>(null)
   const [activeProposal, setActiveProposal] = useState<StudioWizardProposal | null>(null)
+  const [currentValidation, setCurrentValidation] = useState<StudioCreativeValidation | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -238,6 +247,7 @@ export function StudioView({ api, projectId }: { api: ApiClient; projectId: stri
     setRender(item.render)
     setRecoveredProposal(null)
     setActiveProposal(null)
+    setCurrentValidation(item.creative_validation || null)
     try {
       const value = await api.get<{ items: StudioWizardProposal[] }>(`/api/v1/ad-studio/recipes/${item.recipe.recipe_id}/wizard-proposals`)
       const latest = value.items.find((proposal) => proposal.status === 'previewed') || null
@@ -257,6 +267,7 @@ export function StudioView({ api, projectId }: { api: ApiClient; projectId: stri
     setRender(null)
     setRecoveredProposal(null)
     setActiveProposal(null)
+    setCurrentValidation(null)
     if (!projectId) {
       setBriefs([])
       setSampleSets([])
@@ -314,11 +325,12 @@ export function StudioView({ api, projectId }: { api: ApiClient; projectId: stri
       setBusy(false)
     }
   }
-  const wizardApplied = (nextRecipe: StudioRecipe, nextRender: StudioRender) => {
+  const wizardApplied = (nextRecipe: StudioRecipe, nextRender: StudioRender, validation?: StudioCreativeValidation | null) => {
     setRecipe(nextRecipe)
     setRender(nextRender)
     setRecoveredProposal(null)
     setActiveProposal(null)
+    setCurrentValidation(validation || null)
     setNotice('New version saved.')
   }
 
@@ -336,7 +348,7 @@ export function StudioView({ api, projectId }: { api: ApiClient; projectId: stri
       : <section className="panel studio-sample-empty"><Sparkles /><div><small>FIRST STEP</small><h2>Create your five posts</h2><p>AI creates five ready-to-use posts from the approved Brief.</p></div><button className="primary" disabled={busy || !brief?.creative_batch_id} onClick={() => void createSampleSet()}><Sparkles /> {busy ? 'Creating posts…' : 'Create 5 posts'}</button>{!brief?.creative_batch_id && <small>The approved Brief needs a completed five-Ad batch first.</small>}</section>}
     {selectedPost && recipe && render
       ? <div className="studio-ai-workspace">
-        <PostPreview api={api} name={selectedPost.name} render={render} proposal={activeProposal} />
+        <PostPreview api={api} name={selectedPost.name} render={render} proposal={activeProposal} validation={activeProposal?.creative_validation || currentValidation} />
         <WizardPanel api={api} recipe={recipe} recoveredProposal={recoveredProposal} onProposalChange={setActiveProposal} onApplied={wizardApplied} />
       </div>
       : activeSampleSet && <Empty><WandSparkles /><h2>Choose a post</h2><p>Select one of the five posts above to change it with AI.</p></Empty>}

@@ -1,7 +1,7 @@
 # PTW Ad Studio
 
-Status: Studio v2 and the first five-post sample-set rollout are deployed and
-verified in production beside the unchanged five-Ad generator
+Status: Studio v2 is deployed; automatic post-render creative validation is
+implemented and verified locally but not deployed
 Updated: 2026-08-25
 
 ## Boundary
@@ -20,6 +20,37 @@ text, and styling remain constrained recipe data changed through the validated
 Wizard proposal; they are not exposed as canvas, layer, inspector, asset,
 template, or copy fields. Owner Console chrome remains monochrome; creative
 output uses the selected Project brand-kit revision.
+
+Every initial sample render and Wizard preview now enters automatic creative
+validation before it can be returned. The fixed Stage 2 five-Ad generator
+remains unchanged.
+
+## Automatic creative validator
+
+`ad-creative-validator` is an independent canonical skill and fresh structured
+agent mode. It receives the exact rendered 1080×1080 JPEG as a digest-checked
+Codex image attachment plus the current StudioRecipeV2, approved Brief, brand
+kit, approved source metadata, live tool catalog, and workflow context. Image
+bytes are never placed in the text prompt. The reviewer must inspect actual
+pixels and cannot approve from recipe metadata alone.
+
+Approval requires every blocking gate and every scored dimension to reach at
+least 8/10. The complete rubric covers hook/stop-scroll strength, claim and
+offer/CTA integrity, copy clarity, image/copy/emotion match, crop and focal
+point, component placement and collision, hierarchy, small-screen typography,
+contrast, brand consistency, credibility, placement fit, caption, and alt text.
+No performance data or silent learning enters the decision.
+
+A rejected review returns actionable comments and one complete replacement
+recipe. Unlike the owner-facing Composer proposal, this internal validation
+recomposition may add, remove, reorder, replace, resize, or restyle frames and
+modifiers. New components use `null` model IDs and receive server-assigned
+UUIDv7s. Server validation still protects the exact offer and CTA, approved
+facts, Project, placement, brand kit, source boundary, required guards, safe
+zones, and honest-claims policy. The revised recipe is rendered and reviewed
+again automatically. At most three recreations follow the first render; a
+fourth rejected review fails the whole preview or five-post construction rather
+than exposing an unapproved image.
 
 ## Stable catalog and shared recipe
 
@@ -105,10 +136,19 @@ brand-kit revisions, templates, recipe revisions, render attempts, rendered
 artifacts/manifests, immutable five-item sample sets, sample-set items, wizard
 proposals, publications, and lesson proposals. PostgreSQL
 and `contains`, `derived_from`, `supersedes`, `evaluates`, and `adjusts` graph
-edges remain authoritative.
+edges remain authoritative. Additive migration
+`005_ad_studio_creative_validation.sql` adds immutable validation entities for
+the evaluated proposal or render, exact recipe/image digests, every review
+attempt, scores, checks, comments, skill digest, provider provenance, and
+recreation count. The complete application schema has 32 tables, including 12
+`ad_studio_*` tables.
 
 The AI bridge retains the three fixed validation modes and advertises separate
-`ad_studio_recipe_revision` and `ad_studio_graphic_generation` modes. Preview is
+`ad_studio_recipe_revision`, `ad_studio_graphic_generation`, and
+`ad_studio_creative_validation` modes. Creative-validation input is capped at
+one digest-checked 1080×1080 JPEG no larger than 2 MB; the platform materializes
+one private temporary worker attachment, passes it with `--image`, and rejects
+imagegen traces. Preview is
 non-mutating. Explicit Apply validates the typed patch and creates one immutable
 child recipe and render; generated image bytes cross an authenticated,
 digest-checked asset endpoint rather than a shared database or filesystem.

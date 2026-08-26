@@ -44,10 +44,11 @@ platform HEAD. This bundle is the only code-transfer boundary between the two
 unrelated histories; the deploy verifies its digest and commit before a
 fast-forward merge. The publisher loads the enforcing platform worker before
 the Studio-capable API and requires fresh schema-bound canaries for the three
-fixed validation modes, both separate Studio modes, generated-asset
-authentication/digest delivery, and the non-persisting Pexels render path.
+fixed validation modes, all three separate Studio modes, the exact
+creative-validation JPEG attachment, generated-asset authentication/digest
+delivery, and the non-persisting Pexels render path.
 Failure stops before the additive application migration and restores the prior
-platform images. Migrations `003` and `004` then run in place; the deploy rejects
+platform images. Migrations `003`, `004`, and `005` then run in place; the deploy rejects
 missing migrations or lost Brief/batch/creative/asset rows. The destructive
 reset confirmation is outside this rollout. Before starting the new application
 services, the deploy captures the matching Commander, Validation, and Owner

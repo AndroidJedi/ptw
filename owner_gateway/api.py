@@ -578,7 +578,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         require_running()
         return (await validation_bridge(
             "POST", "/internal/v1/ad-studio/sample-sets", body=request,
-            actor=f"firebase:{identity.uid}", timeout=300,
+            actor=f"firebase:{identity.uid}", timeout=7200,
         )).json()
 
     @app.get("/api/v1/ad-studio/sample-sets/{sample_set_id}")
@@ -652,7 +652,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         require_running()
         return (await validation_bridge(
             "POST", f"/internal/v1/ad-studio/recipes/{recipe_id}/wizard-proposals",
-            body=request, actor=f"firebase:{identity.uid}", timeout=600,
+            body=request, actor=f"firebase:{identity.uid}", timeout=2400,
         )).json()
 
     @app.get("/api/v1/ad-studio/recipes/{recipe_id}/wizard-proposals")

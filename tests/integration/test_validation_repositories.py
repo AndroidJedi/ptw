@@ -20,7 +20,9 @@ from validation_pipeline.domain import CREATIVE_ANGLES, ProductBriefV1
 from validation_pipeline.repository import ValidationRepository
 from validation_pipeline.studio import (
     ADS_SOURCE, COLOR_SOURCE, DEFAULT_GUARDS, SAMPLE_ANGLES, StudioRenderer, _v2_submission,
+    validate_recipe,
 )
+from validation_pipeline.studio_validation import StudioCreativeValidationResult
 
 
 DATABASE_URL = os.environ.get("PTW_VALIDATION_TEST_DATABASE_URL", "")
@@ -80,6 +82,31 @@ def prepared_creatives() -> list[dict[str, object]]:
             "asset_digest": hashlib.sha256(artifact).hexdigest(),
         })
     return values
+
+
+class AutoApproveCreativeValidator:
+    def __init__(self, renderer: StudioRenderer) -> None:
+        self.renderer = renderer
+
+    def review_and_recreate(self, *, recipe_id, recipe, project_id, brief_id, brand_kit_id,
+                            brief, brand_kit, assets, context):
+        contract = validate_recipe(
+            _v2_submission(recipe), project_id=project_id, brief_id=brief_id,
+            brand_kit_id=brand_kit_id, brief=brief,
+        )
+        rendered = self.renderer.render(
+            recipe_id=recipe_id, recipe_digest=contract.digest, recipe=contract.value,
+            brand_kit=brand_kit, assets=assets,
+        )
+        attempt = {
+            "iteration": 0, "render_sha256": hashlib.sha256(rendered["bytes"]).hexdigest(),
+            "recipe_sha256": contract.digest, "verdict": "approve", "summary": "Fixture approved",
+            "improvement_comments": [], "scores": {"fixture": 10}, "checks": {"fixture": True},
+            "provider_provenance": {"provider": "integration"}, "context": dict(context),
+        }
+        return StudioCreativeValidationResult(
+            contract=contract, rendered=rendered, attempts=(attempt,), skill_sha256="a" * 64,
+        )
 
 
 @unittest.skipUnless(
@@ -574,18 +601,22 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
             for index, angle in enumerate(SAMPLE_ANGLES)
         }
         renderer = StudioRenderer(font_path=Path("/missing/inter.ttf"))
+        creative_validator = AutoApproveCreativeValidator(renderer)
         sample = self.repository.create_studio_sample_set(
             batch["batch_id"], brand_kit_id=kit["brand_kit_id"],
-            media_by_angle=media, renderer=renderer, requested_by="integration-owner",
+            media_by_angle=media, renderer=renderer, creative_validator=creative_validator,
+            requested_by="integration-owner",
         )
         self.assertEqual(5, len(sample["items"]))
+        self.assertTrue(all(item["creative_validation"]["status"] == "approved" for item in sample["items"]))
         self.assertEqual(
             [item["creative_id"] for item in self.repository.get_batch(batch["batch_id"])["creatives"]],
             [item["source_creative_id"] for item in sample["items"]],
         )
         self.assertEqual(sample["sample_set_id"], self.repository.create_studio_sample_set(
             batch["batch_id"], brand_kit_id=kit["brand_kit_id"],
-            media_by_angle=media, renderer=renderer, requested_by="integration-owner",
+            media_by_angle=media, renderer=renderer, creative_validator=creative_validator,
+            requested_by="integration-owner",
         )["sample_set_id"])
         package = self.repository.studio_sample_set_download(sample["sample_set_id"])
         self.assertEqual(package["sha256"], hashlib.sha256(package["bytes"]).hexdigest())
@@ -651,9 +682,11 @@ class ValidationRepositoryIntegrationTests(unittest.TestCase):
         proposal = self.repository.create_studio_wizard_proposal(
             root_recipe["recipe_id"], instruction="Replace the background with a generated graphic",
             target_instance_id=media_frame["instance_id"], proposal_builder=builder,
-            renderer=renderer, requested_by="integration-owner",
+            renderer=renderer, creative_validator=creative_validator,
+            requested_by="integration-owner",
         )
         self.assertEqual(generated["source_asset_id"], proposal["generated_source_asset_id"])
+        self.assertEqual("approved", proposal["creative_validation"]["status"])
         first_apply = self.repository.apply_studio_wizard_proposal(
             proposal["proposal_id"], renderer=renderer, requested_by="integration-owner",
         )

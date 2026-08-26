@@ -10,7 +10,7 @@ from validation_pipeline.service import validate_create_input, validate_revision
 
 
 class ProviderAndInputTests(unittest.TestCase):
-    def test_bridge_requires_exact_three_validation_modes(self) -> None:
+    def test_bridge_requires_exact_validation_and_studio_modes(self) -> None:
         provider = StructuredBridge("https://bridge.example/internal/structured", "token", "model")
         provider._request = lambda *_args, **_kwargs: {  # type: ignore[method-assign]
             "validation_modes": list(VALIDATION_MODES), "studio_modes": list(STUDIO_MODES),
@@ -109,6 +109,28 @@ class ProviderAndInputTests(unittest.TestCase):
         self.assertEqual("https://bridge.example/internal/llm/structured/9/asset", request.full_url)
         self.assertEqual("secret", request.headers["X-ptw-bridge-token"])
         self.assertEqual(digest, value["bytes_sha256"])
+
+    def test_creative_validation_sends_one_exact_bounded_jpeg_attachment(self) -> None:
+        provider = StructuredBridge("https://bridge.example/internal/llm/structured", "token", "model")
+        requests = []
+        states = iter([
+            {"request_id": 77},
+            {"status": "completed", "result": {
+                "response": '{"verdict":"approve"}',
+                "invocation": {"input_image_digest": "placeholder"},
+            }},
+        ])
+        provider._request = lambda _url, payload, **_kwargs: (requests.append(payload) or next(states))  # type: ignore[method-assign]
+        image = b"\xff\xd8bounded-jpeg\xff\xd9"
+        digest = hashlib.sha256(image).hexdigest()
+        result = provider.validate_studio_creative(
+            system_prompt="Inspect attached pixels.", input_payload={"recipe": {}},
+            image_bytes=image, image_sha256=digest, output_schema={"type": "object"},
+        )
+        self.assertEqual("approve", result["response"]["verdict"])
+        self.assertEqual("ad_studio_creative_validation", requests[0]["mode"])
+        self.assertEqual(digest, requests[0]["input_image"]["digest"])
+        self.assertNotIn("bytes_base64", requests[0]["input_payload"])
 
     def test_stage_one_inputs_are_raw_idea_only_and_corrections_are_bounded(self) -> None:
         request_id = str(uuid4())

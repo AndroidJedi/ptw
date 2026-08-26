@@ -7,6 +7,11 @@ const briefId = '018f07ea-7f20-7000-8000-000000000002'
 const kitId = '018f07ea-7f20-7000-8000-000000000003'
 const batchId = '018f07ea-7f20-7000-8000-000000000004'
 const now = '2026-08-25T12:00:00Z'
+const validation = (recreation_count = 0) => ({
+  validation_id: `validation-${recreation_count}`, recipe_id: recipe(1).recipe_id,
+  status: 'approved', attempt_count: recreation_count + 1, recreation_count,
+  skill_sha256: '9'.repeat(64), attempts: [], final_summary: 'Ready', created_at: now,
+})
 
 beforeAll(() => {
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:studio') })
@@ -36,7 +41,7 @@ const angles = ['emotional', 'practical', 'curiosity', 'authority', 'problem_fir
 const sampleSet = {
   sample_set_id: '018f07ea-7f20-7000-8000-000000000099', project_id: projectId, brief_id: briefId, batch_id: batchId, brand_kit_id: kitId,
   status: 'completed', created_at: now, download_url: '/api/v1/ad-studio/sample-sets/set/download', download_sha256: 'f'.repeat(64), download_mime_type: 'application/zip',
-  items: names.map((name, index) => ({ ordinal: index, angle: angles[index], name, template_id: `template-${index}`, recipe_id: recipe(index + 1).recipe_id, render_id: renderItem(index + 1).render_id, caption: `Real caption ${index + 1}`, alt_text: `Accessible post ${index + 1}`, template: { template_id: `template-${index}` }, recipe: recipe(index + 1), render: renderItem(index + 1) })),
+  items: names.map((name, index) => ({ ordinal: index, angle: angles[index], name, template_id: `template-${index}`, recipe_id: recipe(index + 1).recipe_id, render_id: renderItem(index + 1).render_id, caption: `Real caption ${index + 1}`, alt_text: `Accessible post ${index + 1}`, template: { template_id: `template-${index}` }, recipe: recipe(index + 1), render: renderItem(index + 1), creative_validation: validation(index === 0 ? 0 : 1) })),
 }
 const persistedProposal = {
   proposal_id: 'proposal-persisted', recipe_id: recipe(1).recipe_id, status: 'previewed',
@@ -45,6 +50,7 @@ const persistedProposal = {
   before_sha256: '4'.repeat(64), after_sha256: '5'.repeat(64),
   preview_url: '/wizard/persisted-preview', preview_sha256: '6'.repeat(64),
   preview_mime_type: 'image/jpeg', created_at: now,
+  creative_validation: validation(2),
 }
 
 function api(withSamples = false, withRecoveredProposal = false) {
@@ -56,9 +62,10 @@ function api(withSamples = false, withRecoveredProposal = false) {
       patch: { frames: [{ op: 'replace', path: '/0/params/font_size', value: 64 }] },
       before_sha256: '1'.repeat(64), after_sha256: '2'.repeat(64),
       preview_url: '/wizard/preview', preview_sha256: '3'.repeat(64), preview_mime_type: 'image/jpeg', created_at: now,
+      creative_validation: validation(1),
     }
     if (path === '/api/v1/ad-studio/wizard-proposals/proposal-1/apply') return {
-      proposal: { proposal_id: 'proposal-1', recipe_id: recipe(1).recipe_id, status: 'applied', instruction: 'Make it calmer', patch: {}, before_sha256: '1'.repeat(64), after_sha256: '2'.repeat(64), preview_url: '/wizard/preview', applied_recipe_id: recipe(9).recipe_id, created_at: now },
+      proposal: { proposal_id: 'proposal-1', recipe_id: recipe(1).recipe_id, status: 'applied', instruction: 'Make it calmer', patch: {}, before_sha256: '1'.repeat(64), after_sha256: '2'.repeat(64), preview_url: '/wizard/preview', applied_recipe_id: recipe(9).recipe_id, created_at: now, creative_validation: validation(1) },
       recipe: recipe(9), render: renderItem(9),
     }
     throw new Error(`unexpected POST ${path}`)
@@ -98,11 +105,12 @@ describe('StudioView', () => {
     fireEvent.change(within(wizard).getByLabelText('What should change?'), { target: { value: 'Make it calmer' } })
     fireEvent.click(within(wizard).getByRole('button', { name: 'Preview change' }))
     expect(await within(wizard).findByText('New preview ready.')).toBeInTheDocument()
-    expect(client.post).toHaveBeenCalledWith(expect.stringContaining('/wizard-proposals'), { instruction: 'Make it calmer', target_instance_id: null }, { deadlineMs: 600_000 })
+    expect(within(wizard).getByText(/improved and rechecked for 1 round/)).toBeInTheDocument()
+    expect(client.post).toHaveBeenCalledWith(expect.stringContaining('/wizard-proposals'), { instruction: 'Make it calmer', target_instance_id: null }, { deadlineMs: 2_400_000 })
     expect(await screen.findByAltText('Preview of proposed change')).toBeInTheDocument()
     expect(within(screen.getByLabelText('Post preview')).getByText('NEW PREVIEW · NOT SAVED')).toBeInTheDocument()
     fireEvent.click(within(wizard).getByRole('button', { name: 'Use this version' }))
-    await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/v1/ad-studio/wizard-proposals/proposal-1/apply', {}, { deadlineMs: 600_000 }))
+    await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/v1/ad-studio/wizard-proposals/proposal-1/apply', {}, { deadlineMs: 2_400_000 }))
     expect(await screen.findByText('New version saved.')).toBeInTheDocument()
     expect(within(screen.getByLabelText('Post preview')).getByText('CURRENT VERSION')).toBeInTheDocument()
   })
@@ -131,7 +139,7 @@ describe('StudioView', () => {
     const client = api()
     render(<StudioView api={client as any} projectId={projectId} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Create 5 posts' }))
-    await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/v1/ad-studio/sample-sets', { batch_id: batchId }, { deadlineMs: 300_000 }))
+    await waitFor(() => expect(client.post).toHaveBeenCalledWith('/api/v1/ad-studio/sample-sets', { batch_id: batchId }, { deadlineMs: 7_200_000 }))
     expect(await screen.findByLabelText('Your five Studio posts')).toBeInTheDocument()
   })
 

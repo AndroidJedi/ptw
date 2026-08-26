@@ -320,5 +320,5 @@ class OwnerClaimsTests(unittest.TestCase):
         mutation_calls = [call for call in calls if call[0] == "POST"]
         self.assertTrue(mutation_calls)
         self.assertTrue(all(call[2]["X-PTW-Actor"] == "firebase:owner-uid" for call in mutation_calls))
-        self.assertTrue(any(call[5] == 600 for call in calls if call[1].endswith("/wizard-proposals")))
+        self.assertTrue(any(call[5] == 2400 for call in calls if call[1].endswith("/wizard-proposals")))
         self.assertTrue(any(call[2].get("If-None-Match") for call in calls))

@@ -5,21 +5,43 @@ Branch: `codex/web-only-commander`
 
 ## Current unreleased follow-up
 
-The active Owner Console Studio is reduced to one Wizard-only flow: choose one
-of five posts, inspect one large current or proposed image, describe a
-whole-post change, review, Apply, or download. The normal screen no longer
-renders or fetches the manual canvas, Preview/Edit modes, undo/redo, layers,
-component inspector, brand/source/template administration, caption and alt-text
-fields, recipe history, UUID/digest metadata, JSON manifests, raw typed diffs,
-training publication, feedback, or lesson proposals. The structured recipe,
-template, source, lineage, exact offer/CTA, non-mutating preview, and immutable
-Apply contracts remain enforced behind the Wizard.
+Studio now has a separate automatic Ad Creative Validator agent with canonical
+skill `ad-creative-validator`. It starts after every initial five-post render
+and every Wizard preview, receives the exact digest-checked 1080×1080 JPEG as a
+real Codex image attachment, and reviews copy, hooks, offer/CTA, visual/copy and
+emotion fit, crop, component placement/collision, hierarchy, typography,
+contrast, brand, credibility, placement, caption, and alt text. Approval
+requires every blocking check and every score to reach 8/10.
 
-The production build gate now requires the simple choose/instruct/review/Apply
-markers and rejects the removed advanced controls if they return. Cache
-`ptw-shell-v42-studio-wizard-only` prevents the prior editor shell from masking
-the change. The follow-up passes 30 Owner web tests, the production build, and
-all 21 desktop/360 px/iPhone browser journeys. It is not deployed.
+On rejection, the validator returns actionable comments plus a complete V2
+recipe. It may add, remove, reorder, replace, resize, or restyle frames and
+modifiers; new components receive server-assigned UUIDv7s. The server protects
+the exact Brief offer/CTA, approved sources, Project/brand/placement scope,
+guards, safe zones, and honest claims. It automatically rerenders and rechecks
+up to three times; a fourth rejection fails closed. Base recipes still do not
+mutate until owner Apply.
+
+Migration `005_ad_studio_creative_validation.sql` brings the complete schema to
+32 application tables and 12 Studio tables. Immutable validation entities keep
+the evaluated proposal/render, recipe and image digests, every attempt, scores,
+checks, comments, skill digest, provider provenance, and recreation count with
+graph lineage. The independent platform adds
+`ad_studio_creative_validation` without changing the three core validation
+modes; it validates the JPEG, strips base64 from the prompt, uses one private
+temporary attachment, and rejects imagegen during review.
+
+Owner Console remains Wizard-only and adds only a simple automatic-review
+receipt. Cache `ptw-shell-v43-studio-auto-validation` prevents the older shell
+from masking it. Verification passes 56 built-runtime Validation tests, six
+disposable PostgreSQL repository journeys, the 32-table fresh/populated
+migration check, 98 independent-platform tests, all 30 Owner web tests, the
+production web build, all 21 browser journeys, the 10 affected Owner Gateway
+proxy tests, Commander regression/demo checks, Skill Creator validation, and
+canonical PTW skill sync. Full Owner Gateway discovery still reaches the
+pre-existing dormant-Landing test whose removed
+`marketing_positioning.provider` import has been broken since commit `d40bd5b`;
+the validator does not change that dormant source. The follow-up is not
+deployed.
 
 ## Last completed milestone
 

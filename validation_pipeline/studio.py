@@ -1424,6 +1424,114 @@ def validate_recipe_revision_diff(
     return changes
 
 
+def validate_recipe_recomposition_diff(
+    before: Mapping[str, Any], after: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Derive a typed whole-recipe patch that may add or remove components."""
+    if before.get("schema_version") != 2 or after.get("schema_version") != 2:
+        raise ValueError("creative validation recomposition requires V2 recipes")
+    original = _v2_submission(before)
+    proposed = _v2_submission(after)
+    for value in (original, proposed):
+        if not isinstance(value.get("frames"), list) or not isinstance(value.get("modifiers"), list):
+            raise ValueError("creative validation recomposition requires typed component arrays")
+    original["parent_recipe_id"] = proposed["parent_recipe_id"] = None
+    scalar_keys = set(original) - {"frames", "modifiers", "share", "parent_recipe_id"}
+    if any(original[key] != proposed[key] for key in scalar_keys):
+        raise ValueError("creative validation cannot change placement, timing, strategies, guards, or sources")
+    changes: list[dict[str, Any]] = []
+    for name in ("frames", "modifiers"):
+        before_items = {str(item["instance_id"]): item for item in original[name]}
+        after_items = {str(item["instance_id"]): item for item in proposed[name]}
+        if len(before_items) != len(original[name]) or len(after_items) != len(proposed[name]):
+            raise ValueError("creative validation component IDs must remain unique")
+        for instance_id, prior in before_items.items():
+            if instance_id not in after_items:
+                _, prior_digest = _canonical(prior)
+                changes.append({
+                    "op": "remove", "target": f"{name}/{instance_id}",
+                    "before_sha256": prior_digest,
+                })
+            elif prior != after_items[instance_id]:
+                _, prior_digest = _canonical(prior)
+                _, current_digest = _canonical(after_items[instance_id])
+                changes.append({
+                    "op": "replace", "target": f"{name}/{instance_id}",
+                    "before_sha256": prior_digest, "after_sha256": current_digest,
+                    "value": after_items[instance_id],
+                })
+        for instance_id, current in after_items.items():
+            if instance_id not in before_items:
+                _, current_digest = _canonical(current)
+                changes.append({
+                    "op": "add", "target": f"{name}/{instance_id}",
+                    "after_sha256": current_digest, "value": current,
+                })
+    if original["share"] != proposed["share"]:
+        _, prior_digest = _canonical(original["share"])
+        _, current_digest = _canonical(proposed["share"])
+        changes.append({
+            "op": "replace", "target": "share", "before_sha256": prior_digest,
+            "after_sha256": current_digest, "value": proposed["share"],
+        })
+    if not changes:
+        raise ValueError("creative validation recomposition does not change the recipe")
+    return changes
+
+
+def template_from_validated_recipe(
+    original_template: Mapping[str, Any], recipe: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Carry a validated composition into a reusable typed V2 template."""
+    validated_template = validate_template(original_template)
+    if validated_template["schema_version"] != 2 or recipe.get("schema_version") != 2:
+        raise ValueError("validated sample templates require V2 contracts")
+    frames = json.loads(json.dumps(recipe["frames"], ensure_ascii=False))
+    bindings: dict[str, dict[str, str]] = {}
+    first_headline = True
+    first_photo = True
+    for item in frames:
+        instance_id, tool_id = item["instance_id"], item["tool_id"]
+        if tool_id == "studio.frame.offer.v1":
+            item["params"]["text"] = "{{offer}}"
+            bindings["offer"] = {
+                "target": f"/frames/{instance_id}/params/text", "source": "brief.offer",
+            }
+        elif tool_id == "studio.frame.cta.v1":
+            item["params"]["text"] = "{{cta}}"
+            bindings["cta"] = {
+                "target": f"/frames/{instance_id}/params/text", "source": "brief.cta",
+            }
+        elif tool_id == "studio.frame.logo.v1":
+            item["source_asset_ids"] = []
+            bindings[f"logo_{instance_id}"] = {
+                "target": f"/frames/{instance_id}/source_asset_ids", "source": "brand.logo",
+            }
+        elif tool_id in {"studio.frame.media.v1", "studio.frame.product.v1"} and first_photo:
+            first_photo = False
+            item["source_asset_ids"] = []
+            bindings["photo"] = {
+                "target": f"/frames/{instance_id}/source_asset_ids", "source": "creative.photo",
+            }
+        elif tool_id == "studio.frame.headline.v1" and first_headline:
+            first_headline = False
+            item["params"]["text"] = "{{creative.hook}}"
+            bindings["hook"] = {
+                "target": f"/frames/{instance_id}/params/text", "source": "creative.hook",
+            }
+    bindings["caption"] = {"target": "/share/caption", "source": "creative.primary_text"}
+    return validate_template({
+        "schema_version": 2,
+        "placement_tool_id": recipe["placement_tool_id"],
+        "duration_seconds": recipe["duration_seconds"],
+        "frame_rate": recipe["frame_rate"],
+        "frames": frames,
+        "modifiers": json.loads(json.dumps(recipe["modifiers"], ensure_ascii=False)),
+        "strategy_ids": list(recipe["strategy_ids"]),
+        "bindings": bindings,
+    })
+
+
 def resolve_template_v2(
     template: Mapping[str, Any], *, brief: Mapping[str, Any], creative: Mapping[str, Any],
     photo_source_asset_id: str, logo_source_asset_id: str,

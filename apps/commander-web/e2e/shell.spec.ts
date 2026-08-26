@@ -88,8 +88,12 @@ test.beforeEach(async ({ page }) => {
 
 test('shows only Product Brief and one final Result workspace', async ({ page }) => {
   await page.goto('/?e2e=1')
+  await expect(page.getByRole('button', { name: 'Продуктові брифи' }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Змінити мову' }).click()
   await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Result' }).first()).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
   await expect(page.getByText('Ad Studio')).toHaveCount(0)
   await expect(page.getByText('Ads', { exact: true })).toHaveCount(0)
   await expect(page.getByText('Landing', { exact: true })).toHaveCount(0)
@@ -99,4 +103,20 @@ test('shows only Product Brief and one final Result workspace', async ({ page })
   await expect(page.getByText(result.content.hook)).toBeVisible()
   await expect(page.getByText('WHY THIS DIRECTION')).toBeVisible()
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
+})
+
+test('separates new Project creation from the selected Project workspace', async ({ page }) => {
+  await page.goto('/?e2e=1')
+  await page.getByRole('button', { name: 'Змінити мову' }).click()
+  await expect(page.getByText('BRIEF HISTORY')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'What do you want to validate?' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'New Project' }).click()
+  await expect(page.getByRole('heading', { name: 'New Project' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'What do you want to validate?' })).toBeVisible()
+  await expect(page.getByText('BRIEF HISTORY')).toHaveCount(0)
+
+  await page.getByLabel('Existing Project').selectOption(projectId)
+  await expect(page.getByText('BRIEF HISTORY')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'What do you want to validate?' })).toHaveCount(0)
 })

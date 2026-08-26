@@ -137,7 +137,7 @@ button svg { width: 17px; height: 17px; }
 @media (max-width: 760px) {
   .rail { display: none; }
   #main-content { margin-left: 0; padding: 18px 14px 92px; }
-  .bottom-nav { position: fixed; z-index: 30; inset: auto 0 0; padding: 8px max(12px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); display: grid; grid-template-columns: repeat(2, 1fr); border-top: 1px solid var(--line); background: #0b0b0b; }
+  .bottom-nav { position: fixed; z-index: 30; inset: auto 0 0; padding: 8px max(12px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); background: #0b0b0b; }
   .bottom-nav button { justify-content: center; }
   .project-switcher { grid-template-columns: 1fr; }
   .project-switcher-actions, .project-switcher label, .project-rename, .uuid-line { grid-column: 1; }

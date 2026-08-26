@@ -27,9 +27,9 @@ describe('ProjectSwitcher', () => {
     const onSelect = vi.fn()
     const onNew = vi.fn()
     const onRename = vi.fn().mockResolvedValue(undefined)
-    render(<ProjectSwitcher projects={projects} projectId={projects[0].project_id} onSelect={onSelect} onNew={onNew} onRename={onRename} />)
+    render(<ProjectSwitcher projects={projects} projectId={projects[0].project_id} onSelect={onSelect} onNew={onNew} onRename={onRename} language="en" />)
 
-    const selector = screen.getByLabelText('Project')
+    const selector = screen.getByLabelText('Existing Project')
     expect(selector).toHaveTextContent('Psychologist consultations · completed')
     expect(selector).not.toHaveTextContent(projects[0].project_id)
     expect(screen.queryByText(projects[0].project_id, { exact: false })).not.toBeInTheDocument()

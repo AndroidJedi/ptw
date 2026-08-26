@@ -12,6 +12,23 @@ import { ResultView } from './views/ResultView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
 export const AUTH_BOOT_TIMEOUT_MS = 10_000
+export const LANGUAGE_STORAGE_KEY = 'ptw-owner-language-v1'
+
+function initialLanguage(): Language {
+  try {
+    return window.localStorage?.getItem(LANGUAGE_STORAGE_KEY) === 'en' ? 'en' : 'uk'
+  } catch {
+    return 'uk'
+  }
+}
+
+function persistLanguage(language: Language) {
+  try {
+    window.localStorage?.setItem(LANGUAGE_STORAGE_KEY, language)
+  } catch {
+    // A blocked storage policy must not make the language control unusable.
+  }
+}
 
 function initialConsoleLocation(): { page: Page; projectId: string | null } {
   const params = new URLSearchParams(window.location.search)
@@ -96,7 +113,7 @@ function Console({ user }: { user: User }) {
   const [projects, setProjects] = useState<ValidationProject[] | null>(null)
   const [projectId, setProjectId] = useState<string | null>(initialLocation.projectId)
   const [projectError, setProjectError] = useState('')
-  const [language, setLanguage] = useState<Language>('uk')
+  const [language, setLanguage] = useState<Language>(initialLanguage)
   const api = useMemo(() => new ApiClient(user), [user])
 
   const refreshProjects = async (preferredId?: string) => {
@@ -140,15 +157,22 @@ function Console({ user }: { user: User }) {
     setProjects((items) => (items || []).map((item) => item.project_id === project.project_id ? project : item))
   }
   const newProject = () => {
-    navigate('briefs')
+    setPage('briefs')
+    setProjectId(null)
+    writeConsoleLocation('briefs', null)
     window.setTimeout(() => document.getElementById('new-project-idea')?.focus(), 0)
   }
-  return <Shell page={page} onPage={navigate} language={language} onLanguage={() => setLanguage(language === 'uk' ? 'en' : 'uk')}>
-    <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label="Вийти"><LogOut /></button></div>
-    <ProjectSwitcher projects={projects} projectId={projectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} />
-    {projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>Retry projects</button></p>}
-    {page === 'briefs' && <ProductBriefView api={api} projectId={projectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onOpenResult={() => navigate('result')} />}
-    {page === 'result' && <ResultView key={projectId || 'no-project'} api={api} projectId={projectId} />}
+  const changeLanguage = () => setLanguage((current) => {
+    const next = current === 'uk' ? 'en' : 'uk'
+    persistLanguage(next)
+    return next
+  })
+  return <Shell page={page} onPage={navigate} language={language} onLanguage={changeLanguage}>
+    <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label={language === 'uk' ? 'Вийти' : 'Sign out'}><LogOut /></button></div>
+    <ProjectSwitcher projects={projects} projectId={projectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />
+    {projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
+    {page === 'briefs' && <ProductBriefView api={api} projectId={projectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onOpenResult={() => navigate('result')} language={language} />}
+    {page === 'result' && <ResultView key={projectId || 'no-project'} api={api} projectId={projectId} language={language} />}
   </Shell>
 }
 

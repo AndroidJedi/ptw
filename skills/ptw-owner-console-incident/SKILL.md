@@ -21,6 +21,9 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
 - If Result creation is blocked by a missing brand kit or required Instagram
   logo, render that setup before the disabled Result action and name the exact
   prerequisite; never make the owner infer it from a disabled button.
+- The EN/УКР control must change the complete visible Owner Console and persist
+  across reloads. Render new-Project creation as a separate mode from an
+  existing Project's Brief history and detail; never stack both workflows.
 - Ads, batches, Studio editor/Wizard, Landing, Admin/Jobs/terminal, Positioning,
   research, publishing, campaign, traffic, UTM, and public lead routes must be
   absent and return 404.

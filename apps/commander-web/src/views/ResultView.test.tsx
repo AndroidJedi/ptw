@@ -50,7 +50,7 @@ describe('ResultView prerequisites', () => {
       document_sha256: 'a'.repeat(64), created_at: '2026-08-26T10:05:00Z',
     }
     const post = vi.fn().mockResolvedValue(savedKit)
-    render(<ResultView api={apiWith([], post)} projectId={projectId} />)
+    render(<ResultView api={apiWith([], post)} projectId={projectId} language="en" />)
 
     await screen.findByText(brief.product!)
     expectBrandSetupBeforeResult()
@@ -75,7 +75,7 @@ describe('ResultView prerequisites', () => {
       document: { name: 'Horoscope', colors: ['#111111'], fonts: ['Inter'], tone_notes: 'Direct' },
       document_sha256: 'a'.repeat(64), created_at: '2026-08-26T10:05:00Z',
     }
-    render(<ResultView api={apiWith([kit])} projectId={projectId} />)
+    render(<ResultView api={apiWith([kit])} projectId={projectId} language="en" />)
 
     await screen.findByText(brief.product!)
     fireEvent.click(screen.getByRole('radio', { name: 'Instagram post' }))

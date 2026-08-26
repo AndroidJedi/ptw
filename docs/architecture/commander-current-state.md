@@ -63,7 +63,7 @@ Result v1 was deployed on 2026-08-26 as release
 at `4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`.
 
 The Product Brief scheduling and language-contract incident was repaired
-in-place without a reset. Commander, Validation, and Owner Gateway now run
+in-place without a reset. Commander, Validation, and Owner Gateway then ran
 release `result-v1-20260826-1415-language-hotfix` from commit
 `3b5691cd4791c7b1629a1b6ab8b2056da1960215`; the independent Result bridge
 remains on its separately versioned healthy release. Production table counts
@@ -72,11 +72,29 @@ English schema-v1 document; its failed first attempt and completed second
 attempt have distinct exact provider lineage. The four duplicate submissions
 are preserved as failed, and the singleton operation guard is empty.
 
+The Result brand-kit prerequisite flow was deployed as
+`result-v1-20260826-1450-brand-kit-hotfix` from commit
+`64083f8183e6572dffe092ccec63c64d900e23ff` through the owner-confirmed clean
+reset. Six Projects and six Briefs were removed as authorized; all
+Commander-owned business tables were empty afterward and independent platform
+counts were unchanged. The empty-logo UUID failure is fixed, required brand
+setup precedes Result creation, all five services use the matching versioned
+tag, Firebase Hosting serves `App-DiuEpJxy.js`, and live Auth/App Check/CORS,
+provider, dependency, Telegram, schema, and resource audits passed.
+
+Immediate owner verification found two follow-up UI defects: EN/УКР changed
+only its own label, and new-Project creation was stacked above the selected
+Project workspace. The branch now localizes the complete visible console with
+reload persistence and separates new versus existing Project modes. Unit,
+build, desktop, 360 px Chromium, and iPhone WebKit checks pass; production
+deployment awaits a fresh reset confirmation.
+
 The production Commander database contains only `001_ptw_result_v1.sql`, and
 no retired table family remains. The obsolete owner-control volume, Git
 watcher, credential agent, Positioning, and idea containers are absent.
 Structured/multimodal bridge, real Product Brief, Pexels, schema, dependency,
 resource, public bundle, retired-route, CORS, and readiness canaries passed.
-All three application services are healthy on the matching hotfix tag with zero
-restarts; the independent API and worker are healthy on their matching bridge
-tag, and the locked 24-hour resource follow-up timer remains active.
+All three application services are healthy on the matching brand-kit hotfix
+tag; the independent API and worker are healthy on the same release tag at
+bridge revision `4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`, and the locked
+24-hour resource follow-up timer remains active.

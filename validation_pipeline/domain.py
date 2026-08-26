@@ -133,13 +133,19 @@ class ProductBriefV1:
         return dict(self.value)
 
 
-def product_brief_schema() -> dict[str, Any]:
+def product_brief_schema(required_language: str | None = None) -> dict[str, Any]:
+    if required_language not in {None, "uk", "en"}:
+        raise ValueError("Product Brief schema language must be uk or en")
     copy = {"type": "string", "minLength": 1, "maxLength": 500}
     return {
         "type": "object",
         "properties": {
             "schema_version": {"type": "integer", "const": 1},
-            "language": {"type": "string", "enum": ["uk", "en"]},
+            "language": (
+                {"type": "string", "enum": ["uk", "en"]}
+                if required_language is None
+                else {"type": "string", "const": required_language}
+            ),
             "product": copy,
             "target_audience": copy,
             "main_pain": copy,

@@ -85,7 +85,10 @@ class StructuredBridge:
             idempotency_key=idempotency_key,
         )
         self.last_invocation = dict(value["invocation"])
-        return dict(value["response"])
+        return {
+            "response": dict(value["response"]),
+            "invocation": dict(value["invocation"]),
+        }
 
     def generate_content_candidate(
         self,

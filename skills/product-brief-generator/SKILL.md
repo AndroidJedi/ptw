@@ -16,7 +16,9 @@ generating or correcting a Brief.
 
 1. Treat the raw idea as the only business input.
 2. Infer `uk` when Ukrainian Cyrillic letters dominate and `en` when Latin
-   letters dominate; default to `en` on a tie or ambiguous input.
+   letters dominate; default to `en` on a tie or ambiguous input. The server
+   passes this derived `required_language` and constrains the output schema to
+   that exact value; use it for the `language` field and every output string.
 3. Think like a direct-response marketer and choose one promising
    differentiation: a narrower first audience, clearer promise, emotional
    angle, trust mechanism, faster perceived result, lower friction, easier

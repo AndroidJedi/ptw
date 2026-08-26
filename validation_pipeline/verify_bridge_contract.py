@@ -8,7 +8,9 @@ import json
 from uuid import uuid4
 
 from .config import Settings
+from .domain import ProductBriefV1, product_brief_schema
 from .provider import StructuredBridge
+from .service import load_product_brief_skill, product_brief_system_prompt
 
 
 CANARY_SCHEMA = {
@@ -25,18 +27,31 @@ def main() -> None:
     capabilities = provider.capabilities()
     marker = str(uuid4())
     invocations: list[dict[str, object]] = []
+    raw_idea = "A guided decision service for people who need one clear next step."
+    required_language = "en"
+    skill_snapshot = load_product_brief_skill(settings.product_brief_skill_path)
+    base_document: dict[str, object] | None = None
     for mode in ("product_brief", "product_brief_revision"):
         value = provider.generate(
             mode=mode,
-            system_prompt="Deployment canary. Return only the schema object.",
-            input_payload={"canary_id": marker, "mode": mode},
-            output_schema=CANARY_SCHEMA,
+            system_prompt=product_brief_system_prompt(skill_snapshot, required_language),
+            input_payload={
+                "brief_id": marker,
+                "raw_idea": raw_idea,
+                "required_language": required_language,
+                "base_brief": base_document,
+                "owner_correction": (
+                    None if base_document is None
+                    else {"section_id": "product_brief", "instruction": "Make the promise more concrete."}
+                ),
+            },
+            output_schema=product_brief_schema(required_language),
             prompt_version="ptw_result_bridge_canary_v1",
             idempotency_key=f"canary:{marker}:{mode}",
         )
-        if value != {"canary": "ptw-result-ok"}:
-            raise SystemExit(f"bridge canary failed for {mode}")
-        invocations.append({"mode": mode, "request_id": provider.last_invocation.get("bridge_request_id")})
+        document = ProductBriefV1.from_dict(value["response"], raw_idea=raw_idea)
+        base_document = document.to_dict()
+        invocations.append({"mode": mode, "request_id": value["invocation"].get("bridge_request_id")})
 
     candidate = provider.generate_content_candidate(
         system_prompt="Deployment canary. Return only the schema object.",

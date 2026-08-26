@@ -62,6 +62,11 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
   leaving another queued Project or Brief. On startup, fail both queued and
   generating orphan Briefs as interrupted and clear their operation guard so
   the owner can retry one immutable artifact.
+- Bind the server-inferred Product Brief language as a structured-schema
+  constant, include the generation-attempt number in the bridge idempotency
+  key, and persist bridge request provenance even when post-response domain
+  validation fails. The release canary must validate a real `ProductBriefV1`,
+  not a generic marker object.
 - Persist checkpoints after every candidate, render, critic pass, action, and
   final materialization. Resume only idempotent JSON stages and deterministic
   rendering. Never duplicate reserved candidates, actions, Results, or calls.

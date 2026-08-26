@@ -5,9 +5,35 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
-from .domain import ProductBriefV1, product_brief_schema
+from .domain import ProductBriefV1, infer_language, product_brief_schema
 from .provider import StructuredBridge
 from .repository import ValidationRepository
+
+
+def load_product_brief_skill(path: Path) -> str:
+    if not path.is_file():
+        raise RuntimeError(f"canonical Product Brief skill is unavailable: {path}")
+    parts = [path.read_text(encoding="utf-8")]
+    references = path.parent / "references"
+    if references.is_dir():
+        for item in sorted(references.glob("*.md")):
+            parts.append(f"\nREFERENCE {item.name}:\n{item.read_text(encoding='utf-8')}")
+    content = "\n".join(parts)
+    if len(content) > 40_000:
+        raise RuntimeError("Product Brief skill context exceeds its explicit limit")
+    return content
+
+
+def product_brief_system_prompt(skill_snapshot: str, required_language: str) -> str:
+    return (
+        "Use the canonical Product Brief Generator skill below. Return one strict "
+        "ProductBriefV1 object. The raw idea is the only business input. Infer Ukrainian "
+        "or English, choose one hypothesis, include one honest low-friction offer, and "
+        "never invent research, testimonials, ratings, results, or proof. The server "
+        f"inferred required_language={required_language}; the language field and every "
+        "output string must use exactly that language. A correction returns a complete "
+        "immutable replacement.\n\nCANONICAL_SKILL:\n" + skill_snapshot
+    )
 
 
 class ValidationRunner:
@@ -24,18 +50,7 @@ class ValidationRunner:
         self._skill()
 
     def _skill(self) -> str:
-        path = self.product_brief_skill_path
-        if not path.is_file():
-            raise RuntimeError(f"canonical Product Brief skill is unavailable: {path}")
-        parts = [path.read_text(encoding="utf-8")]
-        references = path.parent / "references"
-        if references.is_dir():
-            for item in sorted(references.glob("*.md")):
-                parts.append(f"\nREFERENCE {item.name}:\n{item.read_text(encoding='utf-8')}")
-        content = "\n".join(parts)
-        if len(content) > 40_000:
-            raise RuntimeError("Product Brief skill context exceeds its explicit limit")
-        return content
+        return load_product_brief_skill(self.product_brief_skill_path)
 
     def verify_ready(self) -> dict[str, Any]:
         return {"ready": True, "market_research": False, **self.bridge.capabilities()}
@@ -50,6 +65,7 @@ class ValidationRunner:
         try:
             attempt_id, attempt_number = self.repository.start_attempt(brief_id, stage="product_brief")
             source = self.repository.source(brief_id)
+            required_language = infer_language(source["content"])
             base = None
             correction = None
             mode = "product_brief"
@@ -62,37 +78,36 @@ class ValidationRunner:
             payload = {
                 "brief_id": brief_id,
                 "raw_idea": source["content"],
+                "required_language": required_language,
                 "base_brief": None if base is None else base["document"],
                 "owner_correction": correction,
             }
+            provider_attempt_key = f"{brief_id}:{mode}:attempt-{attempt_number}"
             invocation = self.repository.create_invocation(
                 target_id=brief_id,
                 attempt_id=attempt_id,
                 mode=mode,
-                idempotency_key=f"{brief_id}:{mode}:attempt-{attempt_number}",
+                idempotency_key=provider_attempt_key,
                 request=payload,
             )
+            provenance: dict[str, Any] = {}
             try:
                 result = self.bridge.generate(
                     mode=mode,
-                    system_prompt=(
-                        "Use the canonical Product Brief Generator skill below. Return one strict "
-                        "ProductBriefV1 object. The raw idea is the only business input. Infer Ukrainian "
-                        "or English, choose one hypothesis, include one honest low-friction offer, and "
-                        "never invent research, testimonials, ratings, results, or proof. A correction "
-                        "returns a complete immutable replacement.\n\nCANONICAL_SKILL:\n" + self._skill()
-                    ),
+                    system_prompt=product_brief_system_prompt(self._skill(), required_language),
                     input_payload=payload,
-                    output_schema=product_brief_schema(),
+                    output_schema=product_brief_schema(required_language),
                     prompt_version=f"product_brief_v1:{mode}",
-                    idempotency_key=f"{brief_id}:{mode}",
+                    idempotency_key=provider_attempt_key,
                 )
-                document = ProductBriefV1.from_dict(result, raw_idea=source["content"])
+                response = dict(result["response"])
+                provenance = dict(result["invocation"])
+                document = ProductBriefV1.from_dict(response, raw_idea=source["content"])
                 self.repository.complete_invocation(
-                    invocation["id"], document.to_dict(), self.bridge.last_invocation
+                    invocation["id"], document.to_dict(), provenance
                 )
             except Exception as error:
-                self.repository.fail_invocation(invocation["id"], error)
+                self.repository.fail_invocation(invocation["id"], error, provenance)
                 raise
             self.repository.finish_brief(
                 brief_id, attempt_id, document.to_dict(), document.digest, document.quality_gates

@@ -409,14 +409,17 @@ class ValidationRepository:
                 (_sha(response), Jsonb(dict(provenance)), UUID(invocation_id)),
             )
 
-    def fail_invocation(self, invocation_id: str, error: Exception) -> None:
+    def fail_invocation(
+        self, invocation_id: str, error: Exception,
+        provenance: Mapping[str, Any] | None = None,
+    ) -> None:
         from psycopg.types.json import Jsonb
 
         with self.connection() as connection:
             connection.execute(
                 """UPDATE validation_provider_invocations SET status='failed',invocation=%s,
                           completed_at=clock_timestamp() WHERE id=%s AND status='submitted'""",
-                (Jsonb({"error": type(error).__name__}), UUID(invocation_id)),
+                (Jsonb({**dict(provenance or {}), "error": type(error).__name__}), UUID(invocation_id)),
             )
 
     def finish_brief(

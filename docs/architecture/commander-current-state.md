@@ -84,17 +84,26 @@ provider, dependency, Telegram, schema, and resource audits passed.
 
 Immediate owner verification found two follow-up UI defects: EN/УКР changed
 only its own label, and new-Project creation was stacked above the selected
-Project workspace. The branch now localizes the complete visible console with
-reload persistence and separates new versus existing Project modes. Unit,
-build, desktop, 360 px Chromium, and iPhone WebKit checks pass; production
-deployment awaits a fresh reset confirmation.
+Project workspace. The repairs were deployed as
+`result-v1-20260826-1505-owner-ui-hotfix` from commit
+`9535a749b96bb265d2c07f5d22876fbac351b155` through a second owner-confirmed
+clean reset. One Project and one Brief were removed as authorized; all
+Commander-owned business rows were zero afterward and independent platform
+counts were unchanged across the reset. The complete visible console now
+switches between English and Ukrainian with reload persistence, and new versus
+existing Project workflows render as separate modes. Unit, build, desktop,
+360 px Chromium, and iPhone WebKit checks pass. Firebase Hosting serves
+`App-Dinvy60U.js`; its live bytes contain the language-storage marker and both
+new-Project language variants. The live gateway, unauthenticated rejection,
+CORS, service-worker, provider, Pexels, dependency, skill, Telegram, schema,
+and resource audits passed.
 
 The production Commander database contains only `001_ptw_result_v1.sql`, and
 no retired table family remains. The obsolete owner-control volume, Git
 watcher, credential agent, Positioning, and idea containers are absent.
 Structured/multimodal bridge, real Product Brief, Pexels, schema, dependency,
 resource, public bundle, retired-route, CORS, and readiness canaries passed.
-All three application services are healthy on the matching brand-kit hotfix
+All three application services are healthy on the matching owner-UI hotfix
 tag; the independent API and worker are healthy on the same release tag at
 bridge revision `4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`, and the locked
 24-hour resource follow-up timer remains active.

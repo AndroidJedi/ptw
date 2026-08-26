@@ -136,6 +136,14 @@ git -C "$platform" merge --ff-only "$platform_git_revision"
 }
 
 export PTW_PLATFORM_IMAGE_TAG=$release_tag
+# Render the exact production configuration before replacing either bridge
+# service. A comma-delimited tmpfs option must remain one mount item.
+rendered_platform_compose="$release_directory/platform-compose.yml"
+"${platform_compose[@]}" config > "$rendered_platform_compose"
+if grep -Eq '^[[:space:]]*-[[:space:]]+mode=' "$rendered_platform_compose"; then
+    echo "platform Compose split a tmpfs option into an invalid mount item" >&2
+    exit 1
+fi
 # Put the enforcing worker in place before the API admits Result modes.
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api

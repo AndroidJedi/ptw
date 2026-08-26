@@ -33,12 +33,14 @@ class ReleaseStreamContractTests(unittest.TestCase):
     def test_platform_enforcement_and_canaries_precede_reset(self) -> None:
         deployer = (ROOT / "scripts/deploy_ptw_serial.sh").read_text()
         rollout = deployer.index('export PTW_PLATFORM_IMAGE_TAG=$release_tag')
+        compose_render = deployer.index('config > "$rendered_platform_compose"', rollout)
         worker = deployer.index('commander-worker', rollout)
         api = deployer.index('commander-api', worker)
         bridge_canary = deployer.index('validation_pipeline.verify_bridge_contract', api)
         pexels_canary = deployer.index('validation_pipeline.verify_pexels', bridge_canary)
         reset = deployer.index('reset_ptw.sh', pexels_canary)
 
+        self.assertLess(compose_render, worker)
         self.assertLess(worker, api)
         self.assertLess(api, bridge_canary)
         self.assertLess(bridge_canary, pexels_canary)

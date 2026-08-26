@@ -41,8 +41,13 @@ is not mounted broadly into containers.
 
 The internal bridge keeps `validation_modes` at exactly `product_brief`,
 `product_brief_revision`, and `ad_creative_batch`. It separately advertises additive
-`studio_modes` for JSON-only `ad_studio_recipe_revision` and bounded
-`ad_studio_graphic_generation`. A Studio graphic must produce exactly one completed
+`studio_modes` for JSON-only `ad_studio_recipe_revision`, bounded
+`ad_studio_graphic_generation`, and pixel-aware `ad_studio_creative_validation`.
+Creative validation accepts one base64-transported, digest-checked 1080×1080 JPEG,
+writes one private temporary attachment for the worker, and supplies it to one fresh
+schema-bound Codex session through `--image`; the bytes are excluded from the text prompt.
+Recipe revision and creative validation reject image-generation traces. A Studio graphic
+must produce exactly one completed
 built-in imagegen call proof and one 512-2048px square PNG. The proof is either a
 completed dedicated/MCP-shaped JSONL call event or, for a CLI version that omits that
 event, exactly one session-scoped `exec-<request-uuid>.png` receipt. It is stored by

@@ -26,8 +26,12 @@ curl -fsS https://commander.proove-them-wrong.com/health
 
 The authenticated structured capabilities response must keep `validation_modes`
 at exactly `product_brief`, `product_brief_revision`, and `ad_creative_batch`.
-Its separate `studio_modes` list contains `ad_studio_recipe_revision` and
-`ad_studio_graphic_generation`; adding Studio must never change the validation list. Retired
+Its separate `studio_modes` list contains `ad_studio_recipe_revision`,
+`ad_studio_graphic_generation`, and `ad_studio_creative_validation`; adding Studio must
+never change the validation list. Creative-validation requests contain one exact
+digest-matched 1080×1080 JPEG no larger than 2 MB. Confirm the worker attaches it through
+`--image`, excludes its base64 from the prompt, records attachment provenance, and rejects
+imagegen use. Retired
 Marketing Positioning, Landing, Laval, and Branding modes are not accepted. The Commander API and
 worker images are both prebuilt and pinned with `PTW_PLATFORM_IMAGE_TAG`; never
 build either on the 1 GB production host. Roll out the enforcing worker first

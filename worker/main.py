@@ -1,4 +1,5 @@
 import logging
+import base64
 import os
 import shutil
 import signal
@@ -355,6 +356,63 @@ def _validate_brand_reference(parameters: dict) -> dict | None:
     return {"source_path": str(path), "source_digest": digest}
 
 
+def _jpeg_dimensions(content: bytes) -> tuple[int, int]:
+    if not content.startswith(b"\xff\xd8"):
+        raise RuntimeError("creative validation attachment is not a JPEG")
+    position = 2
+    while position + 4 <= len(content):
+        if content[position] != 0xFF:
+            position += 1
+            continue
+        while position < len(content) and content[position] == 0xFF:
+            position += 1
+        if position >= len(content):
+            break
+        marker = content[position]
+        position += 1
+        if marker in {0xD8, 0xD9} or 0xD0 <= marker <= 0xD7:
+            continue
+        if position + 2 > len(content):
+            break
+        length = int.from_bytes(content[position:position + 2], "big")
+        if length < 2 or position + length > len(content):
+            break
+        if marker in {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}:
+            if length < 7:
+                break
+            height = int.from_bytes(content[position + 3:position + 5], "big")
+            width = int.from_bytes(content[position + 5:position + 7], "big")
+            return width, height
+        position += length
+    raise RuntimeError("creative validation JPEG dimensions are unavailable")
+
+
+def _validate_creative_reference(parameters: dict) -> dict | None:
+    if parameters.get("mode") != "ad_studio_creative_validation":
+        return None
+    image = parameters.get("input_image")
+    if not isinstance(image, dict) or set(image) != {
+        "mime_type", "digest", "width", "height", "bytes_base64",
+    }:
+        raise RuntimeError("creative validation requires one exact input image")
+    try:
+        content = base64.b64decode(str(image["bytes_base64"]), validate=True)
+    except (ValueError, TypeError) as exc:
+        raise RuntimeError("creative validation image base64 is invalid") from exc
+    digest = hashlib.sha256(content).hexdigest()
+    if (
+        image.get("mime_type") != "image/jpeg"
+        or image.get("digest") != digest
+        or not 1 <= len(content) <= 2_000_000
+        or not content.endswith(b"\xff\xd9")
+        or _jpeg_dimensions(content) != (1080, 1080)
+        or image.get("width") != 1080
+        or image.get("height") != 1080
+    ):
+        raise RuntimeError("creative validation image failed JPEG, dimensions, or digest validation")
+    return {"content": content, "digest": digest, "mime_type": "image/jpeg"}
+
+
 def _prove_brand_reference(stdout: str, reference: dict | None) -> dict | None:
     if reference is None:
         return None
@@ -404,6 +462,7 @@ def execute_structured_llm(parameters: dict) -> dict:
         runtime.chmod(0o600)
 
     reference = _validate_brand_reference(parameters)
+    creative_reference = _validate_creative_reference(parameters)
     prompt = (
         parameters["system_prompt"].strip()
         + "\n\nReturn only one JSON object matching the supplied schema."
@@ -424,6 +483,11 @@ def execute_structured_llm(parameters: dict) -> dict:
             "request. In the imagegen call use num_last_images_to_include=1 and omit "
             "referenced_image_paths."
         )
+    if creative_reference is not None:
+        prompt += (
+            "\nCREATIVE_VALIDATION_ATTACHMENT: The exact digest-checked 1080x1080 rendered JPEG "
+            "is attached to this fresh request. Inspect the pixels themselves and return JSON only."
+        )
     with tempfile.TemporaryDirectory(prefix="ptw-llm-") as directory:
         output = Path(directory) / "result.json"
         schema = Path(directory) / "output-schema.json"
@@ -442,6 +506,11 @@ def execute_structured_llm(parameters: dict) -> dict:
             command.extend(["--model", requested_model])
         if reference is not None:
             command.extend(["--image", reference["source_path"]])
+        if creative_reference is not None:
+            creative_path = Path(directory) / "creative-validation-input.jpg"
+            creative_path.write_bytes(creative_reference["content"])
+            creative_path.chmod(0o600)
+            command.extend(["--image", str(creative_path)])
         command.extend([
             "--sandbox",
             "read-only",
@@ -475,11 +544,11 @@ def execute_structured_llm(parameters: dict) -> dict:
             if mode == "ad_studio_graphic_generation"
             else []
         )
-        if mode == "ad_studio_recipe_revision" and (
+        if mode in {"ad_studio_recipe_revision", "ad_studio_creative_validation"} and (
             imagegen_traces or _generated_session_has_png(codex_home, session_id)
         ):
             _remove_generated_session(codex_home, session_id)
-            raise RuntimeError("Studio recipe revision must remain JSON-only")
+            raise RuntimeError("Studio recipe revision and creative validation must remain JSON-only")
         proof_records = imagegen_traces
         proof_kind = "completed_call_event"
         image_request_id = session_id
@@ -509,6 +578,13 @@ def execute_structured_llm(parameters: dict) -> dict:
             "model": requested_model or "codex-cli-default",
         }
         invocation.update(_codex_usage(completed.stdout))
+        if creative_reference is not None:
+            invocation["input_image"] = {
+                "digest": creative_reference["digest"],
+                "mime_type": creative_reference["mime_type"],
+                "width": 1080, "height": 1080,
+                "transport": "codex_cli_image_attachment",
+            }
         result = {
             "response": json.dumps(data, ensure_ascii=False),
             "invocation": invocation,

@@ -1,4 +1,5 @@
 import pytest
+import base64
 import hashlib
 from pathlib import Path
 
@@ -19,6 +20,13 @@ def png_header(width: int = 1080, height: int = 1080) -> bytes:
         + height.to_bytes(4, "big")
         + b"\x08\x06\x00\x00\x00"
         + b"studio-test-png"
+    )
+
+
+def jpeg_1080() -> bytes:
+    return (
+        b"\xff\xd8\xff\xc0\x00\x11\x08\x04\x38\x04\x38\x03"
+        b"\x01\x11\x00\x02\x11\x00\x03\x11\x00\xff\xd9"
     )
 
 
@@ -122,15 +130,38 @@ def test_structured_bridge_advertises_additive_studio_modes() -> None:
     }
     assert STUDIO_MODES == {
         "ad_studio_recipe_revision", "ad_studio_graphic_generation",
+        "ad_studio_creative_validation",
     }
     assert STUDIO_MODES <= STRUCTURED_LLM_MODES
-    for mode in STUDIO_MODES:
+    for mode in STUDIO_MODES - {"ad_studio_creative_validation"}:
         validate_structured_llm_request({
             "mode": mode,
             "system_prompt": "Return the requested Studio artifact.",
             "input_payload": {"project_id": "01900000-0000-7000-8000-000000000001"},
             "output_schema": {"type": "object"},
         })
+
+
+def test_creative_validation_requires_exact_digest_checked_1080_jpeg() -> None:
+    content = jpeg_1080()
+    request = {
+        "mode": "ad_studio_creative_validation",
+        "system_prompt": "Inspect the exact rendered creative.",
+        "input_payload": {"recipe_sha256": "a" * 64},
+        "output_schema": {"type": "object"},
+        "input_image": {
+            "mime_type": "image/jpeg", "digest": hashlib.sha256(content).hexdigest(),
+            "width": 1080, "height": 1080,
+            "bytes_base64": base64.b64encode(content).decode("ascii"),
+        },
+    }
+    validate_structured_llm_request(request)
+    request["input_image"]["digest"] = "0" * 64
+    with pytest.raises(ValueError, match="digest validation"):
+        validate_structured_llm_request(request)
+    request.pop("input_image")
+    with pytest.raises(ValueError, match="exact input image"):
+        validate_structured_llm_request(request)
 
 
 @pytest.mark.parametrize("mode", [

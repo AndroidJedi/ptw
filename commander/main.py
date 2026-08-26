@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import hashlib
 import json
 import logging
@@ -53,12 +54,73 @@ VALIDATION_MODES = frozenset({
 STUDIO_MODES = frozenset({
     "ad_studio_recipe_revision",
     "ad_studio_graphic_generation",
+    "ad_studio_creative_validation",
 })
 STRUCTURED_LLM_MODES = frozenset(
     GENERIC_STRUCTURED_LLM_MODES | VALIDATION_MODES | STUDIO_MODES
 )
-MAX_STRUCTURED_LLM_REQUEST_BYTES = 1_000_000
+MAX_STRUCTURED_LLM_REQUEST_BYTES = 4_000_000
 MAX_STUDIO_GRAPHIC_BYTES = 10_000_000
+MAX_STUDIO_VALIDATION_IMAGE_BYTES = 2_000_000
+
+
+def _jpeg_dimensions(content: bytes) -> tuple[int, int]:
+    if not content.startswith(b"\xff\xd8"):
+        raise ValueError("creative validation attachment is not a JPEG")
+    position = 2
+    while position + 4 <= len(content):
+        if content[position] != 0xFF:
+            position += 1
+            continue
+        while position < len(content) and content[position] == 0xFF:
+            position += 1
+        if position >= len(content):
+            break
+        marker = content[position]
+        position += 1
+        if marker in {0xD8, 0xD9} or 0xD0 <= marker <= 0xD7:
+            continue
+        if position + 2 > len(content):
+            break
+        length = int.from_bytes(content[position:position + 2], "big")
+        if length < 2 or position + length > len(content):
+            break
+        if marker in {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}:
+            if length < 7:
+                break
+            height = int.from_bytes(content[position + 3:position + 5], "big")
+            width = int.from_bytes(content[position + 5:position + 7], "big")
+            return width, height
+        position += length
+    raise ValueError("creative validation JPEG dimensions are unavailable")
+
+
+def _validated_creative_input_image(request: dict) -> tuple[bytes, str] | None:
+    image = request.get("input_image")
+    if request.get("mode") != "ad_studio_creative_validation":
+        if image is not None:
+            raise ValueError("input image is supported only for creative validation")
+        return None
+    if not isinstance(image, dict) or set(image) != {
+        "mime_type", "digest", "width", "height", "bytes_base64",
+    }:
+        raise ValueError("creative validation requires one exact input image")
+    try:
+        content = base64.b64decode(str(image["bytes_base64"]), validate=True)
+    except (ValueError, TypeError) as exc:
+        raise ValueError("creative validation image base64 is invalid") from exc
+    digest = hashlib.sha256(content).hexdigest()
+    if (
+        image.get("mime_type") != "image/jpeg"
+        or image.get("digest") != digest
+        or not 1 <= len(content) <= MAX_STUDIO_VALIDATION_IMAGE_BYTES
+        or not content.endswith(b"\xff\xd9")
+        or _jpeg_dimensions(content) != (1080, 1080)
+        or image.get("width") != 1080
+        or image.get("height") != 1080
+    ):
+        raise ValueError("creative validation image failed JPEG, dimensions, or digest validation")
+    return content, digest
 
 
 def validate_structured_llm_request(request: dict) -> None:
@@ -77,6 +139,7 @@ def validate_structured_llm_request(request: dict) -> None:
             raise ValueError("invalid structured LLM request")
     if len(json.dumps(request, ensure_ascii=False).encode("utf-8")) > MAX_STRUCTURED_LLM_REQUEST_BYTES:
         raise ValueError("structured LLM request is too large")
+    _validated_creative_input_image(request)
 
 
 def structured_llm_capabilities() -> dict:

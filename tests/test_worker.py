@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import base64
+import hashlib
 import json
 import subprocess
 
@@ -16,6 +18,13 @@ def png_header(width: int = 1254, height: int = 1254) -> bytes:
         + height.to_bytes(4, "big")
         + b"\x08\x06\x00\x00\x00"
         + b"test-png-payload"
+    )
+
+
+def jpeg_1080() -> bytes:
+    return (
+        b"\xff\xd8\xff\xc0\x00\x11\x08\x04\x38\x04\x38\x03"
+        b"\x01\x11\x00\x02\x11\x00\x03\x11\x00\xff\xd9"
     )
 
 
@@ -183,6 +192,45 @@ def test_studio_recipe_revision_is_json_only(monkeypatch, tmp_path: Path) -> Non
     })
     assert json.loads(result["response"]) == {"patch": []}
     assert "image" not in result
+
+
+def test_creative_validation_attaches_exact_jpeg_and_remains_json_only(monkeypatch, tmp_path: Path) -> None:
+    observed = {}
+    content = jpeg_1080()
+    digest = hashlib.sha256(content).hexdigest()
+
+    def fake_run(command, **kwargs):
+        observed["command"] = command
+        observed["input"] = kwargs["input"]
+        image_path = Path(command[command.index("--image") + 1])
+        observed["image"] = image_path.read_bytes()
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"verdict":"approve"}', encoding="utf-8"
+        )
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout='{ "type":"thread.started", "thread_id":"creative-validator-1"}\n',
+            stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    result = execute_structured_llm({
+        "mode": "ad_studio_creative_validation",
+        "system_prompt": "Inspect attached pixels and return JSON only.",
+        "input_payload": {"recipe_sha256": "a" * 64},
+        "input_image": {
+            "mime_type": "image/jpeg", "digest": digest, "width": 1080, "height": 1080,
+            "bytes_base64": base64.b64encode(content).decode("ascii"),
+        },
+        "output_schema": {"type": "object"},
+    })
+    assert observed["image"] == content
+    assert "bytes_base64" not in observed["input"]
+    assert result["invocation"]["input_image"] == {
+        "digest": digest, "mime_type": "image/jpeg", "width": 1080, "height": 1080,
+        "transport": "codex_cli_image_attachment",
+    }
+    assert json.loads(result["response"]) == {"verdict": "approve"}
 
 
 def test_studio_recipe_revision_rejects_imagegen(monkeypatch, tmp_path: Path) -> None:

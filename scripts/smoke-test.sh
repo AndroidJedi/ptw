@@ -20,14 +20,9 @@ check() {
 cd "$platform_dir" || exit 1
 check "Compose configuration" docker compose config --quiet
 check "All containers running" bash -c "docker compose ps --status running --services | grep -qx postgres && docker compose ps --status running --services | grep -qx commander-api && docker compose ps --status running --services | grep -qx commander-worker && docker compose ps --status running --services | grep -qx caddy"
-check "Git services running" bash -c "docker compose ps --status running --services | grep -qx git-credential-agent && docker compose ps --status running --services | grep -qx git-watcher"
 check "Loopback readiness" curl --fail --silent --show-error http://127.0.0.1:${PTW_HTTP_PORT:-8080}/health/ready
 check "Public health route" curl --fail --silent --show-error http://127.0.0.1:${PTW_HTTP_PORT:-8080}/health
 check "PostgreSQL" docker compose exec -T postgres pg_isready -U "${POSTGRES_USER:-ptw}" -d "${POSTGRES_DB:-ptw}"
-check "Host Codex metadata" scripts/refresh-codex-metadata.sh
-check "Automated integration" docker compose run --rm --no-deps \
-  -e PYTHONPATH=/app/source -v "$platform_dir:/app/source:ro" \
-  commander-api python /app/source/tests/integration.py
 
 printf '\nSummary: %d PASS, %d FAIL\n' "$pass_count" "$fail_count"
 test "$fail_count" -eq 0

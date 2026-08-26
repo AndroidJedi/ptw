@@ -1,11 +1,12 @@
-from pathlib import Path
-
+import base64
+import hashlib
 import json
+from pathlib import Path
 import subprocess
 
 import pytest
 
-from worker.main import codex_available, command_available, execute_job, execute_structured_llm
+from worker.main import execute_structured_llm
 
 
 def png_header(width: int = 1254, height: int = 1254) -> bytes:
@@ -15,34 +16,36 @@ def png_header(width: int = 1254, height: int = 1254) -> bytes:
         + width.to_bytes(4, "big")
         + height.to_bytes(4, "big")
         + b"\x08\x06\x00\x00\x00"
-        + b"test-png-payload"
+        + b"result-v1-test-payload"
     )
 
 
-def test_installed_command_detection() -> None:
-    assert command_available("python") is True
-    assert command_available("ptw-command-that-does-not-exist") is False
+def request(mode: str, **extra) -> dict:
+    return {
+        "mode": mode,
+        "system_prompt": "Return the exact structured contract.",
+        "input_payload": {"task": "test"},
+        "output_schema": {"type": "object"},
+        "idempotency_key": f"test:{mode}:attempt:1",
+        **extra,
+    }
 
 
-def test_codex_host_metadata_detection(monkeypatch, tmp_path: Path) -> None:
-    metadata = tmp_path / "codex-version"
-    metadata.write_text("codex-cli 0.147.0\n", encoding="utf-8")
-    monkeypatch.setenv("CODEX_METADATA_FILE", str(metadata))
-    monkeypatch.setattr("worker.main.command_available", lambda command: False)
-    assert codex_available() is True
+def thread_output(session_id: str, *, image_call: bool = False) -> str:
+    lines = [{"type": "thread.started", "thread_id": session_id}]
+    if image_call:
+        lines.append({
+            "type": "item.completed",
+            "item": {"type": "mcp_tool_call", "server": "image_gen", "tool": "imagegen"},
+        })
+    lines.append({
+        "type": "turn.completed",
+        "usage": {"input_tokens": 12, "cached_input_tokens": 3, "output_tokens": 4},
+    })
+    return "\n".join(json.dumps(line) for line in lines) + "\n"
 
 
-def test_help_lists_research_graph_and_graph_based_creative_commands() -> None:
-    help_text = execute_job(None, "help")
-    assert "/research <creative|product|design|engineering> <topic>" in help_text
-    assert "/task from <hypothesis-id> <request>" in help_text
-    assert "/graph hypotheses" in help_text
-    assert "/creative from <hypothesis-id>" in help_text
-    assert "/cancel [job-id]" in help_text
-    assert "/inspect TASK-<id>|ISSUE-<id>" in help_text
-
-
-def test_structured_llm_uses_fresh_ephemeral_schema_bound_session(monkeypatch) -> None:
+def test_result_json_uses_fresh_ephemeral_schema_bound_session(monkeypatch) -> None:
     observed = {}
 
     def fake_run(command, **kwargs):
@@ -50,364 +53,142 @@ def test_structured_llm_uses_fresh_ephemeral_schema_bound_session(monkeypatch) -
         observed["input"] = kwargs["input"]
         schema_path = Path(command[command.index("--output-schema") + 1])
         observed["schema"] = json.loads(schema_path.read_text(encoding="utf-8"))
-        output_path = Path(command[command.index("--output-last-message") + 1])
-        output_path.write_text('{"relevant_evidence_ids":["e-1"]}', encoding="utf-8")
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"candidate":"ok"}', encoding="utf-8"
+        )
         return subprocess.CompletedProcess(
-            command, 0, stdout='{"type":"thread.started","thread_id":"fresh-session-1"}\n', stderr=""
+            command, 0, stdout=thread_output("fresh-result-1"), stderr=""
         )
 
     monkeypatch.setattr("worker.main.subprocess.run", fake_run)
-    request = {
-        "mode": "laval_market_signal_relevance",
-        "system_prompt": "Classify only the supplied evidence IDs.",
-        "input_payload": {"evidence_ids": ["e-1"]},
-        "output_schema": {
-            "type": "object",
-            "properties": {"relevant_evidence_ids": {"type": "array", "items": {"type": "string"}}},
-            "required": ["relevant_evidence_ids"],
-            "additionalProperties": False,
-        },
-        "model": "gpt-5",
-    }
+    value = execute_structured_llm(request("content_candidate_generation", model="gpt-5"))
 
-    result = execute_structured_llm(request)
-
-    assert result["invocation"] == {
-        "session_id": "fresh-session-1",
-        "session_mode": "fresh",
-        "ephemeral": True,
-        "conversation_reused": False,
-        "model": "gpt-5",
-    }
-    assert json.loads(result["response"]) == {"relevant_evidence_ids": ["e-1"]}
-    assert observed["schema"] == request["output_schema"]
-    assert observed["command"][-1] == "-"
+    assert json.loads(value["response"]) == {"candidate": "ok"}
+    assert value["invocation"]["session_id"] == "fresh-result-1"
+    assert value["invocation"]["session_mode"] == "fresh"
+    assert value["invocation"]["conversation_reused"] is False
+    assert value["invocation"]["input_tokens"] == 12
     assert "--ephemeral" in observed["command"]
-    assert "--output-schema" in observed["command"]
-    assert observed["command"][observed["command"].index("--model") + 1] == "gpt-5"
-    assert observed["command"][observed["command"].index("--sandbox") + 1] == "read-only"
     assert "resume" not in observed["command"]
-    assert "--dangerously-bypass-approvals-and-sandbox" not in observed["command"]
-    assert '"evidence_ids": ["e-1"]' in observed["input"]
+    assert observed["command"][observed["command"].index("--sandbox") + 1] == "read-only"
+    assert observed["command"][observed["command"].index("--model") + 1] == "gpt-5"
+    assert observed["schema"] == {"type": "object"}
 
 
-def test_structured_llm_requires_reported_fresh_session_id(monkeypatch) -> None:
-    def fake_run(command, **_kwargs):
-        output_path = Path(command[command.index("--output-last-message") + 1])
-        output_path.write_text("{}", encoding="utf-8")
-        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
-
-    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
-    request = {
-        "mode": "laval_owner_dna",
-        "system_prompt": "Return structured output.",
-        "input_payload": {},
-        "output_schema": {"type": "object"},
-    }
-
-    try:
-        execute_structured_llm(request)
-    except RuntimeError as exc:
-        assert "session ID" in str(exc)
-    else:
-        raise AssertionError("missing session ID must fail the invocation")
-
-
-def test_structured_llm_cli_default_omits_model_override(monkeypatch) -> None:
-    observed = {}
-
-    def fake_run(command, **_kwargs):
-        observed["command"] = command
-        output_path = Path(command[command.index("--output-last-message") + 1])
-        output_path.write_text('{"classifications": []}', encoding="utf-8")
-        return subprocess.CompletedProcess(
-            command, 0,
-            stdout='{"type":"thread.started","thread_id":"fresh-default"}\n',
-            stderr="",
-        )
-
-    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
-    result = execute_structured_llm({
-        "mode": "laval_market_signal_relevance",
-        "system_prompt": "Classify supplied pairs.",
-        "input_payload": {},
-        "output_schema": {"type": "object"},
-        "model": "codex-cli-default",
-    })
-    assert "--model" not in observed["command"]
-    assert result["invocation"]["model"] == "codex-cli-default"
-
-
-def test_branding_logo_uses_one_builtin_image_and_persists_digest_asset(
-    monkeypatch, tmp_path: Path
-) -> None:
-    codex_home = tmp_path / "codex-home"
-    asset_root = tmp_path / "assets" / "brand-provider"
-    monkeypatch.setenv("CODEX_HOME", str(codex_home))
-    monkeypatch.setenv("BRAND_PROVIDER_ASSET_DIR", str(asset_root))
+def test_result_critic_receives_digest_mapped_private_jpeg_attachments(monkeypatch) -> None:
+    content = b"\xff\xd8exact-render-bytes\xff\xd9"
+    digest = hashlib.sha256(content).hexdigest()
     observed = {}
 
     def fake_run(command, **kwargs):
-        observed["command"] = command
+        paths = [Path(command[index + 1]) for index, value in enumerate(command) if value == "--image"]
+        observed["paths"] = paths
+        observed["bytes"] = [path.read_bytes() for path in paths]
         observed["input"] = kwargs["input"]
-        output_path = Path(command[command.index("--output-last-message") + 1])
-        output_path.write_text('{"generated":true}', encoding="utf-8")
-        generated = codex_home / "generated_images" / "brand-session-1"
-        generated.mkdir(parents=True)
-        (generated / "symbol.png").write_bytes(png_header())
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"selected":true}', encoding="utf-8"
+        )
         return subprocess.CompletedProcess(
-            command,
-            0,
-            stdout=(
-                '{"type":"thread.started","thread_id":"brand-session-1"}\n'
-                '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input_tokens":3,"output_tokens":4}}\n'
-            ),
-            stderr="",
+            command, 0, stdout=thread_output("fresh-critic-1"), stderr=""
         )
 
     monkeypatch.setattr("worker.main.subprocess.run", fake_run)
-    result = execute_structured_llm({
-        "mode": "branding_logo_generation",
-        "system_prompt": "$imagegen Generate exactly one original symbol.",
-        "input_payload": {"logo_prompt": "A text-free mark"},
-        "output_schema": {
-            "type": "object",
-            "properties": {"generated": {"type": "boolean"}},
-            "required": ["generated"],
-            "additionalProperties": False,
-        },
-        "model": "codex-cli-default",
-    })
+    value = execute_structured_llm(request(
+        "content_result_critic",
+        input_images=[{
+            "candidate_id": "0190aa00-0000-7000-8000-000000000101",
+            "mime_type": "image/jpeg",
+            "digest": digest,
+            "width": 1080,
+            "height": 1080,
+            "bytes_base64": base64.b64encode(content).decode(),
+        }],
+    ))
 
-    image = result["image"]
-    persisted = Path(image["path"])
-    assert persisted.is_file()
-    assert persisted.read_bytes() == png_header()
-    assert image["digest"] in persisted.name
-    assert image["width"] == image["height"] == 1254
-    assert image["provider"] == "codex_chatgpt_imagegen"
-    assert image["resolved_model"] == "gpt-image-2"
-    assert not (codex_home / "generated_images" / "brand-session-1").exists()
-    assert result["invocation"]["input_tokens"] == 12
-    assert result["invocation"]["output_tokens"] == 4
-    assert "$imagegen" in observed["input"]
-    assert observed["command"][observed["command"].index("--sandbox") + 1] == "read-only"
-    assert "--model" not in observed["command"]
+    assert json.loads(value["response"]) == {"selected": True}
+    assert observed["bytes"] == [content]
+    assert digest in observed["input"]
+    assert base64.b64encode(content).decode() not in observed["input"]
+    assert all(not path.exists() for path in observed["paths"])
 
 
-def test_branding_logo_rejects_multiple_generated_images(monkeypatch, tmp_path: Path) -> None:
-    codex_home = tmp_path / "codex-home"
-    monkeypatch.setenv("CODEX_HOME", str(codex_home))
-    monkeypatch.setenv("BRAND_PROVIDER_ASSET_DIR", str(tmp_path / "assets"))
+def test_result_critic_rejects_image_generation(monkeypatch) -> None:
+    content = b"\xff\xd8render\xff\xd9"
+    digest = hashlib.sha256(content).hexdigest()
 
     def fake_run(command, **_kwargs):
-        output_path = Path(command[command.index("--output-last-message") + 1])
-        output_path.write_text('{"generated":true}', encoding="utf-8")
-        generated = codex_home / "generated_images" / "brand-session-many"
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"selected":true}', encoding="utf-8"
+        )
+        return subprocess.CompletedProcess(
+            command, 0, stdout=thread_output("critic-image-call", image_call=True), stderr=""
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    with pytest.raises(RuntimeError, match="prohibited"):
+        execute_structured_llm(request(
+            "content_result_critic",
+            input_images=[{
+                "candidate_id": "0190aa00-0000-7000-8000-000000000101",
+                "mime_type": "image/jpeg",
+                "digest": digest,
+                "width": 1080,
+                "height": 1080,
+                "bytes_base64": base64.b64encode(content).decode(),
+            }],
+        ))
+
+
+def test_non_human_graphic_is_single_square_png_with_review_policy(monkeypatch, tmp_path: Path) -> None:
+    codex_home = tmp_path / "codex-home"
+    asset_root = tmp_path / "assets" / "content-graphics"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("CONTENT_GRAPHIC_ASSET_DIR", str(asset_root))
+
+    def fake_run(command, **_kwargs):
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"generated":true}', encoding="utf-8"
+        )
+        generated = codex_home / "generated_images" / "graphic-session-1"
+        generated.mkdir(parents=True)
+        (generated / "graphic.png").write_bytes(png_header())
+        return subprocess.CompletedProcess(
+            command, 0, stdout=thread_output("graphic-session-1", image_call=True), stderr=""
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    value = execute_structured_llm(request("content_non_human_graphic_generation"))
+    image = value["image"]
+
+    assert Path(image["path"]).read_bytes() == png_header()
+    assert image["digest"] == image["output_digest"]
+    assert image["generation_policy"]["non_human_graphics_only"] is True
+    assert image["generation_policy"]["synthetic_people"] == "prohibited"
+    assert not (codex_home / "generated_images" / "graphic-session-1").exists()
+
+
+def test_non_human_graphic_rejects_multiple_generated_images(monkeypatch, tmp_path: Path) -> None:
+    codex_home = tmp_path / "codex-home"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("CONTENT_GRAPHIC_ASSET_DIR", str(tmp_path / "assets"))
+
+    def fake_run(command, **_kwargs):
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"generated":true}', encoding="utf-8"
+        )
+        generated = codex_home / "generated_images" / "graphic-session-many"
         generated.mkdir(parents=True)
         (generated / "one.png").write_bytes(png_header())
         (generated / "two.png").write_bytes(png_header())
         return subprocess.CompletedProcess(
-            command, 0,
-            stdout='{"type":"thread.started","thread_id":"brand-session-many"}\n',
-            stderr="",
+            command, 0, stdout=thread_output("graphic-session-many", image_call=True), stderr=""
         )
 
     monkeypatch.setattr("worker.main.subprocess.run", fake_run)
     with pytest.raises(RuntimeError, match="exactly one PNG"):
-        execute_structured_llm({
-            "mode": "branding_logo_generation",
-            "system_prompt": "$imagegen Generate exactly one original symbol.",
-            "input_payload": {},
-            "output_schema": {"type": "object"},
-        })
+        execute_structured_llm(request("content_non_human_graphic_generation"))
 
 
-def test_branding_reference_edit_proves_exact_attached_source(monkeypatch, tmp_path: Path) -> None:
-    codex_home = tmp_path / "codex-home"
-    shared_root = tmp_path / "assets"
-    provider_root = shared_root / "brand-provider"
-    source_path = shared_root / "approved.png"
-    shared_root.mkdir()
-    source_path.write_bytes(png_header())
-    source_digest = __import__("hashlib").sha256(source_path.read_bytes()).hexdigest()
-    monkeypatch.setenv("CODEX_HOME", str(codex_home))
-    monkeypatch.setenv("BRAND_SHARED_ASSET_ROOT", str(shared_root))
-    monkeypatch.setenv("BRAND_PROVIDER_ASSET_DIR", str(provider_root))
-    observed = {}
-
-    def fake_run(command, **kwargs):
-        observed["command"] = command
-        observed["input"] = kwargs["input"]
-        output_path = Path(command[command.index("--output-last-message") + 1])
-        output_path.write_text('{"generated":true}', encoding="utf-8")
-        generated = codex_home / "generated_images" / "brand-edit-session"
-        generated.mkdir(parents=True)
-        (generated / "edited.png").write_bytes(png_header())
-        tool_event = {
-            "type": "item.completed",
-            "item": {
-                "type": "mcp_tool_call", "server": "image_gen", "tool": "imagegen",
-                "arguments": {"num_last_images_to_include": 1},
-            },
-        }
-        return subprocess.CompletedProcess(
-            command, 0,
-            stdout=(
-                '{"type":"thread.started","thread_id":"brand-edit-session"}\n'
-                + json.dumps(tool_event) + "\n"
-            ),
-            stderr="",
-        )
-
-    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
-    result = execute_structured_llm({
-        "mode": "branding_logo_reference_edit",
-        "system_prompt": (
-            f"$imagegen Edit the attached image from {source_path.resolve()}."
-        ),
-        "input_payload": {
-            "source_path": str(source_path.resolve()),
-            "source_digest": source_digest,
-        },
-        "output_schema": {"type": "object"},
-    })
-    assert result["image"]["reference"]["used"] is True
-    assert result["image"]["reference"]["source_digest"] == source_digest
-    assert result["image"]["reference"]["source_path"] == str(source_path.resolve())
-    assert result["image"]["reference"]["transport"] == "codex_cli_image_attachment"
-    assert observed["command"][observed["command"].index("--image") + 1] == str(source_path.resolve())
-    assert "num_last_images_to_include=1" in observed["input"]
-
-
-def test_branding_reference_edit_rejects_a_missing_tool_trace(monkeypatch, tmp_path: Path) -> None:
-    codex_home = tmp_path / "codex-home"
-    shared_root = tmp_path / "assets"
-    source_path = shared_root / "approved.png"
-    shared_root.mkdir()
-    source_path.write_bytes(png_header())
-    source_digest = __import__("hashlib").sha256(source_path.read_bytes()).hexdigest()
-    monkeypatch.setenv("CODEX_HOME", str(codex_home))
-    monkeypatch.setenv("BRAND_SHARED_ASSET_ROOT", str(shared_root))
-    monkeypatch.setenv("BRAND_PROVIDER_ASSET_DIR", str(shared_root / "provider"))
-
-    def fake_run(command, **_kwargs):
-        Path(command[command.index("--output-last-message") + 1]).write_text(
-            '{"generated":true}', encoding="utf-8"
-        )
-        generated = codex_home / "generated_images" / "brand-edit-unproved"
-        generated.mkdir(parents=True)
-        (generated / "edited.png").write_bytes(png_header())
-        return subprocess.CompletedProcess(
-            command, 0,
-            stdout='{"type":"thread.started","thread_id":"brand-edit-unproved"}\n',
-            stderr="",
-        )
-
-    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
-    with pytest.raises(RuntimeError, match="exact reference path"):
-        execute_structured_llm({
-            "mode": "branding_logo_reference_edit",
-            "system_prompt": (
-                f"$imagegen Use referenced_image_paths with {source_path.resolve()}."
-            ),
-            "input_payload": {
-                "source_path": str(source_path.resolve()),
-                "source_digest": source_digest,
-            },
-            "output_schema": {"type": "object"},
-        })
-
-
-def test_branding_reference_edit_rejects_path_text_without_attached_image_use(
-    monkeypatch, tmp_path: Path
-) -> None:
-    codex_home = tmp_path / "codex-home"
-    shared_root = tmp_path / "assets"
-    source_path = shared_root / "approved.png"
-    shared_root.mkdir()
-    source_path.write_bytes(png_header())
-    source_digest = __import__("hashlib").sha256(source_path.read_bytes()).hexdigest()
-    monkeypatch.setenv("CODEX_HOME", str(codex_home))
-    monkeypatch.setenv("BRAND_SHARED_ASSET_ROOT", str(shared_root))
-    monkeypatch.setenv("BRAND_PROVIDER_ASSET_DIR", str(shared_root / "provider"))
-
-    def fake_run(command, **_kwargs):
-        Path(command[command.index("--output-last-message") + 1]).write_text(
-            '{"generated":true}', encoding="utf-8"
-        )
-        generated = codex_home / "generated_images" / "brand-edit-path-only"
-        generated.mkdir(parents=True)
-        (generated / "edited.png").write_bytes(png_header())
-        event = {
-            "type": "item.completed",
-            "item": {
-                "type": "mcp_tool_call", "server": "image_gen", "tool": "imagegen",
-                "arguments": {"referenced_image_paths": [str(source_path.resolve())]},
-            },
-        }
-        return subprocess.CompletedProcess(
-            command, 0,
-            stdout=(
-                '{"type":"thread.started","thread_id":"brand-edit-path-only"}\n'
-                + json.dumps(event) + "\n"
-            ),
-            stderr="",
-        )
-
-    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
-    with pytest.raises(RuntimeError, match="exact reference path"):
-        execute_structured_llm({
-            "mode": "branding_logo_reference_edit",
-            "system_prompt": f"$imagegen Edit {source_path.resolve()}.",
-            "input_payload": {
-                "source_path": str(source_path.resolve()),
-                "source_digest": source_digest,
-            },
-            "output_schema": {"type": "object"},
-        })
-
-
-@pytest.mark.parametrize("mode", [
-    "laval_youtube_observation",
-    "laval_mechanism_extraction",
-    "laval_thesis_synthesis",
-    "laval_thesis_falsification",
-])
-def test_new_laval_modes_reach_fresh_schema_bound_worker(monkeypatch, mode: str) -> None:
-    observed = {}
-
-    def fake_run(command, **kwargs):
-        observed["command"] = command
-        observed["input"] = kwargs["input"]
-        schema_path = Path(command[command.index("--output-schema") + 1])
-        observed["schema"] = json.loads(schema_path.read_text(encoding="utf-8"))
-        output_path = Path(command[command.index("--output-last-message") + 1])
-        output_path.write_text('{"items": []}', encoding="utf-8")
-        return subprocess.CompletedProcess(
-            command, 0,
-            stdout=f'{{"type":"thread.started","thread_id":"fresh-{mode}"}}\n',
-            stderr="",
-        )
-
-    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
-    schema = {
-        "type": "object",
-        "properties": {"items": {"type": "array", "items": {"type": "object"}}},
-        "required": ["items"],
-        "additionalProperties": False,
-    }
-    result = execute_structured_llm({
-        "mode": mode,
-        "system_prompt": "Return the supplied contract.",
-        "input_payload": {"mode": mode},
-        "output_schema": schema,
-        "model": "codex-cli-default",
-    })
-
-    assert observed["schema"] == schema
-    assert f'"mode": "{mode}"' in observed["input"]
-    assert "--ephemeral" in observed["command"]
-    assert observed["command"][observed["command"].index("--sandbox") + 1] == "read-only"
-    assert result["invocation"]["session_id"] == f"fresh-{mode}"
-    assert result["invocation"]["conversation_reused"] is False
+def test_worker_rejects_retired_structured_mode() -> None:
+    with pytest.raises(RuntimeError, match="unsupported Result bridge mode"):
+        execute_structured_llm(request("natal_landing_revision"))

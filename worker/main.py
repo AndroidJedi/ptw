@@ -1,5 +1,7 @@
 import logging
 import os
+import base64
+import binascii
 import shutil
 import signal
 import subprocess
@@ -11,17 +13,12 @@ import re
 import struct
 from pathlib import Path
 
-import httpx
 import psycopg
 from psycopg.types.json import Jsonb
 
 from common.database import database_url
 from common.events import append_event
 from common.secrets import EnvironmentSecretStore
-from common.telegram import send_telegram as send_telegram_message
-from engineering.service import execute_engineering_job
-from engineering.issues import create_issue, render_reference, transition_issue
-from engineering.runner import JobCancelled, StageFailure
 
 logging.basicConfig(
     level=os.getenv("PTW_LOG_LEVEL", "INFO"),
@@ -47,81 +44,6 @@ def heartbeat(connection: psycopg.Connection) -> None:
         """
     )
 
-
-def command_available(command: str) -> bool:
-    executable = shutil.which(command)
-    if not executable:
-        return False
-    try:
-        subprocess.run(
-            [executable, "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            timeout=3, check=False,
-        )
-        return True
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-
-def codex_available() -> bool:
-    """Detect Codex directly or via host-generated, read-only metadata."""
-    if command_available("codex"):
-        return True
-    metadata = Path(os.getenv("CODEX_METADATA_FILE", "/run/ptw-host/codex-version"))
-    try:
-        return metadata.is_file() and metadata.read_text(encoding="utf-8").startswith("codex-cli ")
-    except OSError:
-        return False
-
-
-def status_response(connection: psycopg.Connection) -> str:
-    checks: dict[str, bool] = {}
-    try:
-        response = httpx.get("http://commander-api:8000/health/ready", timeout=3)
-        checks["Commander"] = response.status_code == 200
-    except httpx.HTTPError:
-        checks["Commander"] = False
-    checks["Worker"] = True
-    try:
-        connection.execute("SELECT 1")
-        checks["PostgreSQL"] = True
-    except psycopg.Error:
-        checks["PostgreSQL"] = False
-    checks["Git"] = command_available("git")
-    checks["Codex"] = codex_available()
-    usage = shutil.disk_usage(Path("/"))
-    checks["Disk"] = usage.free >= 512 * 1024 * 1024
-    queued = connection.execute("SELECT count(*) FROM jobs WHERE status = 'queued'").fetchone()[0]
-    failed = connection.execute("SELECT count(*) FROM jobs WHERE status = 'failed'").fetchone()[0]
-    blocked = connection.execute("SELECT count(*) FROM jobs WHERE status = 'blocked'").fetchone()[0]
-    issues = connection.execute(
-        "SELECT count(*) FROM engineering_issues WHERE status IN ('open','resolving','unresolved')"
-    ).fetchone()[0]
-    lines = ["PTW Commander v0.1"]
-    lines.extend(f"{name:<14}{'✅' if ok else '❌'}" for name, ok in checks.items())
-    lines.extend((f"Queued jobs: {queued}", f"Blocked jobs: {blocked}",
-                  f"Failed jobs: {failed}", f"Open/unresolved issues: {issues}"))
-    return "\n".join(lines)
-
-
-def execute_job(connection: psycopg.Connection, job_type: str, job_id: int | None = None,
-                parameters: dict | None = None, reporter=None) -> str | dict:
-    if job_type == "ping":
-        return "pong"
-    if job_type == "version":
-        return "PTW Commander v0.1"
-    if job_type == "help":
-        return "PTW Commander v0.7\n/task <request> - freely describe a fix, implementation, or change\n/task from <hypothesis-id> <request> - execute with sourced product/design/engineering research\n/inspect TASK-<id>|ISSUE-<id> - inspect task state, issue details, and logs\n/cancel [job-id] - interrupt your latest queued, running, or blocked task\n/research <creative|product|design|engineering> <topic> - run an owned research agent\n/graph hypotheses - inspect hypotheses and source IDs\n/graph weights - inspect learned component weights\n/creative from <hypothesis-id> - generate from creative research\n/creative <hook> | <caption> | <CTA> - generate an Instagram Story directly\n/feedback <creative-id> <1-5> [comment] - rate a creative (or reply to its image)\n/engineer repo=ptw <task> - compatibility alias for engineering tasks\n/ping - test job execution\n/status - dependency status\n/version - show version\n/help - show commands"
-    if job_type == "status":
-        return status_response(connection)
-    if job_type == "inspect" and parameters is not None:
-        if not parameters.get("task"):
-            raise ValueError("usage: /inspect TASK-<id> or /inspect ISSUE-<id>")
-        return render_reference(connection, parameters["task"])
-    if job_type == "engineer" and job_id is not None and parameters is not None:
-        return execute_engineering_job(connection, job_id, parameters, reporter=reporter)
-    if job_type == "llm_structured" and parameters is not None:
-        return execute_structured_llm(parameters)
-    raise ValueError(f"Unsupported job type: {job_type}")
 
 def _codex_session_id(stdout: str) -> str:
     for line in stdout.splitlines():
@@ -150,7 +72,7 @@ def _codex_usage(stdout: str) -> dict[str, int]:
     return usage
 
 
-def _persist_brand_image(codex_home: Path, session_id: str) -> dict:
+def _persist_non_human_graphic(codex_home: Path, session_id: str) -> dict:
     if not re.fullmatch(r"[A-Za-z0-9-]{1,100}", session_id):
         raise RuntimeError("image generation returned an invalid session ID")
     generated_root = (codex_home / "generated_images").resolve()
@@ -160,24 +82,24 @@ def _persist_brand_image(codex_home: Path, session_id: str) -> dict:
     try:
         images = sorted(path for path in session_directory.glob("*.png") if path.is_file())
         if len(images) != 1:
-            raise RuntimeError("Branding image generation must return exactly one PNG")
+            raise RuntimeError("non-human graphic generation must return exactly one PNG")
         content = images[0].read_bytes()
         if len(content) < 33 or len(content) > 10_000_000 or not content.startswith(b"\x89PNG\r\n\x1a\n"):
-            raise RuntimeError("Branding image generation returned an invalid PNG")
+            raise RuntimeError("non-human graphic generation returned an invalid PNG")
         width = struct.unpack(">I", content[16:20])[0]
         height = struct.unpack(">I", content[20:24])[0]
         if width != height or not 512 <= width <= 2048:
-            raise RuntimeError("Branding image generation must return a bounded square image")
+            raise RuntimeError("non-human graphic generation must return a bounded square image")
         digest = hashlib.sha256(content).hexdigest()
         asset_root = Path(
-            os.environ.get("BRAND_PROVIDER_ASSET_DIR", "/var/lib/ptw/assets/brand-provider")
+            os.environ.get("CONTENT_GRAPHIC_ASSET_DIR", "/var/lib/ptw/assets/content-graphics")
         ).resolve()
         destination_directory = asset_root / digest[:2]
         destination_directory.mkdir(mode=0o750, parents=True, exist_ok=True)
         destination = destination_directory / f"{digest}.png"
         if destination.exists():
             if hashlib.sha256(destination.read_bytes()).hexdigest() != digest:
-                raise RuntimeError("immutable Branding provider asset digest collision")
+                raise RuntimeError("immutable content graphic digest collision")
         else:
             with tempfile.NamedTemporaryFile(
                 mode="wb", dir=destination_directory, prefix=f".{digest}.", delete=False
@@ -188,6 +110,7 @@ def _persist_brand_image(codex_home: Path, session_id: str) -> dict:
             os.replace(temporary_path, destination)
         return {
             "digest": digest,
+            "output_digest": digest,
             "path": str(destination),
             "mime_type": "image/png",
             "width": width,
@@ -196,40 +119,20 @@ def _persist_brand_image(codex_home: Path, session_id: str) -> dict:
             "resolved_model": "gpt-image-2",
             "provider": "codex_chatgpt_imagegen",
             "request_id": session_id,
+            "generation_policy": {
+                "non_human_graphics_only": True,
+                "synthetic_people": "prohibited",
+                "embedded_text": "prohibited",
+                "embedded_logos": "prohibited",
+                "watermarks": "prohibited",
+            },
         }
     finally:
         if session_directory.is_dir():
             shutil.rmtree(session_directory)
 
 
-def _validate_brand_reference(parameters: dict) -> dict | None:
-    if parameters.get("mode") != "branding_logo_reference_edit":
-        return None
-    payload = parameters.get("input_payload") or {}
-    path = Path(str(payload.get("source_path") or "")).resolve()
-    root = Path(os.environ.get("BRAND_SHARED_ASSET_ROOT", "/var/lib/ptw/assets")).resolve()
-    if path == root or root not in path.parents or path.suffix.lower() != ".png":
-        raise RuntimeError("Branding reference image is outside the shared asset volume")
-    content = path.read_bytes() if path.is_file() else b""
-    digest = hashlib.sha256(content).hexdigest() if content else ""
-    if (
-        not content.startswith(b"\x89PNG\r\n\x1a\n")
-        or digest != payload.get("source_digest")
-        or len(content) > 10_000_000
-    ):
-        raise RuntimeError("Branding reference image failed PNG or digest validation")
-    width = struct.unpack(">I", content[16:20])[0]
-    height = struct.unpack(">I", content[20:24])[0]
-    if width != height or not 512 <= width <= 2048:
-        raise RuntimeError("Branding reference image must be a bounded square PNG")
-    return {"source_path": str(path), "source_digest": digest}
-
-
-def _prove_brand_reference(stdout: str, reference: dict | None) -> dict | None:
-    if reference is None:
-        return None
-    path = reference["source_path"]
-    matching = []
+def _used_image_generation(stdout: str) -> bool:
     for line in stdout.splitlines():
         try:
             event = json.loads(line)
@@ -249,18 +152,50 @@ def _prove_brand_reference(stdout: str, reference: dict | None) -> dict | None:
                 arguments = json.loads(arguments)
             except json.JSONDecodeError:
                 continue
-        referenced = arguments.get("referenced_image_paths") if isinstance(arguments, dict) else None
-        attached_count = arguments.get("num_last_images_to_include") if isinstance(arguments, dict) else None
-        if attached_count == 1 and referenced in (None, []):
-            matching.append(json.dumps(event, sort_keys=True, separators=(",", ":")))
-    if not matching:
-        raise RuntimeError("Branding image trace did not supply the exact reference path")
-    return {
-        **reference,
-        "used": True,
-        "transport": "codex_cli_image_attachment",
-        "trace_digest": hashlib.sha256("\n".join(matching).encode()).hexdigest(),
-    }
+        return True
+    return False
+
+
+def _materialize_critic_images(parameters: dict, directory: Path) -> tuple[list[Path], list[dict]]:
+    images = parameters.get("input_images")
+    if parameters.get("mode") != "content_result_critic":
+        if images is not None:
+            raise RuntimeError("only Result critic mode accepts input images")
+        return [], []
+    if not isinstance(images, list) or not 1 <= len(images) <= 5:
+        raise RuntimeError("Result critic requires one to five mapped JPEG attachments")
+    paths: list[Path] = []
+    mapping: list[dict] = []
+    total = 0
+    for index, image in enumerate(images, start=1):
+        try:
+            content = base64.b64decode(image["bytes_base64"], validate=True)
+        except (KeyError, TypeError, ValueError, binascii.Error) as exc:
+            raise RuntimeError("Result critic attachment base64 is invalid") from exc
+        digest = hashlib.sha256(content).hexdigest()
+        if (
+            image.get("mime_type") != "image/jpeg"
+            or image.get("width") != 1080
+            or image.get("height") != 1080
+            or image.get("digest") != digest
+            or not content.startswith(b"\xff\xd8")
+            or not content.endswith(b"\xff\xd9")
+            or not 1 <= len(content) <= 1_500_000
+        ):
+            raise RuntimeError("Result critic attachment failed exact JPEG validation")
+        total += len(content)
+        path = directory / f"candidate-{index}-{digest[:12]}.jpg"
+        path.write_bytes(content)
+        path.chmod(0o600)
+        paths.append(path)
+        mapping.append({
+            "candidate_id": image["candidate_id"],
+            "sha256": digest,
+            "attachment_index": index,
+        })
+    if total > 8 * 1024 * 1024:
+        raise RuntimeError("Result critic attachments exceed the aggregate limit")
+    return paths, mapping
 
 
 def execute_structured_llm(parameters: dict) -> dict:
@@ -273,22 +208,34 @@ def execute_structured_llm(parameters: dict) -> dict:
         shutil.copyfile(mounted, runtime)
         runtime.chmod(0o600)
 
-    reference = _validate_brand_reference(parameters)
+    mode = parameters.get("mode")
+    if mode not in {
+        "product_brief", "product_brief_revision", "content_candidate_generation",
+        "content_result_critic", "content_non_human_graphic_generation",
+    }:
+        raise RuntimeError("unsupported Result bridge mode")
     prompt = (
         parameters["system_prompt"].strip()
         + "\n\nReturn only one JSON object matching the supplied schema."
         + "\nINPUT_PAYLOAD:\n"
         + json.dumps(parameters["input_payload"], ensure_ascii=False, sort_keys=True)
     )
-    if reference is not None:
-        prompt += (
-            "\nREFERENCE_ATTACHMENT: The bridge attached the digest-checked source image to this "
-            "request. In the imagegen call use num_last_images_to_include=1 and omit "
-            "referenced_image_paths."
-        )
     with tempfile.TemporaryDirectory(prefix="ptw-llm-") as directory:
-        output = Path(directory) / "result.json"
-        schema = Path(directory) / "output-schema.json"
+        temporary_root = Path(directory)
+        output = temporary_root / "result.json"
+        schema = temporary_root / "output-schema.json"
+        attachments, attachment_mapping = _materialize_critic_images(parameters, temporary_root)
+        if attachment_mapping:
+            prompt += (
+                "\nRENDER_ATTACHMENTS: Each digest-checked JPEG is attached separately and maps "
+                "to the candidate exactly as follows. Inspect pixels; do not generate images.\n"
+                + json.dumps(attachment_mapping, ensure_ascii=False, sort_keys=True)
+            )
+        if mode == "content_non_human_graphic_generation":
+            prompt += (
+                "\nUse image generation exactly once to create one square PNG containing no people, "
+                "faces, text, logos, or watermarks. The generated graphic remains review-gated."
+            )
         schema.write_text(
             json.dumps(parameters["output_schema"], ensure_ascii=False, sort_keys=True),
             encoding="utf-8",
@@ -302,8 +249,8 @@ def execute_structured_llm(parameters: dict) -> dict:
         requested_model = str(parameters.get("model") or "").strip()
         if requested_model and requested_model != "codex-cli-default":
             command.extend(["--model", requested_model])
-        if reference is not None:
-            command.extend(["--image", reference["source_path"]])
+        for attachment in attachments:
+            command.extend(["--image", str(attachment)])
         command.extend([
             "--sandbox",
             "read-only",
@@ -330,6 +277,9 @@ def execute_structured_llm(parameters: dict) -> dict:
             raise RuntimeError("structured model execution failed")
         data = json.loads(output.read_text(encoding="utf-8"))
         session_id = _codex_session_id(completed.stdout)
+        used_image_generation = _used_image_generation(completed.stdout)
+        if mode != "content_non_human_graphic_generation" and used_image_generation:
+            raise RuntimeError("image generation is prohibited in Result JSON modes")
         invocation = {
             "session_id": session_id,
             "session_mode": "fresh",
@@ -342,144 +292,67 @@ def execute_structured_llm(parameters: dict) -> dict:
             "response": json.dumps(data, ensure_ascii=False),
             "invocation": invocation,
         }
-        if parameters.get("mode") in {"branding_logo_generation", "branding_logo_reference_edit"}:
-            result["image"] = _persist_brand_image(codex_home, session_id)
-            reference_trace = _prove_brand_reference(completed.stdout, reference)
-            if reference_trace is not None:
-                result["image"]["reference"] = reference_trace
+        if mode == "content_non_human_graphic_generation":
+            result["image"] = _persist_non_human_graphic(codex_home, session_id)
         return result
 
 
-def send_telegram(parameters: dict, text: str) -> None:
-    send_telegram_message(parameters["chat_id"], text,
-                          reply_to_message_id=parameters.get("reply_to_message_id"))
-
-
 def process_one(connection: psycopg.Connection) -> bool:
-    awaiting = connection.execute(
-        """SELECT id,session_id,parameters FROM jobs
-           WHERE status='awaiting_ack' ORDER BY created_at,id
-           FOR UPDATE SKIP LOCKED LIMIT 1"""
+    stopped = connection.execute(
+        "SELECT emergency_stop FROM platform_control WHERE singleton=true"
     ).fetchone()
-    if awaiting:
-        job_id, session_id, parameters = awaiting
-        scope = str(parameters.get("task", ""))
-        send_telegram(
-            parameters,
-            f"Accepted job #{job_id}. I understood the task as:\n{scope}\n\n"
-            f"Work is queued and will start automatically. Cancel with /cancel {job_id}.",
-        )
-        connection.execute("UPDATE jobs SET status='queued' WHERE id=%s", (job_id,))
-        append_event(
-            connection, "ACKNOWLEDGEMENT_SENT", "commander-worker", status="sent",
-            session_id=session_id, job_id=job_id,
-            payload={"channel": "telegram", "source": "codex_workspace"},
-        )
+    if stopped and stopped[0]:
+        heartbeat(connection)
         connection.commit()
-        return True
+        return False
     job = connection.execute(
-        """
-        SELECT id, session_id, type, parameters FROM jobs
-        WHERE status = 'queued' ORDER BY created_at, id
-        FOR UPDATE SKIP LOCKED LIMIT 1
-        """
+        """SELECT id,session_id,parameters FROM jobs
+            WHERE status='queued' AND type='llm_structured' ORDER BY created_at,id
+            FOR UPDATE SKIP LOCKED LIMIT 1"""
     ).fetchone()
     if not job:
         heartbeat(connection)
         connection.commit()
         return False
-    job_id, session_id, job_type, parameters = job
+    job_id, session_id, parameters = job
     connection.execute(
         "UPDATE jobs SET status = 'running', started_at = now() WHERE id = %s", (job_id,)
     )
     append_event(
         connection, "JOB_STARTED", "commander-worker", status="running",
-        session_id=session_id, job_id=job_id, payload={"job_type": job_type},
+        session_id=session_id, job_id=job_id, payload={"job_type": "llm_structured"},
     )
     connection.commit()
     try:
-        if job_type == "engineer":
-            send_telegram(parameters, f"TASK-{job_id} started. Stage and issue updates will be reported automatically. Use /inspect TASK-{job_id} at any time.")
-        result = execute_job(
-            connection, job_type, job_id, parameters,
-            reporter=lambda update: send_telegram(parameters, update),
-        )
-        if job_type != 'llm_structured':
-            send_telegram(parameters, result)
-            stored_result = {"response": result}
-        else:
-            stored_result = result
+        result = execute_structured_llm(parameters)
         connection.execute(
             "UPDATE jobs SET status = 'completed', result = %s, finished_at = now() WHERE id = %s",
-            (Jsonb(stored_result), job_id),
-        )
-        if job_type != 'llm_structured': append_event(
-            connection, "JOB_COMPLETED", "commander-worker", status="completed",
-            session_id=session_id, job_id=job_id, payload={"job_type": job_type},
+            (Jsonb(result), job_id),
         )
         append_event(
-            connection, "RESPONSE_SENT", "commander-worker", status="sent",
-            session_id=session_id, job_id=job_id, payload={"channel": "telegram"},
+            connection, "JOB_COMPLETED", "commander-worker", status="completed",
+            session_id=session_id, job_id=job_id, payload={"job_type": "llm_structured"},
         )
         connection.execute(
             "UPDATE sessions SET status = 'completed', updated_at = now() WHERE id = %s",
             (session_id,),
         )
-    except JobCancelled:
-        connection.execute("UPDATE jobs SET status='cancelled', finished_at=now() WHERE id=%s", (job_id,))
-        append_event(connection, "JOB_CANCELLED", "commander-worker", status="cancelled",
-                     session_id=session_id, job_id=job_id)
-        connection.execute("UPDATE sessions SET status='cancelled', updated_at=now() WHERE id=%s", (session_id,))
-        send_telegram(parameters, f"Engineering job #{job_id} cancelled.")
     except Exception as exc:
-        logger.warning("Job %s failed: %s", job_id, type(exc).__name__)
-        stage = exc.stage if isinstance(exc, StageFailure) else "EXECUTION"
-        existing_issue = connection.execute(
-            """SELECT id FROM engineering_issues WHERE job_id=%s
-               AND status IN ('open','resolving','unresolved') ORDER BY id DESC LIMIT 1""",
-            (job_id,),
-        ).fetchone()
-        issue_id = existing_issue[0] if existing_issue else create_issue(
-            connection, job_id=job_id, stage=stage, error=exc
-        )
-        if not existing_issue:
-            transition_issue(
-                connection, issue_id, "unresolved",
-                summary="Failure occurred outside a safely resumable stage; manual interference is required",
-            )
+        logger.warning("Result provider job %s failed: %s", job_id, type(exc).__name__)
         connection.execute(
-            """
-            UPDATE jobs SET status = 'failed', error_code = %s, error_message = %s,
-                            finished_at = now() WHERE id = %s
-            """,
-            (type(exc).__name__, f"ISSUE-{issue_id}: inspect the retained sanitized issue log", job_id),
+            """UPDATE jobs SET status='failed',error_code=%s,error_message=%s,
+                      finished_at=now() WHERE id=%s""",
+            (type(exc).__name__, "Result provider execution failed", job_id),
         )
         append_event(
             connection, "JOB_FAILED", "commander-worker", status="failed",
             session_id=session_id, job_id=job_id,
-            payload={"error_type": type(exc).__name__, "issue_id": issue_id, "stage": stage},
+            payload={"error_type": type(exc).__name__, "stage": "RESULT_PROVIDER"},
         )
-        if isinstance(exc, StageFailure):
-            connection.execute(
-                "UPDATE engineering_runs SET status='failed',failure_stage=%s,updated_at=now() WHERE job_id=%s",
-                (exc.stage, job_id),
-            )
         connection.execute(
             "UPDATE sessions SET status = 'failed', updated_at = now() WHERE id = %s",
             (session_id,),
         )
-        try:
-            if job_type != 'llm_structured': send_telegram(
-                parameters,
-                f"TASK-{job_id} failed during {stage}; ISSUE-{issue_id} is retained as unresolved. "
-                f"No changes were deployed. Inspect with /inspect ISSUE-{issue_id}.",
-            )
-        except Exception as notification_error:
-            logger.warning(
-                "Job %s failure notification failed: %s",
-                job_id,
-                type(notification_error).__name__,
-            )
     heartbeat(connection)
     connection.commit()
     return True

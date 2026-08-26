@@ -1,2 +1,0 @@
-"""Deterministic Git branch watcher."""
-

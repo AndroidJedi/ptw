@@ -119,9 +119,22 @@ tag; the independent API and worker are healthy on the same release tag at
 bridge revision `4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`, and the locked
 24-hour resource follow-up timer remains active.
 
-The one-click Natal repair is not yet deployed. Read-only production inspection
-still shows application commit `9535a749b96bb265d2c07f5d22876fbac351b155`
-and release `result-v1-20260826-1505-owner-ui-hotfix`, with one Project, one
-Brief, one prior brand kit, and no Result runs or Results. The canonical release
-path remains reset-gated; do not delete that owner state without the exact
-`RESET PTW PRODUCTION` confirmation.
+The one-click Natal repair was deployed through the owner-confirmed clean reset
+as `result-v1-20260826-1710-natal-one-click` from application commit
+`be3e129dc05923e6342a8c3325921ea518f33b83` and independent-platform commit
+`4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`. The authorized reset irreversibly
+removed one Project, one Brief, and one prior brand kit. Every Commander-owned
+business table is empty, only `001_ptw_result_v1.sql` is recorded, no retired
+table remains, and independent platform counts were unchanged.
+
+Commander, Validation, Owner Gateway, platform API, and platform worker are all
+healthy on the matching versioned tag with zero restarts. Firebase Hosting
+serves `App-DwBfSv3E.js`; the live bytes contain the one-click Natal identity
+and progress contract and exclude brand-kit setup, task entry, Text mode, and
+the retired workspaces. Bridge, Pexels, dependency, skill, Telegram direct
+canary, schema, 1 GB resource, hashed-bundle, Auth/App Check, unauthenticated
+rejection, retired-route, service-worker, and CORS checks passed. No deployment
+OOM event occurred, and the locked 24-hour resource audit is scheduled for
+2026-08-27 14:17 UTC. Because the required clean-reset state contains no Result,
+the live authenticated Result-image digest/ETag check is deferred to the first
+real post; built-image lifecycle and 1080x1080 JPEG checks passed before release.

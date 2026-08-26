@@ -18,6 +18,9 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
   exposes one approved Brief, Text/Instagram choice, one task, three bounded
   progress labels, one final immutable Result, its selection summary,
   Download/Use, retry, feedback, and a collapsed bounded trace.
+- If Result creation is blocked by a missing brand kit or required Instagram
+  logo, render that setup before the disabled Result action and name the exact
+  prerequisite; never make the owner infer it from a disabled button.
 - Ads, batches, Studio editor/Wizard, Landing, Admin/Jobs/terminal, Positioning,
   research, publishing, campaign, traffic, UTM, and public lead routes must be
   absent and return 404.

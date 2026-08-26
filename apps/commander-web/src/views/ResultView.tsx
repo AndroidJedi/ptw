@@ -150,7 +150,7 @@ export function ResultView({ api, projectId }: { api: ApiClient; projectId: stri
         parent_brand_kit_id: kits[0]?.brand_kit_id || null,
         document: {
           name: brandName.trim(), colors: ['#111111', '#FFFFFF', '#43BDD3', '#F4F2EC'],
-          fonts: ['Inter'], tone_notes: tone.trim(), logo_source_asset_id: logoId,
+          fonts: ['Inter'], tone_notes: tone.trim(), logo_source_asset_id: logoId || null,
         },
       })
       setKits((current) => [item, ...current]); setNotice('Project brand kit saved.')
@@ -203,6 +203,14 @@ export function ResultView({ api, projectId }: { api: ApiClient; projectId: stri
     {error && <ErrorState message={error} />}
     {notice && <p className="notice" role="status">{notice}</p>}
     {!projectId ? <Empty><Sparkles className="empty-mark" /><h2>Select or create a Project</h2></Empty> : <>
+      {(!kits.length || (profile === 'instagram_static_ad_v1' && !kits[0]?.document.logo_source_asset_id)) && <section className="panel brand-setup"><small>PROJECT BRAND KIT</small><h2>Set the approved visual identity</h2>
+        <label>Brand name<input value={brandName} maxLength={120} onChange={(event) => setBrandName(event.target.value)} /></label>
+        <label>Tone notes<textarea rows={3} value={tone} maxLength={500} onChange={(event) => setTone(event.target.value)} /></label>
+        <label className="asset-upload"><Image />Upload approved logo or brand image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file) }} /></label>
+        {!!assets.length && <label>Logo<select value={logoId} onChange={(event) => setLogoId(event.target.value)}><option value="">Select asset</option>{assets.filter((item) => item.approval_status === 'approved').map((item) => <option key={item.source_asset_id} value={item.source_asset_id}>{item.title}</option>)}</select></label>}
+        <button className="secondary" disabled={busy || !brandName.trim()} onClick={saveBrand}><Check />Save brand kit</button>
+      </section>}
+
       <section className="panel result-create">
         <div><small>SOURCE</small><h2>{approved?.product || 'Approved Product Brief required'}</h2><p>{approved?.promise || 'Approve a completed Brief before creating a Result.'}</p></div>
         <fieldset><legend>Result type</legend>
@@ -211,17 +219,9 @@ export function ResultView({ api, projectId }: { api: ApiClient; projectId: stri
         </fieldset>
         <label>Task<textarea rows={5} maxLength={4000} value={task} onChange={(event) => setTask(event.target.value)} placeholder="Describe the one result you need…" /></label>
         <button className="primary large" disabled={busy || !approved || !kits.length || !task.trim() || (profile === 'instagram_static_ad_v1' && !kits[0]?.document.logo_source_asset_id)} onClick={create}><Sparkles />Create result</button>
-        {!kits.length && <p className="generation-state">Add one Project brand kit below before creating a Result.</p>}
-        {profile === 'instagram_static_ad_v1' && !!kits.length && !kits[0]?.document.logo_source_asset_id && <p className="generation-state">Add an approved logo to the latest brand kit for an Instagram post.</p>}
+        {!kits.length && <p className="generation-state">Save the Project brand kit above before creating a Result.</p>}
+        {profile === 'instagram_static_ad_v1' && !!kits.length && !kits[0]?.document.logo_source_asset_id && <p className="generation-state">Add an approved logo to the latest brand kit above before creating an Instagram post.</p>}
       </section>
-
-      {(!kits.length || (profile === 'instagram_static_ad_v1' && !kits[0]?.document.logo_source_asset_id)) && <section className="panel brand-setup"><small>PROJECT BRAND KIT</small><h2>Set the approved visual identity</h2>
-        <label>Brand name<input value={brandName} maxLength={120} onChange={(event) => setBrandName(event.target.value)} /></label>
-        <label>Tone notes<textarea rows={3} value={tone} maxLength={500} onChange={(event) => setTone(event.target.value)} /></label>
-        <label className="asset-upload"><Image />Upload approved logo or brand image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file) }} /></label>
-        {!!assets.length && <label>Logo<select value={logoId} onChange={(event) => setLogoId(event.target.value)}><option value="">Select asset</option>{assets.filter((item) => item.approval_status === 'approved').map((item) => <option key={item.source_asset_id} value={item.source_asset_id}>{item.title}</option>)}</select></label>}
-        <button className="secondary" disabled={busy || !brandName.trim()} onClick={saveBrand}><Check />Save brand kit</button>
-      </section>}
 
       {selectedRun && <section className="panel result-progress">
         <small>RESULT CREATION</small>

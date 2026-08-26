@@ -27,6 +27,9 @@ move credentials between them or mutate platform data during a Commander reset.
    provides exactly `RESET PTW PRODUCTION`. It may drop only
    `ptw_commander.public` and the obsolete explicit `ptw_owner-control` volume.
    It must snapshot and compare all independent platform table counts.
+   When deleting the obsolete `ptw_owner-control` volume, remove only the exact
+   stopped `ptw-owner-gateway-1` legacy container first; stopping a container
+   does not release its Docker volume reference.
 
 ## Result service contract
 

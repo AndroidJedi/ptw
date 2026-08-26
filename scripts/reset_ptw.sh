@@ -71,8 +71,11 @@ $commander_compose exec -T commander-db psql -X -v ON_ERROR_STOP=1 \
   -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION ptw_commander;'
 
 # This volume belonged to the deleted SQLite/job/Landing gateway. It has no
-# owner in Result v1 and is removed in full after the gateway is stopped.
+# owner in Result v1. Remove the exact stopped legacy Gateway container first,
+# because Docker retains its volume reference after a normal service stop.
 if docker volume inspect ptw_owner-control >/dev/null 2>&1; then
+  legacy_gateway=$(docker ps -aq --filter 'name=^/ptw-owner-gateway-1$')
+  [ -z "$legacy_gateway" ] || docker rm --force "$legacy_gateway" >/dev/null
   docker volume rm ptw_owner-control >/dev/null
 fi
 

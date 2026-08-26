@@ -51,6 +51,13 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertNotIn("firebase.natal-placeholder.json", publisher)
         self.assertEqual(1, publisher.count("firebase deploy --only hosting"))
 
+    def test_reset_removes_exact_legacy_gateway_before_its_volume(self) -> None:
+        reset = (ROOT / "scripts/reset_ptw.sh").read_text()
+        exact_container = reset.index("name=^/ptw-owner-gateway-1$")
+        remove_container = reset.index('docker rm --force "$legacy_gateway"', exact_container)
+        remove_volume = reset.index("docker volume rm ptw_owner-control", remove_container)
+        self.assertLess(remove_container, remove_volume)
+
 
 if __name__ == "__main__":
     unittest.main()

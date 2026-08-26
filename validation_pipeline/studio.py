@@ -12,6 +12,7 @@ from typing import Any, Mapping, Sequence
 from uuid import UUID
 
 from .domain import RATING_PATTERN, TESTIMONIAL_PATTERN, UNSUPPLIED_PROOF_PATTERN
+from .natal_brand import NATAL_FONT_PATH
 
 
 COLOR_SOURCE = "https://www.manypixels.co/blog/social-media-design/instagram-color"
@@ -19,7 +20,7 @@ ADS_SOURCE = "https://www.manypixels.co/blog/social-media-design/best-instagram-
 RENDERER_VERSION = "ptw-result-instagram-renderer-v1"
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 SUPPORTED_FONTS = {
-    "Inter": Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+    "Inter": NATAL_FONT_PATH,
     "DejaVu Sans": Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
     "DejaVu Serif": Path("/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf"),
     "DejaVu Mono": Path("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"),

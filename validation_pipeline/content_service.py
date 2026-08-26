@@ -16,6 +16,7 @@ from .content import (
     critic_output_schema, sha256_json, validate_critic_response,
 )
 from .content_adapters import adapter_for_profile
+from .natal_brand import natal_logo_bytes
 from .studio import tool_catalog
 
 
@@ -45,10 +46,9 @@ class CandidateGenerationOrchestrator:
         brief = self.repository.authority.get_brief(brief_id)
         if not brief["approved"] or brief["status"] != "completed":
             raise ValueError("Result generation requires an approved completed Product Brief")
-        kits = self.repository.authority.list_project_brand_kits(brief["project_id"])
-        if not kits:
-            raise ValueError("Create a Project brand kit before starting a Result")
-        brand_kit = kits[0]
+        brand_kit = self.repository.authority.ensure_natal_brand_kit(
+            brief["project_id"], logo_data=natal_logo_bytes(), requested_by=requested_by,
+        )
         approved_sources = [
             item for item in self.repository.authority.list_project_assets(
                 brief["project_id"], approved_only=True

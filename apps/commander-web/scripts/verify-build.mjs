@@ -20,7 +20,8 @@ const requiredMarkers = {
   'PTW reCAPTCHA Enterprise site key': '6LfFjYstAAAAAJaFuUPZYS9U17vROLcN7Fx6iOQL',
   'Safari-safe Auth persistence': 'ptw-auth-local-storage-v1',
   'Validation Project workspace': 'PROJECT WORKSPACE',
-  'Result workspace': 'ONE TASK · ONE FINAL CREATIVE',
+  'one-click Instagram workspace': 'NATAL · ONE FINAL POST',
+  'automatic Natal identity': 'Natal branding is applied automatically. Nothing else is required.',
   'Bounded initial stage': 'Creating five directions',
   'Bounded improvement stage': 'Improving the strongest direction',
   'Bounded final stage': 'Final review',
@@ -42,6 +43,9 @@ const forbiddenMarkers = {
   'campaign control': 'Campaign',
   'Landing UI': 'Landing',
   'manual template controls': 'Template controls',
+  'manual brand-kit setup': 'PROJECT BRAND KIT',
+  'text-profile chooser': 'Result type',
+  'owner task field': 'Describe the one result you need',
 }
 const exposed = Object.entries(forbiddenMarkers)
   .filter(([, marker]) => bundle.includes(marker))
@@ -77,4 +81,4 @@ if (chromatic.length) {
   throw new Error(`Commander chrome must remain monochrome; found: ${chromatic.join(', ')}`)
 }
 
-process.stdout.write('Verified Result API, App Check, Safari Auth, monochrome chrome, and service-worker markers in production build.\n')
+process.stdout.write('Verified one-click Natal Instagram flow, App Check, Safari Auth, monochrome chrome, and service-worker markers in production build.\n')

@@ -5,7 +5,8 @@ Branch: `codex/web-only-commander`
 
 ## Current milestone
 
-PTW has been rebuilt as a clean first-version Product Brief → Result system.
+PTW has been rebuilt as a clean first-version Product Brief → one-click Natal
+Instagram post system.
 The old five-Ad batch, Ads workspace, Studio Wizard/editor, automatic nested
 validator, Landing, Admin jobs, root broker, Positioning, idea-generation, and
 their tables, routes, services, skills, tests, and assets are removed.
@@ -19,22 +20,26 @@ any retired table family.
 
 Result v1 implements:
 
-- deterministic `ContextBundleV1` selection from the approved Brief, task,
-  brand kit, approved Project sources, five template versions, selected writing
-  references, and skill digests;
+- deterministic `ContextBundleV1` selection from the approved Brief, fixed
+  server-owned Instagram task, canonical Natal brand kit, approved Project
+  sources, five template versions, selected writing references, and skill
+  digests;
 - exactly five isolated initial `CandidateV2` generations;
 - at most four improvement generations and exactly three critic passes;
 - stable server-reserved UUIDv7 candidate, critic-pass, action, element,
   recipe, render, and Result identities;
 - exact element reuse plus `supersedes` and multi-source `derived_from`
   lineage;
-- `marketing_copy_v1` and `instagram_static_ad_v1` adapters;
+- internal generic `marketing_copy_v1` and `instagram_static_ad_v1` adapters,
+  with only Instagram exposed through Owner Gateway;
 - strict static `StudioRecipeV2` validation and deterministic 1080×1080 JPEG
   rendering for the Instagram adapter;
 - fail-closed hard gates, scoring, pairwise comparison, and one immutable final
   Result Creative;
-- owner status/result/debug/retry/feedback APIs and a Product Brief + Result
-  Owner Console.
+- owner status/result/debug/retry/feedback APIs and a Product Brief + one-click
+  Instagram post Owner Console. Validation automatically provisions the
+  digest-pinned Natal logo, palette, and Inter font; public asset and brand-kit
+  setup routes are absent.
 
 The independent platform worktree now advertises only four JSON modes and one
 reviewed non-human graphic mode. It validates one-to-five digest-mapped JPEG
@@ -54,6 +59,12 @@ upgraded additively and preserved.
 - Owner Console unit tests, production build, and Playwright coverage on desktop,
   360 px Chromium, and iPhone WebKit;
 - Commander demo and `git diff --check` at intermediate checkpoints.
+
+The current Natal one-click repair passes the clean/idempotent schema verifier,
+the disposable PostgreSQL lifecycle, Validation and Owner Gateway built-image
+tests, a built-image 1080×1080 Natal logo/Inter render, canonical skill/corpus
+verification, Owner Console unit/build checks, Playwright on desktop, 360 px
+Chromium, and iPhone WebKit, Commander tests/demo, and `git diff --check`.
 
 ## Production deployment
 
@@ -107,3 +118,10 @@ All three application services are healthy on the matching owner-UI hotfix
 tag; the independent API and worker are healthy on the same release tag at
 bridge revision `4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`, and the locked
 24-hour resource follow-up timer remains active.
+
+The one-click Natal repair is not yet deployed. Read-only production inspection
+still shows application commit `9535a749b96bb265d2c07f5d22876fbac351b155`
+and release `result-v1-20260826-1505-owner-ui-hotfix`, with one Project, one
+Brief, one prior brand kit, and no Result runs or Results. The canonical release
+path remains reset-gated; do not delete that owner state without the exact
+`RESET PTW PRODUCTION` confirmation.

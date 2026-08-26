@@ -10,7 +10,8 @@ template gallery, validation loop, publication flow, video path, or legacy
 recipe compatibility.
 
 The channel-neutral Result core gives the adapter a validated candidate,
-server-assigned visual-element UUIDs, Project brand kit, and approved sources.
+server-assigned visual-element UUIDs, the automatically provisioned canonical
+Natal brand kit, and approved sources.
 The adapter resolves real photography from approved Project assets or Pexels,
 maps components to a static recipe, validates it, renders the exact JPEG, and
 returns recipe/render IDs and digests. Instagram-specific placement, safe area,
@@ -18,7 +19,7 @@ frame grammar, and 1080×1080 rendering never enter the generic orchestrator.
 
 ## Contract
 
-A recipe binds one Project, approved Brief, immutable brand-kit revision,
+A recipe binds one Project, approved Brief, immutable Natal brand-kit revision,
 placement `instagram.feed_square.v1`, ordered UUIDv7 frame instances, approved
 source IDs, caption, alt text, guards, renderer version, and canonical digest.
 Required visual roles are background, primary subject, headline, supporting

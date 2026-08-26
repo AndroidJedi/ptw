@@ -13,6 +13,24 @@ from .auth import FirebaseVerifier, OwnerDependency, OwnerIdentity
 from .settings import Settings
 
 
+INSTAGRAM_TASK = (
+    "Create one ready-to-publish Instagram feed post for the approved Product Brief "
+    "using Natal's canonical visual identity."
+)
+
+
+def instagram_run_request(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Map the no-form owner action to the sole public Result profile."""
+    if set(request) != {"request_id", "brief_id"}:
+        raise ValueError("Instagram post creation requires only request_id and brief_id")
+    return {
+        "request_id": request["request_id"],
+        "brief_id": request["brief_id"],
+        "task": INSTAGRAM_TASK,
+        "output_profile": "instagram_static_ad_v1",
+    }
+
+
 def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> FastAPI:
     owner = OwnerDependency(verifier or FirebaseVerifier(settings))
     app = FastAPI(title="PTW Result Gateway", version="1.0.0", docs_url=None, redoc_url=None)
@@ -137,61 +155,16 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             "POST", f"/internal/v1/briefs/{brief_id}/approve", body=request, actor=actor(identity)
         )).json()
 
-    @app.get("/api/v1/project-assets")
-    async def project_assets(
-        project_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "GET", "/internal/v1/project-assets", params={"project_id": project_id}
-        )).json()
-
-    @app.post("/api/v1/project-assets", status_code=201)
-    async def upload_project_asset(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", "/internal/v1/project-assets", body=request,
-            actor=actor(identity), timeout=60,
-        )).json()
-
-    @app.get("/api/v1/project-assets/{asset_id}/asset")
-    async def project_asset(
-        asset_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> Response:
-        response = await validation_bridge(
-            "GET", f"/internal/v1/project-assets/{asset_id}/asset", timeout=60
-        )
-        headers = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
-        if response.headers.get("etag"):
-            headers["ETag"] = response.headers["etag"]
-        return Response(
-            content=response.content,
-            media_type=response.headers.get("content-type", "application/octet-stream"),
-            headers=headers,
-        )
-
-    @app.get("/api/v1/project-brand-kits")
-    async def project_brand_kits(
-        project_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "GET", "/internal/v1/project-brand-kits", params={"project_id": project_id}
-        )).json()
-
-    @app.post("/api/v1/project-brand-kits", status_code=201)
-    async def create_project_brand_kit(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", "/internal/v1/project-brand-kits", body=request, actor=actor(identity)
-        )).json()
-
     @app.post("/api/v1/content-runs", status_code=202)
     async def create_content_run(
         request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
     ) -> dict[str, Any]:
+        try:
+            body = instagram_run_request(request)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
         return (await validation_bridge(
-            "POST", "/internal/v1/content-runs", body=request,
+            "POST", "/internal/v1/content-runs", body=body,
             actor=actor(identity), timeout=60,
         )).json()
 

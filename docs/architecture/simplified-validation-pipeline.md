@@ -14,16 +14,16 @@ strategy, exact offer, and exact CTA before immutable persistence.
 A correction or retry creates a complete new Brief UUID with explicit
 `supersedes` and `derived_from` edges. Approval is an append-only record and
 requires the owner to confirm that the offer and promise can be honored.
-Approval does not automatically generate content; it opens the Result task
-form.
+Approval does not automatically generate content; it opens the one-click
+Instagram post action.
 
 ## Result handoff
 
 A Result run may read only:
 
 - the selected approved Product Brief;
-- one owner task persisted as a permanent Project Source;
-- the selected Project brand-kit revision;
+- one fixed server-owned Instagram task persisted as a permanent Project Source;
+- the automatically provisioned canonical Natal brand-kit revision;
 - explicitly approved Project assets and stock-photo source metadata;
 - versioned templates, bounded writing references, tool contracts, and skill
   digests.
@@ -36,8 +36,9 @@ generation, recomposition, rendering, and final selection.
 
 PostgreSQL entities and relationships are complete authority. Owner Gateway
 exposes authenticated Project and Product Brief create/list/detail/correct/
-retry/approve operations and proxies Result creation after approval. Empty
-production state is valid; no samples or fake proof are seeded.
+retry/approve operations and proxies one-click Instagram creation after
+approval. It does not expose task/profile, Project-asset, or brand-kit setup
+surfaces. Empty production state is valid; no samples or fake proof are seeded.
 
 The only schema baseline is `db/migrations/001_ptw_result_v1.sql`. There are no
 batch, Ad Creative, Landing, Positioning, idea, publication, campaign, lead,

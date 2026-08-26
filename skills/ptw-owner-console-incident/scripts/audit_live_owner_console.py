@@ -82,7 +82,8 @@ def main() -> None:
         "reCAPTCHA Enterprise site key": args.site_key,
         "Safari-safe Auth persistence": "ptw-auth-local-storage-v1",
         "Product Brief workspace": "Product Briefs",
-        "Result workspace": "ONE TASK · ONE FINAL CREATIVE",
+        "one-click Instagram workspace": "NATAL · ONE FINAL POST",
+        "automatic Natal identity": "Natal branding is applied automatically. Nothing else is required.",
         "five-direction progress": "Creating five directions",
         "critic progress": "Improving the strongest direction",
         "final review progress": "Final review",
@@ -91,7 +92,8 @@ def main() -> None:
         require(marker in app_bundle, f"Live App bundle is missing {label}")
     for retired_label in (
         "Stage 3 pending", "Generate new Ads", "Ad Studio", "Review steps",
-        "Docs / System / Terminal",
+        "Docs / System / Terminal", "PROJECT BRAND KIT", "Result type",
+        "Describe the one result you need",
     ):
         require(retired_label not in app_bundle, f"Live App bundle still exposes {retired_label!r}")
 
@@ -114,6 +116,7 @@ def main() -> None:
 
     for retired_path in (
         "/api/v1/ideas", "/api/v1/branding", "/api/v1/posts",
+        "/api/v1/project-assets", "/api/v1/project-brand-kits",
         "/api/v1/positionings", "/api/v1/ads", "/api/v1/ad-batches",
         "/api/v1/ad-studio", "/api/v1/landings", "/api/v1/jobs",
         "/api/v1/public/landings/00000000-0000-0000-0000-000000000000/leads",

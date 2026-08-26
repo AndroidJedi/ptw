@@ -2,12 +2,15 @@
 
 Owner Console uses Firebase Auth, exact verified Google owner identity, pinned
 UID, and App Check. Owner Gateway is the only normal instruction channel and
-proxies only Project, Product Brief, brand-kit/asset setup, and Result APIs.
+proxies only Project, Product Brief, and one-click Instagram Result APIs.
 Domain data is never stored in Firebase or service-worker caches.
 
-Navigation is Product Briefs and Result. The Project switcher is URL-backed.
-There is no Ads, Studio editor, Landing, Admin, Jobs, terminal, publishing,
-campaign, traffic, analytics, or raw UUID-management workspace.
+Navigation is Product Briefs and Instagram post. The Project switcher is
+URL-backed. Instagram creation accepts only the approved Brief action; Owner
+Gateway supplies the fixed task and profile while Validation provisions the
+canonical Natal identity. There is no public Project-asset or brand-kit setup,
+Ads, Studio editor, Landing, Admin, Jobs, terminal, publishing, campaign,
+traffic, analytics, or raw UUID-management workspace.
 
 Result status is durable and polled over HTTP. The completed view resolves the
 displayed artifact to its final Creative UUID server-side before appending

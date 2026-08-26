@@ -3,13 +3,15 @@
 PTW is an owner-operated content validation loop:
 
 ```text
-one idea -> one approved Product Brief -> one owner task
-  -> five isolated candidates -> three critic passes -> one Result
+one idea -> one approved Product Brief -> one-click Instagram post
+  -> five isolated candidates -> three critic passes -> one final post
 ```
 
-Result generation uses only the approved Brief, owner task, Project brand kit,
-approved Project assets/sources, and versioned writing/template contracts. It
-supports structured marketing text and a deterministic Instagram square post.
+Public Result generation uses only the approved Brief, a fixed server task,
+the canonical Natal brand kit, approved Project/Pexels sources, and versioned
+writing/template contracts. The Owner Console creates only a deterministic
+Instagram square post; it exposes no text profile, task field, asset upload, or
+brand-kit setup.
 Exact offer/CTA, honest claims, real-photo policy, no synthetic people/faces,
 bounded retries, immutable lineage, and fail-closed final selection are
 mandatory.

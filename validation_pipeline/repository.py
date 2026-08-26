@@ -671,6 +671,32 @@ class ValidationRepository:
             ).fetchall()
         return [self._brand_row(row) for row in rows]
 
+    def ensure_natal_brand_kit(
+        self, project_id: str, *, logo_data: bytes, requested_by: str,
+    ) -> dict[str, Any]:
+        """Provision the immutable Natal identity without owner setup fields."""
+        from .natal_brand import natal_brand_document
+
+        logo = self.create_project_asset(
+            project_id, title="Natal canonical logo", data=logo_data, mime_type="image/png",
+            origin="canonical_brand", provider="natal", external_id="logo-natal-v1",
+            source_uri="natal/assets/logo-natal.png", license_name="PTW canonical brand asset",
+            attribution="Natal canonical logo", metadata={
+                "canonical_path": "natal/assets/logo-natal.png",
+                "immutable_identity": True,
+            }, requested_by=requested_by,
+        )
+        document = natal_brand_document(logo["source_asset_id"])
+        kits = self.list_project_brand_kits(project_id)
+        if kits and kits[0]["document"] == document:
+            return kits[0]
+        return self.create_project_brand_kit(
+            project_id,
+            parent_brand_kit_id=kits[0]["brand_kit_id"] if kits else None,
+            requested_by=requested_by,
+            document=document,
+        )
+
     def create_recipe(
         self, project_id: str, *, candidate_id: str, brief_id: str, brand_kit_id: str,
         document: Mapping[str, Any], requested_by: str,

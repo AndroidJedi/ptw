@@ -10,5 +10,7 @@ RUN apt-get update \
 COPY validation_pipeline ./validation_pipeline
 COPY commander/ids.py ./commander/ids.py
 COPY commander/__init__.py ./commander/__init__.py
+COPY natal/assets/logo-natal.png ./natal/assets/logo-natal.png
+COPY natal/assets/inter.ttf ./natal/assets/inter.ttf
 USER validation
 CMD ["uvicorn", "validation_pipeline.api:create_app_from_env", "--factory", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]

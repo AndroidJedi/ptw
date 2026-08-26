@@ -3,7 +3,7 @@
 ## Flow
 
 ```text
-approved Product Brief + owner task + Project brand/assets
+approved Product Brief + fixed server task + canonical Natal brand/assets
   -> bounded ContextBundleV1
   -> five isolated versioned strategies
   -> validated CandidateV2 documents and previews
@@ -56,8 +56,9 @@ recipes, renders, sources, entities, and graph edges. Only bounded run/action
 status transitions update. A retry creates a child run and never overwrites its
 parent.
 
-The owner normally sees only source, result type, task, three progress stages,
-one final result, two-to-four selection observations, download/use, retry, and
-feedback. Debug exposes bounded IDs, versions, scores, gates, actions, digests,
-provider request IDs, and lineage, never chain-of-thought, credentials, raw
-base64, or unrestricted source contents.
+The owner normally sees only the approved source, one Instagram create action,
+three progress stages, one final post, two-to-four selection observations,
+download/use, retry, and feedback. The public path has no text profile, task
+field, asset upload, or brand-kit setup. Debug exposes bounded IDs, versions,
+scores, gates, actions, digests, provider request IDs, and lineage, never
+chain-of-thought, credentials, raw base64, or unrestricted source contents.

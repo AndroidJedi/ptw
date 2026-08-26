@@ -10,7 +10,7 @@ HAS_FASTAPI = importlib.util.find_spec("fastapi") is not None
 if HAS_FASTAPI:
     from fastapi import HTTPException
     from fastapi.middleware.cors import CORSMiddleware
-    from owner_gateway.api import create_app
+    from owner_gateway.api import INSTAGRAM_TASK, create_app, instagram_run_request
     from owner_gateway.auth import validate_owner_claims
 
 
@@ -61,16 +61,29 @@ class OwnerClaimsTests(unittest.TestCase):
 
         paths = {route.path for route in create_app(self.settings, verifier=Verifier()).routes}
         required = {
-            "/api/v1/projects", "/api/v1/briefs", "/api/v1/project-assets",
-            "/api/v1/project-brand-kits", "/api/v1/content-runs",
+            "/api/v1/projects", "/api/v1/briefs", "/api/v1/content-runs",
             "/api/v1/content-runs/{run_id}/result",
             "/api/v1/content-runs/{run_id}/feedback",
         }
         self.assertTrue(required <= paths)
+        self.assertNotIn("/api/v1/project-assets", paths)
+        self.assertNotIn("/api/v1/project-brand-kits", paths)
         forbidden_fragments = ("ad-batches", "ad-creatives", "ad-studio", "landing", "publish", "campaign")
         self.assertFalse([
             path for path in paths if any(fragment in path for fragment in forbidden_fragments)
         ])
+
+    def test_public_result_input_is_one_click_instagram_only(self) -> None:
+        value = instagram_run_request({"request_id": "request", "brief_id": "brief"})
+        self.assertEqual({
+            "request_id": "request", "brief_id": "brief",
+            "task": INSTAGRAM_TASK, "output_profile": "instagram_static_ad_v1",
+        }, value)
+        with self.assertRaisesRegex(ValueError, "only request_id and brief_id"):
+            instagram_run_request({
+                "request_id": "request", "brief_id": "brief",
+                "task": "owner supplied", "output_profile": "marketing_copy_v1",
+            })
 
     def test_wrong_owner_or_app_is_denied(self) -> None:
         with self.assertRaises(HTTPException):

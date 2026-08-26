@@ -9,6 +9,7 @@ from validation_pipeline.content import ContentContextAssembler, CorpusStore, Te
 from validation_pipeline.content_repository import ContentResultRepository
 from validation_pipeline.content_service import CandidateGenerationOrchestrator
 from validation_pipeline.domain import ProductBriefV1
+from validation_pipeline.natal_brand import natal_logo_bytes
 from validation_pipeline.repository import ValidationRepository
 from validation_pipeline.studio import StudioRenderer
 
@@ -174,14 +175,6 @@ class ContentLifecycleTests(unittest.TestCase):
             brief["brief_id"], attempt_id, document.to_dict(), document.digest, document.quality_gates,
         )
         approved, _ = self.authority.approve_brief(brief["brief_id"], "test")
-        self.authority.create_project_brand_kit(
-            approved["project_id"], parent_brand_kit_id=None, requested_by="test",
-            document={
-                "name": "Decision Session", "colors": ["#111111", "#FFFFFF", "#43BDD3", "#F4F2EC"],
-                "fonts": ["Inter"], "tone_notes": "Direct and specific.",
-                "logo_source_asset_id": None,
-            },
-        )
         return self.authority.get_brief(brief["brief_id"])
 
     def test_five_candidates_four_improvements_three_passes_one_result(self) -> None:
@@ -192,6 +185,15 @@ class ContentLifecycleTests(unittest.TestCase):
             output_profile="marketing_copy_v1", requested_by="test",
         )
         self.assertTrue(created)
+        self.assertEqual("Natal", run["context_bundle"]["brand_kit"]["document"]["name"])
+        logo_id = run["context_bundle"]["brand_kit"]["document"]["logo_source_asset_id"]
+        logo = self.authority.get_project_asset(logo_id)
+        self.assertEqual("canonical_brand", logo["origin"])
+        self.assertEqual("natal", logo["provider"])
+        repeated_brand = self.authority.ensure_natal_brand_kit(
+            brief["project_id"], logo_data=natal_logo_bytes(), requested_by="test",
+        )
+        self.assertEqual(run["brand_kit_id"], repeated_brand["brand_kit_id"])
         result = self.orchestrator.execute(run["run_id"])
 
         completed = self.repository.get_run(run["run_id"])

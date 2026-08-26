@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 import unittest
 
@@ -8,7 +9,11 @@ from validation_pipeline.content import (
     CandidateV2, CorpusStore, TemplateRegistry, final_eligible, weighted_candidate_score,
 )
 from validation_pipeline.content_adapters import InstagramStaticAdapter
-from validation_pipeline.studio import validate_recipe
+from validation_pipeline.natal_brand import (
+    NATAL_FONT_PATH, NATAL_FONT_SHA256, NATAL_LOGO_SHA256,
+    natal_brand_document, natal_logo_bytes,
+)
+from validation_pipeline.studio import StudioRenderer, validate_recipe
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,6 +21,71 @@ REFERENCES = ROOT / "skills/content-candidate-generator/references"
 
 
 class ResultContractsTests(unittest.TestCase):
+    def test_natal_identity_assets_and_contract_are_canonical(self) -> None:
+        import hashlib
+
+        self.assertEqual(NATAL_LOGO_SHA256, hashlib.sha256(natal_logo_bytes()).hexdigest())
+        self.assertEqual(NATAL_FONT_SHA256, hashlib.sha256(NATAL_FONT_PATH.read_bytes()).hexdigest())
+        document = natal_brand_document(new_uuid7())
+        self.assertEqual("Natal", document["name"])
+        self.assertEqual("#0C0E12", document["colors"][0])
+        self.assertEqual(["Inter"], document["fonts"])
+
+    @unittest.skipUnless(importlib.util.find_spec("PIL") is not None, "Pillow is required")
+    def test_restored_natal_logo_and_inter_render_inside_instagram_jpeg(self) -> None:
+        from io import BytesIO
+        from PIL import Image
+
+        project_id, brief_id, brand_kit_id, logo_id, media_id = [new_uuid7() for _ in range(5)]
+        element_ids = {
+            role: new_uuid7() for role in (
+                "background", "primary_subject", "headline_block", "supporting_text_block",
+                "offer_block", "cta_block", "brand_mark",
+            )
+        }
+        candidate = {
+            "hook": "One visible customer moment",
+            "supporting_text": "A short, concrete mechanism.",
+            "offer": "First consultation free", "cta": "Book now",
+            "caption": "A complete caption.",
+            "alt_text": "A real scene that demonstrates the customer moment.",
+            "visual_components": [
+                {"role": "composition", "content": "Subject on the right", "source_ids": []},
+                {"role": "lighting_style", "content": "Natural daylight", "source_ids": []},
+            ],
+        }
+        brand = natal_brand_document(logo_id)
+        template = TemplateRegistry(REFERENCES / "templates").load_active()[0]
+        adapter = InstagramStaticAdapter(None, None, None, None)
+        recipe = adapter._recipe(
+            candidate=candidate,
+            run={
+                "candidate_template_id": template.template_id,
+                "candidate_parameters": dict(template.defaults),
+                "context_bundle": {"brand_kit": {"document": brand}},
+            },
+            element_ids=element_ids,
+            media_id=media_id,
+        )
+        contract = validate_recipe(
+            recipe, project_id=project_id, brief_id=brief_id,
+            brand_kit_id=brand_kit_id,
+            brief={"offer": candidate["offer"], "cta": candidate["cta"]},
+        )
+        media_output = BytesIO()
+        Image.new("RGB", (1080, 1080), "#4A4A4A").save(media_output, format="JPEG")
+        rendered = StudioRenderer().render(
+            recipe_id=new_uuid7(), recipe_digest=contract.digest,
+            recipe=contract.value, brand_kit={"document": brand},
+            assets={
+                logo_id: {"bytes": natal_logo_bytes(), "mime_type": "image/png"},
+                media_id: {"bytes": media_output.getvalue(), "mime_type": "image/jpeg"},
+            },
+        )
+        with Image.open(BytesIO(rendered["bytes"])) as image:
+            self.assertEqual((1080, 1080), image.size)
+            self.assertEqual("JPEG", image.format)
+
     def test_registry_contains_exactly_five_distinct_strategies(self) -> None:
         templates = TemplateRegistry(REFERENCES / "templates").load_active()
         self.assertEqual(5, len(templates))

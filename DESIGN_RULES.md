@@ -5,13 +5,13 @@ Updated: 2026-08-26
 
 ## Navigation and trust
 
-- Primary navigation is Product Briefs and Result, scoped by a human-readable
-  Project switcher.
+- Primary navigation is Product Briefs and Instagram post, scoped by a
+  human-readable Project switcher.
 - Old page locations and retired domain APIs do not exist.
 - Design first for 360 px and one-hand use with 44×44 CSS-pixel targets, no
   horizontal overflow, keyboard access, and reduced-motion support.
-- Console chrome is monochrome. A final reviewed creative may use Project
-  colors and full-color approved photography.
+- Console chrome is monochrome. A final reviewed creative uses Natal colors and
+  may use full-color approved photography.
 - Empty production state is valid. Never seed fake Briefs, creatives, metrics,
   proof, testimonials, urgency, scarcity, or assets.
 
@@ -21,17 +21,18 @@ Updated: 2026-08-26
   Brief.
 - A correction creates a new UUID and complete replacement.
 - Approval explicitly confirms that the promise and exact offer can be
-  honored, then opens the Result task form. It does not auto-generate.
+  honored, then opens the Instagram post action. It does not auto-generate.
 
 ## Result
 
-- Normal input is approved Brief summary, Text or Instagram post, one task,
-  and Create result.
+- Normal input is one approved Brief summary and Create Instagram post. The
+  server supplies the fixed task and canonical Natal identity; there is no
+  text-profile choice, task field, asset upload, or brand-kit form.
 - Running state shows only: Creating five directions, Improving the strongest
   direction, Final review, elapsed/bounded maximum, and retry/failure state.
-- Completed state shows one final text or post, caption when applicable,
-  two-to-four selection observations, Download/Use result, Create another,
-  and simple feedback.
+- Completed state shows one final Instagram post, its caption, two-to-four
+  selection observations, Download/Use post, Create another, and simple
+  feedback.
 - Do not expose templates, sliders, alternate candidates, UUID entry, layers,
   recipes, prompts, or model controls in the normal journey.
 - A collapsed owner-only debug view may expose bounded versions, IDs, scores,

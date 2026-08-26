@@ -3,7 +3,6 @@ import { expect, test } from '@playwright/test'
 const projectId = '018f07ea-7f20-7000-8000-000000000001'
 const sourceId = '018f07ea-7f20-7000-8000-000000000002'
 const briefId = '018f07ea-7f20-7000-8000-000000000003'
-const kitId = '018f07ea-7f20-7000-8000-000000000004'
 const runId = '018f07ea-7f20-7000-8000-000000000005'
 const creativeId = '018f07ea-7f20-7000-8000-000000000006'
 
@@ -36,8 +35,8 @@ const brief = {
 
 const run = {
   run_id: runId, request_id: runId, parent_run_id: null, project_id: projectId,
-  brief_id: briefId, output_profile: 'marketing_copy_v1',
-  task: 'Write a concise post connecting hesitation to a safe first step.',
+  brief_id: briefId, output_profile: 'instagram_static_ad_v1',
+  task: 'Create one ready-to-publish Instagram feed post using Natal.',
   status: 'completed', current_stage: 'completed', progress_percent: 100,
   maximum_minutes: 45, final_result_id: creativeId,
   created_at: '2026-08-26T08:10:00Z', updated_at: '2026-08-26T08:14:00Z',
@@ -72,12 +71,6 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname === '/api/v1/projects') return json({ items: [project], next_cursor: null })
     if (url.pathname === '/api/v1/briefs') return json({ items: [brief], next_cursor: null })
     if (url.pathname === `/api/v1/briefs/${briefId}`) return json(brief)
-    if (url.pathname === '/api/v1/project-assets') return json({ items: [] })
-    if (url.pathname === '/api/v1/project-brand-kits') return json({ items: [{
-      brand_kit_id: kitId, project_id: projectId,
-      document: { name: project.name, colors: ['#111111', '#FFFFFF'], fonts: ['Inter'], tone_notes: 'Direct' },
-      document_sha256: 'e'.repeat(64), created_at: '2026-08-26T08:05:00Z',
-    }] })
     if (url.pathname === '/api/v1/content-runs' && method === 'GET') return json({ items: [run], next_cursor: null })
     if (url.pathname === `/api/v1/content-runs/${runId}`) return json(run)
     if (url.pathname === `/api/v1/content-runs/${runId}/result`) return json(result)
@@ -86,20 +79,24 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('shows only Product Brief and one final Result workspace', async ({ page }) => {
+test('shows only Product Brief and one-click Instagram post workspace', async ({ page }) => {
   await page.goto('/?e2e=1')
   await expect(page.getByRole('button', { name: 'Продуктові брифи' }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Змінити мову' }).click()
   await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Result' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Instagram post' }).first()).toBeVisible()
   await page.reload()
   await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
   await expect(page.getByText('Ad Studio')).toHaveCount(0)
   await expect(page.getByText('Ads', { exact: true })).toHaveCount(0)
   await expect(page.getByText('Landing', { exact: true })).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'Result' }).first().click()
-  await expect(page.getByRole('heading', { name: 'Result' })).toBeVisible()
+  await page.getByRole('button', { name: 'Instagram post' }).first().click()
+  await expect(page.getByRole('heading', { name: 'Instagram post' })).toBeVisible()
+  await expect(page.getByText('Natal branding is applied automatically. Nothing else is required.')).toBeVisible()
+  await expect(page.getByLabel('Task')).toHaveCount(0)
+  await expect(page.getByRole('radio', { name: 'Text' })).toHaveCount(0)
+  await expect(page.getByText('PROJECT BRAND KIT')).toHaveCount(0)
   await expect(page.getByText(result.content.hook)).toBeVisible()
   await expect(page.getByText('WHY THIS DIRECTION')).toBeVisible()
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')

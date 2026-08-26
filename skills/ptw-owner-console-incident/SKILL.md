@@ -14,13 +14,14 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
 - Verify hashed bundles, the `ptw-result-v1` service-worker cache, Firebase Auth
   persistence, App Check, exact Owner CORS origins, and unauthenticated
   rejection.
-- Navigation is exactly Product Briefs and Result. The normal Result journey
-  exposes one approved Brief, Text/Instagram choice, one task, three bounded
-  progress labels, one final immutable Result, its selection summary,
-  Download/Use, retry, feedback, and a collapsed bounded trace.
-- If Result creation is blocked by a missing brand kit or required Instagram
-  logo, render that setup before the disabled Result action and name the exact
-  prerequisite; never make the owner infer it from a disabled button.
+- Navigation is exactly Product Briefs and Instagram post. The normal post
+  journey exposes one approved Brief, one create action, three bounded progress
+  labels, one final immutable post, its selection summary, Download/Use, retry,
+  feedback, and a collapsed bounded trace. Never expose a Text profile or task
+  field.
+- Provision the digest-pinned Natal logo, palette, and Inter brand kit on the
+  server before an Instagram run. The public Gateway and Owner Console must not
+  expose Project asset upload or brand-kit setup routes, fields, or blockers.
 - The EN/УКР control must change the complete visible Owner Console and persist
   across reloads. Render new-Project creation as a separate mode from an
   existing Project's Brief history and detail; never stack both workflows.
@@ -38,9 +39,10 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
 - Product Brief: raw idea only; inferred `uk` or `en`; one strict hypothesis;
   exact bounded document; immutable correction; owner approval of promise and
   offer; no research/SEO/YouTube call.
-- Context: only approved Brief, task Source, current Project brand kit, approved
-  Project assets, bounded tool catalog, one template, deterministic writing
-  references, and four to six positive excerpts. Overflow fails explicitly.
+- Context: only approved Brief, the fixed server-owned Instagram task Source,
+  canonical Natal brand kit, approved Project/Pexels assets, bounded tool
+  catalog, one template, deterministic writing references, and four to six
+  positive excerpts. Overflow fails explicitly.
 - Generation: exactly five distinct template IDs, isolated calls, server UUIDv7
   elements, exact offer/CTA, honest claims, and candidate eligibility only after
   schema/media/recipe/render/protected-copy checks.

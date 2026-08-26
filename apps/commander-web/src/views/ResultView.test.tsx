@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '../api'
-import type { ProductBrief, ProjectBrandKit } from '../types'
+import type { ContentRun, ProductBrief } from '../types'
 import { ResultView } from './ResultView'
 
 const projectId = '018f07ea-7f20-7000-8000-000000000001'
@@ -17,70 +17,45 @@ const brief: ProductBrief = {
   promise: 'Receive personalized guidance for the next move.',
   created_at: '2026-08-26T10:00:00Z',
 }
+const run: ContentRun = {
+  run_id: '018f07ea-7f20-7000-8000-000000000005',
+  request_id: '018f07ea-7f20-7000-8000-000000000006',
+  project_id: projectId,
+  brief_id: brief.brief_id,
+  output_profile: 'instagram_static_ad_v1',
+  task: 'Server-owned Instagram task',
+  status: 'queued', current_stage: 'queued', progress_percent: 0,
+  maximum_minutes: 45,
+  created_at: '2026-08-26T10:05:00Z', updated_at: '2026-08-26T10:05:00Z',
+}
 
-function apiWith(kits: ProjectBrandKit[], post = vi.fn()) {
+function apiWith(post = vi.fn().mockResolvedValue(run)) {
   return {
     get: vi.fn(async (path: string) => {
       if (path.startsWith('/api/v1/briefs?')) return { items: [brief] }
       if (path.startsWith('/api/v1/content-runs?')) return { items: [] }
-      if (path.startsWith('/api/v1/project-assets?')) return { items: [] }
-      if (path.startsWith('/api/v1/project-brand-kits?')) return { items: kits }
+      if (path === `/api/v1/content-runs/${run.run_id}`) return run
       throw new Error(`Unexpected GET ${path}`)
     }),
     post, image: vi.fn(), media: vi.fn(), websocketUrl: vi.fn(), request: vi.fn(),
   } as unknown as ApiClient
 }
 
-function expectBrandSetupBeforeResult() {
-  const setup = screen.getByText('PROJECT BRAND KIT').closest('section')
-  const result = screen.getByText('SOURCE').closest('section')
-  expect(setup).not.toBeNull()
-  expect(result).not.toBeNull()
-  expect(setup!.compareDocumentPosition(result!) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
-}
-
-describe('ResultView prerequisites', () => {
-  it('places missing brand-kit setup before the disabled Result action', async () => {
-    const savedKit: ProjectBrandKit = {
-      brand_kit_id: '018f07ea-7f20-7000-8000-000000000005', project_id: projectId,
-      document: {
-        name: 'Horoscope', colors: ['#111111', '#FFFFFF', '#43BDD3', '#F4F2EC'],
-        fonts: ['Inter'], tone_notes: 'Direct', logo_source_asset_id: null,
-      },
-      document_sha256: 'a'.repeat(64), created_at: '2026-08-26T10:05:00Z',
-    }
-    const post = vi.fn().mockResolvedValue(savedKit)
-    render(<ResultView api={apiWith([], post)} projectId={projectId} language="en" />)
+describe('Instagram Result owner flow', () => {
+  it('requires no task, text-mode choice, asset, or brand-kit input', async () => {
+    const post = vi.fn().mockResolvedValue(run)
+    render(<ResultView api={apiWith(post)} projectId={projectId} language="en" />)
 
     await screen.findByText(brief.product!)
-    expectBrandSetupBeforeResult()
-    expect(screen.getByRole('button', { name: 'Create result' })).toBeDisabled()
-    expect(screen.getByText('Save the Project brand kit above before creating a Result.')).toBeInTheDocument()
+    expect(screen.queryByText('PROJECT BRAND KIT')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Task')).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'Text' })).not.toBeInTheDocument()
+    expect(screen.getByText('Natal branding is applied automatically. Nothing else is required.')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Brand name'), { target: { value: 'Horoscope' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save brand kit' }))
-    await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/project-brand-kits', {
-      project_id: projectId, parent_brand_kit_id: null,
-      document: {
-        name: 'Horoscope', colors: ['#111111', '#FFFFFF', '#43BDD3', '#F4F2EC'],
-        fonts: ['Inter'], tone_notes: 'Direct, conversational, specific, and honest.',
-        logo_source_asset_id: null,
-      },
-    }))
-  })
-
-  it('places missing Instagram logo setup before the disabled Result action', async () => {
-    const kit: ProjectBrandKit = {
-      brand_kit_id: '018f07ea-7f20-7000-8000-000000000005', project_id: projectId,
-      document: { name: 'Horoscope', colors: ['#111111'], fonts: ['Inter'], tone_notes: 'Direct' },
-      document_sha256: 'a'.repeat(64), created_at: '2026-08-26T10:05:00Z',
-    }
-    render(<ResultView api={apiWith([kit])} projectId={projectId} language="en" />)
-
-    await screen.findByText(brief.product!)
-    fireEvent.click(screen.getByRole('radio', { name: 'Instagram post' }))
-    await waitFor(expectBrandSetupBeforeResult)
-    expect(screen.getByRole('button', { name: 'Create result' })).toBeDisabled()
-    expect(screen.getByText('Add an approved logo to the latest brand kit above before creating an Instagram post.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Create Instagram post' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/content-runs', {
+      request_id: expect.any(String), brief_id: brief.brief_id,
+    }, { deadlineMs: 60_000 }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Instagram post creation started.')
   })
 })

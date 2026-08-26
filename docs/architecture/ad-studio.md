@@ -1,8 +1,7 @@
 # PTW Ad Studio
 
-Status: Studio v2 is deployed; automatic post-render creative validation is
-implemented and verified locally but not deployed
-Updated: 2026-08-25
+Status: Studio v2 and automatic post-render creative validation are deployed
+Updated: 2026-08-26
 
 ## Boundary
 

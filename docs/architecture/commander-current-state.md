@@ -1,9 +1,9 @@
 # Commander current state
 
-Updated: 2026-08-25
+Updated: 2026-08-26
 Branch: `codex/web-only-commander`
 
-## Current unreleased follow-up
+## Current deployed follow-up
 
 Studio now has a separate automatic Ad Creative Validator agent with canonical
 skill `ad-creative-validator`. It starts after every initial five-post render
@@ -40,8 +40,20 @@ proxy tests, Commander regression/demo checks, Skill Creator validation, and
 canonical PTW skill sync. Full Owner Gateway discovery still reaches the
 pre-existing dormant-Landing test whose removed
 `marketing_positioning.provider` import has been broken since commit `d40bd5b`;
-the validator does not change that dormant source. The follow-up is not
-deployed.
+the validator does not change that dormant source.
+
+The follow-up is deployed in place as tag `studio-validator-e9e0301` from
+application commit `e9e03017d958b0d83e928844feae8c67ab520b6a` and independent
+platform commit `705518aa64735dcda2493ff1945bccec755ac11a`. Fresh bridge rounds
+`212`–`217` and `218`–`223` passed all three core and all three Studio modes;
+creative-validation requests `216` and `222` proved the exact attached JPEG
+digest. Migration `005` is present, the live schema is 32 application tables
+and 12 Studio tables, and the pre-release 7 Briefs, 4 batches, 20 creatives,
+and 20 creative assets remain unchanged. All five release containers are
+healthy. Both Owner Console hosting origins serve cache
+`ptw-shell-v43-studio-auto-validation`; public Auth/App Check/CORS checks pass.
+No post-release OOM evidence appeared, and the locked 24-hour resource audit is
+scheduled for 2026-08-27 04:37 UTC.
 
 ## Last completed milestone
 

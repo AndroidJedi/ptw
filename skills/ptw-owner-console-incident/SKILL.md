@@ -52,6 +52,16 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
 
 ## Failure handling
 
+- Any FastAPI route that schedules `asyncio` background work must itself be an
+  async route and have a built-image HTTP regression proving it returns the
+  accepted response while the task starts. A healthy service plus
+  `RuntimeError: no running event loop` in Validation logs means a synchronous
+  route was dispatched to FastAPI's worker thread.
+- Product Brief persistence and the singleton generation reservation must
+  commit atomically. Busy admission returns an explicit conflict without
+  leaving another queued Project or Brief. On startup, fail both queued and
+  generating orphan Briefs as interrupted and clear their operation guard so
+  the owner can retry one immutable artifact.
 - Persist checkpoints after every candidate, render, critic pass, action, and
   final materialization. Resume only idempotent JSON stages and deterministic
   rendering. Never duplicate reserved candidates, actions, Results, or calls.

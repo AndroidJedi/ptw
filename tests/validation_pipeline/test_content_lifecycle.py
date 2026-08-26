@@ -227,6 +227,26 @@ class ContentLifecycleTests(unittest.TestCase):
         self.assertEqual(result["creative_id"], feedback["creative_id"])
         self.assertEqual(2, len(feedback["proposal_ids"]))
 
+    def test_restart_fails_orphaned_queued_brief_and_releases_operation(self) -> None:
+        brief, _ = self.authority.create_brief(
+            request_id=str(uuid4()), raw_idea="A queued Product Brief interrupted before its task starts.",
+            requested_by="test", reserve_operation=True,
+        )
+        with self.assertRaisesRegex(RuntimeError, "another generation operation"):
+            self.authority.create_brief(
+                request_id=str(uuid4()), raw_idea="A second idea must not become an orphaned row.",
+                requested_by="test", reserve_operation=True,
+            )
+        self.assertEqual(1, self.authority.activity()["briefs"])
+
+        recovered = self.authority.recover_interrupted()
+
+        failed = self.authority.get_brief(brief["brief_id"])
+        self.assertEqual(1, recovered["briefs"])
+        self.assertEqual("failed", failed["status"])
+        self.assertEqual("Interrupted", failed["error_code"])
+        self.assertIsNone(self.authority.activity()["operation"])
+
 
 if __name__ == "__main__":
     unittest.main()

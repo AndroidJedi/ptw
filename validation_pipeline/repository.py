@@ -126,7 +126,8 @@ class ValidationRepository:
         }
 
     def create_brief(
-        self, *, request_id: str, raw_idea: str, requested_by: str
+        self, *, request_id: str, raw_idea: str, requested_by: str,
+        reserve_operation: bool = False,
     ) -> tuple[dict[str, Any], bool]:
         from psycopg.types.json import Jsonb
 
@@ -142,6 +143,8 @@ class ValidationRepository:
                 value = self._brief_row(existing)
                 if value["raw_idea"] != idea:
                     raise ValueError("request_id was already used with different Product Brief input")
+                if reserve_operation and value["status"] == "queued":
+                    self._acquire_operation(connection, "product_brief", value["brief_id"])
                 return value, False
             source_id, project_id, brief_id = (UUID(new_uuid7()) for _ in range(3))
             digest = hashlib.sha256(idea.encode()).hexdigest()
@@ -185,10 +188,13 @@ class ValidationRepository:
                        VALUES(%s,%s,%s,%s,%s)""",
                     (UUID(new_uuid7()), source, relation, target, Jsonb(attributes)),
                 )
+            if reserve_operation:
+                self._acquire_operation(connection, "product_brief", str(brief_id))
         return self.get_brief(str(brief_id)), True
 
     def create_revision(
-        self, base_brief_id: str, *, request_id: str, instruction: str, requested_by: str
+        self, base_brief_id: str, *, request_id: str, instruction: str, requested_by: str,
+        reserve_operation: bool = False,
     ) -> tuple[dict[str, Any], bool]:
         from psycopg.types.json import Jsonb
 
@@ -207,6 +213,8 @@ class ValidationRepository:
                 value = self._brief_row(existing)
                 if value["base_brief_id"] != base_brief_id:
                     raise ValueError("request_id was already used for another Product Brief correction")
+                if reserve_operation and value["status"] == "queued":
+                    self._acquire_operation(connection, "product_brief", value["brief_id"])
                 return value, False
             feedback_id, weight_id, brief_id = (UUID(new_uuid7()) for _ in range(3))
             for entity_id, kind, attributes in (
@@ -252,6 +260,8 @@ class ValidationRepository:
                        VALUES(%s,%s,%s,%s,%s)""",
                     (UUID(new_uuid7()), source, relation, target, Jsonb(attributes)),
                 )
+            if reserve_operation:
+                self._acquire_operation(connection, "product_brief", str(brief_id))
         return self.get_brief(str(brief_id)), True
 
     def get_brief(self, brief_id: str) -> dict[str, Any]:
@@ -318,18 +328,22 @@ class ValidationRepository:
             )
         return self.get_brief(brief_id), True
 
-    def acquire_operation(self, kind: str, operation_id: str) -> bool:
+    @staticmethod
+    def _acquire_operation(connection: Any, kind: str, operation_id: str) -> None:
         if kind not in {"product_brief", "content_run"}:
             raise ValueError("unsupported operation kind")
-        with self.connection() as connection:
-            changed = connection.execute(
-                """UPDATE commander_operation_guard
-                      SET operation_kind=%s,operation_id=%s,acquired_at=clock_timestamp()
-                    WHERE singleton AND operation_id IS NULL""",
-                (kind, UUID(operation_id)),
-            ).rowcount
+        changed = connection.execute(
+            """UPDATE commander_operation_guard
+                  SET operation_kind=%s,operation_id=%s,acquired_at=clock_timestamp()
+                WHERE singleton AND operation_id IS NULL""",
+            (kind, UUID(operation_id)),
+        ).rowcount
         if changed != 1:
             raise RuntimeError("another generation operation is active")
+
+    def acquire_operation(self, kind: str, operation_id: str) -> bool:
+        with self.connection() as connection:
+            self._acquire_operation(connection, kind, operation_id)
         return True
 
     def release_operation(self, operation_id: str) -> None:
@@ -886,8 +900,9 @@ class ValidationRepository:
         with self.connection() as connection:
             briefs = connection.execute(
                 """UPDATE product_briefs SET status='failed',failure_count=failure_count+1,
-                          error_code='Interrupted',error_message='service restarted during generation',
-                          updated_at=clock_timestamp() WHERE status='generating'"""
+                          error_code='Interrupted',
+                          error_message='service restarted before or during generation',
+                          updated_at=clock_timestamp() WHERE status IN ('queued','generating')"""
             ).rowcount
             connection.execute(
                 """UPDATE validation_generation_attempts SET status='failed',error_code='Interrupted',

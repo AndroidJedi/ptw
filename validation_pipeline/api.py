@@ -110,6 +110,7 @@ def create_app(
         return content_runner
 
     def run_background(function: Any, identifier: str, *, reserved: bool = False) -> None:
+        """Schedule work from an async route handler on the serving event loop."""
         async def execute() -> None:
             try:
                 if reserved:
@@ -118,7 +119,7 @@ def create_app(
                     await asyncio.to_thread(function, identifier)
             except Exception:
                 return
-        task = asyncio.create_task(execute())
+        task = asyncio.get_running_loop().create_task(execute())
         tasks.add(task)
         task.add_done_callback(tasks.discard)
 
@@ -172,18 +173,19 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(error)) from error
 
     @app.post("/internal/v1/briefs", dependencies=[Depends(authorize)], status_code=202)
-    def create_brief(
+    async def create_brief(
         request: Mapping[str, Any], x_ptw_actor: str = Header(default="owner-web")
     ) -> dict[str, Any]:
         active = require_brief_runner()
         try:
             value = validate_create_input(request)
-            brief, created = repository.create_brief(**value, requested_by=x_ptw_actor[:200])
+            brief, created = repository.create_brief(
+                **value, requested_by=x_ptw_actor[:200], reserve_operation=True
+            )
             if brief["status"] == "queued":
-                repository.acquire_operation("product_brief", brief["brief_id"])
                 run_background(active.generate_brief, brief["brief_id"], reserved=True)
             return {"project": repository.get_project(brief["project_id"]), "brief": brief, "created": created}
-        except ValueError as error:
+        except (RuntimeError, ValueError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.get("/internal/v1/briefs", dependencies=[Depends(authorize)])
@@ -204,26 +206,26 @@ def create_app(
             raise HTTPException(status_code=404, detail="Product Brief not found") from error
 
     @app.post("/internal/v1/briefs/{brief_id}/correct", dependencies=[Depends(authorize)], status_code=202)
-    def revise_brief(
+    async def revise_brief(
         brief_id: str, request: Mapping[str, Any], x_ptw_actor: str = Header(default="owner-web")
     ) -> dict[str, Any]:
         active = require_brief_runner()
         try:
             value = validate_revision_input(request)
             replacement, created = repository.create_revision(
-                base_brief_id=str(UUID(brief_id)), requested_by=x_ptw_actor[:200], **value
+                base_brief_id=str(UUID(brief_id)), requested_by=x_ptw_actor[:200],
+                reserve_operation=True, **value
             )
             if replacement["status"] == "queued":
-                repository.acquire_operation("product_brief", replacement["brief_id"])
                 run_background(active.generate_brief, replacement["brief_id"], reserved=True)
             return {"brief": replacement, "created": created}
         except KeyError as error:
             raise HTTPException(status_code=404, detail="base Product Brief not found") from error
-        except ValueError as error:
+        except (RuntimeError, ValueError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.post("/internal/v1/briefs/{brief_id}/retry", dependencies=[Depends(authorize)], status_code=202)
-    def retry_brief(brief_id: str) -> dict[str, Any]:
+    async def retry_brief(brief_id: str) -> dict[str, Any]:
         active = require_brief_runner()
         try:
             normalized = str(UUID(brief_id))
@@ -237,7 +239,7 @@ def create_app(
             return value
         except KeyError as error:
             raise HTTPException(status_code=404, detail="Product Brief not found") from error
-        except ValueError as error:
+        except (RuntimeError, ValueError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.post("/internal/v1/briefs/{brief_id}/approve", dependencies=[Depends(authorize)])
@@ -317,7 +319,7 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(error)) from error
 
     @app.post("/internal/v1/content-runs", dependencies=[Depends(authorize)], status_code=202)
-    def create_content_run(
+    async def create_content_run(
         request: Mapping[str, Any], x_ptw_actor: str = Header(default="owner-web")
     ) -> dict[str, Any]:
         active = require_result_runner()
@@ -385,7 +387,7 @@ def create_app(
             raise HTTPException(status_code=404, detail="Result run not found") from error
 
     @app.post("/internal/v1/content-runs/{run_id}/retry", dependencies=[Depends(authorize)], status_code=202)
-    def retry_content_run(
+    async def retry_content_run(
         run_id: str, request: Mapping[str, Any], x_ptw_actor: str = Header(default="owner-web")
     ) -> dict[str, Any]:
         active = require_result_runner()

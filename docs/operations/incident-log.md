@@ -14,9 +14,55 @@ Historical retired-domain incidents are available only in Git history.
 - A preview with an active form, or a publication that calls the agent again,
   blocks release.
 - A new Telegram poller/worker/webhook or non-allowlisted chat blocks release.
+- A synchronous FastAPI route must not schedule coroutine work; background
+  generation starts only from a running event loop and startup must fail stale
+  queued/generating work while releasing its singleton guard.
+- A provider canary must use the real production prompt, schema, and domain
+  validator. Product Brief language is inferred once per attempt and bound in
+  both the strict output schema and prompt.
 
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
+
+## 2026-08-26: Product Brief creation returned HTTP 500
+
+- Symptom: authenticated `POST /api/v1/briefs` returned HTTP 500. The first
+  request persisted a queued Product Brief and held the singleton generation
+  guard; four repeated submissions then persisted four more queued Briefs and
+  failed behind the occupied guard. After the scheduling repair, a real retry
+  reached the provider but failed domain validation because the returned
+  document language did not match the English source.
+- Cause: synchronous FastAPI handlers called `asyncio.create_task()` without a
+  running event loop. Brief persistence and operation reservation were also
+  separate transactions, startup recovery did not reconcile queued Briefs,
+  and retries reused one provider idempotency key. Separately, the server
+  inferred the source language only after generation, while the provider
+  schema allowed either language. The generic marker canary did not exercise
+  the real Product Brief contract, and post-response validation failures lost
+  their bridge provenance.
+- Durable fix: all five background-starting routes are asynchronous and
+  schedule from the running loop. Product Brief persistence and guard
+  reservation are atomic; contention returns 409 without an orphan row; and
+  startup fails interrupted queued/generating Briefs and clears the guard.
+  Each generation attempt now receives a fresh idempotency key, binds the
+  server-inferred language as a schema constant and explicit prompt
+  requirement, and persists provider provenance on success or rejection. The
+  bridge audit now runs the canonical skill prompt, strict `ProductBriefV1`
+  schema, and domain validator for creation and correction. Focused repository,
+  API, service, and provider regressions cover these boundaries, and the
+  Product Brief and Owner Console incident skills carry the reusable rules.
+- Verification: 16 Validation tests, including the disposable PostgreSQL full
+  Result lifecycle, pass locally and in the Linux/amd64 runtime image. Commander
+  tests/demo, Owner Gateway tests, Owner web tests/build, desktop/mobile
+  Playwright journeys, schema/corpus/skill checks, and diff hygiene pass. The
+  in-place production release `result-v1-20260826-1415-language-hotfix`
+  preserved every table count and required no reset. Fresh real Product Brief,
+  correction, candidate, critic, and Pexels canaries passed. Retrying the exact
+  original Brief completed attempt 2 as English schema v1, with distinct
+  provider request lineage for failed attempt 1 and completed attempt 2; the
+  guard is empty and the four duplicate Briefs remain preserved as failed.
+  All three application services are healthy with zero restarts, and the public
+  Auth/CORS/bundle audit plus the immediate 1 GB/OOM audit passed.
 
 ## 2026-08-25: Studio Wizard request looked inactive while it was running
 

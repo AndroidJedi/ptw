@@ -110,6 +110,76 @@ export interface ContentResult {
   created_at: string
 }
 
+export type CandidateParameterName =
+  | 'hook_pressure'
+  | 'emotional_intensity'
+  | 'conceptual_novelty'
+  | 'information_density'
+  | 'visual_complexity'
+
+export interface CandidatePreview {
+  asset_url: string
+  sha256: string
+  mime_type: 'image/jpeg'
+  width: 1080
+  height: 1080
+}
+
+export interface ContentCandidate {
+  candidate_id: string
+  alias: string
+  round: number
+  generation_kind: 'initial' | 'recomposition' | 'element_regeneration' | 'template_rerun'
+  parent_candidate_id?: string | null
+  template_id: string
+  template_version: number
+  parameters: Record<CandidateParameterName, number>
+  document: CandidateContent
+  preview: CandidatePreview
+}
+
+export interface CriticCandidateScore {
+  scores: Record<string, number>
+  complexity: 'none' | 'moderate' | 'harmful'
+  weighted_total: number
+  eligible: boolean
+  reason_codes: string[]
+}
+
+export interface CriticPairwiseResult {
+  left: string
+  right: string
+  winner: string
+  reason_codes: string[]
+}
+
+export interface CriticAction {
+  action_type: 'recompose' | 'regenerate_elements' | 'rerun_template' | 'discard'
+  base_candidate_id?: string | null
+  output_candidate_id?: string | null
+  parameter_deltas?: Record<string, [number, number]> | null
+  status: string
+}
+
+export interface CriticPassDebug {
+  pass_id: string
+  pass_number: 1 | 2 | 3
+  active_candidate_ids: string[]
+  hard_gates: Record<string, Record<string, boolean>>
+  candidate_scores: Record<string, CriticCandidateScore>
+  ranking: string[]
+  pairwise_results: CriticPairwiseResult[]
+  observations: string[]
+  actions: CriticAction[]
+  final_selection?: { candidate_id: string; decision_summary: string[] } | null
+}
+
+export interface ContentDebug {
+  candidates: ContentCandidate[]
+  critic_passes: CriticPassDebug[]
+  result?: ContentResult | null
+}
+
 export interface ProjectAsset {
   source_asset_id: string
   project_id: string

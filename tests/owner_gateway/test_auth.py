@@ -63,6 +63,7 @@ class OwnerClaimsTests(unittest.TestCase):
         required = {
             "/api/v1/projects", "/api/v1/briefs", "/api/v1/content-runs",
             "/api/v1/content-runs/{run_id}/result",
+            "/api/v1/content-runs/{run_id}/candidates/{candidate_id}/asset",
             "/api/v1/content-runs/{run_id}/feedback",
         }
         self.assertTrue(required <= paths)

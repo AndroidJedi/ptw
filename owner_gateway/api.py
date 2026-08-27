@@ -201,6 +201,24 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             headers=headers,
         )
 
+    @app.get("/api/v1/content-runs/{run_id}/candidates/{candidate_id}/asset")
+    async def content_candidate_asset(
+        run_id: str, candidate_id: str, _identity: OwnerIdentity = Depends(owner)
+    ) -> Response:
+        response = await validation_bridge(
+            "GET",
+            f"/internal/v1/content-runs/{run_id}/candidates/{candidate_id}/asset",
+            timeout=60,
+        )
+        headers = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
+        if response.headers.get("etag"):
+            headers["ETag"] = response.headers["etag"]
+        return Response(
+            content=response.content,
+            media_type=response.headers.get("content-type", "application/octet-stream"),
+            headers=headers,
+        )
+
     @app.get("/api/v1/content-runs/{run_id}/debug")
     async def content_debug(run_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return (await validation_bridge("GET", f"/internal/v1/content-runs/{run_id}/debug")).json()

@@ -216,6 +216,22 @@ class ContentLifecycleTests(unittest.TestCase):
         self.assertTrue(all(len(item["images"]) in {2, 5} for item in self.bridge.critic_calls))
 
         debug_before = self.repository.debug(run["run_id"])
+        initial_debug = [
+            item for item in debug_before["candidates"] if item["generation_kind"] == "initial"
+        ]
+        self.assertEqual(5, len(initial_debug))
+        self.assertTrue(all(item["preview"]["mime_type"] == "image/jpeg" for item in initial_debug))
+        self.assertTrue(all(item["preview"]["width"] == 1080 for item in initial_debug))
+        self.assertTrue(all(
+            item["preview"]["asset_url"] == (
+                f"/api/v1/content-runs/{run['run_id']}/candidates/{item['candidate_id']}/asset"
+            )
+            for item in initial_debug
+        ))
+        first_preview = self.repository.candidate_preview(
+            initial_debug[0]["candidate_id"], expected_run_id=run["run_id"],
+        )
+        self.assertEqual(initial_debug[0]["preview"]["sha256"], first_preview["sha256"])
         repeated = self.orchestrator.execute(run["run_id"])
         debug_after = self.repository.debug(run["run_id"])
         self.assertEqual(result["creative_id"], repeated["creative_id"])

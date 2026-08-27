@@ -41,6 +41,18 @@ Result v1 implements:
   digest-pinned Natal logo, palette, and Inter font; public asset and brand-kit
   setup routes are absent.
 
+The current working-tree milestone replaces the completed Result's raw debug
+JSON presentation with a collapsed visual explanation: five initial candidate
+JPEG cards, exact per-candidate parameter values, Pass 1 gates and scores, and
+a three-pass ranking/pairwise/improvement/final-selection path. Candidate
+previews are exposed only through authenticated run-scoped no-store routes and
+retain browser-side MIME, digest, and ETag verification. This milestone is not
+yet recorded as deployed below. Focused web unit/build checks, Playwright on
+desktop, 360 px Chromium, and iPhone WebKit, the Validation and Owner Gateway
+built-image suites, the disposable PostgreSQL Result lifecycle, the clean and
+idempotent schema verifier, Commander tests/demo, canonical skill verification,
+and `git diff --check` pass.
+
 The independent platform worktree now advertises only four JSON modes and one
 reviewed non-human graphic mode. It validates one-to-five digest-mapped JPEG
 critic attachments, rejects image generation in JSON modes, uses fresh

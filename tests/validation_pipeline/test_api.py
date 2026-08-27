@@ -130,6 +130,42 @@ class ValidationApiRouteTests(unittest.TestCase):
         self.assertEqual(409, response.status_code, response.text)
         self.assertEqual("another generation operation is active", response.json()["detail"])
 
+    def test_candidate_preview_is_run_scoped_and_never_cached(self) -> None:
+        run_id = "01900000-0000-7000-8000-000000000010"
+        candidate_id = "01900000-0000-7000-8000-000000000011"
+
+        class Repository:
+            def recover_interrupted(self) -> dict[str, int]:
+                return {"briefs": 0, "renders": 0, "content_attempts": 0}
+
+        class ContentRepository:
+            def candidate_preview(self, identifier: str, *, expected_run_id: str) -> dict:
+                if identifier != candidate_id or expected_run_id != run_id:
+                    raise KeyError(identifier)
+                return {
+                    "bytes": b"\xff\xd8candidate\xff\xd9", "sha256": "a" * 64,
+                    "mime_type": "image/jpeg", "width": 1080, "height": 1080,
+                }
+
+        class ContentRunner:
+            def resume_incomplete(self) -> None:
+                return None
+
+        app = create_app(
+            self.settings(), repository=Repository(), runner=object(),
+            content_repository=ContentRepository(), content_runner=ContentRunner(),
+        )
+        with TestClient(app) as client:
+            response = client.get(
+                f"/internal/v1/content-runs/{run_id}/candidates/{candidate_id}/asset",
+                headers={"X-PTW-Owner-Gateway-Token": "owner-token"},
+            )
+
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual("private, no-store", response.headers["cache-control"])
+        self.assertEqual('"' + "a" * 64 + '"', response.headers["etag"])
+        self.assertEqual("image/jpeg", response.headers["content-type"])
+
 
 if __name__ == "__main__":
     unittest.main()

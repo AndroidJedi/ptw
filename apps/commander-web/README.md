@@ -8,10 +8,12 @@ The authenticated PWA has two Project-scoped workspaces:
    server applies the immutable Natal identity and the fixed Instagram task;
    there is no brand-kit form, output-type choice, or task field.
 
-Internal candidates, templates, sliders, UUID entry, recipes, layers, provider
-prompts, and model controls stay hidden from the normal journey. A bounded
-owner-only debug section exposes IDs, versions, scores, gates, actions, digests,
-retries, and lineage without chain-of-thought or raw source/attachment data.
+Internal candidates, templates, parameters, UUID entry, recipes, layers,
+provider prompts, and model controls stay hidden from the normal journey. A
+collapsed owner-only explanation lays out the five initial candidate previews,
+their exact five parameter values, and the persisted three-pass decision path.
+Bounded debug data remains available without exposing chain-of-thought,
+credentials, raw attachment bytes, or unrestricted source data.
 
 The browser does not perform research, publishing, traffic, campaigns, UTMs,
 analytics, optimization, or direct image generation. PostgreSQL behind Owner

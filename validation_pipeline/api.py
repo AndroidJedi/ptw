@@ -379,6 +379,24 @@ def create_app(
         except (KeyError, ValueError) as error:
             raise HTTPException(status_code=404, detail="rendered Result asset not found") from error
 
+    @app.get(
+        "/internal/v1/content-runs/{run_id}/candidates/{candidate_id}/asset",
+        dependencies=[Depends(authorize)],
+    )
+    def content_candidate_asset(run_id: str, candidate_id: str) -> Response:
+        try:
+            normalized_run_id = str(UUID(run_id))
+            normalized_candidate_id = str(UUID(candidate_id))
+            value = content_repository.candidate_preview(
+                normalized_candidate_id, expected_run_id=normalized_run_id,
+            )
+            return Response(
+                content=value["bytes"], media_type=value["mime_type"],
+                headers={"Cache-Control": "private, no-store", "ETag": f'"{value["sha256"]}"'},
+            )
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=404, detail="candidate preview not found") from error
+
     @app.get("/internal/v1/content-runs/{run_id}/debug", dependencies=[Depends(authorize)])
     def content_debug(run_id: str) -> dict[str, Any]:
         try:

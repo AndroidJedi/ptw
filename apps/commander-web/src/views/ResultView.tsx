@@ -2,8 +2,9 @@ import { Check, Download, RefreshCcw, Sparkles, ThumbsDown, ThumbsUp } from 'luc
 import { useEffect, useMemo, useState } from 'react'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
+import { ResultDecisionTrace } from '../components/ResultDecisionTrace'
 import { translate, type Language } from '../i18n'
-import type { ContentResult, ContentRun, ProductBrief } from '../types'
+import type { ContentDebug, ContentResult, ContentRun, ProductBrief } from '../types'
 
 const ACTIVE = new Set(['queued', 'generating'])
 
@@ -40,7 +41,7 @@ export function ResultView({ api, projectId, language }: { api: ApiClient; proje
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
-  const [debug, setDebug] = useState<Record<string, unknown> | null>(null)
+  const [debug, setDebug] = useState<ContentDebug | null>(null)
   const tr = (en: string, uk: string) => translate(language, en, uk)
 
   const approved = useMemo(
@@ -60,6 +61,7 @@ export function ResultView({ api, projectId, language }: { api: ApiClient; proje
     setBriefs(briefValue.items); setRuns(runValue.items)
     const runId = preferredRunId || selectedRun?.run_id || runValue.items[0]?.run_id
     if (!runId) { setSelectedRun(null); setResult(null); return }
+    if (selectedRun?.run_id !== runId) setDebug(null)
     const run = await api.get<ContentRun>(`/api/v1/content-runs/${runId}`)
     setSelectedRun(run)
     if (run.status === 'completed') {
@@ -163,7 +165,7 @@ export function ResultView({ api, projectId, language }: { api: ApiClient; proje
           <ResultContent value={result} language={language} />
           <section className="result-why"><small>{tr('WHY THIS DIRECTION', 'ЧОМУ ЦЕЙ НАПРЯМ')}</small><ul>{result.decision_summary.map((item) => <li key={item}>{item}</li>)}</ul></section>
           <div className="result-actions"><button className="primary" onClick={() => void download()}><Download />{tr('Download post', 'Завантажити допис')}</button><button className="secondary" onClick={() => void useResult()}><Check />{tr('Use post', 'Використати допис')}</button><button onClick={() => void feedback('accepted')}><ThumbsUp />{tr('Accept', 'Прийняти')}</button><button onClick={() => void feedback('rejected')}><ThumbsDown />{tr('Reject', 'Відхилити')}</button><button onClick={() => { setSelectedRun(null); setResult(null); setDebug(null); setNotice(tr('Ready to create another immutable Instagram post.', 'Можна створити ще один незмінний допис в Instagram.')) }}><Sparkles />{tr('Create another', 'Створити ще')}</button></div>
-          <details onToggle={(event) => { if ((event.currentTarget as HTMLDetailsElement).open && !debug) void api.get<Record<string, unknown>>(`/api/v1/content-runs/${selectedRun.run_id}/debug`).then(setDebug).catch((cause: Error) => setError(cause.message)) }}><summary>{tr('How this was made', 'Як це було створено')}</summary><pre>{debug ? JSON.stringify(debug, null, 2) : tr('Loading bounded trace…', 'Завантаження обмеженого трасування…')}</pre></details>
+          <details className="result-debug" onToggle={(event) => { if ((event.currentTarget as HTMLDetailsElement).open && !debug) void api.get<ContentDebug>(`/api/v1/content-runs/${selectedRun.run_id}/debug`).then(setDebug).catch((cause: Error) => setError(cause.message)) }}><summary>{tr('See all five directions and the decision', 'Переглянути всі п’ять напрямів і рішення')}</summary>{debug ? <ResultDecisionTrace value={debug} api={api} selectedCandidateId={result.selected_candidate_id} language={language} /> : <p>{tr('Loading bounded trace…', 'Завантаження обмеженого трасування…')}</p>}</details>
         </div>}
       </section>}
 

@@ -35,8 +35,11 @@ Updated: 2026-08-26
   feedback.
 - Do not expose templates, sliders, alternate candidates, UUID entry, layers,
   recipes, prompts, or model controls in the normal journey.
-- A collapsed owner-only debug view may expose bounded versions, IDs, scores,
-  gates, actions, digests, retry counts, and lineage, never chain-of-thought,
+- A collapsed owner-only explanation may show all five initial candidate
+  previews, their exact five parameter values, and a visual rendering of the
+  persisted gate, score, ranking, pairwise, action, observation, and final-
+  selection trail. Deeper debug may expose bounded versions, IDs, digests,
+  retry counts, and lineage. Neither surface may expose chain-of-thought,
   credentials, raw attachment base64, or unrestricted source contents.
 - There is no publishing, campaign, traffic, UTM, analytics, or optimization
   action.

@@ -17,6 +17,13 @@ displayed artifact to its final Creative UUID server-side before appending
 feedback, zero-delta WeightUpdate, skill proposal, and graph edges. The owner
 never copies an internal UUID into a form.
 
+The completed view keeps one final post prominent. Its collapsed explanation
+loads the five initial candidate previews through authenticated run-and-
+candidate-scoped asset routes, verifies each persisted JPEG digest in the
+browser, shows exact parameter values, and renders the three persisted critic
+passes as a gate, score, ranking, pairwise, improvement, and final-selection
+flow. Preview and trace responses are private and never cached.
+
 The PWA service worker caches only public shell assets. API responses,
 authenticated JPEGs, debug traces, and feedback responses are never cached.
 

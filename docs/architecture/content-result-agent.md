@@ -59,6 +59,12 @@ parent.
 The owner normally sees only the approved source, one Instagram create action,
 three progress stages, one final post, two-to-four selection observations,
 download/use, retry, and feedback. The public path has no text profile, task
-field, asset upload, or brand-kit setup. Debug exposes bounded IDs, versions,
-scores, gates, actions, digests, provider request IDs, and lineage, never
-chain-of-thought, credentials, raw base64, or unrestricted source contents.
+field, asset upload, or brand-kit setup. The collapsed owner-only explanation
+lays out the five initial candidate JPEGs, their exact five parameter values,
+Pass 1 gate/score results, and the persisted three-pass ranking, pairwise,
+action, observation, and final-selection trail. Candidate JPEGs use
+run-scoped authenticated no-store endpoints and the same client-side MIME,
+SHA-256, and ETag verification as the final Result. Deeper debug remains
+bounded to IDs, versions, scores, gates, actions, digests, provider request
+IDs, and lineage; neither view exposes chain-of-thought, credentials, raw
+base64, or unrestricted source contents.

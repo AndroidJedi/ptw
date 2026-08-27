@@ -584,10 +584,40 @@ class ContentResultRepository:
             )
         return self.get_candidate(candidate_id)
 
-    def candidate_preview(self, candidate_id: str) -> dict[str, Any]:
-        candidate = self.get_candidate(candidate_id)
-        if candidate["render_id"]:
-            value = self.authority.render_asset(candidate["render_id"])
+    def candidate_preview_metadata(self, candidate_id: str) -> dict[str, Any]:
+        with self.authority.connection() as connection:
+            row = connection.execute(
+                """SELECT candidate.run_id,
+                          COALESCE(render.bytes_sha256,preview.bytes_sha256),
+                          COALESCE(render.mime_type,preview.mime_type),
+                          COALESCE(render.width,preview.width),
+                          COALESCE(render.height,preview.height)
+                     FROM content_candidates candidate
+                     LEFT JOIN studio_renders render ON render.entity_id=candidate.render_id
+                     LEFT JOIN content_candidate_previews preview ON preview.candidate_id=candidate.entity_id
+                    WHERE candidate.entity_id=%s""",
+                (UUID(candidate_id),),
+            ).fetchone()
+        if row is None or row[1] is None:
+            raise KeyError(candidate_id)
+        return {
+            "run_id": str(row[0]), "sha256": row[1], "mime_type": row[2],
+            "width": int(row[3]), "height": int(row[4]),
+        }
+
+    def candidate_preview(self, candidate_id: str, *, expected_run_id: str | None = None) -> dict[str, Any]:
+        metadata = self.candidate_preview_metadata(candidate_id)
+        if expected_run_id is not None and metadata["run_id"] != expected_run_id:
+            raise KeyError(candidate_id)
+        with self.authority.connection() as connection:
+            row = connection.execute(
+                "SELECT render_id FROM content_candidates WHERE entity_id=%s",
+                (UUID(candidate_id),),
+            ).fetchone()
+        if row is None:
+            raise KeyError(candidate_id)
+        if row[0] is not None:
+            value = self.authority.render_asset(str(row[0]))
             return {
                 "bytes": value["bytes"], "sha256": value["sha256"], "mime_type": value["mime_type"],
                 "width": 1080, "height": 1080,
@@ -1057,6 +1087,16 @@ class ContentResultRepository:
     def debug(self, run_id: str) -> dict[str, Any]:
         run = self.get_run(run_id)
         candidates = self.list_candidates(run_id)
+        for candidate in candidates:
+            preview = self.candidate_preview_metadata(candidate["candidate_id"])
+            candidate["preview"] = {
+                "asset_url": (
+                    f"/api/v1/content-runs/{run_id}/candidates/"
+                    f"{candidate['candidate_id']}/asset"
+                ),
+                "sha256": preview["sha256"], "mime_type": preview["mime_type"],
+                "width": preview["width"], "height": preview["height"],
+            }
         with self.authority.connection() as connection:
             passes = connection.execute(
                 """SELECT entity_id,pass_number,active_candidate_ids,hard_gates,element_scores,

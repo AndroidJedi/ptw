@@ -1,8 +1,6 @@
 {
   "template_id": "direct_offer",
   "version": 2,
-  "studio_template_version": 2,
-  "studio_template_sha256": "09f6a88ae61fb0c36d3d4939533d70792db6b598c5ed6572dd5c67baca7d770d",
   "active": true,
   "philosophy": "Reduce the creative to the clearest supplied value, exact offer, reassurance, and next action. Specificity keeps the direction from becoming generic.",
   "narrative_sequence": ["dominant promise", "one concrete support", "exact offer", "effort price or risk reassurance", "exact CTA"],

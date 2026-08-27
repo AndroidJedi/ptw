@@ -331,6 +331,35 @@ class StudioTemplateRegistry:
         self.directory = directory
 
     def load_active(self, strategy_templates: Sequence[Any] = ()) -> tuple[StudioTemplate, ...]:
+        manifest_path = self.directory / "manifest.json"
+        try:
+            manifest = json.loads(manifest_path.read_text())
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError("Studio template registry manifest is unavailable or invalid") from error
+        if (
+            not isinstance(manifest, Mapping)
+            or set(manifest) != {"schema", "active"}
+            or manifest.get("schema") != "ptw.studio.template-registry.v1"
+            or not isinstance(manifest.get("active"), list)
+        ):
+            raise ValueError("Studio template registry manifest fields are invalid")
+        registry: dict[str, Mapping[str, Any]] = {}
+        for item in manifest["active"]:
+            if not isinstance(item, Mapping) or set(item) != {
+                "template_id", "version", "strategy_sha256", "studio_sha256",
+            }:
+                raise ValueError("Studio template registry entry fields are invalid")
+            template_id = str(item["template_id"])
+            if (
+                template_id in registry or template_id not in TEMPLATE_IDS
+                or int(item["version"]) != TEMPLATE_VERSION
+                or not re.fullmatch(r"[0-9a-f]{64}", str(item["strategy_sha256"]))
+                or not re.fullmatch(r"[0-9a-f]{64}", str(item["studio_sha256"]))
+            ):
+                raise ValueError("Studio template registry entry identity is invalid")
+            registry[template_id] = item
+        if set(registry) != set(TEMPLATE_IDS):
+            raise ValueError("Studio template registry manifest must lock exactly five active IDs")
         templates: list[StudioTemplate] = []
         for path in sorted(self.directory.glob("*.json")):
             try:
@@ -345,6 +374,9 @@ class StudioTemplateRegistry:
         if len(templates) != 5 or len(set(ids)) != 5 or set(ids) != set(TEMPLATE_IDS):
             raise ValueError("Studio registry must contain exactly five active template definitions")
         ordered = tuple(sorted(templates, key=lambda item: TEMPLATE_IDS.index(item.template_id)))
+        for template in ordered:
+            if registry[template.template_id]["studio_sha256"] != template.digest:
+                raise ValueError(f"Studio template registry digest mismatch: {template.template_id}")
         if strategy_templates:
             strategies = {item.template_id: item for item in strategy_templates}
             if set(strategies) != set(ids):
@@ -353,8 +385,8 @@ class StudioTemplateRegistry:
                 strategy = strategies[template.template_id]
                 if (
                     int(strategy.version) != TEMPLATE_VERSION
-                    or int(strategy.studio_template_version) != template.version
-                    or str(strategy.studio_template_sha256) != template.digest
+                    or int(registry[template.template_id]["version"]) != template.version
+                    or str(registry[template.template_id]["strategy_sha256"]) != strategy.digest
                 ):
                     raise ValueError(
                         f"strategy and Studio template version/digest mismatch: {template.template_id}"

@@ -117,8 +117,6 @@ def _bounded_text(value: Any, name: str, *, minimum: int = 1, maximum: int) -> s
 class StrategyTemplate:
     template_id: str
     version: int
-    studio_template_version: int
-    studio_template_sha256: str
     philosophy: str
     narrative_sequence: tuple[str, ...]
     visual_grammar: tuple[str, ...]
@@ -135,7 +133,7 @@ class StrategyTemplate:
         expected = {
             "template_id", "version", "active", "philosophy", "narrative_sequence",
             "visual_grammar", "defaults", "envelopes", "strengths", "failure_modes",
-            "prompt_fragment", "studio_template_version", "studio_template_sha256",
+            "prompt_fragment",
         }
         if set(value) != expected:
             raise ValueError("template document fields do not match v1")
@@ -143,10 +141,8 @@ class StrategyTemplate:
         if template_id not in TEMPLATE_IDS or value.get("active") is not True:
             raise ValueError("template must be one of the five active Result strategies")
         version = int(value["version"])
-        studio_version = int(value["studio_template_version"])
-        studio_digest = str(value["studio_template_sha256"])
-        if version != 2 or studio_version != 2 or not re.fullmatch(r"[0-9a-f]{64}", studio_digest):
-            raise ValueError("active strategy and Studio template identities must use valid v2 metadata")
+        if version != 2:
+            raise ValueError("active strategy templates must use version 2")
         defaults = value.get("defaults")
         envelopes = value.get("envelopes")
         if not isinstance(defaults, Mapping) or set(defaults) != set(SLIDER_NAMES):
@@ -175,8 +171,6 @@ class StrategyTemplate:
         return cls(
             template_id=template_id,
             version=version,
-            studio_template_version=studio_version,
-            studio_template_sha256=studio_digest,
             philosophy=_bounded_text(value["philosophy"], "template philosophy", maximum=1000),
             narrative_sequence=sequence,
             visual_grammar=grammar,
@@ -532,6 +526,10 @@ class ContentContextAssembler:
         ]
         first = bundles[0].document
         critic_context = self.critic_context()
+        from .studio_templates import StudioTemplateRegistry
+        studio_templates = {
+            item.template_id: item for item in StudioTemplateRegistry().load_active(templates)
+        }
         document = {
             "schema_version": 1,
             "brief": first["brief"], "task": first["task"],
@@ -546,8 +544,8 @@ class ContentContextAssembler:
             "template_versions": [{
                 "template_id": template.template_id, "version": template.version,
                 "digest": template.digest, "defaults": dict(template.defaults),
-                "studio_template_version": template.studio_template_version,
-                "studio_template_sha256": template.studio_template_sha256,
+                "studio_template_version": studio_templates[template.template_id].version,
+                "studio_template_sha256": studio_templates[template.template_id].digest,
                 "envelopes": {name: list(bounds) for name, bounds in template.envelopes.items()},
             } for template in templates],
         }

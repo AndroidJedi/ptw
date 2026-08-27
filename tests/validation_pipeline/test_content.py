@@ -31,6 +31,7 @@ REFERENCES = ROOT / "skills/content-candidate-generator/references"
 class ResultContractsTests(unittest.TestCase):
     @staticmethod
     def _recipe_run(template, brand, brief):
+        studio = StudioTemplateRegistry().get(template.template_id)
         return {
             "candidate_template_id": template.template_id,
             "candidate_parameters": dict(template.defaults),
@@ -39,8 +40,8 @@ class ResultContractsTests(unittest.TestCase):
                 "template_versions": [{
                     "template_id": template.template_id, "version": template.version,
                     "digest": template.digest,
-                    "studio_template_version": template.studio_template_version,
-                    "studio_template_sha256": template.studio_template_sha256,
+                    "studio_template_version": studio.version,
+                    "studio_template_sha256": studio.digest,
                 }],
             },
         }

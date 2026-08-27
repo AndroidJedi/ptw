@@ -47,6 +47,13 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   Gateway tests, canonical skill verification, and diff hygiene pass locally.
   The deployment bridge audit now generates and domain-validates a real
   UUID-allowlisted `CandidateV2` instead of accepting a generic marker object.
+  The in-place release `result-v1-20260827-0900-uuid-hotfix` then passed that
+  real candidate boundary twice, Product Brief creation/correction, mapped
+  critic, Pexels, schema, dependency, skill, public Auth/CORS/retired-route,
+  and immediate 1 GB/OOM audits. All Commander counts were preserved, platform
+  counts were unchanged by the application cutover, all three application
+  services are healthy with zero restarts, the failed run remains immutable,
+  and its operation guard is empty for a normal child retry.
 
 ## 2026-08-26: Product Brief creation returned HTTP 500
 

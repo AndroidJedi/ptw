@@ -1,6 +1,6 @@
 # Commander current state
 
-Updated: 2026-08-26
+Updated: 2026-08-27
 Branch: `codex/web-only-commander`
 
 ## Current milestone
@@ -138,3 +138,23 @@ OOM event occurred, and the locked 24-hour resource audit is scheduled for
 2026-08-27 14:17 UTC. Because the required clean-reset state contains no Result,
 the live authenticated Result-image digest/ETag check is deferred to the first
 real post; built-image lifecycle and 1080x1080 JPEG checks passed before release.
+
+The initial Instagram Result UUID incident was repaired in place without a
+reset as `result-v1-20260827-0900-uuid-hotfix` from application commit
+`20ca7858082021076e0add35bc2511828c3676de`; the independent platform remains at
+`4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`. One generated direction had mixed
+`studio.*` tool IDs into a UUID-only visual `source_ids` array because that
+structured-schema field accepted unrestricted strings. Candidate schemas now
+bind exact server-supplied UUIDv7 enums, approved media IDs have their own
+Project-asset enum, and the domain boundary repeats both checks.
+
+The live bridge generated and domain-validated the real UUID-allowlisted
+`CandidateV2` twice, with Product Brief, correction, critic, and Pexels canaries
+also passing. All Commander table counts were identical across the in-place
+rollout; independent-platform counts were identical across the application
+cutover after the explicit canaries. Commander, Validation, and Owner Gateway
+are healthy on the matching hotfix tag with zero restarts. Dependency, skill,
+schema, public Auth/App Check/CORS/retired-route, and immediate 1 GB/OOM audits
+passed. Failed run `01a041c0-af7c-7881-bec4-bf4ebc2d23cf` remains immutable,
+and the empty operation guard permits its normal Owner Console retry as a new
+child run.

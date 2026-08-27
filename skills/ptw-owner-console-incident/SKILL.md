@@ -81,6 +81,12 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
 - A failed initial template after its one fresh JSON retry fails the run. An
   ambiguous graphic call terminates it without retry. Incomplete runs remain
   internal and are never exposed as a Result.
+- Candidate identifier arrays must be constrained in the structured output
+  schema to the exact server-supplied UUID allowlist. Never leave
+  `visual_components[*].source_ids` as unrestricted strings: tool IDs can then
+  pass bridge validation and fail later as a raw UUID parser error. Constrain
+  `media_request.source_asset_id` separately to approved Project asset UUIDs
+  plus `null`, and repeat both checks at the domain boundary.
 - Preserve exact provider request IDs and failed retry provenance. Present an
   actionable failure and create a new immutable child run on owner retry.
 - For offer/CTA failures, compare byte-exact protected fields from Brief,

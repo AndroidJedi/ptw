@@ -6,7 +6,8 @@ import unittest
 
 from commander.ids import new_uuid7
 from validation_pipeline.content import (
-    CandidateV2, CorpusStore, TemplateRegistry, final_eligible, weighted_candidate_score,
+    CandidateV2, CorpusStore, TemplateRegistry, candidate_output_schema, final_eligible,
+    weighted_candidate_score,
 )
 from validation_pipeline.content_adapters import InstagramStaticAdapter
 from validation_pipeline.natal_brand import (
@@ -136,6 +137,47 @@ class ResultContractsTests(unittest.TestCase):
         value["cta"] = "Different"
         with self.assertRaisesRegex(ValueError, "exact Product Brief"):
             CandidateV2.from_dict(value, brief=brief, output_profile="marketing_copy_v1")
+
+    def test_candidate_schema_allows_only_server_supplied_uuid_references(self) -> None:
+        brief_id, logo_id, approved_photo_id = [new_uuid7() for _ in range(3)]
+        schema = candidate_output_schema(
+            allowed_source_ids=[brief_id, logo_id, approved_photo_id],
+            approved_asset_ids=[logo_id, approved_photo_id],
+        )
+
+        media_schema = schema["properties"]["media_request"]["properties"]["source_asset_id"]
+        source_schema = schema["properties"]["visual_components"]["items"]["properties"]["source_ids"]
+        self.assertEqual([None, *sorted([logo_id, approved_photo_id])], media_schema["enum"])
+        self.assertEqual(sorted([brief_id, logo_id, approved_photo_id]), source_schema["items"]["enum"])
+        self.assertNotIn("studio.frame.media.v1", source_schema["items"]["enum"])
+
+        value = {
+            "schema_version": 2, "hook": "A concrete opening",
+            "headline": "One clear next step", "primary_text": "A specific mechanism.",
+            "supporting_text": "A bounded supporting line.",
+            "offer": "First consultation free", "cta": "Book now",
+            "caption": "A complete caption.", "alt_text": "A complete alt description.",
+            "desired_emotion": "calm confidence", "visual_concept": "One real scene.",
+            "media_request": {
+                "kind": "pexels_real_photo", "query": "adult at desk",
+                "source_asset_id": None, "reason": "A real photograph supports the message.",
+            },
+            "visual_components": [
+                {"role": role, "content": role.replace("_", " "), "source_ids": []}
+                for role in (
+                    "background", "primary_subject", "headline_block", "supporting_text_block",
+                    "offer_block", "cta_block", "brand_mark", "lighting_style", "composition",
+                )
+            ],
+        }
+        value["visual_components"][0]["source_ids"] = ["studio.frame.media.v1"]
+        with self.assertRaisesRegex(ValueError, "server-supplied UUIDs"):
+            CandidateV2.from_dict(
+                value, brief={"offer": value["offer"], "cta": value["cta"]},
+                output_profile="instagram_static_ad_v1",
+                allowed_source_ids=[brief_id, logo_id, approved_photo_id],
+                approved_asset_ids=[logo_id, approved_photo_id],
+            )
 
     def test_final_thresholds_fail_closed(self) -> None:
         scores = {

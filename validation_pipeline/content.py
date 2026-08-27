@@ -590,6 +590,8 @@ class CandidateV2:
     @classmethod
     def from_dict(
         cls, value: Mapping[str, Any], *, brief: Mapping[str, Any], output_profile: str,
+        allowed_source_ids: Sequence[str] | None = None,
+        approved_asset_ids: Sequence[str] | None = None,
     ) -> "CandidateV2":
         expected = {
             "schema_version", "hook", "headline", "primary_text", "supporting_text",
@@ -620,7 +622,18 @@ class CandidateV2:
             raise ValueError("candidate requested an unsupported media kind")
         source_asset_id = raw_media.get("source_asset_id")
         if source_asset_id is not None:
-            source_asset_id = str(UUID(str(source_asset_id)))
+            try:
+                source_asset_id = str(UUID(str(source_asset_id)))
+            except (AttributeError, TypeError, ValueError) as error:
+                raise ValueError(
+                    "media_request.source_asset_id must be a server-supplied UUID"
+                ) from error
+        allowed_assets = (
+            None if approved_asset_ids is None
+            else {str(UUID(str(item))) for item in approved_asset_ids}
+        )
+        if source_asset_id is not None and allowed_assets is not None and source_asset_id not in allowed_assets:
+            raise ValueError("media_request.source_asset_id was not supplied as an approved Project asset")
         if kind == "approved_asset" and source_asset_id is None:
             raise ValueError("approved_asset media requests require a source_asset_id")
         if kind != "approved_asset" and source_asset_id is not None:
@@ -640,6 +653,10 @@ class CandidateV2:
             raise ValueError("visual_components must be a bounded list")
         components: list[dict[str, Any]] = []
         seen_roles: set[str] = set()
+        allowed_sources = (
+            None if allowed_source_ids is None
+            else {str(UUID(str(item))) for item in allowed_source_ids}
+        )
         for index, raw in enumerate(raw_components):
             if not isinstance(raw, Mapping) or set(raw) != {"role", "content", "source_ids"}:
                 raise ValueError(f"visual_components[{index}] fields do not match v1")
@@ -649,7 +666,16 @@ class CandidateV2:
             if role != "decorative_element" and role in seen_roles:
                 raise ValueError("required visual component roles must be unique")
             seen_roles.add(role)
-            source_ids = [str(UUID(str(item))) for item in raw.get("source_ids") or []]
+            try:
+                source_ids = [str(UUID(str(item))) for item in raw.get("source_ids") or []]
+            except (AttributeError, TypeError, ValueError) as error:
+                raise ValueError(
+                    f"visual_components[{index}].source_ids must contain only server-supplied UUIDs"
+                ) from error
+            if allowed_sources is not None and any(item not in allowed_sources for item in source_ids):
+                raise ValueError(
+                    f"visual_components[{index}].source_ids contains an identifier not supplied by the server"
+                )
             components.append({
                 "role": role,
                 "content": _bounded_text(raw.get("content"), f"visual_components[{index}].content", maximum=1000),
@@ -668,7 +694,11 @@ class CandidateV2:
         return cls(normalized, sha256_json(normalized))
 
 
-def candidate_output_schema() -> dict[str, Any]:
+def candidate_output_schema(
+    *, allowed_source_ids: Sequence[str] = (), approved_asset_ids: Sequence[str] = (),
+) -> dict[str, Any]:
+    allowed_sources = sorted({str(UUID(str(item))) for item in allowed_source_ids})
+    approved_assets = sorted({str(UUID(str(item))) for item in approved_asset_ids})
     text = {"type": "string", "minLength": 1}
     return {
         "type": "object", "additionalProperties": False,
@@ -691,7 +721,9 @@ def candidate_output_schema() -> dict[str, Any]:
                         "none", "approved_asset", "pexels_real_photo", "non_human_graphic",
                     ]},
                     "query": {"type": "string"},
-                    "source_asset_id": {"type": ["string", "null"]},
+                    "source_asset_id": {
+                        "type": ["string", "null"], "enum": [None, *approved_assets],
+                    },
                     "reason": text,
                 },
             },
@@ -703,7 +735,10 @@ def candidate_output_schema() -> dict[str, Any]:
                     "properties": {
                         "role": {"type": "string", "enum": list(VISUAL_ROLES)},
                         "content": text,
-                        "source_ids": {"type": "array", "items": {"type": "string"}},
+                        "source_ids": {
+                            "type": "array",
+                            "items": {"type": "string", "enum": allowed_sources},
+                        },
                     },
                 },
             },

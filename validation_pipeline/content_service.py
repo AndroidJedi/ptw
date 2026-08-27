@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from typing import Any, Mapping, Sequence
+from uuid import UUID
 
 from commander.ids import new_uuid7
 
@@ -78,6 +79,28 @@ class CandidateGenerationOrchestrator:
             deadline = deadline.replace(tzinfo=timezone.utc)
         if datetime.now(timezone.utc) >= deadline:
             raise TimeoutError("Result run exceeded the 45-minute wall-clock limit")
+
+    @staticmethod
+    def _supplied_uuid_ids(value: Any) -> list[str]:
+        identifiers: set[str] = set()
+
+        def collect(item: Any) -> None:
+            if isinstance(item, Mapping):
+                for nested in item.values():
+                    collect(nested)
+            elif isinstance(item, (list, tuple)):
+                for nested in item:
+                    collect(nested)
+            elif isinstance(item, str):
+                try:
+                    parsed = UUID(item)
+                except ValueError:
+                    return
+                if parsed.version == 7:
+                    identifiers.add(str(parsed))
+
+        collect(value)
+        return sorted(identifiers)
 
     @staticmethod
     def _candidate_system_prompt(context: Mapping[str, Any]) -> str:
@@ -231,6 +254,11 @@ class CandidateGenerationOrchestrator:
             run, template, parameters, action=action, source_elements=sources,
             candidate_id=candidate_id,
         )
+        allowed_source_ids = self._supplied_uuid_ids(payload)
+        approved_asset_ids = sorted({
+            str(item["source_asset_id"])
+            for item in payload["approved_sources"] if item.get("source_asset_id")
+        })
         key = f"{run['run_id']}:{candidate_id}:content_candidate_generation"
         attempt_id, invocation_id = self.repository.start_invocation(
             candidate_id, mode="content_candidate_generation", idempotency_key=key, request=payload,
@@ -240,7 +268,11 @@ class CandidateGenerationOrchestrator:
                 system_prompt=self._candidate_system_prompt(
                     run["context_bundle"]["candidate_contexts"][template.template_id]
                 ),
-                input_payload=payload, output_schema=candidate_output_schema(),
+                input_payload=payload,
+                output_schema=candidate_output_schema(
+                    allowed_source_ids=allowed_source_ids,
+                    approved_asset_ids=approved_asset_ids,
+                ),
                 prompt_version=f"ptw-content-candidate-v2-{template.template_id}-v{template.version}",
                 idempotency_key=key,
             )
@@ -251,6 +283,8 @@ class CandidateGenerationOrchestrator:
             brief = run["context_bundle"]["brief"]["document"]
             candidate = CandidateV2.from_dict(
                 response["response"], brief=brief, output_profile=run["output_profile"],
+                allowed_source_ids=allowed_source_ids,
+                approved_asset_ids=approved_asset_ids,
             )
             candidate = self._merge_locked(
                 candidate, locked, brief=brief, output_profile=run["output_profile"],

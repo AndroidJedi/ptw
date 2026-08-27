@@ -24,6 +24,28 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-27: Instagram Result failed on tool IDs parsed as UUIDs
+
+- Symptom: Result run `01a041c0-af7c-7881-bec4-bf4ebc2d23cf` failed during
+  the five initial Instagram directions with `badly formed hexadecimal UUID
+  string`. Four directions returned UUID-only source references; the fifth
+  mixed supplied UUIDs with `studio.*` tool IDs.
+- Cause: `visual_components[*].source_ids` was an unrestricted string array in
+  the structured output schema even though the domain parser required UUIDs.
+  The bridge therefore accepted the model response and the later `UUID(...)`
+  conversion exposed a low-level parser exception. The approved-media field
+  was likewise UUID-parsed without a schema-level Project-asset allowlist.
+- Durable fix: every candidate call now derives the exact UUIDv7 allowlist from
+  its server-built input payload and binds that list into the structured
+  schema. `media_request.source_asset_id` is separately limited to snapshotted
+  approved Project assets plus `null`. The domain boundary repeats both checks
+  and reports a typed candidate-contract error instead of a hexadecimal parser
+  exception. The Owner Console incident skill records this identifier rule.
+- Verification: the focused production-shape regression, all 19 Validation
+  tests in the Linux/amd64 image, the full disposable-PostgreSQL Result
+  lifecycle, the clean/idempotent schema verifier, Commander tests/demo, Owner
+  Gateway tests, canonical skill verification, and diff hygiene pass locally.
+
 ## 2026-08-26: Product Brief creation returned HTTP 500
 
 - Symptom: authenticated `POST /api/v1/briefs` returned HTTP 500. The first

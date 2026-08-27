@@ -7,6 +7,9 @@ import hashlib
 import json
 from uuid import uuid4
 
+from commander.ids import new_uuid7
+
+from .content import CandidateV2, candidate_output_schema
 from .config import Settings
 from .domain import ProductBriefV1, product_brief_schema
 from .provider import StructuredBridge
@@ -53,16 +56,50 @@ def main() -> None:
         base_document = document.to_dict()
         invocations.append({"mode": mode, "request_id": value["invocation"].get("bridge_request_id")})
 
+    candidate_id, candidate_source_id = new_uuid7(), new_uuid7()
+    candidate_brief = {
+        "language": "en", "product": "Decision Session",
+        "target_audience": "Adults facing one specific career decision",
+        "main_pain": "The same unresolved choice keeps consuming attention",
+        "promise": "Turn one uncertain decision into a practical next step",
+        "key_benefits": ["A focused conversation", "A transparent sequence", "One next action"],
+        "cta": "Book a session", "trust_strategy": "Explain the process before commitment",
+        "offer": "First short assessment free",
+    }
+    candidate_payload = {
+        "candidate_id": candidate_id, "canary_source_id": candidate_source_id,
+        "approved_brief": {"document": candidate_brief},
+        "task": "Create one honest Instagram feed-square direction for the approved Brief.",
+        "output_profile": "instagram_static_ad_v1",
+        "identifier_rule": (
+            f"Every visual source_ids array must be empty or contain only {candidate_source_id}. "
+            "Never place studio tool IDs in source_ids."
+        ),
+    }
     candidate = provider.generate_content_candidate(
-        system_prompt="Deployment canary. Return only the schema object.",
-        input_payload={"canary_id": marker, "mode": "content_candidate_generation"},
-        output_schema=CANARY_SCHEMA,
+        system_prompt=(
+            "Deployment canary. Return exactly one strict CandidateV2 JSON object. Preserve the "
+            "supplied offer and CTA exactly. Request one Pexels real photo with source_asset_id null. "
+            "Include each required Instagram visual role exactly once: background, primary_subject, "
+            "headline_block, supporting_text_block, offer_block, cta_block, brand_mark, "
+            "lighting_style, and composition. Follow the identifier_rule exactly."
+        ),
+        input_payload=candidate_payload,
+        output_schema=candidate_output_schema(
+            allowed_source_ids=[candidate_id, candidate_source_id], approved_asset_ids=[],
+        ),
         prompt_version="ptw_result_bridge_canary_v1",
         idempotency_key=f"canary:{marker}:content_candidate_generation",
     )
-    if candidate["response"] != {"canary": "ptw-result-ok"}:
-        raise SystemExit("bridge canary failed for content_candidate_generation")
-    invocations.append({"mode": "content_candidate_generation", "request_id": candidate["invocation"].get("bridge_request_id")})
+    candidate_document = CandidateV2.from_dict(
+        candidate["response"], brief=candidate_brief, output_profile="instagram_static_ad_v1",
+        allowed_source_ids=[candidate_id, candidate_source_id], approved_asset_ids=[],
+    )
+    invocations.append({
+        "mode": "content_candidate_generation",
+        "request_id": candidate["invocation"].get("bridge_request_id"),
+        "response_sha256": candidate_document.digest,
+    })
 
     from PIL import Image
     output = BytesIO()

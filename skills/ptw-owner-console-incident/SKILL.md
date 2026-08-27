@@ -86,7 +86,9 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
   `visual_components[*].source_ids` as unrestricted strings: tool IDs can then
   pass bridge validation and fail later as a raw UUID parser error. Constrain
   `media_request.source_asset_id` separately to approved Project asset UUIDs
-  plus `null`, and repeat both checks at the domain boundary.
+  plus `null`, and repeat both checks at the domain boundary. The release
+  canary must generate and domain-validate a real Candidate with these exact
+  schema constraints; a generic marker object does not prove this boundary.
 - Preserve exact provider request IDs and failed retry provenance. Present an
   actionable failure and create a new immutable child run on owner retry.
 - For offer/CTA failures, compare byte-exact protected fields from Brief,

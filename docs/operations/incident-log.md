@@ -45,6 +45,8 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   tests in the Linux/amd64 image, the full disposable-PostgreSQL Result
   lifecycle, the clean/idempotent schema verifier, Commander tests/demo, Owner
   Gateway tests, canonical skill verification, and diff hygiene pass locally.
+  The deployment bridge audit now generates and domain-validates a real
+  UUID-allowlisted `CandidateV2` instead of accepting a generic marker object.
 
 ## 2026-08-26: Product Brief creation returned HTTP 500
 

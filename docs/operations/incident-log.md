@@ -24,6 +24,31 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-27: Result critic rejected persisted preview mappings
+
+- Symptom: Result run `01a041f1-a430-7662-b27f-2339197e794b` completed and
+  rendered all five initial Instagram candidates, then failed before critic
+  Pass 1 with `Result critic image mapping fields do not match v1`.
+- Cause: `candidate_preview()` correctly returned the authenticated persisted
+  JPEG metadata field `mime_type`, but the application-side bridge mapper
+  required an exact reduced field set that omitted it. The generic critic
+  release canary hand-built that same reduced mapping instead of exercising the
+  repository shape, so it did not detect the mismatch.
+- Durable fix: the bridge now accepts exactly the canonical six-field preview
+  mapping, validates `image/jpeg`, dimensions, digest, bounds, and candidate
+  uniqueness, then emits the separately typed transport mapping. Critic element
+  scores use strict list objects that can pass the structured-output boundary
+  and normalize to the existing UUID-keyed persistence map. Complete critic
+  domain validation runs inside the fresh two-attempt loop, action IDs and
+  sliders are schema-bound, and the live canary uses the real critic schema,
+  persisted-preview shape, and domain validator. The critic, Owner Console
+  incident, and VPS operations skills preserve these rules.
+- Verification: 24 focused Validation tests pass locally and in the Linux/amd64
+  image, including the persisted mapping and critic-domain retry regressions and
+  the 1080×1080 Natal render. The two-test disposable-PostgreSQL full Result
+  lifecycle and the clean/idempotent schema journey pass. Full release and live
+  production verification follow before deployment.
+
 ## 2026-08-27: Instagram candidates omitted a required visual role
 
 - Symptom: Result run `01a041d9-3a09-7fd4-af84-b9a863a57303` failed during

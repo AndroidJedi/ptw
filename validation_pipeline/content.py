@@ -807,10 +807,13 @@ def critic_output_schema(pass_number: int, candidate_ids: Sequence[str], element
     score_properties = {name: {"type": "integer", "minimum": 1, "maximum": 10} for name in WEIGHTS}
     element_score = {
         "type": "object", "additionalProperties": False,
-        "required": ["task_fit", "clarity", "contribution", "coherence"],
-        "properties": {name: {"type": "integer", "minimum": 1, "maximum": 10} for name in (
-            "task_fit", "clarity", "contribution", "coherence",
-        )},
+        "required": ["element_id", "task_fit", "clarity", "contribution", "coherence"],
+        "properties": {
+            "element_id": {"type": "string", "enum": element_enum},
+            **{name: {"type": "integer", "minimum": 1, "maximum": 10} for name in (
+                "task_fit", "clarity", "contribution", "coherence",
+            )},
+        },
     }
     return {
         "type": "object", "additionalProperties": False,
@@ -829,7 +832,10 @@ def critic_output_schema(pass_number: int, candidate_ids: Sequence[str], element
                             "required": list(HARD_GATES),
                             "properties": {name: {"type": "boolean"} for name in HARD_GATES},
                         },
-                        "element_scores": {"type": "object", "propertyNames": {"enum": element_enum}, "additionalProperties": element_score},
+                        "element_scores": {
+                            "type": "array", "minItems": 1, "maxItems": len(element_enum),
+                            "items": element_score,
+                        },
                         "scores": {"type": "object", "additionalProperties": False, "required": list(WEIGHTS), "properties": score_properties},
                         "complexity": {"type": "string", "enum": ["none", "moderate", "harmful"]},
                         "reason_codes": {"type": "array", "maxItems": 12, "items": {"type": "string"}},
@@ -857,12 +863,21 @@ def critic_output_schema(pass_number: int, candidate_ids: Sequence[str], element
                     "required": ["action_type", "base_candidate_id", "template_id", "locked_element_ids", "target_element_ids", "source_element_ids", "slider_values", "reason_codes"],
                     "properties": {
                         "action_type": {"type": "string", "enum": list(ACTION_TYPES[:-1])},
-                        "base_candidate_id": {"type": ["string", "null"]},
-                        "template_id": {"type": ["string", "null"]},
+                        "base_candidate_id": {
+                            "type": ["string", "null"], "enum": [None, *candidate_enum],
+                        },
+                        "template_id": {"type": ["string", "null"], "enum": [None]},
                         "locked_element_ids": {"type": "array", "items": {"type": "string", "enum": element_enum}},
                         "target_element_ids": {"type": "array", "items": {"type": "string", "enum": element_enum}},
                         "source_element_ids": {"type": "array", "items": {"type": "string", "enum": element_enum}},
-                        "slider_values": {"type": ["object", "null"]},
+                        "slider_values": {
+                            "type": ["object", "null"], "additionalProperties": False,
+                            "required": list(SLIDER_NAMES),
+                            "properties": {
+                                name: {"type": "integer", "minimum": 0, "maximum": 100}
+                                for name in SLIDER_NAMES
+                            },
+                        },
                         "reason_codes": {"type": "array", "maxItems": 8, "items": {"type": "string"}},
                     },
                 },
@@ -910,24 +925,40 @@ def validate_critic_response(
             or not all(isinstance(item, bool) for item in hard_gates.values())
         ):
             raise ValueError("critic hard gates must contain the complete boolean gate set")
-        if not isinstance(element_scores, Mapping) or set(element_scores) - allowed_elements:
-            raise ValueError("critic element scores reference unknown elements")
         candidate_id = str(raw["candidate_id"])
-        if candidate_element_ids is not None and set(element_scores) != set(candidate_element_ids[candidate_id]):
+        if not isinstance(element_scores, list):
+            raise ValueError("critic element scores must be a bounded structured list")
+        scored_ids = [
+            str(item.get("element_id")) for item in element_scores if isinstance(item, Mapping)
+        ]
+        if (
+            len(scored_ids) != len(element_scores)
+            or len(scored_ids) != len(set(scored_ids))
+            or set(scored_ids) - allowed_elements
+        ):
+            raise ValueError("critic element scores reference unknown or duplicate elements")
+        if candidate_element_ids is not None and set(scored_ids) != set(candidate_element_ids[candidate_id]):
             raise ValueError("critic must score every required element in each active candidate")
         normalized_elements: dict[str, dict[str, int]] = {}
-        for element_id, score_value in element_scores.items():
-            if not isinstance(score_value, Mapping) or set(score_value) != {"task_fit", "clarity", "contribution", "coherence"}:
+        for score_value in element_scores:
+            if not isinstance(score_value, Mapping) or set(score_value) != {
+                "element_id", "task_fit", "clarity", "contribution", "coherence",
+            }:
                 raise ValueError("element score fields do not match v1")
-            parsed = {name: int(score_value[name]) for name in score_value}
+            element_id = str(score_value["element_id"])
+            parsed = {
+                name: int(score_value[name])
+                for name in ("task_fit", "clarity", "contribution", "coherence")
+            }
             if any(not 1 <= score <= 10 for score in parsed.values()):
                 raise ValueError("element scores must be integers from one to ten")
-            normalized_elements[str(element_id)] = parsed
+            normalized_elements[element_id] = parsed
         complexity = str(raw.get("complexity"))
         total = weighted_candidate_score(raw.get("scores") or {}, complexity)
+        normalized_evaluation = {**dict(raw), "element_scores": normalized_elements}
         normalized_evaluations.append({
-            **dict(raw), "element_scores": normalized_elements, "weighted_total": total,
-            "eligible": final_eligible(raw),
+            **normalized_evaluation, "weighted_total": total,
+            "eligible": final_eligible(normalized_evaluation),
         })
     proposed_ranking = list(map(str, value.get("ranking") or []))
     if len(proposed_ranking) != len(allowed_candidates) or set(proposed_ranking) != allowed_candidates:

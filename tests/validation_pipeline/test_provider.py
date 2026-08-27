@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import unittest
+from uuid import uuid4
 
 from validation_pipeline.provider import StructuredBridge, StructuredCallError
 
@@ -117,6 +119,68 @@ class StructuredBridgeTests(unittest.TestCase):
         self.assertEqual(42, rejected.exception.invocation["bridge_request_id"])
         self.assertEqual([41], rejected.exception.invocation["prior_failed_request_ids"])
         self.assertEqual(2, rejected.exception.invocation["bridge_attempt"])
+
+    def test_persisted_critic_mapping_and_domain_rejection_use_fresh_retry(self) -> None:
+        class CriticRetryBridge(StructuredBridge):
+            def __init__(self) -> None:
+                super().__init__("https://bridge.invalid/internal/llm/structured", "token", "model")
+                self.posted: list[dict] = []
+
+            def _request(self, url, payload, *, timeout=30):
+                if payload is not None:
+                    self.posted.append(payload)
+                    return {"request_id": len(self.posted)}
+                request_id = int(url.rsplit("/", 1)[1])
+                return {
+                    "status": "completed",
+                    "result": {
+                        "response": {"complete": request_id == 2},
+                        "invocation": {"provider": "fake"},
+                    },
+                }
+
+        bridge = CriticRetryBridge()
+        content = b"\xff\xd8critic-jpeg\xff\xd9"
+        candidate_id = str(uuid4())
+
+        def require_complete_critic(value):
+            if not value["complete"]:
+                raise ValueError("critic response is incomplete")
+            return value
+
+        value = bridge.generate_content_critic(
+            system_prompt="Evaluate one candidate.", input_payload={"pass": 1},
+            images=[{
+                "candidate_id": candidate_id, "bytes": content,
+                "sha256": hashlib.sha256(content).hexdigest(), "mime_type": "image/jpeg",
+                "width": 1080, "height": 1080,
+            }],
+            output_schema={"type": "object"}, idempotency_key="critic-pass-uuid",
+            response_validator=require_complete_critic,
+        )
+
+        self.assertEqual({"complete": True}, value["response"])
+        self.assertEqual([1], value["invocation"]["prior_failed_request_ids"])
+        self.assertEqual(2, value["invocation"]["bridge_attempt"])
+        self.assertEqual([
+            "bytes_base64", "candidate_id", "digest", "height", "mime_type", "width",
+        ], sorted(bridge.posted[0]["input_images"][0]))
+        self.assertEqual(candidate_id, bridge.posted[0]["input_images"][0]["candidate_id"])
+        self.assertEqual("image/jpeg", bridge.posted[0]["input_images"][0]["mime_type"])
+
+    def test_critic_mapping_rejects_non_jpeg_mime_type(self) -> None:
+        bridge = StructuredBridge("https://bridge.invalid/internal/llm/structured", "token", "model")
+        content = b"\xff\xd8critic-jpeg\xff\xd9"
+        with self.assertRaisesRegex(ValueError, "exact bounded 1080x1080 JPEG"):
+            bridge.generate_content_critic(
+                system_prompt="Evaluate one candidate.", input_payload={"pass": 1},
+                images=[{
+                    "candidate_id": str(uuid4()), "bytes": content,
+                    "sha256": hashlib.sha256(content).hexdigest(), "mime_type": "image/png",
+                    "width": 1080, "height": 1080,
+                }],
+                output_schema={"type": "object"}, idempotency_key="critic-pass-uuid",
+            )
 
     def test_graphic_mode_is_always_one_attempt_key(self) -> None:
         class CaptureBridge(StructuredBridge):

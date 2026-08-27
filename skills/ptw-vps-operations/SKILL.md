@@ -41,7 +41,9 @@ move credentials between them or mutate platform data during a Commander reset.
 - Run strict-schema canaries for Product Brief, one isolated candidate, and one
   multimodal critic call. The critic accepts one to five explicitly mapped,
   digest-checked JPEGs, at most 1.5 MB each and 8 MB total, and cannot generate
-  images.
+  images. Its application-side canary mapping must match persisted previews
+  exactly, including `mime_type`; use the real critic schema and domain
+  validator rather than a generic marker response.
 - JSON-only candidate and critic calls may receive one fresh retry within the
   original deadline. A non-human graphic call is single-shot and must never be
   retried after an ambiguous result.

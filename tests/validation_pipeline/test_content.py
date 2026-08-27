@@ -7,7 +7,7 @@ import unittest
 from commander.ids import new_uuid7
 from validation_pipeline.content import (
     CandidateV2, CorpusStore, INSTAGRAM_REQUIRED_VISUAL_ROLES, TemplateRegistry,
-    candidate_output_schema, final_eligible, weighted_candidate_score,
+    candidate_output_schema, critic_output_schema, final_eligible, weighted_candidate_score,
 )
 from validation_pipeline.content_adapters import InstagramStaticAdapter
 from validation_pipeline.natal_brand import (
@@ -189,6 +189,23 @@ class ResultContractsTests(unittest.TestCase):
                 allowed_source_ids=[brief_id, logo_id, approved_photo_id],
                 approved_asset_ids=[logo_id, approved_photo_id],
             )
+
+    def test_critic_schema_binds_action_ids_and_complete_slider_shape(self) -> None:
+        candidate_ids = [new_uuid7(), new_uuid7()]
+        element_ids = [new_uuid7(), new_uuid7()]
+        schema = critic_output_schema(3, candidate_ids, element_ids)
+        action = schema["properties"]["actions"]["items"]["properties"]
+
+        self.assertEqual([None, *candidate_ids], action["base_candidate_id"]["enum"])
+        self.assertEqual([None], action["template_id"]["enum"])
+        self.assertFalse(action["slider_values"]["additionalProperties"])
+        self.assertEqual(
+            {
+                "hook_pressure", "emotional_intensity", "conceptual_novelty",
+                "information_density", "visual_complexity",
+            },
+            set(action["slider_values"]["required"]),
+        )
 
     def test_final_thresholds_fail_closed(self) -> None:
         scores = {

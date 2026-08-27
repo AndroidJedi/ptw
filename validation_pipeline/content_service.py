@@ -488,22 +488,9 @@ class CandidateGenerationOrchestrator:
         attempt_id, invocation_id = self.repository.start_invocation(
             pass_id, mode="content_result_critic", idempotency_key=key, request=payload,
         )
-        try:
-            response = self.bridge.generate_content_critic(
-                system_prompt=self._critic_system_prompt(
-                    run["context_bundle"]["critic_context"], pass_number
-                ),
-                input_payload=payload, images=images,
-                output_schema=critic_output_schema(pass_number, candidate_ids, element_ids),
-                prompt_version=f"ptw-content-result-critic-v1-pass-{pass_number}",
-                idempotency_key=key,
-            )
-            invocation = dict(response["invocation"])
-            self.repository.finish_invocation(
-                attempt_id, invocation_id, response=response["response"], provenance=invocation,
-            )
-            validated = validate_critic_response(
-                response["response"], pass_number=pass_number, candidate_ids=candidate_ids,
+        def validate_response(value: Mapping[str, Any]) -> Mapping[str, Any]:
+            return validate_critic_response(
+                value, pass_number=pass_number, candidate_ids=candidate_ids,
                 element_ids=element_ids, templates=templates,
                 candidate_parameters={item["candidate_id"]: item["parameters"] for item in active},
                 candidate_templates={item["candidate_id"]: item["template_id"] for item in active},
@@ -512,6 +499,22 @@ class CandidateGenerationOrchestrator:
                     item["candidate_id"]: int(item["round"]) for item in active
                 },
             )
+        try:
+            response = self.bridge.generate_content_critic(
+                system_prompt=self._critic_system_prompt(
+                    run["context_bundle"]["critic_context"], pass_number
+                ),
+                input_payload=payload, images=images,
+                output_schema=critic_output_schema(pass_number, candidate_ids, element_ids),
+                prompt_version=f"ptw-content-result-critic-v1.1-pass-{pass_number}",
+                idempotency_key=key,
+                response_validator=validate_response,
+            )
+            invocation = dict(response["invocation"])
+            self.repository.finish_invocation(
+                attempt_id, invocation_id, response=response["response"], provenance=invocation,
+            )
+            validated = dict(response["response"])
             generation_actions = [
                 item for item in validated["actions"] if item["action_type"] != "discard"
             ]
@@ -527,7 +530,8 @@ class CandidateGenerationOrchestrator:
         except Exception as error:
             self.repository.finish_invocation(
                 attempt_id, invocation_id, response=None,
-                provenance=getattr(self.bridge, "last_invocation", {}), error=error,
+                provenance=getattr(error, "invocation", None)
+                or getattr(self.bridge, "last_invocation", {}), error=error,
             )
             raise
 

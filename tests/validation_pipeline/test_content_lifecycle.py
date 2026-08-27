@@ -53,7 +53,9 @@ class FakeBridge:
         self.last_invocation = invocation
         return {"response": response, "invocation": invocation}
 
-    def generate_content_critic(self, *, input_payload: dict, images: list[dict], **_kwargs) -> dict:
+    def generate_content_critic(
+        self, *, input_payload: dict, images: list[dict], response_validator, **_kwargs,
+    ) -> dict:
         pass_number = int(input_payload["pass"])
         candidates = list(input_payload["candidates"])
         ids = [item["candidate_id"] for item in candidates]
@@ -70,13 +72,13 @@ class FakeBridge:
                     "no_synthetic_people_faces": True, "safe_crop_layout": True,
                     "protected_copy_legible": True, "caption_alt_text_accessible": True,
                 },
-                "element_scores": {
-                    element["element_id"]: {
+                "element_scores": [{
+                    "element_id": element["element_id"],
                         "task_fit": score, "clarity": score,
                         "contribution": score, "coherence": score,
                     }
                     for element in item["elements"]
-                },
+                ],
                 "scores": {
                     "task_brief_suitability": score, "hook_strength": score,
                     "message_clarity": score, "persuasion_action": score,
@@ -125,7 +127,7 @@ class FakeBridge:
             "prior_failed_request_ids": [], "provider": "fake",
         }
         self.last_invocation = invocation
-        return {"response": response, "invocation": invocation}
+        return {"response": dict(response_validator(response)), "invocation": invocation}
 
 
 @unittest.skipUnless(os.environ.get("PTW_TEST_DATABASE_URL"), "disposable PostgreSQL is required")

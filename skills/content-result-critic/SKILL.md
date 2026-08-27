@@ -9,6 +9,13 @@ Inspect the supplied candidate documents, exact server element UUIDs, prior pass
 summaries, and digest-mapped JPEGs. Return concise structured observations,
 reason codes, scores, ranking, and allowed actions only.
 
+The application-side render mapping is exactly `candidate_id`, `bytes`,
+`sha256`, `mime_type`, `width`, and `height`. Require `image/jpeg`, exact
+1080×1080 dimensions, bounded SOI/EOI JPEG bytes, a matching SHA-256, and one
+unique mapping per active candidate before transport encoding. The release
+canary must use this same persisted-preview shape; a hand-built reduced mapping
+does not prove the production boundary.
+
 ## Required references
 
 Read `references/evaluation-contract.md` and `references/owner-lessons.md`.
@@ -30,6 +37,12 @@ them.
 5. Return typed actions. Server code decides whether an action is authorized and
    performs every mutation, generation, render, and write.
 
+Emit element scores as a bounded list of strict objects containing
+`element_id`, `task_fit`, `clarity`, `contribution`, and `coherence`. The server
+normalizes that list to its UUID-keyed persistence map and rejects missing,
+duplicate, foreign, or cross-candidate element IDs. Keep slider objects fully
+typed and keep anonymized `template_id` null.
+
 ## Pass boundaries
 
 - Pass 1 evaluates exactly five initial candidates. Explore strengths and weak
@@ -46,6 +59,12 @@ them.
 Preserve strong elements by UUID. Exact reuse points to the same UUID. A new
 variant identifies the elements it replaces or derives from; server code assigns
 new IDs and lineage.
+
+Complete critic-domain validation belongs inside the two-attempt structured
+provider loop. A schema-valid response with incomplete element coverage,
+invalid ranking, unauthorized actions, or an ineligible selection receives the
+one promised fresh retry; a terminal failure retains the exact request IDs from
+both attempts.
 
 ## Safety and disclosure
 

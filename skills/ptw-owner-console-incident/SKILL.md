@@ -87,6 +87,13 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
   validator inside the provider's two-attempt loop so a schema-valid but
   incomplete first response receives the promised fresh retry. The ordinary
   generator prompt and the release canary must use the same explicit role list.
+- Build critic attachments from the canonical persisted preview shape:
+  `candidate_id`, `bytes`, `sha256`, `mime_type`, `width`, and `height`. Validate
+  the stored JPEG content type, exact dimensions, digest, byte bounds, and
+  candidate uniqueness before base64 transport. The release canary must use
+  this same pre-encoding field set; omitting `mime_type` can hide a production
+  mapper mismatch. Run complete critic-domain validation inside the provider's
+  two-attempt loop, not after a schema-only success.
 - Candidate identifier arrays must be constrained in the structured output
   schema to the exact server-supplied UUID allowlist. Never leave
   `visual_components[*].source_ids` as unrestricted strings: tool IDs can then

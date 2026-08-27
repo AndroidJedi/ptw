@@ -127,6 +127,7 @@ class StructuredBridge:
         output_schema: Mapping[str, Any],
         idempotency_key: str,
         prompt_version: str = "ptw-content-result-critic-v1",
+        response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
         if not 1 <= len(images) <= 5:
             raise ValueError("Result critic requires one to five mapped JPEG attachments")
@@ -134,7 +135,9 @@ class StructuredBridge:
         total = 0
         seen: set[str] = set()
         for item in images:
-            if set(item) != {"candidate_id", "bytes", "sha256", "width", "height"}:
+            if set(item) != {
+                "candidate_id", "bytes", "sha256", "mime_type", "width", "height",
+            }:
                 raise ValueError("Result critic image mapping fields do not match v1")
             candidate_id = str(UUID(str(item["candidate_id"])))
             if candidate_id in seen:
@@ -147,6 +150,7 @@ class StructuredBridge:
                 or not data.endswith(b"\xff\xd9")
                 or not 1 <= len(data) <= MAX_CRITIC_IMAGE_BYTES
                 or digest != str(item["sha256"])
+                or str(item["mime_type"]) != "image/jpeg"
                 or int(item["width"]) != 1080
                 or int(item["height"]) != 1080
             ):
@@ -171,6 +175,7 @@ class StructuredBridge:
             input_images=encoded,
             maximum_attempts=2,
             idempotency_key=idempotency_key,
+            response_validator=response_validator,
         )
 
     def generate_non_human_graphic(

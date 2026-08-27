@@ -43,6 +43,11 @@ or refer to another candidate.
   non-human graphic direction. Use approved Project assets when identified;
   otherwise request a bounded Pexels real photo. Request a non-human generated
   graphic only when the task explicitly permits it.
+- For `instagram_static_ad_v1`, return exactly nine visual components, once
+  each, in this order: `background`, `primary_subject`, `headline_block`,
+  `supporting_text_block`, `offer_block`, `cta_block`, `brand_mark`,
+  `lighting_style`, and `composition`. Do not substitute optional badges or
+  decoration for a required role.
 - The visual completes the message. Do not decorate unrelated copy, stack prior
   JPEGs, combine incompatible scenes, or embed copy in generated media.
 - Return one strict JSON object only. Server code assigns UUIDv7 element IDs,

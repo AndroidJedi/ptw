@@ -81,6 +81,12 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
 - A failed initial template after its one fresh JSON retry fails the run. An
   ambiguous graphic call terminates it without retry. Incomplete runs remain
   internal and are never exposed as a Result.
+- Bind Instagram candidate output to exactly the nine required visual roles;
+  unrestricted role arrays allow schema-valid drafts to omit `lighting_style`
+  or replace it with decoration. Run the complete `CandidateV2` domain
+  validator inside the provider's two-attempt loop so a schema-valid but
+  incomplete first response receives the promised fresh retry. The ordinary
+  generator prompt and the release canary must use the same explicit role list.
 - Candidate identifier arrays must be constrained in the structured output
   schema to the exact server-supplied UUID allowlist. Never leave
   `visual_components[*].source_ids` as unrestricted strings: tool IDs can then

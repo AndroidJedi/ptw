@@ -6,8 +6,8 @@ import unittest
 
 from commander.ids import new_uuid7
 from validation_pipeline.content import (
-    CandidateV2, CorpusStore, TemplateRegistry, candidate_output_schema, final_eligible,
-    weighted_candidate_score,
+    CandidateV2, CorpusStore, INSTAGRAM_REQUIRED_VISUAL_ROLES, TemplateRegistry,
+    candidate_output_schema, final_eligible, weighted_candidate_score,
 )
 from validation_pipeline.content_adapters import InstagramStaticAdapter
 from validation_pipeline.natal_brand import (
@@ -141,6 +141,7 @@ class ResultContractsTests(unittest.TestCase):
     def test_candidate_schema_allows_only_server_supplied_uuid_references(self) -> None:
         brief_id, logo_id, approved_photo_id = [new_uuid7() for _ in range(3)]
         schema = candidate_output_schema(
+            output_profile="instagram_static_ad_v1",
             allowed_source_ids=[brief_id, logo_id, approved_photo_id],
             approved_asset_ids=[logo_id, approved_photo_id],
         )
@@ -150,6 +151,16 @@ class ResultContractsTests(unittest.TestCase):
         self.assertEqual([None, *sorted([logo_id, approved_photo_id])], media_schema["enum"])
         self.assertEqual(sorted([brief_id, logo_id, approved_photo_id]), source_schema["items"]["enum"])
         self.assertNotIn("studio.frame.media.v1", source_schema["items"]["enum"])
+        visual_schema = schema["properties"]["visual_components"]
+        self.assertEqual(9, visual_schema["minItems"])
+        self.assertEqual(9, visual_schema["maxItems"])
+        self.assertEqual(
+            list(INSTAGRAM_REQUIRED_VISUAL_ROLES),
+            visual_schema["items"]["properties"]["role"]["enum"],
+        )
+        self.assertNotIn(
+            "decorative_element", visual_schema["items"]["properties"]["role"]["enum"]
+        )
 
         value = {
             "schema_version": 2, "hook": "A concrete opening",

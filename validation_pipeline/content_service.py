@@ -12,9 +12,10 @@ from uuid import UUID
 from commander.ids import new_uuid7
 
 from .content import (
-    CandidateV2, ContentContextAssembler, REQUIRED_COPY_SLOTS, SLIDER_NAMES,
-    StrategyTemplate, TemplateRegistry, candidate_output_schema, canonical_json,
-    critic_output_schema, sha256_json, validate_critic_response,
+    CandidateV2, ContentContextAssembler, INSTAGRAM_REQUIRED_VISUAL_ROLES,
+    REQUIRED_COPY_SLOTS, SLIDER_NAMES, StrategyTemplate, TemplateRegistry,
+    candidate_output_schema, canonical_json, critic_output_schema, sha256_json,
+    validate_critic_response,
 )
 from .content_adapters import adapter_for_profile
 from .natal_brand import natal_logo_bytes
@@ -105,12 +106,19 @@ class CandidateGenerationOrchestrator:
     @staticmethod
     def _candidate_system_prompt(context: Mapping[str, Any]) -> str:
         writing = context["writing"]
+        profile_rule = (
+            "For instagram_static_ad_v1, visual_components must contain exactly these nine roles "
+            "once each and in this order: " + ", ".join(INSTAGRAM_REQUIRED_VISUAL_ROLES) + ". "
+            "Do not replace a required role with badge or decorative_element."
+            if context["output_profile"] == "instagram_static_ad_v1"
+            else "For marketing_copy_v1, visual_components must be empty."
+        )
         return "\n\n".join((
             writing["generator_core"], writing["principles"], writing["anti_patterns"],
             writing["technique"], writing["owner_lessons"],
             context["template"]["document"]["prompt_fragment"],
             "Return exactly one strict CandidateV2 JSON object. Do not mention any other candidate. "
-            "Preserve the supplied offer and CTA exactly. Use only supplied identifiers.",
+            "Preserve the supplied offer and CTA exactly. Use only supplied identifiers. " + profile_rule,
         ))
 
     @staticmethod
@@ -260,6 +268,15 @@ class CandidateGenerationOrchestrator:
             for item in payload["approved_sources"] if item.get("source_asset_id")
         })
         key = f"{run['run_id']}:{candidate_id}:content_candidate_generation"
+        brief = run["context_bundle"]["brief"]["document"]
+
+        def validate_response(value: Mapping[str, Any]) -> Mapping[str, Any]:
+            return CandidateV2.from_dict(
+                value, brief=brief, output_profile=run["output_profile"],
+                allowed_source_ids=allowed_source_ids,
+                approved_asset_ids=approved_asset_ids,
+            ).value
+
         attempt_id, invocation_id = self.repository.start_invocation(
             candidate_id, mode="content_candidate_generation", idempotency_key=key, request=payload,
         )
@@ -270,17 +287,18 @@ class CandidateGenerationOrchestrator:
                 ),
                 input_payload=payload,
                 output_schema=candidate_output_schema(
+                    output_profile=run["output_profile"],
                     allowed_source_ids=allowed_source_ids,
                     approved_asset_ids=approved_asset_ids,
                 ),
-                prompt_version=f"ptw-content-candidate-v2-{template.template_id}-v{template.version}",
+                prompt_version=f"ptw-content-candidate-v2.1-{template.template_id}-v{template.version}",
                 idempotency_key=key,
+                response_validator=validate_response,
             )
             invocation = dict(response["invocation"])
             self.repository.finish_invocation(
                 attempt_id, invocation_id, response=response["response"], provenance=invocation,
             )
-            brief = run["context_bundle"]["brief"]["document"]
             candidate = CandidateV2.from_dict(
                 response["response"], brief=brief, output_profile=run["output_profile"],
                 allowed_source_ids=allowed_source_ids,
@@ -359,7 +377,10 @@ class CandidateGenerationOrchestrator:
         except Exception as error:
             self.repository.finish_invocation(
                 attempt_id, invocation_id, response=None,
-                provenance=getattr(self.bridge, "last_invocation", {}), error=error,
+                provenance=getattr(
+                    error, "invocation", getattr(self.bridge, "last_invocation", {})
+                ),
+                error=error,
             )
             raise
 

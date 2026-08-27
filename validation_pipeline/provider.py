@@ -7,7 +7,7 @@ import hashlib
 import json
 import threading
 import time
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,6 +24,12 @@ MEDIA_MODES = ("content_non_human_graphic_generation",)
 MAX_GRAPHIC_BYTES = 10 * 1024 * 1024
 MAX_CRITIC_IMAGE_BYTES = 1_500_000
 MAX_CRITIC_TOTAL_IMAGE_BYTES = 8 * 1024 * 1024
+
+
+class StructuredCallError(RuntimeError):
+    def __init__(self, message: str, invocation: Mapping[str, Any]) -> None:
+        super().__init__(message)
+        self.invocation = dict(invocation)
 
 
 class StructuredBridge:
@@ -98,6 +104,7 @@ class StructuredBridge:
         output_schema: Mapping[str, Any],
         idempotency_key: str,
         prompt_version: str = "ptw-content-candidate-v2",
+        response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
         return self._json_call(
             mode="content_candidate_generation",
@@ -108,6 +115,7 @@ class StructuredBridge:
             input_images=None,
             maximum_attempts=2,
             idempotency_key=idempotency_key,
+            response_validator=response_validator,
         )
 
     def generate_content_critic(
@@ -224,6 +232,7 @@ class StructuredBridge:
         input_images: list[Mapping[str, Any]] | None,
         maximum_attempts: int,
         idempotency_key: str,
+        response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
         slot = self._critic_slots if mode == "content_result_critic" else self._json_slots
         if not slot.acquire(timeout=max(0, self.timeout_seconds)):
@@ -238,6 +247,7 @@ class StructuredBridge:
                 input_images=input_images,
                 maximum_attempts=maximum_attempts,
                 idempotency_key=idempotency_key,
+                response_validator=response_validator,
             )
         finally:
             slot.release()
@@ -253,6 +263,7 @@ class StructuredBridge:
         input_images: list[Mapping[str, Any]] | None,
         maximum_attempts: int,
         idempotency_key: str,
+        response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
         if mode not in JSON_MODES:
             raise ValueError("unsupported Result-only JSON bridge mode")
@@ -279,16 +290,31 @@ class StructuredBridge:
                 request["input_images"] = [dict(item) for item in input_images]
             queued = self._request(self.url, request)
             request_id = int(queued["request_id"])
+            result: Mapping[str, Any] | None = None
             try:
                 result = self._await(request_id, deadline=deadline)
                 if result.get("image") is not None:
                     raise ValueError("JSON generation modes must not return generated media")
                 response = self._response_object(result)
-            except (RuntimeError, ValueError, json.JSONDecodeError):
+                if response_validator is not None:
+                    response = dict(response_validator(response))
+            except (RuntimeError, ValueError, json.JSONDecodeError) as error:
                 failed_request_ids.append(request_id)
+                failure_invocation = {
+                    "bridge_request_id": request_id,
+                    "prompt_template_version": prompt_version,
+                    "context_hash": context_hash,
+                    "bridge_attempt": attempt,
+                    "prior_failed_request_ids": failed_request_ids[:-1],
+                }
+                if isinstance(result, Mapping):
+                    failure_invocation.update(dict(result.get("invocation") or {}))
+                self.last_invocation = failure_invocation
                 if attempt < maximum_attempts:
                     continue
-                raise RuntimeError(f"{mode} failed after {maximum_attempts} JSON attempts")
+                raise StructuredCallError(
+                    f"{mode} failed after {maximum_attempts} JSON attempts", failure_invocation,
+                ) from error
             invocation = {
                 "bridge_request_id": request_id,
                 "prompt_template_version": prompt_version,

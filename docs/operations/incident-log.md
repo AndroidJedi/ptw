@@ -24,6 +24,39 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-27: Instagram candidates omitted a required visual role
+
+- Symptom: Result run `01a041d9-3a09-7fd4-af84-b9a863a57303` failed during
+  its initial directions with `Instagram candidate is missing required
+  structured visual roles`. Three of the five provider responses omitted
+  `lighting_style`; one of those returned nine items only by substituting
+  `decorative_element`.
+- Cause: the structured schema allowed zero-to-32 components drawn from both
+  required and optional roles. The ordinary generator prompt did not enumerate
+  the required nine, while the release canary's special prompt did. Complete
+  `CandidateV2` validation also ran after the bridge had already declared the
+  call successful, so a schema-valid incomplete document never received the
+  advertised fresh retry.
+- Durable fix: the Instagram schema now requires exactly nine items and allows
+  only the nine required roles. The ordinary prompt and canary share the same
+  ordered role list, and full Candidate domain validation runs inside the
+  bridge's two-attempt loop. A first response with a missing, duplicate,
+  unauthorized, or otherwise invalid role receives one fresh provider call;
+  terminal rejection carries the exact failed request provenance. The
+  candidate-generator and Owner Console incident skills preserve these rules.
+- Separate supplied evidence: the 681-byte inline `data:image/png` payload is
+  not a PNG. Its signature ends in `00` instead of the required `0A`, and it
+  has no valid PNG header/chunk classification. PTW Result artifacts remain
+  authenticated JPEGs, so this malformed inline resource is not the Result
+  renderer failure.
+- Verification: focused schema, domain-retry, and final-failure provenance
+  regressions pass. All 21 Validation tests pass in the Linux/amd64 image,
+  including the 1080×1080 Natal render; the full disposable-PostgreSQL Result
+  lifecycle and clean/idempotent schema journey pass. Commander tests/demo,
+  Owner Gateway tests, 16 Owner web tests, production build, six desktop/
+  360 px/iPhone browser journeys, canonical skill verification, and diff
+  hygiene also pass locally. Deployment verification follows before release.
+
 ## 2026-08-27: Instagram Result failed on tool IDs parsed as UUIDs
 
 - Symptom: Result run `01a041c0-af7c-7881-bec4-bf4ebc2d23cf` failed during

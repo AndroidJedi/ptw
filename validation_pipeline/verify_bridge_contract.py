@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from commander.ids import new_uuid7
 
-from .content import CandidateV2, candidate_output_schema
+from .content import CandidateV2, INSTAGRAM_REQUIRED_VISUAL_ROLES, candidate_output_schema
 from .config import Settings
 from .domain import ProductBriefV1, product_brief_schema
 from .provider import StructuredBridge
@@ -80,16 +80,21 @@ def main() -> None:
         system_prompt=(
             "Deployment canary. Return exactly one strict CandidateV2 JSON object. Preserve the "
             "supplied offer and CTA exactly. Request one Pexels real photo with source_asset_id null. "
-            "Include each required Instagram visual role exactly once: background, primary_subject, "
-            "headline_block, supporting_text_block, offer_block, cta_block, brand_mark, "
-            "lighting_style, and composition. Follow the identifier_rule exactly."
+            "Include each required Instagram visual role exactly once and in this order: "
+            + ", ".join(INSTAGRAM_REQUIRED_VISUAL_ROLES)
+            + ". Follow the identifier_rule exactly."
         ),
         input_payload=candidate_payload,
         output_schema=candidate_output_schema(
+            output_profile="instagram_static_ad_v1",
             allowed_source_ids=[candidate_id, candidate_source_id], approved_asset_ids=[],
         ),
         prompt_version="ptw_result_bridge_canary_v1",
         idempotency_key=f"canary:{marker}:content_candidate_generation",
+        response_validator=lambda value: CandidateV2.from_dict(
+            value, brief=candidate_brief, output_profile="instagram_static_ad_v1",
+            allowed_source_ids=[candidate_id, candidate_source_id], approved_asset_ids=[],
+        ).value,
     )
     candidate_document = CandidateV2.from_dict(
         candidate["response"], brief=candidate_brief, output_profile="instagram_static_ad_v1",

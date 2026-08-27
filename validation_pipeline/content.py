@@ -49,6 +49,10 @@ VISUAL_ROLES = (
     "offer_block", "cta_block", "brand_mark", "badge", "decorative_element",
     "lighting_style", "composition",
 )
+INSTAGRAM_REQUIRED_VISUAL_ROLES = (
+    "background", "primary_subject", "headline_block", "supporting_text_block",
+    "offer_block", "cta_block", "brand_mark", "lighting_style", "composition",
+)
 ACTION_TYPES = (
     "recompose", "regenerate_elements", "rerun_template", "discard", "select_final",
 )
@@ -682,10 +686,7 @@ class CandidateV2:
                 "source_ids": source_ids,
             })
         if output_profile == "instagram_static_ad_v1":
-            required_visuals = {
-                "background", "primary_subject", "headline_block", "supporting_text_block",
-                "offer_block", "cta_block", "brand_mark", "lighting_style", "composition",
-            }
+            required_visuals = set(INSTAGRAM_REQUIRED_VISUAL_ROLES)
             if required_visuals - seen_roles:
                 raise ValueError("Instagram candidate is missing required structured visual roles")
         elif components:
@@ -695,10 +696,21 @@ class CandidateV2:
 
 
 def candidate_output_schema(
-    *, allowed_source_ids: Sequence[str] = (), approved_asset_ids: Sequence[str] = (),
+    *, output_profile: str, allowed_source_ids: Sequence[str] = (),
+    approved_asset_ids: Sequence[str] = (),
 ) -> dict[str, Any]:
+    if output_profile not in OUTPUT_PROFILES:
+        raise ValueError("unknown content output profile")
     allowed_sources = sorted({str(UUID(str(item))) for item in allowed_source_ids})
     approved_assets = sorted({str(UUID(str(item))) for item in approved_asset_ids})
+    visual_roles = (
+        INSTAGRAM_REQUIRED_VISUAL_ROLES
+        if output_profile == "instagram_static_ad_v1" else VISUAL_ROLES
+    )
+    visual_count = (
+        len(INSTAGRAM_REQUIRED_VISUAL_ROLES)
+        if output_profile == "instagram_static_ad_v1" else 0
+    )
     text = {"type": "string", "minLength": 1}
     return {
         "type": "object", "additionalProperties": False,
@@ -728,12 +740,12 @@ def candidate_output_schema(
                 },
             },
             "visual_components": {
-                "type": "array", "maxItems": 32,
+                "type": "array", "minItems": visual_count, "maxItems": visual_count,
                 "items": {
                     "type": "object", "additionalProperties": False,
                     "required": ["role", "content", "source_ids"],
                     "properties": {
-                        "role": {"type": "string", "enum": list(VISUAL_ROLES)},
+                        "role": {"type": "string", "enum": list(visual_roles)},
                         "content": text,
                         "source_ids": {
                             "type": "array",

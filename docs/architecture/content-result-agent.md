@@ -11,10 +11,11 @@ approved Product Brief + fixed server task + canonical Natal brand/assets
   -> one immutable Result Creative
 ```
 
-`ContentContextAssembler` selects one technique guide, one strategy, and four
-to six deterministic corpus excerpts without truncation. The writing bundle is
-bounded near 5,500 tokens and total system context near 8,000 tokens excluding
-structured payload/tool data. Selection order and every digest are persisted.
+`ContentContextAssembler` selects one technique guide, one strategy, its exact
+digest-locked Studio component snapshot, and four to six deterministic corpus
+excerpts without truncation. The writing bundle is bounded near 5,500 tokens
+and total system context near 8,000 tokens excluding structured payload/tool
+data. Selection order and every digest are persisted.
 
 `CandidateGenerationOrchestrator` reserves all stable IDs before side effects,
 loads exactly five active template versions, and invokes them independently at
@@ -22,8 +23,8 @@ maximum JSON concurrency two. Initial failure after one fresh structured retry
 fails the run. At most four improvement calls occur across critic Passes 1–2.
 The global run deadline is 45 minutes.
 
-The strategies are `moment_tension@2`, `contrast_reframe@2`,
-`mechanism_proof@2`, `human_story@2`, and `direct_offer@2`. Each is digest-bound
+The active strategies are `moment_tension@3`, `contrast_reframe@3`,
+`mechanism_proof@3`, `human_story@3`, and `direct_offer@3`. Each is digest-bound
 at startup to one matching Git-owned `ptw.studio.template.v1` component tree;
 missing, extra, version-skewed, or digest-skewed active definitions stop startup.
 Five integer sliders
@@ -39,7 +40,8 @@ component identity, tool IDs, protected copy, source assets, palette bindings,
 or any path absent from the component catalog.
 
 `ResultCriticAgent` receives anonymized candidates, exact element IDs,
-parameters, previous pass summaries, and exact mapped renders. Pass 1 explores
+parameters, previous pass summaries, anonymous resolved frame contracts, and
+exact mapped renders. Pass 1 explores
 and synthesizes; Pass 2 challenges, detects regressions, and tunes; Pass 3
 reapplies gates and compares the final two without generating anything.
 Models emit typed actions and concise reason codes. Server code alone validates,

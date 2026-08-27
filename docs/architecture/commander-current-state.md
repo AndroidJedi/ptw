@@ -231,6 +231,17 @@ emergency stop is off, dependency/skill/schema/public Auth/App Check/CORS/
 bundle/Telegram audits pass, no deployment OOM evidence exists, and the locked
 24-hour resource audit is scheduled for 2026-08-28 08:38:53 UTC.
 
+The active Studio alignment fix is implemented locally as immutable version 3
+and is pending in-place production verification. Candidate contexts now include
+the complete digest-locked Studio snapshot; visible Instagram copy binds to
+`headline` and `primary_text`; and the anonymous critic payload includes the
+resolved frame contract alongside each JPEG. Validation rejects localized
+static template text and requires the dark Natal logo's topmost containing
+layer to be a light surface. Persisted v2 snapshots retain their original
+bindings and replay path. The final-gate error now directs the owner to an
+immutable retry from the approved Brief instead of unavailable task/asset
+controls.
+
 The agent-controlled Studio template v2 milestone is deployed in place. Five
 Git-owned
 `ptw.studio.template.v1` component trees now replace the shared hardcoded

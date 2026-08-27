@@ -24,6 +24,33 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-27: adequate Instagram Brief exhausted every final Result gate
+
+- Symptom: run `01a04342-24e6-7d86-86c2-9b4e12d04b6c` rendered five initial
+  candidates and four improvements, but Pass 3 selected nothing and the Console
+  incorrectly advised a more specific task or clearer asset—controls it does
+  not expose.
+- Cause: active v2 Studio templates rendered `hook` and `supporting_text` while
+  the concise promise and concrete mechanism lived in `headline` and
+  `primary_text`. The generator did not receive the authoritative Studio tree,
+  improvements could change unrendered fields, and the critic compared
+  alternate freeform layout prose to pixels without the resolved frame
+  contract. Three dark/photo layouts also left the dark Natal logo without a
+  light surface, and split contrast added the English text `NEW FRAME` to a
+  Ukrainian Result.
+- Durable fix: immutable active strategy/Studio definitions advance to v3 and
+  bind visible headline/body to `headline`/`primary_text`; v2 snapshot replay
+  remains supported. Candidate contexts now embed the exact digest-locked
+  Studio snapshot, critics receive anonymous resolved frames, and restart copy
+  checks follow the persisted template version. Template validation rejects
+  localized static text and any logo whose topmost containing layer is not a
+  light surface. The failure guidance now offers a fresh immutable child retry
+  from the approved Brief.
+- Verification: focused contracts cover v3 field-to-pixel binding, v2 replay,
+  static-copy and logo-surface rejection, exact Studio context, resolved critic
+  payloads, five structural signatures, slider isolation, lineage, and replay.
+  Production cutover and immutable child retry results are pending.
+
 ## 2026-08-27: five Instagram strategies rendered as one visual family
 
 - Symptom: the five generated Result directions used different media/headline

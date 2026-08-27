@@ -1,10 +1,10 @@
 {
   "schema": "ptw.studio.template-registry.v1",
   "active": [
-    {"template_id":"moment_tension","version":2,"strategy_sha256":"cdecd8597ade30f95e4d38ca728a7ce9489bf2e580b702b13f0270bef6613068","studio_sha256":"3fb32e3cdb452836e1238d1632fc293018ccc9a4085ab8d57caa95537548a263"},
-    {"template_id":"contrast_reframe","version":2,"strategy_sha256":"a36dd07c504beafa90f4152b0404a19558b20249ec22af3cf29c19014122efc2","studio_sha256":"d6baed240ce8715b60087734c807939004cfc4d960d9464064a41909271d87c6"},
-    {"template_id":"mechanism_proof","version":2,"strategy_sha256":"e95985fdeb9925c23089f8ededbd5bab7346081f35536f86c0d2e6e5ddf8f8b9","studio_sha256":"38d14379f20794b312dac9f4aa2d00c6895ce0a5f0b474c19872060ef5034bc6"},
-    {"template_id":"human_story","version":2,"strategy_sha256":"a4f3bc22f4dc53f3ad87c4350e5e04639dc2b45afc620e9882715a1d020345d6","studio_sha256":"1a376a9e9e93c8273d8a5888efc882861d032785ddf406f7c5437298bad36696"},
-    {"template_id":"direct_offer","version":2,"strategy_sha256":"738d834a31683f813cbbba40482a217d906c47a448fe9a089de39f7c21afe2ea","studio_sha256":"09f6a88ae61fb0c36d3d4939533d70792db6b598c5ed6572dd5c67baca7d770d"}
+    {"template_id":"moment_tension","version":3,"strategy_sha256":"f249173f27a513658bbeabd5d6301c6a847ee4665b8af76d6870b79ade5bf40a","studio_sha256":"72949b56f3387645c23e7feb37c56a3e41d86afd57e875b1cb4274da8a9c1455"},
+    {"template_id":"contrast_reframe","version":3,"strategy_sha256":"ca606f52b760a0b5bf79b2d111a01871ead1fde68f332d6da5d19841ed794be9","studio_sha256":"75896728867272254190376fe741ca3863f1c597e34274a340a2c8116d502f2e"},
+    {"template_id":"mechanism_proof","version":3,"strategy_sha256":"8682cbba122e4faa5eeb9aabeaf7cb06ad42ff67a7dd2956f6ee2ab7eddbb2a6","studio_sha256":"c9770012e119d99e92984f6dcc11c8eb85d70c650281eddaf868204c2674ade4"},
+    {"template_id":"human_story","version":3,"strategy_sha256":"1dc1cfc8c3ac0a75cdbf447b48992e0ba9f154cf0e5eeae8782dc7805d264f53","studio_sha256":"9697d779fa1dc0ec17c194dbe663fa9f3a8e349a40e25256c502a9c46e736752"},
+    {"template_id":"direct_offer","version":3,"strategy_sha256":"764563ecc46cc315769734c775614c01c3dde3149d71b6fabd61904204ef2ed4","studio_sha256":"f02d7de89c3f9502d05ab2fd93a3721b278b58387c46c9e07474c655fcc4a278"}
   ]
 }

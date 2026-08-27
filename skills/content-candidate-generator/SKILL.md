@@ -19,8 +19,9 @@ or refer to another candidate.
 ## Input boundary
 
 - Result business input is exactly the approved Product Brief, owner task,
-  Project brand kit, approved Project assets, allowed tool catalog, one template
-  version, exact slider configuration, and deterministic writing bundle.
+  Project brand kit, approved Project assets, allowed tool catalog, one strategy
+  template, its exact digest-locked Studio component snapshot, exact slider
+  configuration, and deterministic writing bundle.
 - Never request or infer from raw idea, research, market context, prior outputs,
   owner history, performance data, campaigns, or landing copy.
 - Preserve the Product Brief offer and CTA byte-for-byte in their protected
@@ -48,6 +49,11 @@ or refer to another candidate.
   `supporting_text_block`, `offer_block`, `cta_block`, `brand_mark`,
   `lighting_style`, and `composition`. Do not substitute optional badges or
   decoration for a required role.
+- Treat the supplied Studio snapshot as the authoritative composition. Its
+  frames, panels, media placement, logo position, palette, and bindings cannot
+  be replaced by freeform component prose. The rendered headline is
+  `headline`; the rendered supporting/mechanism block is `primary_text`.
+  Describe those exact pixels in `visual_components` and `alt_text`.
 - The visual completes the message. Do not decorate unrelated copy, stack prior
   JPEGs, combine incompatible scenes, or embed copy in generated media.
 - Return one strict JSON object only. Server code assigns UUIDv7 element IDs,

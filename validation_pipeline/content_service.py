@@ -118,7 +118,13 @@ class CandidateGenerationOrchestrator:
             writing["technique"], writing["owner_lessons"],
             context["template"]["document"]["prompt_fragment"],
             "Return exactly one strict CandidateV2 JSON object. Do not mention any other candidate. "
-            "Preserve the supplied offer and CTA exactly. Use only supplied identifiers. " + profile_rule,
+            "Preserve the supplied offer and CTA exactly. Use only supplied identifiers. "
+            "The supplied Studio template is the authoritative render contract: its frames, tools, "
+            "bindings, palette, and resolved media placement cannot be replaced by a proposed layout. "
+            "The visible headline binds to candidate.headline and the visible supporting block binds "
+            "to candidate.primary_text. Make alt_text and all semantic visual_components describe "
+            "that exact template composition; do not invent a different background, panel, logo "
+            "position, typography treatment, or subject. " + profile_rule,
         ))
 
     @staticmethod
@@ -137,6 +143,7 @@ class CandidateGenerationOrchestrator:
             "approved_sources": context["approved_sources"],
             "tool_catalog": context["tool_catalog"],
             "strategy": context["template"],
+            "studio_template": context["studio_template"],
             "parameters": dict(parameters),
             "runtime_bands": template.runtime_bands(parameters),
             "retrieved_examples": [{
@@ -445,8 +452,36 @@ class CandidateGenerationOrchestrator:
             "Neutral anchors:\n" + "\n".join(item["excerpt"] for item in context["anchors"]),
             f"Perform critic Pass {pass_number}. Candidate strategy names are intentionally hidden. "
             "For rerun_template actions, set template_id to null and adjust only the supplied sliders. "
+            "The attached JPEG and each candidate's resolved_render are the authoritative visual "
+            "contract. visual_components express semantic intent, not alternate frame geometry. "
+            "Judge real pixel/copy/accessibility mismatches, but do not penalize conformity to the "
+            "resolved render merely because freeform component prose proposes another layout. "
             "Return reason codes and concise observations, never private reasoning.",
         ))
+
+    def _resolved_render_contract(self, candidate_id: str) -> dict[str, Any]:
+        recipe = self.repository.authority.get_candidate_recipe(candidate_id)
+        if recipe is None:
+            return {
+                "renderer_version": "ptw-content-text-preview-v1",
+                "placement_tool_id": None,
+                "frames": [],
+                "share": {},
+            }
+        document = recipe["document"]
+        return {
+            "renderer_version": recipe["renderer_version"],
+            "placement_tool_id": document["placement_tool_id"],
+            "frames": [{
+                "instance_id": frame["instance_id"],
+                "tool_id": frame["tool_id"],
+                "frame": dict(frame["frame"]),
+                "z_index": int(frame["z_index"]),
+                "params": dict(frame["params"]),
+                "source_asset_ids": list(frame["source_asset_ids"]),
+            } for frame in document["frames"]],
+            "share": dict(document["share"]),
+        }
 
     def _critic_call(
         self, *, run: Mapping[str, Any], pass_number: int,
@@ -483,6 +518,7 @@ class CandidateGenerationOrchestrator:
                 } for element in item["elements"]],
                 "parameters": item["parameters"], "regeneration_count": item["round"],
                 "render_mapping": self.repository.candidate_preview(item["candidate_id"])["sha256"],
+                "resolved_render": self._resolved_render_contract(item["candidate_id"]),
             } for index, item in enumerate(active, start=1)],
             "prior_pass_summaries": [dict(item) for item in prior_summaries],
         }
@@ -716,8 +752,8 @@ class CandidateGenerationOrchestrator:
             selection = pass3["final_selection"]
             if selection is None:
                 raise ValueError(
-                    "No candidate passed every final Result gate. Create another Result with a more "
-                    "specific task or add a clearer approved Project asset."
+                    "No candidate passed every final Result gate. Create an immutable retry to "
+                    "generate five fresh directions from the approved Product Brief."
                 )
             self.repository.set_stage(run_id, "materializing_result")
             result = self.repository.finalize(

@@ -75,7 +75,10 @@ class FakeBridge:
         pass_number = int(input_payload["pass"])
         candidates = list(input_payload["candidates"])
         ids = [item["candidate_id"] for item in candidates]
-        self.critic_calls.append({"pass": pass_number, "ids": ids, "images": images})
+        self.critic_calls.append({
+            "pass": pass_number, "ids": ids, "images": images,
+            "resolved_renders": [item["resolved_render"] for item in candidates],
+        })
         evaluations = []
         for index, item in enumerate(candidates):
             score = 10 - index
@@ -230,6 +233,11 @@ class ContentLifecycleTests(unittest.TestCase):
             output_profile="marketing_copy_v1", requested_by="test",
         )
         self.assertTrue(created)
+        self.assertTrue(all(
+            context["studio_template"]["version"] == 3
+            and context["studio_template"]["document"]["template_id"] == template_id
+            for template_id, context in run["context_bundle"]["candidate_contexts"].items()
+        ))
         self.assertEqual("Natal", run["context_bundle"]["brand_kit"]["document"]["name"])
         logo_id = run["context_bundle"]["brand_kit"]["document"]["logo_source_asset_id"]
         logo = self.authority.get_project_asset(logo_id)
@@ -257,6 +265,11 @@ class ContentLifecycleTests(unittest.TestCase):
         self.assertEqual(1, len({result["creative_id"]}))
         self.assertEqual(2, len(result["decision_summary"]))
         self.assertTrue(all(len(item["images"]) in {2, 5} for item in self.bridge.critic_calls))
+        self.assertTrue(all(
+            render["renderer_version"] == "ptw-content-text-preview-v1"
+            and render["frames"] == []
+            for call in self.bridge.critic_calls for render in call["resolved_renders"]
+        ))
 
         debug_before = self.repository.debug(run["run_id"])
         initial_debug = [
@@ -312,7 +325,7 @@ class ContentLifecycleTests(unittest.TestCase):
             self.assertEqual("studio.layout.template_application.v1", metadata["schema"])
             self.assertEqual(recipe["document_sha256"], render["manifest"]["resolved_recipe"]["sha256"])
             self.assertEqual("ptw-result-instagram-renderer-v2", render["renderer_version"])
-            self.assertEqual(2, metadata["studio_template"]["version"])
+            self.assertEqual(3, metadata["studio_template"]["version"])
             parent_candidate_id = candidate["parent_candidate_id"]
             if parent_candidate_id is None:
                 self.assertIsNone(recipe["parent_recipe_id"])
@@ -322,6 +335,11 @@ class ContentLifecycleTests(unittest.TestCase):
                 self.assertEqual(parent_recipe["recipe_id"], recipe["parent_recipe_id"])
                 self.assertEqual(parent_recipe["document_sha256"], metadata["base_recipe_sha256"])
                 self.assertIn(parent_candidate_id, by_candidate)
+        self.assertTrue(all(
+            render["placement_tool_id"] == "studio.placement.instagram.feed_square.v1"
+            and len(render["frames"]) >= 7
+            for call in self.bridge.critic_calls for render in call["resolved_renders"]
+        ))
         with self.authority.connection() as connection:
             parent_edges = int(connection.execute(
                 """SELECT count(*) FROM commander_relationships edge

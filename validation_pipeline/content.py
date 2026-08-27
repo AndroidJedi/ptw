@@ -141,8 +141,8 @@ class StrategyTemplate:
         if template_id not in TEMPLATE_IDS or value.get("active") is not True:
             raise ValueError("template must be one of the five active Result strategies")
         version = int(value["version"])
-        if version != 2:
-            raise ValueError("active strategy templates must use version 2")
+        if version != 3:
+            raise ValueError("active strategy templates must use version 3")
         defaults = value.get("defaults")
         envelopes = value.get("envelopes")
         if not isinstance(defaults, Mapping) or set(defaults) != set(SLIDER_NAMES):
@@ -539,7 +539,16 @@ class ContentContextAssembler:
             "source_policy": first["source_policy"], "versions": first["versions"],
             "critic_context": critic_context,
             "candidate_contexts": {
-                template.template_id: bundle.document for template, bundle in zip(templates, bundles)
+                template.template_id: {
+                    **dict(bundle.document),
+                    "studio_template": {
+                        "template_id": studio_templates[template.template_id].template_id,
+                        "version": studio_templates[template.template_id].version,
+                        "digest": studio_templates[template.template_id].digest,
+                        "document": dict(studio_templates[template.template_id].document),
+                    },
+                }
+                for template, bundle in zip(templates, bundles)
             },
             "template_versions": [{
                 "template_id": template.template_id, "version": template.version,

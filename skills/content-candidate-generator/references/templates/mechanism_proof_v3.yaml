@@ -1,6 +1,6 @@
 {
   "template_id": "mechanism_proof",
-  "version": 2,
+  "version": 3,
   "active": true,
   "philosophy": "Show how the promised result happens through supplied steps, visible product UI, process, timing, actors, or transparent proof. Credibility comes from mechanism, never invented evidence.",
   "narrative_sequence": ["customer outcome", "small sequence", "visible mechanism", "honest reassurance", "exact offer and CTA"],

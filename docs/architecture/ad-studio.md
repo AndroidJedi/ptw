@@ -32,6 +32,14 @@ story card, and typography-first direct offer with a secondary image card.
 Each slider controls declared component paths and no others. Optional decoration
 is bounded by explicit thresholds.
 
+Active strategy and Studio definitions are synchronized at version 3. The
+candidate generator receives the complete immutable Studio snapshot and must
+describe that composition rather than propose an alternate one. Visible
+headline and mechanism copy bind to `CandidateV2.headline` and
+`CandidateV2.primary_text`; v2 snapshots retain their historical hook and
+supporting-text bindings during replay. Static localized decoration is rejected,
+and the canonical dark Natal logo must have a topmost containing light surface.
+
 ## Contract
 
 A recipe binds one Project, approved Brief, immutable Natal brand-kit revision,
@@ -49,7 +57,8 @@ Pillow deterministically produces one 1080×1080 JPEG. Exact bytes, SHA-256,
 complete resolved recipe, render attempt, media attribution, enriched manifest,
 and graph edges are stored in
 PostgreSQL. The critic receives the exact rendered bytes as a digest-mapped
-private JPEG attachment; raw base64 is not inserted into its prompt.
+private JPEG attachment plus an anonymous resolved frame contract; raw base64
+and Studio template identity are not inserted into its prompt.
 
 One `studio.layout.template_application.v1` modifier stores the strategy,
 Studio template, catalog, and renderer identities; immutable template snapshot;

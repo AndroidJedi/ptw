@@ -1,6 +1,6 @@
 {
   "template_id": "contrast_reframe",
-  "version": 2,
+  "version": 3,
   "active": true,
   "philosophy": "Define the product through a sharp but truthful contrast, negation, misconception, or not-X-but-Y reframe, then make the mechanism concrete enough to avoid slogan-only copy.",
   "narrative_sequence": ["familiar assumption", "short contrast", "new frame", "concrete mechanism", "exact offer and CTA"],

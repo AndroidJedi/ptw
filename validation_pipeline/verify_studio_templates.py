@@ -51,6 +51,8 @@ def run_canary() -> dict[str, Any]:
     brief = {"offer": "First short assessment free", "cta": "Book a session"}
     candidate = {
         "hook": "The decision is still open at 23:00",
+        "headline": "Turn one open decision into a clear next step",
+        "primary_text": "A focused conversation makes the mechanism concrete and practical.",
         "supporting_text": "One focused conversation turns uncertainty into a practical next step.",
         "caption": "A focused first step for one unresolved decision.",
         "alt_text": "A person in a real setting beside a concise decision-session offer.",
@@ -164,6 +166,10 @@ def run_canary() -> dict[str, Any]:
     }
     ukrainian_candidate = {
         "hook": "Коли о 23:00 рішення досі не дає вам спокою",
+        "headline": "Перетворіть відкрите рішення на зрозумілий наступний крок",
+        "primary_text": (
+            "Зосереджена розмова робить механізм конкретним і практичним."
+        ),
         "supporting_text": (
             "Одна зосереджена розмова перетворює невизначеність на зрозумілий практичний крок."
         ),

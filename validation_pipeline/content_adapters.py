@@ -262,9 +262,16 @@ class InstagramStaticAdapter:
             media_ids = list(primary["source_asset_ids"])
             if len(media_ids) != 1:
                 raise ValueError("persisted candidate recipe has no exact primary media source")
+            template_version = int(
+                existing_recipe["document"]["modifiers"][0]["params"]["studio_template"]["version"]
+            )
             text_by_tool = {
-                "studio.frame.headline.v1": candidate.value["hook"],
-                "studio.frame.body.v1": candidate.value["supporting_text"],
+                "studio.frame.headline.v1": candidate.value[
+                    "headline" if template_version >= 3 else "hook"
+                ],
+                "studio.frame.body.v1": candidate.value[
+                    "primary_text" if template_version >= 3 else "supporting_text"
+                ],
                 "studio.frame.offer.v1": candidate.value["offer"],
                 "studio.frame.cta.v1": candidate.value["cta"],
             }

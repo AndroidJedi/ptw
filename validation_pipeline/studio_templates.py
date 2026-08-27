@@ -24,7 +24,8 @@ from .studio import (
 TEMPLATE_SCHEMA = "ptw.studio.template.v1"
 APPLICATION_SCHEMA = "studio.layout.template_application.v1"
 APPLICATION_TOOL_ID = "studio.layout.template_application.v1"
-TEMPLATE_VERSION = 2
+TEMPLATE_VERSION = 3
+REPLAY_TEMPLATE_VERSIONS = frozenset({2, TEMPLATE_VERSION})
 TEMPLATE_DIRECTORY = Path(__file__).with_name("studio_templates") / "instagram"
 REQUIRED_ELEMENT_ROLES = (
     "background", "primary_subject", "headline_block", "supporting_text_block",
@@ -32,6 +33,8 @@ REQUIRED_ELEMENT_ROLES = (
 )
 PALETTE_ROLES = ("dark", "ink", "light", "muted", "accent", "accent_soft")
 ALLOWED_BINDING_SOURCES = {
+    "candidate.headline": "text",
+    "candidate.primary_text": "text",
     "candidate.hook": "text",
     "candidate.supporting_text": "text",
     "brief.offer": "text",
@@ -42,8 +45,8 @@ ALLOWED_BINDING_SOURCES = {
     "share.alt_text": "text",
     **{f"palette.{role}": "color" for role in PALETTE_ROLES},
 }
-REQUIRED_BINDING_SOURCES = {
-    "candidate.hook", "candidate.supporting_text", "brief.offer", "brief.cta",
+COMMON_REQUIRED_BINDING_SOURCES = {
+    "brief.offer", "brief.cta",
     "resolved.media_asset_id", "resolved.logo_asset_id", "share.caption", "share.alt_text",
 }
 
@@ -170,8 +173,9 @@ def _normalize_template(value: Mapping[str, Any]) -> StudioTemplate:
     template_id = str(value["template_id"])
     if template_id not in TEMPLATE_IDS or value.get("active") is not True:
         raise ValueError("Studio template identity or active flag is invalid")
-    if int(value["version"]) != TEMPLATE_VERSION or value["placement_tool_id"] != PLACEMENT_ID:
-        raise ValueError("active Studio templates must use synchronized v2 square placement")
+    version = int(value["version"])
+    if version not in REPLAY_TEMPLATE_VERSIONS or value["placement_tool_id"] != PLACEMENT_ID:
+        raise ValueError("Studio templates must use a supported version and square placement")
     raw_components = value["components"]
     if not isinstance(raw_components, list) or not 7 <= len(raw_components) <= 20:
         raise ValueError("Studio templates require seven to twenty predefined components")
@@ -263,8 +267,26 @@ def _normalize_template(value: Mapping[str, Any]) -> StudioTemplate:
             "component_key": component_key, "target": target, "source": source,
             "value_type": value_type, "protected": True,
         })
-    if not REQUIRED_BINDING_SOURCES <= set(sources):
+    required_copy = (
+        {"candidate.headline", "candidate.primary_text"}
+        if version == TEMPLATE_VERSION
+        else {"candidate.hook", "candidate.supporting_text"}
+    )
+    if not (COMMON_REQUIRED_BINDING_SOURCES | required_copy) <= set(sources):
         raise ValueError("Studio template is missing a required protected binding")
+    if version == TEMPLATE_VERSION:
+        bound_text_targets = {
+            (item["component_key"], item["target"])
+            for item in bindings if item["value_type"] == "text"
+        }
+        for component in components:
+            static_text = component["params"].get("text")
+            if (
+                static_text is not None
+                and (component["key"], "params.text") not in bound_text_targets
+                and static_text not in {"↗", "→", "•"}
+            ):
+                raise ValueError("active Studio templates cannot contain localized static text")
 
     raw_rules = value["tuning_rules"]
     if not isinstance(raw_rules, list):
@@ -292,6 +314,7 @@ def _normalize_template(value: Mapping[str, Any]) -> StudioTemplate:
 
     # Resolve safe placeholders and validate the final component parameter shape against the catalog.
     placeholders: dict[str, Any] = {
+        "candidate.headline": "Headline", "candidate.primary_text": "Primary text",
         "candidate.hook": "Headline", "candidate.supporting_text": "Body",
         "brief.offer": "Offer", "brief.cta": "CTA", "resolved.media_asset_id": new_uuid7(),
         "resolved.logo_asset_id": new_uuid7(), "share.caption": "Caption",
@@ -316,14 +339,35 @@ def _normalize_template(value: Mapping[str, Any]) -> StudioTemplate:
         } else 0
         if len(component["source_asset_ids"]) != expected_assets:
             raise ValueError("Studio media and logo components require exact typed asset bindings")
+    if version == TEMPLATE_VERSION:
+        logo = next(item for item in resolved_components if item["element_role"] == "brand_mark")
+        logo_frame = logo["frame"]
+        containing_layers = [
+            item for item in resolved_components
+            if item["z_index"] < logo["z_index"]
+            and item["frame"]["x"] <= logo_frame["x"]
+            and item["frame"]["y"] <= logo_frame["y"]
+            and item["frame"]["x"] + item["frame"]["width"]
+                >= logo_frame["x"] + logo_frame["width"]
+            and item["frame"]["y"] + item["frame"]["height"]
+                >= logo_frame["y"] + logo_frame["height"]
+        ]
+        top_layer = max(containing_layers, key=lambda item: item["z_index"], default=None)
+        if (
+            top_layer is None
+            or top_layer["tool_id"] != "studio.frame.shape.v1"
+            or top_layer["params"].get("background")
+                not in {_palette()["light"], _palette()["accent_soft"]}
+        ):
+            raise ValueError("Natal logo requires a containing high-contrast light surface")
 
     document = {
-        "schema": TEMPLATE_SCHEMA, "template_id": template_id, "version": TEMPLATE_VERSION,
+        "schema": TEMPLATE_SCHEMA, "template_id": template_id, "version": version,
         "active": True, "placement_tool_id": PLACEMENT_ID,
         "components": components, "bindings": bindings, "tuning_rules": rules,
     }
     _, digest = _canonical(document)
-    return StudioTemplate(template_id, TEMPLATE_VERSION, document, digest)
+    return StudioTemplate(template_id, version, document, digest)
 
 
 class StudioTemplateRegistry:
@@ -411,6 +455,8 @@ def _binding_values(
     if not logo_id:
         raise ValueError("configured Instagram templates require the canonical Natal logo")
     return {
+        "candidate.headline": str(candidate["headline"]),
+        "candidate.primary_text": str(candidate["primary_text"]),
         "candidate.hook": str(candidate["hook"]),
         "candidate.supporting_text": str(candidate["supporting_text"]),
         "brief.offer": str(brief["offer"]), "brief.cta": str(brief["cta"]),

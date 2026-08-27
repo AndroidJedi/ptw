@@ -1,5 +1,5 @@
 {
-  "schema":"ptw.studio.template.v1","template_id":"mechanism_proof","version":2,"active":true,
+  "schema":"ptw.studio.template.v1","template_id":"mechanism_proof","version":3,"active":true,
   "placement_tool_id":"studio.placement.instagram.feed_square.v1",
   "components":[
     {"key":"background","element_role":"background","tool_id":"studio.frame.shape.v1","frame":{"x":0,"y":0,"width":1,"height":1},"z_index":0,"params":{"opacity":1,"radius":0},"source_asset_ids":[],"optional":false},
@@ -19,9 +19,9 @@
     {"component_key":"media_card","target":"params.background","source":"palette.ink","value_type":"color","protected":true},
     {"component_key":"hero_media","target":"source_asset_ids.0","source":"resolved.media_asset_id","value_type":"asset_id","protected":true},
     {"component_key":"proof_surface","target":"params.background","source":"palette.accent_soft","value_type":"color","protected":true},
-    {"component_key":"headline","target":"params.text","source":"candidate.hook","value_type":"text","protected":true},
+    {"component_key":"headline","target":"params.text","source":"candidate.headline","value_type":"text","protected":true},
     {"component_key":"headline","target":"params.color","source":"palette.dark","value_type":"color","protected":true},
-    {"component_key":"body","target":"params.text","source":"candidate.supporting_text","value_type":"text","protected":true},
+    {"component_key":"body","target":"params.text","source":"candidate.primary_text","value_type":"text","protected":true},
     {"component_key":"body","target":"params.color","source":"palette.ink","value_type":"color","protected":true},
     {"component_key":"offer","target":"params.text","source":"brief.offer","value_type":"text","protected":true},
     {"component_key":"offer","target":"params.color","source":"palette.dark","value_type":"color","protected":true},

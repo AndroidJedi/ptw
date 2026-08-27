@@ -1,7 +1,7 @@
 {
   "schema": "ptw.studio.template.v1",
   "template_id": "moment_tension",
-  "version": 2,
+  "version": 3,
   "active": true,
   "placement_tool_id": "studio.placement.instagram.feed_square.v1",
   "components": [
@@ -14,23 +14,25 @@
     {"key":"offer","element_role":"offer_block","tool_id":"studio.frame.offer.v1","frame":{"x":0.1,"y":0.79,"width":0.44,"height":0.05},"z_index":6,"params":{"font_size":25,"min_font_size":17,"font_weight":700,"max_lines":2,"line_height":1,"align":"left","vertical_align":"center"},"source_asset_ids":[],"optional":false},
     {"key":"cta_surface","element_role":null,"tool_id":"studio.frame.shape.v1","frame":{"x":0.59,"y":0.85,"width":0.34,"height":0.09},"z_index":7,"params":{"opacity":1,"radius":24},"source_asset_ids":[],"optional":false},
     {"key":"cta","element_role":"cta_block","tool_id":"studio.frame.cta.v1","frame":{"x":0.6,"y":0.865,"width":0.32,"height":0.06},"z_index":8,"params":{"font_size":24,"min_font_size":16,"font_weight":700,"max_lines":2,"line_height":1,"align":"center","vertical_align":"center"},"source_asset_ids":[],"optional":false},
-    {"key":"logo","element_role":"brand_mark","tool_id":"studio.frame.logo.v1","frame":{"x":0.1,"y":0.08,"width":0.24,"height":0.06},"z_index":9,"params":{"fit":"contain","focal_x":0.5,"focal_y":0.5,"opacity":1,"radius":0},"source_asset_ids":[],"optional":false},
-    {"key":"tension_orbit","element_role":null,"tool_id":"studio.frame.shape.v1","frame":{"x":0.84,"y":0.33,"width":0.08,"height":0.08},"z_index":10,"params":{"opacity":0.28,"radius":44},"source_asset_ids":[],"optional":true}
+    {"key":"logo_surface","element_role":null,"tool_id":"studio.frame.shape.v1","frame":{"x":0.085,"y":0.065,"width":0.27,"height":0.09},"z_index":9,"params":{"opacity":0.92,"radius":16},"source_asset_ids":[],"optional":false},
+    {"key":"logo","element_role":"brand_mark","tool_id":"studio.frame.logo.v1","frame":{"x":0.1,"y":0.08,"width":0.24,"height":0.06},"z_index":10,"params":{"fit":"contain","focal_x":0.5,"focal_y":0.5,"opacity":1,"radius":0},"source_asset_ids":[],"optional":false},
+    {"key":"tension_orbit","element_role":null,"tool_id":"studio.frame.shape.v1","frame":{"x":0.84,"y":0.33,"width":0.08,"height":0.08},"z_index":11,"params":{"opacity":0.28,"radius":44},"source_asset_ids":[],"optional":true}
   ],
   "bindings": [
     {"component_key":"background","target":"params.background","source":"palette.dark","value_type":"color","protected":true},
     {"component_key":"hero_media","target":"source_asset_ids.0","source":"resolved.media_asset_id","value_type":"asset_id","protected":true},
     {"component_key":"cinematic_overlay","target":"params.background","source":"palette.dark","value_type":"color","protected":true},
     {"component_key":"tension_accent","target":"params.background","source":"palette.accent","value_type":"color","protected":true},
-    {"component_key":"headline","target":"params.text","source":"candidate.hook","value_type":"text","protected":true},
+    {"component_key":"headline","target":"params.text","source":"candidate.headline","value_type":"text","protected":true},
     {"component_key":"headline","target":"params.color","source":"palette.light","value_type":"color","protected":true},
-    {"component_key":"body","target":"params.text","source":"candidate.supporting_text","value_type":"text","protected":true},
+    {"component_key":"body","target":"params.text","source":"candidate.primary_text","value_type":"text","protected":true},
     {"component_key":"body","target":"params.color","source":"palette.light","value_type":"color","protected":true},
     {"component_key":"offer","target":"params.text","source":"brief.offer","value_type":"text","protected":true},
     {"component_key":"offer","target":"params.color","source":"palette.accent_soft","value_type":"color","protected":true},
     {"component_key":"cta_surface","target":"params.background","source":"palette.accent","value_type":"color","protected":true},
     {"component_key":"cta","target":"params.text","source":"brief.cta","value_type":"text","protected":true},
     {"component_key":"cta","target":"params.color","source":"palette.dark","value_type":"color","protected":true},
+    {"component_key":"logo_surface","target":"params.background","source":"palette.light","value_type":"color","protected":true},
     {"component_key":"logo","target":"source_asset_ids.0","source":"resolved.logo_asset_id","value_type":"asset_id","protected":true},
     {"component_key":"tension_orbit","target":"params.background","source":"palette.accent_soft","value_type":"color","protected":true},
     {"component_key":"$share","target":"caption","source":"share.caption","value_type":"text","protected":true},

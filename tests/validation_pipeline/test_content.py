@@ -19,7 +19,8 @@ from validation_pipeline.natal_brand import (
 )
 from validation_pipeline.studio import StudioRenderer, tool_catalog, validate_recipe
 from validation_pipeline.studio_templates import (
-    StudioTemplateRegistry, apply_studio_template, replay_template_application,
+    StudioTemplateRegistry, _normalize_template, apply_studio_template,
+    replay_template_application,
 )
 from validation_pipeline.verify_studio_templates import run_canary
 
@@ -70,6 +71,8 @@ class ResultContractsTests(unittest.TestCase):
         }
         candidate = {
             "hook": "One visible customer moment",
+            "headline": "One clear next step",
+            "primary_text": "A short, concrete mechanism.",
             "supporting_text": "A short, concrete mechanism.",
             "offer": "First consultation free", "cta": "Book now",
             "caption": "A complete caption.",
@@ -159,7 +162,7 @@ class ResultContractsTests(unittest.TestCase):
         )
         studios = StudioTemplateRegistry().load_active(templates)
         self.assertEqual([item.template_id for item in templates], [item.template_id for item in studios])
-        self.assertTrue(all(item.version == 2 for item in studios))
+        self.assertTrue(all(item.version == 3 for item in studios))
 
     def test_catalog_components_are_strict_predefined_and_tunable(self) -> None:
         catalog = tool_catalog()
@@ -174,6 +177,58 @@ class ResultContractsTests(unittest.TestCase):
             self.assertFalse(component["parameter_schema"]["additionalProperties"])
             self.assertEqual(["studio.placement.instagram.feed_square.v1"], component["allowed_placements"])
             self.assertTrue(component["tunable_paths"])
+
+    def test_active_templates_reject_localized_static_text_and_unprotected_logo(self) -> None:
+        path = ROOT / "validation_pipeline/studio_templates/instagram/contrast_reframe_v3.json"
+        localized = json.loads(path.read_text())
+        next(item for item in localized["components"] if item["key"] == "reframe_badge")[
+            "params"
+        ]["text"] = "NEW FRAME"
+        with self.assertRaisesRegex(ValueError, "localized static text"):
+            _normalize_template(localized)
+
+        unprotected = json.loads(path.read_text())
+        unprotected["components"] = [
+            item for item in unprotected["components"] if item["key"] != "logo_surface"
+        ]
+        unprotected["bindings"] = [
+            item for item in unprotected["bindings"] if item["component_key"] != "logo_surface"
+        ]
+        with self.assertRaisesRegex(ValueError, "high-contrast light surface"):
+            _normalize_template(unprotected)
+
+    def test_v2_template_snapshot_remains_replayable(self) -> None:
+        active = json.loads((
+            ROOT / "validation_pipeline/studio_templates/instagram/direct_offer_v3.json"
+        ).read_text())
+        active["version"] = 2
+        for binding in active["bindings"]:
+            if binding["source"] == "candidate.headline":
+                binding["source"] = "candidate.hook"
+            elif binding["source"] == "candidate.primary_text":
+                binding["source"] = "candidate.supporting_text"
+        studio = _normalize_template(active)
+        recipe = apply_studio_template(
+            template=studio,
+            strategy_template={"template_id": studio.template_id, "version": 2, "sha256": "a" * 64},
+            slider_values={
+                "hook_pressure": 74, "emotional_intensity": 42,
+                "conceptual_novelty": 35, "information_density": 28,
+                "visual_complexity": 24,
+            },
+            candidate={
+                "hook": "Historical hook", "headline": "Unused headline",
+                "primary_text": "Unused primary text", "supporting_text": "Historical body",
+                "caption": "Caption", "alt_text": "Alt text",
+            },
+            brief={"offer": "Offer", "cta": "CTA"},
+            brand_document=natal_brand_document(new_uuid7()), media_asset_id=new_uuid7(),
+            semantic_instance_ids={role: new_uuid7() for role in (
+                "background", "primary_subject", "headline_block", "supporting_text_block",
+                "offer_block", "cta_block", "brand_mark",
+            )},
+        )
+        self.assertEqual(recipe, replay_template_application(recipe["modifiers"][0]["params"]))
 
     def test_slider_adjustments_are_meaningful_and_bounded(self) -> None:
         template = TemplateRegistry(REFERENCES / "templates").load_active()[0]
@@ -310,6 +365,7 @@ class ResultContractsTests(unittest.TestCase):
         candidate = {
             "hook": "One visible customer moment",
             "headline": "A specific headline",
+            "primary_text": "The exact mechanism belongs in the visible supporting block.",
             "supporting_text": "A short, concrete mechanism.",
             "offer": "First consultation free",
             "cta": "Book now",
@@ -336,6 +392,19 @@ class ResultContractsTests(unittest.TestCase):
                 brief=brief, brand_document=brand,
             )
             metadata = recipe["modifiers"][0]["params"]
+            rendered_text = {
+                frame["tool_id"]: frame["params"].get("text") for frame in recipe["frames"]
+            }
+            self.assertEqual(
+                candidate["headline"], rendered_text["studio.frame.headline.v1"]
+            )
+            self.assertEqual(
+                candidate["primary_text"], rendered_text["studio.frame.body.v1"]
+            )
+            self.assertNotEqual(candidate["hook"], rendered_text["studio.frame.headline.v1"])
+            self.assertNotEqual(
+                candidate["supporting_text"], rendered_text["studio.frame.body.v1"]
+            )
             structural_signatures.add(tuple(
                 (component["key"], component["tool_id"], component["z_index"], component["optional"])
                 for component in metadata["template_snapshot"]["components"]
@@ -357,7 +426,9 @@ class ResultContractsTests(unittest.TestCase):
         brand = natal_brand_document(logo_id)
         brief = {"offer": "First consultation free", "cta": "Book now"}
         candidate = {
-            "hook": "One visible customer moment", "supporting_text": "One concrete mechanism.",
+            "hook": "One visible customer moment", "headline": "One clear next step",
+            "primary_text": "One concrete visible mechanism.",
+            "supporting_text": "One concrete mechanism.",
             "caption": "A complete caption.", "alt_text": "A complete alt description.",
         }
         semantic_ids = {role: new_uuid7() for role in (
@@ -417,10 +488,12 @@ class ResultContractsTests(unittest.TestCase):
         brief = {"offer": "First consultation free", "cta": "Book now"}
         recipe = apply_studio_template(
             template=studio,
-            strategy_template={"template_id": strategy.template_id, "version": 2, "sha256": strategy.digest},
+            strategy_template={"template_id": strategy.template_id, "version": 3, "sha256": strategy.digest},
             slider_values=strategy.defaults,
             candidate={
-                "hook": "A concrete moment", "supporting_text": "A concrete mechanism.",
+                "hook": "A concrete moment", "headline": "A concrete headline",
+                "primary_text": "A concrete visible mechanism.",
+                "supporting_text": "A concrete mechanism.",
                 "caption": "Caption", "alt_text": "Alt text",
             },
             brief=brief, brand_document=natal_brand_document(logo_id), media_asset_id=media_id,
@@ -445,10 +518,12 @@ class ResultContractsTests(unittest.TestCase):
         brief = {"offer": "First consultation free", "cta": "Book now"}
         recipe = apply_studio_template(
             template=studio,
-            strategy_template={"template_id": strategy.template_id, "version": 2, "sha256": strategy.digest},
+            strategy_template={"template_id": strategy.template_id, "version": 3, "sha256": strategy.digest},
             slider_values=strategy.defaults,
             candidate={
-                "hook": "A concrete moment", "supporting_text": "A concrete mechanism.",
+                "hook": "A concrete moment", "headline": "A concrete headline",
+                "primary_text": "A concrete visible mechanism.",
+                "supporting_text": "A concrete mechanism.",
                 "caption": "Caption", "alt_text": "Alt text",
             }, brief=brief, brand_document=natal_brand_document(logo_id), media_asset_id=media_id,
             semantic_instance_ids={role: new_uuid7() for role in (

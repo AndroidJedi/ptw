@@ -6,8 +6,12 @@ description: Evaluate anonymized PTW Result candidates and exact mapped renders 
 # Content Result Critic
 
 Inspect the supplied candidate documents, exact server element UUIDs, prior pass
-summaries, and digest-mapped JPEGs. Return concise structured observations,
-reason codes, scores, ranking, and allowed actions only.
+summaries, resolved render contracts, and digest-mapped JPEGs. Return concise
+structured observations, reason codes, scores, ranking, and allowed actions
+only. The JPEG plus resolved frames are authoritative; freeform
+`visual_components` describe semantic intent and cannot override Studio frame
+geometry. Penalize real pixel/copy/accessibility mismatch, not conformity to
+the resolved contract.
 
 The application-side render mapping is exactly `candidate_id`, `bytes`,
 `sha256`, `mime_type`, `width`, and `height`. Require `image/jpeg`, exact

@@ -231,8 +231,8 @@ emergency stop is off, dependency/skill/schema/public Auth/App Check/CORS/
 bundle/Telegram audits pass, no deployment OOM evidence exists, and the locked
 24-hour resource audit is scheduled for 2026-08-28 08:38:53 UTC.
 
-The agent-controlled Studio template v2 release candidate is complete and
-awaiting an in-place production cutover. Five Git-owned
+The agent-controlled Studio template v2 milestone is deployed in place. Five
+Git-owned
 `ptw.studio.template.v1` component trees now replace the shared hardcoded
 Instagram skeleton: photo tension, split contrast, structured mechanism proof,
 editorial human story, and typography-first direct offer. The five active
@@ -248,13 +248,28 @@ catalog/renderer identities, and parent recipe/base digest; child recipes add a
 direct `derived_from` edge. Render manifests include the complete resolved
 recipe and production digests. Historical v1 pixels remain byte-identical.
 
-The Linux/amd64 release candidate `result-v2-20260827-1450-studio-templates`
-passes 32 built-image Validation tests, seven Commander tests and demo, five
+The Linux/amd64 release `result-v2-20260827-1450-studio-templates`, built from
+application commit `ddd5b844082916df51c2c1a6a640bce4591d520d`, passes 32
+built-image Validation tests, seven Commander tests and demo, five
 Owner Gateway tests, 17 Owner web tests/build, the three-test disposable
 PostgreSQL lifecycle (including nine persisted Instagram recipes and four
 direct parent edges), the idempotent clean-schema journey, canonical skill
 verification, and diff hygiene. Its standalone non-persisting canary renders
 five English and five Ukrainian recipes, replays identical canonical recipes
 and decoded pixels, verifies complete manifests, and reports all ten pairwise
-visual differences above the materiality threshold. Production remains on
-`result-v1-20260827-1140-decision-trace` until the preservation-gated cutover.
+visual differences above the materiality threshold.
+
+The preservation-gated production cutover completed without a reset. Exact
+all-table snapshots were identical across application replacement and explicit
+restart recovery; the retained core state is one Project, one Brief, four runs,
+nineteen candidates/recipes/renders, three critic passes, and one Result. The
+independent platform remains at
+`4f9225febfcb828faae459ef3c0a4cdf7a30a5dd` on its prior images. Pre- and
+post-cutover Studio, live four-mode bridge/critic, and Pexels canaries passed,
+as did schema, dependency, canonical-skill, Telegram direct, authenticated
+JPEG MIME/no-store/digest/ETag, public Auth/App Check/CORS/retired-route, and
+immediate 1 GB audits. Commander, Validation, and Owner Gateway are healthy on
+the matching v2 tag with zero restart counts after the recovery test;
+emergency stop is off, no deployment OOM evidence exists, 2 GiB swap remains
+available, and the locked 24-hour audit is scheduled for
+2026-08-28 12:35:40 UTC.

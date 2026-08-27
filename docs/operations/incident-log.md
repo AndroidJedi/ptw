@@ -50,8 +50,15 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   unchanged-component identity, protected binding rejection, parent metadata,
   canonical replay, and manifest completeness. The Linux/amd64 canary renders
   all five from one fixed input, verifies exact decoded-pixel replay, and checks
-  all ten pairwise visual differences. Production cutover and preservation
-  evidence are recorded in the current-state resume after deployment.
+  all ten pairwise visual differences. The in-place production release
+  `result-v2-20260827-1450-studio-templates` then passed that canary before and
+  after cutover, two fresh live bridge rounds, Pexels, restart recovery,
+  authenticated JPEG integrity, schema/dependency/skill/public-boundary,
+  Telegram, and immediate 1 GB/OOM audits. Exact Commander and independent-
+  platform table snapshots remained identical across application replacement
+  and restart; the platform revision and images were not changed. The matching
+  three application services are healthy with zero restart counts, and a
+  locked 24-hour audit is scheduled.
 
 ## 2026-08-27: Result critic rejected persisted preview mappings
 

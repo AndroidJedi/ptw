@@ -158,3 +158,21 @@ schema, public Auth/App Check/CORS/retired-route, and immediate 1 GB/OOM audits
 passed. Failed run `01a041c0-af7c-7881-bec4-bf4ebc2d23cf` remains immutable,
 and the empty operation guard permits its normal Owner Console retry as a new
 child run.
+
+The follow-up incomplete-visual-role incident was repaired in place without a
+reset as `result-v1-20260827-0930-role-hotfix` from application commit
+`ff05f65ae86ffd7a96699ba4de9d438e940113eb`; the independent platform remains at
+`4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`. Instagram candidate schemas now
+require exactly the nine adapter roles, the ordinary prompt enumerates that
+same ordered set, and complete `CandidateV2` validation runs inside the fresh
+two-attempt provider boundary instead of after a schema-only success.
+
+Both pre-cutover and post-cutover live bridge canaries generated and
+domain-validated exact-nine-role Candidates, with fresh Product Brief,
+correction, critic, and Pexels canaries also passing. Commander counts were
+preserved and platform counts were unchanged by the application cutover.
+Commander, Validation, and Owner Gateway are healthy on the matching role
+hotfix tag with zero restarts. Schema, dependency, skill, public bundle,
+Auth/CORS, and immediate 1 GB/OOM audits passed. Failed run
+`01a041d9-3a09-7fd4-af84-b9a863a57303` remains immutable, and the empty
+operation guard permits its normal Owner Console retry as a new child run.

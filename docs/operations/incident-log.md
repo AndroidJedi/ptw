@@ -55,7 +55,15 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
   lifecycle and clean/idempotent schema journey pass. Commander tests/demo,
   Owner Gateway tests, 16 Owner web tests, production build, six desktop/
   360 px/iPhone browser journeys, canonical skill verification, and diff
-  hygiene also pass locally. Deployment verification follows before release.
+  hygiene also pass locally. The in-place release
+  `result-v1-20260827-0930-role-hotfix` then generated and domain-validated an
+  exact-nine-role Candidate twice through the live bridge, alongside fresh
+  Product Brief, correction, critic, and Pexels canaries. All Commander counts
+  were preserved, platform counts were unchanged by the application cutover,
+  and all three application services are healthy with zero restarts. Schema,
+  dependency, skill, public Auth/CORS/bundle, and immediate 1 GB/OOM audits
+  passed. The failed run remains immutable and the operation guard is empty for
+  a normal Owner Console retry.
 
 ## 2026-08-27: Instagram Result failed on tool IDs parsed as UUIDs
 

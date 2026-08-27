@@ -41,17 +41,16 @@ Result v1 implements:
   digest-pinned Natal logo, palette, and Inter font; public asset and brand-kit
   setup routes are absent.
 
-The current working-tree milestone replaces the completed Result's raw debug
+The latest deployed milestone replaces the completed Result's raw debug
 JSON presentation with a collapsed visual explanation: five initial candidate
 JPEG cards, exact per-candidate parameter values, Pass 1 gates and scores, and
 a three-pass ranking/pairwise/improvement/final-selection path. Candidate
 previews are exposed only through authenticated run-scoped no-store routes and
-retain browser-side MIME, digest, and ETag verification. This milestone is not
-yet recorded as deployed below. Focused web unit/build checks, Playwright on
-desktop, 360 px Chromium, and iPhone WebKit, the Validation and Owner Gateway
-built-image suites, the disposable PostgreSQL Result lifecycle, the clean and
-idempotent schema verifier, Commander tests/demo, canonical skill verification,
-and `git diff --check` pass.
+retain browser-side MIME, digest, and ETag verification. Focused web unit/build
+checks, Playwright on desktop, 360 px Chromium, and iPhone WebKit, the
+Validation and Owner Gateway built-image suites, the disposable PostgreSQL
+Result lifecycle, the clean and idempotent schema verifier, Commander
+tests/demo, canonical skill verification, and `git diff --check` pass.
 
 The independent platform worktree now advertises only four JSON modes and one
 reviewed non-human graphic mode. It validates one-to-five digest-mapped JPEG
@@ -208,3 +207,26 @@ public bundle, Auth/CORS, and immediate 1 GB/OOM audits passed. Failed run
 `01a041f1-a430-7662-b27f-2339197e794b` and its five rendered candidates remain
 immutable, and the empty operation guard permits its normal Owner Console retry
 as a new child run.
+
+The visual Result decision trace was deployed in place without a reset as
+`result-v1-20260827-1140-decision-trace` from application commit
+`5cfa759b00742329636a425a42cafc029bd8ddb9`; the independent platform remains
+at `4f9225febfcb828faae459ef3c0a4cdf7a30a5dd` and its images were not changed.
+The live Owner Console serves entry bundle `index-D5UxwWt3.js` and lazy app
+bundle `App-pDzkFjZl.js`; the latter contains the five-direction, exact-
+parameter, and three-pass decision markers. The new candidate asset route
+rejects unauthenticated access and a real persisted candidate JPEG passed its
+internal run scope, MIME, no-store, SHA-256, and ETag checks.
+
+Fresh Product Brief, correction, UUID-allowlisted candidate, real mapped
+multimodal critic, and Pexels canaries passed before and after cutover. A first
+attempt safely restored the prior matching application tag when its
+preservation window incorrectly included expected platform canary bookkeeping;
+Commander counts remained unchanged. The corrected cutover compared counts
+only across application replacement and restart, preserving one Project, one
+Brief, four runs, nineteen candidates, three critic passes, and one Result;
+independent-platform counts were also unchanged across that cutover. All three
+application services are healthy on the matching tag with zero restart counts,
+emergency stop is off, dependency/skill/schema/public Auth/App Check/CORS/
+bundle/Telegram audits pass, no deployment OOM evidence exists, and the locked
+24-hour resource audit is scheduled for 2026-08-28 08:38:53 UTC.

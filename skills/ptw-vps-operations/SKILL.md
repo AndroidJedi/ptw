@@ -53,6 +53,13 @@ move credentials between them or mutate platform data during a Commander reset.
 - Production concurrency is at most two generator JSON calls and one critic
   multimodal call. A run permits five initial calls, four improvements, exactly
   three critic passes, one optional non-human graphic, and 45 minutes total.
+- Bridge canaries append independent-platform job, session, and event rows. For
+  an in-place application release, run the pre-cutover canary first, then
+  snapshot Commander and platform table counts. Compare those snapshots after
+  the application container cutover and restart but before the post-cutover
+  canary. Never compare platform counts across canary rounds and misclassify
+  expected canary bookkeeping as application data mutation. A failed
+  preservation check must restore the prior matching application image tag.
 
 ## Clean reset acceptance
 

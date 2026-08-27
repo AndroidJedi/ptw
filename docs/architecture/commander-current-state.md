@@ -176,3 +176,23 @@ hotfix tag with zero restarts. Schema, dependency, skill, public bundle,
 Auth/CORS, and immediate 1 GB/OOM audits passed. Failed run
 `01a041d9-3a09-7fd4-af84-b9a863a57303` remains immutable, and the empty
 operation guard permits its normal Owner Console retry as a new child run.
+
+The follow-up Result critic preview-mapping incident was repaired in place
+without a reset as `result-v1-20260827-1025-critic-hotfix` from application
+commit `1dbc3029988b4bb06d28dbc53689a8d6ac832e3b`; the independent platform
+remains at `4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`. The application now accepts
+the exact persisted preview mapping including `mime_type`, validates the JPEG
+and digest before transport, emits strict list-shaped element scores, and runs
+complete critic-domain validation inside the fresh two-attempt boundary. The
+release canary exercises this real contract rather than a marker response.
+
+Both pre-cutover and post-cutover live bridge rounds passed the real multimodal
+critic schema, exact mapped JPEG, pixel inspection, and domain validator, with
+fresh Product Brief, correction, candidate, and Pexels canaries also passing.
+Commander counts were preserved and platform counts were unchanged by the
+application cutover. Commander, Validation, and Owner Gateway are healthy on
+the matching critic hotfix tag with zero restarts. Dependency, skill, schema,
+public bundle, Auth/CORS, and immediate 1 GB/OOM audits passed. Failed run
+`01a041f1-a430-7662-b27f-2339197e794b` and its five rendered candidates remain
+immutable, and the empty operation guard permits its normal Owner Console retry
+as a new child run.

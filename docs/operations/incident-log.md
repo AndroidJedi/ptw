@@ -46,8 +46,16 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
 - Verification: 24 focused Validation tests pass locally and in the Linux/amd64
   image, including the persisted mapping and critic-domain retry regressions and
   the 1080×1080 Natal render. The two-test disposable-PostgreSQL full Result
-  lifecycle and the clean/idempotent schema journey pass. Full release and live
-  production verification follow before deployment.
+  lifecycle and the clean/idempotent schema journey pass. The in-place release
+  `result-v1-20260827-1025-critic-hotfix` then passed the real critic schema,
+  MIME-bearing attachment mapping, pixel inspection, and complete domain
+  validator before and after cutover, alongside fresh Product Brief,
+  correction, candidate, and Pexels canaries. Commander counts were preserved,
+  platform counts were unchanged by the application cutover, and all three
+  application services are healthy with zero restarts. Dependency, skill,
+  public Auth/CORS/bundle, and immediate 1 GB/OOM audits passed. The failed run
+  and its five renders remain immutable, and the operation guard is empty for a
+  normal Owner Console retry.
 
 ## 2026-08-27: Instagram candidates omitted a required visual role
 

@@ -231,16 +231,30 @@ emergency stop is off, dependency/skill/schema/public Auth/App Check/CORS/
 bundle/Telegram audits pass, no deployment OOM evidence exists, and the locked
 24-hour resource audit is scheduled for 2026-08-28 08:38:53 UTC.
 
-The active Studio alignment fix is implemented locally as immutable version 3
-and is pending in-place production verification. Candidate contexts now include
-the complete digest-locked Studio snapshot; visible Instagram copy binds to
+The active Studio alignment fix is deployed as immutable version 3. Candidate
+contexts now include the complete digest-locked Studio snapshot; visible Instagram copy binds to
 `headline` and `primary_text`; and the anonymous critic payload includes the
 resolved frame contract alongside each JPEG. Validation rejects localized
 static template text and requires the dark Natal logo's topmost containing
 layer to be a light surface. Persisted v2 snapshots retain their original
 bindings and replay path. The final-gate error now directs the owner to an
 immutable retry from the approved Brief instead of unavailable task/asset
-controls.
+controls. The in-place Linux/amd64 release
+`result-v3-20260827-1645-final-gates` preserved every table count across
+replacement and explicit restart, passed the five-template English/Ukrainian
+canary, live bridge/Pexels, schema/dependency/public-console/authenticated-image,
+restart, immediate 1 GB, replay, and OOM audits, and left all three services
+healthy with zero restart counts.
+
+Immutable child run `01a04385-395a-7897-a3e2-0852ed3e83ae` completed from the
+failed parent with seven candidates, three critic passes, and Result Creative
+`01a04395-6373-7ad7-b081-1f81d2656520`. Its selected `direct_offer@3` scored 90
+with no complexity penalty. Protected headline, primary text, offer, and CTA
+bindings match; deterministic replay reproduces the exact JPEG; and all five
+initial candidates have distinct structural signatures with minimum pairwise
+decoded-pixel RMS 91.86. The operation guard is clear, no new OOM evidence
+exists, and the locked follow-up audit is scheduled for 2026-08-28 13:58:26
+UTC.
 
 The agent-controlled Studio template v2 milestone is deployed in place. Five
 Git-owned

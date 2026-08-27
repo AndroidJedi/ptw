@@ -49,7 +49,18 @@ the narrowest skill update. Never record secrets or ephemeral release hashes.
 - Verification: focused contracts cover v3 field-to-pixel binding, v2 replay,
   static-copy and logo-surface rejection, exact Studio context, resolved critic
   payloads, five structural signatures, slider isolation, lineage, and replay.
-  Production cutover and immutable child retry results are pending.
+  The Linux/amd64 in-place release `result-v3-20260827-1645-final-gates`
+  preserved every table count across replacement and explicit restart, then
+  passed the ten-render Studio canary, live bridge/Pexels, schema/dependency,
+  public-console, authenticated JPEG, replay, immediate 1 GB, and OOM audits.
+  Immutable child run `01a04385-395a-7897-a3e2-0852ed3e83ae` completed with
+  seven candidates, three critic passes, and Creative
+  `01a04395-6373-7ad7-b081-1f81d2656520`; its selected `direct_offer@3` scored
+  90 with no complexity penalty and reproduced identical pixels. The five real
+  initial outputs retained five structural signatures and minimum pairwise RMS
+  91.86. The failed parent remains immutable, the operation guard is clear,
+  services are healthy, and the locked follow-up audit is scheduled for
+  2026-08-28 13:58:26 UTC.
 
 ## 2026-08-27: five Instagram strategies rendered as one visual family
 

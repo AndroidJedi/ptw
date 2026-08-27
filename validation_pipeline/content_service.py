@@ -342,6 +342,10 @@ class CandidateGenerationOrchestrator:
                 run["output_profile"], repository=self.repository.authority,
                 renderer=self.recipe_renderer, pexels=self.pexels, bridge=self.bridge,
             )
+            parent_recipe = (
+                None if parent_candidate_id is None
+                else self.repository.authority.get_candidate_recipe(parent_candidate_id)
+            )
             materialized = adapter.materialize(
                 candidate=candidate,
                 run={
@@ -349,6 +353,8 @@ class CandidateGenerationOrchestrator:
                     "candidate_id": candidate_id,
                     "candidate_template_id": template.template_id,
                     "candidate_parameters": dict(parameters),
+                    "parent_recipe_id": None if parent_recipe is None else parent_recipe["recipe_id"],
+                    "base_recipe_sha256": None if parent_recipe is None else parent_recipe["document_sha256"],
                 },
                 element_ids=instance_ids,
                 requested_by=run["requested_by"],

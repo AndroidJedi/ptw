@@ -8,12 +8,11 @@ import json
 from pathlib import Path
 import re
 import textwrap
-from typing import Any, Mapping, Protocol, Sequence
-
-from commander.ids import new_uuid7
+from typing import Any, Mapping, Protocol
 
 from .content import CandidateV2
-from .studio import DEFAULT_GUARDS, DEFAULT_SOURCE_REFS, validate_recipe
+from .studio import validate_recipe
+from .studio_templates import StudioTemplateRegistry, apply_studio_template
 
 
 TEXT_PREVIEW_RENDERER_VERSION = "ptw-content-text-preview-v1"
@@ -123,19 +122,6 @@ class InstagramStaticAdapter:
         self.pexels = pexels
         self.bridge = bridge
 
-    @staticmethod
-    def _frame(
-        instance_id: str, tool_id: str, frame: tuple[float, float, float, float], z: int,
-        *, params: Mapping[str, Any], source_asset_ids: Sequence[str] = (),
-    ) -> dict[str, Any]:
-        x, y, width, height = frame
-        return {
-            "instance_id": instance_id, "tool_id": tool_id,
-            "frame": {"x": x, "y": y, "width": width, "height": height},
-            "z_index": z, "params": dict(params), "timeline": None,
-            "source_asset_ids": list(source_asset_ids),
-        }
-
     def _resolve_media(
         self, *, request: Mapping[str, Any], run: Mapping[str, Any], requested_by: str,
     ) -> tuple[Mapping[str, Any], bool]:
@@ -232,94 +218,33 @@ class InstagramStaticAdapter:
         element_ids: Mapping[str, str], media_id: str,
     ) -> Mapping[str, Any]:
         brand = run["context_bundle"]["brand_kit"]["document"]
-        logo_id = brand.get("logo_source_asset_id")
-        if not logo_id:
-            raise ValueError("Instagram Result generation requires a Project brand kit logo")
-        colors = list(brand.get("colors") or [])
-        dark = colors[0] if colors else "#0C0E12"
-        light = next((item for item in colors if item.upper() in {"#F4F6FA", "#FFFFFF"}), "#F4F6FA")
-        accent = colors[-1] if colors else "#43BDD3"
         template_id = str(run["candidate_template_id"])
         parameters = dict(run["candidate_parameters"])
-        layouts = {
-            "moment_tension": {
-                "media": (0, 0, 1, .52), "headline": (.06, .55, .88, .10),
-                "body": (.06, .66, .88, .075), "headline_size": 54, "body_size": 25,
+        studio_template = StudioTemplateRegistry().get(template_id)
+        context_version = next((
+            item for item in run["context_bundle"]["template_versions"]
+            if item["template_id"] == template_id
+        ), None)
+        if context_version is None:
+            raise ValueError("Instagram adapter cannot resolve the snapshotted strategy template")
+        if (
+            int(context_version["studio_template_version"]) != studio_template.version
+            or context_version["studio_template_sha256"] != studio_template.digest
+        ):
+            raise ValueError("snapshotted strategy and Studio template identities do not match")
+        return apply_studio_template(
+            template=studio_template,
+            strategy_template={
+                "template_id": template_id, "version": int(context_version["version"]),
+                "sha256": str(context_version["digest"]),
             },
-            "contrast_reframe": {
-                "media": (.50, .04, .50, .67), "headline": (.06, .10, .38, .21),
-                "body": (.06, .35, .38, .24), "headline_size": 43, "body_size": 23,
-            },
-            "mechanism_proof": {
-                "media": (.06, .05, .88, .43), "headline": (.06, .52, .88, .09),
-                "body": (.06, .62, .88, .105), "headline_size": 46, "body_size": 24,
-            },
-            "human_story": {
-                "media": (0, 0, 1, .56), "headline": (.06, .59, .88, .09),
-                "body": (.06, .69, .88, .055), "headline_size": 45, "body_size": 22,
-            },
-            "direct_offer": {
-                "media": (.61, .07, .33, .39), "headline": (.06, .12, .49, .17),
-                "body": (.06, .33, .49, .15), "headline_size": 48, "body_size": 23,
-            },
-        }
-        if template_id not in layouts:
-            raise ValueError("Instagram adapter received an unknown template personality")
-        layout = layouts[template_id]
-        visual_by_role = {
-            str(item["role"]): str(item["content"]) for item in candidate["visual_components"]
-        }
-        composition = visual_by_role.get("composition", "").casefold()
-        focal_x = .30 if any(word in composition for word in ("left", "ліворуч", "зліва")) else (
-            .70 if any(word in composition for word in ("right", "праворуч", "справа")) else .50
+            slider_values=parameters, candidate=candidate,
+            brief=run["context_bundle"]["brief"]["document"],
+            brand_document=brand, media_asset_id=media_id,
+            semantic_instance_ids=element_ids,
+            parent_recipe_id=run.get("parent_recipe_id"),
+            base_recipe_sha256=run.get("base_recipe_sha256"),
         )
-        frame = self._frame
-        frames = [
-            frame(element_ids["background"], "studio.frame.shape.v1", (0, 0, 1, 1), 0,
-                  params={"background": dark, "opacity": 1, "radius": 0}),
-            frame(element_ids["primary_subject"], "studio.frame.media.v1", layout["media"], 1,
-                  params={"fit": "cover", "focal_x": focal_x, "focal_y": .5}, source_asset_ids=[media_id]),
-            frame(element_ids["headline_block"], "studio.frame.headline.v1", layout["headline"], 2,
-                  params={"text": candidate["hook"], "color": light,
-                          "font_size": layout["headline_size"], "min_font_size": 21,
-                          "max_lines": 4, "line_height": 1.02}),
-            frame(element_ids["supporting_text_block"], "studio.frame.body.v1", layout["body"], 3,
-                  params={"text": candidate["supporting_text"], "color": light,
-                          "font_size": layout["body_size"], "min_font_size": 17,
-                          "max_lines": 6, "line_height": 1.04}),
-            frame(element_ids["offer_block"], "studio.frame.offer.v1", (.06, .79, .88, .055), 4,
-                  params={"text": candidate["offer"], "color": accent, "font_size": 27,
-                          "min_font_size": 18, "max_lines": 2, "line_height": 1.02}),
-            frame(new_uuid7(), "studio.frame.shape.v1", (.49, .86, .45, .08), 5,
-                  params={"background": accent, "opacity": 1, "radius": 20}),
-            frame(element_ids["cta_block"], "studio.frame.cta.v1", (.50, .87, .43, .06), 6,
-                  params={"text": candidate["cta"], "color": dark, "font_size": 25,
-                          "min_font_size": 17, "max_lines": 2, "align": "center", "vertical_align": "center"}),
-            frame(element_ids["brand_mark"], "studio.frame.logo.v1", (.06, .865, .26, .07), 7,
-                  params={"fit": "contain"}, source_asset_ids=[str(logo_id)]),
-        ]
-        return {
-            "schema_version": 2, "parent_recipe_id": None,
-            "placement_tool_id": "studio.placement.instagram.feed_square.v1",
-            "duration_seconds": None, "frame_rate": None,
-            "frames": frames,
-            "modifiers": [{
-                "instance_id": new_uuid7(), "tool_id": "studio.layout.single_visual.v1",
-                "params": {
-                    "template_personality": template_id,
-                    "visual_complexity": int(parameters["visual_complexity"]),
-                    "composition_direction": visual_by_role.get("composition", ""),
-                    "lighting_style": visual_by_role.get("lighting_style", ""),
-                },
-            }],
-            "strategy_ids": [
-                "studio.strategy.one_message.v1", "studio.strategy.specific_cta.v1",
-                "studio.strategy.visual_proof.v1",
-            ],
-            "validation_ids": list(DEFAULT_GUARDS),
-            "source_reference_ids": list(DEFAULT_SOURCE_REFS),
-            "share": {"caption": candidate["caption"], "alt_text": candidate["alt_text"]},
-        }
 
     def materialize(
         self, *, candidate: CandidateV2, run: Mapping[str, Any],
@@ -367,6 +292,7 @@ class InstagramStaticAdapter:
         validate_recipe(
             recipe_submission, project_id=run["project_id"], brief_id=run["brief_id"],
             brand_kit_id=run["brand_kit_id"], brief=run["context_bundle"]["brief"]["document"],
+            brand_document=run["context_bundle"]["brand_kit"]["document"],
         )
         recipe = self.repository.create_recipe(
             run["project_id"], candidate_id=run["candidate_id"], brief_id=run["brief_id"],

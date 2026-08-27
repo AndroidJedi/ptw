@@ -1,6 +1,8 @@
 {
   "template_id": "moment_tension",
-  "version": 1,
+  "version": 2,
+  "studio_template_version": 2,
+  "studio_template_sha256": "3fb32e3cdb452836e1238d1632fc293018ccc9a4085ab8d57caa95537548a263",
   "active": true,
   "philosophy": "Open on one observable time, action, object, or unresolved customer moment. Turn that pain into tension, then reveal the supplied mechanism and exact offer without exaggeration.",
   "narrative_sequence": ["visible moment", "unresolved tension", "supplied mechanism", "exact offer", "exact CTA"],

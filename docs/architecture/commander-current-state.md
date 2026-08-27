@@ -230,3 +230,31 @@ application services are healthy on the matching tag with zero restart counts,
 emergency stop is off, dependency/skill/schema/public Auth/App Check/CORS/
 bundle/Telegram audits pass, no deployment OOM evidence exists, and the locked
 24-hour resource audit is scheduled for 2026-08-28 08:38:53 UTC.
+
+The agent-controlled Studio template v2 release candidate is complete and
+awaiting an in-place production cutover. Five Git-owned
+`ptw.studio.template.v1` component trees now replace the shared hardcoded
+Instagram skeleton: photo tension, split contrast, structured mechanism proof,
+editorial human story, and typography-first direct offer. The five active
+strategy documents are version 2 and digest-lock their matching Studio
+definition at startup. The internal catalog exposes strict predefined media,
+logo, headline, body, offer, CTA, badge, and shape tools without restoring any
+Studio UI or public route.
+
+Every slider now resolves through declared deterministic component rules and a
+quantized ordered patch. Each new recipe embeds its immutable template snapshot,
+protected bindings, exact/normalized sliders, component UUID map,
+catalog/renderer identities, and parent recipe/base digest; child recipes add a
+direct `derived_from` edge. Render manifests include the complete resolved
+recipe and production digests. Historical v1 pixels remain byte-identical.
+
+The Linux/amd64 release candidate `result-v2-20260827-1450-studio-templates`
+passes 32 built-image Validation tests, seven Commander tests and demo, five
+Owner Gateway tests, 17 Owner web tests/build, the three-test disposable
+PostgreSQL lifecycle (including nine persisted Instagram recipes and four
+direct parent edges), the idempotent clean-schema journey, canonical skill
+verification, and diff hygiene. Its standalone non-persisting canary renders
+five English and five Ukrainian recipes, replays identical canonical recipes
+and decoded pixels, verifies complete manifests, and reports all ten pairwise
+visual differences above the materiality threshold. Production remains on
+`result-v1-20260827-1140-decision-trace` until the preservation-gated cutover.

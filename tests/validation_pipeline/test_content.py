@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import copy
+import hashlib
+import json
 from pathlib import Path
 import unittest
 
@@ -11,10 +14,14 @@ from validation_pipeline.content import (
 )
 from validation_pipeline.content_adapters import InstagramStaticAdapter
 from validation_pipeline.natal_brand import (
-    NATAL_FONT_PATH, NATAL_FONT_SHA256, NATAL_LOGO_SHA256,
+    NATAL_COLORS, NATAL_FONT_PATH, NATAL_FONT_SHA256, NATAL_LOGO_SHA256,
     natal_brand_document, natal_logo_bytes,
 )
-from validation_pipeline.studio import StudioRenderer, validate_recipe
+from validation_pipeline.studio import StudioRenderer, tool_catalog, validate_recipe
+from validation_pipeline.studio_templates import (
+    StudioTemplateRegistry, apply_studio_template, replay_template_application,
+)
+from validation_pipeline.verify_studio_templates import run_canary
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -22,6 +29,22 @@ REFERENCES = ROOT / "skills/content-candidate-generator/references"
 
 
 class ResultContractsTests(unittest.TestCase):
+    @staticmethod
+    def _recipe_run(template, brand, brief):
+        return {
+            "candidate_template_id": template.template_id,
+            "candidate_parameters": dict(template.defaults),
+            "context_bundle": {
+                "brand_kit": {"document": brand}, "brief": {"document": brief},
+                "template_versions": [{
+                    "template_id": template.template_id, "version": template.version,
+                    "digest": template.digest,
+                    "studio_template_version": template.studio_template_version,
+                    "studio_template_sha256": template.studio_template_sha256,
+                }],
+            },
+        }
+
     def test_natal_identity_assets_and_contract_are_canonical(self) -> None:
         import hashlib
 
@@ -58,20 +81,17 @@ class ResultContractsTests(unittest.TestCase):
         brand = natal_brand_document(logo_id)
         template = TemplateRegistry(REFERENCES / "templates").load_active()[0]
         adapter = InstagramStaticAdapter(None, None, None, None)
+        brief = {"offer": candidate["offer"], "cta": candidate["cta"]}
         recipe = adapter._recipe(
             candidate=candidate,
-            run={
-                "candidate_template_id": template.template_id,
-                "candidate_parameters": dict(template.defaults),
-                "context_bundle": {"brand_kit": {"document": brand}},
-            },
+            run=self._recipe_run(template, brand, brief),
             element_ids=element_ids,
             media_id=media_id,
         )
         contract = validate_recipe(
             recipe, project_id=project_id, brief_id=brief_id,
             brand_kit_id=brand_kit_id,
-            brief={"offer": candidate["offer"], "cta": candidate["cta"]},
+            brief=brief, brand_document=brand,
         )
         media_output = BytesIO()
         Image.new("RGB", (1080, 1080), "#4A4A4A").save(media_output, format="JPEG")
@@ -87,6 +107,44 @@ class ResultContractsTests(unittest.TestCase):
             self.assertEqual((1080, 1080), image.size)
             self.assertEqual("JPEG", image.format)
 
+    @unittest.skipUnless(importlib.util.find_spec("PIL") is not None, "Pillow is required")
+    def test_non_persisting_five_template_canary(self) -> None:
+        report = run_canary()
+        self.assertEqual("ok", report["status"])
+        self.assertEqual(5, len(report["templates"]))
+        self.assertEqual(10, len(report["pairwise_distinction"]))
+        self.assertEqual({"en": 5, "uk": 5}, report["language_renders"])
+
+    @unittest.skipUnless(importlib.util.find_spec("PIL") is not None, "Pillow is required")
+    def test_historical_v1_renderer_pixels_remain_byte_identical(self) -> None:
+        from io import BytesIO
+        from PIL import Image
+
+        media = BytesIO()
+        Image.new("RGB", (1080, 1080), "#765A50").save(media, format="JPEG", quality=90)
+        recipe = {
+            "width": 1080, "height": 1080,
+            "placement_tool_id": "studio.placement.instagram.feed_square.v1",
+            "frames": [
+                {"instance_id":"01900000-0000-7000-8000-000000000001","tool_id":"studio.frame.shape.v1","frame":{"x":0,"y":0,"width":1,"height":1},"z_index":0,"params":{"background":"#0C0E12","opacity":1,"radius":0},"timeline":None,"source_asset_ids":[]},
+                {"instance_id":"01900000-0000-7000-8000-000000000002","tool_id":"studio.frame.media.v1","frame":{"x":0,"y":0,"width":1,"height":0.5},"z_index":1,"params":{"fit":"cover","focal_x":0.5,"focal_y":0.5},"timeline":None,"source_asset_ids":["01900000-0000-7000-8000-000000000010"]},
+                {"instance_id":"01900000-0000-7000-8000-000000000003","tool_id":"studio.frame.headline.v1","frame":{"x":0.06,"y":0.55,"width":0.88,"height":0.12},"z_index":2,"params":{"text":"A stable historical headline","color":"#F4F6FA","font_size":54,"min_font_size":21,"max_lines":4,"line_height":1.02},"timeline":None,"source_asset_ids":[]},
+                {"instance_id":"01900000-0000-7000-8000-000000000004","tool_id":"studio.frame.body.v1","frame":{"x":0.06,"y":0.7,"width":0.88,"height":0.08},"z_index":3,"params":{"text":"Historical body remains byte stable.","color":"#F4F6FA","font_size":25,"min_font_size":17,"max_lines":4,"line_height":1.04},"timeline":None,"source_asset_ids":[]},
+            ],
+            "modifiers": [], "strategy_ids": [], "validation_ids": [],
+        }
+        rendered = StudioRenderer().render(
+            recipe_id="01900000-0000-7000-8000-000000000020", recipe_digest="b" * 64,
+            recipe=recipe, brand_kit={"document": {"colors": list(NATAL_COLORS), "fonts": ["Inter"]}},
+            assets={"01900000-0000-7000-8000-000000000010": {
+                "bytes": media.getvalue(), "mime_type": "image/jpeg",
+            }},
+        )
+        self.assertEqual(
+            "083bddb9bbb6981a4e8a78a0368ffcd0dc30761395381f31326d2fc2be99ad6d",
+            hashlib.sha256(rendered["bytes"]).hexdigest(),
+        )
+
     def test_registry_contains_exactly_five_distinct_strategies(self) -> None:
         templates = TemplateRegistry(REFERENCES / "templates").load_active()
         self.assertEqual(5, len(templates))
@@ -98,6 +156,23 @@ class ResultContractsTests(unittest.TestCase):
             ],
             [item.template_id for item in templates],
         )
+        studios = StudioTemplateRegistry().load_active(templates)
+        self.assertEqual([item.template_id for item in templates], [item.template_id for item in studios])
+        self.assertTrue(all(item.version == 2 for item in studios))
+
+    def test_catalog_components_are_strict_predefined_and_tunable(self) -> None:
+        catalog = tool_catalog()
+        self.assertEqual(2, catalog["schema_version"])
+        self.assertEqual(64, len(catalog["catalog_sha256"]))
+        components = [item for item in catalog["items"] if item["kind"] == "frame"]
+        self.assertEqual(
+            {"media", "logo", "headline", "body", "offer", "cta", "badge", "shape"},
+            {item["tool_id"].split(".")[-2] for item in components},
+        )
+        for component in components:
+            self.assertFalse(component["parameter_schema"]["additionalProperties"])
+            self.assertEqual(["studio.placement.instagram.feed_square.v1"], component["allowed_placements"])
+            self.assertTrue(component["tunable_paths"])
 
     def test_slider_adjustments_are_meaningful_and_bounded(self) -> None:
         template = TemplateRegistry(REFERENCES / "templates").load_active()[0]
@@ -244,33 +319,147 @@ class ResultContractsTests(unittest.TestCase):
                 {"role": "lighting_style", "content": "Natural daylight", "source_ids": []},
             ],
         }
-        brand = {
-            "name": "PTW Test", "colors": ["#111111", "#FFFFFF", "#43BDD3", "#F4F2EC"],
-            "fonts": ["Inter"], "tone_notes": "Direct", "logo_source_asset_id": logo_id,
-        }
+        brand = natal_brand_document(logo_id)
         adapter = InstagramStaticAdapter(None, None, None, None)
-        layouts = set()
+        structural_signatures = set()
+        application_digests = set()
         for template in templates:
-            run = {
-                "candidate_template_id": template.template_id,
-                "candidate_parameters": dict(template.defaults),
-                "context_bundle": {"brand_kit": {"document": brand}},
-            }
+            brief = {"offer": candidate["offer"], "cta": candidate["cta"]}
+            run = self._recipe_run(template, brand, brief)
             recipe = adapter._recipe(
                 candidate=candidate, run=run, element_ids=element_ids, media_id=media_id,
             )
             contract = validate_recipe(
                 recipe, project_id=project_id, brief_id=brief_id,
                 brand_kit_id=brand_kit_id,
-                brief={"offer": candidate["offer"], "cta": candidate["cta"]},
+                brief=brief, brand_document=brand,
             )
-            frame_map = tuple(
-                (frame["tool_id"], tuple(frame["frame"].values()))
-                for frame in contract.value["frames"]
-                if frame["tool_id"] in {"studio.frame.media.v1", "studio.frame.headline.v1"}
+            metadata = recipe["modifiers"][0]["params"]
+            structural_signatures.add(tuple(
+                (component["key"], component["tool_id"], component["z_index"], component["optional"])
+                for component in metadata["template_snapshot"]["components"]
+            ))
+            application_digests.add(hashlib.sha256(json.dumps(
+                metadata, sort_keys=True, separators=(",", ":"),
+            ).encode()).hexdigest())
+            self.assertEqual(recipe, replay_template_application(metadata))
+            self.assertEqual(contract.digest, hashlib.sha256(json.dumps(
+                contract.value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+            ).encode()).hexdigest())
+        self.assertEqual(5, len(structural_signatures))
+        self.assertEqual(5, len(application_digests))
+
+    def test_each_slider_changes_only_declared_component_paths(self) -> None:
+        strategies = TemplateRegistry(REFERENCES / "templates").load_active()
+        studios = StudioTemplateRegistry().load_active(strategies)
+        logo_id, media_id = new_uuid7(), new_uuid7()
+        brand = natal_brand_document(logo_id)
+        brief = {"offer": "First consultation free", "cta": "Book now"}
+        candidate = {
+            "hook": "One visible customer moment", "supporting_text": "One concrete mechanism.",
+            "caption": "A complete caption.", "alt_text": "A complete alt description.",
+        }
+        semantic_ids = {role: new_uuid7() for role in (
+            "background", "primary_subject", "headline_block", "supporting_text_block",
+            "offer_block", "cta_block", "brand_mark",
+        )}
+        for strategy, studio in zip(strategies, studios):
+            strategy_identity = {
+                "template_id": strategy.template_id, "version": strategy.version,
+                "sha256": strategy.digest,
+            }
+            base = apply_studio_template(
+                template=studio, strategy_template=strategy_identity,
+                slider_values=strategy.defaults, candidate=candidate, brief=brief,
+                brand_document=brand, media_asset_id=media_id,
+                semantic_instance_ids=semantic_ids,
             )
-            layouts.add(frame_map)
-        self.assertEqual(5, len(layouts))
+            metadata = base["modifiers"][0]["params"]
+            base_by_id = {item["instance_id"]: item for item in base["frames"]}
+            for slider in strategy.defaults:
+                low, high = strategy.envelopes[slider]
+                value = strategy.defaults[slider]
+                adjusted_value = value + 10 if value + 10 <= high else value - 10
+                self.assertGreaterEqual(adjusted_value, low)
+                adjusted = {**dict(strategy.defaults), slider: adjusted_value}
+                tuned = apply_studio_template(
+                    template=studio, strategy_template=strategy_identity,
+                    slider_values=adjusted, candidate=candidate, brief=brief,
+                    brand_document=brand, media_asset_id=media_id,
+                    semantic_instance_ids=semantic_ids,
+                    reserved_component_instances=metadata["component_instances"],
+                    reserved_modifier_instance_id=metadata["modifier_instance_id"],
+                )
+                tuned_by_id = {item["instance_id"]: item for item in tuned["frames"]}
+                allowed_keys = {
+                    rule["component_key"] for rule in studio.document["tuning_rules"]
+                    if rule["slider"] == slider
+                }
+                allowed_ids = {metadata["component_instances"][key] for key in allowed_keys}
+                changed_ids = {
+                    instance_id for instance_id in set(base_by_id) | set(tuned_by_id)
+                    if base_by_id.get(instance_id) != tuned_by_id.get(instance_id)
+                }
+                self.assertTrue(changed_ids, f"{strategy.template_id}.{slider}")
+                self.assertTrue(changed_ids <= allowed_ids, f"{strategy.template_id}.{slider}")
+                self.assertEqual(tuned, replay_template_application(tuned["modifiers"][0]["params"]))
+                validate_recipe(
+                    tuned, project_id=new_uuid7(), brief_id=new_uuid7(), brand_kit_id=new_uuid7(),
+                    brief=brief, brand_document=brand,
+                )
+                self.assertEqual(metadata["bindings"], tuned["modifiers"][0]["params"]["bindings"])
+
+    def test_template_replay_rejects_protected_copy_changes(self) -> None:
+        strategy = TemplateRegistry(REFERENCES / "templates").load_active()[0]
+        studio = StudioTemplateRegistry().get(strategy.template_id)
+        logo_id, media_id = new_uuid7(), new_uuid7()
+        brief = {"offer": "First consultation free", "cta": "Book now"}
+        recipe = apply_studio_template(
+            template=studio,
+            strategy_template={"template_id": strategy.template_id, "version": 2, "sha256": strategy.digest},
+            slider_values=strategy.defaults,
+            candidate={
+                "hook": "A concrete moment", "supporting_text": "A concrete mechanism.",
+                "caption": "Caption", "alt_text": "Alt text",
+            },
+            brief=brief, brand_document=natal_brand_document(logo_id), media_asset_id=media_id,
+            semantic_instance_ids={role: new_uuid7() for role in (
+                "background", "primary_subject", "headline_block", "supporting_text_block",
+                "offer_block", "cta_block", "brand_mark",
+            )},
+        )
+        tampered = copy.deepcopy(recipe)
+        next(item for item in tampered["frames"] if item["tool_id"] == "studio.frame.offer.v1")["params"]["text"] = "Changed"
+        with self.assertRaisesRegex(ValueError, "exact Product Brief|differs from its protected template"):
+            validate_recipe(
+                tampered, project_id=new_uuid7(), brief_id=new_uuid7(), brand_kit_id=new_uuid7(),
+                brief=brief, brand_document=natal_brand_document(logo_id),
+            )
+
+    def test_improved_template_application_carries_parent_recipe_lineage(self) -> None:
+        strategy = TemplateRegistry(REFERENCES / "templates").load_active()[0]
+        studio = StudioTemplateRegistry().get(strategy.template_id)
+        logo_id, media_id, parent_recipe_id = new_uuid7(), new_uuid7(), new_uuid7()
+        parent_digest = "a" * 64
+        brief = {"offer": "First consultation free", "cta": "Book now"}
+        recipe = apply_studio_template(
+            template=studio,
+            strategy_template={"template_id": strategy.template_id, "version": 2, "sha256": strategy.digest},
+            slider_values=strategy.defaults,
+            candidate={
+                "hook": "A concrete moment", "supporting_text": "A concrete mechanism.",
+                "caption": "Caption", "alt_text": "Alt text",
+            }, brief=brief, brand_document=natal_brand_document(logo_id), media_asset_id=media_id,
+            semantic_instance_ids={role: new_uuid7() for role in (
+                "background", "primary_subject", "headline_block", "supporting_text_block",
+                "offer_block", "cta_block", "brand_mark",
+            )}, parent_recipe_id=parent_recipe_id, base_recipe_sha256=parent_digest,
+        )
+        metadata = recipe["modifiers"][0]["params"]
+        self.assertEqual(parent_recipe_id, recipe["parent_recipe_id"])
+        self.assertEqual(parent_recipe_id, metadata["parent_recipe_id"])
+        self.assertEqual(parent_digest, metadata["base_recipe_sha256"])
+        self.assertEqual(recipe, replay_template_application(metadata))
 
 
 if __name__ == "__main__":

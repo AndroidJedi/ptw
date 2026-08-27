@@ -17,7 +17,15 @@ from .natal_brand import NATAL_FONT_PATH
 
 COLOR_SOURCE = "https://www.manypixels.co/blog/social-media-design/instagram-color"
 ADS_SOURCE = "https://www.manypixels.co/blog/social-media-design/best-instagram-ads"
-RENDERER_VERSION = "ptw-result-instagram-renderer-v1"
+RENDERER_VERSION = "ptw-result-instagram-renderer-v2"
+RENDERER_CONTRACT = {
+    "version": RENDERER_VERSION,
+    "canvas": [1080, 1080],
+    "format": "image/jpeg",
+    "font": "Natal Inter variable",
+    "handlers": ["media", "shape", "text"],
+    "quantization": "normalized geometry 0.001; typography 1px/100 weight",
+}
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 SUPPORTED_FONTS = {
     "Inter": NATAL_FONT_PATH,
@@ -32,7 +40,14 @@ URGENCY_PATTERN = re.compile(
 )
 
 
-def _tool(tool_id: str, kind: str, label: str, renderer: str) -> dict[str, Any]:
+def _tool(
+    tool_id: str, kind: str, label: str, renderer: str, *,
+    parameter_schema: Mapping[str, Any] | None = None,
+    defaults: Mapping[str, Any] | None = None,
+    bounds: Mapping[str, Any] | None = None,
+    allowed_placements: Sequence[str] = (),
+    tunable_paths: Sequence[str] = (),
+) -> dict[str, Any]:
     return {
         "tool_id": tool_id,
         "kind": kind,
@@ -40,6 +55,13 @@ def _tool(tool_id: str, kind: str, label: str, renderer: str) -> dict[str, Any]:
         "supported_profiles": ["instagram_static_ad_v1"],
         "renderer_handler": renderer,
         "source_refs": [ADS_SOURCE],
+        "parameter_schema": dict(parameter_schema or {
+            "type": "object", "additionalProperties": False, "properties": {}, "required": [],
+        }),
+        "defaults": dict(defaults or {}),
+        "bounds": dict(bounds or {}),
+        "allowed_placements": list(allowed_placements),
+        "tunable_paths": list(tunable_paths),
         "deprecated": False,
     }
 
@@ -48,19 +70,101 @@ PLACEMENT_ID = "studio.placement.instagram.feed_square.v1"
 PLACEMENT = {"width": 1080, "height": 1080, "label": "Instagram feed · square"}
 
 
+def _property(kind: str, *, minimum: float | None = None, maximum: float | None = None,
+              values: Sequence[Any] = ()) -> dict[str, Any]:
+    value: dict[str, Any] = {"type": kind}
+    if minimum is not None:
+        value["minimum"] = minimum
+    if maximum is not None:
+        value["maximum"] = maximum
+    if values:
+        value["enum"] = list(values)
+    return value
+
+
+TEXT_PROPERTIES = {
+    "text": _property("string"),
+    "color": _property("color"),
+    "font_size": _property("number", minimum=12, maximum=160),
+    "min_font_size": _property("number", minimum=12, maximum=80),
+    "font_weight": _property("integer", values=range(100, 1000, 100)),
+    "max_lines": _property("integer", minimum=1, maximum=20),
+    "line_height": _property("number", minimum=.8, maximum=2),
+    "align": _property("string", values=("left", "center", "right")),
+    "vertical_align": _property("string", values=("top", "center", "bottom")),
+}
+MEDIA_PROPERTIES = {
+    "fit": _property("string", values=("cover", "contain")),
+    "focal_x": _property("number", minimum=0, maximum=1),
+    "focal_y": _property("number", minimum=0, maximum=1),
+    "opacity": _property("number", minimum=0, maximum=1),
+    "radius": _property("number", minimum=0, maximum=160),
+}
+SHAPE_PROPERTIES = {
+    "background": _property("color"),
+    "opacity": _property("number", minimum=0, maximum=1),
+    "radius": _property("number", minimum=0, maximum=160),
+}
+
+
+def _schema(properties: Mapping[str, Any], required: Sequence[str]) -> dict[str, Any]:
+    return {
+        "type": "object", "additionalProperties": False,
+        "properties": {key: dict(value) for key, value in properties.items()},
+        "required": list(required),
+    }
+
+
 def _catalog() -> tuple[dict[str, Any], ...]:
     entries = [_tool(PLACEMENT_ID, "placement", PLACEMENT["label"], "placement")]
-    for name, label, renderer in (
-        ("media", "Media frame", "media"),
-        ("logo", "Logo frame", "media"),
-        ("headline", "Headline frame", "text"),
-        ("body", "Body-copy frame", "text"),
-        ("offer", "Offer frame", "text"),
-        ("cta", "Call-to-action frame", "text"),
-        ("shape", "Shape frame", "shape"),
+    text_defaults = {
+        "font_size": 32, "min_font_size": 16, "font_weight": 500,
+        "max_lines": 6, "line_height": 1.08, "align": "left", "vertical_align": "top",
+    }
+    frame_paths = ("frame.x", "frame.y", "frame.width", "frame.height")
+    for name, label, renderer, schema, defaults, paths in (
+        ("media", "Media frame", "media", _schema(MEDIA_PROPERTIES, ("fit",)),
+         {"fit": "cover", "focal_x": .5, "focal_y": .5, "opacity": 1, "radius": 0},
+         (*frame_paths, "params.fit", "params.focal_x", "params.focal_y", "params.opacity", "params.radius")),
+        ("logo", "Logo frame", "media", _schema(MEDIA_PROPERTIES, ("fit",)),
+         {"fit": "contain", "focal_x": .5, "focal_y": .5, "opacity": 1, "radius": 0},
+         (*frame_paths, "params.fit", "params.focal_x", "params.focal_y", "params.opacity", "params.radius")),
+        ("headline", "Headline frame", "text", _schema(TEXT_PROPERTIES, ("text", "color")),
+         text_defaults, (*frame_paths, "params.font_size", "params.font_weight", "params.line_height", "params.align")),
+        ("body", "Body-copy frame", "text", _schema(TEXT_PROPERTIES, ("text", "color")),
+         text_defaults, (*frame_paths, "params.font_size", "params.font_weight", "params.line_height", "params.align")),
+        ("offer", "Offer frame", "text", _schema(TEXT_PROPERTIES, ("text", "color")),
+         text_defaults, (*frame_paths, "params.font_size", "params.font_weight", "params.line_height", "params.align")),
+        ("cta", "Call-to-action frame", "text", _schema(TEXT_PROPERTIES, ("text", "color")),
+         text_defaults, (*frame_paths, "params.font_size", "params.font_weight", "params.line_height", "params.align")),
+        ("badge", "Badge frame", "text", _schema(TEXT_PROPERTIES, ("text", "color")),
+         text_defaults, (*frame_paths, "params.font_size", "params.font_weight", "params.line_height", "params.align")),
+        ("shape", "Shape frame", "shape", _schema(SHAPE_PROPERTIES, ("background",)),
+         {"opacity": 1, "radius": 0}, (*frame_paths, "params.opacity", "params.radius")),
     ):
-        entries.append(_tool(f"studio.frame.{name}.v1", "frame", label, renderer))
-    entries.append(_tool("studio.layout.single_visual.v1", "layout", "Single visual", "layout"))
+        entries.append(_tool(
+            f"studio.frame.{name}.v1", "frame", label, renderer,
+            parameter_schema=schema, defaults=defaults,
+            bounds={
+                **{path: [0, 1] for path in frame_paths},
+                **{
+                    f"params.{key}": [definition["minimum"], definition["maximum"]]
+                    for key, definition in schema["properties"].items()
+                    if "minimum" in definition and "maximum" in definition
+                },
+            },
+            allowed_placements=(PLACEMENT_ID,), tunable_paths=paths,
+        ))
+    entries.append(_tool(
+        "studio.layout.single_visual.v1", "layout", "Legacy single visual", "layout",
+        parameter_schema={"type": "object", "additionalProperties": True, "properties": {}, "required": []},
+        allowed_placements=(PLACEMENT_ID,),
+    ))
+    entries.append(_tool(
+        "studio.layout.template_application.v1", "layout", "Template application", "layout",
+        parameter_schema={"type": "object", "additionalProperties": True, "properties": {}, "required": []},
+        allowed_placements=(PLACEMENT_ID,),
+    ))
     for name, label in (
         ("one_message", "One-message discipline"),
         ("specific_cta", "Specific CTA"),
@@ -93,22 +197,30 @@ DEFAULT_GUARDS = (
 SAFE_ZONE = {"left": .04, "top": .04, "right": .96, "bottom": .96}
 SAFE_ZONE_TOOLS = {
     "studio.frame.logo.v1", "studio.frame.headline.v1", "studio.frame.body.v1",
-    "studio.frame.offer.v1", "studio.frame.cta.v1",
+    "studio.frame.offer.v1", "studio.frame.cta.v1", "studio.frame.badge.v1",
 }
 
 
 def tool_catalog() -> dict[str, Any]:
-    return {
-        "schema_version": 1,
+    catalog = {
+        "schema_version": 2,
+        "catalog_version": "ptw-studio-component-catalog-v2",
         "renderer_version": RENDERER_VERSION,
         "profile": "instagram_static_ad_v1",
         "items": [dict(item) for item in TOOL_CATALOG],
     }
+    _, digest = _canonical(catalog)
+    return {**catalog, "catalog_sha256": digest}
 
 
 def _canonical(value: Mapping[str, Any]) -> tuple[str, str]:
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return raw, hashlib.sha256(raw.encode()).hexdigest()
+
+
+def renderer_identity() -> dict[str, str]:
+    _, digest = _canonical(RENDERER_CONTRACT)
+    return {"version": RENDERER_VERSION, "sha256": digest}
 
 
 def validate_brand_kit(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -158,6 +270,65 @@ def _assert_honest_text(value: str) -> None:
         raise ValueError("Result copy contains unsupported proof, urgency, or scarcity")
 
 
+def _validate_component_params(
+    *, tool_id: str, params: Mapping[str, Any], brand_colors: Sequence[str] | None,
+) -> dict[str, Any]:
+    tool = TOOLS_BY_ID[tool_id]
+    schema = tool["parameter_schema"]
+    properties = schema["properties"]
+    if schema.get("additionalProperties") is not True and not set(params) <= set(properties):
+        unknown = sorted(set(params) - set(properties))
+        raise ValueError(f"{tool_id} contains unknown parameters: {', '.join(unknown)}")
+    missing = sorted(set(schema.get("required") or ()) - set(params))
+    if missing:
+        raise ValueError(f"{tool_id} is missing required parameters: {', '.join(missing)}")
+    normalized: dict[str, Any] = {}
+    palette = {str(item).upper() for item in brand_colors or ()}
+    for name, raw in params.items():
+        definition = properties.get(name)
+        if definition is None:
+            normalized[name] = raw
+            continue
+        kind = definition["type"]
+        if kind in {"number", "integer"}:
+            if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+                raise ValueError(f"{tool_id}.{name} must be numeric")
+            value: int | float = int(raw) if kind == "integer" else float(raw)
+            if kind == "integer" and float(raw) != value:
+                raise ValueError(f"{tool_id}.{name} must be an integer")
+            if "minimum" in definition and value < definition["minimum"]:
+                raise ValueError(f"{tool_id}.{name} is below its catalog bound")
+            if "maximum" in definition and value > definition["maximum"]:
+                raise ValueError(f"{tool_id}.{name} is above its catalog bound")
+        elif kind in {"string", "color"}:
+            if not isinstance(raw, str):
+                raise ValueError(f"{tool_id}.{name} must be a string")
+            value = raw
+            if kind == "color":
+                value = value.upper()
+                if not re.fullmatch(r"#[0-9A-F]{6}", value):
+                    raise ValueError(f"{tool_id}.{name} must be a six-digit hex color")
+                if palette and value not in palette:
+                    raise ValueError(f"{tool_id}.{name} is outside the Project palette")
+        else:
+            raise ValueError(f"{tool_id}.{name} has an unsupported catalog type")
+        if definition.get("enum") and value not in definition["enum"]:
+            raise ValueError(f"{tool_id}.{name} is outside its allowed values")
+        normalized[name] = value
+    return normalized
+
+
+def _relative_luminance(color: str) -> float:
+    channels = [int(color[index:index + 2], 16) / 255 for index in (1, 3, 5)]
+    adjusted = [value / 12.92 if value <= .04045 else ((value + .055) / 1.055) ** 2.4 for value in channels]
+    return .2126 * adjusted[0] + .7152 * adjusted[1] + .0722 * adjusted[2]
+
+
+def _contrast_ratio(left: str, right: str) -> float:
+    low, high = sorted((_relative_luminance(left), _relative_luminance(right)))
+    return (high + .05) / (low + .05)
+
+
 @dataclass(frozen=True, slots=True)
 class StudioRecipeV2:
     """The sole structured visual contract for Instagram-static Results."""
@@ -174,6 +345,7 @@ class StudioRecipeV2:
         brief_id: str,
         brand_kit_id: str,
         brief: Mapping[str, Any],
+        brand_document: Mapping[str, Any] | None = None,
     ) -> "StudioRecipeV2":
         expected = {
             "schema_version", "parent_recipe_id", "placement_tool_id", "duration_seconds",
@@ -182,8 +354,12 @@ class StudioRecipeV2:
         }
         if set(value) != expected or value.get("schema_version") != 2:
             raise ValueError("Result recipe fields or schema version do not match StudioRecipeV2")
-        if value["parent_recipe_id"] is not None:
-            raise ValueError("first-version Result recipes cannot reference a parent recipe")
+        parent_recipe_id = value["parent_recipe_id"]
+        if parent_recipe_id is not None:
+            parsed_parent = UUID(str(parent_recipe_id))
+            if parsed_parent.version != 7:
+                raise ValueError("parent recipe ID must be a UUIDv7")
+            parent_recipe_id = str(parsed_parent)
         if value["placement_tool_id"] != PLACEMENT_ID:
             raise ValueError("only the Instagram feed-square placement is available")
         if value["duration_seconds"] is not None or value["frame_rate"] is not None:
@@ -215,10 +391,17 @@ class StudioRecipeV2:
             params = raw.get("params")
             if not isinstance(params, Mapping):
                 raise ValueError(f"frames[{index}].params must be an object")
+            params = _validate_component_params(
+                tool_id=tool_id, params=params,
+                brand_colors=None if brand_document is None else brand_document.get("colors") or (),
+            )
             for item in params.values():
                 if isinstance(item, str):
                     _assert_honest_text(item)
             asset_ids = [str(UUID(str(item))) for item in raw.get("source_asset_ids") or []]
+            expected_assets = 1 if tool_id in {"studio.frame.media.v1", "studio.frame.logo.v1"} else 0
+            if len(asset_ids) != expected_assets:
+                raise ValueError(f"{tool_id} requires exactly {expected_assets} source assets")
             source_assets.update(asset_ids)
             frame = _frame(raw["frame"], f"frames[{index}]")
             if tool_id in SAFE_ZONE_TOOLS and (
@@ -252,6 +435,23 @@ class StudioRecipeV2:
                     raise ValueError(
                         f"Result protected layout collision: {left['tool_id']} and {right['tool_id']}"
                     )
+        shapes = [item for item in frames if item["tool_id"] == "studio.frame.shape.v1"]
+        for text_frame in protected_layout:
+            if text_frame["tool_id"] == "studio.frame.logo.v1":
+                continue
+            box = text_frame["frame"]
+            center = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            surfaces = [item for item in shapes if item["z_index"] < text_frame["z_index"] and (
+                item["frame"]["x"] <= center[0] <= item["frame"]["x"] + item["frame"]["width"]
+                and item["frame"]["y"] <= center[1] <= item["frame"]["y"] + item["frame"]["height"]
+            )]
+            if not surfaces:
+                raise ValueError(f"{text_frame['tool_id']} has no declared contrast surface")
+            surface = max(surfaces, key=lambda item: item["z_index"])
+            foreground = str(text_frame["params"].get("color") or "")
+            background = str(surface["params"].get("background") or "")
+            if _contrast_ratio(foreground, background) < 3:
+                raise ValueError(f"{text_frame['tool_id']} fails the minimum large-text contrast ratio")
         offers = [str(item["params"].get("text") or "").strip() for item in frames if item["tool_id"] == "studio.frame.offer.v1"]
         ctas = [str(item["params"].get("text") or "").strip() for item in frames if item["tool_id"] == "studio.frame.cta.v1"]
         if offers != [brief["offer"]] or ctas != [brief["cta"]]:
@@ -276,6 +476,19 @@ class StudioRecipeV2:
                 raise ValueError("Result modifier params must be an object")
             modifiers.append({"instance_id": str(parsed_id), "tool_id": tool_id, "params": dict(params)})
 
+        template_modifiers = [
+            item for item in modifiers
+            if item["tool_id"] == "studio.layout.template_application.v1"
+        ]
+        if template_modifiers:
+            if len(template_modifiers) != 1 or len(modifiers) != 1:
+                raise ValueError("configured Studio recipes require one exact template-application modifier")
+            from .studio_templates import validate_template_application
+            validate_template_application(
+                submission=value, metadata=template_modifiers[0]["params"],
+                modifier_instance_id=template_modifiers[0]["instance_id"],
+            )
+
         strategy_ids = [str(item) for item in value.get("strategy_ids") or []]
         if not strategy_ids or any(TOOLS_BY_ID.get(item, {}).get("kind") != "strategy" for item in strategy_ids):
             raise ValueError("Result recipe contains an unknown or empty strategy list")
@@ -297,7 +510,7 @@ class StudioRecipeV2:
             "schema_version": 2,
             "project_id": str(UUID(project_id)),
             "brief_id": str(UUID(brief_id)),
-            "parent_recipe_id": None,
+            "parent_recipe_id": parent_recipe_id,
             "brand_kit_id": str(UUID(brand_kit_id)),
             "placement_tool_id": PLACEMENT_ID,
             "width": 1080,
@@ -320,10 +533,11 @@ class StudioRecipeV2:
 def validate_recipe(
     value: Mapping[str, Any], *, project_id: str, brief_id: str,
     brand_kit_id: str, brief: Mapping[str, Any],
+    brand_document: Mapping[str, Any] | None = None,
 ) -> StudioRecipeV2:
     return StudioRecipeV2.from_dict(
         value, project_id=project_id, brief_id=brief_id,
-        brand_kit_id=brand_kit_id, brief=brief,
+        brand_kit_id=brand_kit_id, brief=brief, brand_document=brand_document,
     )
 
 
@@ -370,11 +584,21 @@ class StudioRenderer:
     def __init__(self, font_path: Path = SUPPORTED_FONTS["Inter"]) -> None:
         self.font_path = font_path
 
-    def _font(self, size: int, font_name: str = "Inter"):
+    def _font(self, size: int, font_name: str = "Inter", weight: int | None = None):
         from PIL import ImageFont
         path = SUPPORTED_FONTS.get(font_name, self.font_path)
         try:
-            return ImageFont.truetype(str(path), max(12, size))
+            font = ImageFont.truetype(str(path), max(12, size))
+            if weight is not None:
+                variation = {
+                    100: "Thin", 200: "ExtraLight", 300: "Light", 400: "Regular",
+                    500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold", 900: "Black",
+                }.get(int(weight), "Medium")
+                try:
+                    font.set_variation_by_name(variation)
+                except (AttributeError, OSError, ValueError):
+                    pass
+            return font
         except OSError:
             return ImageFont.load_default()
 
@@ -423,9 +647,10 @@ class StudioRenderer:
         minimum = max(12, min(requested, int(params.get("min_font_size") or 18)))
         max_lines = max(1, min(20, int(params.get("max_lines") or 20)))
         line_ratio = max(.8, min(2.0, float(params.get("line_height") or 1.12)))
+        weight = None if "font_weight" not in params else int(params["font_weight"])
         chosen: tuple[Any, list[str], int] | None = None
         for size in range(requested, minimum - 1, -1):
-            font = self._font(size, font_name)
+            font = self._font(size, font_name, weight)
             lines = self._wrap_text(draw, text, font, width)
             spacing = max(0, round(size * (line_ratio - 1)))
             bounds = draw.multiline_textbbox((0, 0), "\n".join(lines), font=font, spacing=spacing)
@@ -505,6 +730,20 @@ class StudioRenderer:
                             max(0.0, min(1.0, float(params.get("focal_y", .5)))),
                         )
                         fitted = ImageOps.fit(prepared, size, centering=focal)
+                opacity = max(0.0, min(1.0, float(params.get("opacity", 1))))
+                radius = max(0, int(params.get("radius", 0)))
+                if fitted.mode != "RGBA" and (opacity < 1 or radius > 0):
+                    fitted = fitted.convert("RGBA")
+                if fitted.mode == "RGBA" and (opacity < 1 or radius > 0):
+                    alpha = fitted.getchannel("A")
+                    if opacity < 1:
+                        alpha = alpha.point(lambda value: round(value * opacity))
+                    if radius > 0:
+                        mask = Image.new("L", size, 0)
+                        ImageDraw.Draw(mask).rounded_rectangle((0, 0, size[0], size[1]), radius=radius, fill=255)
+                        from PIL import ImageChops
+                        alpha = ImageChops.multiply(alpha, mask)
+                    fitted.putalpha(alpha)
                 canvas.paste(fitted, (box[0], box[1]), fitted if fitted.mode == "RGBA" else None)
                 draw = ImageDraw.Draw(canvas)
             elif tool_id == "studio.frame.shape.v1":
@@ -574,13 +813,18 @@ def build_manifest(
             "timeline": None, "z_index": item["z_index"], "ordinal": ordinal,
             "source_asset_ids": list(item["source_asset_ids"]),
         })
-    return {
+    application = next((
+        dict(item["params"]) for item in recipe.get("modifiers") or []
+        if item["tool_id"] == "studio.layout.template_application.v1"
+    ), None)
+    manifest = {
         "schema": "ptw.result.render-manifest.v1",
         "render_id": render_id, "recipe_id": recipe_id,
         "recipe_sha256": recipe_digest, "project_id": recipe["project_id"],
         "brief_id": recipe["brief_id"], "brand_kit_id": brand_kit["brand_kit_id"],
         "brand_kit_sha256": brand_kit.get("document_sha256"),
-        "renderer_version": RENDERER_VERSION,
+        "renderer_version": recipe.get("renderer_version", RENDERER_VERSION),
+        "renderer_sha256": renderer_identity()["sha256"] if application else None,
         "placement_tool_id": recipe["placement_tool_id"],
         "tool_instances": tool_instances,
         "strategy_ids": list(recipe["strategy_ids"]),
@@ -596,9 +840,27 @@ def build_manifest(
             "bytes_sha256": assets[asset_id]["bytes_sha256"],
         } for asset_id in recipe["source_asset_ids"]],
         "source_refs": list(recipe["source_reference_ids"]),
+        "resolved_recipe": {"document": dict(recipe), "sha256": recipe_digest},
         "output": {
             "mime_type": rendered["mime_type"], "width": 1080, "height": 1080,
             "duration_seconds": None,
             "bytes_sha256": hashlib.sha256(rendered["bytes"]).hexdigest(),
         },
     }
+    if application is not None:
+        manifest["production"] = {
+            "schema": application["schema"],
+            "strategy_template": dict(application["strategy_template"]),
+            "studio_template": dict(application["studio_template"]),
+            "catalog": dict(application["catalog"]),
+            "renderer": dict(application["renderer"]),
+            "slider_input": dict(application["slider_input"]),
+            "slider_normalized": dict(application["slider_normalized"]),
+            "component_instances": dict(application["component_instances"]),
+            "components_sha256": application["components_sha256"],
+            "bindings_sha256": application["bindings_sha256"],
+            "patch_sha256": application["patch_sha256"],
+            "parent_recipe_id": application["parent_recipe_id"],
+            "base_recipe_sha256": application["base_recipe_sha256"],
+        }
+    return manifest

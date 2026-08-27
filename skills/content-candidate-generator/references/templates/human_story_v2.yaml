@@ -1,6 +1,8 @@
 {
   "template_id": "human_story",
-  "version": 1,
+  "version": 2,
+  "studio_template_version": 2,
+  "studio_template_sha256": "1a376a9e9e93c8273d8a5888efc882861d032785ddf406f7c5437298bad36696",
   "active": true,
   "philosophy": "Use a compact human scene, founder observation, or identity-led narrative only when it reveals the origin, problem, or decision behind the supplied product.",
   "narrative_sequence": ["recognizable person or observation", "small conflict", "product decision", "customer meaning", "exact offer and CTA"],

@@ -22,11 +22,21 @@ maximum JSON concurrency two. Initial failure after one fresh structured retry
 fails the run. At most four improvement calls occur across critic Passes 1–2.
 The global run deadline is 45 minutes.
 
-The templates are `moment_tension@1`, `contrast_reframe@1`,
-`mechanism_proof@1`, `human_story@1`, and `direct_offer@1`. Five integer sliders
+The strategies are `moment_tension@2`, `contrast_reframe@2`,
+`mechanism_proof@2`, `human_story@2`, and `direct_offer@2`. Each is digest-bound
+at startup to one matching Git-owned `ptw.studio.template.v1` component tree;
+missing, extra, version-skewed, or digest-skewed active definitions stop startup.
+Five integer sliders
 retain exact 0–100 values and template-specific envelopes. Critic deltas are
 multiples of five, change at most two dimensions, and change a chosen dimension
 by at least ten.
+
+The Instagram adapter, not the generic orchestrator, resolves each slider into
+an ordered typed component patch. Only numeric interpolation, enumerated steps,
+and bounded optional-component thresholds are accepted. Geometry is quantized
+to 0.001 and typography to declared integer steps. The patch cannot change
+component identity, tool IDs, protected copy, source assets, palette bindings,
+or any path absent from the component catalog.
 
 `ResultCriticAgent` receives anonymized candidates, exact element IDs,
 parameters, previous pass summaries, and exact mapped renders. Pass 1 explores
@@ -55,6 +65,17 @@ outcomes, skill proposals, checkpoints, attempts, provider invocations,
 recipes, renders, sources, entities, and graph edges. Only bounded run/action
 status transitions update. A retry creates a child run and never overwrites its
 parent.
+
+Every configured Instagram recipe carries one
+`studio.layout.template_application.v1` modifier: the immutable template
+snapshot, strategy/Studio/catalog/renderer versions and digests, exact and
+normalized sliders, component-key-to-UUID map, protected typed bindings,
+ordered before/after patch, and optional parent recipe/base digest. Improved
+candidates point `parent_recipe_id` at the direct base recipe and add a
+`derived_from` edge. The render manifest stores the complete resolved recipe,
+source/output digests, and the same production identities. Replaying the stored
+snapshot, bindings, sliders, and reserved IDs must reproduce the canonical
+recipe digest and decoded pixels.
 
 The owner normally sees only the approved source, one Instagram create action,
 three progress stages, one final post, two-to-four selection observations,

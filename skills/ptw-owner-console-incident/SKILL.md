@@ -53,6 +53,15 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
 - Instagram: approved/Pexels real image or explicitly allowed reviewed
   non-human graphic; one square `StudioRecipeV2`; exact 1080×1080 JPEG; safe
   crop, collision, hierarchy, legibility, brand, caption, and alt-text gates.
+- Configured Instagram rendering requires exactly five digest-synchronized v2
+  strategy/Studio definitions. Each must have a distinct component-tree
+  signature and materially distinct decoded render from one fixed input. Never
+  repair sameness with renderer branches: validate the predefined catalog,
+  immutable template snapshot, protected bindings, exact sliders, ordered typed
+  patch, component UUID map, parent lineage, and enriched manifest. Run
+  `python3 -m validation_pipeline.verify_studio_templates` in the built image;
+  any recipe replay, pixel replay, manifest, or pairwise-distinction failure
+  blocks release.
 - Feedback: resolve the displayed final Creative UUID server-side and append
   HumanFeedback, zero-delta WeightUpdate, generator and critic lesson proposals,
   outcomes, and required `evaluates`, `adjusts`, `contains`, and `derived_from`

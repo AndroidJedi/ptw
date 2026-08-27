@@ -24,6 +24,35 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-08-27: five Instagram strategies rendered as one visual family
+
+- Symptom: the five generated Result directions used different media/headline
+  rectangles but repeated the same dark canvas, offer row, CTA pill, logo row,
+  and overall hierarchy. The strategy labels changed while the thumbnails
+  remained visually interchangeable.
+- Cause: `InstagramStaticAdapter._recipe()` selected five small hardcoded frame
+  maps, then built every output through one shared skeleton. Four sliders had no
+  renderer effect and `visual_complexity` was recorded only as inert modifier
+  metadata. The regression test compared two frame rectangles rather than full
+  component trees or decoded pixels.
+- Durable fix: the adapter now applies exactly five Git-owned v2
+  `ptw.studio.template.v1` component trees through one strict catalog and
+  generic renderer. Strategy and Studio IDs, versions, and digests are locked at
+  startup. All five sliders resolve through deterministic declared rules into
+  quantized component patches; protected bindings and undeclared paths cannot
+  change. Every recipe embeds its immutable template snapshot, reserved UUID
+  map, bindings, sliders, patch, catalog/renderer identities, and parent
+  lineage. Render manifests include the complete resolved recipe and production
+  digests. The Owner Console incident skill now makes the non-persisting
+  five-template replay/distinction canary a release gate.
+- Verification: focused contract tests cover catalog strictness, five complete
+  structural signatures, every valid ten-point template/slider adjustment,
+  unchanged-component identity, protected binding rejection, parent metadata,
+  canonical replay, and manifest completeness. The Linux/amd64 canary renders
+  all five from one fixed input, verifies exact decoded-pixel replay, and checks
+  all ten pairwise visual differences. Production cutover and preservation
+  evidence are recorded in the current-state resume after deployment.
+
 ## 2026-08-27: Result critic rejected persisted preview mappings
 
 - Symptom: Result run `01a041f1-a430-7662-b27f-2339197e794b` completed and

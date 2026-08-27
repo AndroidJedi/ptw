@@ -9,6 +9,7 @@ from validation_pipeline.content import ContentContextAssembler, CorpusStore, Te
 from validation_pipeline.content_repository import ContentResultRepository
 from validation_pipeline.content_service import CandidateGenerationOrchestrator
 from validation_pipeline.domain import ProductBriefV1
+from validation_pipeline.images import PexelsPhoto
 from validation_pipeline.natal_brand import natal_logo_bytes
 from validation_pipeline.repository import ValidationRepository
 from validation_pipeline.studio import StudioRenderer
@@ -28,6 +29,7 @@ class FakeBridge:
         call = len(self.candidate_calls) + 1
         self.candidate_calls.append(input_payload)
         brief = input_payload["approved_brief"]["document"]
+        instagram = input_payload["output_profile"] == "instagram_static_ad_v1"
         response = {
             "schema_version": 2,
             "hook": f"At 23:00, one question is still open · {call}",
@@ -37,14 +39,28 @@ class FakeBridge:
             "offer": brief["offer"],
             "cta": brief["cta"],
             "caption": "A specific first step for the decision that is already taking your attention.",
-            "alt_text": "A text Result explaining one clear first step.",
+            "alt_text": (
+                "A real photograph beside a concise decision-session offer."
+                if instagram else "A text Result explaining one clear first step."
+            ),
             "desired_emotion": "calm confidence",
-            "visual_concept": "No visual is requested for the text profile.",
-            "media_request": {
+            "visual_concept": (
+                "One candid real scene with a clear subject and reserved text hierarchy."
+                if instagram else "No visual is requested for the text profile."
+            ),
+            "media_request": ({
+                "kind": "pexels_real_photo", "query": "adult making a decision at desk",
+                "source_asset_id": None, "reason": "A real photograph supports the supplied moment.",
+            } if instagram else {
                 "kind": "none", "query": "", "source_asset_id": None,
                 "reason": "The selected profile is text only.",
-            },
-            "visual_components": [],
+            }),
+            "visual_components": ([{
+                "role": role, "content": role.replace("_", " "), "source_ids": [],
+            } for role in (
+                "background", "primary_subject", "headline_block", "supporting_text_block",
+                "offer_block", "cta_block", "brand_mark", "lighting_style", "composition",
+            )] if instagram else []),
         }
         invocation = {
             "bridge_request_id": call, "bridge_attempt": 1,
@@ -130,6 +146,33 @@ class FakeBridge:
         return {"response": dict(response_validator(response)), "invocation": invocation}
 
 
+class FakePexels:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def select(self, _query: str, _category: str, *, used_ids: set[str]):
+        from io import BytesIO
+        from PIL import Image, ImageDraw
+
+        self.calls += 1
+        photo_id = str(900000 + self.calls)
+        if photo_id in used_ids:
+            raise AssertionError("fake Pexels source was unexpectedly reused")
+        image = Image.new("RGB", (1200, 1200), "#846B60")
+        draw = ImageDraw.Draw(image)
+        draw.ellipse((520, 120, 1080, 680), fill="#D3B39C")
+        draw.rectangle((590, 600, 980, 1180), fill="#473540")
+        output = BytesIO()
+        image.save(output, format="JPEG", quality=90)
+        return PexelsPhoto(
+            photo_id=photo_id, width=1200, height=1200,
+            image_url=f"https://images.pexels.com/photos/{photo_id}/image.jpeg",
+            page_url=f"https://www.pexels.com/photo/{photo_id}/",
+            photographer="PTW Canary", photographer_url="https://www.pexels.com/@ptw-canary/",
+            alt="An adult considering a decision at a desk",
+        ), output.getvalue()
+
+
 @unittest.skipUnless(os.environ.get("PTW_TEST_DATABASE_URL"), "disposable PostgreSQL is required")
 class ContentLifecycleTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -153,7 +196,7 @@ class ContentLifecycleTests(unittest.TestCase):
         self.orchestrator = CandidateGenerationOrchestrator(
             repository=self.repository, bridge=self.bridge,
             context_assembler=assembler, template_registry=templates,
-            recipe_renderer=StudioRenderer(), pexels=object(),
+            recipe_renderer=StudioRenderer(), pexels=FakePexels(),
         )
 
     def _approved_brief(self) -> dict:
@@ -246,6 +289,48 @@ class ContentLifecycleTests(unittest.TestCase):
         )
         self.assertEqual(result["creative_id"], feedback["creative_id"])
         self.assertEqual(2, len(feedback["proposal_ids"]))
+
+    def test_instagram_recipes_persist_replay_metadata_and_direct_parent_edges(self) -> None:
+        brief = self._approved_brief()
+        run, _ = self.orchestrator.create_run(
+            request_id=str(uuid4()), brief_id=brief["brief_id"],
+            task="Create one concise Instagram post using a candid real photograph.",
+            output_profile="instagram_static_ad_v1", requested_by="test",
+        )
+        self.orchestrator.execute(run["run_id"])
+        candidates = self.repository.list_candidates(run["run_id"])
+        self.assertEqual(9, len(candidates))
+        by_candidate = {item["candidate_id"]: item for item in candidates}
+        recipes = {
+            item["candidate_id"]: self.authority.get_recipe(item["recipe_id"])
+            for item in candidates
+        }
+        for candidate in candidates:
+            recipe = recipes[candidate["candidate_id"]]
+            metadata = recipe["document"]["modifiers"][0]["params"]
+            render = self.authority.get_render(candidate["render_id"])
+            self.assertEqual("studio.layout.template_application.v1", metadata["schema"])
+            self.assertEqual(recipe["document_sha256"], render["manifest"]["resolved_recipe"]["sha256"])
+            self.assertEqual("ptw-result-instagram-renderer-v2", render["renderer_version"])
+            self.assertEqual(2, metadata["studio_template"]["version"])
+            parent_candidate_id = candidate["parent_candidate_id"]
+            if parent_candidate_id is None:
+                self.assertIsNone(recipe["parent_recipe_id"])
+                self.assertIsNone(metadata["base_recipe_sha256"])
+            else:
+                parent_recipe = recipes[parent_candidate_id]
+                self.assertEqual(parent_recipe["recipe_id"], recipe["parent_recipe_id"])
+                self.assertEqual(parent_recipe["document_sha256"], metadata["base_recipe_sha256"])
+                self.assertIn(parent_candidate_id, by_candidate)
+        with self.authority.connection() as connection:
+            parent_edges = int(connection.execute(
+                """SELECT count(*) FROM commander_relationships edge
+                   JOIN commander_entities source ON source.id=edge.source_id
+                   JOIN commander_entities target ON target.id=edge.target_id
+                   WHERE edge.relation='derived_from' AND source.kind='studio_recipe'
+                     AND target.kind='studio_recipe' AND edge.attributes->>'input'='parent_recipe'"""
+            ).fetchone()[0])
+        self.assertEqual(4, parent_edges)
 
     def test_restart_fails_orphaned_queued_brief_and_releases_operation(self) -> None:
         brief, _ = self.authority.create_brief(

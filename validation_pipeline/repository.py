@@ -732,23 +732,39 @@ class ValidationRepository:
             ).fetchone()
             if row is None:
                 raise ValueError("recipes require an approved completed Brief in the Project")
-            if connection.execute(
-                "SELECT 1 FROM project_brand_kits WHERE entity_id=%s AND project_id=%s",
+            kit_row = connection.execute(
+                "SELECT document FROM project_brand_kits WHERE entity_id=%s AND project_id=%s",
                 (kit_uuid, project_uuid),
-            ).fetchone() is None:
+            ).fetchone()
+            if kit_row is None:
                 raise ValueError("brand kit must belong to the Project")
             contract = validate_recipe(
                 document, project_id=project_id, brief_id=brief_id,
-                brand_kit_id=brand_kit_id, brief=dict(row[0]),
+                brand_kit_id=brand_kit_id, brief=dict(row[0]), brand_document=dict(kit_row[0]),
             )
             if contract.value["schema_version"] != 2 or contract.value["duration_seconds"] is not None:
                 raise ValueError("Result rendering accepts static StudioRecipeV2 only")
             parent = None if contract.value["parent_recipe_id"] is None else UUID(contract.value["parent_recipe_id"])
-            if parent is not None and connection.execute(
-                "SELECT 1 FROM studio_recipes WHERE entity_id=%s AND project_id=%s",
-                (parent, project_uuid),
-            ).fetchone() is None:
-                raise ValueError("parent recipe must belong to the Project")
+            candidate_parent = connection.execute(
+                """SELECT parent_candidate_id FROM content_candidates WHERE entity_id=%s
+                   UNION ALL
+                   SELECT base_candidate_id FROM content_improvement_actions
+                   WHERE reserved_candidate_id=%s LIMIT 1""",
+                (candidate_uuid, candidate_uuid),
+            ).fetchone()
+            expected_parent_candidate = None if candidate_parent is None else candidate_parent[0]
+            if parent is None:
+                if expected_parent_candidate is not None:
+                    raise ValueError("an improved candidate recipe must reference its base recipe")
+            else:
+                parent_row = connection.execute(
+                    "SELECT candidate_id FROM studio_recipes WHERE entity_id=%s AND project_id=%s",
+                    (parent, project_uuid),
+                ).fetchone()
+                if parent_row is None:
+                    raise ValueError("parent recipe must belong to the Project")
+                if expected_parent_candidate is None or parent_row[0] != expected_parent_candidate:
+                    raise ValueError("parent recipe must belong to the candidate's direct base")
             for asset_id in contract.value["source_asset_ids"]:
                 if connection.execute(
                     """SELECT 1 FROM project_assets WHERE entity_id=%s AND project_id=%s AND (
@@ -780,6 +796,9 @@ class ValidationRepository:
                 (project_uuid, "contains", entity_id, {"member": "studio_recipe"}),
                 (entity_id, "derived_from", brief_uuid, {"input": "product_brief"}),
                 (entity_id, "derived_from", kit_uuid, {"input": "brand_kit"}),
+                *([] if parent is None else [
+                    (entity_id, "derived_from", parent, {"input": "parent_recipe"}),
+                ]),
                 *[(entity_id, "derived_from", UUID(asset_id), {"input": "project_asset"})
                   for asset_id in contract.value["source_asset_ids"]],
             ]

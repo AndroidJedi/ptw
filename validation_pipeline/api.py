@@ -49,9 +49,12 @@ def create_app(
 
     content_error: Exception | None = None
     if content_runner is None:
+        reference_root = settings.content_candidate_generator_skill_path.parent / "references"
+        templates = TemplateRegistry(reference_root / "templates")
+        # Git-owned strategy and Studio definitions are a production contract, not an optional provider.
+        # Refuse startup on missing, extra, or digest-mismatched active definitions.
+        templates.load_active()
         try:
-            reference_root = settings.content_candidate_generator_skill_path.parent / "references"
-            templates = TemplateRegistry(reference_root / "templates")
             assembler = ContentContextAssembler(
                 generator_skill_path=settings.content_candidate_generator_skill_path,
                 critic_skill_path=settings.content_result_critic_skill_path,

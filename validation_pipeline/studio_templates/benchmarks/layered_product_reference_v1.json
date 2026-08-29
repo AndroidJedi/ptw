@@ -1,0 +1,167 @@
+{
+  "schema": "ptw.studio.primitive-template.v1",
+  "template_id": "layered_product_reference",
+  "template_type": "instagram_benchmark",
+  "version": 1,
+  "status": "draft",
+  "root": {
+    "id": "canvas",
+    "type": "frame",
+    "props": {
+      "width": 1080,
+      "height": 1080,
+      "background_color": "#43A99E",
+      "background_asset": "turquoise_texture",
+      "background_fit": "cover",
+      "overflow": "clip"
+    },
+    "children": [
+      {
+        "id": "oversized_headline",
+        "type": "text",
+        "props": {
+          "position": "absolute",
+          "x": 64,
+          "y": 18,
+          "width": 1230,
+          "height": 270,
+          "z_index": 1,
+          "font_size": 226,
+          "min_font_size": 226,
+          "font_weight": 500,
+          "line_height": 0.85,
+          "letter_spacing": -8,
+          "wrap_text": "none",
+          "text_fit": "fixed",
+          "scale_x": 1.42,
+          "transform_origin_x": 0,
+          "color": "#E3FFF5"
+        },
+        "bindings": [
+          {"target": "text", "source": "content.headline", "required": true}
+        ],
+        "constraints": [
+          {"path": "font_size", "minimum": 160, "maximum": 330, "allowed": [], "locked": false}
+        ]
+      },
+      {
+        "id": "necklace_cutout",
+        "type": "image",
+        "props": {
+          "position": "absolute",
+          "x": 395,
+          "y": -280,
+          "width": 760,
+          "height": 1320,
+          "z_index": 4,
+          "fit": "contain"
+        },
+        "bindings": [
+          {"target": "asset", "source": "media.product_primary", "required": true}
+        ]
+      },
+      {
+        "id": "medallion_cutout",
+        "type": "image",
+        "props": {
+          "position": "absolute",
+          "x": 54,
+          "y": 350,
+          "width": 282,
+          "height": 282,
+          "z_index": 3,
+          "fit": "contain",
+          "rotation": -3
+        },
+        "bindings": [
+          {"target": "asset", "source": "media.product_secondary", "required": true}
+        ]
+      },
+      {
+        "id": "micro_support",
+        "type": "text",
+        "props": {
+          "position": "absolute",
+          "x": 394,
+          "y": 532,
+          "width": 292,
+          "height": 50,
+          "z_index": 5,
+          "font_size": 11,
+          "min_font_size": 11,
+          "font_weight": 600,
+          "line_height": 1,
+          "letter_spacing": 0.2,
+          "max_lines": 3,
+          "text_align": "center",
+          "casing": "upper",
+          "color": "#F5FFF9"
+        },
+        "bindings": [
+          {"target": "text", "source": "content.description", "required": true}
+        ]
+      },
+      {
+        "id": "secondary_instruction",
+        "type": "text",
+        "props": {
+          "position": "absolute",
+          "x": 402,
+          "y": 685,
+          "width": 300,
+          "height": 74,
+          "z_index": 5,
+          "font_size": 47,
+          "min_font_size": 47,
+          "font_weight": 400,
+          "line_height": 1,
+          "letter_spacing": 0.5,
+          "wrap_text": "none",
+          "text_align": "center",
+          "color": "#F5FFF9"
+        },
+        "bindings": [
+          {"target": "text", "source": "content.cta", "required": true}
+        ]
+      }
+    ]
+  },
+  "semantic_roles": {
+    "hero": ["necklace_cutout"],
+    "secondary_media": ["medallion_cutout"],
+    "headline": ["oversized_headline"],
+    "description": ["micro_support"],
+    "cta": ["secondary_instruction"]
+  },
+  "assets": {
+    "medallion_cutout": {
+      "kind": "image",
+      "allowed_mime_types": ["image/png", "image/webp"],
+      "required": true,
+      "provenance": "Deterministic PTW benchmark placeholder; not copied from the reference ad."
+    },
+    "necklace_cutout": {
+      "kind": "image",
+      "allowed_mime_types": ["image/png", "image/webp"],
+      "required": true,
+      "provenance": "Deterministic PTW benchmark placeholder; not copied from the reference ad."
+    },
+    "turquoise_texture": {
+      "kind": "image",
+      "allowed_mime_types": ["image/png", "image/jpeg"],
+      "required": true,
+      "provenance": "Deterministic PTW benchmark texture; not copied from the reference ad."
+    }
+  },
+  "rules": [
+    {"id": "headline_required", "scope": "template", "type": "required_role", "params": {"role": "headline"}},
+    {"id": "bounded_tree", "scope": "template", "type": "max_nodes", "params": {"maximum": 12}}
+  ],
+  "provenance": {
+    "base_template_id": null,
+    "base_version": null,
+    "base_sha256": null,
+    "reference_ids": ["user-reference-a-2026-08-28"],
+    "change_note": "First structural expressiveness benchmark."
+  }
+}

@@ -26,6 +26,7 @@ const requiredMarkers = {
   'Bounded improvement stage': 'Improving the strongest direction',
   'Bounded final stage': 'Final review',
   'Single public explanation': 'WHY THIS DIRECTION',
+  'single universal Studio': 'universal_ad · v',
 }
 
 const missing = Object.entries(requiredMarkers)
@@ -38,7 +39,9 @@ if (missing.length) {
 
 const forbiddenMarkers = {
   'batch UI': 'Ad batch',
-  'Studio UI': 'Ad Studio',
+  'arbitrary Studio tree authoring': 'Primitive tree',
+  'Studio reference matching': 'Reference image',
+  'retired calibration workflow': 'Calibration Studio',
   'publication control': 'Publish',
   'campaign control': 'Campaign',
   'Landing UI': 'Landing',

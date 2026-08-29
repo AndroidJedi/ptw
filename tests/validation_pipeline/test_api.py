@@ -46,7 +46,7 @@ class ValidationApiRouteTests(unittest.TestCase):
         handlers = {
             (method, route.path): route.endpoint
             for route in app.routes
-            for method in (route.methods or set())
+            for method in (getattr(route, "methods", None) or set())
             if (method, route.path) in background_routes
         }
 

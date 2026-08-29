@@ -11,6 +11,41 @@ const candidateIds = Array.from({ length: 5 }, (_value, index) =>
 )
 const candidateBytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9])
 const candidateSha256 = createHash('sha256').update(candidateBytes).digest('hex')
+const studioPreviewBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
+const studioPreviewSha256 = createHash('sha256').update(studioPreviewBytes).digest('hex')
+
+const studioDetail = {
+  schema: 'ptw.studio.universal-ad-workspace.v1',
+  catalog: {
+    schema: 'ptw.studio.universal-ad-catalog.v1', template_id: 'universal_ad', template_version: 1,
+    semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'bullet_list', 'cta', 'logo'],
+    asset_slots: {},
+    variation: {
+      background_modes: ['solid', 'texture', 'image'], image_layouts: ['full', 'left', 'right', 'top', 'bottom'],
+      texture_presets: ['paper', 'grain'], font_families: ['Inter', 'Roboto Condensed'],
+      optional_elements: ['sticker', 'bullet_list', 'logo'],
+    },
+    sha256: 'e'.repeat(64),
+  },
+  state_sha256: 'f'.repeat(64), template_sha256: 'a'.repeat(64),
+  configuration: {
+    schema: 'ptw.studio.universal-ad-config.v1',
+    background: { mode: 'solid', color: '#F0E653', texture: 'paper', image_layout: 'full', image_fit: 'cover', focal_x: 0.5, focal_y: 0.5, overlay_color: '#000000', overlay_opacity: 0 },
+    typography: { font_family: 'Inter', hero_size: 112, hero_weight: 800, supporting_size: 34, text_color: '#111111', alignment: 'left' },
+    layout: { content_x: 76, content_y: 180, content_width: 720, gap: 24 },
+    bullets: { enabled: false, marker: '•' },
+    cta: { background_color: '#111111', text_color: '#FFFFFF', radius: 24 },
+    sticker: { enabled: false, position: 'top_right', rotation: -6, paper_width: 320, paper_color: '#FFF8E7', object_scale: 0.82 },
+    logo: { enabled: false, position: 'top_left', width: 160 },
+  },
+  content: { hero_title: 'PROVE THE IDEA', supporting_text: 'A focused offer.', bullets: [], cta: 'TEST DEMAND' },
+  assets: [
+    { slot: 'background_image', role: 'background', description: 'Background', allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp'], available: false, mime_type: null, sha256: null, byte_count: null, source: null },
+    { slot: 'sticker_object', role: 'sticker', description: 'Sticker', allowed_mime_types: ['image/png', 'image/webp'], available: false, mime_type: null, sha256: null, byte_count: null, source: null },
+    { slot: 'logo', role: 'logo', description: 'Logo', allowed_mime_types: ['image/png', 'image/webp'], available: false, mime_type: null, sha256: null, byte_count: null, source: null },
+  ],
+  pexels_available: false, versions: [],
+}
 
 const briefDocument = {
   schema_version: 1, language: 'en', product: 'Guided first therapy session',
@@ -130,6 +165,50 @@ test.beforeEach(async ({ page }) => {
       status, contentType: 'application/json', body: JSON.stringify(value),
     })
     if (url.pathname === '/api/v1/projects') return json({ items: [project], next_cursor: null })
+    if (url.pathname === '/api/v1/studio' && method === 'GET') return json(studioDetail)
+    if (url.pathname === '/api/v1/studio/tune' && method === 'GET') return json({
+      schema: 'ptw.studio.tune-service.v1', mode: 'local_only', available: true,
+      unavailable_reason: null, active_run_id: null, allowed_paths: [], runs: [],
+    })
+    if (url.pathname === '/api/v1/studio/tune-runs' && method === 'POST') {
+      const body = route.request().postDataJSON()
+      return json({
+        schema: 'ptw.studio.tune-run.v1', run_id: '11111111-1111-4111-8111-111111111111',
+        iteration: 1, status: 'completed', stage: 'completed', ...body,
+        request_sha256: '8'.repeat(64),
+        changed_files: ['apps/commander-web/src/views/StudioView.tsx'],
+        verification: ['Studio web unit tests', 'Owner Console production build'],
+        summary: 'Added the requested Studio test implementation.', error: null,
+        preview: { mime_type: 'image/png', sha256: studioPreviewSha256, width: 1080, height: 1080 },
+        created_at: '2026-08-29T10:00:00Z', updated_at: '2026-08-29T10:01:00Z',
+        started_at: '2026-08-29T10:00:00Z', completed_at: '2026-08-29T10:01:00Z',
+      }, 202)
+    }
+    if (url.pathname === '/api/v1/studio/tune-runs/11111111-1111-4111-8111-111111111111/preview' && method === 'GET') return route.fulfill({
+      status: 200, contentType: 'image/png',
+      headers: { ETag: `"${studioPreviewSha256}"`, 'Cache-Control': 'private, no-store' },
+      body: studioPreviewBytes,
+    })
+    if (url.pathname === '/api/v1/studio/tune-runs/11111111-1111-4111-8111-111111111111/rules' && method === 'POST') {
+      const body = route.request().postDataJSON()
+      return json({
+        schema: 'ptw.studio.tune-rule-approval.v1',
+        run_id: '11111111-1111-4111-8111-111111111111',
+        rule: body.rule,
+        rule_sha256: '7'.repeat(64),
+        skill_path: 'skills/studio-tune-local/references/owner-approved-rules.md',
+        created: true,
+      })
+    }
+    if (url.pathname === '/api/v1/studio/preview' && method === 'POST') return route.fulfill({
+      status: 200, contentType: 'image/png',
+      headers: { ETag: `"${studioPreviewSha256}"`, 'X-PTW-Content-SHA256': studioPreviewSha256, 'Cache-Control': 'private, no-store' },
+      body: studioPreviewBytes,
+    })
+    if (url.pathname === '/api/v1/studio/configuration' && method === 'POST') {
+      const body = route.request().postDataJSON()
+      return json({ ...studioDetail, state_sha256: '9'.repeat(64), configuration: body.configuration, content: body.content })
+    }
     if (url.pathname === '/api/v1/briefs') return json({ items: [brief], next_cursor: null })
     if (url.pathname === `/api/v1/briefs/${briefId}`) return json(brief)
     if (url.pathname === '/api/v1/content-runs' && method === 'GET') return json({ items: [run], next_cursor: null })
@@ -149,12 +228,13 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('shows only Product Brief and one-click Instagram post workspace', async ({ page }) => {
+test('shows Product Brief, one-click Instagram post, and Universal Ad Studio workspaces', async ({ page }) => {
   await page.goto('/?e2e=1')
   await expect(page.getByRole('button', { name: 'Продуктові брифи' }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Змінити мову' }).click()
   await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Instagram post' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Studio' }).first()).toBeVisible()
   await page.reload()
   await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
   await expect(page.getByText('Ad Studio')).toHaveCount(0)
@@ -169,6 +249,102 @@ test('shows only Product Brief and one-click Instagram post workspace', async ({
   await expect(page.getByText('PROJECT BRAND KIT')).toHaveCount(0)
   await expect(page.getByText(result.content.hook)).toBeVisible()
   await expect(page.getByText('WHY THIS DIRECTION')).toBeVisible()
+  await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
+})
+
+test('opens the Universal Ad Studio and persists its bounded configuration', async ({ page }) => {
+  await page.goto('/?e2e=1&page=studio')
+  await page.getByRole('button', { name: 'Змінити мову' }).click()
+
+  await expect(page.getByText('ONE TEMPLATE · CONFIGURATION-FIRST')).toHaveCount(0)
+  await expect(page.getByText('Universal Ad Studio')).toHaveCount(0)
+  await expect(page.locator('.universal-canvas-panel')).toBeVisible()
+  await expect(page.locator('.universal-controls')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Build the composition at a glance' })).toBeVisible()
+  await expect(page.getByText('ALWAYS ON')).toHaveCount(4)
+  await expect(page.getByAltText('Current universal advertising creative')).toBeVisible()
+  await expect(page.getByText('Reference image')).toHaveCount(0)
+  await expect(page.getByText('Primitive tree')).toHaveCount(0)
+
+  const draftPreviewRequest = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/v1/studio/preview')) return false
+    const body = request.postDataJSON()
+    return body?.configuration?.bullets?.enabled === true
+  })
+  await page.getByLabel('Enable bullets').check()
+  const draftRequest = await draftPreviewRequest
+  expect(draftRequest.postDataJSON().configuration.bullets.enabled).toBe(true)
+  await expect(page.getByText('Live preview up to date')).toBeVisible()
+
+  const configurationRequest = page.waitForRequest((request) =>
+    request.url().endsWith('/api/v1/studio/configuration'),
+  )
+  const editedPreviewRequest = page.waitForRequest((request) => {
+    if (!request.url().endsWith('/api/v1/studio/preview')) return false
+    const body = request.postDataJSON()
+    return body?.configuration?.background?.mode === 'texture'
+      && body?.content?.hero_title === 'TEST A CLEAR PROMISE'
+  })
+  await page.getByLabel('Hero Title').fill('TEST A CLEAR PROMISE')
+  await page.getByText('Mood and contrast').click()
+  await page.getByLabel('Background mode').selectOption('texture')
+  const editedPreview = await editedPreviewRequest
+  expect(editedPreview.postDataJSON().content.hero_title).toBe('TEST A CLEAR PROMISE')
+  await expect(page.getByText('Preview matches your unsaved changes')).toBeVisible()
+  await page.getByRole('button', { name: 'Save setup' }).click()
+  const request = await configurationRequest
+  expect(request.postDataJSON().configuration.background.mode).toBe('texture')
+  expect(request.postDataJSON().content.hero_title).toBe('TEST A CLEAR PROMISE')
+  await expect(page.getByRole('status')).toContainText('Studio setup saved.')
+  await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
+})
+
+test('opens the local Tune wizard and submits all three generation inputs', async ({ page }) => {
+  await page.goto('/?e2e=1&page=studio')
+  await page.getByRole('button', { name: 'Змінити мову' }).click()
+  await page.getByRole('button', { name: 'Feedback & iterations' }).click()
+
+  const wizard = page.getByRole('dialog', { name: 'Test generation' })
+  await expect(wizard).toBeVisible()
+  await wizard.getByLabel('Project idea').fill('A calm planning tool for independent founders.')
+  await wizard.getByLabel('Desired implementation').fill('Use an editorial layout with one clear test action.')
+  await wizard.getByLabel('Your feedback').fill('Reduce visual noise and keep the hierarchy quiet.')
+  const requestPromise = page.waitForRequest((request) => request.url().endsWith('/api/v1/studio/tune-runs'))
+  await wizard.getByRole('button', { name: 'Apply feedback' }).click()
+  const request = await requestPromise
+
+  expect(request.postDataJSON()).toEqual({
+    project_idea: 'A calm planning tool for independent founders.',
+    implementation: 'Use an editorial layout with one clear test action.',
+    feedback: 'Reduce visual noise and keep the hierarchy quiet.',
+  })
+  await expect(wizard.getByText('Verified changes applied')).toBeVisible()
+  await expect(wizard.getByAltText('Generated creative for iteration 1')).toBeVisible()
+  await expect(wizard.getByText('GENERATED CREATIVE · 1080×1080')).toBeVisible()
+  await expect(wizard.getByText('Iteration report')).toBeVisible()
+  await expect(wizard.getByText('Added the requested Studio test implementation.')).toBeHidden()
+  await wizard.getByText('Iteration report').click()
+  await expect(wizard.getByText('Added the requested Studio test implementation.')).toBeVisible()
+  await expect(wizard.getByRole('button', { name: 'Back to Studio' })).toBeVisible()
+
+  const followup = 'Remove the paper and use a thick white Apple-style sticker outline.'
+  await wizard.getByLabel('Feedback for next iteration').fill(followup)
+  const ruleRequestPromise = page.waitForRequest((candidate) => candidate.url().endsWith('/rules'))
+  await wizard.getByRole('button', { name: 'Save as reusable rule' }).click()
+  const ruleRequest = await ruleRequestPromise
+  expect(ruleRequest.postDataJSON()).toEqual({ rule: followup })
+  await expect(wizard.getByText('Saved as a reusable rule for future Tune runs.')).toBeVisible()
+  await expect(wizard.getByRole('button', { name: 'Reusable rule saved' })).toBeDisabled()
+  const followupRequestPromise = page.waitForRequest((candidate) =>
+    candidate.url().endsWith('/api/v1/studio/tune-runs'),
+  )
+  await wizard.getByRole('button', { name: 'Apply feedback' }).click()
+  const followupRequest = await followupRequestPromise
+  expect(followupRequest.postDataJSON()).toEqual({
+    project_idea: 'A calm planning tool for independent founders.',
+    implementation: 'Use an editorial layout with one clear test action.',
+    feedback: followup,
+  })
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })
 

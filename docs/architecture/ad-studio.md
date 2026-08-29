@@ -1,14 +1,21 @@
 # Instagram static recipe and render adapter
 
-Status: internal agent-controlled component system; no standalone Studio product
+Status: production Result adapter plus separate local Universal Ad Studio
 
 ## Boundary
 
-`StudioRecipeV2` is the structured visual contract used only by
-`instagram_static_ad_v1`. There is no Studio workspace, Wizard, manual editor,
-template gallery, validation loop, publication flow, or video path. Historical
-v1 recipes and renders remain immutable and keep their original renderer
-behavior.
+`StudioRecipeV2` is the production visual contract used only by
+`instagram_static_ad_v1`. Historical v1 recipes and renders remain immutable
+and keep their original renderer behavior. The separate owner-only Universal
+Ad Studio exposes one `universal_ad` structure through
+`ptw.studio.universal-ad-config.v1`; it does not mutate deployed
+`StudioRecipeV2` snapshots or add a publication/video path. See
+[`universal-ad-studio.md`](universal-ad-studio.md).
+
+The local universal template reuses the generic primitive preview renderer as
+an internal implementation detail. Its API cannot import templates, mutate a
+tree, upload references, or record calibration iterations. Immutable local
+versions remain outside the historical Result JPEG path.
 
 The channel-neutral Result core gives the adapter a validated candidate,
 server-assigned visual-element UUIDs, the automatically provisioned canonical

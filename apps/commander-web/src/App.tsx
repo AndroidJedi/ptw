@@ -9,6 +9,7 @@ import type { Language } from './i18n'
 import type { Page, ValidationProject } from './types'
 import { ProductBriefView } from './views/ProductBriefView'
 import { ResultView } from './views/ResultView'
+import { StudioView } from './views/StudioView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
 export const AUTH_BOOT_TIMEOUT_MS = 10_000
@@ -33,7 +34,7 @@ function persistLanguage(language: Language) {
 function initialConsoleLocation(): { page: Page; projectId: string | null } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const known = ['briefs', 'result'].includes(requestedPage || '')
+  const known = ['briefs', 'result', 'studio'].includes(requestedPage || '')
   const page: Page = known
     ? requestedPage as Page
     : 'briefs'
@@ -107,7 +108,7 @@ function Login({ startupError = '' }: { startupError?: string }) {
   </main>
 }
 
-function Console({ user }: { user: User }) {
+function Console({ user, localDemo = false }: { user: User; localDemo?: boolean }) {
   const initialLocation = useMemo(initialConsoleLocation, [])
   const [page, setPage] = useState<Page>(initialLocation.page)
   const [projects, setProjects] = useState<ValidationProject[] | null>(null)
@@ -129,11 +130,12 @@ function Console({ user }: { user: User }) {
   }
 
   useEffect(() => {
+    if (page === 'studio' || projects !== null) return
     void refreshProjects().catch((cause: Error) => {
       setProjects([])
       setProjectError(cause.message)
     })
-  }, [api])
+  }, [api, page, projects])
 
   const navigate = (nextPage: Page) => {
     writeConsoleLocation(nextPage, projectId)
@@ -169,10 +171,11 @@ function Console({ user }: { user: User }) {
   })
   return <Shell page={page} onPage={navigate} language={language} onLanguage={changeLanguage}>
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label={language === 'uk' ? 'Вийти' : 'Sign out'}><LogOut /></button></div>
-    <ProjectSwitcher projects={projects} projectId={projectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />
-    {projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
-    {page === 'briefs' && <ProductBriefView api={api} projectId={projectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onOpenResult={() => navigate('result')} language={language} />}
-    {page === 'result' && <ResultView key={projectId || 'no-project'} api={api} projectId={projectId} language={language} />}
+    {page !== 'studio' && <ProjectSwitcher projects={projects} projectId={projectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
+    {page !== 'studio' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
+    {page === 'briefs' && <ProductBriefView api={api} projectId={projectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onOpenResult={() => navigate('result')} language={language} localDemo={localDemo} />}
+    {page === 'result' && <ResultView key={projectId || 'no-project'} api={api} projectId={projectId} language={language} localDemo={localDemo} />}
+    {page === 'studio' && <StudioView api={api} language={language} tuneMode={localDemo} />}
   </Shell>
 }
 
@@ -257,5 +260,6 @@ const e2eOwner = {
 
 export default function App() {
   const e2eMode = import.meta.env.DEV && (import.meta.env.VITE_E2E === 'true' || new URLSearchParams(window.location.search).has('e2e'))
-  return e2eMode ? <Console user={e2eOwner} /> : <LiveApp />
+  const localDemo = import.meta.env.DEV && import.meta.env.VITE_LOCAL_APP === 'true'
+  return e2eMode ? <Console user={e2eOwner} localDemo={localDemo} /> : <LiveApp />
 }

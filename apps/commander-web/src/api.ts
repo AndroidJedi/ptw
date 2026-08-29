@@ -136,6 +136,35 @@ export class ApiClient {
     return this.request<T>(path, { method: 'POST', body: JSON.stringify(body) }, options)
   }
 
+  async postMedia(
+    path: string, body: unknown, expectedMimeType: string,
+    options: ApiRequestOptions = {},
+  ): Promise<Blob> {
+    const response = await fetchWithDeadline(`${baseUrl}${path}`, {
+      method: 'POST', body: JSON.stringify(body), cache: 'no-store',
+      credentials: 'omit', headers: await this.headers(true),
+    }, options.deadlineMs ?? API_DEADLINE_MS)
+    if (!response.ok) {
+      const value = await jsonBody(response).catch(() => ({})) as { detail?: unknown }
+      throw new Error(typeof value.detail === 'string' ? value.detail : `HTTP ${response.status}`)
+    }
+    const contentType = (response.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase()
+    if (contentType !== expectedMimeType.toLowerCase()) {
+      throw new Error(`Authenticated media returned ${contentType || 'no content type'}; expected ${expectedMimeType}.`)
+    }
+    const bytes = await response.arrayBuffer()
+    if (!bytes.byteLength) throw new Error('Authenticated media response was empty.')
+    const expectedSha256 = response.headers.get('x-ptw-content-sha256') || ''
+    if (!/^[0-9a-f]{64}$/i.test(expectedSha256)) {
+      throw new Error('Authenticated media response is missing its SHA-256 digest.')
+    }
+    const digest = await sha256Hex(bytes)
+    if (digest !== expectedSha256.toLowerCase()) {
+      throw new Error('Authenticated media bytes failed their SHA-256 integrity check.')
+    }
+    return new Blob([bytes], { type: contentType })
+  }
+
   async image(path: string, expectedMimeType: string, expectedSha256: string): Promise<Blob> {
     const response = await fetchWithDeadline(`${baseUrl}${path}`, {
       cache: 'no-store', credentials: 'omit', headers: await this.headers(),

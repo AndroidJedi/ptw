@@ -1,4 +1,4 @@
-export type Page = 'briefs' | 'result'
+export type Page = 'briefs' | 'result' | 'studio'
 export type I18n<T = string> = { en: T; uk: T }
 
 export type BriefStatus = 'queued' | 'generating' | 'completed' | 'failed'
@@ -203,4 +203,162 @@ export interface ProjectBrandKit {
   }
   document_sha256: string
   created_at: string
+}
+
+export interface StudioUniversalConfiguration {
+  schema: 'ptw.studio.universal-ad-config.v1'
+  background: {
+    mode: 'solid' | 'texture' | 'image'
+    color: string
+    texture: 'paper' | 'grain'
+    image_layout: 'full' | 'left' | 'right' | 'top' | 'bottom'
+    image_fit: 'cover' | 'contain'
+    focal_x: number
+    focal_y: number
+    overlay_color: string
+    overlay_opacity: number
+  }
+  typography: {
+    font_family: 'Inter' | 'Roboto Condensed'
+    hero_size: number
+    hero_weight: number
+    supporting_size: number
+    text_color: string
+    alignment: 'left' | 'center'
+  }
+  layout: {
+    content_x: number
+    content_y: number
+    content_width: number
+    gap: number
+  }
+  bullets: { enabled: boolean; marker: string }
+  cta: { background_color: string; text_color: string; radius: number }
+  sticker: {
+    enabled: boolean
+    position: 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right'
+    rotation: number
+    paper_width: number
+    paper_color: string
+    object_scale: number
+  }
+  logo: { enabled: boolean; position: 'top_left' | 'top_right'; width: number }
+}
+
+export interface StudioUniversalContent {
+  hero_title: string
+  supporting_text: string
+  bullets: string[]
+  cta: string
+}
+
+export interface StudioUniversalAssetSummary {
+  slot: 'background_image' | 'sticker_object' | 'logo'
+  role: 'background' | 'sticker' | 'logo'
+  description: string
+  allowed_mime_types: string[]
+  available: boolean
+  mime_type: string | null
+  sha256: string | null
+  byte_count: number | null
+  source: Record<string, unknown> | null
+}
+
+export interface StudioUniversalVersionSummary {
+  version: number
+  state_sha256: string
+  template_sha256: string
+  render_sha256: string
+  change_note: string
+}
+
+export interface StudioUniversalCatalog {
+  schema: 'ptw.studio.universal-ad-catalog.v1'
+  template_id: 'universal_ad'
+  template_version: number
+  semantic_roles: Array<'background' | 'sticker' | 'hero_title' | 'supporting_text' | 'bullet_list' | 'cta' | 'logo'>
+  asset_slots: Record<string, {
+    role: string
+    allowed_mime_types: string[]
+    description: string
+  }>
+  variation: {
+    background_modes: string[]
+    image_layouts: string[]
+    texture_presets: string[]
+    font_families: string[]
+    optional_elements: string[]
+  }
+  sha256: string
+}
+
+export interface StudioUniversalDetail {
+  schema: 'ptw.studio.universal-ad-workspace.v1'
+  catalog: StudioUniversalCatalog
+  state_sha256: string
+  template_sha256: string
+  configuration: StudioUniversalConfiguration
+  content: StudioUniversalContent
+  assets: StudioUniversalAssetSummary[]
+  pexels_available: boolean
+  versions: StudioUniversalVersionSummary[]
+}
+
+export type StudioTuneRunStatus = 'queued' | 'running' | 'completed' | 'failed'
+export type StudioTuneRunStage =
+  | 'queued'
+  | 'preparing'
+  | 'generating'
+  | 'verifying'
+  | 'applying'
+  | 'completed'
+  | 'failed'
+
+export interface StudioTuneApprovedRule {
+  rule: string
+  rule_sha256: string
+  skill_path: 'skills/studio-tune-local/references/owner-approved-rules.md'
+}
+
+export interface StudioTuneRun {
+  schema: 'ptw.studio.tune-run.v1'
+  run_id: string
+  iteration: number
+  status: StudioTuneRunStatus
+  stage: StudioTuneRunStage
+  project_idea: string
+  implementation: string
+  feedback: string
+  request_sha256: string
+  changed_files: string[]
+  verification: string[]
+  summary: string | null
+  error: string | null
+  approved_rules?: StudioTuneApprovedRule[]
+  preview: {
+    mime_type: 'image/png'
+    sha256: string
+    width: number
+    height: number
+  } | null
+  created_at: string
+  updated_at: string
+  started_at: string | null
+  completed_at: string | null
+}
+
+export interface StudioTuneRuleApproval extends StudioTuneApprovedRule {
+  schema: 'ptw.studio.tune-rule-approval.v1'
+  run_id: string
+  created: boolean
+}
+
+export interface StudioTuneDetail {
+  schema: 'ptw.studio.tune-service.v1'
+  mode: 'local_only'
+  available: boolean
+  unavailable_reason: string | null
+  active_run_id: string | null
+  allowed_paths: string[]
+  runs: StudioTuneRun[]
 }

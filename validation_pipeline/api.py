@@ -20,6 +20,8 @@ from .provider import StructuredBridge
 from .repository import ValidationRepository
 from .service import ValidationRunner, validate_create_input, validate_revision_input
 from .studio import StudioRenderer
+from .studio_routes import studio_router
+from .studio_workspace import UniversalStudioWorkspace
 
 
 def create_app(
@@ -30,12 +32,16 @@ def create_app(
     recipe_renderer: StudioRenderer | None = None,
     content_repository: ContentResultRepository | None = None,
     content_runner: CandidateGenerationOrchestrator | None = None,
+    studio_workspace: UniversalStudioWorkspace | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_environment()
     repository = repository or ValidationRepository(settings.database_url)
     bridge = StructuredBridge(settings.bridge_url, settings.bridge_token, settings.model)
     pexels = PexelsClient(settings.pexels_api_key)
     recipe_renderer = recipe_renderer or StudioRenderer()
+    studio_workspace = studio_workspace or UniversalStudioWorkspace(
+        settings.studio_workspace_path, renderer=recipe_renderer, pexels=pexels,
+    )
     content_repository = content_repository or ContentResultRepository(repository)
 
     runner_error: Exception | None = None
@@ -97,6 +103,10 @@ def create_app(
     def authorize(x_ptw_owner_gateway_token: str = Header(default="")) -> None:
         if not settings.owner_gateway_token or x_ptw_owner_gateway_token != settings.owner_gateway_token:
             raise HTTPException(status_code=401, detail="owner gateway authentication required")
+
+    app.include_router(studio_router(
+        studio_workspace, prefix="/internal/v1/studio", dependencies=[Depends(authorize)],
+    ))
 
     def require_brief_runner() -> ValidationRunner:
         if runner is None:

@@ -32,7 +32,7 @@ function ResultContent({ value, language }: { value: ContentResult; language: La
   </article>
 }
 
-export function ResultView({ api, projectId, language }: { api: ApiClient; projectId: string | null; language: Language }) {
+export function ResultView({ api, projectId, language, localDemo = false }: { api: ApiClient; projectId: string | null; language: Language; localDemo?: boolean }) {
   const [briefs, setBriefs] = useState<ProductBrief[] | null>(null)
   const [runs, setRuns] = useState<ContentRun[]>([])
   const [selectedRun, setSelectedRun] = useState<ContentRun | null>(null)
@@ -132,7 +132,7 @@ export function ResultView({ api, projectId, language }: { api: ApiClient; proje
       setError(tr('The rendered Instagram image is not available yet.', 'Відрендерене зображення для Instagram ще недоступне.'))
       return
     }
-    await api.post(`/api/v1/content-runs/${selectedRun.run_id}/outcomes`, { event_type: 'downloaded' })
+    if (!localDemo) await api.post(`/api/v1/content-runs/${selectedRun.run_id}/outcomes`, { event_type: 'downloaded' })
     const link = document.createElement('a'); link.href = assetUrl
     link.download = 'natal-instagram-post.jpg'; link.click()
     setNotice(tr('Instagram post downloaded and recorded.', 'Допис в Instagram завантажено та зафіксовано.'))
@@ -147,24 +147,25 @@ export function ResultView({ api, projectId, language }: { api: ApiClient; proje
   if (!briefs) return error ? <ErrorState message={error} retry={() => void load()} language={language} /> : <Loading language={language} />
   return <>
     <PageHeader eyebrow={tr('NATAL · ONE FINAL POST', 'NATAL · ОДИН ФІНАЛЬНИЙ ДОПИС')} title={tr('Instagram post', 'Допис в Instagram')} />
+    {localDemo && <p className="notice" role="status">{tr('Representative local Result · provider generation, feedback, and persisted outcomes are disabled.', 'Репрезентативний локальний результат · генерацію через провайдера, відгуки та збереження результатів вимкнено.')}</p>}
     {error && <ErrorState message={error} language={language} />}
     {notice && <p className="notice" role="status">{notice}</p>}
     {!projectId ? <Empty><Sparkles className="empty-mark" /><h2>{tr('Select or create a Project', 'Виберіть або створіть проєкт')}</h2></Empty> : <>
       <section className="panel result-create">
         <div><small>{tr('SOURCE', 'ДЖЕРЕЛО')}</small><h2>{approved?.product || tr('Approved Product Brief required', 'Потрібен схвалений продуктовий бриф')}</h2><p>{approved?.promise || tr('Approve a completed Brief before creating an Instagram post.', 'Схваліть завершений бриф перед створенням допису в Instagram.')}</p></div>
         <p>{tr('Natal branding is applied automatically. Nothing else is required.', 'Брендинг Natal застосовується автоматично. Більше нічого не потрібно.')}</p>
-        <button className="primary large" disabled={busy || !approved} onClick={create}><Sparkles />{tr('Create Instagram post', 'Створити допис в Instagram')}</button>
+        <button className="primary large" disabled={localDemo || busy || !approved} onClick={create}><Sparkles />{tr('Create Instagram post', 'Створити допис в Instagram')}</button>
       </section>
 
       {selectedRun && <section className="panel result-progress">
         <small>{tr('INSTAGRAM POST CREATION', 'СТВОРЕННЯ ДОПИСУ В INSTAGRAM')}</small>
         {ACTIVE.has(selectedRun.status) && <><h2><RefreshCcw className="spin" /> {translate(language, stageCopy[selectedRun.current_stage].en, stageCopy[selectedRun.current_stage].uk)}</h2><progress max={100} value={selectedRun.progress_percent} /><p>{selectedRun.progress_percent}% · {tr('bounded maximum 45 minutes', 'максимум 45 хвилин')}</p></>}
-        {selectedRun.status === 'failed' && <><h2>{tr('Instagram post could not be completed', 'Не вдалося завершити допис в Instagram')}</h2><p>{selectedRun.error_message || selectedRun.error_code}</p><button className="secondary" disabled={busy} onClick={retry}>{tr('Create immutable retry', 'Створити незмінну повторну спробу')}</button></>}
+        {selectedRun.status === 'failed' && <><h2>{tr('Instagram post could not be completed', 'Не вдалося завершити допис в Instagram')}</h2><p>{selectedRun.error_message || selectedRun.error_code}</p><button className="secondary" disabled={localDemo || busy} onClick={retry}>{tr('Create immutable retry', 'Створити незмінну повторну спробу')}</button></>}
         {result && <div className="result-output">
           {assetUrl && <img src={assetUrl} alt={result.content.alt_text} />}
           <ResultContent value={result} language={language} />
           <section className="result-why"><small>{tr('WHY THIS DIRECTION', 'ЧОМУ ЦЕЙ НАПРЯМ')}</small><ul>{result.decision_summary.map((item) => <li key={item}>{item}</li>)}</ul></section>
-          <div className="result-actions"><button className="primary" onClick={() => void download()}><Download />{tr('Download post', 'Завантажити допис')}</button><button className="secondary" onClick={() => void useResult()}><Check />{tr('Use post', 'Використати допис')}</button><button onClick={() => void feedback('accepted')}><ThumbsUp />{tr('Accept', 'Прийняти')}</button><button onClick={() => void feedback('rejected')}><ThumbsDown />{tr('Reject', 'Відхилити')}</button><button onClick={() => { setSelectedRun(null); setResult(null); setDebug(null); setNotice(tr('Ready to create another immutable Instagram post.', 'Можна створити ще один незмінний допис в Instagram.')) }}><Sparkles />{tr('Create another', 'Створити ще')}</button></div>
+          <div className="result-actions"><button className="primary" onClick={() => void download()}><Download />{tr('Download post', 'Завантажити допис')}</button><button className="secondary" disabled={localDemo} onClick={() => void useResult()}><Check />{tr('Use post', 'Використати допис')}</button><button disabled={localDemo} onClick={() => void feedback('accepted')}><ThumbsUp />{tr('Accept', 'Прийняти')}</button><button disabled={localDemo} onClick={() => void feedback('rejected')}><ThumbsDown />{tr('Reject', 'Відхилити')}</button><button onClick={() => { setSelectedRun(null); setResult(null); setDebug(null); setNotice(tr('Ready to create another immutable Instagram post.', 'Можна створити ще один незмінний допис в Instagram.')) }}><Sparkles />{tr('Create another', 'Створити ще')}</button></div>
           <details className="result-debug" onToggle={(event) => { if ((event.currentTarget as HTMLDetailsElement).open && !debug) void api.get<ContentDebug>(`/api/v1/content-runs/${selectedRun.run_id}/debug`).then(setDebug).catch((cause: Error) => setError(cause.message)) }}><summary>{tr('See all five directions and the decision', 'Переглянути всі п’ять напрямів і рішення')}</summary>{debug ? <ResultDecisionTrace value={debug} api={api} selectedCandidateId={result.selected_candidate_id} language={language} /> : <p>{tr('Loading bounded trace…', 'Завантаження обмеженого трасування…')}</p>}</details>
         </div>}
       </section>}

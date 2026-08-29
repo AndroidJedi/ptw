@@ -13,6 +13,7 @@ SKILLS = (
     "product-brief-generator",
     "content-candidate-generator",
     "content-result-critic",
+    "studio-tune-local",
     "ptw-owner-console-incident",
     "ptw-vps-operations",
 )

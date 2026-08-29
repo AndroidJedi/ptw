@@ -33,6 +33,9 @@ SUPPORTED_FONTS = {
     "DejaVu Serif": Path("/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf"),
     "DejaVu Mono": Path("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"),
 }
+CALIBRATION_FONTS = {
+    "Roboto Condensed": Path(__file__).with_name("studio_assets") / "fonts" / "Roboto-Variable.ttf",
+}
 URGENCY_PATTERN = re.compile(
     r"\b(?:act now|last chance|only \d+ left|ends today|limited time|hurry|"
     r"останній шанс|лише \d+ залиш|тільки сьогодні|поспіш)\b",
@@ -586,9 +589,24 @@ class StudioRenderer:
 
     def _font(self, size: int, font_name: str = "Inter", weight: int | None = None):
         from PIL import ImageFont
-        path = SUPPORTED_FONTS.get(font_name, self.font_path)
+        path = CALIBRATION_FONTS.get(font_name, SUPPORTED_FONTS.get(font_name, self.font_path))
         try:
             font = ImageFont.truetype(str(path), max(12, size))
+            if font_name == "Roboto Condensed":
+                try:
+                    values = []
+                    for axis in font.get_variation_axes():
+                        name = bytes(axis["name"]).decode("ascii", "ignore").lower()
+                        if "width" in name:
+                            values.append(75)
+                        elif "weight" in name:
+                            values.append(int(weight or 400))
+                        else:
+                            values.append(axis["default"])
+                    font.set_variation_by_axes(values)
+                    return font
+                except (AttributeError, KeyError, OSError, TypeError, ValueError):
+                    pass
             if weight is not None:
                 variation = {
                     100: "Thin", 200: "ExtraLight", 300: "Light", 400: "Regular",
@@ -797,6 +815,23 @@ class StudioRenderer:
             "bytes": output.getvalue(), "mime_type": "image/jpeg",
             "duration_seconds": None, "embedded_manifest": compact,
         }
+
+    def render_preview(
+        self, template: Any, *, semantic_data: Mapping[str, Any],
+        assets: Mapping[str, Mapping[str, Any]], width: int | None = None,
+        height: int | None = None,
+    ) -> dict[str, Any]:
+        """Render one v1 primitive-tree draft without changing Result recipes.
+
+        Importing lazily keeps the historical flat-frame compatibility path and
+        its byte contract independent from the universal-ad configuration model.
+        """
+        from .studio_primitives import PrimitivePreviewRenderer
+
+        return PrimitivePreviewRenderer(self._font).render(
+            template, semantic_data=semantic_data, assets=assets,
+            width=width, height=height,
+        )
 
 
 def build_manifest(

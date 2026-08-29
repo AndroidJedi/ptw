@@ -14,20 +14,23 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
 - Verify hashed bundles, the `ptw-result-v1` service-worker cache, Firebase Auth
   persistence, App Check, exact Owner CORS origins, and unauthenticated
   rejection.
-- Navigation is exactly Product Briefs and Instagram post. The normal post
-  journey exposes one approved Brief, one create action, three bounded progress
-  labels, one final immutable post, its selection summary, Download/Use, retry,
-  feedback, and a collapsed bounded trace. Never expose a Text profile or task
-  field.
+- Deployed production navigation remains exactly Product Briefs and Instagram
+  post until an explicitly authorized Universal Ad Studio release. The local
+  owner-only Studio may be a third destination without entering the normal
+  Result journey. The normal post journey exposes one approved Brief, one
+  create action, three bounded progress labels, one final immutable post, its
+  selection summary, Download/Use, retry, feedback, and a collapsed bounded
+  trace. Never expose a Text profile or task field.
 - Provision the digest-pinned Natal logo, palette, and Inter brand kit on the
   server before an Instagram run. The public Gateway and Owner Console must not
   expose Project asset upload or brand-kit setup routes, fields, or blockers.
 - The EN/УКР control must change the complete visible Owner Console and persist
   across reloads. Render new-Project creation as a separate mode from an
   existing Project's Brief history and detail; never stack both workflows.
-- Ads, batches, Studio editor/Wizard, Landing, Admin/Jobs/terminal, Positioning,
-  research, publishing, campaign, traffic, UTM, and public lead routes must be
-  absent and return 404.
+- Ads, batches, the retired Studio editor/Wizard, Landing,
+  Admin/Jobs/terminal, Positioning, research, publishing, campaign, traffic,
+  UTM, and public lead routes must be absent and return 404. Do not confuse the
+  retired Studio product with the bounded owner-only Universal Ad Studio.
 - Result images are owner-authenticated JPEG responses displayed through
   `blob:` URLs. Validate stored bytes, SHA-256, dimensions, content type, ETag,
   and proxy byte equality before debugging browser decode failures.
@@ -53,6 +56,14 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
 - Instagram: approved/Pexels real image or explicitly allowed reviewed
   non-human graphic; one square `StudioRecipeV2`; exact 1080×1080 JPEG; safe
   crop, collision, hierarchy, legibility, brand, caption, and alt-text gates.
+- Universal Ad Studio: expose only one `universal_ad` catalog entry and the
+  background, optional sticker, hero title, supporting text, optional bullets,
+  CTA, and optional logo roles. Require strict bounded configuration, exactly
+  the `background_image`, `sticker_object`, and `logo` asset slots, Pexels
+  provenance for sourced media, and the single documented sticker cutout.
+  Preview and immutable-version PNGs must be authenticated, no-store, digest-
+  and ETag-checked. `/studio/templates`, arbitrary operations, references, and
+  calibration routes must remain absent.
 - Configured Instagram rendering requires exactly five digest-synchronized v3
   strategy/Studio definitions. Each must have a distinct component-tree
   signature and materially distinct decoded render from one fixed input. Never
@@ -77,6 +88,15 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
 
 ## Failure handling
 
+- Treat the Universal Studio state digest as the concurrency boundary across
+  configuration, semantic content, asset digests, and source metadata. A stale
+  save must conflict. For an approval incident, replay the active
+  `STUDIO_WORKSPACE_PATH` state and verify exact PNG, configuration, content,
+  asset provenance/digests, primitive snapshot/digest, and render digest.
+- If Pexels sticker isolation removes the object or produces a poor complex-
+  scene cutout, select another simple object source or use an owner-supplied
+  transparent PNG/WebP. Do not add a second sticker family or hide the
+  transformation provenance.
 - Any FastAPI route that schedules `asyncio` background work must itself be an
   async route and have a built-image HTTP regression proving it returns the
   accepted response while the task starts. A healthy service plus

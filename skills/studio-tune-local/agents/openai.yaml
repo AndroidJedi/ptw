@@ -1,0 +1,4 @@
+interface:
+  display_name: "Studio Tune Local"
+  short_description: "Tune Universal Studio safely in the local checkout"
+  default_prompt: "Use $studio-tune-local to implement and verify this Universal Studio update in my local checkout."

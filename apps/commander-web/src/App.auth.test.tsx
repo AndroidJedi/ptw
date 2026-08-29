@@ -27,6 +27,7 @@ vi.mock('./api', () => ({ ApiClient: class {} }))
 vi.mock('./components/Shell', () => ({ Shell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
 vi.mock('./views/ProductBriefView', () => ({ ProductBriefView: () => <p>OWNER CONSOLE READY</p> }))
 vi.mock('./views/ResultView', () => ({ ResultView: () => null }))
+vi.mock('./views/StudioView', () => ({ StudioView: () => null }))
 
 import App, { AUTH_BOOT_TIMEOUT_MS } from './App'
 

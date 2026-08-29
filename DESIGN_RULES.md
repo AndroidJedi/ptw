@@ -5,8 +5,9 @@ Updated: 2026-08-26
 
 ## Navigation and trust
 
-- Primary navigation is Product Briefs and Instagram post, scoped by a
-  human-readable Project switcher.
+- Primary navigation is Product Briefs, Instagram post, and owner-only
+  Universal Ad Studio. The first two are scoped by a human-readable Project
+  switcher; Studio is a separate one-template workspace.
 - Old page locations and retired domain APIs do not exist.
 - Design first for 360 px and one-hand use with 44×44 CSS-pixel targets, no
   horizontal overflow, keyboard access, and reduced-motion support.
@@ -35,6 +36,18 @@ Updated: 2026-08-26
   feedback.
 - Do not expose templates, sliders, alternate candidates, UUID entry, layers,
   recipes, prompts, or model controls in the normal journey.
+- Universal Ad Studio exposes only the fixed background, optional sticker,
+  hero title, supporting text, optional bullets, CTA, and optional logo roles;
+  meaningful mood/layout controls; three fixed asset slots; and immutable
+  version approval. Primitive trees, arbitrary properties, references,
+  calibration, and template-library controls remain internal or absent.
+- Loopback-only Tune mode may expose a Test generation wizard for project idea,
+  desired implementation, and iterative feedback. It must isolate code changes,
+  enforce a Studio-only file allowlist, verify before copy-back, and remain
+  absent from production Owner Gateway and Validation route surfaces.
+- Studio preview and immutable-version renders are authenticated,
+  digest-checked, and no-store. Approval stores the exact PNG, configuration,
+  semantic content, asset provenance/digests, and internal template digest.
 - A collapsed owner-only explanation may show all five initial candidate
   previews, their exact five parameter values, and a visual rendering of the
   persisted gate, score, ranking, pairwise, action, observation, and final-

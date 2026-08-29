@@ -20,6 +20,7 @@ class Settings:
     content_result_critic_skill_path: Path = Path(
         "/run/ptw-auth/skills/content-result-critic/SKILL.md"
     )
+    studio_workspace_path: Path = Path("/tmp/ptw-studio-workspace")
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -50,5 +51,8 @@ class Settings:
             content_result_critic_skill_path=Path(os.environ.get(
                 "CONTENT_RESULT_CRITIC_SKILL_PATH",
                 "/run/ptw-auth/skills/content-result-critic/SKILL.md",
+            )),
+            studio_workspace_path=Path(os.environ.get(
+                "STUDIO_WORKSPACE_PATH", "/tmp/ptw-studio-workspace",
             )),
         )

@@ -1,9 +1,139 @@
 # Commander current state
 
-Updated: 2026-08-27
+Updated: 2026-08-29
 Branch: `codex/web-only-commander`
 
 ## Current milestone
+
+The Universal Ad Studio refactor is complete locally and is not deployed. The
+Owner Console's third `Studio` destination now exposes one fixed
+`universal_ad` structure rather than an arbitrary primitive-tree or
+reference-calibration workflow. Its stable semantic roles are background,
+optional sticker, hero title, supporting text, optional bullets, CTA, and
+optional logo. The screen contains compact semantic-content, mood, typography,
+spacing, CTA, optional-element, asset, Pexels, preview, and immutable-version
+controls. A prominent seven-card component dock keeps the four required roles
+and all three optional roles visible at a glance; optional cards are direct
+keyboard-accessible switches, while detailed background, hierarchy, CTA,
+sticker, and logo inspectors stay collapsed until needed. The current creative
+remains the dominant sticky panel. There is no template selector/import, layer
+tree, arbitrary property inspector, reference upload, pixel matching, or
+calibration history.
+
+Every bounded content edit and component/configuration toggle now requests a
+debounced draft render and replaces the preview without persisting editor state.
+The draft preview is bound to the current state digest, normalized by the same
+strict configuration/content contract as a save, and ignored if a newer edit is
+already in flight. Explicit Save setup remains the only way to advance current
+workspace state. Optional Sticker and Logo switches are disabled with an upload
+instruction when their fixed asset slot is unavailable, avoiding a knowingly
+broken preview. Render progress, unsaved-preview success, and preview failures
+are visible directly above the creative instead of only in the page-level
+status line.
+
+The loopback Studio now also exposes a local-only Test generation wizard in
+explicit Tune mode. The owner supplies a project idea, desired implementation,
+and optional feedback for each iteration. A non-interactive Codex run works in
+a disposable mirror of the current dirty checkout and may revise only the
+Universal Studio renderer/configuration surface, focused tests, styles, and
+Studio UI components (including the wizard UI). Out-of-scope writes and file
+deletions fail closed. Focused Python/web tests, the Owner Console production
+build, and whitespace validation must pass before optimistic, atomic copy-back.
+The Tune runner, launcher, authentication, production routes, Result adapter,
+database, deployment, and publication boundaries are not writable by the
+agent. Production does not mount Tune routes.
+
+Successful Tune iterations now retain the exact 1080×1080 PNG rendered from the
+verified isolated snapshot. The completion card shows that creative beside the
+agent report through an authenticated run-scoped, SHA-256/ETag-verified,
+private-no-store endpoint. Older completed runs are rendered from their retained
+snapshots on first inspection, so the first investment-service experiment is
+visible without rerunning it or accepting a stale in-memory Studio preview.
+The review screen now keeps the creative and next-iteration feedback field
+together at the top, retains the original idea and implementation across
+reloads, and exposes explicit Back to Studio and new-direction actions. A
+completed run reviews its exact run-scoped PNG; a safely stopped run reviews the
+current Studio PNG instead. Raw runner tracebacks remain in the durable run
+record but are never rendered in the owner interface. The Studio command bar
+names Feedback & iterations directly, so closing the dialog does not hide the
+return path.
+
+The same review panel now has an explicit Save as reusable rule action. It
+promotes the current feedback, falling back to the feedback that produced a
+completed iteration when the next-feedback field is empty, into the canonical Studio Tune skill's
+owner-approved rules reference, links its content digest to the originating run,
+and deduplicates equivalent approvals. Every later Tune snapshot reads those
+rules and must preserve observable rules with regression coverage. Ordinary
+feedback still cannot rewrite agent instructions: this mutation is available
+only through the authenticated loopback owner action and remains absent from
+production.
+
+The canonical `studio-tune-local` skill now makes verified local-checkout
+application the default for owner Studio tuning requests. It explicitly
+withholds commit, push, pull-request, remote, production, publication, and
+deployment actions unless the owner names that non-local target.
+
+`ptw.studio.universal-ad-config.v1` is the reusable strict configuration.
+Unknown structure fails closed, and all numeric/enum controls are bounded to
+properties with meaningful visual impact. Solid, deterministic paper/grain
+texture, and photo backgrounds share full/partial placement, fit, focal point,
+and readability-overlay controls. The one sticker consists of an isolated
+object with a smooth white die-cut contour sized from the actual fitted alpha
+silhouette, reserved transparent edge room, and a subtle outside shadow. It has
+bounded position, rotation, width, and object scale, with no rectangular paper
+backing or blurred white glow. This render contract is the local internal
+Universal Studio template version 3. Bullets, sticker, and logo can be omitted
+without changing
+the semantic structure or breaking the composition.
+
+The loopback launcher now runs the complete visible Owner app rather than a UI
+whose non-Studio destinations point at absent routes. Product Briefs and
+Instagram post use one explicitly labeled deterministic local demonstration
+journey with five distinct candidate JPEGs; provider-backed generation and
+correction remain disabled. Studio is the writable local workspace. All local
+routes keep the same fake-owner header boundary, bind only to `127.0.0.1`, and
+do not contact production, mutate PostgreSQL, or publish.
+
+The existing primitive system and `StudioRenderer.render_preview()` remain
+internal implementation machinery for deterministic PNG rendering, fonts,
+image fit, alpha, transforms, z-order, clipping, and visible measurements. The
+two generic primitive fixtures remain engineering benchmarks only and are not
+runtime templates. The historical production `StudioRecipeV2` JPEG path,
+five active Result strategy snapshots, and byte-exact replay remain unchanged.
+
+`UniversalStudioWorkspace` owns one current configuration, semantic content,
+three fixed asset slots (`background_image`, `sticker_object`, and `logo`),
+provider provenance, exact state digests, previews, and append-only immutable
+versions under `STUDIO_WORKSPACE_PATH`. Background and sticker sourcing reuse
+the existing bounded Pexels client. Sticker photos pass through one
+deterministic edge-color soft-alpha cutout; complex sources must use an
+owner-supplied transparent PNG/WebP. Approval stores the exact PNG,
+configuration, content, asset provenance/digests, internal template snapshot
+and digest, and render digest. Preview rendering accepts either the persisted
+state digest alone or that digest plus a complete draft configuration/content
+pair; the latter is rendered in memory and never mutates the workspace.
+
+Validation and Owner Gateway expose only detail, configuration, fixed-asset,
+Pexels, preview, approval, and immutable-version-render routes. All PNGs are
+private, no-store, SHA-256 and ETag explicit. The loopback launcher exposes the
+same Studio contract, local-only Tune routes, and the representative normal
+journey described above, without Firebase; Pexels is optional unless its local
+key is provided. Obsolete
+reference/calibration routes, evaluator, installer, tests, and text fixtures
+were removed. No deployment, reset, database mutation, publication, or
+production contact was performed.
+
+Local verification passes the complete 59-test Validation suite (three
+disposable-PostgreSQL lifecycle tests skipped), five Owner Gateway tests, all
+23 web unit tests, the production web build, and all 15 Playwright journeys on
+desktop Chromium, 360 px Chromium, and iPhone WebKit. All seven Commander tests,
+the Commander demo, primitive-engine canary, canonical PTW skill verifier,
+skill-validator, Python compilation, four-variant visual inspection, and
+`git diff --check` also pass. Built-image tests were not run because the local
+Docker daemon is unavailable.
+
+The current production state remains the Result v1/v2 milestone described
+below.
 
 PTW has been rebuilt as a clean first-version Product Brief → one-click Natal
 Instagram post system.

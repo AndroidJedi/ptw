@@ -73,6 +73,21 @@ application the default for owner Studio tuning requests. It explicitly
 withholds commit, push, pull-request, remote, production, publication, and
 deployment actions unless the owner names that non-local target.
 
+Universal Studio text now aligns by actual rendered glyph ink and fits against
+both ink height and nominal line spacing. The investment creative's three-line
+hero begins at its configured top coordinate, no longer touches the clipped
+bottom edge, and retains a measured positive gap before the supporting copy.
+Resolved text nodes expose fitted size, rendered/source line counts, truncation,
+and overflow so layout failures are inspectable. Focused tests lock the top
+alignment, unclipped title edge, and semantic-block separation.
+
+The new canonical `studio-ui-visual-audit` skill separates raw creative defects
+from browser-preview defects and supplies a deterministic default,
+high-density, and centered/minimal geometry gate. `studio-tune-local` requires
+that audit for typography, positioning, spacing, component-layout, preview, and
+Studio CSS changes. Its canonical desktop link is installed. This repair is
+local only and was not deployed.
+
 `ptw.studio.universal-ad-config.v1` is the reusable strict configuration.
 Unknown structure fails closed, and all numeric/enum controls are bounded to
 properties with meaningful visual impact. Solid, deterministic paper/grain
@@ -123,12 +138,13 @@ reference/calibration routes, evaluator, installer, tests, and text fixtures
 were removed. No deployment, reset, database mutation, publication, or
 production contact was performed.
 
-Local verification passes the complete 59-test Validation suite (three
+Local verification passes the complete 60-test Validation suite (three
 disposable-PostgreSQL lifecycle tests skipped), five Owner Gateway tests, all
 23 web unit tests, the production web build, and all 15 Playwright journeys on
 desktop Chromium, 360 px Chromium, and iPhone WebKit. All seven Commander tests,
 the Commander demo, primitive-engine canary, canonical PTW skill verifier,
-skill-validator, Python compilation, four-variant visual inspection, and
+skill-validator, deterministic three-variant visual-geometry audit,
+Python compilation, four-variant visual inspection, and
 `git diff --check` also pass. Built-image tests were not run because the local
 Docker daemon is unavailable.
 

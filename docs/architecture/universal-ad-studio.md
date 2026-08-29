@@ -89,6 +89,23 @@ and reported with explicit `bundled_tune_asset` provenance; an owner upload or
 Pexels selection in the same fixed slots still overrides them. This is starter
 state for the local experiment, not a new template or Instagram behavior.
 
+## Visual layout quality
+
+Primitive text is positioned by its rendered glyph ink rather than nominal font
+line boxes. Top-aligned text therefore begins at the requested coordinate, and
+shrink fitting accounts for actual ink height, nominal line spacing, and all
+wrapped source lines.
+Resolved previews report the fitted font size, rendered/source line counts,
+truncation, and overflow for each text node. Focused regression coverage keeps
+the representative hero title inside its frame and visibly separated from the
+supporting block.
+
+The canonical `studio-ui-visual-audit` skill distinguishes raw creative defects
+from browser-preview defects and runs a deterministic geometry matrix across the
+default, high-density, and centered/minimal configurations. It rejects text
+overflow or truncation, edge-touch clipping, semantic-flow collisions, and CTA
+safe-area escapes before full-resolution inspection.
+
 ## Persistence and routes
 
 `UniversalStudioWorkspace` persists one current configuration, semantic

@@ -61,6 +61,16 @@ subject that reaches its source bounds. Verify that the contour can extend
 outside the source box while transparent corners remain transparent, then
 inspect the representative Studio preview at full resolution.
 
+## Visual layout guard
+
+For typography, positioning, spacing, component-layout, preview, or Studio CSS
+changes, also read `../studio-ui-visual-audit/SKILL.md` and run its deterministic
+geometry audit. Inspect the exact representative PNG at full resolution and
+compare visible alpha bounds—not only nominal boxes—so font bearings, clipping,
+overflow, truncation, and adjacent-block collisions cannot pass as a successful
+iteration. Preserve the demonstrated invariant with a focused geometry or pixel
+regression test.
+
 Before applying a generated snapshot, reject out-of-scope writes, deletions,
 symlinks, or concurrent source changes. Apply only after focused Studio tests,
 the Owner Console build, and whitespace validation pass. Keep the UI functional

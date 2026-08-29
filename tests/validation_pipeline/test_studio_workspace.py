@@ -94,6 +94,19 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         self.assertEqual(2.0, sticker["alpha_outline_shadow_y"])
         self.assertNotIn("logo", preview["resolved"]["nodes"])
 
+        nodes = preview["resolved"]["nodes"]
+        title = nodes["hero_title"]
+        supporting = nodes["supporting_text"]
+        title_box, title_visible = title["box"], title["visible_bounds"]
+        supporting_visible = supporting["visible_bounds"]
+        self.assertLessEqual(abs(title_visible["y"] - title_box["y"]), 1 / 1080)
+        self.assertGreaterEqual(
+            supporting_visible["y"] - title_visible["y"] - title_visible["height"],
+            18 / 1080,
+        )
+        for node_id in ("hero_title", "supporting_text", "bullet_1", "bullet_2", "bullet_3"):
+            self.assertFalse(nodes[node_id]["text_layout"]["overflow"], node_id)
+
     def test_draft_preview_changes_pixels_without_persisting_editor_state(self) -> None:
         detail = self.workspace.detail()
         persisted = self.workspace.render_preview(state_sha256=detail["state_sha256"])

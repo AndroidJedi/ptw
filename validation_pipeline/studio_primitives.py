@@ -1435,34 +1435,60 @@ class PrimitivePreviewRenderer:
             text = text.title()
         requested = max(2, round(props["font_size"]))
         minimum = max(2, min(requested, round(props["min_font_size"])))
-        chosen: tuple[Any, list[str], float, float] | None = None
+        chosen: tuple[Any, list[str], float, float, float, float, dict[str, Any]] | None = None
         for size in range(requested, minimum - 1, -1):
             font = self.font_resolver(size, str(props["font_family"]), int(props["font_weight"]))
             probe = Image.new("RGBA", (max(width, 1), max(height, 1)), (0, 0, 0, 0))
             draw = ImageDraw.Draw(probe)
             letter_spacing = float(props["letter_spacing"])
-            lines = [text] if props["wrap_text"] == "none" else self._wrap_text(draw, text, font, width, letter_spacing)
-            lines = lines[: int(props["max_lines"])]
+            source_lines = (
+                [text]
+                if props["wrap_text"] == "none"
+                else self._wrap_text(draw, text, font, width, letter_spacing)
+            )
+            lines = source_lines[: int(props["max_lines"])]
             line_height = size * float(props["line_height"])
-            text_height = line_height * len(lines)
             widest = max((self._text_width(draw, line, font, letter_spacing) for line in lines), default=0)
-            chosen = (font, lines, line_height, widest)
-            if props["text_fit"] != "shrink" or (widest <= width and text_height <= height):
+            ink_extents = [
+                (index * line_height + bounds[1], index * line_height + bounds[3])
+                for index, line in enumerate(lines)
+                if line and (bounds := draw.textbbox((0, 0), line, font=font))[3] > bounds[1]
+            ]
+            ink_top = min((item[0] for item in ink_extents), default=0.0)
+            ink_bottom = max((item[1] for item in ink_extents), default=0.0)
+            ink_height = max(0.0, ink_bottom - ink_top)
+            line_box_height = line_height * len(lines)
+            fit_height = max(ink_height, line_box_height)
+            layout = {
+                "font_size": size,
+                "line_count": len(lines),
+                "source_line_count": len(source_lines),
+                "ink_height": round(ink_height, 3),
+                "line_box_height": round(line_box_height, 3),
+                "truncated": len(source_lines) > len(lines),
+                "overflow": (
+                    widest > width
+                    or fit_height > height
+                    or len(source_lines) > len(lines)
+                ),
+            }
+            chosen = (font, lines, line_height, widest, ink_top, ink_height, layout)
+            if props["text_fit"] != "shrink" or not layout["overflow"]:
                 break
         if chosen is None:
             return Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        font, lines, line_height, widest = chosen
+        font, lines, line_height, widest, ink_top, ink_height, layout = chosen
         render_width = max(width, math.ceil(widest) + 4) if props["text_fit"] == "fixed" else width
-        render_height = max(height, math.ceil(line_height * len(lines)) + 4) if props["text_fit"] == "fixed" else height
+        fit_height = max(ink_height, line_height * len(lines))
+        render_height = max(height, math.ceil(fit_height) + 4) if props["text_fit"] == "fixed" else height
         layer = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(layer)
-        total_height = line_height * len(lines)
         if props["vertical_align"] == "center":
-            y = (height - total_height) / 2
+            y = (height - ink_height) / 2 - ink_top
         elif props["vertical_align"] == "bottom":
-            y = height - total_height
+            y = height - ink_height - ink_top
         else:
-            y = 0.0
+            y = -ink_top
         fill = self._rgba(str(props[color_property]))
         for line in lines:
             line_width = self._text_width(draw, line, font, float(props["letter_spacing"]))
@@ -1483,6 +1509,7 @@ class PrimitivePreviewRenderer:
                 Image.Transform.AFFINE, (1, -skew, 0, 0, 1, 0),
                 resample=Image.Resampling.BICUBIC,
             )
+        layer.info["ptw_text_layout"] = layout
         return layer
 
     def _content_layer(
@@ -1753,6 +1780,7 @@ class PrimitivePreviewRenderer:
                 "visible_bounds": self._visible_bounds(
                     layer, x, y, command, target_width, target_height,
                 ),
+                "text_layout": _deep_copy(layer.info.get("ptw_text_layout")),
                 "props": {
                     name: _deep_copy(command.props[name])
                     for name in (

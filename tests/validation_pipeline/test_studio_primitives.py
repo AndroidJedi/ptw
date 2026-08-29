@@ -177,6 +177,29 @@ class PrimitiveStudioContractTests(unittest.TestCase):
             self.assertEqual((100, 100), (preview["width"], preview["height"]))
 
     @unittest.skipUnless(PIL_AVAILABLE, "Pillow is required")
+    def test_top_aligned_text_uses_visible_ink_and_reports_overflow(self) -> None:
+        template = _template(children=[{
+            "id": "three-line-title", "type": "text", "props": {
+                "position": "absolute", "x": 8, "y": 10, "width": 84, "height": 54,
+                "font_size": 28, "min_font_size": 10, "font_weight": 800,
+                "line_height": 0.94, "max_lines": 3,
+                "text_fit": "shrink", "text": "INVEST WITH CONFIDENCE",
+            },
+        }], semantic_roles={"headline": ["three-line-title"]})
+        preview = StudioRenderer().render_preview(template, semantic_data={}, assets={})
+        title = preview["resolved"]["nodes"]["three-line-title"]
+        box, visible = title["box"], title["visible_bounds"]
+
+        self.assertIsNotNone(visible)
+        self.assertLessEqual(abs(visible["y"] - box["y"]), 0.01)
+        self.assertLess(visible["y"] + visible["height"], box["y"] + box["height"])
+        self.assertFalse(title["text_layout"]["overflow"])
+        self.assertEqual(
+            title["text_layout"]["source_line_count"],
+            title["text_layout"]["line_count"],
+        )
+
+    @unittest.skipUnless(PIL_AVAILABLE, "Pillow is required")
     def test_image_alpha_outline_follows_transparent_object_silhouette(self) -> None:
         from PIL import Image, ImageDraw
 

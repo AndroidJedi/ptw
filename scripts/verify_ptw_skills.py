@@ -14,6 +14,7 @@ SKILLS = (
     "content-candidate-generator",
     "content-result-critic",
     "studio-tune-local",
+    "studio-ui-visual-audit",
     "ptw-owner-console-incident",
     "ptw-vps-operations",
 )

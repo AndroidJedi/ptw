@@ -1,0 +1,4 @@
+interface:
+  display_name: "Studio UI Visual Audit"
+  short_description: "Catch Studio clipping and layout regressions"
+  default_prompt: "Use $studio-ui-visual-audit to inspect this Universal Studio visual issue and verify the relevant render and viewport variants."

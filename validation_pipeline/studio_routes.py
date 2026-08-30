@@ -103,6 +103,26 @@ def studio_router(
             },
         )
 
+    @router.post("/component-settings")
+    def component_settings(request: Mapping[str, Any]) -> dict[str, Any]:
+        persisted_fields = {"state_sha256"}
+        draft_fields = {"state_sha256", "configuration", "content"}
+        if set(request) not in (persisted_fields, draft_fields):
+            raise HTTPException(status_code=400, detail="Studio component metadata fields are invalid")
+        if set(request) == draft_fields and (
+            not isinstance(request["configuration"], Mapping)
+            or not isinstance(request["content"], Mapping)
+        ):
+            raise HTTPException(status_code=400, detail="Studio component metadata must contain objects")
+        try:
+            return workspace.component_settings(
+                state_sha256=str(request["state_sha256"]),
+                configuration=request.get("configuration"),
+                content=request.get("content"),
+            )
+        except (ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
     @router.post("/approve")
     def approve(request: Mapping[str, Any]) -> dict[str, Any]:
         if set(request) != {"state_sha256", "change_note"}:
@@ -130,5 +150,12 @@ def studio_router(
                 "X-Content-Type-Options": "nosniff",
             },
         )
+
+    @router.get("/versions/{version}")
+    def version_detail(version: int) -> dict[str, Any]:
+        try:
+            return workspace.version_detail(version)
+        except (KeyError, ValueError) as error:
+            raise fail(error) from error
 
     return router

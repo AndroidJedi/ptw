@@ -10,21 +10,33 @@ import re
 from typing import Any, Mapping
 
 from .images import PexelsClient
+from .natal_brand import NATAL_LOGO_PATH, natal_logo_bytes
 from .studio import MAX_IMAGE_BYTES, StudioRenderer, inspect_media
 from .studio_universal import (
     ASSET_SLOTS, DEFAULT_CONFIG, DEFAULT_CONTENT, UNIVERSAL_AD_TEMPLATE_ID,
     UNIVERSAL_AD_VERSION_SCHEMA, UNIVERSAL_AD_WORKSPACE_SCHEMA,
     build_universal_template, isolate_object, normalize_universal_config,
     normalize_universal_content, semantic_data, texture_asset,
-    universal_ad_catalog,
+    universal_ad_catalog, universal_component_settings,
 )
 
 
-_BUNDLED_ASSETS = {
-    "background_image": "ukraine-investment-background.png",
-    "sticker_object": "investment-hryvnia-sticker.png",
-}
 _BUNDLED_ASSET_ROOT = Path(__file__).with_name("studio_assets") / "universal_ad"
+_BUNDLED_ASSETS = {
+    "background_image": {
+        "path": _BUNDLED_ASSET_ROOT / "ukraine-investment-background.png",
+        "origin": "bundled_tune_asset",
+    },
+    "sticker_object": {
+        "path": _BUNDLED_ASSET_ROOT / "investment-hryvnia-sticker.png",
+        "origin": "bundled_tune_asset",
+    },
+    "logo": {
+        "path": NATAL_LOGO_PATH,
+        "origin": "canonical_natal_brand_asset",
+    },
+}
+_AGENT_CONTEXT_SCHEMA = "ptw.studio.universal-ad-agent-context.v1"
 
 
 def _canonical(value: Any) -> tuple[str, str]:
@@ -85,10 +97,12 @@ class UniversalStudioWorkspace:
     def _asset_record(self, slot: str) -> dict[str, Any] | None:
         metadata_path = self.assets / f"{slot}.json"
         if not metadata_path.is_file():
-            filename = _BUNDLED_ASSETS.get(slot)
-            if filename is None:
+            bundled = _BUNDLED_ASSETS.get(slot)
+            if bundled is None:
                 return None
-            data = (_BUNDLED_ASSET_ROOT / filename).read_bytes()
+            path = bundled["path"]
+            data = natal_logo_bytes() if slot == "logo" else path.read_bytes()
+            filename = path.name
             inspected = inspect_media(data, "image/png")
             return {
                 "filename": filename,
@@ -97,7 +111,7 @@ class UniversalStudioWorkspace:
                 "width": inspected["width"],
                 "height": inspected["height"],
                 "byte_count": len(data),
-                "source": {"origin": "bundled_tune_asset", "filename": filename},
+                "source": {"origin": bundled["origin"], "filename": filename},
                 "bytes": data,
             }
         try:
@@ -167,6 +181,10 @@ class UniversalStudioWorkspace:
                 raise ValueError(f"Studio universal version is invalid: {path.name}") from error
             if value.get("schema") != UNIVERSAL_AD_VERSION_SCHEMA:
                 raise ValueError(f"Studio universal version schema is invalid: {path.name}")
+            stored_digest = value.get("version_sha256")
+            digest_value = {key: item for key, item in value.items() if key != "version_sha256"}
+            if not isinstance(stored_digest, str) or _canonical(digest_value)[1] != stored_digest:
+                raise ValueError(f"Studio universal version digest mismatch: {path.name}")
             versions.append(value)
         versions.sort(key=lambda item: int(item["version"]))
         for index, item in enumerate(versions, 1):
@@ -185,6 +203,7 @@ class UniversalStudioWorkspace:
             "template_sha256": template.digest,
             "configuration": config,
             "content": content,
+            "component_settings": universal_component_settings(config, content),
             "assets": self._asset_summaries(),
             "pexels_available": self.pexels is not None,
             "versions": [{
@@ -195,6 +214,37 @@ class UniversalStudioWorkspace:
                 "change_note": item["change_note"],
             } for item in versions],
         }
+
+    def component_settings(
+        self, *, state_sha256: str,
+        configuration: Mapping[str, Any] | None = None,
+        content: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Resolve persisted or draft editor state into canonical component metadata."""
+
+        self._assert_state(state_sha256)
+        if (configuration is None) != (content is None):
+            raise ValueError("Studio component metadata requires configuration and content together")
+        config = self._configuration() if configuration is None else normalize_universal_config(configuration)
+        normalized_content = self._content() if content is None else normalize_universal_content(content)
+        return universal_component_settings(config, normalized_content)
+
+    def agent_context(self) -> dict[str, Any]:
+        """Return the bounded Studio state captured by a Tune agent run."""
+
+        config, content = self._configuration(), self._content()
+        template = build_universal_template(config, content)
+        value = {
+            "schema": _AGENT_CONTEXT_SCHEMA,
+            "template_id": UNIVERSAL_AD_TEMPLATE_ID,
+            "template_version": template.document["version"],
+            "state_sha256": self.state_sha256(),
+            "template_sha256": template.digest,
+            "component_settings": universal_component_settings(config, content),
+            "assets": self._snapshot()["assets"],
+        }
+        _, digest = _canonical(value)
+        return {**value, "sha256": digest}
 
     def save_configuration(
         self, *, base_sha256: str, configuration: Mapping[str, Any], content: Mapping[str, Any],
@@ -239,6 +289,14 @@ class UniversalStudioWorkspace:
         except (TypeError, ValueError) as error:
             raise ValueError("Studio asset bytes are not valid base64") from error
         self._store_asset(slot, mime_type=mime_type, data=data, source={"origin": "owner_upload"})
+        if slot in {"background_image", "logo"}:
+            config = self._configuration()
+        if slot == "background_image":
+            config["background"]["mode"] = "image"
+            self._atomic_json(self.root / "configuration.json", normalize_universal_config(config))
+        elif slot == "logo":
+            config["logo"]["enabled"] = True
+            self._atomic_json(self.root / "configuration.json", normalize_universal_config(config))
         return self.detail()
 
     def source_pexels(
@@ -293,11 +351,15 @@ class UniversalStudioWorkspace:
         config = self._configuration() if configuration is None else normalize_universal_config(configuration)
         normalized_content = self._content() if content is None else normalize_universal_content(content)
         template = build_universal_template(config, normalized_content)
-        return self.renderer.render_preview(
+        rendered = self.renderer.render_preview(
             template,
             semantic_data=semantic_data(config, normalized_content),
             assets=self._asset_records(config),
         )
+        rendered["resolved"]["component_settings"] = universal_component_settings(
+            config, normalized_content,
+        )
+        return rendered
 
     @staticmethod
     def _change_note(value: Any) -> str:
@@ -323,6 +385,7 @@ class UniversalStudioWorkspace:
             "change_note": self._change_note(change_note),
             "configuration": config,
             "content": content,
+            "component_settings": universal_component_settings(config, content),
             "assets": self._snapshot()["assets"],
             "primitive_template": template.document,
         }
@@ -335,6 +398,14 @@ class UniversalStudioWorkspace:
         self._atomic_bytes(png_path, preview["bytes"])
         self._atomic_json(json_path, record)
         return self.detail()
+
+    def version_detail(self, version: int) -> dict[str, Any]:
+        if isinstance(version, bool) or version < 1:
+            raise KeyError(f"Studio universal version not found: {version}")
+        records = self._version_records()
+        if version > len(records):
+            raise KeyError(f"Studio universal version not found: {version}")
+        return json.loads(json.dumps(records[version - 1], ensure_ascii=False))
 
     def version_render(self, version: int) -> dict[str, Any]:
         if isinstance(version, bool) or version < 1:

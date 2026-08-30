@@ -33,8 +33,15 @@ SUPPORTED_FONTS = {
     "DejaVu Serif": Path("/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf"),
     "DejaVu Mono": Path("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"),
 }
-CALIBRATION_FONTS = {
+STUDIO_PREVIEW_FONTS = {
+    # Historical engineering benchmarks still replay Roboto; Universal Studio
+    # does not expose it in its owner-selectable FONT_FAMILIES contract.
     "Roboto Condensed": Path(__file__).with_name("studio_assets") / "fonts" / "Roboto-Variable.ttf",
+    "Manrope": Path(__file__).with_name("studio_assets") / "fonts" / "Manrope-Variable.ttf",
+    "Oswald": Path(__file__).with_name("studio_assets") / "fonts" / "Oswald-Variable.ttf",
+    "Cormorant Garamond": (
+        Path(__file__).with_name("studio_assets") / "fonts" / "CormorantGaramond-Variable.ttf"
+    ),
 }
 URGENCY_PATTERN = re.compile(
     r"\b(?:act now|last chance|only \d+ left|ends today|limited time|hurry|"
@@ -589,25 +596,24 @@ class StudioRenderer:
 
     def _font(self, size: int, font_name: str = "Inter", weight: int | None = None):
         from PIL import ImageFont
-        path = CALIBRATION_FONTS.get(font_name, SUPPORTED_FONTS.get(font_name, self.font_path))
+        path = STUDIO_PREVIEW_FONTS.get(font_name, SUPPORTED_FONTS.get(font_name, self.font_path))
         try:
             font = ImageFont.truetype(str(path), max(12, size))
-            if font_name == "Roboto Condensed":
+            if weight is not None:
                 try:
                     values = []
                     for axis in font.get_variation_axes():
                         name = bytes(axis["name"]).decode("ascii", "ignore").lower()
-                        if "width" in name:
+                        if "width" in name and font_name == "Roboto Condensed":
                             values.append(75)
                         elif "weight" in name:
-                            values.append(int(weight or 400))
+                            values.append(max(axis["minimum"], min(axis["maximum"], int(weight))))
                         else:
                             values.append(axis["default"])
                     font.set_variation_by_axes(values)
                     return font
                 except (AttributeError, KeyError, OSError, TypeError, ValueError):
                     pass
-            if weight is not None:
                 variation = {
                     100: "Thin", 200: "ExtraLight", 300: "Light", 400: "Regular",
                     500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold", 900: "Black",

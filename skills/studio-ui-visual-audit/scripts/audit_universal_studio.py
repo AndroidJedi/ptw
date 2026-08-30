@@ -22,6 +22,7 @@ from validation_pipeline.studio_workspace import UniversalStudioWorkspace
 
 CANVAS_SIZE = 1080
 TEXT_NODES = ("hero_title", "supporting_text", "bullet_1", "bullet_2", "bullet_3")
+MARKER_NODES = ("bullet_marker_1", "bullet_marker_2", "bullet_marker_3")
 FLOW_NODES = (*TEXT_NODES, "cta")
 
 
@@ -67,6 +68,21 @@ def audit_variant(name: str, preview: Mapping[str, Any]) -> dict[str, Any]:
             "visible_bottom": round(pixels(visible["y"] + visible["height"]), 2),
         }
 
+    for index, marker_id in enumerate(MARKER_NODES, 1):
+        bullet_id = f"bullet_{index}"
+        if bullet_id not in nodes:
+            continue
+        require(marker_id in nodes, f"{name}: {bullet_id} has no marker node")
+        marker = nodes[marker_id]
+        require(marker["visible_bounds"] is not None, f"{name}: {marker_id} has no visible pixels")
+        require(marker["props"]["font_family"] == "Inter", f"{name}: {marker_id} lost its symbol font")
+        require(not marker["text_layout"]["overflow"], f"{name}: {marker_id} overflows")
+        require(
+            marker["visible_bounds"]["x"] + marker["visible_bounds"]["width"]
+            < nodes[bullet_id]["visible_bounds"]["x"],
+            f"{name}: {marker_id} collides with {bullet_id}",
+        )
+
     visible_flow = [node_id for node_id in FLOW_NODES if node_id in nodes]
     for previous_id, current_id in zip(visible_flow, visible_flow[1:]):
         previous = nodes[previous_id]["visible_bounds"]
@@ -81,6 +97,49 @@ def audit_variant(name: str, preview: Mapping[str, Any]) -> dict[str, Any]:
         f"{name}: CTA leaves the horizontal safe area",
     )
     require(cta["y"] + cta["height"] <= 0.96, f"{name}: CTA leaves the bottom safe area")
+    if "logo" in nodes:
+        logo = nodes["logo"]
+        surface = nodes.get("logo_surface")
+        logo_box = logo["box"]
+        collision_box = logo_box if surface is None else surface["box"]
+        require(logo["visible_bounds"] is not None, f"{name}: logo has no visible pixels")
+        require(
+            collision_box["x"] >= 0.03 and collision_box["y"] >= 0.03
+            and collision_box["x"] + collision_box["width"] <= 0.97
+            and collision_box["y"] + collision_box["height"] <= 0.97,
+            f"{name}: logo treatment leaves the safe area",
+        )
+        if surface is not None:
+            require(
+                surface["visible_bounds"] is not None,
+                f"{name}: enabled logo background has no visible pixels",
+            )
+            surface_box = surface["box"]
+            require(
+                surface_box["x"] <= logo_box["x"]
+                and surface_box["y"] <= logo_box["y"]
+                and surface_box["x"] + surface_box["width"]
+                >= logo_box["x"] + logo_box["width"]
+                and surface_box["y"] + surface_box["height"]
+                >= logo_box["y"] + logo_box["height"],
+                f"{name}: logo leaves its enabled background",
+            )
+        for node_id in FLOW_NODES:
+            if node_id not in nodes or nodes[node_id]["visible_bounds"] is None:
+                continue
+            visible = nodes[node_id]["visible_bounds"]
+            overlaps = (
+                visible["x"] < collision_box["x"] + collision_box["width"]
+                and visible["x"] + visible["width"] > collision_box["x"]
+                and visible["y"] < collision_box["y"] + collision_box["height"]
+                and visible["y"] + visible["height"] > collision_box["y"]
+            )
+            require(not overlaps, f"{name}: logo surface collides with {node_id}")
+        inspected["logo"] = {
+            "position": [round(pixels(logo_box["x"]), 2), round(pixels(logo_box["y"]), 2)],
+            "size": [round(pixels(logo_box["width"]), 2), round(pixels(logo_box["height"]), 2)],
+            "background": surface is not None,
+        }
     return {"name": name, "text": inspected}
 
 
@@ -102,7 +161,35 @@ def variants() -> list[tuple[str, dict[str, Any], dict[str, Any]]]:
     centered_config["bullets"]["enabled"] = False
     centered_config["sticker"]["enabled"] = False
     centered = ("centered_minimal", centered_config, copy.deepcopy(DEFAULT_CONTENT))
-    return [default, high_density, centered]
+
+    editorial_config = copy.deepcopy(DEFAULT_CONFIG)
+    editorial_config["background"].update({"mode": "texture", "texture": "marble"})
+    editorial_config["typography"].update({
+        "font_family": "Cormorant Garamond", "benefits_font_family": "Manrope",
+    })
+    editorial_config["cta"]["position"] = "bottom_left"
+    editorial_config["sticker"]["enabled"] = False
+    editorial = ("editorial_bottom_left", editorial_config, copy.deepcopy(DEFAULT_CONTENT))
+
+    urgent_config = copy.deepcopy(DEFAULT_CONFIG)
+    urgent_config["typography"].update({
+        "font_family": "Oswald", "benefits_font_family": "Oswald",
+    })
+    urgent_config["cta"]["position"] = "bottom_right"
+    urgent_config["sticker"]["enabled"] = False
+    urgent = ("urgent_bottom_right", urgent_config, copy.deepcopy(DEFAULT_CONTENT))
+
+    logo_no_background_config = copy.deepcopy(DEFAULT_CONFIG)
+    logo_no_background_config["background"].update({
+        "mode": "solid", "color": "#F4F6FA", "overlay_opacity": 0,
+    })
+    logo_no_background_config["typography"]["text_color"] = "#10233F"
+    logo_no_background_config["sticker"]["enabled"] = False
+    logo_no_background_config["logo"]["background_enabled"] = False
+    logo_no_background = (
+        "logo_no_background", logo_no_background_config, copy.deepcopy(DEFAULT_CONTENT),
+    )
+    return [default, high_density, centered, editorial, urgent, logo_no_background]
 
 
 def main() -> None:

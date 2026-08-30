@@ -13,36 +13,63 @@ const candidateBytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9])
 const candidateSha256 = createHash('sha256').update(candidateBytes).digest('hex')
 const studioPreviewBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
 const studioPreviewSha256 = createHash('sha256').update(studioPreviewBytes).digest('hex')
+const studioComponents = [
+  ['background', ['canvas', 'background_media', 'readability_overlay'], ['background_image']],
+  ['sticker', ['sticker_object'], ['sticker_object']],
+  ['hero_title', ['hero_title'], []],
+  ['supporting_text', ['supporting_text'], []],
+  ['bullet_list', ['bullet_marker_1', 'bullet_1', 'bullet_marker_2', 'bullet_2', 'bullet_marker_3', 'bullet_3'], []],
+  ['cta', ['cta'], []],
+  ['logo', ['logo_surface', 'logo'], ['logo']],
+].map(([role, nodeIds, assetSlotIds]) => ({
+  component_id: `universal_ad.${role}`, role, node_ids: nodeIds,
+  asset_slot_ids: assetSlotIds, setting_ids: [],
+}))
 
 const studioDetail = {
-  schema: 'ptw.studio.universal-ad-workspace.v1',
+  schema: 'ptw.studio.universal-ad-workspace.v4',
   catalog: {
-    schema: 'ptw.studio.universal-ad-catalog.v1', template_id: 'universal_ad', template_version: 1,
+    schema: 'ptw.studio.universal-ad-catalog.v4', template_id: 'universal_ad', template_version: 7,
     semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'bullet_list', 'cta', 'logo'],
+    components: studioComponents,
     asset_slots: {},
     variation: {
       background_modes: ['solid', 'texture', 'image'], image_layouts: ['full', 'left', 'right', 'top', 'bottom'],
-      texture_presets: ['paper', 'grain'], font_families: ['Inter', 'Roboto Condensed'],
+      image_percents: [25, 75],
+      texture_presets: ['grain', 'stone', 'marble', 'concrete', 'granite', 'slate', 'travertine'],
+      bullet_styles: ['check', 'circle', 'circle_outline'],
+      cta_styles: ['filled', 'gradient', 'reverse', 'link', 'outlined'],
+      cta_positions: ['below_text', 'bottom_left', 'bottom_right'],
+      sticker_positions: ['top_left', 'top_right', 'bottom_left', 'bottom_right', 'right_edge', 'bottom_edge', 'bullet_list', 'hero_title', 'cta'],
+      font_families: ['Inter', 'Manrope', 'Oswald', 'Cormorant Garamond'],
       optional_elements: ['sticker', 'bullet_list', 'logo'],
     },
     sha256: 'e'.repeat(64),
   },
   state_sha256: 'f'.repeat(64), template_sha256: 'a'.repeat(64),
   configuration: {
-    schema: 'ptw.studio.universal-ad-config.v1',
-    background: { mode: 'solid', color: '#F0E653', texture: 'paper', image_layout: 'full', image_fit: 'cover', focal_x: 0.5, focal_y: 0.5, overlay_color: '#000000', overlay_opacity: 0 },
-    typography: { font_family: 'Inter', hero_size: 112, hero_weight: 800, supporting_size: 34, text_color: '#111111', alignment: 'left' },
+    schema: 'ptw.studio.universal-ad-config.v4',
+    background: { mode: 'solid', color: '#F0E653', texture: 'stone', texture_intensity: 0.7, image_layout: 'full', image_percent: 75, image_fit: 'cover', focal_x: 0.5, focal_y: 0.5, overlay_color: '#000000', overlay_opacity: 0 },
+    typography: { font_family: 'Inter', benefits_font_family: 'Manrope', hero_size: 112, hero_weight: 800, supporting_size: 34, text_color: '#111111', alignment: 'left' },
     layout: { content_x: 76, content_y: 180, content_width: 720, gap: 24 },
-    bullets: { enabled: false, marker: '•' },
-    cta: { background_color: '#111111', text_color: '#FFFFFF', radius: 24 },
-    sticker: { enabled: false, position: 'top_right', rotation: -6, paper_width: 320, paper_color: '#FFF8E7', object_scale: 0.82 },
-    logo: { enabled: false, position: 'top_left', width: 160 },
+    bullets: { enabled: false, style: 'circle' },
+    cta: { style: 'filled', position: 'below_text', background_color: '#111111', text_color: '#FFFFFF', radius: 24 },
+    sticker: { enabled: false, position: 'top_right', rotation: -6, width: 320, object_scale: 0.82, offset_right: 0, offset_bottom: 0 },
+    logo: { enabled: true, position: 'top_right', width: 180, background_enabled: true, background_color: '#FFFFFF' },
   },
   content: { hero_title: 'PROVE THE IDEA', supporting_text: 'A focused offer.', bullets: [], cta: 'TEST DEMAND' },
+  component_settings: {
+    schema: 'ptw.studio.universal-ad-component-settings.v1', template_id: 'universal_ad',
+    template_version: 7, configuration_schema: 'ptw.studio.universal-ad-config.v4',
+    components: studioComponents.map(({ setting_ids: _settingIds, ...component }) => ({
+      ...component, settings: [],
+    })),
+    sha256: '9'.repeat(64),
+  },
   assets: [
     { slot: 'background_image', role: 'background', description: 'Background', allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp'], available: false, mime_type: null, sha256: null, byte_count: null, source: null },
     { slot: 'sticker_object', role: 'sticker', description: 'Sticker', allowed_mime_types: ['image/png', 'image/webp'], available: false, mime_type: null, sha256: null, byte_count: null, source: null },
-    { slot: 'logo', role: 'logo', description: 'Logo', allowed_mime_types: ['image/png', 'image/webp'], available: false, mime_type: null, sha256: null, byte_count: null, source: null },
+    { slot: 'logo', role: 'logo', description: 'Logo', allowed_mime_types: ['image/png', 'image/webp'], available: true, mime_type: 'image/png', sha256: 'c'.repeat(64), byte_count: 2937, source: { origin: 'canonical_natal_brand_asset', filename: 'logo-natal.png' } },
   ],
   pexels_available: false, versions: [],
 }
@@ -205,6 +232,9 @@ test.beforeEach(async ({ page }) => {
       headers: { ETag: `"${studioPreviewSha256}"`, 'X-PTW-Content-SHA256': studioPreviewSha256, 'Cache-Control': 'private, no-store' },
       body: studioPreviewBytes,
     })
+    if (url.pathname === '/api/v1/studio/component-settings' && method === 'POST') {
+      return json(studioDetail.component_settings)
+    }
     if (url.pathname === '/api/v1/studio/configuration' && method === 'POST') {
       const body = route.request().postDataJSON()
       return json({ ...studioDetail, state_sha256: '9'.repeat(64), configuration: body.configuration, content: body.content })
@@ -262,9 +292,46 @@ test('opens the Universal Ad Studio and persists its bounded configuration', asy
   await expect(page.locator('.universal-controls')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Build the composition at a glance' })).toBeVisible()
   await expect(page.getByText('ALWAYS ON')).toHaveCount(4)
+  await expect(page.getByLabel('Enable logo')).toBeChecked()
+  await expect(page.getByLabel('Upload logo', { exact: true })).toBeEnabled()
+  const logoOffPreviewRequest = page.waitForRequest((candidate) => {
+    if (!candidate.url().endsWith('/api/v1/studio/preview')) return false
+    return candidate.postDataJSON()?.configuration?.logo?.enabled === false
+  })
+  await page.getByLabel('Enable logo').uncheck()
+  await logoOffPreviewRequest
+  await expect(page.getByText('Live preview up to date')).toBeVisible()
+  const logoOnPreviewRequest = page.waitForRequest((candidate) => {
+    if (!candidate.url().endsWith('/api/v1/studio/preview')) return false
+    const body = candidate.postDataJSON()
+    return body?.state_sha256 === 'f'.repeat(64) && body?.configuration === undefined
+  })
+  await page.getByLabel('Enable logo').check()
+  await logoOnPreviewRequest
+  await expect(page.getByLabel('Enable logo')).toBeChecked()
+  await expect(page.getByText('Preview matches the saved setup')).toBeVisible()
+  await page.getByText('Brand mark and background').click()
+  await expect(page.getByText('image/png · canonical_natal_brand_asset', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('Show logo', { exact: true })).toBeChecked()
+  await expect(page.getByLabel('Show logo background')).toBeChecked()
+  await expect(page.getByLabel('Logo position')).toHaveValue('top_right')
+  await expect(page.getByLabel('Logo width')).toHaveValue('180')
+  const logoPreviewRequest = page.waitForRequest((candidate) => {
+    if (!candidate.url().endsWith('/api/v1/studio/preview')) return false
+    const body = candidate.postDataJSON()
+    return body?.configuration?.logo?.background_enabled === false
+      && body?.configuration?.logo?.position === 'top_left'
+  })
+  await page.getByLabel('Show logo background').uncheck()
+  await page.getByLabel('Logo position').selectOption('top_left')
+  expect((await logoPreviewRequest).postDataJSON().configuration.logo.enabled).toBe(true)
   await expect(page.getByAltText('Current universal advertising creative')).toBeVisible()
   await expect(page.getByText('Reference image')).toHaveCount(0)
   await expect(page.getByText('Primitive tree')).toHaveCount(0)
+  await page.getByText('Mood and contrast').click()
+  await page.getByLabel('Background mode').selectOption('image')
+  await expect(page.getByLabel('Upload sample background image')).toBeVisible()
+  await expect(page.getByLabel('Background color', { exact: true })).toHaveValue('#f0e653')
 
   const draftPreviewRequest = page.waitForRequest((request) => {
     if (!request.url().endsWith('/api/v1/studio/preview')) return false
@@ -283,19 +350,101 @@ test('opens the Universal Ad Studio and persists its bounded configuration', asy
     if (!request.url().endsWith('/api/v1/studio/preview')) return false
     const body = request.postDataJSON()
     return body?.configuration?.background?.mode === 'texture'
+      && body?.configuration?.background?.texture === 'stone'
+      && body?.configuration?.background?.texture_intensity === 0.9
+      && body?.configuration?.background?.overlay_opacity === 0.2
+      && body?.configuration?.cta?.style === 'gradient'
+      && body?.configuration?.cta?.position === 'bottom_right'
+      && body?.configuration?.typography?.font_family === 'Oswald'
+      && body?.configuration?.typography?.benefits_font_family === 'Cormorant Garamond'
       && body?.content?.hero_title === 'TEST A CLEAR PROMISE'
   })
   await page.getByLabel('Hero Title').fill('TEST A CLEAR PROMISE')
-  await page.getByText('Mood and contrast').click()
   await page.getByLabel('Background mode').selectOption('texture')
+  await page.getByLabel('Texture', { exact: true }).selectOption('stone')
+  for (let index = 0; index < 4; index += 1) await page.getByLabel('Texture intensity', { exact: true }).press('ArrowRight')
+  for (let index = 0; index < 4; index += 1) await page.getByLabel('Overlay opacity').press('ArrowRight')
+  await page.getByText('Type, layout and action').click()
+  await page.getByLabel('Font family', { exact: true }).selectOption('Oswald')
+  await page.getByLabel('Benefits font family').selectOption('Cormorant Garamond')
+  await page.getByLabel('CTA style').selectOption('gradient')
+  await page.getByLabel('CTA placement').selectOption('bottom_right')
+  await expect(page.getByLabel('CTA background color')).toHaveValue('#111111')
+  await expect(page.getByLabel('CTA text color')).toHaveValue('#ffffff')
   const editedPreview = await editedPreviewRequest
   expect(editedPreview.postDataJSON().content.hero_title).toBe('TEST A CLEAR PROMISE')
   await expect(page.getByText('Preview matches your unsaved changes')).toBeVisible()
   await page.getByRole('button', { name: 'Save setup' }).click()
   const request = await configurationRequest
   expect(request.postDataJSON().configuration.background.mode).toBe('texture')
+  expect(request.postDataJSON().configuration.background.texture).toBe('stone')
+  expect(request.postDataJSON().configuration.cta.style).toBe('gradient')
+  expect(request.postDataJSON().configuration.cta.position).toBe('bottom_right')
+  expect(request.postDataJSON().configuration.typography.font_family).toBe('Oswald')
+  expect(request.postDataJSON().configuration.typography.benefits_font_family).toBe('Cormorant Garamond')
   expect(request.postDataJSON().content.hero_title).toBe('TEST A CLEAR PROMISE')
   await expect(page.getByRole('status')).toContainText('Studio setup saved.')
+  const metadataRequest = page.waitForRequest((candidate) =>
+    candidate.url().endsWith('/api/v1/studio/component-settings'),
+  )
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Export config + IDs' }).click()
+  expect((await metadataRequest).postDataJSON().configuration.cta.style).toBe('gradient')
+  expect((await download).suggestedFilename()).toBe('universal_ad_configuration.json')
+  await expect(page.getByRole('status')).toContainText('component ID metadata exported')
+  await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
+})
+
+test('live previews every bounded sticker placement control', async ({ page }) => {
+  await page.route('**/api/v1/studio', async (route) => {
+    const request = route.request()
+    if (new URL(request.url()).pathname !== '/api/v1/studio' || request.method() !== 'GET') {
+      return route.fallback()
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...studioDetail,
+        configuration: {
+          ...studioDetail.configuration,
+          sticker: { ...studioDetail.configuration.sticker, enabled: true },
+        },
+        assets: studioDetail.assets.map((asset) => asset.slot === 'sticker_object' ? {
+          ...asset,
+          available: true,
+          mime_type: 'image/png',
+          sha256: 'd'.repeat(64),
+          byte_count: 1024,
+          source: { origin: 'bundled_tune_asset' },
+        } : asset),
+      }),
+    })
+  })
+  await page.goto('/?e2e=1&page=studio')
+
+  await expect(page.getByText('Розміщення стікера', { exact: true })).toBeVisible()
+  await expect(page.getByText('Розміщення стікера й логотипа', { exact: true })).toHaveCount(0)
+  await page.getByText('Розміщення стікера', { exact: true }).click()
+
+  const changes = [
+    ['Sticker rotation', '7', 'rotation', 7],
+    ['Sticker width', '700', 'width', 700],
+    ['Object scale', '1.25', 'object_scale', 1.25],
+    ['Adjust from right', '500', 'offset_right', 500],
+    ['Adjust from bottom', '-240', 'offset_bottom', -240],
+  ] as const
+  for (const [label, inputValue, setting, expected] of changes) {
+    const previewResponse = page.waitForResponse((response) => {
+      if (!response.url().endsWith('/api/v1/studio/preview') || response.status() !== 200) return false
+      const body = response.request().postDataJSON()
+      return body?.configuration?.sticker?.[setting] === expected
+    })
+    await page.getByLabel(label).fill(inputValue)
+    const response = await previewResponse
+    expect(response.request().postDataJSON().configuration.sticker[setting]).toBe(expected)
+  }
+  await expect(page.getByText('Прев’ю відповідає незбереженим змінам')).toBeVisible()
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })
 

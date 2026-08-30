@@ -205,13 +205,17 @@ export interface ProjectBrandKit {
   created_at: string
 }
 
+export type StudioUniversalFontFamily = 'Inter' | 'Manrope' | 'Oswald' | 'Cormorant Garamond'
+
 export interface StudioUniversalConfiguration {
-  schema: 'ptw.studio.universal-ad-config.v1'
+  schema: 'ptw.studio.universal-ad-config.v4'
   background: {
     mode: 'solid' | 'texture' | 'image'
     color: string
-    texture: 'paper' | 'grain'
+    texture: 'grain' | 'stone' | 'marble' | 'concrete' | 'granite' | 'slate' | 'travertine'
+    texture_intensity: number
     image_layout: 'full' | 'left' | 'right' | 'top' | 'bottom'
+    image_percent: 25 | 75
     image_fit: 'cover' | 'contain'
     focal_x: number
     focal_y: number
@@ -219,7 +223,8 @@ export interface StudioUniversalConfiguration {
     overlay_opacity: number
   }
   typography: {
-    font_family: 'Inter' | 'Roboto Condensed'
+    font_family: StudioUniversalFontFamily
+    benefits_font_family: StudioUniversalFontFamily
     hero_size: number
     hero_weight: number
     supporting_size: number
@@ -232,17 +237,32 @@ export interface StudioUniversalConfiguration {
     content_width: number
     gap: number
   }
-  bullets: { enabled: boolean; marker: string }
-  cta: { background_color: string; text_color: string; radius: number }
+  bullets: { enabled: boolean; style: 'check' | 'circle' | 'circle_outline' }
+  cta: {
+    style: 'filled' | 'gradient' | 'reverse' | 'link' | 'outlined'
+    position: 'below_text' | 'bottom_left' | 'bottom_right'
+    background_color: string
+    text_color: string
+    radius: number
+  }
   sticker: {
     enabled: boolean
-    position: 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right'
+    position:
+      | 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right'
+      | 'right_edge' | 'bottom_edge' | 'bullet_list' | 'hero_title' | 'cta'
     rotation: number
-    paper_width: number
-    paper_color: string
+    width: number
     object_scale: number
+    offset_right: number
+    offset_bottom: number
   }
-  logo: { enabled: boolean; position: 'top_left' | 'top_right'; width: number }
+  logo: {
+    enabled: boolean
+    position: 'top_left' | 'top_right'
+    width: number
+    background_enabled: boolean
+    background_color: string
+  }
 }
 
 export interface StudioUniversalContent {
@@ -272,11 +292,42 @@ export interface StudioUniversalVersionSummary {
   change_note: string
 }
 
+export interface StudioUniversalComponentDefinition {
+  component_id: string
+  role: 'background' | 'sticker' | 'hero_title' | 'supporting_text' | 'bullet_list' | 'cta' | 'logo'
+  node_ids: string[]
+  asset_slot_ids: string[]
+  setting_ids: string[]
+}
+
+export interface StudioUniversalComponentSettings {
+  schema: 'ptw.studio.universal-ad-component-settings.v1'
+  template_id: 'universal_ad'
+  template_version: number
+  configuration_schema: 'ptw.studio.universal-ad-config.v4'
+  components: Array<Omit<StudioUniversalComponentDefinition, 'setting_ids'> & {
+    settings: Array<{ setting_id: string; value: unknown }>
+  }>
+  sha256: string
+}
+
+export interface StudioUniversalAgentContext {
+  schema: 'ptw.studio.universal-ad-agent-context.v1'
+  template_id: 'universal_ad'
+  template_version: number
+  state_sha256: string
+  template_sha256: string
+  component_settings: StudioUniversalComponentSettings
+  assets: Array<Pick<StudioUniversalAssetSummary, 'slot' | 'available' | 'mime_type' | 'sha256' | 'source'>>
+  sha256: string
+}
+
 export interface StudioUniversalCatalog {
-  schema: 'ptw.studio.universal-ad-catalog.v1'
+  schema: 'ptw.studio.universal-ad-catalog.v4'
   template_id: 'universal_ad'
   template_version: number
   semantic_roles: Array<'background' | 'sticker' | 'hero_title' | 'supporting_text' | 'bullet_list' | 'cta' | 'logo'>
+  components: StudioUniversalComponentDefinition[]
   asset_slots: Record<string, {
     role: string
     allowed_mime_types: string[]
@@ -285,7 +336,12 @@ export interface StudioUniversalCatalog {
   variation: {
     background_modes: string[]
     image_layouts: string[]
+    image_percents: number[]
     texture_presets: string[]
+    bullet_styles: string[]
+    cta_styles: string[]
+    cta_positions: string[]
+    sticker_positions: string[]
     font_families: string[]
     optional_elements: string[]
   }
@@ -293,12 +349,13 @@ export interface StudioUniversalCatalog {
 }
 
 export interface StudioUniversalDetail {
-  schema: 'ptw.studio.universal-ad-workspace.v1'
+  schema: 'ptw.studio.universal-ad-workspace.v4'
   catalog: StudioUniversalCatalog
   state_sha256: string
   template_sha256: string
   configuration: StudioUniversalConfiguration
   content: StudioUniversalContent
+  component_settings: StudioUniversalComponentSettings
   assets: StudioUniversalAssetSummary[]
   pexels_available: boolean
   versions: StudioUniversalVersionSummary[]
@@ -329,6 +386,7 @@ export interface StudioTuneRun {
   project_idea: string
   implementation: string
   feedback: string
+  studio_context?: StudioUniversalAgentContext | null
   request_sha256: string
   changed_files: string[]
   verification: string[]

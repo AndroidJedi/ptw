@@ -62,6 +62,7 @@ def create_app(*, tune_service: StudioTuneService | None = None) -> FastAPI:
                 "STUDIO_TUNE_STATE_PATH", ".local/studio-tune",
             )),
             codex_binary=os.environ.get("STUDIO_TUNE_CODEX_BIN", "").strip() or None,
+            studio_context_provider=workspace.agent_context,
         )
         app.include_router(studio_tune_router(
             service, prefix="/api/v1/studio", dependencies=[Depends(authorize)],

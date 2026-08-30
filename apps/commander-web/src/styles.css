@@ -274,6 +274,16 @@ button svg { width: 17px; height: 17px; }
 .universal-disclosure > summary em { color: var(--muted); font-size: 8px; font-style: normal; font-weight: 900; letter-spacing: .1em; }
 .universal-section-body { padding: 14px; display: grid; gap: 10px; }
 .universal-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.universal-field-span { grid-column: 1 / -1; }
+.universal-color-field > span, .universal-range-field > span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.universal-color-field code, .universal-range-field code { color: var(--muted); font: 9px ui-monospace, monospace; }
+.universal-color-field input[type='color'] { min-height: 44px; padding: 5px; cursor: pointer; }
+.universal-range-field input[type='range'] { min-height: 44px; padding: 0; cursor: pointer; accent-color: var(--white); }
+.universal-inline-upload { padding: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px dashed var(--line); border-radius: 11px; background: #0d0d0d; }
+.universal-inline-upload > div { min-width: 0; display: grid; gap: 4px; }
+.universal-inline-upload > div span { overflow: hidden; color: var(--muted); font-size: 8px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.universal-inline-upload label { position: relative; flex: 0 0 auto; display: inline-flex; cursor: pointer; font-size: 9px; }
+.universal-inline-upload label input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .universal-toggle { min-height: 40px; padding: 8px 10px; display: flex; flex-direction: row; align-items: center; gap: 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--soft); }
 .universal-toggle input { width: auto; min-height: 0; margin: 0; accent-color: var(--white); }
 .universal-bullets { display: grid; gap: 7px; }
@@ -405,6 +415,8 @@ button svg { width: 17px; height: 17px; }
   .universal-component-dock > header { grid-template-columns: 1fr; }
   .universal-component-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .universal-component-card { min-height: 84px; }
+  .universal-inline-upload { align-items: stretch; flex-direction: column; }
+  .universal-inline-upload label { width: 100%; }
   .studio-preview-grid img { max-height: none; }
   .studio-preview-empty { min-height: 260px; }
   .universal-canvas-panel { position: static; min-height: 0; }

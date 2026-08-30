@@ -46,10 +46,19 @@ unless the owner explicitly requests the specific non-local operation.
 The internal primitive tree is built by
 `validation_pipeline.studio_universal.build_universal_template()` and is never
 accepted from an API caller. Variation comes only from
-`ptw.studio.universal-ad-config.v1`, whose strict groups control background,
+`ptw.studio.universal-ad-config.v4`, whose strict groups control background,
 typography, content position and spacing, bullets, CTA treatment, the one
 sticker, and the optional logo. Unknown fields and values outside meaningful
-bounds fail closed.
+bounds fail closed. Never-deployed local v1/v2/v3 workspace configurations are
+upgraded deterministically when read, so existing owner setup is not discarded.
+
+Each role also has a stable public component ID (`universal_ad.background`,
+`universal_ad.sticker`, `universal_ad.hero_title`,
+`universal_ad.supporting_text`, `universal_ad.bullet_list`,
+`universal_ad.cta`, and `universal_ad.logo`). Catalog metadata maps each ID to
+its semantic role, renderer node IDs, fixed asset-slot IDs, and stable leaf
+setting IDs such as `configuration.background.overlay_opacity` or
+`configuration.cta.style`.
 
 Existing Product Brief/Candidate generation remains the copy authority.
 `universal_content_from_generation()` maps its headline, primary/supporting
@@ -58,9 +67,16 @@ another provider call or a duplicate generation skill.
 
 ## Background and assets
 
-The background supports solid, deterministic paper/grain texture, and photo
-modes. Photo layout is full, left, right, top, or bottom with cover/contain,
-focal point, and a bounded readability overlay.
+The background supports solid, deterministic grain plus stone, marble,
+concrete, granite, slate, and travertine textures, and photo modes. Paper is no
+longer offered; an existing local paper selection upgrades to stone. Texture
+intensity controls the texture layer independently of the base color. Photo
+layout is full, left, right, top, or bottom with cover/contain,
+focal point, and explicit 75% image / 25% background or 25% image / 75%
+background splits. A bounded readability overlay has visible color and opacity
+controls; render-level regression coverage proves that opacity changes pixels.
+Image mode places the fixed-slot sample-image upload beside its layout controls
+instead of requiring the owner to find the separate asset panel.
 
 There are exactly three external asset slots: `background_image`,
 `sticker_object`, and `logo`. Background and sticker searches reuse the
@@ -78,16 +94,50 @@ rectangular paper backing. That
 transform is suitable for simple object shots; complex scenes must use an
 owner-supplied transparent PNG/WebP. There is no second sticker system.
 
+The logo slot resolves to the digest-verified canonical Natal transparent PNG
+when the owner has not supplied another asset. New workspaces enable it at the
+top right by default. Its dedicated editor section keeps PNG/WebP upload, logo
+visibility, background visibility and color, top-left/top-right placement, and
+bounded width together. An upload replaces the Natal fallback with
+`owner_upload` provenance and enables the logo immediately. The renderer places
+the configured rounded contrast surface behind the mark when requested and
+moves copy below the visible logo treatment only when their horizontal regions
+intersect. Removing the background keeps the mark visible; disabling the logo
+hides both the mark and its surface.
+
 Disabled sticker, bullets, and logo nodes remain semantically mapped but do not
 render. Enabling a photo, sticker, or logo without its fixed asset fails the
 preview visibly instead of inventing a substitute.
 
+Bullets offer check, filled-circle, and outlined-circle markers. Their text can
+use a font independently from the headline/supporting-copy family; the marker
+is a separate Inter symbol node so ✓, ●, and ○ remain valid when an expressive
+benefit font is selected. The bundled mood families are neutral Inter, friendly
+Manrope, urgent Oswald, and editorial Cormorant Garamond. Each renders Ukrainian
+copy from a repository-owned variable font; the three added families retain
+their SIL Open Font License files beside the assets.
+
+CTA text and background colors stay owner-controlled and its treatment is one
+of filled, gradient, reverse, link, or outlined. CTA placement is below the text
+flow, at the safe bottom-left anchor, or at the safe bottom-right anchor.
+Sticker sizing now spans small accents through canvas-scale objects. Its presets
+include the four corners, right and bottom edge peeks, and attachment to the
+hero title, benefit list, or CTA; bounded right and bottom adjustments from -720
+through 720 fine-tune every preset. The editor names this
+inspector `Sticker placement` / `Розміщення стікера`. Rotation, width, object
+scale, and both offsets each trigger a draft render independently. Numeric
+fields retain transient typing locally and send only complete in-range values,
+so one unfinished entry cannot invalidate later preview updates.
+
 The local Tune snapshot opens with a concrete Ukrainian investment-assistant
 experiment: one editorial photo background, one golden hryvnia-symbol sticker,
-three benefit callouts, and no logo. The two generated bitmap assets are bundled with Studio
-and reported with explicit `bundled_tune_asset` provenance; an owner upload or
-Pexels selection in the same fixed slots still overrides them. This is starter
-state for the local experiment, not a new template or Instagram behavior.
+three benefit callouts, and the canonical Natal logo. The two generated bitmap
+assets are bundled with Studio and reported with explicit
+`bundled_tune_asset` provenance; the logo reuses the canonical digest-pinned
+brand asset with `canonical_natal_brand_asset` provenance. An owner upload or
+Pexels selection in the applicable fixed slot still overrides its fallback.
+This is starter state for the local experiment, not a new template or
+Instagram behavior.
 
 ## Visual layout quality
 
@@ -101,10 +151,12 @@ the representative hero title inside its frame and visibly separated from the
 supporting block.
 
 The canonical `studio-ui-visual-audit` skill distinguishes raw creative defects
-from browser-preview defects and runs a deterministic geometry matrix across the
-default, high-density, and centered/minimal configurations. It rejects text
-overflow or truncation, edge-touch clipping, semantic-flow collisions, and CTA
-safe-area escapes before full-resolution inspection.
+from browser-preview defects and runs a deterministic geometry matrix across
+default, high-density, centered/minimal, editorial bottom-left, urgent
+bottom-right, and logo-without-background configurations. It rejects text
+overflow or truncation, edge-touch clipping, semantic-flow collisions, CTA
+safe-area escapes, missing configured logo contrast surfaces, and logo/copy collisions
+before full-resolution inspection.
 
 ## Persistence and routes
 
@@ -118,21 +170,39 @@ The editor presents the seven stable roles in one component dock. Background,
 headline, supporting copy, and CTA are always-on cards; bullets, sticker, and
 logo are direct optional switches. Detailed visual settings use compact native
 disclosures so the live creative remains the primary evaluation surface.
-Sticker and logo cannot be enabled before their fixed asset is available.
+Sticker and logo cannot be enabled before their fixed asset is available; the
+canonical Natal fallback means the logo slot is ready in a new workspace. The
+logo disclosure owns its upload, show/hide, background, position, and size
+controls instead of splitting those decisions across unrelated panels.
 
 Editor changes are previewed before save. After a short debounce, the client
 posts the current state digest with a complete draft configuration/content pair
 to `POST /studio/preview`. The workspace normalizes and renders that pair in
 memory without changing persisted state. Stale client responses are ignored,
-and explicit `POST /studio/configuration` remains the only current-state write.
+and returning all draft controls to saved values restores the saved render so a
+previous draft PNG cannot remain on screen. This includes disabling and then
+re-enabling the default logo. Explicit `POST /studio/configuration` remains the only current-state write.
 The preview panel reports rendering, unsaved-preview success, and failure next
 to the creative.
 
 Approval stores the exact PNG, reusable configuration, semantic content, asset
 digests/provenance, internal primitive-template snapshot and digest, and render
-digest in `ptw.studio.universal-ad-version.v1`. This local version is suitable
+digest in `ptw.studio.universal-ad-version.v1`. It also stores the canonical
+`ptw.studio.universal-ad-component-settings.v1` manifest: all seven component
+IDs with their node/asset IDs and every exact typed setting value. `GET
+/studio/versions/{version}` returns this immutable JSON record for replay and
+learning; its paired render remains separately digest-checked. This local version is suitable
 as an exact validation-experiment asset; it does not publish or mutate the
 production Result lifecycle.
+
+`GET /studio` returns the same canonical component-settings manifest for the
+current saved state. `POST /studio/component-settings` accepts either the saved
+state digest alone or that digest plus one complete draft configuration/content
+pair, normalizes it without persisting, and returns a digest-locked manifest.
+The editor's `Export config + IDs` action calls this route and downloads
+`ptw.studio.universal-ad-export.v3`, containing configuration, content,
+template/catalog identities, the base state digest, and the canonical component
+metadata. Resolved preview manifests embed the same metadata beside node geometry.
 
 The production authenticated Studio route surface is only:
 
@@ -142,7 +212,9 @@ POST /studio/configuration
 POST /studio/assets/{slot}
 POST /studio/pexels
 POST /studio/preview
+POST /studio/component-settings
 POST /studio/approve
+GET  /studio/versions/{version}
 GET  /studio/versions/{version}/render
 ```
 
@@ -169,6 +241,15 @@ production build, and whitespace validation, and copies changes back atomically
 only if the corresponding owner files have not changed during the run.
 Interrupted runs fail durably and never copy a partial unverified diff into the
 checkout.
+
+At run creation, the loopback host captures a bounded
+`ptw.studio.universal-ad-agent-context.v1` from the current workspace. It
+contains state/template/context digests, exact component settings, and fixed
+asset identities/digests/provenance. That JSON is included in the run request
+digest, retained in `run.json`, and inserted explicitly into the Tune-agent
+prompt as the machine-readable current-state authority. The agent therefore
+does not need to infer owner selections from UI labels or an excluded `.local`
+workspace, and a later learner can recover the exact input behind the run.
 
 Every completed run also renders the resulting default 1080×1080 Studio creative
 inside its retained isolated snapshot. The exact PNG is stored as a run-scoped

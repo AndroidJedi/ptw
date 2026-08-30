@@ -125,6 +125,7 @@ class StudioTuneService:
         executor: Callable[[Path, str, Path], str] | None = None,
         verifier: Callable[[Path], Sequence[str]] | None = None,
         preview_renderer: Callable[[Path], bytes] | None = None,
+        studio_context_provider: Callable[[], Mapping[str, Any]] | None = None,
     ) -> None:
         self.repository_root = Path(repository_root).resolve()
         self.state_root = Path(state_root).resolve()
@@ -133,6 +134,7 @@ class StudioTuneService:
         self.executor = executor or self._codex_exec
         self.verifier = verifier or self._verify_snapshot
         self.preview_renderer = preview_renderer or self._render_snapshot_preview
+        self.studio_context_provider = studio_context_provider
         self._lock = threading.RLock()
         self._threads: dict[str, threading.Thread] = {}
         self.runs_root.mkdir(parents=True, exist_ok=True)
@@ -262,6 +264,14 @@ class StudioTuneService:
         reason = self._unavailable_reason()
         if reason:
             raise RuntimeError(reason)
+        studio_context: dict[str, Any] | None = None
+        if self.studio_context_provider is not None:
+            supplied_context = self.studio_context_provider()
+            if not isinstance(supplied_context, Mapping):
+                raise ValueError("Studio Tune agent context must be an object")
+            studio_context = json.loads(json.dumps(
+                dict(supplied_context), ensure_ascii=False,
+            ))
         with self._lock:
             if any(item.get("status") in ACTIVE_STATUSES for item in self._records()):
                 raise RuntimeError("Another Studio Tune run is already active")
@@ -271,6 +281,7 @@ class StudioTuneService:
                 "project_idea": project_idea,
                 "implementation": implementation,
                 "feedback": feedback,
+                "studio_context": studio_context,
             }
             record = self._write_run({
                 "schema": TUNE_RUN_SCHEMA,
@@ -420,6 +431,13 @@ class StudioTuneService:
     @staticmethod
     def _prompt(record: Mapping[str, Any]) -> str:
         feedback = str(record["feedback"]) or "No prior feedback; this is the first implementation pass."
+        studio_context = json.dumps(
+            record.get("studio_context") or {
+                "schema": "ptw.studio.universal-ad-agent-context.unavailable.v1",
+                "available": False,
+            },
+            ensure_ascii=False, sort_keys=True, indent=2,
+        )
         allowed = "\n".join(
             f"- {item}" for item in (
                 *sorted(TUNE_EXACT_PATHS), *(f"{prefix}*" for prefix in TUNE_PATH_PREFIXES),
@@ -455,6 +473,16 @@ OWNER FEEDBACK FOR THIS ITERATION
 <owner_feedback>
 {feedback}
 </owner_feedback>
+
+CURRENT STUDIO COMPONENT SETTINGS
+<studio_component_settings_json>
+{studio_context}
+</studio_component_settings_json>
+
+Treat this captured JSON as the machine-readable authority for the current saved Studio setup.
+Use its stable component_id, node_ids, asset_slot_ids, setting_id, and typed value fields when the
+requested iteration depends on current settings. Keep those identities stable so the setup can be
+learned from and reproduced. The state and context digests identify the exact captured input.
 
 Finish with a concise summary of what changed and what you verified. Do not merely propose code;
 make the changes in this snapshot.

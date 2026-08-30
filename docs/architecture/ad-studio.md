@@ -8,7 +8,7 @@ Status: production Result adapter plus separate local Universal Ad Studio
 `instagram_static_ad_v1`. Historical v1 recipes and renders remain immutable
 and keep their original renderer behavior. The separate owner-only Universal
 Ad Studio exposes one `universal_ad` structure through
-`ptw.studio.universal-ad-config.v1`; it does not mutate deployed
+`ptw.studio.universal-ad-config.v4`; it does not mutate deployed
 `StudioRecipeV2` snapshots or add a publication/video path. See
 [`universal-ad-studio.md`](universal-ad-studio.md).
 
@@ -16,6 +16,14 @@ The local universal template reuses the generic primitive preview renderer as
 an internal implementation detail. Its API cannot import templates, mutate a
 tree, upload references, or record calibration iterations. Immutable local
 versions remain outside the historical Result JPEG path.
+
+For local agent access and later learning, every Universal Studio role has one
+stable namespaced component ID. Its canonical component-settings JSON maps that
+ID to renderer node IDs, fixed asset-slot IDs, stable leaf setting IDs, and the
+exact selected typed values. Current/draft and immutable-version endpoints,
+resolved preview manifests, Tune run context, and the owner JSON export all use
+that same metadata contract. This does not alter production `StudioRecipeV2`,
+its component UUID authority, or the Instagram adapter.
 
 The channel-neutral Result core gives the adapter a validated candidate,
 server-assigned visual-element UUIDs, the automatically provisioned canonical

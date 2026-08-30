@@ -68,7 +68,7 @@ class StudioTuneServiceTests(unittest.TestCase):
             time.sleep(0.01)
         raise AssertionError("Studio Tune run did not finish")
 
-    def _service(self, executor) -> StudioTuneService:
+    def _service(self, executor, *, studio_context_provider=None) -> StudioTuneService:
         return StudioTuneService(
             self.repository,
             self.state,
@@ -76,6 +76,7 @@ class StudioTuneServiceTests(unittest.TestCase):
             executor=executor,
             verifier=lambda _snapshot: ["focused tests", "production build"],
             preview_renderer=lambda _snapshot: PREVIEW_BYTES,
+            studio_context_provider=studio_context_provider,
         )
 
     def test_verified_allowlisted_change_is_copied_back(self) -> None:
@@ -106,6 +107,48 @@ class StudioTuneServiceTests(unittest.TestCase):
         self.assertIn("studioVersion = 'after'", self.studio_view.read_text())
         self.assertIn("A planning product for independent founders.", prompts[0])
         self.assertIn("Reduce the visual noise in the prior pass.", prompts[0])
+
+    def test_agent_prompt_and_run_capture_exact_component_settings_json(self) -> None:
+        prompts: list[str] = []
+        context = {
+            "schema": "ptw.studio.universal-ad-agent-context.v1",
+            "template_id": "universal_ad",
+            "state_sha256": "a" * 64,
+            "component_settings": {
+                "schema": "ptw.studio.universal-ad-component-settings.v1",
+                "components": [{
+                    "component_id": "universal_ad.cta",
+                    "node_ids": ["cta"],
+                    "asset_slot_ids": [],
+                    "settings": [{
+                        "setting_id": "configuration.cta.style", "value": "outlined",
+                    }],
+                }],
+                "sha256": "b" * 64,
+            },
+            "sha256": "c" * 64,
+        }
+
+        def execute(snapshot: Path, prompt: str, _output: Path) -> str:
+            prompts.append(prompt)
+            target = snapshot / "apps/commander-web/src/views/StudioView.tsx"
+            target.write_text("export const studioVersion = 'context-aware'\n")
+            return "Used the captured component settings."
+
+        service = self._service(execute, studio_context_provider=lambda: context)
+        started = service.start(
+            project_idea="A focused Studio experiment with a current saved setup.",
+            implementation="Use the current CTA component identity and selected style.",
+            feedback="Preserve the exact machine-readable component mapping.",
+        )
+        completed = self._wait(service, started["run_id"])
+
+        self.assertEqual("completed", completed["status"])
+        self.assertEqual(context, completed["studio_context"])
+        self.assertIn('"component_id": "universal_ad.cta"', prompts[0])
+        self.assertIn('"setting_id": "configuration.cta.style"', prompts[0])
+        self.assertIn('"value": "outlined"', prompts[0])
+        self.assertIn("machine-readable authority", prompts[0])
 
     def test_outside_allowlist_change_fails_without_touching_checkout(self) -> None:
         def execute(snapshot: Path, _prompt: str, _output: Path) -> str:

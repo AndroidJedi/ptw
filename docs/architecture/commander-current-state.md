@@ -1,6 +1,6 @@
 # Commander current state
 
-Updated: 2026-08-29
+Updated: 2026-08-30
 Branch: `codex/web-only-commander`
 
 ## Current milestone
@@ -20,16 +20,66 @@ remains the dominant sticky panel. There is no template selector/import, layer
 tree, arbitrary property inspector, reference upload, pixel matching, or
 calibration history.
 
+The local Studio settings milestone now advances the universal configuration
+to `ptw.studio.universal-ad-config.v4` and internal template version 7. The
+background inspector shows exact hex colors, removes paper, and offers grain
+plus deterministic stone, marble, concrete, granite, slate, and travertine
+surfaces with a texture-intensity slider. It exposes overlay color and opacity
+as visibly responsive controls and supports both 75% image / 25% background and
+25% image / 75% background splits. Selecting Image reveals sample-image upload
+in that inspector; a background upload also selects image mode. Never-deployed
+local v1/v2/v3 workspace configuration is upgraded deterministically on read.
+
+Bullets now switch among check, filled-circle, and outlined-circle markers.
+Benefit text has an independent font selector, while its markers use a stable
+Inter symbol node so check/circle glyphs render with every benefit font. Roboto
+Condensed is no longer owner-selectable; Inter, Manrope, Oswald, and Cormorant
+Garamond span neutral, friendly, urgent, and editorial/premium moods and render
+the verified Ukrainian glyph sample. CTA text/background colors combine with
+filled, gradient, reverse, link, and outlined treatments, and the CTA can sit
+below the text flow, at bottom left, or at bottom right. Sticker size can reach
+a full-canvas treatment, and its position presets now cover the four corners,
+right/bottom edge peeks, hero title, benefits, and CTA anchors, with independent
+right and bottom adjustments. The placement disclosure is now named only
+`Розміщення стікера`. Rotation,
+width, object scale, and the two offsets each refresh the unsaved preview;
+transient numeric typing no longer poisons the draft, and the bounded offsets
+accept -720 through 720 so the owner's 500-pixel adjustment renders normally.
+The fixed seven-role semantic structure, three asset slots, generic primitive
+renderer, and Instagram adapter boundary remain unchanged.
+
+New workspaces resolve the verified canonical Natal PNG in the logo slot,
+enable it at the top right by default, and render it over a light rounded
+contrast surface. A dedicated logo disclosure keeps upload, visibility,
+background visibility/color, top-corner position, and bounded width together.
+The owner can remove the background while keeping the logo visible or upload a
+PNG/WebP replacement; an upload overrides the fallback with owner provenance
+and re-enables the logo. Layout and audit rules keep the visible logo treatment
+in the safe area and move intersecting wide copy below it.
+
+Those seven roles are now machine-addressable as stable component IDs from
+`universal_ad.background` through `universal_ad.logo`. Catalog schema v4 maps
+each component ID to its semantic role, renderer node IDs, fixed asset-slot IDs,
+and leaf setting IDs. Workspace schema v4 includes a canonical
+`ptw.studio.universal-ad-component-settings.v1` manifest with every exact typed
+setting value and its own digest. The same manifest is embedded in resolved
+preview metadata and each newly approved immutable JSON version. Authenticated
+detail, draft-metadata, and immutable-version-detail routes make it directly
+available to agents and later learning/replay consumers; the editor's Export
+config + IDs action downloads the current draft with that canonical metadata.
+
 Every bounded content edit and component/configuration toggle now requests a
 debounced draft render and replaces the preview without persisting editor state.
 The draft preview is bound to the current state digest, normalized by the same
 strict configuration/content contract as a save, and ignored if a newer edit is
-already in flight. Explicit Save setup remains the only way to advance current
-workspace state. Optional Sticker and Logo switches are disabled with an upload
+already in flight. Returning a draft to its saved configuration restores the
+saved PNG instead of leaving the last draft render visible; the logo's first
+hidden-to-visible toggle is covered explicitly. Explicit Save setup remains the
+only way to advance current workspace state. Optional Sticker and Logo switches are disabled with an upload
 instruction when their fixed asset slot is unavailable, avoiding a knowingly
-broken preview. Render progress, unsaved-preview success, and preview failures
-are visible directly above the creative instead of only in the page-level
-status line.
+broken preview; the canonical Natal fallback makes Logo available by default.
+Render progress, unsaved-preview success, and preview failures are visible
+directly above the creative instead of only in the page-level status line.
 
 The loopback Studio now also exposes a local-only Test generation wizard in
 explicit Tune mode. The owner supplies a project idea, desired implementation,
@@ -42,6 +92,13 @@ build, and whitespace validation must pass before optimistic, atomic copy-back.
 The Tune runner, launcher, authentication, production routes, Result adapter,
 database, deployment, and publication boundaries are not writable by the
 agent. Production does not mount Tune routes.
+
+Each Tune run captures the saved workspace's bounded agent-context JSON before
+its disposable mirror starts. The run request digest and durable record include
+exact component IDs/settings plus asset/state/template digests, and the same
+JSON is inserted into the agent prompt as the current-state authority. This
+avoids losing owner selections merely because `.local` workspace files are
+excluded from the source mirror and makes the run input reproducible.
 
 Successful Tune iterations now retain the exact 1080×1080 PNG rendered from the
 verified isolated snapshot. The completion card shows that creative beside the
@@ -82,22 +139,24 @@ and overflow so layout failures are inspectable. Focused tests lock the top
 alignment, unclipped title edge, and semantic-block separation.
 
 The new canonical `studio-ui-visual-audit` skill separates raw creative defects
-from browser-preview defects and supplies a deterministic default,
-high-density, and centered/minimal geometry gate. `studio-tune-local` requires
+from browser-preview defects and supplies deterministic default, high-density,
+centered/minimal, editorial bottom-left, urgent bottom-right, and logo-without-
+background geometry gates.
+`studio-tune-local` requires
 that audit for typography, positioning, spacing, component-layout, preview, and
 Studio CSS changes. Its canonical desktop link is installed. This repair is
 local only and was not deployed.
 
-`ptw.studio.universal-ad-config.v1` is the reusable strict configuration.
+`ptw.studio.universal-ad-config.v4` is the reusable strict configuration.
 Unknown structure fails closed, and all numeric/enum controls are bounded to
-properties with meaningful visual impact. Solid, deterministic paper/grain
-texture, and photo backgrounds share full/partial placement, fit, focal point,
-and readability-overlay controls. The one sticker consists of an isolated
+properties with meaningful visual impact. Solid, deterministic grain/mineral
+texture, and photo backgrounds share full/partial placement,
+fit, focal point, intensity, and readability-overlay controls. The one sticker consists of an isolated
 object with a smooth white die-cut contour sized from the actual fitted alpha
 silhouette, reserved transparent edge room, and a subtle outside shadow. It has
 bounded position, rotation, width, and object scale, with no rectangular paper
 backing or blurred white glow. This render contract is the local internal
-Universal Studio template version 3. Bullets, sticker, and logo can be omitted
+Universal Studio template version 7. Bullets, sticker, and logo can be omitted
 without changing
 the semantic structure or breaking the composition.
 
@@ -124,12 +183,14 @@ the existing bounded Pexels client. Sticker photos pass through one
 deterministic edge-color soft-alpha cutout; complex sources must use an
 owner-supplied transparent PNG/WebP. Approval stores the exact PNG,
 configuration, content, asset provenance/digests, internal template snapshot
-and digest, and render digest. Preview rendering accepts either the persisted
+and digest, render digest, and canonical component-settings manifest. Preview
+rendering accepts either the persisted
 state digest alone or that digest plus a complete draft configuration/content
 pair; the latter is rendered in memory and never mutates the workspace.
 
 Validation and Owner Gateway expose only detail, configuration, fixed-asset,
-Pexels, preview, approval, and immutable-version-render routes. All PNGs are
+Pexels, preview, component-metadata, approval, immutable-version-detail, and
+immutable-version-render routes. All PNGs are
 private, no-store, SHA-256 and ETag explicit. The loopback launcher exposes the
 same Studio contract, local-only Tune routes, and the representative normal
 journey described above, without Firebase; Pexels is optional unless its local
@@ -138,13 +199,14 @@ reference/calibration routes, evaluator, installer, tests, and text fixtures
 were removed. No deployment, reset, database mutation, publication, or
 production contact was performed.
 
-Local verification passes the complete 60-test Validation suite (three
+Local verification passes the complete 70-test Validation suite (three
 disposable-PostgreSQL lifecycle tests skipped), five Owner Gateway tests, all
-23 web unit tests, the production web build, and all 15 Playwright journeys on
+28 web unit tests, the production web build, and all 18 Playwright journeys on
 desktop Chromium, 360 px Chromium, and iPhone WebKit. All seven Commander tests,
 the Commander demo, primitive-engine canary, canonical PTW skill verifier,
-skill-validator, deterministic three-variant visual-geometry audit,
-Python compilation, four-variant visual inspection, and
+skill-validator, deterministic six-variant visual-geometry audit,
+Python compilation, exact default/editorial/urgent/mineral full-resolution
+inspections, the seven-preset texture matrix, and
 `git diff --check` also pass. Built-image tests were not run because the local
 Docker daemon is unavailable.
 

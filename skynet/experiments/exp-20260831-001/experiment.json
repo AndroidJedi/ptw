@@ -1,0 +1,55 @@
+{
+  "schema": "ptw.skynet.experiment.v1",
+  "experiment_id": "exp-20260831-001",
+  "created_at": "2026-08-31T09:52:31Z",
+  "updated_at": "2026-08-31T10:05:47Z",
+  "status": "competition_candidate_queued",
+  "generation": 1,
+  "iteration": 1,
+  "hypothesis": "A concrete empty-chair loss moment can outperform the known typography-first direct-offer baseline without sacrificing message clarity.",
+  "independent_variable": "moment-tension scene plus mechanism-led copy",
+  "known_baseline": {
+    "competitor_strategy": "direct_offer@3",
+    "documented_score": 90,
+    "image_available": false,
+    "comparability_limit": "The competitor Product Brief and exact render are unavailable locally, so the first comparison is structural rather than controlled."
+  },
+  "candidate_ids": ["cand-20260831-001-a"],
+  "reservation": {
+    "background_call": "completed",
+    "expected_output": "assets/background-v1.png",
+    "render_output": "renders/cand-20260831-001-a-v1.jpg"
+  },
+  "resources": {
+    "built_in_image_calls": 1,
+    "background_variants": 1,
+    "internet_search_calls": 0,
+    "telegram_events_queued": 1,
+    "paid_external_services": 0,
+    "workspace_kib_after_checkpoint": 4620,
+    "approximate_cost_usd": null,
+    "cost_note": "Built-in image generation monetary price was not exposed; exact call count is authoritative."
+  },
+  "manifest": "manifest.json",
+  "evaluation": {
+    "kind": "local_contract_and_visual_audit",
+    "path": "audit/audit.json",
+    "decision": "competition_ready",
+    "formal_content_result_critic_pass": null
+  },
+  "telegram": {
+    "event_id": "skynet.exp-20260831-001.g1i1.cand-a",
+    "queued_at": "2026-08-31T10:05:35Z",
+    "status": "queued",
+    "outbox_path": "runtime/telegram/queue/skynet.exp-20260831-001.g1i1.cand-a.json",
+    "artifact_path": "runtime/telegram/artifacts/skynet.exp-20260831-001.g1i1.cand-a.jpg",
+    "artifact_sha256": "d56fc96ebfcc39691833810c367d3aa111c060ca691e4493de5a15afe39e4337"
+  },
+  "lessons": [
+    "Generated empty-space composition can arrive ready for deterministic copy in one call when subject side and prohibited content are explicit.",
+    "Decorative glyphs must be rendered outside protected CTA text or omitted; exact-copy checks must precede submission.",
+    "A 360-pixel derivative is a cheap and useful pre-submission legibility gate."
+  ],
+  "checkpoint": "checkpoints/2026-08-31-exp-001.md",
+  "next_action": "Create exp-20260831-002 as an independent same-Brief direct-offer control with deterministic native texture and no image call."
+}

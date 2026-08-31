@@ -17,7 +17,7 @@ function BriefDocument({ value, language }: { value: ProductBriefDocument; langu
   </div>
 }
 
-export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBriefChanged, onProjectsRefresh, onOpenResult, language, localDemo = false }: {
+export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBriefChanged, onProjectsRefresh, onOpenResult, language }: {
   api: ApiClient
   projectId: string | null
   onProjectCreated: (project: ValidationProject) => void
@@ -25,7 +25,6 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
   onProjectsRefresh: (preferredId?: string) => Promise<void>
   onOpenResult: () => void
   language: Language
-  localDemo?: boolean
 }) {
   const [items, setItems] = useState<ProductBrief[] | null>(null)
   const [selected, setSelected] = useState<ProductBrief | null>(null)
@@ -93,18 +92,16 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   if (!projectId) return <>
-    <PageHeader eyebrow={tr('NEW PROJECT · RAW IDEA ONLY', 'НОВИЙ ПРОЄКТ · ЛИШЕ СИРА ІДЕЯ')} title={tr('New Project', 'Новий проєкт')} />
-    {localDemo && <p className="notice" role="status">{tr('Local learning workspace · Product Brief generation uses the authenticated Codex CLI and never touches production.', 'Локальний простір навчання · генерація продуктового брифу використовує автентифікований Codex CLI і не торкається продакшну.')}</p>}
+    <PageHeader title={tr('New Project', 'Новий проєкт')} />
     {error && <ErrorState message={error} language={language} />}{notice && <p className="notice" role="status">{notice}</p>}
-    <section className="panel brief-create"><div><small>{tr('ONE PROJECT · ONE INITIAL HYPOTHESIS', 'ОДИН ПРОЄКТ · ОДНА ПОЧАТКОВА ГІПОТЕЗА')}</small><h2>{tr('What do you want to validate?', 'Що ви хочете перевірити?')}</h2><p>{tr('Generating an initial Brief creates and selects the new Project. Existing Project history stays separate.', 'Генерація початкового брифу створює та вибирає новий проєкт. Історія існуючих проєктів залишається окремо.')}</p></div>
+    <section className="panel brief-create"><div><h2>{tr('What do you want to validate?', 'Що ви хочете перевірити?')}</h2></div>
       <textarea id="new-project-idea" rows={5} maxLength={10000} value={rawIdea} onChange={(event) => setRawIdea(event.target.value)} placeholder={tr('Describe one product idea…', 'Опишіть одну продуктову ідею…')} />
       <button className="primary large" disabled={busy || !rawIdea.trim()} onClick={create}><Sparkles />{tr('Generate Product Brief & Create Project', 'Згенерувати продуктовий бриф і створити проєкт')}</button>
     </section>
   </>
   if (!items) return error ? <ErrorState message={error} retry={() => void load()} language={language} /> : <Loading language={language} />
   return <>
-    <PageHeader eyebrow={tr('STAGE 1 · ONE HYPOTHESIS', 'ЕТАП 1 · ОДНА ГІПОТЕЗА')} title={tr('Product Briefs', 'Продуктові брифи')} />
-    {localDemo && <p className="notice" role="status">{tr('Local immutable Brief history · explicit approval is required before generation.', 'Локальна незмінна історія брифів · перед генерацією потрібне явне схвалення.')}</p>}
+    <PageHeader title={tr('Product Briefs', 'Продуктові брифи')} />
     {error && <ErrorState message={error} language={language} />}{notice && <p className="notice" role="status">{notice}</p>}
     {!items.length ? <Empty><Target className="empty-mark" /><h2>{tr('No Product Brief in this Project', 'У цьому проєкті немає продуктового брифу')}</h2><p>{tr('Use New Project to start a separate validation loop.', 'Скористайтеся «Новий проєкт», щоб почати окремий цикл валідації.')}</p></Empty> : <div className="brief-workspace">
       <aside className="panel brief-list"><small>{tr('BRIEF HISTORY', 'ІСТОРІЯ БРИФІВ')}</small>{items.map((item, index) => <button key={item.brief_id} className={selected?.brief_id === item.brief_id ? 'selected' : ''} onClick={() => void load(item.brief_id)}><strong>{index === 0 ? tr('Current Brief', 'Поточний бриф') : tr('Earlier Brief', 'Попередній бриф')} · {item.product || item.raw_idea.slice(0, 70)}</strong><span>{item.status} · {item.language?.toUpperCase() || '—'} · {item.approved ? tr('approved', 'схвалено') : tr('not approved', 'не схвалено')} · {new Date(item.created_at).toLocaleDateString(language === 'uk' ? 'uk-UA' : 'en-US')}</span></button>)}</aside>

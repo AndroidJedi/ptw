@@ -1,0 +1,46 @@
+{
+  "schema": "ptw.skynet.render-manifest.v1",
+  "experiment_id": "exp-20260831-002",
+  "candidate_id": "cand-20260831-002-b",
+  "recorded_at": "2026-08-31T10:20:28Z",
+  "inputs": {
+    "brief": {"path": "brief.json", "sha256": "b7fe8e68cf044ee5e4ce3dc67b2b0ed65e9ec698319abb22f9f65442c0e3c387"},
+    "template": {"path": "template.json", "sha256": "4b2fb949c5acc9cdbbee6594eb71e3c62593f1918cacc5b524a204b4726fa9db"},
+    "candidate": {"path": "candidate.json", "sha256": "370bb6232300b3fb499a5f8e480d3a2f836cd932e373649495fd131d6b407091"},
+    "renderer": {"path": "render.sh", "sha256": "4ed6232163f336123d13339bde7096c34fa1365d4ec33997ac9912076109190a"},
+    "native_texture": {"path": "assets/native-texture-v1.png", "sha256": "b87dd843256f6b36832ce732ff5d24e91c16a33037f069574b259f441a5094c5", "byte_count": 83369, "width": 1080, "height": 1080, "mime_type": "image/png"},
+    "logo": {"path": "../../assets/natal/logo-natal.png", "sha256": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba"},
+    "font": {"path": "../../assets/natal/inter.ttf", "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"}
+  },
+  "outputs": {
+    "master": {"path": "renders/cand-20260831-002-b-v1.png", "sha256": "804572ca438939a3eb7f3f57bf495eecea5a0e65d2f6c7a21eaf6e959759015e", "byte_count": 181937, "width": 1080, "height": 1080, "mime_type": "image/png"},
+    "delivery": {"path": "renders/cand-20260831-002-b-v1.jpg", "sha256": "e20bc5e476e79cb29d5787564301d6ce63c43b508af437abdbbf0d13fa6c78e1", "byte_count": 124947, "width": 1080, "height": 1080, "mime_type": "image/jpeg", "jpeg_soi": true, "jpeg_eoi": true},
+    "small_screen_preview": {"path": "audit/preview-360.jpg", "sha256": "f0bc9e9590ce7ad5c9987bea0f2fc337f09b7d2707d632862b8cfcea9f10f928", "byte_count": 29687, "width": 360, "height": 360, "mime_type": "image/jpeg"}
+  },
+  "generation": {
+    "background_provider": "deterministic local FFmpeg filters",
+    "built_in_image_calls": 0,
+    "background_variants": 0,
+    "synthetic_people_or_faces": false,
+    "embedded_generated_copy": false,
+    "deterministic_compositor": "ffmpeg 8.0"
+  },
+  "replay": {
+    "pre_fix_failure": {
+      "texture_sha256_before": "70980873843719293bf8c2effb6526d70f8b9e2f19bc64a7c7f650608e0baef3",
+      "texture_sha256_after": "93a587a515e198df04a4f1812e8a8dbf9db49d840e996bea35af209b48f3e9b9",
+      "delivery_sha256_before": "7d4748f146a0d4ce5b506b2902f60ecdb3f41a2d2e4ebfd9e6608c1071493d79",
+      "delivery_sha256_after": "a35e18eba734a53a2be89ee61fb24b6e78f6d976af5830c16fbd19b2815e7b72",
+      "byte_identical": false,
+      "cause": "The seeded Perlin source was not deterministic under the installed FFmpeg build."
+    },
+    "post_fix": {
+      "performed_at": "2026-08-31T10:20:28Z",
+      "texture_sha256_before": "b87dd843256f6b36832ce732ff5d24e91c16a33037f069574b259f441a5094c5",
+      "texture_sha256_after": "b87dd843256f6b36832ce732ff5d24e91c16a33037f069574b259f441a5094c5",
+      "delivery_sha256_before": "e20bc5e476e79cb29d5787564301d6ce63c43b508af437abdbbf0d13fa6c78e1",
+      "delivery_sha256_after": "e20bc5e476e79cb29d5787564301d6ce63c43b508af437abdbbf0d13fa6c78e1",
+      "byte_identical": true
+    }
+  }
+}

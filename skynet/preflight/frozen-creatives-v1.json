@@ -1,0 +1,124 @@
+{
+  "schema": "ptw.skynet.frozen-creative-preflight-config.v1",
+  "artifacts": [
+    {
+      "experiment_id": "exp-20260831-001",
+      "candidate_id": "cand-20260831-001-a",
+      "manifest_path": "experiments/exp-20260831-001/manifest.json",
+      "candidate_path": "experiments/exp-20260831-001/candidate.json",
+      "master_path": "experiments/exp-20260831-001/renders/cand-20260831-001-a-v1.png",
+      "delivery_path": "experiments/exp-20260831-001/renders/cand-20260831-001-a-v1.jpg",
+      "queue_event_id": "skynet.exp-20260831-001.g1i1.cand-a",
+      "protected_copy": {"offer": "90 ДНІВ БЕЗКОШТОВНО", "cta": "СПРОБУВАТИ NATAL"},
+      "text_roles": [
+        {"role": "headline", "box": {"x": 64, "y": 180, "width": 620, "height": 300}, "foreground": "#F4F6FA", "minimum_ink_pixels": 1000},
+        {"role": "body", "box": {"x": 64, "y": 510, "width": 620, "height": 170}, "foreground": "#F4F6FA", "minimum_ink_pixels": 500},
+        {"role": "offer", "box": {"x": 86, "y": 800, "width": 368, "height": 50}, "foreground": "#0C0E12", "minimum_ink_pixels": 500},
+        {"role": "cta", "box": {"x": 86, "y": 920, "width": 408, "height": 50}, "foreground": "#0C0E12", "minimum_ink_pixels": 500}
+      ],
+      "logo": {"box": {"x": 64, "y": 56, "width": 224, "height": 78}, "target_colors": ["#383840", "#87D0DD"]}
+    },
+    {
+      "experiment_id": "exp-20260831-002",
+      "candidate_id": "cand-20260831-002-b",
+      "manifest_path": "experiments/exp-20260831-002/manifest.json",
+      "candidate_path": "experiments/exp-20260831-002/candidate.json",
+      "master_path": "experiments/exp-20260831-002/renders/cand-20260831-002-b-v1.png",
+      "delivery_path": "experiments/exp-20260831-002/renders/cand-20260831-002-b-v1.jpg",
+      "queue_event_id": "skynet.exp-20260831-002.g1i1.cand-b",
+      "protected_copy": {"offer": "90 ДНІВ БЕЗКОШТОВНО", "cta": "СПРОБУВАТИ NATAL"},
+      "text_roles": [
+        {"role": "headline", "box": {"x": 64, "y": 180, "width": 952, "height": 186}, "foreground": "#F4F6FA", "minimum_ink_pixels": 1000},
+        {"role": "body", "box": {"x": 64, "y": 382, "width": 952, "height": 76}, "foreground": "#D9DEE8", "minimum_ink_pixels": 500},
+        {"role": "offer", "box": {"x": 92, "y": 730, "width": 838, "height": 100}, "foreground": "#0C0E12", "minimum_ink_pixels": 1000},
+        {"role": "cta", "box": {"x": 90, "y": 944, "width": 434, "height": 46}, "foreground": "#0C0E12", "minimum_ink_pixels": 500}
+      ],
+      "logo": {"box": {"x": 64, "y": 56, "width": 224, "height": 78}, "target_colors": ["#383840", "#87D0DD"]}
+    },
+    {
+      "experiment_id": "exp-20260831-003",
+      "candidate_id": "cand-20260831-003-c",
+      "manifest_path": "experiments/exp-20260831-003/manifest.json",
+      "candidate_path": "experiments/exp-20260831-003/candidate.json",
+      "master_path": "experiments/exp-20260831-003/renders/cand-20260831-003-c-v1.png",
+      "delivery_path": "experiments/exp-20260831-003/renders/cand-20260831-003-c-v1.jpg",
+      "queue_event_id": "skynet.exp-20260831-003.g1i1.cand-c",
+      "protected_copy": {"offer": "90 ДНІВ БЕЗКОШТОВНО", "cta": "СПРОБУВАТИ NATAL"},
+      "text_roles": [
+        {"role": "headline", "box": {"x": 72, "y": 194, "width": 936, "height": 105}, "foreground": "#F7F8FA", "minimum_ink_pixels": 1000},
+        {"role": "body", "box": {"x": 72, "y": 304, "width": 880, "height": 86}, "foreground": "#A9B1BF", "minimum_ink_pixels": 500},
+        {"role": "offer", "box": {"x": 96, "y": 870, "width": 386, "height": 60}, "foreground": "#F7F8FA", "minimum_ink_pixels": 500},
+        {"role": "cta", "box": {"x": 536, "y": 870, "width": 472, "height": 60}, "foreground": "#0C0E12", "minimum_ink_pixels": 500}
+      ],
+      "logo": {"box": {"x": 72, "y": 60, "width": 194, "height": 66}, "target_colors": ["#383840", "#87D0DD"]}
+    },
+    {
+      "experiment_id": "exp-20260831-004",
+      "candidate_id": "cand-20260831-004-d",
+      "manifest_path": "experiments/exp-20260831-004/manifest.json",
+      "candidate_path": "experiments/exp-20260831-004/candidate.json",
+      "master_path": "experiments/exp-20260831-004/renders/cand-20260831-004-d-v1.png",
+      "delivery_path": "experiments/exp-20260831-004/renders/cand-20260831-004-d-v1.jpg",
+      "queue_event_id": "skynet.exp-20260831-004.g1i1.cand-d",
+      "protected_copy": {"offer": "90 ДНІВ БЕЗКОШТОВНО", "cta": "СПРОБУВАТИ NATAL"},
+      "text_roles": [
+        {"role": "headline", "box": {"x": 72, "y": 150, "width": 936, "height": 156}, "foreground": "#F3F6F6", "minimum_ink_pixels": 1000},
+        {"role": "body", "box": {"x": 72, "y": 326, "width": 820, "height": 82}, "foreground": "#B8C4CA", "minimum_ink_pixels": 500},
+        {"role": "offer", "box": {"x": 72, "y": 835, "width": 550, "height": 65}, "foreground": "#F3F6F6", "minimum_ink_pixels": 500},
+        {"role": "cta", "box": {"x": 710, "y": 830, "width": 290, "height": 60}, "foreground": "#071118", "minimum_ink_pixels": 500}
+      ],
+      "logo": {"box": {"x": 72, "y": 52, "width": 182, "height": 56}, "target_colors": ["#383840", "#87D0DD"]}
+    },
+    {
+      "experiment_id": "exp-20260831-006",
+      "candidate_id": "cand-20260831-006-f",
+      "manifest_path": "experiments/exp-20260831-006/manifest.json",
+      "candidate_path": "experiments/exp-20260831-006/candidate.json",
+      "master_path": "experiments/exp-20260831-006/renders/cand-20260831-006-f-v1.png",
+      "delivery_path": "experiments/exp-20260831-006/renders/cand-20260831-006-f-v1.jpg",
+      "queue_event_id": "skynet.exp-20260831-006.g1i1.cand-f",
+      "protected_copy": {"offer": "90 ДНІВ БЕЗКОШТОВНО", "cta": "СПРОБУВАТИ NATAL"},
+      "text_roles": [
+        {"role": "headline", "box": {"x": 562, "y": 97, "width": 454, "height": 162}, "foreground": "#0C0E12", "minimum_ink_pixels": 1000},
+        {"role": "body", "box": {"x": 572, "y": 335, "width": 410, "height": 226}, "foreground": "#181C25", "minimum_ink_pixels": 500},
+        {"role": "offer", "box": {"x": 619, "y": 690, "width": 375, "height": 55}, "foreground": "#0C0E12", "minimum_ink_pixels": 500},
+        {"role": "cta", "box": {"x": 572, "y": 850, "width": 389, "height": 50}, "foreground": "#F4F6FA", "minimum_ink_pixels": 500}
+      ],
+      "logo": {"box": {"x": 76, "y": 929, "width": 238, "height": 59}, "target_colors": ["#383840", "#87D0DD"]}
+    },
+    {
+      "experiment_id": "exp-20260831-007",
+      "candidate_id": "cand-20260831-007-g",
+      "manifest_path": "experiments/exp-20260831-007/manifest.json",
+      "candidate_path": "experiments/exp-20260831-007/candidate.json",
+      "master_path": "experiments/exp-20260831-007/renders/cand-20260831-007-g-v1.png",
+      "delivery_path": "experiments/exp-20260831-007/renders/cand-20260831-007-g-v1.jpg",
+      "queue_event_id": "skynet.exp-20260831-007.g1i1.cand-g",
+      "protected_copy": {"offer": "90 ДНІВ БЕЗКОШТОВНО", "cta": "СПРОБУВАТИ NATAL"},
+      "text_roles": [
+        {"role": "headline", "box": {"x": 65, "y": 216, "width": 518, "height": 259}, "foreground": "#0C0E12", "minimum_ink_pixels": 1000},
+        {"role": "body", "box": {"x": 70, "y": 529, "width": 432, "height": 162}, "foreground": "#181C25", "minimum_ink_pixels": 500},
+        {"role": "offer", "box": {"x": 81, "y": 760, "width": 400, "height": 55}, "foreground": "#F4F6FA", "minimum_ink_pixels": 500},
+        {"role": "cta", "box": {"x": 76, "y": 910, "width": 388, "height": 55}, "foreground": "#0C0E12", "minimum_ink_pixels": 500}
+      ],
+      "logo": {"box": {"x": 65, "y": 70, "width": 191, "height": 65}, "target_colors": ["#383840", "#87D0DD"]}
+    },
+    {
+      "experiment_id": "exp-20260831-008",
+      "candidate_id": "cand-20260831-008-h",
+      "manifest_path": "experiments/exp-20260831-008/manifest.json",
+      "candidate_path": "experiments/exp-20260831-008/candidate.json",
+      "master_path": "experiments/exp-20260831-008/renders/cand-20260831-008-h-v1.png",
+      "delivery_path": "experiments/exp-20260831-008/renders/cand-20260831-008-h-v1.jpg",
+      "queue_event_id": "skynet.exp-20260831-008.g1i1.cand-h",
+      "protected_copy": {"offer": "90 ДНІВ БЕЗКОШТОВНО", "cta": "СПРОБУВАТИ NATAL"},
+      "text_roles": [
+        {"role": "headline", "box": {"x": 65, "y": 194, "width": 421, "height": 216}, "foreground": "#F4F6FA", "minimum_ink_pixels": 1000},
+        {"role": "body", "box": {"x": 65, "y": 454, "width": 421, "height": 140}, "foreground": "#F4F6FA", "minimum_ink_pixels": 500},
+        {"role": "offer", "box": {"x": 65, "y": 691, "width": 421, "height": 76}, "foreground": "#87D0DD", "minimum_ink_pixels": 500},
+        {"role": "cta", "box": {"x": 76, "y": 869, "width": 346, "height": 65}, "foreground": "#0C0E12", "minimum_ink_pixels": 500}
+      ],
+      "logo": {"box": {"x": 65, "y": 65, "width": 238, "height": 54}, "target_colors": ["#383840", "#87D0DD"]}
+    }
+  ]
+}

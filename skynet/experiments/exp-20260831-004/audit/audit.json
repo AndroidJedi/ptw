@@ -1,0 +1,54 @@
+{
+  "schema": "ptw.skynet.visual-audit.v1",
+  "experiment_id": "exp-20260831-004",
+  "candidate_id": "cand-20260831-004-d",
+  "audited_at": "2026-08-31T11:09:46Z",
+  "evidence": {
+    "full_resolution": "renders/cand-20260831-004-d-v1.png",
+    "delivery_artifact": "renders/cand-20260831-004-d-v1.jpg",
+    "small_screen": "audit/preview-360.jpg",
+    "viewports": ["1080x1080 raw PNG", "1080x1080 delivery JPEG", "360x360 Lanczos preview"]
+  },
+  "hard_gates": {
+    "profile_is_exact_1080_square_jpeg": true,
+    "jpeg_magic_and_terminal_marker_valid": true,
+    "approved_brief_digest_matches_packet": true,
+    "candidate_v2_contract_valid": true,
+    "protected_offer_byte_exact": true,
+    "protected_cta_byte_exact": true,
+    "required_nine_visual_roles_present_in_order": true,
+    "required_blocks_visible": true,
+    "headline_clipping_or_truncation_absent": true,
+    "text_collision_or_overlap_absent": true,
+    "semantic_order_and_positive_gaps_present": true,
+    "safe_canvas_bounds_respected": true,
+    "small_screen_core_hierarchy_readable": true,
+    "canonical_logo_unchanged_on_light_surface": true,
+    "synthetic_people_or_faces_absent": true,
+    "disconnected_collage_absent": true,
+    "fake_dashboard_or_unsupported_ui_absent": true,
+    "unsupported_metrics_proof_urgency_scarcity_or_guarantees_absent": true,
+    "caption_and_alt_text_complete": true,
+    "delivery_frozen_before_prior_render_image_inspection": true
+  },
+  "observations": [
+    "The short contrast headline is the dominant feed entry point at 1080 and 360 pixels, while the mechanism sentence remains subordinate and readable.",
+    "One shared cyan route crosses from muted message chaos to Risk, reminder, and repeat booking; it communicates a reframe rather than a disconnected before/after collage.",
+    "The right-hand scenario holds the focal color and directional connectors, while the left-hand bars remain intentionally unnamed to avoid invented UI or message claims.",
+    "The exact offer and CTA occupy separate lower blocks with positive space and no overlap; both survive the 360-pixel derivative.",
+    "The approved dark-wordmark logo remains unchanged on a bounded light surface."
+  ],
+  "failures_and_corrections": [
+    "The first successful pre-freeze draft used a right-arrow glyph on the vertical reminder-to-booking connector. Visual inspection caught the ambiguous direction; replacing it with a down-arrow changed only renderer geometry before the final delivery digest was frozen.",
+    "The CandidateV2 copy, exact sliders, template snapshot, protected offer, and protected CTA did not change during the pre-freeze correction."
+  ],
+  "limitations": [
+    "This is a local contract and visual audit, not a formal content-result critic pass.",
+    "Mandatory recovery loaded textual summaries of earlier strategies, and the initial broad ledger command opened prior candidate, manifest, and audit JSON files before D was generated. Prior render images were not viewed until D froze, but D is neither strict-generator-blind nor artifact-blind.",
+    "The generation packet's contrast_reframe source_sha256 does not equal the current canonical strategy digest. D preserved the packet exactly and passed CandidateV2, copy, render, and visual gates, but it is a SKYNET controlled contrast-reframe run rather than a verified canonical template replay.",
+    "The mechanism labels are secondary at 360 pixels; the headline, Risk state, offer, and CTA carry the small-screen message.",
+    "No external controlled competition feedback exists, so contrast reframe must not be called a winner."
+  ],
+  "decision": "competition_ready_contrast_control",
+  "retry_required": false
+}

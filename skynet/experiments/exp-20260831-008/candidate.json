@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "hook": "Не масова розсилка. Доречний сценарій для клієнта в ризику.",
+  "headline": "НЕ ВСІМ. ТИМ, ХТО ОХОЛОВ.",
+  "primary_text": "Після візиту Natal оновлює статус. Для клієнта в «Ризику» запускайте нагадування, пропозицію або повторний запис.",
+  "supporting_text": "Сценарій для «Ризику» — замість хаотичної розсилки.",
+  "offer": "90 ДНІВ БЕЗКОШТОВНО",
+  "cta": "СПРОБУВАТИ NATAL",
+  "caption": "Не всім — тим, хто охолов. Після кожного візиту Natal оновлює статус клієнта. Для клієнта в «Ризику» запускайте доречний сценарій повернення: нагадування, пропозицію або повторний запис — замість хаотичної розсилки. 90 ДНІВ БЕЗКОШТОВНО. СПРОБУВАТИ NATAL",
+  "alt_text": "Квадратна реклама Natal. Ліворуч на темному полі — заголовок «НЕ ВСІМ. ТИМ, ХТО ОХОЛОВ.», коротке пояснення статусу «Ризик», пропозиція «90 ДНІВ БЕЗКОШТОВНО» і кнопка «СПРОБУВАТИ NATAL». Праворуч — абстрактна схема без написів: розсіяні тьмяні сигнали перериває один блакитний маршрут до порожньої картки повторного запису. Це концептуальна метафора, а не інтерфейс продукту.",
+  "desired_emotion": "Полегшення від точного наступного кроку замість шумної масової дії.",
+  "visual_concept": "Canonical contrast_reframe@3 composition: a dark protected copy panel makes the compact «not everyone / the cooled customer» reframe explicit; one text-free deterministic hero graphic in the right frame turns scattered broadcast noise into a single Natal-cyan return route. The mechanism line immediately grounds the contrast in the supplied post-visit Risk status and allowed actions. The graphic is conceptual and is not presented as a product interface.",
+  "media_request": {
+    "kind": "non_human_graphic",
+    "query": "deterministic text-free abstract field of scattered muted broadcast signals interrupted by one cyan route to a blank repeat-appointment card, no people, faces, text, logos, UI, metrics, proof, or embedded copy",
+    "source_asset_id": null,
+    "reason": "The approved Brief permits generated non-human media. A deterministic native graphic makes the supplied contrast visible without inventing a person, product screenshot, testimonial, result, or external source."
+  },
+  "visual_components": [
+    {
+      "role": "background",
+      "content": "The exact canonical canvas uses Natal light, with the canonical dark copy panel on the left and the rounded hero-media frame on the right.",
+      "source_ids": []
+    },
+    {
+      "role": "primary_subject",
+      "content": "One text-free conceptual route graphic: scattered muted broadcast signals stop at a decisive cyan interruption, while one cyan path reaches a blank repeat-appointment card. It is not a literal product interface.",
+      "source_ids": []
+    },
+    {
+      "role": "headline_block",
+      "content": "The exact headline «НЕ ВСІМ. ТИМ, ХТО ОХОЛОВ.» appears in large light Inter within the canonical upper-left protected frame.",
+      "source_ids": []
+    },
+    {
+      "role": "supporting_text_block",
+      "content": "The exact primary_text appears once below the headline and connects the reframe to the supplied post-visit Risk status and allowed return actions.",
+      "source_ids": []
+    },
+    {
+      "role": "offer_block",
+      "content": "The protected offer «90 ДНІВ БЕЗКОШТОВНО» appears once in the exact canonical offer frame.",
+      "source_ids": []
+    },
+    {
+      "role": "cta_block",
+      "content": "The protected CTA «СПРОБУВАТИ NATAL» appears once on the exact canonical cyan CTA surface.",
+      "source_ids": []
+    },
+    {
+      "role": "brand_mark",
+      "content": "The approved unchanged Natal logo appears on the exact canonical light surface in the upper-left scan path.",
+      "source_ids": []
+    },
+    {
+      "role": "lighting_style",
+      "content": "Flat high-contrast signal light: near-black copy field, warm light hero field, muted blue-grey noise, and one saturated Natal-cyan route.",
+      "source_ids": []
+    },
+    {
+      "role": "composition",
+      "content": "The exact canonical split is preserved: dark copy panel at left, rounded full-height hero media at right, cyan divider, logo first, compact contrast headline, mechanism, protected offer, CTA, and the enabled small reframe badge.",
+      "source_ids": []
+    }
+  ]
+}

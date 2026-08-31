@@ -58,11 +58,14 @@ def sanitized(value: Any) -> Any:
 class LocalCodexStructuredProvider:
     """Bounded non-interactive Codex calls with one fresh retry."""
 
+    supported_reasoning_efforts = frozenset({"low", "medium", "high", "xhigh"})
+
     def __init__(
         self,
         codex_binary: str | None = None,
         *,
         model: str | None = None,
+        reasoning_effort: str = "xhigh",
         timeout_seconds: int = 420,
         maximum_attempts: int = 2,
         executor: Callable[..., subprocess.CompletedProcess[str]] | None = None,
@@ -72,8 +75,11 @@ class LocalCodexStructuredProvider:
             raise RuntimeError("authenticated Codex CLI is required for local generation")
         if maximum_attempts != 2:
             raise ValueError("local structured calls use exactly two bounded attempts")
+        if reasoning_effort not in self.supported_reasoning_efforts:
+            raise ValueError("local structured reasoning effort must be low, medium, high, or xhigh")
         self.codex_binary = str(binary)
         self.model = model
+        self.reasoning_effort = reasoning_effort
         self.timeout_seconds = timeout_seconds
         self.maximum_attempts = maximum_attempts
         self.executor = executor or subprocess.run
@@ -94,6 +100,7 @@ class LocalCodexStructuredProvider:
         command = [
             self.codex_binary, "exec", "--ephemeral", "--ignore-rules",
             "--sandbox", "read-only", "--skip-git-repo-check", "--color", "never",
+            "--config", f'model_reasoning_effort="{self.reasoning_effort}"',
             "--output-schema", str(schema_path), "--output-last-message", str(output_path),
             "-C", str(workdir),
         ]
@@ -161,6 +168,8 @@ class LocalCodexStructuredProvider:
                     "input_sha256": input_digest,
                     "image_sha256": image_digests,
                     "model": self.model or "codex-cli-default",
+                    "reasoning_effort": self.reasoning_effort,
+                    "timeout_seconds": self.timeout_seconds,
                     "sandbox": "read-only",
                     "ephemeral": True,
                 }
@@ -197,6 +206,7 @@ class LocalCodexStructuredProvider:
                         "invocation": {
                             "provider": "codex-cli",
                             "model": self.model or "codex-cli-default",
+                            "reasoning_effort": self.reasoning_effort,
                             "mode": mode,
                             "prompt_version": prompt_version,
                             "input_sha256": input_digest,

@@ -45,6 +45,9 @@ def create_app(
         provider=LocalCodexStructuredProvider(
             os.environ.get("LOCAL_CODEX_BIN", "").strip() or "codex",
             model=os.environ.get("LOCAL_CODEX_MODEL", "").strip() or None,
+            reasoning_effort=os.environ.get(
+                "LOCAL_CODEX_REASONING_EFFORT", "xhigh",
+            ).strip().casefold(),
             timeout_seconds=int(os.environ.get("LOCAL_CODEX_TIMEOUT_SECONDS", "420")),
         ),
         repository_root=Path(__file__).resolve().parents[1],

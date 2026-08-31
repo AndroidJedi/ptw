@@ -1,0 +1,123 @@
+{
+  "schema": "ptw.skynet.glance-audit.v1",
+  "evaluation_id": "eval-20260831-001-glance",
+  "recorded_at": "2026-08-31T13:16:29Z",
+  "scope": {
+    "approved_brief_id": "brief-20260831-natal-retention-v1",
+    "preferred_preflight_candidates": [
+      "cand-20260831-001-a",
+      "cand-20260831-002-b",
+      "cand-20260831-003-c",
+      "cand-20260831-006-f",
+      "cand-20260831-007-g"
+    ],
+    "failed_gate_reference_candidates": [
+      "cand-20260831-004-d"
+    ],
+    "outcome_winner_claimed": false
+  },
+  "method": {
+    "full_resolution_review": "Each frozen 1080x1080 master PNG was inspected at original resolution.",
+    "standard_preview_review": "All candidates were compared at 360x360 after Lanczos downsampling.",
+    "stress_preview_review": "Each master was downsampled directly to 120x120 with Lanczos. The six thumbnails were enlarged 3x with nearest-neighbor only for pixel-preserving inspection.",
+    "contact_layout": {
+      "top_row": [
+        "cand-20260831-001-a",
+        "cand-20260831-002-b",
+        "cand-20260831-003-c"
+      ],
+      "bottom_row": [
+        "cand-20260831-004-d",
+        "cand-20260831-006-f",
+        "cand-20260831-007-g"
+      ]
+    },
+    "limitations": [
+      "The 120-pixel derivative is a stress test, not a claim about an Instagram delivery transform.",
+      "This audit measures visual survival and layout integrity, not clicks, conversion, recall, or an externally controlled winner.",
+      "Mandatory state recovery prevents a generator-blind or candidate-blind critic claim."
+    ]
+  },
+  "artifacts": {
+    "derive_script": {
+      "path": "evaluations/eval-20260831-001-glance/derive.sh",
+      "sha256": "67b25925320fba8c349a26f3b3f9d5986c877cfd48f98abcdc380b05612d0e65"
+    },
+    "contact_360": {
+      "path": "evaluations/eval-20260831-001-glance/contact-360.png",
+      "sha256": "c6ada09b7895f4fb1b9d937d9792eb49813aea40e5083d9256cbe564e13eb4d6"
+    },
+    "contact_120_nearest": {
+      "path": "evaluations/eval-20260831-001-glance/contact-120-nearest.png",
+      "sha256": "d9e1819c0b99f6f4f23d631f2b2e690f67f5ccea0d0451cd35432353c45e0397"
+    },
+    "thumbnail_sha256": {
+      "cand-20260831-001-a": "fc38e294bc2b5fdfa5e7886a4b7901064a811362236cce161a48530627020645",
+      "cand-20260831-002-b": "6c9043f10866cf65e2c410a036af1793054070085d69ffb53addaca12d5b1064",
+      "cand-20260831-003-c": "32603449f79a180fbe51af24178ba127edeceaf0154f823d6b7a948b9bc5fd65",
+      "cand-20260831-004-d": "502b330cbc6836ece2c90af83911b0bb1ddf23a20cb0afe50db9ecf2d013809c",
+      "cand-20260831-006-f": "51ad24d044a5055c23b1f5de3ba72bb39da60a38fa9da833a04eca7801a972c1",
+      "cand-20260831-007-g": "dec1e5f38e660a5927bba7a802be60db2fba486e83a4bd917714ab4273c768bf"
+    },
+    "replay_byte_identical": true
+  },
+  "observations": [
+    {
+      "candidate_id": "cand-20260831-001-a",
+      "preflight_eligible": true,
+      "full_and_360_layout_gate": "passed",
+      "at_120": "The empty chair, primary loss headline, offer block, and CTA remain distinguishable; the support copy appropriately recedes.",
+      "local_role": "Strongest concrete customer-loss moment and one of two candidates that retain a category-relevant photographic object."
+    },
+    {
+      "candidate_id": "cand-20260831-002-b",
+      "preflight_eligible": true,
+      "full_and_360_layout_gate": "passed",
+      "at_120": "The headline, oversized offer, CTA, and three status shapes survive; the secondary status and mechanism labels become weak.",
+      "local_role": "Clearest offer-led hierarchy and strongest typography-first control, with less immediate salon context than the photographic directions."
+    },
+    {
+      "candidate_id": "cand-20260831-003-c",
+      "preflight_eligible": true,
+      "full_and_360_layout_gate": "passed",
+      "at_120": "The headline, cyan Risk stage, offer, and CTA survive; the route's tertiary labels and explanation depend on a larger view.",
+      "local_role": "Clearest complete visit-to-risk-to-return sequence, but more of its value depends on deliberate reading."
+    },
+    {
+      "candidate_id": "cand-20260831-004-d",
+      "preflight_eligible": false,
+      "full_and_360_layout_gate": "failed_existing_headline_clearance_gate",
+      "at_120": "The large contrast headline and one-scenario diagram remain distinctive, but the known zero-pixel headline-frame clearance is unresolved.",
+      "local_role": "Strongest pure text reframe; retained only as a failed-gate reference and not restored to the preferred set."
+    },
+    {
+      "candidate_id": "cand-20260831-006-f",
+      "preflight_eligible": true,
+      "full_and_360_layout_gate": "passed",
+      "at_120": "The headline, status-matrix silhouette, offer, and CTA survive; support copy and micro-labels lose more salience than in A, B, or G.",
+      "local_role": "Best exact-canonical mechanism-proof baseline, with the greatest dependence on compact proof detail."
+    },
+    {
+      "candidate_id": "cand-20260831-007-g",
+      "preflight_eligible": true,
+      "full_and_360_layout_gate": "passed",
+      "at_120": "The calendar, cyan return loop, headline, offer, and CTA remain distinguishable; the mechanism line appropriately recedes.",
+      "local_role": "Strongest high-key physical metaphor and one of two candidates that retain a category-relevant photographic object."
+    }
+  ],
+  "decision": {
+    "preferred_set_changed": false,
+    "preferred_candidate_ids": [
+      "cand-20260831-001-a",
+      "cand-20260831-002-b",
+      "cand-20260831-003-c",
+      "cand-20260831-006-f",
+      "cand-20260831-007-g"
+    ],
+    "candidate_d_revision_authorized_by_evidence": false,
+    "candidate_d_reason": "The stress test confirms its existing text-hook distinction but supplies no delivery or outcome evidence strong enough to justify a near-duplicate iteration and seventh queue event.",
+    "new_generation_call_justified": false,
+    "new_outbound_event_justified": false,
+    "next_action": "Reconcile local queue and receipt evidence without polling. Activate the blocked real-photo packet only if authorized source-metadata-bearing media appears. Bind exact external feedback before changing the non-dominated strategy set or spending another same-Brief image call."
+  }
+}

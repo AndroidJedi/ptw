@@ -6,9 +6,11 @@ proxies only Project, Product Brief, Social Post Result, and
 owner-only Universal Ad Studio APIs.
 Domain data is never stored in Firebase or service-worker caches.
 
-Navigation is Product Briefs, Social posts, and Studio. The Social Posts
-master-detail navigator and selected artifact are URL-backed by `project` and
-`run`; Studio is independent. Social creation accepts only request ID, approved
+Navigation is Product Briefs, Social posts, and Studio. Social Posts uses one
+compact Project selector; when post history exists, the selected-result toolbar
+contains the post selector. Project creation and renaming stay in Product
+Briefs. The selection remains URL-backed by `project` and `run`; Studio is
+independent. Social creation accepts only request ID, approved
 Brief ID, and optional `instagram`/`tiktok` platform. Owner Gateway maps the
 platform to a fixed task/profile while Validation provisions the canonical
 Natal identity. Studio configures one
@@ -24,7 +26,15 @@ Briefs, approved Project assets, five-candidate Result runs, releases, and
 owner-approved lessons are mutable and restart-safe in the local file authority;
 Universal Studio remains a separate writable saved workspace. Provider-backed
 generation uses the authenticated Codex CLI only through an empty, ephemeral,
-read-only non-interactive boundary. Explicit Tune mode still uses its own
+read-only non-interactive boundary. That boundary explicitly retains `xhigh`
+reasoning by default (`LOCAL_CODEX_REASONING_EFFORT` accepts bounded `low`,
+`medium`, `high`, or `xhigh`) while preserving the configured model, and
+records the effective effort and timeout in sanitized invocation provenance.
+The local critic receives persisted 480×480 analysis derivatives bound to the
+authoritative 1080×1080 PNG/JPEG digests; owner preview and export remain full
+resolution. Its three `xhigh` calls attach exactly three candidates, two
+candidates, then only the two group winners for final comparison. Explicit
+Tune mode still uses its own
 disposable writable snapshot and may copy back only verified Universal Studio
 allowlisted files. All local experiment, release, lesson, and Tune routes are
 absent from Owner Gateway and Validation production APIs. The local app does

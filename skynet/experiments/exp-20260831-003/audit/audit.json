@@ -1,0 +1,52 @@
+{
+  "schema": "ptw.skynet.visual-audit.v1",
+  "experiment_id": "exp-20260831-003",
+  "candidate_id": "cand-20260831-003-c",
+  "audited_at": "2026-08-31T10:49:35Z",
+  "evidence": {
+    "full_resolution": "renders/cand-20260831-003-c-v1.png",
+    "delivery_artifact": "renders/cand-20260831-003-c-v1.jpg",
+    "small_screen": "audit/preview-360.jpg",
+    "viewports": ["1080x1080 raw PNG", "1080x1080 delivery JPEG", "360x360 Lanczos preview"]
+  },
+  "hard_gates": {
+    "profile_is_exact_1080_square_jpeg": true,
+    "jpeg_magic_and_terminal_marker_valid": true,
+    "approved_brief_digest_matches_packet": true,
+    "candidate_v2_contract_valid": true,
+    "protected_offer_byte_exact": true,
+    "protected_cta_byte_exact": true,
+    "required_nine_visual_roles_present_in_order": true,
+    "required_blocks_visible": true,
+    "headline_clipping_or_truncation_absent": true,
+    "text_collision_or_overlap_absent": true,
+    "semantic_order_and_positive_gaps_present": true,
+    "safe_canvas_bounds_respected": true,
+    "small_screen_core_hierarchy_readable": true,
+    "canonical_logo_unchanged_on_light_surface": true,
+    "synthetic_people_or_faces_absent": true,
+    "decorative_photograph_absent": true,
+    "fake_dashboard_or_unsupported_ui_absent": true,
+    "unsupported_metrics_proof_urgency_scarcity_or_guarantees_absent": true,
+    "caption_and_alt_text_complete": true,
+    "two_post_freeze_replays_byte_identical": true
+  },
+  "observations": [
+    "The headline remains the dominant entry point at both inspected sizes and leaves a positive gap before the supporting mechanism.",
+    "The three equal process cards make the supplied visit → Risk → reminder sequence visible without presenting an invented software screenshot.",
+    "The cyan middle card creates a clear focal state, while arrows preserve sequence at 360 pixels.",
+    "The exact offer and CTA remain separate, readable bottom blocks; neither collides with the process route or canvas edge.",
+    "The approved dark-wordmark logo is preserved on a bounded light surface rather than recolored."
+  ],
+  "failures_and_corrections": [
+    "The first renderer invocation failed before output because local FFmpeg 8 does not expose drawtext's optional spacing parameter.",
+    "Removing only the unsupported styling parameter produced the frozen v1 render; copy, candidate, slider values, and template geometry did not change."
+  ],
+  "limitations": [
+    "This is a local contract and visual audit, not a formal content-result critic pass.",
+    "Mandatory recovery loaded textual summaries of earlier directions before candidate C was generated. No prior artifact was opened until C's candidate and delivery digests were frozen, but C is conservatively excluded from the strict generator-blind count.",
+    "No external controlled competition feedback exists, so the process demonstration must not be called a winner."
+  ],
+  "decision": "competition_ready_process_control",
+  "retry_required": false
+}

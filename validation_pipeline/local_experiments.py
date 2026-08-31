@@ -35,7 +35,8 @@ from .studio_universal import (
 )
 from .studio_workspace import UniversalStudioWorkspace
 from .universal_experiment import (
-    PHOTO_STRATEGIES, PROFILE_ID, STRATEGY_PATCHES, audit_universal_render, deterministic_jpeg,
+    PHOTO_FALLBACK_PATCHES, PHOTO_STRATEGIES, PROFILE_ID, STRATEGY_PATCHES,
+    audit_universal_render, deterministic_analysis_jpeg, deterministic_jpeg,
     resolve_strategy_patch,
 )
 
@@ -168,6 +169,105 @@ def _validate_local_candidate(
         })
     result["visual_components"] = components
     return result
+
+
+def _short_alt_value(value: Any, maximum: int) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) <= maximum:
+        return text
+    shortened = text[:maximum - 1].rsplit(" ", 1)[0].rstrip(".,;:—-")
+    return f"{shortened or text[:maximum - 1]}…"
+
+
+def _render_aligned_document(
+    document: Mapping[str, Any], *, content: Mapping[str, Any],
+    configuration: Mapping[str, Any], render_contract: Mapping[str, Any],
+    language: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Bind semantic descriptions to the exact optional roles that render."""
+
+    result = deepcopy(dict(document))
+    bullets = list(content["bullets"]) if configuration["bullets"]["enabled"] else []
+    logo = render_contract["logo"]
+    sticker = render_contract["sticker"]
+    replacements = {
+        "bullet_list": (
+            "Visible bullet list: " + "; ".join(map(str, bullets))
+            if bullets else "No bullet list is rendered in this strategy."
+        ),
+        "logo": (
+            "The saved canonical Natal logo is visibly rendered from the captured Studio export."
+            if logo["visible"] else "No logo is rendered in this strategy."
+        ),
+        "sticker": (
+            "A saved approved sticker asset is visibly rendered."
+            if sticker["visible"] else "No sticker is rendered in this strategy."
+        ),
+    }
+    components: list[dict[str, Any]] = []
+    transformations: list[dict[str, Any]] = []
+    for raw in result["visual_components"]:
+        component = deepcopy(dict(raw))
+        replacement = replacements.get(str(component["role"]))
+        if replacement is not None and component["content"] != replacement:
+            transformations.append({
+                "field": f"visual_components.{component['role']}.content",
+                "before": component["content"], "after": replacement,
+            })
+            component["content"] = replacement
+        components.append(component)
+    result["visual_components"] = components
+
+    background = render_contract["background"]
+    if language == "uk":
+        background_text = (
+            "схвалене фотографічне тло"
+            if background["mode"] == "image"
+            else f"текстуроване тло «{background.get('texture') or background['mode']}»"
+        )
+        parts = [
+            f"Квадратна реклама для Instagram; {background_text}.",
+            f"Заголовок: «{_short_alt_value(content['hero_title'], 180)}».",
+            f"Пояснення: «{_short_alt_value(content['supporting_text'], 260)}».",
+        ]
+        if bullets:
+            parts.append("Видимі пункти: " + "; ".join(map(str, bullets)) + ".")
+        parts.extend([
+            f"Пропозиція: «{content['offer']}».", f"Кнопка: «{content['cta']}».",
+        ])
+        if logo["visible"]:
+            parts.append("Видно збережений логотип Natal.")
+        if sticker["visible"]:
+            parts.append("Видно схвалений декоративний об’єкт.")
+    else:
+        background_text = (
+            "an approved photographic background"
+            if background["mode"] == "image"
+            else f"a {background.get('texture') or background['mode']} textured background"
+        )
+        parts = [
+            f"Square Instagram ad with {background_text}.",
+            f"Headline: “{_short_alt_value(content['hero_title'], 180)}”.",
+            f"Supporting text: “{_short_alt_value(content['supporting_text'], 260)}”.",
+        ]
+        if bullets:
+            parts.append("Visible points: " + "; ".join(map(str, bullets)) + ".")
+        parts.extend([
+            f"Offer: “{content['offer']}”.", f"Button: “{content['cta']}”.",
+        ])
+        if logo["visible"]:
+            parts.append("The saved Natal logo is visible.")
+        if sticker["visible"]:
+            parts.append("An approved decorative object is visible.")
+    alt_text = " ".join(parts)
+    if len(alt_text) > 1000:
+        raise ValueError("deterministic Universal alt text exceeds 1000 characters")
+    if result["alt_text"] != alt_text:
+        transformations.append({
+            "field": "alt_text", "before": result["alt_text"], "after": alt_text,
+        })
+        result["alt_text"] = alt_text
+    return result, transformations
 
 
 class LocalExperimentService:
@@ -537,7 +637,9 @@ class LocalExperimentService:
         data = self.store.artifact(value["artifact"]["path"], expected_sha256=value["sha256"])
         return {**value, "bytes": data}
 
-    def _preflight_assets(self, run: Mapping[str, Any], brief: Mapping[str, Any]) -> dict[str, str]:
+    def _resolve_candidate_assets(
+        self, run: Mapping[str, Any], brief: Mapping[str, Any],
+    ) -> dict[str, str | None]:
         approved = [item for item in self.list_assets(run["project_id"]) if item.get("approved")]
         distinct: list[dict[str, Any]] = []
         seen: set[str] = set()
@@ -545,46 +647,55 @@ class LocalExperimentService:
             if item["sha256"] not in seen:
                 distinct.append(item)
                 seen.add(item["sha256"])
+        photo_order = [item for item in TEMPLATE_IDS if item in PHOTO_STRATEGIES]
+        assignments: dict[str, str | None] = {}
+        base_strategy = run.get("immutable_base_strategy_id")
+        base_asset = run.get("immutable_base_asset_id")
+        remaining = list(distinct)
+        if base_strategy in PHOTO_STRATEGIES:
+            if base_asset:
+                selected = next((item for item in remaining if item["source_asset_id"] == base_asset), None)
+                if selected is None:
+                    raise ValueError("immutable child-run base asset is no longer approved in its Project pool")
+                assignments[str(base_strategy)] = str(base_asset)
+                remaining.remove(selected)
+            else:
+                # Preserve an immutable texture-backed parent even if photos are
+                # added to the Project before the child run starts.
+                assignments[str(base_strategy)] = None
+
+        open_strategies = [item for item in photo_order if item not in assignments]
         used_external: set[str] = {
             str(item.get("source", {}).get("external_id")) for item in distinct
             if item.get("source", {}).get("external_id")
         }
-        photo_order = [item for item in TEMPLATE_IDS if item in PHOTO_STRATEGIES]
-        while len(distinct) < len(photo_order) and self.pexels is not None:
-            strategy = photo_order[len(distinct)]
+        attempts = 0
+        while len(remaining) < len(open_strategies) and self.pexels is not None:
+            strategy = open_strategies[len(remaining)]
             query = f"{brief['product']} {brief['target_audience']} candid {strategy.replace('_', ' ')}"
-            photo, data = self.pexels.select(query, brief["product"], used_ids=used_external)
-            used_external.add(photo.photo_id)
-            asset = self.upload_asset(
-                project_id=run["project_id"], title=f"Pexels · {photo.photographer}",
-                mime_type="image/jpeg", data=data, requested_by="local-preflight",
-                origin="pexels", source={
-                    "origin": "pexels", **photo.source_metadata(), "query": query,
-                    "transformation": "none", "no_synthetic_people": True,
-                }, approval_status="approved",
-            )
+            attempts += 1
+            try:
+                photo, data = self.pexels.select(query, brief["product"], used_ids=used_external)
+                used_external.add(photo.photo_id)
+                asset = self.upload_asset(
+                    project_id=run["project_id"], title=f"Pexels · {photo.photographer}",
+                    mime_type="image/jpeg", data=data, requested_by="local-preflight",
+                    origin="pexels", source={
+                        "origin": "pexels", **photo.source_metadata(), "query": query,
+                        "transformation": "none", "no_synthetic_people": True,
+                    }, approval_status="approved",
+                )
+            except Exception:
+                # Pexels is optional enrichment. A provider outage or unusable
+                # response falls back to the canonical deterministic texture.
+                break
             if asset["sha256"] not in seen:
-                distinct.append(asset)
+                remaining.append(asset)
                 seen.add(asset["sha256"])
-        if len(distinct) < len(photo_order):
-            missing = len(photo_order) - len(distinct)
-            raise ValueError(
-                f"asset preflight needs {missing} more distinct approved real photo(s); "
-                "upload and approve them or configure PEXELS_API_KEY before starting the run"
-            )
-        assignments: dict[str, str] = {}
-        base_strategy = run.get("immutable_base_strategy_id")
-        base_asset = run.get("immutable_base_asset_id")
-        remaining = list(distinct)
-        if base_strategy in PHOTO_STRATEGIES and base_asset:
-            selected = next((item for item in remaining if item["source_asset_id"] == base_asset), None)
-            if selected is None:
-                raise ValueError("immutable child-run base asset is no longer approved in its Project pool")
-            assignments[str(base_strategy)] = str(base_asset)
-            remaining.remove(selected)
-        for strategy in photo_order:
-            if strategy not in assignments:
-                assignments[strategy] = remaining.pop(0)["source_asset_id"]
+            if attempts >= len(open_strategies) * 2:
+                break
+        for strategy in open_strategies:
+            assignments[strategy] = remaining.pop(0)["source_asset_id"] if remaining else None
         return assignments
 
     # Lessons ---------------------------------------------------------------------
@@ -722,7 +833,9 @@ class LocalExperimentService:
         self, base: Mapping[str, Any], *, snapshot_id: str, strategy_id: str,
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         value = deepcopy(dict(base))
-        allowed = set(STRATEGY_PATCHES[strategy_id])
+        allowed = set(STRATEGY_PATCHES[strategy_id]) | set(
+            PHOTO_FALLBACK_PATCHES.get(strategy_id, {})
+        )
         applied: list[dict[str, Any]] = []
         snapshot = self.store.get("lesson_snapshots", snapshot_id)
         for lesson in snapshot["lessons"]:
@@ -749,8 +862,12 @@ class LocalExperimentService:
             f"{self.generator_context}\n\nLOCAL_PROFILE:{PROFILE_ID}\n"
             "Generate one isolated Universal Studio candidate. The eight visual roles are "
             f"required exactly once and in this order: {', '.join(LOCAL_VISUAL_ROLES)}. "
-            "The exact offer and CTA are protected. Use only the assigned asset. Do not evaluate "
-            "other candidates or invent proof, urgency, people, IDs, or market evidence.\n\n"
+            "The exact offer and CTA are protected. The resolved_render_contract is authoritative "
+            "for the optional roles that will actually be visible: describe its bullets, sticker, "
+            "background, and saved logo exactly in visual_components and alt_text. A saved canonical "
+            "logo is an approved Studio identity, not an invented candidate asset. Use only the "
+            "assigned asset for candidate-sourced media. Do not evaluate other candidates or invent "
+            "proof, urgency, people, IDs, or market evidence.\n\n"
             f"STRATEGY:\n{json.dumps(template.document, ensure_ascii=False, sort_keys=True)}"
         )
 
@@ -780,6 +897,73 @@ class LocalExperimentService:
         sliders = dict(parameters or template.defaults)
         assigned_asset = None if asset_id is None else self.store.get("project_assets", asset_id)
         snapshot_lessons = self._lesson_texts(run["learning_snapshot_id"], "content-candidate-generator")
+        saved_assets = run["studio_export"].get("assets") or []
+        sticker_available = any(
+            item.get("slot") == "sticker_object" and item.get("available")
+            and (item.get("source") or {}).get("origin") != "bundled_tune_asset"
+            for item in saved_assets
+        )
+        resolved = resolve_strategy_patch(
+            run["studio_export"]["configuration"], template.template_id, sliders,
+            sticker_available=sticker_available, photo_available=asset_id is not None,
+        )
+        lesson_configuration, applied_layout_lessons = self._layout_lesson_base(
+            resolved["configuration"], snapshot_id=run["learning_snapshot_id"],
+            strategy_id=template.template_id,
+        )
+        if applied_layout_lessons:
+            resolved["configuration"] = normalize_universal_config(lesson_configuration)
+            for item in applied_layout_lessons:
+                path = item["setting_id"].removeprefix("configuration.")
+                group, key = path.split(".", 1)
+                resolved["setting_patch"][path] = resolved["configuration"][group][key]
+            resolved["setting_deltas"] = [{
+                "setting_id": f"configuration.{path}",
+                "before": run["studio_export"]["configuration"][path.split('.', 1)[0]][path.split('.', 1)[1]],
+                "after": resolved["configuration"][path.split('.', 1)[0]][path.split('.', 1)[1]],
+            } for path in sorted(resolved["setting_patch"])
+                if run["studio_export"]["configuration"][path.split('.', 1)[0]][path.split('.', 1)[1]]
+                != resolved["configuration"][path.split('.', 1)[0]][path.split('.', 1)[1]]]
+        logo_asset = next((
+            item for item in saved_assets
+            if item.get("slot") == "logo" and item.get("available")
+        ), None)
+        sticker_asset = next((
+            item for item in saved_assets
+            if item.get("slot") == "sticker_object" and item.get("available")
+            and (item.get("source") or {}).get("origin") != "bundled_tune_asset"
+        ), None)
+        if resolved["configuration"]["logo"]["enabled"] and logo_asset is None:
+            raise ValueError("Universal experiment saved logo provenance is unavailable")
+        render_contract = {
+            "background": {
+                "mode": resolved["configuration"]["background"]["mode"],
+                "texture": resolved["configuration"]["background"].get("texture"),
+                "source_asset_id": asset_id,
+            },
+            "bullets": {
+                "visible": bool(resolved["configuration"]["bullets"]["enabled"]),
+                "items": (
+                    list(brief["document"]["key_benefits"][:3])
+                    if resolved["configuration"]["bullets"]["enabled"] else []
+                ),
+            },
+            "logo": {
+                "visible": bool(resolved["configuration"]["logo"]["enabled"]),
+                "slot": "logo", "sha256": None if logo_asset is None else logo_asset["sha256"],
+                "mime_type": None if logo_asset is None else logo_asset["mime_type"],
+                "source": None if logo_asset is None else deepcopy(logo_asset.get("source") or {}),
+                "authority": "captured_saved_studio_identity",
+            },
+            "sticker": {
+                "visible": bool(resolved["configuration"]["sticker"]["enabled"]),
+                "slot": "sticker_object",
+                "sha256": None if sticker_asset is None else sticker_asset["sha256"],
+                "mime_type": None if sticker_asset is None else sticker_asset["mime_type"],
+                "source": None if sticker_asset is None else deepcopy(sticker_asset.get("source") or {}),
+                "authority": "captured_saved_studio_asset" if sticker_asset else None,
+            },
+        }
         payload = {
             "candidate_id": candidate_id,
             "approved_brief": brief["document"], "task": run["task"],
@@ -796,6 +980,7 @@ class LocalExperimentService:
                     "source_asset_id", "title", "mime_type", "sha256", "origin", "source",
                 )
             },
+            "resolved_render_contract": render_contract,
             "active_owner_lessons": snapshot_lessons,
             "revision_instruction": run.get("revision_instruction"),
             "improvement": None if action is None else dict(action),
@@ -809,7 +994,7 @@ class LocalExperimentService:
             system_prompt=self._candidate_prompt(template), input_payload=payload,
             output_schema=_candidate_schema(asset_id),
             idempotency_key=f"{run['run_id']}:{candidate_id}:candidate",
-            prompt_version="local-universal-candidate-v1",
+            prompt_version="local-universal-candidate-v2",
             response_validator=lambda value: _validate_local_candidate(
                 value, brief=brief["document"], asset_id=asset_id,
             ),
@@ -832,45 +1017,35 @@ class LocalExperimentService:
         content = universal_content_from_generation(document, brief=brief["document"])
         if content["offer"] != brief["document"]["offer"] or content["cta"] != brief["document"]["cta"]:
             raise ValueError("Universal protected copy changed during content mapping")
-        saved_assets = run["studio_export"].get("assets") or []
-        sticker_available = any(
-            item.get("slot") == "sticker_object" and item.get("available")
-            and (item.get("source") or {}).get("origin") != "bundled_tune_asset"
-            for item in saved_assets
-        )
-        resolved = resolve_strategy_patch(
-            run["studio_export"]["configuration"], template.template_id, sliders,
-            sticker_available=sticker_available,
-        )
-        lesson_configuration, applied_layout_lessons = self._layout_lesson_base(
-            resolved["configuration"], snapshot_id=run["learning_snapshot_id"],
-            strategy_id=template.template_id,
-        )
-        if applied_layout_lessons:
-            resolved["configuration"] = normalize_universal_config(lesson_configuration)
-            for item in applied_layout_lessons:
-                path = item["setting_id"].removeprefix("configuration.")
-                group, key = path.split(".", 1)
-                resolved["setting_patch"][path] = resolved["configuration"][group][key]
-            resolved["setting_deltas"] = [{
-                "setting_id": f"configuration.{path}",
-                "before": run["studio_export"]["configuration"][path.split('.', 1)[0]][path.split('.', 1)[1]],
-                "after": resolved["configuration"][path.split('.', 1)[0]][path.split('.', 1)[1]],
-            } for path in sorted(resolved["setting_patch"])
-                if run["studio_export"]["configuration"][path.split('.', 1)[0]][path.split('.', 1)[1]]
-                != resolved["configuration"][path.split('.', 1)[0]][path.split('.', 1)[1]]]
         background = None if asset_id is None else self.asset_bytes(asset_id)
         rendered = self.workspace.render_experiment(
             configuration=resolved["configuration"], content=content,
             background_asset=background,
         )
+        rendered_asset_digests = rendered["resolved"].get("asset_sha256") or {}
+        for role in ("logo", "sticker"):
+            contract_asset = render_contract[role]
+            if (
+                contract_asset["visible"]
+                and rendered_asset_digests.get(contract_asset["slot"])
+                != contract_asset["sha256"]
+            ):
+                raise ValueError(f"Universal rendered {role} does not match captured Studio provenance")
         audit = audit_universal_render(
             rendered["resolved"], configuration=resolved["configuration"],
             content=content, brief=brief["document"],
         )
+        document, document_transformations = _render_aligned_document(
+            document, content=content, configuration=resolved["configuration"],
+            render_contract=render_contract, language=str(brief["document"]["language"]),
+        )
         jpeg = deterministic_jpeg(rendered["bytes"])
+        analysis_jpeg = deterministic_analysis_jpeg(rendered["bytes"])
         png_artifact = self.store.write_artifact("candidate_renders", candidate_id, "source.png", rendered["bytes"])
         jpeg_artifact = self.store.write_artifact("candidate_renders", candidate_id, "critic.jpg", jpeg["bytes"])
+        analysis_artifact = self.store.write_artifact(
+            "candidate_renders", candidate_id, "analysis.jpg", analysis_jpeg["bytes"],
+        )
         elements = self._candidate_elements(candidate_id, document)
         for element in elements:
             self.store.append("elements", element["element_id"], {**element, "created_at": utc_now()})
@@ -885,11 +1060,23 @@ class LocalExperimentService:
             "document": document, "document_sha256": sha256_json(document),
             "elements": elements, "provider_invocation_id": result["invocation_id"],
             "asset_id": asset_id,
-            "asset_provenance": None if background is None else {
+            "document_transformations": document_transformations,
+            "experiment_adapter": {
+                "profile": resolved["profile"], "version": resolved["adapter_version"],
+                "media_mode": resolved["media_mode"],
+            },
+            "asset_provenance": ({
                 key: background[key] for key in (
                     "source_asset_id", "sha256", "mime_type", "origin", "source",
                 )
-            },
+            } if background is not None else {
+                "origin": "deterministic_studio_texture",
+                "preset": resolved["configuration"]["background"]["texture"],
+                "sha256": rendered["resolved"]["asset_sha256"]["background_texture"],
+                "review_status": "canonical_adapter_fallback",
+                "no_synthetic_people": True,
+            } if resolved["configuration"]["background"]["mode"] == "texture" else None),
+            "render_asset_provenance": render_contract,
             "universal_manifest": rendered["resolved"],
             "resolved_setting_patch": resolved["setting_patch"],
             "resolved_setting_deltas": resolved["setting_deltas"],
@@ -899,6 +1086,15 @@ class LocalExperimentService:
             "preview": {
                 **jpeg_artifact, "mime_type": "image/jpeg", "width": 1080, "height": 1080,
                 "asset_url": f"/api/v1/content-runs/{run['run_id']}/candidates/{candidate_id}/asset",
+            },
+            "analysis_preview": {
+                **analysis_artifact,
+                **{key: analysis_jpeg[key] for key in (
+                    "mime_type", "width", "height", "encoder",
+                    "source_png_sha256", "source_width", "source_height",
+                    "scale_numerator", "scale_denominator",
+                )},
+                "source_preview_sha256": jpeg_artifact["sha256"],
             },
             "configuration": resolved["configuration"], "content": content,
             "created_at": utc_now(),
@@ -912,6 +1108,7 @@ class LocalExperimentService:
 
     @staticmethod
     def _critic_view(candidate: Mapping[str, Any]) -> dict[str, Any]:
+        analysis = candidate["analysis_preview"]
         return {
             "candidate_id": candidate["candidate_id"],
             "document": candidate["document"],
@@ -921,8 +1118,14 @@ class LocalExperimentService:
             "resolved_frames": candidate["universal_manifest"]["nodes"],
             "layout_audit": candidate["layout_audit"],
             "render": {
-                "sha256": candidate["preview"]["sha256"], "mime_type": "image/jpeg",
-                "width": 1080, "height": 1080,
+                "sha256": analysis["sha256"], "mime_type": "image/jpeg",
+                "width": analysis["width"], "height": analysis["height"],
+                "source_preview_sha256": analysis["source_preview_sha256"],
+                "source_width": analysis["source_width"],
+                "source_height": analysis["source_height"],
+                "scale_numerator": analysis["scale_numerator"],
+                "scale_denominator": analysis["scale_denominator"],
+                "asset_provenance": candidate["render_asset_provenance"],
             },
         }
 
@@ -942,14 +1145,25 @@ class LocalExperimentService:
         layout_by_id = {str(item["candidate_id"]): item["layout_audit"] for item in candidates}
         payload = {
             "run_id": run["run_id"], "pass": pass_number,
+            "critic_scope": (
+                "screening_group_1_of_2" if pass_number == 1
+                else "screening_group_2_of_2" if pass_number == 2
+                else "group_winner_comparison"
+            ),
             "approved_brief": self.get_brief(run["brief_id"])["document"],
             "task": run["task"], "output_profile": LOCAL_OUTPUT_PROFILE,
             "experiment_profile": PROFILE_ID,
             "candidates": [self._critic_view(item) for item in candidates],
             "previous_pass_summaries": [
                 {
-                    "pass": item["pass_number"], "ranking": item["ranking"],
-                    "observations": item["observations"], "actions": item["actions"],
+                    "pass": item["pass_number"],
+                    "critic_scope": item["critic_scope"],
+                    "ranking": item["ranking"],
+                    "group_winner_candidate_id": item["ranking"][0],
+                    "group_winner_hard_gates": item["hard_gates"][item["ranking"][0]],
+                    "group_winner_candidate_score": item["candidate_scores"][item["ranking"][0]],
+                    "pairwise_results": item["pairwise_results"],
+                    "observations": item["observations"],
                 } for item in previous_passes
             ],
             "active_owner_lessons": self._lesson_texts(
@@ -979,6 +1193,8 @@ class LocalExperimentService:
                 candidate_element_ids=candidate_element_ids,
                 candidate_regeneration_counts=regeneration_counts,
             )
+            if pass_number < 3 and normalized["actions"]:
+                raise ValueError("local grouped critic screens cannot request generation actions")
             if pass_number == 3 and normalized.get("final_selection"):
                 chosen = normalized["final_selection"]["candidate_id"]
                 if not layout_by_id[chosen]["passed"]:
@@ -987,25 +1203,51 @@ class LocalExperimentService:
 
         images = []
         for candidate in candidates:
+            analysis = candidate["analysis_preview"]
             data = self.store.artifact(
-                candidate["preview"]["path"], expected_sha256=candidate["preview"]["sha256"],
+                analysis["path"], expected_sha256=analysis["sha256"],
             )
+            inspected = inspect_media(data, "image/jpeg")
+            if (inspected["width"], inspected["height"]) != (
+                analysis["width"], analysis["height"],
+            ):
+                raise ValueError("critic analysis artifact dimensions do not match provenance")
             images.append({
                 "candidate_id": candidate["candidate_id"], "bytes": data,
-                "sha256": candidate["preview"]["sha256"], "mime_type": "image/jpeg",
-                "width": 1080, "height": 1080,
+                "sha256": analysis["sha256"], "mime_type": "image/jpeg",
+                "width": analysis["width"], "height": analysis["height"],
             })
+        output_schema = critic_output_schema(pass_number, candidate_ids, element_ids)
+        if pass_number < 3:
+            output_schema["properties"]["actions"]["maxItems"] = 0
+        if pass_number == 2:
+            output_schema["properties"]["pairwise"]["maxItems"] = 0
+        elif pass_number == 3:
+            output_schema["properties"]["pairwise"]["maxItems"] = 1
+        phase_instruction = (
+            "Screen only this first group of three candidates. Return no generation actions."
+            if pass_number == 1
+            else "Screen only this second group of two candidates independently; leave pairwise and actions empty."
+            if pass_number == 2
+            else "Re-evaluate and compare only the two supplied group winners using the prior structured summaries."
+        )
         result = self._provider_call(
             target_id=run["run_id"], mode="content_result_critic",
             system_prompt=(
                 self.critic_context
-                + "\n\nEvaluate only the supplied anonymized Universal candidates and exact JPEGs. "
-                "Apply hard gates before scoring. Return concise structured observations, never hidden reasoning."
+                + "\n\nEvaluate only the supplied anonymized Universal candidates and their exact "
+                "persisted 480x480 analysis JPEGs. Each analysis image is a deterministic "
+                "4/9-scale derivative of the digest-bound authoritative 1080x1080 render. "
+                "The supplied render.asset_provenance is authoritative: a visible saved Studio "
+                "logo with captured_saved_studio_identity authority is approved and must not fail "
+                "the Project/brand/media gate merely because it has no candidate asset UUID. "
+                f"{phase_instruction} Apply hard gates before scoring. Return concise structured "
+                "observations, never hidden reasoning."
             ),
             input_payload=payload,
-            output_schema=critic_output_schema(pass_number, candidate_ids, element_ids),
+            output_schema=output_schema,
             idempotency_key=f"{run['run_id']}:critic-pass-{pass_number}",
-            prompt_version=f"local-universal-critic-pass-{pass_number}-v1",
+            prompt_version=f"local-universal-critic-pass-{pass_number}-v2",
             images=images, response_validator=validate,
         )
         normalized = dict(result["response"])
@@ -1013,6 +1255,7 @@ class LocalExperimentService:
         by_id = {item["candidate_id"]: item for item in normalized["evaluations"]}
         record = {
             "pass_id": pass_id, "run_id": run["run_id"], "pass_number": pass_number,
+            "critic_scope": payload["critic_scope"],
             "active_candidate_ids": candidate_ids,
             "hard_gates": {candidate_id: by_id[candidate_id]["hard_gates"] for candidate_id in candidate_ids},
             "element_scores": {candidate_id: by_id[candidate_id]["element_scores"] for candidate_id in candidate_ids},
@@ -1108,8 +1351,8 @@ class LocalExperimentService:
                 return run
             brief = self.get_brief(run["brief_id"])
             try:
-                self._checkpoint(run_id, "initial_candidates", 10, boundary="asset_preflight")
-                asset_by_strategy = self._preflight_assets(run, brief["document"])
+                self._checkpoint(run_id, "initial_candidates", 10, boundary="asset_resolution")
+                asset_by_strategy = self._resolve_candidate_assets(run, brief["document"])
                 run = self.get_run(run_id)
                 initial: list[dict[str, Any]] = []
                 for index, template in enumerate(self.templates, 1):
@@ -1119,37 +1362,39 @@ class LocalExperimentService:
                     ))
                 if len(initial) != 5 or len({item["preview"]["sha256"] for item in initial}) != 5:
                     raise ValueError("five initial Universal candidates must have distinct deterministic renders")
-                photo_assets = [item["asset_id"] for item in initial if item["template_id"] in PHOTO_STRATEGIES]
-                if len(photo_assets) != len(set(photo_assets)):
-                    raise ValueError("photo strategies must use distinct approved Project assets")
+                media_signatures: list[str] = []
+                for item in initial:
+                    if item["template_id"] not in PHOTO_STRATEGIES:
+                        continue
+                    if item["asset_id"] is not None:
+                        media_signatures.append(f"asset:{item['asset_id']}")
+                    else:
+                        background = item["configuration"]["background"]
+                        if background["mode"] != "texture":
+                            raise ValueError("asset-free strategy must use a deterministic texture fallback")
+                        media_signatures.append(f"texture:{background['texture']}")
+                if len(media_signatures) != len(set(media_signatures)):
+                    raise ValueError("photo-capable strategies must retain distinct media directions")
 
-                self._checkpoint(run_id, "critic_pass_1", 42, candidate_ids=[item["candidate_id"] for item in initial])
-                pass1 = self._critic_pass(run=run, candidates=initial, pass_number=1, previous_passes=[])
-                active, consumed1 = self._apply_actions(
-                    run=run, brief=brief, active=initial, critic_pass=pass1,
-                    remaining_budget=4, pass_limit=2,
+                first_group, second_group = initial[:3], initial[3:]
+                self._checkpoint(
+                    run_id, "critic_pass_1", 42,
+                    candidate_ids=[item["candidate_id"] for item in first_group],
+                    critic_scope="screening_group_1_of_2",
                 )
-                self._checkpoint(run_id, "critic_pass_2", 66, improvement_calls=consumed1)
-                pass2 = self._critic_pass(run=run, candidates=active, pass_number=2, previous_passes=[pass1])
-                active, consumed2 = self._apply_actions(
-                    run=run, brief=brief, active=active, critic_pass=pass2,
-                    remaining_budget=4 - consumed1, pass_limit=4 - consumed1,
+                pass1 = self._critic_pass(
+                    run=run, candidates=first_group, pass_number=1, previous_passes=[],
                 )
-                if consumed1 + consumed2 > 4:
-                    raise RuntimeError("critic improvement budget exceeded four calls")
-                ranked_active: list[dict[str, Any]] = []
-                active_by_parent = {
-                    (item.get("parent_candidate_id") or item["candidate_id"]): item for item in active
-                }
-                active_by_id = {item["candidate_id"]: item for item in active}
-                for candidate_id in pass2["ranking"]:
-                    chosen = active_by_id.get(candidate_id) or active_by_parent.get(candidate_id)
-                    if chosen is not None and all(item["candidate_id"] != chosen["candidate_id"] for item in ranked_active):
-                        ranked_active.append(chosen)
-                for candidate in active:
-                    if all(item["candidate_id"] != candidate["candidate_id"] for item in ranked_active):
-                        ranked_active.append(candidate)
-                finalists = ranked_active[:2]
+                self._checkpoint(
+                    run_id, "critic_pass_2", 66,
+                    candidate_ids=[item["candidate_id"] for item in second_group],
+                    critic_scope="screening_group_2_of_2",
+                )
+                pass2 = self._critic_pass(
+                    run=run, candidates=second_group, pass_number=2, previous_passes=[],
+                )
+                by_id = {item["candidate_id"]: item for item in initial}
+                finalists = [by_id[pass1["ranking"][0]], by_id[pass2["ranking"][0]]]
                 if len(finalists) != 2:
                     raise ValueError("critic Pass 3 requires exactly two finalists")
                 self._checkpoint(run_id, "critic_pass_3", 84, finalist_ids=[item["candidate_id"] for item in finalists])
@@ -1171,7 +1416,7 @@ class LocalExperimentService:
                         "asset_url": result["asset_url"], "sha256": result["asset_sha256"],
                         "mime_type": "image/jpeg", "width": 1080, "height": 1080,
                     },
-                    "improvement_calls": consumed1 + consumed2, "updated_at": utc_now(),
+                    "improvement_calls": 0, "updated_at": utc_now(),
                 }
                 self.store.append("runs", run_id, completed)
                 return completed
@@ -1213,6 +1458,7 @@ class LocalExperimentService:
             "candidate_png_artifact": candidate["png"],
             "universal_manifest": candidate["universal_manifest"],
             "configuration": candidate["configuration"], "studio_content": candidate["content"],
+            "experiment_adapter": candidate["experiment_adapter"],
             "asset_provenance": candidate["asset_provenance"],
             "layout_audit": candidate["layout_audit"],
             "resolved_setting_deltas": candidate["resolved_setting_deltas"],

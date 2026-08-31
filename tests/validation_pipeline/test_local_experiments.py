@@ -88,7 +88,7 @@ class FakeStructuredProvider:
                     {"left": compared[0], "right": compared[2], "winner": compared[0], "reason_codes": ["clearer"]},
                     {"left": compared[1], "right": compared[2], "winner": compared[1], "reason_codes": ["clearer"]},
                 ]
-            elif len(compared) == 2:
+            elif len(compared) == 2 and input_payload["pass"] == 3:
                 pairs = [{"left": compared[0], "right": compared[1], "winner": compared[0], "reason_codes": ["clearer"]}]
             response = {
                 "pass": input_payload["pass"], "evaluations": evaluations,
@@ -166,6 +166,82 @@ class LocalExperimentFlowTests(unittest.TestCase):
         initial = [item for item in debug["candidates"] if item["generation_kind"] == "initial"]
         self.assertEqual(5, len(initial))
         self.assertEqual(5, len({item["preview"]["sha256"] for item in initial}))
+        self.assertTrue(all(
+            item["preview"]["width"] == item["preview"]["height"] == 1080
+            and item["analysis_preview"]["width"] == item["analysis_preview"]["height"] == 480
+            and item["analysis_preview"]["source_preview_sha256"] == item["preview"]["sha256"]
+            and item["analysis_preview"]["source_png_sha256"] == item["png"]["sha256"]
+            and item["analysis_preview"]["byte_count"] < item["preview"]["byte_count"]
+            and item["analysis_preview"]["source_width"]
+            * item["analysis_preview"]["source_height"]
+            >= 5 * item["analysis_preview"]["width"]
+            * item["analysis_preview"]["height"]
+            for item in initial
+        ))
+        self.assertTrue(all(
+            "saved Natal logo is visible" in item["document"]["alt_text"]
+            and "no logo" not in item["document"]["alt_text"].casefold()
+            and next(
+                component for component in item["document"]["visual_components"]
+                if component["role"] == "logo"
+            )["content"].startswith("The saved canonical Natal logo")
+            and any(
+                transformation["field"] == "alt_text"
+                for transformation in item["document_transformations"]
+            )
+            for item in initial
+        ))
+        self.assertTrue(all(
+            (
+                next(
+                    component for component in item["document"]["visual_components"]
+                    if component["role"] == "bullet_list"
+                )["content"].startswith("Visible bullet list:")
+            ) == item["configuration"]["bullets"]["enabled"]
+            for item in initial
+        ))
+        candidate_calls = [
+            item for item in self.provider.calls if item["mode"] == "content_candidate_generation"
+        ]
+        self.assertTrue(all(
+            call["payload"]["resolved_render_contract"]["logo"]["visible"]
+            and call["payload"]["resolved_render_contract"]["logo"]["authority"]
+            == "captured_saved_studio_identity"
+            for call in candidate_calls[:5]
+        ))
+        critic_calls = [
+            item for item in self.provider.calls if item["mode"] == "content_result_critic"
+        ]
+        self.assertEqual([3, 2, 2], [len(item["images"]) for item in critic_calls])
+        self.assertEqual(
+            ["screening_group_1_of_2", "screening_group_2_of_2", "group_winner_comparison"],
+            [item["payload"]["critic_scope"] for item in critic_calls],
+        )
+        self.assertEqual([], critic_calls[1]["payload"]["previous_pass_summaries"])
+        self.assertEqual(2, len(critic_calls[2]["payload"]["previous_pass_summaries"]))
+        self.assertTrue(all(
+            candidate["render"]["asset_provenance"]["logo"]["authority"]
+            == "captured_saved_studio_identity"
+            for call in critic_calls for candidate in call["payload"]["candidates"]
+        ))
+        first_winner = critic_calls[0]["payload"]["candidates"][0]["candidate_id"]
+        second_winner = critic_calls[1]["payload"]["candidates"][0]["candidate_id"]
+        self.assertEqual(
+            [first_winner, second_winner],
+            [item["candidate_id"] for item in critic_calls[2]["payload"]["candidates"]],
+        )
+        self.assertEqual(
+            [first_winner, second_winner],
+            [
+                item["group_winner_candidate_id"]
+                for item in critic_calls[2]["payload"]["previous_pass_summaries"]
+            ],
+        )
+        self.assertTrue(all(
+            image["width"] == image["height"] == 480
+            and Image.open(BytesIO(image["bytes"])).size == (480, 480)
+            for call in critic_calls for image in call["images"]
+        ))
         self.assertEqual(4, len({item["asset_id"] for item in initial if item["asset_id"]}))
         self.assertEqual([1, 2, 3], [item["pass_number"] for item in debug["critic_passes"]])
         self.assertTrue(all(item["layout_audit"]["passed"] for item in initial))
@@ -268,17 +344,33 @@ class LocalExperimentFlowTests(unittest.TestCase):
         self.assertFalse(created)
         self.assertEqual(run["run_id"], replay["run_id"])
 
-    def test_asset_shortage_fails_before_candidate_provider_calls(self) -> None:
+    def test_missing_optional_photos_use_distinct_deterministic_texture_fallbacks(self) -> None:
         project, brief = self._approved_brief()
         studio = self.workspace.detail()
         run, _ = self.service.create_run(
             request_id=str(uuid4()), brief_id=brief["brief_id"], platform="instagram",
             studio_state_sha256=studio["state_sha256"], requested_by="test-owner",
         )
-        failed = self.service.execute_run(run["run_id"])
-        self.assertEqual("failed", failed["status"])
-        self.assertIn("more distinct approved real photo", failed["error_message"])
-        self.assertEqual([], [item for item in self.provider.calls if item["mode"] == "content_candidate_generation"])
+        completed = self.service.execute_run(run["run_id"])
+        self.assertEqual("completed", completed["status"], completed.get("error_message"))
+        initial = [
+            item for item in self.service.debug(run["run_id"])["candidates"]
+            if item["generation_kind"] == "initial"
+        ]
+        photo_capable = [item for item in initial if item["template_id"] != "direct_offer"]
+        self.assertEqual([None] * 4, [item["asset_id"] for item in photo_capable])
+        self.assertEqual(4, len({
+            item["configuration"]["background"]["texture"] for item in photo_capable
+        }))
+        self.assertTrue(all(
+            item["configuration"]["background"]["mode"] == "texture"
+            and item["asset_provenance"]["origin"] == "deterministic_studio_texture"
+            and item["asset_provenance"]["no_synthetic_people"]
+            for item in photo_capable
+        ))
+        self.assertEqual(5, len([
+            item for item in self.provider.calls if item["mode"] == "content_candidate_generation"
+        ]))
 
 
 class LocalCodexProviderTests(unittest.TestCase):
@@ -302,8 +394,17 @@ class LocalCodexProviderTests(unittest.TestCase):
         self.assertEqual({"ok": True}, result["response"])
         self.assertIn("--ephemeral", captured["command"])
         self.assertEqual("read-only", captured["command"][captured["command"].index("--sandbox") + 1])
+        self.assertEqual(
+            'model_reasoning_effort="xhigh"',
+            captured["command"][captured["command"].index("--config") + 1],
+        )
         self.assertNotIn("OPENAI_API_KEY", captured["env"])
         self.assertNotEqual(Path.cwd(), Path(captured["cwd"]))
+        self.assertEqual("xhigh", result["invocation"]["reasoning_effort"])
+
+    def test_reasoning_effort_is_bounded(self) -> None:
+        with self.assertRaisesRegex(ValueError, "reasoning effort"):
+            LocalCodexStructuredProvider("codex-test", reasoning_effort="ultra")
 
     def test_fresh_retry_and_exact_image_attachment(self) -> None:
         calls = []

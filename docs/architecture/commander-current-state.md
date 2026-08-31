@@ -21,20 +21,51 @@ Local Brief generation/correction/retry/explicit approval now uses
 ID, fixed Instagram platform, and the saved Studio state digest. The server
 captures the saved export, resolves all task/configuration/skills/strategies/
 lessons, and refuses unsaved drafts. Project asset upload, Pexels sourcing, and
-owner approval are local-only; the four photographic strategies require
-distinct approved real photos and fail preflight before model calls when the
-pool is insufficient. Bundled Tune images and synthetic people are excluded.
+owner approval are local-only optional enrichment. Photo-capable strategies use
+distinct approved real photos when available; otherwise adapter v4 assigns four
+distinct deterministic Studio textures with explicit non-human provenance.
+Missing assets or `PEXELS_API_KEY` no longer block one-click generation.
+Bundled Tune images and synthetic people remain excluded.
 
 The authenticated Codex CLI boundary uses empty temporary working directories,
-ephemeral sessions, the read-only sandbox, strict output schemas, exact JPEG
-critic attachments, one fresh retry, timeouts, and sanitized digest provenance.
+ephemeral sessions, the read-only sandbox, strict output schemas, exact
+persisted JPEG critic attachments, one fresh retry, timeouts, and sanitized
+digest provenance. Local structured calls retain `xhigh` reasoning. Each
+candidate keeps its authoritative 1080×1080 PNG and JPEG while the critic
+receives a separate deterministic 480×480 analysis JPEG: approximately five
+times fewer pixels and, on the incident set, 5.2 times fewer encoded bytes.
+The derivative persists its source digests, exact rational scale, dimensions,
+and encoder version; full-resolution deterministic gates remain authoritative.
 The `universal_ad_experiment_v1` adapter maps the five existing strategies to
-declared bounded Universal setting patches. Five isolated initial candidates,
-at most four improvements across Passes 1–2, two Pass-3 finalists, and one
-eligible selection or no Result reuse the canonical candidate and critic
-skills. Every 1080×1080 PNG is audited for role coverage, overflow,
+declared bounded Universal setting patches. Five isolated initial candidates
+enter three `xhigh` critic calls with exact attachment counts `[3, 2, 2]`: an
+independent three-candidate screen, an independent two-candidate screen, then a
+comparison of only both group winners with both structured summaries. The
+local screens permit no improvement actions. One eligible selection or no
+Result reuses the canonical candidate and critic skills. Every 1080×1080 PNG is audited for role coverage, overflow,
 truncation, collision, safe area, contrast, semantic flow, and byte-exact
 offer/CTA before its deterministic JPEG can be scored.
+
+A disposable real-Codex canary replayed the failed incident inputs through this
+exact grouped boundary without touching the experiment store. At `xhigh`, all
+three calls completed on their first attempts in 322.47, 218.87, and 232.84
+seconds, each below the unchanged 420-second per-attempt limit. The five
+analysis artifacts totaled 147,914 bytes instead of 771,017 bytes for the
+full-size JPEGs, a 5.213× reduction. The final comparison returned no eligible
+selection for those historical candidates, so quality still failed closed
+after transport completed rather than timing out.
+
+Failed local Results now load their bounded debug evidence automatically even
+without a final Creative. The Console displays all persisted candidate
+previews, the correct three/two screening score for each, failed gates, score
+dimensions, eligibility, reason codes, rankings, pairwise results,
+observations, and the explicit no-selection comparison. The incident also
+exposed and fixed a semantic/render mismatch: candidate metadata had called the
+captured canonical Natal logo empty and described hidden bullet lists. Adapter
+v4 injects the resolved optional-role contract before generation,
+deterministically aligns alt text and role descriptions to the exact render,
+records those transformations, and supplies captured saved-logo provenance to
+the critic as approved Studio identity.
 
 Universal Studio now has eight stable roles: background, sticker, hero title,
 supporting text, required offer, bullets, CTA, and logo. The configuration
@@ -42,20 +73,29 @@ contract remains `ptw.studio.universal-ad-config.v4`; content is v2, workspace
 v5, component settings v2, immutable version v2, export v4, agent context v2,
 and the internal template is v9. Ready leaves the editable workspace unchanged,
 appends owner feedback/outcomes, and creates a digest-manifested immutable ZIP
-with the critic-identical JPEG and canonical PNG. Improve creates an immutable
+with the authoritative full-size JPEG and canonical PNG. Improve creates an immutable
 child from the selected candidate plus only the owner revision instruction.
 
-The Social Posts workspace exposes local asset controls and a `Learning &
-evidence` panel with gate rates, score deltas, setting changes, outcomes,
-releases, and the lesson queue. Feedback proposes bounded lessons for the Brief
-generator, candidate generator, critic, and Universal layout policy. Only
-active owner-approved lessons enter later digest-locked snapshots; pending and
-rejected proposals do not. The reserved agent authority is rejected. Evidence
-is explicitly internal and is not presented as market performance.
+Social Posts now has one compact Project selector instead of duplicating
+Project search, creation, renaming, artifact filters, and creation controls in a
+second sidebar. Historical posts remain selectable in the result toolbar, and
+an empty Project presents exactly one new-post action. The page title and
+decorative section labels are absent. Local asset controls and the `Learning &
+evidence` panel appear only beneath a selected completed Result, with gate
+rates, score deltas, setting changes, outcomes, releases, and the lesson queue.
+Project- and run-scoped requests are withheld until the asynchronously loaded
+Project catalogue validates URL-backed selections. A stale deep link left by a
+local reset is replaced with the first available Project and its current run,
+or cleared for an empty authority, without emitting expected 404 requests.
+Feedback proposes bounded lessons for the Brief generator, candidate generator,
+critic, and Universal layout policy. Only active owner-approved lessons enter
+later digest-locked snapshots; pending and rejected proposals do not. The
+reserved agent authority is rejected. Evidence is explicitly internal and is
+not presented as market performance.
 
-Local verification passes 85 Validation tests with four disposable-PostgreSQL
-tests skipped, 5 Owner Gateway tests, 32 web unit tests and the production
-build, all 18 Playwright checks across desktop Chrome, 360-pixel Chrome, and
+Local verification passes 86 Validation tests with four disposable-PostgreSQL
+tests skipped, 5 Owner Gateway tests, 38 web unit tests and the production
+build, all 21 Playwright checks across desktop Chrome, 360-pixel Chrome, and
 iPhone WebKit, all 7 Commander tests and the demo, the six-variant focused
 Studio visual audit, canonical PTW skill verification, Python compilation, and
 `git diff --check`. Docker Desktop is installed but its daemon socket is absent,
@@ -69,9 +109,9 @@ only `.local/studio-workspace`, `.local/studio-tune`, and
 `.local/owner-experiments`, proves them empty, and preserves unrelated `.local`
 diagnostics and archives. The confirmed reset was executed after stopping the
 checkout's loopback launcher; all three allowlisted stores are empty and the
-focused `.local/studio-audit-local-loop` evidence remains present. A real acceptance run still requires an owner-approved
-Brief and four approved real-photo assets; automated tests do not impersonate
-that approval.
+focused `.local/studio-audit-local-loop` evidence remains present. A real
+acceptance run still requires an owner-approved Brief; approved photos remain
+optional enrichment. Automated tests do not impersonate that approval.
 
 ## Prior milestone
 

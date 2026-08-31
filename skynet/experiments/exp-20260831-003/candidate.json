@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "hook": "Після візиту — не тиша.",
+  "headline": "Після візиту — не тиша.",
+  "primary_text": "Natal оновлює статус клієнта й допомагає запустити доречний сценарій повернення.",
+  "supporting_text": "Візит завершено → Статус: Ризик → Нагадування про повторний запис",
+  "offer": "90 ДНІВ БЕЗКОШТОВНО",
+  "cta": "СПРОБУВАТИ NATAL",
+  "caption": "Візит завершено — а робота з поверненням тільки починається. Natal оновлює сегменти Активний, Ризик і Відтік після кожного візиту. Для клієнта в ризику можна запустити нагадування, пропозицію або повторний запис. 90 ДНІВ БЕЗКОШТОВНО. СПРОБУВАТИ NATAL",
+  "alt_text": "Квадратна реклама Natal на темному фоні. Великий заголовок «Після візиту — не тиша». Нижче три послідовні картки: візит завершено, статус клієнта змінився на «Ризик», далі — нагадування про повторний запис. Унизу окремо показані пропозиція «90 ДНІВ БЕЗКОШТОВНО» і кнопка «СПРОБУВАТИ NATAL».",
+  "desired_emotion": "Контроль і своєчасність замість тривоги через непомітний відтік.",
+  "visual_concept": "Детермінована пласка процес-схема без фотографії: три великі послідовні картки показують завершений візит, оновлення статусу до «Ризик» і один доречний сценарій — нагадування про повторний запис. Середня картка та маршрут виділені фірмовим блакитним, щоб момент ризику був зрозумілий за один погляд. Заголовок, механізм, точна пропозиція, CTA та логотип залишаються окремими ієрархічними блоками.",
+  "media_request": {
+    "kind": "non_human_graphic",
+    "query": "deterministic native three-stage retention process diagram; no people, photo, dashboard, or embedded raster text",
+    "source_asset_id": null,
+    "reason": "The approved packet explicitly permits a non-human graphic and prefers zero-call deterministic native geometry to demonstrate the supplied process."
+  },
+  "visual_components": [
+    {
+      "role": "background",
+      "content": "Near-black square with a restrained blue-grey radial field and faint process-route grid; no photograph or decorative collage.",
+      "source_ids": []
+    },
+    {
+      "role": "primary_subject",
+      "content": "One three-stage route: completed visit, status update with Risk emphasized, and a reminder for repeat booking.",
+      "source_ids": []
+    },
+    {
+      "role": "headline_block",
+      "content": "Large left-aligned headline: «Після візиту — не тиша.»",
+      "source_ids": []
+    },
+    {
+      "role": "supporting_text_block",
+      "content": "Natal оновлює статус клієнта й допомагає запустити доречний сценарій повернення.",
+      "source_ids": []
+    },
+    {
+      "role": "offer_block",
+      "content": "Exact protected offer «90 ДНІВ БЕЗКОШТОВНО» in its own outlined block.",
+      "source_ids": []
+    },
+    {
+      "role": "cta_block",
+      "content": "Exact protected CTA «СПРОБУВАТИ NATAL» in a solid cyan action block.",
+      "source_ids": []
+    },
+    {
+      "role": "brand_mark",
+      "content": "Approved Natal logo at the upper-left, with aspect ratio preserved.",
+      "source_ids": []
+    },
+    {
+      "role": "lighting_style",
+      "content": "Crisp flat-vector contrast with cyan signal accents, white type, and no simulated photographic lighting.",
+      "source_ids": []
+    },
+    {
+      "role": "composition",
+      "content": "Top brand and promise, middle horizontal three-card process with directional connectors, bottom offer and CTA; all inside a 72-pixel safe boundary.",
+      "source_ids": []
+    }
+  ]
+}

@@ -120,6 +120,9 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
   const [projectError, setProjectError] = useState('')
   const [language, setLanguage] = useState<Language>(initialLanguage)
   const api = useMemo(() => new ApiClient(user), [user])
+  const validatedProjectId = projects?.some((item) => item.project_id === projectId)
+    ? projectId
+    : null
 
   const refreshProjects = async (preferredId?: string) => {
     const value = await api.get<{ items: ValidationProject[] }>('/api/v1/projects?limit=100')
@@ -128,8 +131,10 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
     const nextId = value.items.some((item) => item.project_id === requested)
       ? requested
       : value.items[0]?.project_id || null
+    const selectionChanged = requested !== nextId
     setProjectId(nextId)
-    writeConsoleLocation(page, nextId, page === 'result' ? runId : null)
+    if (selectionChanged) setRunId(null)
+    writeConsoleLocation(page, nextId, page === 'result' && !selectionChanged ? runId : null)
     setProjectError('')
   }
 
@@ -195,13 +200,12 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
   return <Shell page={page} onPage={navigate} language={language} onLanguage={changeLanguage}>
     {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Створення та ревізії запускають реальних провайдерів.' : 'Create and Improve actions invoke real providers.'}</span></div>}
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label={language === 'uk' ? 'Вийти' : 'Sign out'}><LogOut /></button></div>
-    {page === 'briefs' && <ProjectSwitcher projects={projects} projectId={projectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
+    {page === 'briefs' && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
     {page !== 'studio' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
-    {page === 'briefs' && <ProductBriefView api={api} projectId={projectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onOpenResult={() => navigate('result')} language={language} localDemo={localDemo} />}
+    {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onOpenResult={() => navigate('result')} language={language} />}
     {page === 'result' && <ResultView
-      api={api} projectId={projectId} projects={projects} runId={runId}
-      onProjectSelect={selectProject} onNewProject={newProject}
-      onRenameProject={renameProject} onRunSelect={selectRun}
+      api={api} projectId={validatedProjectId} projects={projects} runId={runId}
+      onProjectSelect={selectProject} onRunSelect={selectRun}
       onOpenBriefs={() => navigate('briefs')} language={language}
       localDemo={localDemo} liveProduction={liveProduction}
     />}

@@ -1,0 +1,114 @@
+{
+  "schema": "ptw.skynet.visual-audit.v1",
+  "experiment_id": "exp-20260831-007",
+  "candidate_id": "cand-20260831-007-g",
+  "audited_at": "2026-08-31T12:25:58Z",
+  "status": "passed",
+  "candidate_contract": {
+    "candidate_v2": "passed",
+    "normalized_sha256": "64dc453a110dc61d078a866f2f1b34c8300937240ca2f912fa572324ecb8e2d8",
+    "required_visual_roles": [
+      "background",
+      "primary_subject",
+      "headline_block",
+      "supporting_text_block",
+      "offer_block",
+      "cta_block",
+      "brand_mark",
+      "lighting_style",
+      "composition"
+    ],
+    "required_visual_role_order": "passed",
+    "offer_byte_exact": true,
+    "cta_byte_exact": true,
+    "media_kind": "non_human_graphic",
+    "generated_source_asset_id": "skynet-genimg-exp007-still-life-v1",
+    "synthetic_people_or_faces": false,
+    "embedded_generated_copy": false,
+    "literal_product_screenshot_claimed": false
+  },
+  "generated_media_gate": {
+    "path": "assets/return-loop-still-life-v1.png",
+    "width": 1254,
+    "height": 1254,
+    "inspected": true,
+    "people_or_faces": false,
+    "text_or_numbers": false,
+    "logos_or_watermarks": false,
+    "screens_or_ui": false,
+    "unsupported_proof": false,
+    "left_copy_space_clean": true,
+    "return_loop_legible_without_copy": true
+  },
+  "viewports": [
+    {
+      "name": "raw_master",
+      "path": "renders/cand-20260831-007-g-v1.png",
+      "width": 1080,
+      "height": 1080,
+      "inspected": true,
+      "clipping": false,
+      "overflow": false,
+      "missing_required_block": false,
+      "semantic_overlap": false,
+      "unsafe_required_bounds": false,
+      "text_alignment": "passed",
+      "notes": "Logo, three-line headline, four-line mechanism, offer, and CTA are fully visible with positive semantic gaps. The cyan loop intentionally enters behind the final headline line but retains strong dark-on-cyan contrast; it does not occlude ink or change reading order. The physical calendar and tools remain clear on the right."
+    },
+    {
+      "name": "small_screen",
+      "path": "audit/preview-360.jpg",
+      "width": 360,
+      "height": 360,
+      "inspected": true,
+      "clipping": false,
+      "overflow": false,
+      "missing_required_block": false,
+      "semantic_overlap": false,
+      "unsafe_required_bounds": false,
+      "text_alignment": "passed",
+      "notes": "The Natal mark, customer-outcome headline, cyan loop, calendar, offer, and CTA retain the primary hierarchy. The mechanism line remains readable as secondary copy; no generated calendar marks become false text at this scale."
+    }
+  ],
+  "required_frame_bounds_pixels": {
+    "hero_media": {"left": 0, "top": 0, "right": 1080, "bottom": 1080},
+    "copy_scrim": {"left": 0, "top": 0, "right": 626, "bottom": 1080},
+    "logo": {"left": 65, "top": 70, "right": 256, "bottom": 135},
+    "headline": {"left": 65, "top": 216, "right": 583, "bottom": 475},
+    "body": {"left": 70, "top": 529, "right": 502, "bottom": 691},
+    "offer_surface": {"left": 65, "top": 745, "right": 497, "bottom": 831},
+    "cta_surface": {"left": 65, "top": 886, "right": 475, "bottom": 983}
+  },
+  "studio_geometry_regression": {
+    "command": "TMPDIR=runtime/audit-tmp-exp007 PYTHONDONTWRITEBYTECODE=1 ../.venv/bin/python ../skills/studio-ui-visual-audit/scripts/audit_universal_studio.py",
+    "status": "passed",
+    "variants_passed": [
+      "default",
+      "high_density",
+      "centered_minimal",
+      "editorial_bottom_left",
+      "urgent_bottom_right",
+      "logo_no_background"
+    ]
+  },
+  "replay": {
+    "post_freeze_replays": 3,
+    "master_sha256_before": "5f3ee7c9a9a188ed79d86f6fa3a9be26cd9bf628064043993313b67f6a0d84da",
+    "master_sha256_after": "5f3ee7c9a9a188ed79d86f6fa3a9be26cd9bf628064043993313b67f6a0d84da",
+    "delivery_sha256_before": "1712031c52105e7d53e18fdd95ac69b77a880e8050cb1f2d950c6ec90ebe7484",
+    "delivery_sha256_after": "1712031c52105e7d53e18fdd95ac69b77a880e8050cb1f2d950c6ec90ebe7484",
+    "byte_identical": true
+  },
+  "compiler_cache_cleanup": {
+    "removed_kib_approximate": 222908,
+    "removed_paths": [
+      "runtime/swift-exp007/module-cache",
+      "runtime/swift-exp007/tmp"
+    ],
+    "recoverable_from_source": true,
+    "retained_renderer_path": "runtime/swift-exp007/render-exp007",
+    "post_cleanup_replay_byte_identical": true
+  },
+  "formal_critic_invoked": false,
+  "formal_critic_reason": "The strict critic requires exactly five generator-blind initial candidates; this mandatory-recovery-controlled candidate is intentionally excluded from that set."
+}

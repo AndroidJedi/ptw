@@ -1,0 +1,48 @@
+{
+  "schema": "ptw.skynet.visual-audit.v1",
+  "experiment_id": "exp-20260831-002",
+  "candidate_id": "cand-20260831-002-b",
+  "audited_at": "2026-08-31T10:20:28Z",
+  "evidence": {
+    "full_resolution": "renders/cand-20260831-002-b-v1.jpg",
+    "small_screen": "audit/preview-360.jpg",
+    "viewports": ["1080x1080 raw JPEG", "360x360 Lanczos preview"]
+  },
+  "hard_gates": {
+    "profile_is_exact_1080_square_jpeg": true,
+    "jpeg_magic_and_terminal_marker_valid": true,
+    "brief_is_byte_identical_to_experiment_001": true,
+    "protected_offer_byte_exact": true,
+    "protected_cta_byte_exact": true,
+    "required_nine_visual_roles_present_in_order": true,
+    "required_blocks_visible": true,
+    "headline_clipping_or_truncation_absent": true,
+    "text_collision_or_overlap_absent": true,
+    "semantic_order_and_positive_gaps_present": true,
+    "safe_canvas_bounds_respected": true,
+    "small_screen_core_hierarchy_readable": true,
+    "canonical_logo_unchanged_on_light_surface": true,
+    "synthetic_people_or_faces_absent": true,
+    "background_embedded_copy_and_logos_absent": true,
+    "unsupported_metrics_proof_urgency_scarcity_or_guarantees_absent": true,
+    "caption_and_alt_text_complete": true,
+    "deterministic_replay_byte_identical_after_fix": true
+  },
+  "observations": [
+    "The offer is the dominant light-surface block and remains immediately readable at 360 pixels.",
+    "The three status cards demonstrate the supplied mechanism without requiring a photograph or unsupported UI claim.",
+    "The large headline, mechanism line, offer, and CTA have distinct visual levels and do not collide.",
+    "The lower-right list is secondary at 360 pixels but duplicates no required protected field; the core message remains intact."
+  ],
+  "failures_and_corrections": [
+    "A seeded Perlin texture changed across the first replay and failed the byte-identity gate.",
+    "The Perlin source was removed and replaced by a fixed gradient plus two-scale line grid; two consecutive post-fix renders were byte-identical."
+  ],
+  "limitations": [
+    "This is a local contract and visual audit, not a formal content-result critic pass.",
+    "The formal critic requires exactly five independent initial candidates; candidate B was drafted after restoration loaded candidate A, so it is retained as a controlled baseline but not counted as generator-blind.",
+    "No external controlled competition feedback exists, so the control must not be called a winner."
+  ],
+  "decision": "competition_ready_control",
+  "retry_required": false
+}

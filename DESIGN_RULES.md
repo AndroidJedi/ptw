@@ -6,8 +6,9 @@ Updated: 2026-08-30
 ## Navigation and trust
 
 - Primary navigation is Product Briefs, Social posts, and owner-only Universal
-  Ad Studio. Social posts owns a compact searchable Project/artifact navigator;
-  Studio is a separate one-template workspace.
+  Ad Studio. Social posts has one compact Project selector and keeps historical
+  post selection in the selected-result toolbar; Project creation and renaming
+  stay in Product Briefs. Studio is a separate one-template workspace.
 - Old page locations and retired domain APIs do not exist.
 - Design first for 360 px and one-hand use with 44×44 CSS-pixel targets, no
   horizontal overflow, keyboard access, and reduced-motion support.

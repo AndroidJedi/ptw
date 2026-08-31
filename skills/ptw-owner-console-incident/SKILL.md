@@ -53,6 +53,11 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
   then two active candidates maximum; four improvement calls total; bounded
   slider changes; no generation in pass three; fail closed when nothing is
   eligible.
+- Local Universal critic exception: independently screen three action-free
+  candidates, then independently screen two action-free candidates, then send
+  only those two group winners plus both structured screening summaries.
+  Require exact attachment counts `[3, 2, 2]`; never send all five local images
+  in one call or carry Pass 1 summaries into the independent Pass 2 screen.
 - Instagram: approved/Pexels real image or explicitly allowed reviewed
   non-human graphic; one square `StudioRecipeV2`; exact 1080×1080 JPEG; safe
   crop, collision, hierarchy, legibility, brand, caption, and alt-text gates.
@@ -126,11 +131,14 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
   generator prompt and the release canary must use the same explicit role list.
 - Build critic attachments from the canonical persisted preview shape:
   `candidate_id`, `bytes`, `sha256`, `mime_type`, `width`, and `height`. Validate
-  the stored JPEG content type, exact dimensions, digest, byte bounds, and
-  candidate uniqueness before base64 transport. The release canary must use
-  this same pre-encoding field set; omitting `mime_type` can hide a production
-  mapper mismatch. Run complete critic-domain validation inside the provider's
-  two-attempt loop, not after a schema-only success.
+  the stored JPEG content type, profile-specific exact dimensions, digest, byte
+  bounds, and candidate uniqueness before transport. Production profiles use
+  their full-size preview. The loopback Universal experiment uses only its
+  persisted 480×480 analysis derivative bound to the authoritative 1080×1080
+  PNG and preview digests; never downscale ephemerally inside the provider. The
+  release canary must use this same pre-encoding field set; omitting
+  `mime_type` can hide a mapper mismatch. Run complete critic-domain validation
+  inside the provider's two-attempt loop, not after a schema-only success.
 - Candidate identifier arrays must be constrained in the structured output
   schema to the exact server-supplied UUID allowlist. Never leave
   `visual_components[*].source_ids` as unrestricted strings: tool IDs can then
@@ -141,6 +149,12 @@ healthy Gateway alone does not prove Product Brief or Result readiness.
   schema constraints; a generic marker object does not prove this boundary.
 - Preserve exact provider request IDs and failed retry provenance. Present an
   actionable failure and create a new immutable child run on owner retry.
+- A failed local Result with persisted candidates or critic passes must expose
+  its bounded intermediate evidence without requiring a final Result: all five
+  authenticated previews, each candidate's screening pass, hard-gate failures,
+  weighted and dimension scores, eligibility, reason codes, rankings,
+  pairwise results, observations, and explicit no-selection decision. Never
+  collapse completed critic work into only the terminal exception string.
 - For offer/CTA failures, compare byte-exact protected fields from Brief,
   candidate, recipe, rendered text, and final Result. Never truncate or rewrite
   protected copy to make a render pass.

@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import { translate, type Language } from '../i18n'
 
-export function PageHeader({ eyebrow, title, action }: { eyebrow: string; title: string; action?: ReactNode }) {
-  return <header className="page-header"><div><p>{eyebrow}</p><h1>{title}</h1></div>{action}</header>
+export function PageHeader({ title, action }: { title: string; action?: ReactNode }) {
+  return <header className="page-header"><div><h1>{title}</h1></div>{action}</header>
 }
 
 export function Loading({ language = 'uk' }: { language?: Language }) { return <div className="state" role="status">{translate(language, 'Loading…', 'Завантаження…')}</div> }

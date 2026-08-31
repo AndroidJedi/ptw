@@ -1,0 +1,28 @@
+{
+  "schema": "ptw.skynet.experiment.v1",
+  "experiment_id": "exp-20260831-007",
+  "candidate_id": "cand-20260831-007-g",
+  "packet_id": "packet-exp-20260831-007-g-v1",
+  "status": "competition_candidate_queued",
+  "generation": 1,
+  "iteration": 1,
+  "strategy": "object_metaphor@1",
+  "hypothesis": "A familiar calendar object transformed by one bold Natal-cyan return loop, paired with one short outcome and one supported mechanism line, will earn more attention and brand attribution than another rational feature diagram while remaining clear at small size.",
+  "control_scope": "Same approved Brief, protected offer, CTA, Natal brand kit, Instagram square profile, and no-person policy as the active set; one SKYNET-original strategy and Studio snapshot are digest-locked before media generation.",
+  "generator_blind": false,
+  "generator_blind_reason": "Mandatory recovery exposed textual summaries and pixels of prior candidates before this controlled research-informed experiment was selected.",
+  "generated_media": {
+    "source_asset_id": "skynet-genimg-exp007-still-life-v1",
+    "path": "experiments/exp-20260831-007/assets/return-loop-still-life-v1.png",
+    "sha256": "6fcfea00464b54635097c69d8ad82c64d81cc87b1433e11433ed5efe817aedb5",
+    "width": 1254,
+    "height": 1254,
+    "built_in_image_calls": 1,
+    "variants": 1,
+    "synthetic_people_or_faces": false,
+    "embedded_generated_copy": false
+  },
+  "external_feedback": null,
+  "telegram_event_id": "skynet.exp-20260831-007.g1i1.cand-g",
+  "queued_at": "2026-08-31T12:33:55Z"
+}

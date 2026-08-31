@@ -1,0 +1,338 @@
+{
+  "artifact_class": "diagnostic_only_not_a_candidate",
+  "brand_prominence_audit": {
+    "assigned_box": {
+      "height": 76,
+      "width": 180,
+      "x": 828,
+      "y": 270
+    },
+    "bbox_canvas_area_ratio": 0.00648,
+    "failures": [
+      "Natal wordmark contrast is below the required floor"
+    ],
+    "median_background_rgb": [
+      11,
+      29,
+      53
+    ],
+    "normalized_center": [
+      0.85,
+      0.2852
+    ],
+    "status": "failed",
+    "visible_bounds": [
+      828,
+      287,
+      1008,
+      329
+    ],
+    "visible_brand_pixels": 2228,
+    "visible_height": 42,
+    "visible_width": 180,
+    "wordmark_contrast_ratio": 1.46
+  },
+  "candidate_activation_authorized": false,
+  "configuration": {
+    "background": {
+      "color": "#10233F",
+      "focal_x": 0.5,
+      "focal_y": 0.5,
+      "image_fit": "cover",
+      "image_layout": "full",
+      "image_percent": 75,
+      "mode": "texture",
+      "overlay_color": "#07182E",
+      "overlay_opacity": 0.58,
+      "texture": "travertine",
+      "texture_intensity": 0.74
+    },
+    "bullets": {
+      "enabled": false,
+      "style": "check"
+    },
+    "cta": {
+      "background_color": "#FFD84D",
+      "position": "bottom_left",
+      "radius": 24,
+      "style": "filled",
+      "text_color": "#10233F"
+    },
+    "layout": {
+      "content_width": 720,
+      "content_x": 72,
+      "content_y": 270,
+      "gap": 19
+    },
+    "logo": {
+      "background_color": "#FFFFFF",
+      "background_enabled": false,
+      "enabled": true,
+      "position": "top_right",
+      "width": 180
+    },
+    "schema": "ptw.studio.universal-ad-config.v4",
+    "sticker": {
+      "enabled": false,
+      "object_scale": 0.9,
+      "offset_bottom": 0,
+      "offset_right": 0,
+      "position": "bottom_right",
+      "rotation": 5.0,
+      "width": 300
+    },
+    "typography": {
+      "alignment": "left",
+      "benefits_font_family": "Inter",
+      "font_family": "Cormorant Garamond",
+      "hero_size": 105,
+      "hero_weight": 700,
+      "supporting_size": 30,
+      "text_color": "#FFFFFF"
+    }
+  },
+  "content": {
+    "bullets": [],
+    "cta": "СПРОБУВАТИ NATAL",
+    "hero_title": "ХТО ПОВЕРНЕТЬСЯ?",
+    "offer": "90 ДНІВ БЕЗКОШТОВНО",
+    "schema": "ptw.studio.universal-ad-content.v2",
+    "supporting_text": "Після кожного візиту Natal оновлює статус. Для клієнта в «Ризику» запускайте доречний сценарій повернення."
+  },
+  "evaluation_id": "eval-20260831-003-human-story-fallback",
+  "layout_audit": {
+    "collisions": [],
+    "gates": {
+      "collision_absent": true,
+      "component_coverage": true,
+      "contrast": true,
+      "exact_cta": true,
+      "exact_offer": true,
+      "overflow_absent": true,
+      "safe_area": true,
+      "semantic_flow": true,
+      "truncation_absent": true
+    },
+    "missing_nodes": [],
+    "overflow_nodes": [],
+    "passed": true,
+    "schema": "ptw.studio.universal-ad-layout-audit.v1",
+    "truncated_nodes": [],
+    "unsafe_nodes": []
+  },
+  "limits": [
+    "This render bypasses CandidateV2 generation and is not eligible for competition submission.",
+    "The supplied human_story template and packet 005 still require real candid photography.",
+    "Geometry success does not establish visual-message coherence, advertising outcome, or permission to activate Candidate E."
+  ],
+  "outputs": {
+    "preview-120.png": {
+      "byte_count": 10970,
+      "height": 120,
+      "sha256": "149fdb329a8dd8f711dbdb13b81a83631f25fcec01f1bab0988296b3dc428593",
+      "width": 120
+    },
+    "preview-360.png": {
+      "byte_count": 48285,
+      "height": 360,
+      "sha256": "4e031787e6efef3994224596342ae2f03e7f6534d0c922a5c0e816c42961e0ad",
+      "width": 360
+    },
+    "render.png": {
+      "byte_count": 140870,
+      "height": 1080,
+      "sha256": "83373f60aa37692dc03566eb78be49e346ecb9fe4d1ce14dd92782b964619147",
+      "width": 1080
+    }
+  },
+  "protected_copy": {
+    "cta": "СПРОБУВАТИ NATAL",
+    "offer": "90 ДНІВ БЕЗКОШТОВНО"
+  },
+  "purpose": "Test the current canonical Universal adapter's human_story no-photo fallback without mutating or satisfying packet 005.",
+  "resolved_assets": {
+    "background_texture": "4f838bba8da393b0421560fdb883a977f47ca13d4a369a5138b97cf12e4d7f06",
+    "logo": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba"
+  },
+  "schema": "ptw.skynet.fallback-integrity-render.v1",
+  "selected_nodes": {
+    "cta": {
+      "box": {
+        "height": 0.07592592592592592,
+        "width": 0.3333333333333333,
+        "x": 0.06666666666666667,
+        "y": 0.8740740740740741
+      },
+      "text_layout": null,
+      "visible_bounds": {
+        "height": 0.07592592592592592,
+        "width": 0.3333333333333333,
+        "x": 0.06666666666666667,
+        "y": 0.8740740740740741
+      }
+    },
+    "hero_title": {
+      "box": {
+        "height": 0.21851851851851853,
+        "width": 0.6666666666666666,
+        "x": 0.06666666666666667,
+        "y": 0.25
+      },
+      "text_layout": {
+        "font_size": 100,
+        "ink_height": 162.0,
+        "line_box_height": 188.0,
+        "line_count": 2,
+        "overflow": false,
+        "source_line_count": 2,
+        "truncated": false
+      },
+      "visible_bounds": {
+        "height": 0.15,
+        "width": 0.6611111111111111,
+        "x": 0.06666666666666667,
+        "y": 0.25
+      }
+    },
+    "logo": {
+      "box": {
+        "height": 0.06999999999999999,
+        "width": 0.16666666666666666,
+        "x": 0.7666666666666667,
+        "y": 0.25
+      },
+      "text_layout": null,
+      "visible_bounds": {
+        "height": 0.041666666666666664,
+        "width": 0.16666666666666666,
+        "x": 0.7666666666666667,
+        "y": 0.2638888888888889
+      }
+    },
+    "offer": {
+      "box": {
+        "height": 0.05740740740740741,
+        "width": 0.6666666666666666,
+        "x": 0.06666666666666667,
+        "y": 0.5925925925925926
+      },
+      "text_layout": {
+        "font_size": 28,
+        "ink_height": 27.0,
+        "line_box_height": 30.8,
+        "line_count": 1,
+        "overflow": false,
+        "source_line_count": 1,
+        "truncated": false
+      },
+      "visible_bounds": {
+        "height": 0.025,
+        "width": 0.29907407407407405,
+        "x": 0.06666666666666667,
+        "y": 0.5925925925925926
+      }
+    },
+    "supporting_text": {
+      "box": {
+        "height": 0.08888888888888889,
+        "width": 0.6666666666666666,
+        "x": 0.06666666666666667,
+        "y": 0.4861111111111111
+      },
+      "text_layout": {
+        "font_size": 30,
+        "ink_height": 66.4,
+        "line_box_height": 70.8,
+        "line_count": 2,
+        "overflow": false,
+        "source_line_count": 2,
+        "truncated": false
+      },
+      "visible_bounds": {
+        "height": 0.06111111111111111,
+        "width": 0.6481481481481481,
+        "x": 0.06666666666666667,
+        "y": 0.4861111111111111
+      }
+    }
+  },
+  "source_sha256": {
+    "approved_brief": "b7fe8e68cf044ee5e4ce3dc67b2b0ed65e9ec698319abb22f9f65442c0e3c387",
+    "blocked_packet": "7a0f02535b17dedaa0e697cddc6cad98e352585be0aaf6de65cacd7028d96376",
+    "pixel_preflight": "58840f589335ff09e2cbbf477a769d58e86f11e818456593f37b32586d9fbe75",
+    "studio_universal": "f397c678890328cb1072b142b8c9ebbbee10717c71d2db9807509fdb623767ec",
+    "studio_workspace": "d3043df39af3cca88064862e937e107c78553055835b40b08df8178263b36275",
+    "universal_experiment": "6ad133da058494d526d32fbecc3f0238ca2e22e92b5724c22377a139165818ae",
+    "visual_audit": "a5b194afb6b60e96a283b061c1a3808bdfabb4865ee048f431a524ac9583ae71"
+  },
+  "strategy": {
+    "media_mode": "deterministic_texture",
+    "requires_photo": false,
+    "setting_patch": {
+      "background.image_fit": "cover",
+      "background.image_layout": "full",
+      "background.image_percent": 75,
+      "background.mode": "texture",
+      "background.overlay_opacity": 0.58,
+      "background.texture": "travertine",
+      "background.texture_intensity": 0.74,
+      "bullets.enabled": false,
+      "cta.position": "bottom_left",
+      "layout.content_width": 720,
+      "layout.content_x": 72,
+      "layout.content_y": 270,
+      "layout.gap": 19,
+      "sticker.enabled": false,
+      "typography.benefits_font_family": "Inter",
+      "typography.font_family": "Cormorant Garamond",
+      "typography.hero_size": 105,
+      "typography.hero_weight": 700,
+      "typography.supporting_size": 30
+    },
+    "sliders": {
+      "conceptual_novelty": 60,
+      "emotional_intensity": 75,
+      "hook_pressure": 65,
+      "information_density": 40,
+      "visual_complexity": 65
+    },
+    "template_id": "human_story",
+    "template_version": 3
+  },
+  "strict_visual_audit": {
+    "name": "human_story_no_photo",
+    "text": {
+      "hero_title": {
+        "font_size": 100,
+        "line_count": 2,
+        "visible_bottom": 432.0,
+        "visible_top": 270.0
+      },
+      "logo": {
+        "background": false,
+        "position": [
+          828.0,
+          270.0
+        ],
+        "size": [
+          180.0,
+          75.6
+        ]
+      },
+      "offer": {
+        "font_size": 28,
+        "line_count": 1,
+        "visible_bottom": 667.0,
+        "visible_top": 640.0
+      },
+      "supporting_text": {
+        "font_size": 30,
+        "line_count": 2,
+        "visible_bottom": 591.0,
+        "visible_top": 525.0
+      }
+    }
+  },
+  "target_candidate_id": "cand-20260831-005-e",
+  "target_packet_id": "packet-exp-20260831-005-e-v1"
+}

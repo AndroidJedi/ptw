@@ -1,0 +1,104 @@
+{
+  "schema": "ptw.skynet.photo-fallback-matrix-evaluation.v1",
+  "evaluation_id": "eval-20260831-004-photo-fallback-matrix",
+  "recorded_at": "2026-08-31T14:57:47Z",
+  "status": "completed_no_candidate_eligible",
+  "question": "Are any of the current Universal adapter's four deterministic photo-strategy fallbacks brand-safe and semantically complete enough to receive candidate identity?",
+  "controlled_design": {
+    "strategy_order_row_major": [
+      "moment_tension",
+      "contrast_reframe",
+      "mechanism_proof",
+      "human_story"
+    ],
+    "shared_copy_payload": true,
+    "exact_canonical_v3_default_sliders": true,
+    "photo_available": false,
+    "sticker_available": false,
+    "candidate_generation_invoked": false,
+    "render_manifest_path": "evaluations/eval-20260831-004-photo-fallback-matrix/render-manifest.json",
+    "render_manifest_sha256": "50e6a0a6105c388a30598502486c6d2353c4d3a05d35dccf33eabddf321af298"
+  },
+  "artifacts": {
+    "contact_360": {
+      "path": "evaluations/eval-20260831-004-photo-fallback-matrix/contact-360.png",
+      "sha256": "9eacc59f1dc67108d6edc6d32f0daf448080b337454341ff9847aed5715d4ffc"
+    },
+    "contact_120_nearest": {
+      "path": "evaluations/eval-20260831-004-photo-fallback-matrix/contact-120-nearest.png",
+      "sha256": "4c0cb6837e9fcf4f0dd4c25be22fa4384dea3677272b62fe0ea0eb70c20fa412"
+    },
+    "raw_1080_sha256": {
+      "moment_tension": "3fd2e273d846ac9a88d326426e03a2e7a88f1c5154708a78c12c7b04f4c8ebf9",
+      "contrast_reframe": "8d7f938831fb432bad89c008049f1bfd4e8f0213918e296d71043d2641dcab03",
+      "mechanism_proof": "66fe1f0a671a1b9a124a08b0386b29a5cff79fe5ea43cacac63c61aa947b3091",
+      "human_story": "1a47ca34461c871252e5a7376147b39f1817c41cf90ef11a144066e8ec03abdd"
+    }
+  },
+  "automated_findings": {
+    "universal_layout_audits_passed": 4,
+    "strict_visible_geometry_audits_passed": 4,
+    "protected_offer_exact": true,
+    "protected_cta_exact": true,
+    "render_and_derivative_replays_byte_identical": true,
+    "brand_prominence_audits_passed": 0,
+    "brand_prominence_audits_failed": 4,
+    "required_wordmark_contrast_ratio": 4.5,
+    "wordmark_contrast_ratio_by_strategy": {
+      "moment_tension": 1.47,
+      "contrast_reframe": 1.47,
+      "mechanism_proof": 1.42,
+      "human_story": 1.46
+    },
+    "systematic_brand_failure": "Every dark Natal wordmark is placed directly on a dark textured field without its light surface.",
+    "candidate_activation_gates_passed": 0,
+    "candidate_activation_gates_failed": 4,
+    "activation_failure_codes_for_every_strategy": [
+      "deterministic_texture_diagnostic_only",
+      "brand_prominence_failed"
+    ]
+  },
+  "manual_findings": {
+    "cross_strategy": [
+      "At 1080 pixels all four renders are mechanically clean, but they collapse into one dark typography-poster class with no meaningful primary media subject.",
+      "The texture presets create surface variation only; they do not supply a focal action, a controlled before/after subject, visible product/process context, or a candid human scene.",
+      "At 360 pixels the main headline and yellow CTA remain readable, but the dark wordmark is already visually subordinate and several secondary lines require deliberate reading.",
+      "At 120 pixels the headline and CTA carry most of the remaining signal. The mechanism, exact offer, bullets where present, and full wordmark do not reliably survive one-glance viewing.",
+      "The cyan logo glyph remains more visible than the dark wordmark, creating symbol-without-reliable-name attribution rather than a complete brand mark."
+    ],
+    "by_strategy": {
+      "moment_tension": "Strong urgent headline silhouette, but no candid scene, focal action, unresolved customer moment, or visible product/process resolution; large empty regions do not add narrative evidence.",
+      "contrast_reframe": "The right-column hierarchy is clean, but faint marble lines do not form two controlled states, one decisive interruption, or a shared focal subject; the left field reads as unused space rather than contrast.",
+      "mechanism_proof": "Ordered bullets make the supplied sequence most explicit at full size, but the fallback shows no approved product/process object or real context, and those bullet details recede sharply at stress size.",
+      "human_story": "The serif treatment has an editorial tone, but there is no person, observation, interaction, environment, conflict, or product-linked human meaning; it remains a poster rather than a human story."
+    }
+  },
+  "decision": {
+    "fallbacks_candidate_valid": false,
+    "new_candidates_created": 0,
+    "competition_submissions_queued": 0,
+    "packet_005_status": "blocked_media_prerequisite",
+    "portfolio_prior_changed": false,
+    "active_local_selection_prior": "cand-20260831-008-h",
+    "reusable_gate_added": "tools/universal_candidate_gate.py",
+    "reusable_gate_sha256": "cbfc0516ee19f08a6dff159b56555a64d35d173017a771f96918d64376b2e864",
+    "conclusion": "The low wordmark contrast is systematic across current adapter-v3 photo fallbacks, and all four texture fallbacks are strategy-incomplete. They remain diagnostic render affordances only and must fail closed before candidate identity.",
+    "allowed_future_paths": [
+      "Use an authorized approved photo and pass layout, strict geometry, and pixel brand gates for the matching photo strategy.",
+      "Use a genuinely non-photo strategy and matching task when the intended visual is a typography or non-human graphic composition."
+    ]
+  },
+  "verification": {
+    "skynet_tests_passed": 14,
+    "skynet_test_failures": 0,
+    "studio_geometry_variants_passed": 6,
+    "matrix_replay_byte_identical": true,
+    "source_and_output_digests_recorded": true
+  },
+  "limits": [
+    "These diagnostic renders bypass CandidateV2 generation and contain no server element UUIDs.",
+    "The shared copy isolates adapter behavior but is not a claim that one copy treatment is optimal for all four strategies.",
+    "The matrix does not score advertising effectiveness, predict conversion, or establish an external competition winner.",
+    "No provider, image model, critic, publisher, campaign, Telegram sender, or external feedback channel was invoked."
+  ]
+}

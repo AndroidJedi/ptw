@@ -1,0 +1,142 @@
+{
+  "schema": "ptw.skynet.render-manifest.v1",
+  "experiment_id": "exp-20260831-008",
+  "candidate_id": "cand-20260831-008-h",
+  "generation": 1,
+  "iteration": 1,
+  "frozen_at": "2026-08-31T13:51:32Z",
+  "recorded_at": "2026-08-31T13:51:32Z",
+  "inputs": [
+    {
+      "path": "plans/exp-20260831-008-generation-packet.json",
+      "sha256": "2b6f1a93c0f5d0cfdc69d2237656fc9876a6042806d1798a383096d8262f5ff8"
+    },
+    {
+      "path": "experiments/exp-20260831-008/brief.json",
+      "sha256": "b7fe8e68cf044ee5e4ce3dc67b2b0ed65e9ec698319abb22f9f65442c0e3c387"
+    },
+    {
+      "path": "experiments/exp-20260831-008/candidate.json",
+      "sha256": "582593e3c60cf2eb6e717b71d3b2e39dcdcffe4952d4a15c8f5b50cd993830b2",
+      "normalized_candidate_sha256": "6ef3909baa08a9677d8c4410f927970aba7228725d768f86ba3e5993b075e50e"
+    },
+    {
+      "path": "experiments/exp-20260831-008/template.json",
+      "sha256": "9d500c39e8a8c86acbc04511a15d37b77201231b8d0a165e0103db6501bd9155"
+    },
+    {
+      "path": "experiments/exp-20260831-008/render.swift",
+      "sha256": "5fa97dcafa1e90a4de28c8363e82dfcabe6076f9fad8750c00a2ca03a5417457"
+    },
+    {
+      "path": "experiments/exp-20260831-008/render.sh",
+      "sha256": "27bd3f1cc38937f1857af1de0b0c59f644d35d0f00efeba7c0e19a93cb531a7d"
+    },
+    {
+      "path": "experiments/exp-20260831-008/copy/headline.txt",
+      "sha256": "f765d4d35f332db215e996be192b7279e1b8398de3b81883ffdd1a73fa1f38dd"
+    },
+    {
+      "path": "experiments/exp-20260831-008/copy/primary.txt",
+      "sha256": "b35a2529e04d0ab343f3f977a5a8e5c8a3d7c014b36f044022040fb0df2fa501"
+    },
+    {
+      "path": "experiments/exp-20260831-008/copy/offer.txt",
+      "sha256": "7ee98a0ffe69485e1d8150725040e41ca411ee94d2a19f13651bab37552017a0"
+    },
+    {
+      "path": "experiments/exp-20260831-008/copy/cta.txt",
+      "sha256": "2f95134909087d9c50441c525e5938870798339db903c40afdcbbb331fa2f976"
+    },
+    {
+      "path": "assets/natal/logo-natal.png",
+      "sha256": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba"
+    },
+    {
+      "path": "assets/natal/inter.ttf",
+      "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"
+    }
+  ],
+  "canonical_provenance": {
+    "strategy_id": "contrast_reframe",
+    "strategy_version": 3,
+    "strategy_document_sha256": "ca606f52b760a0b5bf79b2d111a01871ead1fde68f332d6da5d19841ed794be9",
+    "strategy_source_file_sha256": "a98d4621a8fef65be40a96398434190cafc816bb93fa4e5ac3290e69fa096386",
+    "studio_document_sha256": "75896728867272254190376fe741ca3863f1c597e34274a340a2c8116d502f2e",
+    "studio_source_file_sha256": "c91936907fcbdf65737a223d6fdd61acc39b44d77d1b940b97b559705fa1d7ad",
+    "verified": true
+  },
+  "media_provenance": {
+    "source_asset_id": "skynet-native-exp008-selective-route-v1",
+    "origin": "deterministic_non_human_graphic",
+    "path": "experiments/exp-20260831-008/assets/selective-return-route-v1.png",
+    "sha256": "fc3c126858852e295e2ce9a34d2ea4f62c1ba09a054d9085cd65fc903ca8524b",
+    "width": 540,
+    "height": 1000,
+    "contains_people_or_faces": false,
+    "contains_embedded_copy_or_logo": false,
+    "literal_product_ui": false
+  },
+  "outputs": [
+    {
+      "path": "experiments/exp-20260831-008/assets/selective-return-route-v1.png",
+      "sha256": "fc3c126858852e295e2ce9a34d2ea4f62c1ba09a054d9085cd65fc903ca8524b",
+      "mime_type": "image/png",
+      "width": 540,
+      "height": 1000,
+      "bytes": 142223
+    },
+    {
+      "path": "experiments/exp-20260831-008/renders/cand-20260831-008-h-v1.png",
+      "sha256": "3ce771b142ed5b5c694a084a57a3df5aca771b79537215c2f3b160edf5fc6fc8",
+      "mime_type": "image/png",
+      "width": 1080,
+      "height": 1080,
+      "bytes": 392118
+    },
+    {
+      "path": "experiments/exp-20260831-008/renders/cand-20260831-008-h-v1.jpg",
+      "sha256": "3cca60ea20c265a11a843dbe5ccf1e22e5207c2fb6aa221820a1520d13d1c5c6",
+      "mime_type": "image/jpeg",
+      "width": 1080,
+      "height": 1080,
+      "bytes": 97392
+    },
+    {
+      "path": "experiments/exp-20260831-008/audit/preview-360.jpg",
+      "sha256": "5b654cdbdbea8062e1821f709816f2e4b2316b2e821ff2ab43f73cf0b82bb690",
+      "mime_type": "image/jpeg",
+      "width": 360,
+      "height": 360,
+      "bytes": 15514
+    },
+    {
+      "path": "experiments/exp-20260831-008/audit/preview-120.png",
+      "sha256": "fb039a3e157714d699e854deef0c4bd7a5dc2289cd605d58f838fc7bac8d1af3",
+      "mime_type": "image/png",
+      "width": 120,
+      "height": 120,
+      "bytes": 13799
+    }
+  ],
+  "render_environment": {
+    "renderer": "Swift CoreGraphics/AppKit",
+    "compiler": "Apple Swift 6.3.3",
+    "host": "darwin-arm64",
+    "jpeg_encoder": "ffmpeg 8.0",
+    "image_calls": 0,
+    "internet_calls": 0,
+    "synthetic_people_or_faces": false,
+    "embedded_generated_copy": false
+  },
+  "replay": {
+    "post_freeze_replays": 3,
+    "asset_sha256_before": "fc3c126858852e295e2ce9a34d2ea4f62c1ba09a054d9085cd65fc903ca8524b",
+    "asset_sha256_after": "fc3c126858852e295e2ce9a34d2ea4f62c1ba09a054d9085cd65fc903ca8524b",
+    "master_sha256_before": "3ce771b142ed5b5c694a084a57a3df5aca771b79537215c2f3b160edf5fc6fc8",
+    "master_sha256_after": "3ce771b142ed5b5c694a084a57a3df5aca771b79537215c2f3b160edf5fc6fc8",
+    "delivery_sha256_before": "3cca60ea20c265a11a843dbe5ccf1e22e5207c2fb6aa221820a1520d13d1c5c6",
+    "delivery_sha256_after": "3cca60ea20c265a11a843dbe5ccf1e22e5207c2fb6aa221820a1520d13d1c5c6",
+    "byte_identical": true
+  }
+}

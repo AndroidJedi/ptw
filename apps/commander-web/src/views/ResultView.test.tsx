@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComponentProps } from 'react'
 import type { ApiClient } from '../api'
-import type { ContentResult, ContentRun, ProductBrief, ValidationProject } from '../types'
+import type { ContentDebug, ContentResult, ContentRun, ProductBrief, ValidationProject } from '../types'
 import { ResultView } from './ResultView'
 
 const projectId = '018f07ea-7f20-7000-8000-000000000001'
@@ -59,8 +59,7 @@ const result: ContentResult = {
 function props(api: ApiClient, extras: Partial<ComponentProps<typeof ResultView>> = {}) {
   return {
     api, projectId, projects: [project], language: 'en' as const,
-    onProjectSelect: vi.fn(), onNewProject: vi.fn(), onRenameProject: vi.fn(async () => undefined),
-    onRunSelect: vi.fn(), onOpenBriefs: vi.fn(), ...extras,
+    onProjectSelect: vi.fn(), onRunSelect: vi.fn(), onOpenBriefs: vi.fn(), ...extras,
   }
 }
 
@@ -71,6 +70,32 @@ beforeEach(() => {
 })
 
 describe('Social Posts workspace', () => {
+  it('keeps an empty Project focused on project selection and one create action', async () => {
+    const api = {
+      get: vi.fn(async (path: string) => {
+        if (path.startsWith('/api/v1/briefs?')) return { items: [brief] }
+        if (path.startsWith('/api/v1/content-runs?')) return { items: [] }
+        throw new Error(`Unexpected GET ${path}`)
+      }),
+      post: vi.fn(), image: vi.fn(), media: vi.fn(), websocketUrl: vi.fn(), request: vi.fn(),
+    } as unknown as ApiClient
+
+    render(<ResultView {...props(api, { localDemo: true })} />)
+
+    expect(await screen.findByRole('heading', { name: 'Create the first social post' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Project')).toHaveValue(projectId)
+    expect(screen.getAllByRole('button', { name: 'New post' })).toHaveLength(1)
+    expect(screen.queryByRole('heading', { name: 'Social posts' })).not.toBeInTheDocument()
+    expect(screen.queryByText('CREATE · REVIEW · IMPROVE')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Local evaluation and learning only/)).not.toBeInTheDocument()
+    expect(screen.queryByText('LOCAL QUALITY EVIDENCE')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Learning & evidence' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Filter by platform')).not.toBeInTheDocument()
+    expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/assets'))
+    expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/learning-summary'))
+  })
+
   it('creates either platform from the latest approved Brief without redundant setup fields', async () => {
     const queued = { ...run, status: 'queued', current_stage: 'queued', progress_percent: 0 } as ContentRun
     const post = vi.fn().mockResolvedValue(queued)
@@ -86,7 +111,7 @@ describe('Social Posts workspace', () => {
 
     render(<ResultView {...props(api)} />)
     await screen.findByRole('heading', { name: 'Create the first social post' })
-    fireEvent.click(screen.getAllByRole('button', { name: 'New post' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'New post' }))
 
     expect(await screen.findByText(brief.product!)).toBeInTheDocument()
     expect(screen.queryByLabelText('Task')).not.toBeInTheDocument()
@@ -111,12 +136,105 @@ describe('Social Posts workspace', () => {
     const onOpenBriefs = vi.fn()
     render(<ResultView {...props(api, { onOpenBriefs })} />)
     await screen.findByRole('heading', { name: 'Create the first social post' })
-    fireEvent.click(screen.getAllByRole('button', { name: 'New post' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'New post' }))
 
     expect(await screen.findByText('Approve a completed Product Brief before creating a post.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Create post' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Open Product Briefs' }))
     expect(onOpenBriefs).toHaveBeenCalledOnce()
+  })
+
+  it('replaces the retired photo-preflight instruction on an immutable failed run', async () => {
+    const failed = {
+      ...run, status: 'failed', current_stage: 'failed', final_result_id: null,
+      error_code: 'ValueError',
+      error_message: 'asset preflight needs 4 more distinct approved real photo(s); upload and approve them or configure PEXELS_API_KEY before starting the run',
+    } as ContentRun
+    const api = {
+      get: vi.fn(async (path: string) => {
+        if (path.startsWith('/api/v1/briefs?')) return { items: [brief] }
+        if (path.startsWith('/api/v1/content-runs?')) return { items: [failed] }
+        if (path === `/api/v1/content-runs/${failed.run_id}`) return failed
+        throw new Error(`Unexpected GET ${path}`)
+      }),
+      post: vi.fn(), image: vi.fn(), media: vi.fn(), websocketUrl: vi.fn(), request: vi.fn(),
+    } as unknown as ApiClient
+
+    render(<ResultView {...props(api, { runId: failed.run_id })} />)
+
+    expect(await screen.findByText('This attempt used the retired photo preflight. Retry now—approved photos and Pexels are optional.')).toBeVisible()
+    expect(screen.queryByText(/asset preflight needs/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry as a child artifact' })).toBeEnabled()
+  })
+
+  it('turns the old local Codex timeout into actionable retry guidance', async () => {
+    const failed = {
+      ...run, status: 'failed', current_stage: 'failed', final_result_id: null,
+      error_code: 'LocalCodexError',
+      error_message: 'local Codex structured call failed after two attempts: TimeoutExpired',
+    } as ContentRun
+    const api = {
+      get: vi.fn(async (path: string) => {
+        if (path.startsWith('/api/v1/briefs?')) return { items: [brief] }
+        if (path.startsWith('/api/v1/content-runs?')) return { items: [failed] }
+        if (path === `/api/v1/content-runs/${failed.run_id}`) return failed
+        throw new Error(`Unexpected GET ${path}`)
+      }),
+      post: vi.fn(), image: vi.fn(), media: vi.fn(), websocketUrl: vi.fn(), request: vi.fn(),
+    } as unknown as ApiClient
+
+    const view = render(<ResultView {...props(api, { runId: failed.run_id })} />)
+
+    expect(await screen.findByText('This is the immutable record of the earlier five-image timeout. The restarted app now uses smaller analysis artifacts and grouped 3–2–2 critic calls. Retry as a child artifact.')).toBeVisible()
+    expect(screen.queryByText(/TimeoutExpired/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry as a child artifact' })).toBeEnabled()
+
+    view.rerender(<ResultView {...props(api, { runId: failed.run_id, language: 'uk' })} />)
+    expect(await screen.findByText('Це незмінний запис попереднього тайм-ауту з п’ятьма зображеннями. Перезапущений застосунок тепер використовує зменшені артефакти аналізу та згруповані виклики критика 3–2–2. Натисніть «Повторити як дочірній артефакт».')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Повторити як дочірній артефакт' })).toBeEnabled()
+  })
+
+  it('automatically exposes persisted intermediate evidence for a failed local run', async () => {
+    const failed = {
+      ...run, status: 'failed', current_stage: 'failed', progress_percent: 84,
+      final_result_id: null, error_code: 'ValueError',
+      error_message: 'critic selected no eligible Universal Result; correct the Brief/assets/layout and retry',
+    } as ContentRun
+    const debug = {
+      candidates: [{
+        candidate_id: result.selected_candidate_id, alias: 'C1', round: 0,
+        generation_kind: 'initial', template_id: 'mechanism_proof', template_version: 3,
+        parameters: {
+          hook_pressure: 50, emotional_intensity: 50, conceptual_novelty: 50,
+          information_density: 50, visual_complexity: 50,
+        },
+        document: result.content,
+        preview: {
+          asset_url: `/api/v1/content-runs/${failed.run_id}/candidates/${result.selected_candidate_id}/asset`,
+          sha256: 'd'.repeat(64), mime_type: 'image/jpeg', width: 1080, height: 1080,
+        },
+      }],
+      critic_passes: [],
+    } as ContentDebug
+    const api = {
+      get: vi.fn(async (path: string) => {
+        if (path.startsWith('/api/v1/briefs?')) return { items: [brief] }
+        if (path.startsWith('/api/v1/content-runs?')) return { items: [failed] }
+        if (path === `/api/v1/content-runs/${failed.run_id}`) return failed
+        if (path === `/api/v1/content-runs/${failed.run_id}/debug`) return debug
+        throw new Error(`Unexpected GET ${path}`)
+      }),
+      post: vi.fn(), image: vi.fn(async () => new Blob(['image'], { type: 'image/jpeg' })),
+      media: vi.fn(), websocketUrl: vi.fn(), request: vi.fn(),
+    } as unknown as ApiClient
+
+    render(<ResultView {...props(api, { runId: failed.run_id, localDemo: true })} />)
+
+    expect(await screen.findByRole('heading', { name: 'Everything produced before the final rejection' })).toBeVisible()
+    expect(screen.getByText('The critic completed all three stages, but neither finalist passed every eligibility rule. The complete intermediate evidence is shown below.')).toBeVisible()
+    expect(screen.queryByText(/correct the Brief\/assets\/layout/)).not.toBeInTheDocument()
+    expect(screen.getByText('Every image and its exact generation parameters')).toBeVisible()
+    expect(api.get).toHaveBeenCalledWith(`/api/v1/content-runs/${failed.run_id}/debug`)
   })
 
   it('shows a native post, gates export behind Ready, and does not transcribe rendered fields', async () => {
@@ -190,7 +308,7 @@ describe('Social Posts workspace', () => {
     ))
   })
 
-  it('filters the navigator, groups revision labels, and preserves per-artifact drafts', async () => {
+  it('selects Projects and posts while preserving per-post drafts', async () => {
     const child = {
       ...run, run_id: '018f07ea-7f20-7000-8000-000000000021',
       request_id: '018f07ea-7f20-7000-8000-000000000022', parent_run_id: run.run_id,
@@ -224,26 +342,20 @@ describe('Social Posts workspace', () => {
       post: vi.fn(), image: vi.fn(async () => new Blob(['image'], { type: 'image/jpeg' })),
       media: vi.fn(), websocketUrl: vi.fn(), request: vi.fn(),
     } as unknown as ApiClient
-    const base = props(api, { projects: [project, otherProject], runId: run.run_id })
+    const onProjectSelect = vi.fn()
+    const onRunSelect = vi.fn()
+    const base = props(api, { projects: [project, otherProject], runId: run.run_id, onProjectSelect, onRunSelect })
     const view = render(<ResultView {...base} />)
-    const navigator = await screen.findByLabelText('Projects and artifacts')
     await screen.findByRole('article', { name: 'instagram post preview' })
-    expect(within(navigator).getByText('Instagram · R2')).toBeInTheDocument()
-    expect(within(navigator).getByText('TikTok · R1')).toBeInTheDocument()
-
-    fireEvent.change(within(navigator).getByPlaceholderText('Search projects'), { target: { value: 'Other' } })
-    expect(within(navigator).getByText('Other Project')).toBeInTheDocument()
-    expect(within(navigator).queryByRole('button', { name: /Horoscope/ })).not.toBeInTheDocument()
-    fireEvent.change(within(navigator).getByPlaceholderText('Search projects'), { target: { value: '' } })
-    fireEvent.change(within(navigator).getByLabelText('Filter by platform'), { target: { value: 'tiktok' } })
-    expect(within(navigator).getByText('TikTok · R1')).toBeInTheDocument()
-    expect(within(navigator).queryByText('Instagram · R2')).not.toBeInTheDocument()
-    fireEvent.change(within(navigator).getByLabelText('Filter by platform'), { target: { value: 'all' } })
-    fireEvent.change(within(navigator).getByLabelText('Filter by generation status'), { target: { value: 'active' } })
-    expect(within(navigator).getByText('Instagram · R2')).toBeInTheDocument()
-    expect(within(navigator).queryByText('Instagram · R1')).not.toBeInTheDocument()
-    expect(within(navigator).queryByText('TikTok · R1')).not.toBeInTheDocument()
-    fireEvent.change(within(navigator).getByLabelText('Filter by generation status'), { target: { value: 'all' } })
+    fireEvent.change(screen.getByLabelText('Project'), { target: { value: otherProject.project_id } })
+    expect(onProjectSelect).toHaveBeenCalledWith(otherProject.project_id)
+    const postPicker = screen.getByLabelText('Post')
+    expect(within(postPicker).getByRole('option', { name: 'Instagram · R2' })).toBeInTheDocument()
+    expect(within(postPicker).getByRole('option', { name: 'TikTok · R1' })).toBeInTheDocument()
+    fireEvent.change(postPicker, { target: { value: tiktok.run_id } })
+    expect(onRunSelect).toHaveBeenCalledWith(tiktok.run_id)
+    expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Filter by generation status')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('What should change?'), { target: { value: 'Keep this draft for the square artifact.' } })
     view.rerender(<ResultView {...props(api, { projects: [project, otherProject], runId: tiktok.run_id })} />)

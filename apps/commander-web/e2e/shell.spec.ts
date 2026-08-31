@@ -278,7 +278,27 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('shows Product Brief, Social Posts, and Universal Ad Studio workspaces', async ({ page }, testInfo) => {
+test('discards stale deep-link IDs before loading Project-scoped resources', async ({ page }) => {
+  const staleProjectId = '018f07ea-7f20-7000-8000-000000000099'
+  const staleRunId = '018f07ea-7f20-7000-8000-000000000098'
+  const requestedUrls: string[] = []
+  page.on('request', (request) => requestedUrls.push(request.url()))
+
+  await page.goto(`/?e2e=1&page=result&project=${staleProjectId}&run=${staleRunId}`)
+  await expect(page.locator('article.native-post')).toBeVisible()
+  await expect.poll(() => page.evaluate(() => Object.fromEntries(
+    new URLSearchParams(window.location.search),
+  ))).toMatchObject({ page: 'result', project: projectId, run: runId })
+
+  const apiUrls = requestedUrls
+    .filter((value) => value.includes('/api/v1/'))
+    .map((value) => new URL(value))
+  expect(apiUrls.some((url) => url.searchParams.get('project_id') === staleProjectId)).toBe(false)
+  expect(apiUrls.some((url) => url.pathname.includes(staleProjectId))).toBe(false)
+  expect(apiUrls.some((url) => url.pathname.includes(staleRunId))).toBe(false)
+})
+
+test('shows Product Brief, Social Posts, and Universal Ad Studio workspaces', async ({ page }) => {
   await page.goto('/?e2e=1')
   await expect(page.getByRole('button', { name: 'Продуктові брифи' }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Змінити мову' }).click()
@@ -292,7 +312,7 @@ test('shows Product Brief, Social Posts, and Universal Ad Studio workspaces', as
   await expect(page.getByText('Landing', { exact: true })).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Social posts' }).first().click()
-  await expect(page.getByRole('heading', { name: 'Social posts' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Social posts' })).toHaveCount(0)
   await expect.poll(() => page.evaluate(() => Object.fromEntries(
     new URLSearchParams(window.location.search),
   ))).toMatchObject({ page: 'result', project: projectId, run: runId })
@@ -307,13 +327,11 @@ test('shows Product Brief, Social Posts, and Universal Ad Studio workspaces', as
   await expect(page.getByText('SOURCE', { exact: true })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Learning & evidence' })).toBeVisible()
   await expect(page.getByText('Internal evaluation only — never a market-performance claim.')).toBeVisible()
-  if (testInfo.project.name === 'desktop') {
-    await expect(page.getByLabel('Projects and artifacts')).toBeVisible()
-  } else {
-    await expect(page.getByLabel('Projects and artifacts')).toBeHidden()
-    await page.getByRole('button', { name: 'Projects and artifacts' }).click()
-    await expect(page.getByLabel('Projects and artifacts')).toBeVisible()
-  }
+  await expect(page.getByText('LOCAL QUALITY EVIDENCE')).toHaveCount(0)
+  await expect(page.getByLabel('Project')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'New post' })).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'Rename' })).toHaveCount(0)
+  await expect(page.getByLabel('Filter by platform')).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 

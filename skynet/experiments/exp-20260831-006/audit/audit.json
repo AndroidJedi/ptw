@@ -1,0 +1,76 @@
+{
+  "schema": "ptw.skynet.visual-audit.v1",
+  "experiment_id": "exp-20260831-006",
+  "candidate_id": "cand-20260831-006-f",
+  "audited_at": "2026-08-31T11:52:12Z",
+  "status": "passed",
+  "candidate_contract": {
+    "candidate_v2": "passed",
+    "normalized_sha256": "1342ef60c8247bc6b6aa8163afba2fdd837c25669f21f8a92881fae4d97cf79f",
+    "required_visual_roles": [
+      "background",
+      "primary_subject",
+      "headline_block",
+      "supporting_text_block",
+      "offer_block",
+      "cta_block",
+      "brand_mark",
+      "lighting_style",
+      "composition"
+    ],
+    "required_visual_role_order": "passed",
+    "offer_byte_exact": true,
+    "cta_byte_exact": true,
+    "media_kind": "non_human_graphic",
+    "synthetic_people_or_faces": false,
+    "literal_product_screenshot_claimed": false
+  },
+  "viewports": [
+    {
+      "name": "raw_master",
+      "path": "renders/cand-20260831-006-f-v1.png",
+      "width": 1080,
+      "height": 1080,
+      "inspected": true,
+      "clipping": false,
+      "overlap": false,
+      "unsafe_required_bounds": false,
+      "text_alignment": "passed",
+      "notes": "Headline, body, offer, CTA, logo, and all status/action labels are fully visible. The proof surface does not collide with the headline or offer; the left media card and right proof column remain distinct."
+    },
+    {
+      "name": "small_screen",
+      "path": "audit/preview-360.jpg",
+      "width": 360,
+      "height": 360,
+      "inspected": true,
+      "clipping": false,
+      "overlap": false,
+      "unsafe_required_bounds": false,
+      "text_alignment": "passed",
+      "notes": "The headline, Risk focal row, body mechanism, offer, CTA, and Natal mark retain hierarchy. Tertiary diagram labels recede but remain supplementary rather than carrying the core promise."
+    }
+  ],
+  "required_frame_bounds_pixels": {
+    "hero_media": {"left": 76, "top": 97, "right": 486, "bottom": 553},
+    "headline": {"left": 562, "top": 97, "right": 1016, "bottom": 259},
+    "body": {"left": 572, "top": 335, "right": 982, "bottom": 561},
+    "offer": {"left": 562, "top": 680, "right": 994, "bottom": 756},
+    "cta_surface": {"left": 562, "top": 821, "right": 972, "bottom": 918},
+    "logo": {"left": 76, "top": 929, "right": 314, "bottom": 988}
+  },
+  "studio_geometry_regression": {
+    "command": "TMPDIR=runtime/audit-tmp-exp006 PYTHONDONTWRITEBYTECODE=1 ../.venv/bin/python ../skills/studio-ui-visual-audit/scripts/audit_universal_studio.py",
+    "status": "passed",
+    "variants_passed": [
+      "default",
+      "high_density",
+      "centered_minimal",
+      "editorial_bottom_left",
+      "urgent_bottom_right",
+      "logo_no_background"
+    ]
+  },
+  "formal_critic_invoked": false,
+  "formal_critic_reason": "The strict critic requires exactly five generator-blind initial candidates; this controlled candidate is intentionally excluded from that set."
+}

@@ -61,11 +61,19 @@ The loopback-only `universal_ad_experiment_v1` profile reuses the same five
 strategy documents and three-pass critic contracts through a separate versioned
 adapter. It captures one saved `universal_ad` export, resolves the declared
 strategy slider patches server-side, assigns distinct approved real-photo
-assets to the four photographic strategies, and generates each candidate in
-isolation through `content-candidate-generator`. It renders an authoritative
-1080×1080 PNG plus a deterministic JPEG, runs deterministic geometry and
-protected-copy gates, attaches those exact JPEG bytes to every critic call, and
-permits at most four improvements before the two-candidate final pass.
+assets to photo-capable strategies when available, and otherwise uses their
+distinct canonical deterministic Studio-texture fallbacks. Pexels is optional
+enrichment, never a run prerequisite. Each candidate is generated in isolation
+through `content-candidate-generator`. The adapter renders an authoritative
+1080×1080 PNG plus a deterministic full-size JPEG, runs deterministic geometry
+and protected-copy gates at full resolution, and persists a second deterministic
+480×480 analysis JPEG for critic transport. The analysis derivative is scaled
+by exactly 4/9 from the PNG, is digest-bound to both authoritative artifacts,
+and has approximately five times fewer pixels. Only those exact persisted
+analysis bytes enter critic calls. The local profile independently screens the
+first three and remaining two initial candidates, then compares only both group
+winners with both structured summaries. Exact attachment counts are `[3, 2,
+2]`; screening actions and local improvement generations are disabled.
 
 Local authority is file-backed and append-only below
 `.local/owner-experiments`; it is independent of PostgreSQL and production

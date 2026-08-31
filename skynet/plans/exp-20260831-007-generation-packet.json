@@ -1,0 +1,102 @@
+{
+  "schema": "ptw.skynet.generation-packet.v1",
+  "packet_id": "packet-exp-20260831-007-g-v1",
+  "status": "reserved",
+  "experiment_id": "exp-20260831-007",
+  "reserved_candidate_id": "cand-20260831-007-g",
+  "generation_boundary": "controlled_after_mandatory_recovery",
+  "owner_task": "Create one Instagram square for salon owners around the familiar physical object of a future appointment card. A single bold Natal-cyan ribbon must form a return loop around the object, making the customer outcome tangible before one supplied mechanism line. Keep Natal in the primary scan path. Do not depict people, faces, a product interface, a literal screenshot, proof, metrics, urgency, or generated text.",
+  "approved_brief": {
+    "path": "experiments/exp-20260831-001/brief.json",
+    "brief_id": "brief-20260831-natal-retention-v1",
+    "sha256": "b7fe8e68cf044ee5e4ce3dc67b2b0ed65e9ec698319abb22f9f65442c0e3c387"
+  },
+  "brand_kit": {
+    "name": "Natal",
+    "font": "Inter",
+    "palette": {
+      "dark": "#0C0E12",
+      "ink": "#181C25",
+      "light": "#F4F6FA",
+      "muted": "#697383",
+      "accent": "#43BDD3",
+      "accent_soft": "#87D0DD"
+    },
+    "tone": "Compact, direct, calm, high-contrast and personally specific."
+  },
+  "brand_assets": [
+    {
+      "path": "assets/natal/logo-natal.png",
+      "source_id": "natal-logo-f465a0e1",
+      "sha256": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba"
+    },
+    {
+      "path": "assets/natal/inter.ttf",
+      "source_id": "natal-inter-29160a80",
+      "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"
+    }
+  ],
+  "strategy": {
+    "path": "strategies/object_metaphor_v1.json",
+    "template_id": "object_metaphor",
+    "version": 1,
+    "sha256": "cc0b7dce40098a379ee3890feb107e5b5c7c5b7849c3043ff28c8d33ae3edae8",
+    "studio_path": "studios/object_metaphor_square_v1.json",
+    "studio_id": "object_metaphor_square",
+    "studio_version": 1,
+    "studio_sha256": "b6e20aff9e77a263e9875a27e5a27bc770e5a1a0293d5f81fd18bbbe1d3e7539",
+    "technique_guide": "ad-copy",
+    "technique_guide_sha256": "9845b640608d817748f09f5aad4c4a9f9f1695b7d90aa316b90076635ced340b",
+    "sliders": {
+      "hook_pressure": 82,
+      "emotional_intensity": 62,
+      "conceptual_novelty": 78,
+      "information_density": 38,
+      "visual_complexity": 55
+    }
+  },
+  "writing_bundle": {
+    "principles_sha256": "8617fefc1967b17b05b9bbe76ea76ac2cd2b370ffeae66a74984d13d1d96a476",
+    "anti_patterns_sha256": "676e094c3847a2a419633e61ad64ee4911b85bc3c73c21d57e2137b52f6fa9f6",
+    "corpus_manifest_sha256": "974f34b4ba5903178530bcacc1ddb00087d373d591283f9ec868aac9bea69730",
+    "corpus_excerpt_ids": [
+      "natal-landing-02",
+      "natal-landing-05",
+      "natal-landing-09",
+      "natal-business-06"
+    ],
+    "corpus_excerpt_sha256": [
+      "31aa9249619a4b3ec0dab83a929b15fe9ea4924c38db7de2ffdaed685d224d78",
+      "39b76d3b05dc23695a6de429bdc9312840f66d5ee1ea75542286b5def5c233cc",
+      "71717bac323d0a71a6110f3ffcaba586812dfd55d0530564504f5eb8da350ec5",
+      "12acd3329c4045712c36b4e0a91af0ef67aa1d3a4b322ebf739ff4a3a3e61df3"
+    ]
+  },
+  "research": {
+    "path": "knowledge/research-2026-08-31-b2b-static.md",
+    "source_id": "skynet-research-20260831-b2b-static-v1",
+    "sha256": "86b9ab9e725093da2c6d780454061aa9caa13a4eefea992ff1ede9be892e510a",
+    "role": "experiment_selection_only_not_candidate_claim_source"
+  },
+  "output_profile": "instagram_static_ad_v1",
+  "required_offer": "90 ДНІВ БЕЗКОШТОВНО",
+  "required_cta": "СПРОБУВАТИ NATAL",
+  "media_policy": {
+    "kind": "generated_non_human_still_life",
+    "reserved_source_asset_id": "skynet-genimg-exp007-still-life-v1",
+    "single_built_in_image_call": true,
+    "synthetic_people_or_faces_allowed": false,
+    "embedded_generated_copy_allowed": false,
+    "external_photo_required": false,
+    "arbitrary_internet_image_download_allowed": false
+  },
+  "image_prompt": "Use case: ads-marketing. Asset type: text-free source bitmap for a square Instagram static ad. Primary request: premium photorealistic advertising still life that turns a future salon appointment into a physical return-loop metaphor. Scene/backdrop: seamless warm near-white studio surface. Subject: on the right half, one compact matte-black spiral desk calendar opened to a completely blank thick-paper page, with a subtle empty embossed appointment grid but no marks; one wide vivid cyan matte ribbon emerges from behind the calendar, makes one clear generous loop, and its folded arrow-like tip returns toward the blank future appointment page. Add only one black salon comb and one stainless salon scissors, lightly cropped at the far-right edge, as restrained category context. Style/medium: editorial premium product photography, real paper grain, ribbon weave, brushed steel, soft natural imperfections. Composition/framing: square top-down three-quarter view; hero object and loop occupy the right 48%; preserve the left 52% as calm, genuinely empty near-white negative space for deterministic ad copy; do not place any object or shadow across the left copy area. Lighting/mood: bright soft studio daylight, crisp but natural shadows, calm control and optimism. Color palette: near-white, charcoal black, stainless steel, one saturated cyan accent close to #43BDD3. Constraints: no people, hands, faces, bodies, screens, devices, UI, dashboards, text, letters, numbers, symbols, logos, brands, watermarks, signatures, labels, printed marks, testimonials, ratings, metrics, extra arrows, extra ribbons, extra cards, extra tools, clutter, or dark background. The left negative space must remain clean and the physical return loop must read instantly without copy.",
+  "allowed_tool_catalog": [
+    "built_in_image_generation_single_call",
+    "local_swift_coregraphics_compositor",
+    "local_ffmpeg_jpeg_encoder"
+  ],
+  "isolation_note": "Mandatory recovery exposed summaries and pixels of prior competition candidates before this experiment was selected. Candidate G is controlled, is not generator-blind, and must not enter the strict five-initial-candidate critic set.",
+  "activation_condition": "All packet, Brief, brand-asset, strategy, Studio, writing, excerpt, research, protected-copy, and no-person-policy digests must verify before the one image call. Freeze the generated media digest before candidate composition; do not silently substitute a second variant if the single call fails.",
+  "post_freeze_action": "Generate one strict CandidateV2 from only this packet's business inputs, composite exact copy deterministically, audit raw and 360-pixel output, prove byte replay, and queue only if the candidate passes all gates."
+}

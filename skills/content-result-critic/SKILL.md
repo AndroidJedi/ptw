@@ -14,12 +14,26 @@ geometry. Penalize real pixel/copy/accessibility mismatch, not conformity to
 the resolved contract.
 
 The application-side render mapping is exactly `candidate_id`, `bytes`,
-`sha256`, `mime_type`, `width`, and `height`. Require `image/jpeg`, exact
-1080×1080 dimensions for `instagram_static_ad_v1` or exact 1080×1920 dimensions
-for `tiktok_photo_post_v1`, bounded SOI/EOI JPEG bytes, a matching SHA-256, and one
-unique mapping per active candidate before transport encoding. The release
-canary must use this same persisted-preview shape; a hand-built reduced mapping
-does not prove the production boundary.
+`sha256`, `mime_type`, `width`, and `height`. Production
+`instagram_static_ad_v1` and `tiktok_photo_post_v1` calls require their exact
+persisted 1080×1080 or 1080×1920 previews. The loopback-only
+`universal_ad_experiment_v1` profile instead requires an exact persisted
+480×480 analysis JPEG deterministically derived from the authoritative
+1080×1080 PNG. Its record must bind the source PNG and full-size preview
+digests, source dimensions, rational scale, encoder version, byte count, and
+analysis digest. Full-resolution deterministic layout and protected-copy gates
+remain authoritative. For every profile, require bounded SOI/EOI JPEG bytes, a
+matching SHA-256 and decoded dimensions, and one unique mapping per active
+candidate before transport. The release canary must use the same persisted
+profile-specific shape; an in-memory reduced mapping does not prove the
+boundary.
+
+When the local render mapping includes `asset_provenance`, treat it as the
+source authority for fixed Studio assets. In particular, a visible logo whose
+authority is `captured_saved_studio_identity` is approved saved brand identity
+and must not fail the Project/brand/media gate merely because it has no
+candidate-source UUID. Still fail any pixel/document mismatch, missing digest,
+unrecognized authority, or undeclared asset.
 
 ## Required references
 
@@ -60,6 +74,16 @@ typed and keep anonymized `template_id` null.
   hard gates and pairwise compare. Never request new generation. Select one only
   when fully eligible; otherwise return no selection and actionable retry
   guidance.
+
+The loopback-only `universal_ad_experiment_v1` profile uses the same three
+logical pass numbers with a narrower transport schedule: Pass 1 independently
+screens the first three initial candidates, Pass 2 independently screens the
+remaining two, and Pass 3 receives only both group winners, their exact
+analysis JPEGs, and both structured screening summaries. Passes 1–2 must emit
+no actions, Pass 2 must leave pairwise empty, and no improvement generation is
+available in this local profile. The application, not the critic, resolves each
+group winner from the validated deterministic ranking. Never attach all five
+local candidate images to one call.
 
 Preserve strong elements by UUID. Exact reuse points to the same UUID. A new
 variant identifies the elements it replaces or derives from; server code assigns

@@ -1,0 +1,83 @@
+{
+  "schema": "ptw.skynet.fallback-integrity-evaluation.v1",
+  "evaluation_id": "eval-20260831-003-human-story-fallback",
+  "recorded_at": "2026-08-31T14:34:58Z",
+  "status": "completed_not_candidate_eligible",
+  "question": "Does the current canonical Universal adapter's deterministic no-photo fallback make blocked human_story@3 packet 005 safe and truthful to activate?",
+  "inputs": {
+    "packet_id": "packet-exp-20260831-005-e-v1",
+    "reserved_candidate_id": "cand-20260831-005-e",
+    "template_id": "human_story",
+    "template_version": 3,
+    "media_prerequisite_at_start": "one authorized source-metadata-bearing real candid photo",
+    "candidate_generation_invoked": false
+  },
+  "method": {
+    "artifact_class": "diagnostic_only_not_a_candidate",
+    "resolved_media_mode": "deterministic_texture",
+    "photo_available": false,
+    "sliders": {
+      "hook_pressure": 65,
+      "emotional_intensity": 75,
+      "conceptual_novelty": 60,
+      "information_density": 40,
+      "visual_complexity": 65
+    },
+    "viewports_inspected": [
+      "1080x1080 raw PNG",
+      "360x360 Lanczos PNG",
+      "120x120 Lanczos stress PNG"
+    ],
+    "render_manifest_path": "evaluations/eval-20260831-003-human-story-fallback/render-manifest.json",
+    "render_manifest_sha256": "588ced4b14e43956844ba57e3a3e25658ae9401ad3d45178fb6c0c6c52f9da86"
+  },
+  "artifacts": {
+    "render": {
+      "path": "evaluations/eval-20260831-003-human-story-fallback/render.png",
+      "sha256": "83373f60aa37692dc03566eb78be49e346ecb9fe4d1ce14dd92782b964619147"
+    },
+    "preview_360": {
+      "path": "evaluations/eval-20260831-003-human-story-fallback/preview-360.png",
+      "sha256": "4e031787e6efef3994224596342ae2f03e7f6534d0c922a5c0e816c42961e0ad"
+    },
+    "preview_120": {
+      "path": "evaluations/eval-20260831-003-human-story-fallback/preview-120.png",
+      "sha256": "149fdb329a8dd8f711dbdb13b81a83631f25fcec01f1bab0988296b3dc428593"
+    }
+  },
+  "automated_findings": {
+    "universal_layout_audit": "passed",
+    "strict_visible_geometry_audit": "passed",
+    "protected_offer_exact": true,
+    "protected_cta_exact": true,
+    "render_and_derivatives_replay_byte_identical": true,
+    "brand_prominence_audit": "failed",
+    "natal_wordmark_contrast_ratio": 1.46,
+    "required_wordmark_contrast_ratio": 4.5,
+    "brand_failure": "The dark Natal wordmark is rendered on a dark travertine field without its light logo surface."
+  },
+  "manual_findings": [
+    "At 1080 pixels the fallback is a sparse typography poster, not the required candid work scene: there is no person, work environment, observable closing moment, or other primary subject.",
+    "The headline has a strong editorial silhouette and the text blocks remain unclipped, but the texture does not complete or demonstrate the supplied post-visit mechanism.",
+    "At 360 pixels the headline and CTA remain clear while the supporting line, offer, and wordmark recede sharply.",
+    "At 120 pixels the headline and CTA are the only reliable signals; the mechanism, offer, and brand attribution no longer carry the one-glance message.",
+    "Geometry success is therefore insufficient: the fallback is render-safe but semantically incompatible with human_story@3 and fails the shared brand-prominence floor."
+  ],
+  "decision": {
+    "packet_005_status": "blocked_media_prerequisite",
+    "candidate_e_created": false,
+    "candidate_e_mutated": false,
+    "competition_submission_authorized": false,
+    "telegram_event_queued": false,
+    "portfolio_prior_changed": false,
+    "active_local_selection_prior": "cand-20260831-008-h",
+    "conclusion": "A renderer-level deterministic fallback does not override the generator template, owner task, or media policy. Candidate E still requires authorized real candid photography.",
+    "reusable_rule": "Treat media fallbacks as candidate-valid only when the supplied strategy and task explicitly authorize the resulting visual class, the resolved CandidateV2 and alt text describe those exact pixels, and brand/message hard gates pass."
+  },
+  "future_option": "If a later experiment explicitly requests a typography-led non-human poster, reserve a new identity under a matching non-photo strategy and preserve a light logo surface; do not relabel this fallback as human_story or Candidate E.",
+  "limits": [
+    "This diagnostic bypassed CandidateV2 generation and contains no server element UUIDs.",
+    "It does not score or compare advertising effectiveness and cannot establish an outcome winner.",
+    "It did not invoke a provider, image model, critic, publisher, campaign, or external channel."
+  ]
+}

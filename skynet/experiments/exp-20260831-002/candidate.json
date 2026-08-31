@@ -1,0 +1,34 @@
+{
+  "schema_version": 2,
+  "candidate_id": "cand-20260831-002-b",
+  "brief_id": "brief-20260831-natal-retention-v1",
+  "template_id": "skynet.direct_offer.signal_grid@1",
+  "output_profile": "instagram_static_ad_v1",
+  "hook": "Після візиту статус клієнта оновлюється.",
+  "headline": "ПОБАЧТЕ, ХТО ОХОЛОВ.",
+  "primary_text": "Статуси Активний, Ризик і Відтік оновлюються після кожного візиту.",
+  "supporting_text": "Запустіть нагадування, пропозицію або повторний запис.",
+  "offer": "90 ДНІВ БЕЗКОШТОВНО",
+  "cta": "СПРОБУВАТИ NATAL",
+  "caption": "Після кожного візиту Natal оновлює статус клієнта: Активний, Ризик або Відтік. Для клієнтів у ризику запустіть нагадування, пропозицію або повторний запис. 90 ДНІВ БЕЗКОШТОВНО. СПРОБУВАТИ NATAL.",
+  "alt_text": "Квадратний рекламний креатив Natal на темному фактурному фоні. Великий заголовок закликає побачити, хто охолов. Нижче показані три статуси клієнта: Активний, Ризик і Відтік. У світлому блоці написано «90 днів безкоштовно», а в блакитній кнопці — «Спробувати Natal».",
+  "desired_emotion": "ясність і спокійний контроль",
+  "visual_concept": "Типографічна пропозиція робить безкоштовний період головним візуальним аргументом, а три статусні картки стисло демонструють механізм Natal без фотографії.",
+  "media_request": {
+    "kind": "generated_nonhuman_graphic",
+    "source_asset_id": null,
+    "query": "deterministic abstract signal grid in Natal brand colors, no text or logos",
+    "reason": "The approved Brief permits reviewed non-human graphics; the background is generated locally from a fixed gradient and deterministic line texture with no model call."
+  },
+  "visual_components": [
+    {"role": "background", "content": "Deterministic near-black-to-blue gradient with a fine line texture and restrained cyan grid.", "source_ids": []},
+    {"role": "primary_subject", "content": "A three-card status sequence—Активний, Ризик, Відтік—serves as the non-human product-mechanism subject.", "source_ids": []},
+    {"role": "headline_block", "content": "Large white headline ПОБАЧТЕ, ХТО ОХОЛОВ. in the upper safe region.", "source_ids": []},
+    {"role": "supporting_text_block", "content": "The rendered mechanism states that the three statuses update after each visit.", "source_ids": []},
+    {"role": "offer_block", "content": "Protected offer 90 ДНІВ БЕЗКОШТОВНО exactly once as the dominant line inside a light panel.", "source_ids": []},
+    {"role": "cta_block", "content": "Protected CTA СПРОБУВАТИ NATAL exactly once in a high-contrast cyan action block.", "source_ids": []},
+    {"role": "brand_mark", "content": "Canonical Natal logo unchanged on a compact light surface in the top-left safe area.", "source_ids": ["natal-logo-f465a0e1"]},
+    {"role": "lighting_style", "content": "Flat digital light with one restrained cyan signal glow; no photographic or human cues.", "source_ids": []},
+    {"role": "composition", "content": "Logo and eyebrow lead to headline, mechanism, status sequence, dominant offer panel, then CTA and supported return actions.", "source_ids": []}
+  ]
+}

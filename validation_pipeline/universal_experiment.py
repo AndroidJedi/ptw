@@ -14,10 +14,33 @@ from .studio_universal import normalize_universal_config
 
 
 PROFILE_ID = "universal_ad_experiment_v1"
-ADAPTER_VERSION = 1
+ADAPTER_VERSION = 4
+ANALYSIS_IMAGE_SIZE = (480, 480)
 PHOTO_STRATEGIES = frozenset({
     "moment_tension", "contrast_reframe", "mechanism_proof", "human_story",
 })
+
+# A missing optional photo must not make the one-click local Result flow
+# unusable. These canonical, deterministic Studio textures are reviewed
+# non-human graphics; each photo-capable strategy has a distinct fallback.
+PHOTO_FALLBACK_PATCHES: dict[str, dict[str, Any]] = {
+    "moment_tension": {
+        "background.mode": "texture", "background.texture": "slate",
+        "background.texture_intensity": 0.78,
+    },
+    "contrast_reframe": {
+        "background.mode": "texture", "background.texture": "marble",
+        "background.texture_intensity": 0.7,
+    },
+    "mechanism_proof": {
+        "background.mode": "texture", "background.texture": "concrete",
+        "background.texture_intensity": 0.66,
+    },
+    "human_story": {
+        "background.mode": "texture", "background.texture": "travertine",
+        "background.texture_intensity": 0.74,
+    },
+}
 
 # These paths are the complete local strategy authority.  Palette, logo,
 # protected copy, component IDs, and undeclared settings remain immutable.
@@ -85,7 +108,7 @@ def _get(root: Mapping[str, Any], path: str) -> Any:
 
 def resolve_strategy_patch(
     base: Mapping[str, Any], strategy_id: str, sliders: Mapping[str, int], *,
-    sticker_available: bool = False,
+    sticker_available: bool = False, photo_available: bool = True,
 ) -> dict[str, Any]:
     if strategy_id not in TEMPLATE_IDS or strategy_id not in STRATEGY_PATCHES:
         raise ValueError("unknown Universal experiment strategy")
@@ -96,6 +119,8 @@ def resolve_strategy_patch(
         raise ValueError("Universal experiment sliders do not match v1")
     config = deepcopy(dict(base))
     resolved_patch = dict(STRATEGY_PATCHES[strategy_id])
+    if strategy_id in PHOTO_STRATEGIES and not photo_available:
+        resolved_patch.update(PHOTO_FALLBACK_PATCHES[strategy_id])
 
     # Sliders affect only declared, already strategy-owned paths.
     density = int(sliders["information_density"])
@@ -124,7 +149,14 @@ def resolve_strategy_patch(
         "setting_patch": resolved_patch,
         "setting_deltas": deltas,
         "configuration": normalized,
-        "requires_photo": strategy_id in PHOTO_STRATEGIES,
+        "requires_photo": strategy_id in PHOTO_STRATEGIES and photo_available,
+        "media_mode": (
+            "approved_photo"
+            if strategy_id in PHOTO_STRATEGIES and photo_available
+            else "deterministic_texture"
+            if strategy_id in PHOTO_STRATEGIES
+            else "native_non_photo"
+        ),
     }
 
 
@@ -143,6 +175,32 @@ def deterministic_jpeg(png: bytes) -> dict[str, Any]:
         "bytes": data, "sha256": hashlib.sha256(data).hexdigest(),
         "mime_type": "image/jpeg", "width": 1080, "height": 1080,
         "encoder": "pillow-jpeg-q92-subsampling-0-v1",
+    }
+
+
+def deterministic_analysis_jpeg(png: bytes) -> dict[str, Any]:
+    """Create the persisted, pixel-bounded critic transport derivative."""
+
+    source_sha256 = hashlib.sha256(png).hexdigest()
+    with Image.open(BytesIO(png)) as source:
+        image = source.convert("RGB")
+        if image.size != (1080, 1080):
+            raise ValueError("Universal analysis source PNG must be exactly 1080x1080")
+        image = image.resize(ANALYSIS_IMAGE_SIZE, Image.Resampling.LANCZOS)
+        output = BytesIO()
+        image.save(
+            output, format="JPEG", quality=85, subsampling=2,
+            optimize=False, progressive=False,
+        )
+    data = output.getvalue()
+    return {
+        "bytes": data, "sha256": hashlib.sha256(data).hexdigest(),
+        "mime_type": "image/jpeg", "width": ANALYSIS_IMAGE_SIZE[0],
+        "height": ANALYSIS_IMAGE_SIZE[1],
+        "encoder": "pillow-lanczos-480-jpeg-q85-subsampling-2-v1",
+        "source_png_sha256": source_sha256,
+        "source_width": 1080, "source_height": 1080,
+        "scale_numerator": 4, "scale_denominator": 9,
     }
 
 

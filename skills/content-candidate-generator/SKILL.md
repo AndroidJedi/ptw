@@ -62,6 +62,14 @@ or refer to another candidate.
   be replaced by freeform component prose. The rendered headline is
   `headline`; the rendered supporting/mechanism block is `primary_text`.
   Describe those exact pixels in `visual_components` and `alt_text`.
+- For loopback `universal_ad_experiment_v1`, the supplied
+  `resolved_render_contract` is the authority for visible bullets, sticker,
+  background, and saved logo. A captured saved-Studio logo with
+  `captured_saved_studio_identity` authority is approved brand identity even
+  without a candidate media UUID. Never describe a visible optional role as
+  empty or describe a hidden role as rendered. The local adapter
+  deterministically aligns optional-role descriptions and alt text to the
+  exact resolved render and records those transformations before persistence.
 - The visual completes the message. Do not decorate unrelated copy, stack prior
   JPEGs, combine incompatible scenes, or embed copy in generated media.
 - Return one strict JSON object only. Server code assigns UUIDv7 element IDs,

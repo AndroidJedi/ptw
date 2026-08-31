@@ -1,0 +1,104 @@
+{
+  "schema": "ptw.skynet.generation-packet.v1",
+  "packet_id": "packet-exp-20260831-006-f-v1",
+  "status": "reserved",
+  "experiment_id": "exp-20260831-006",
+  "reserved_candidate_id": "cand-20260831-006-f",
+  "generation_boundary": "controlled_after_mandatory_recovery",
+  "owner_task": "Create one Instagram square that makes Natal's supplied post-visit status mechanism visible as a compact non-human proof card. Lead with the customer outcome, show Active/Risk/Churn and the actions available for Risk, and do not imply that the diagram is a literal product screenshot.",
+  "approved_brief": {
+    "path": "experiments/exp-20260831-001/brief.json",
+    "brief_id": "brief-20260831-natal-retention-v1",
+    "sha256": "b7fe8e68cf044ee5e4ce3dc67b2b0ed65e9ec698319abb22f9f65442c0e3c387"
+  },
+  "brand_kit": {
+    "name": "Natal",
+    "font": "Inter",
+    "palette": {
+      "dark": "#0C0E12",
+      "ink": "#181C25",
+      "light": "#F4F6FA",
+      "muted": "#A3ADBD",
+      "accent": "#43BDD3",
+      "accent_soft": "#87D0DD"
+    },
+    "tone": "Compact, direct, calm, high-contrast and personally specific."
+  },
+  "brand_assets": [
+    {
+      "path": "assets/natal/logo-natal.png",
+      "source_id": "natal-logo-f465a0e1",
+      "sha256": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba"
+    },
+    {
+      "path": "assets/natal/inter.ttf",
+      "source_id": "natal-inter-29160a80",
+      "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"
+    }
+  ],
+  "strategy": {
+    "template_id": "mechanism_proof",
+    "version": 3,
+    "canonical_strategy_sha256": "8682cbba122e4faa5eeb9aabeaf7cb06ad42ff67a7dd2956f6ee2ab7eddbb2a6",
+    "canonical_source_file_sha256": "db33227cc6e28ee54fcf3ca9cbfb86e00fb9497cde00fa27d6d26d81d35049bb",
+    "studio_template_sha256": "c9770012e119d99e92984f6dcc11c8eb85d70c650281eddaf868204c2674ade4",
+    "studio_source_file_sha256": "dd4fa2d765a5983bd54684fe88272b38adc474db5bb7c0ca62624dfdedacbc0d",
+    "technique_guide": "ad-copy",
+    "technique_guide_sha256": "9845b640608d817748f09f5aad4c4a9f9f1695b7d90aa316b90076635ced340b",
+    "philosophy": "Show how the promised result happens through supplied steps, visible product UI, process, timing, actors, or transparent proof. Credibility comes from mechanism, never invented evidence.",
+    "narrative_sequence": [
+      "customer outcome",
+      "small sequence",
+      "visible mechanism",
+      "honest reassurance",
+      "exact offer and CTA"
+    ],
+    "visual_grammar": [
+      "approved product or process is visible",
+      "ordered hierarchy",
+      "real context around the mechanism",
+      "proof and promise share one scene"
+    ],
+    "sliders": {
+      "hook_pressure": 75,
+      "emotional_intensity": 28,
+      "conceptual_novelty": 40,
+      "information_density": 65,
+      "visual_complexity": 50
+    }
+  },
+  "writing_bundle": {
+    "principles_sha256": "8617fefc1967b17b05b9bbe76ea76ac2cd2b370ffeae66a74984d13d1d96a476",
+    "anti_patterns_sha256": "676e094c3847a2a419633e61ad64ee4911b85bc3c73c21d57e2137b52f6fa9f6",
+    "corpus_manifest_sha256": "974f34b4ba5903178530bcacc1ddb00087d373d591283f9ec868aac9bea69730",
+    "corpus_excerpt_ids": [
+      "natal-landing-02",
+      "natal-landing-05",
+      "natal-landing-09",
+      "natal-business-06"
+    ],
+    "corpus_excerpt_sha256": [
+      "31aa9249619a4b3ec0dab83a929b15fe9ea4924c38db7de2ffdaed685d224d78",
+      "39b76d3b05dc23695a6de429bdc9312840f66d5ee1ea75542286b5def5c233cc",
+      "71717bac323d0a71a6110f3ffcaba586812dfd55d0530564504f5eb8da350ec5",
+      "12acd3329c4045712c36b4e0a91af0ef67aa1d3a4b322ebf739ff4a3a3e61df3"
+    ]
+  },
+  "output_profile": "instagram_static_ad_v1",
+  "required_offer": "90 ДНІВ БЕЗКОШТОВНО",
+  "required_cta": "СПРОБУВАТИ NATAL",
+  "media_policy": {
+    "kind": "non_human_graphic",
+    "approved_by_brief": true,
+    "synthetic_people_or_faces_allowed": false,
+    "embedded_generated_copy_allowed": false,
+    "external_photo_required": false
+  },
+  "allowed_tool_catalog": [
+    "deterministic_html_css_non_human_graphic",
+    "local_headless_chrome_rasterizer",
+    "local_ffmpeg_jpeg_encoder"
+  ],
+  "isolation_note": "Mandatory recovery exposed summaries of prior strategies. Candidate F is controlled and must not be counted as generator-blind or used in the strict five-initial-candidate critic set.",
+  "activation_condition": "Canonical source digests, Brief digest, brand-asset digests, protected copy, and non-human media permission must all verify before rendering."
+}

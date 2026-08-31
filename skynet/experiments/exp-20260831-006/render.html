@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1080, initial-scale=1">
+  <style>
+    @font-face {
+      font-family: "Natal Inter";
+      src: url("../../assets/natal/inter.ttf") format("truetype");
+      font-style: normal;
+      font-weight: 100 900;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 1080px; height: 1080px; overflow: hidden; }
+    body { font-family: "Natal Inter", Inter, sans-serif; -webkit-font-smoothing: antialiased; }
+    .canvas { position: relative; width: 1080px; height: 1080px; overflow: hidden; background: #F4F6FA; color: #0C0E12; }
+    .media-card { position: absolute; left: 54px; top: 76px; width: 454px; height: 562px; border-radius: 28px; background: #181C25; }
+    .hero-media { position: absolute; left: 76px; top: 97px; width: 410px; height: 456px; border-radius: 22px; overflow: hidden; opacity: .84; background: #0C0E12; color: #F4F6FA; }
+    .hero-media::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(135,208,221,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(135,208,221,.08) 1px, transparent 1px); background-size: 32px 32px; }
+    .mechanism { position: absolute; inset: 30px; }
+    .mechanism-title { position: relative; font-size: 16px; font-weight: 700; letter-spacing: 2.4px; color: #A3ADBD; }
+    .status-list { position: relative; margin-top: 24px; display: grid; gap: 11px; }
+    .status { height: 55px; border-radius: 13px; border: 1px solid rgba(163,173,189,.24); display: flex; align-items: center; padding: 0 17px; font-size: 18px; font-weight: 700; letter-spacing: .8px; color: #A3ADBD; background: rgba(244,246,250,.035); }
+    .status::before { content: ""; width: 10px; height: 10px; margin-right: 13px; border-radius: 50%; background: #A3ADBD; opacity: .5; }
+    .status.risk { height: 66px; color: #0C0E12; background: #43BDD3; border-color: #43BDD3; font-size: 22px; }
+    .status.risk::before { background: #0C0E12; opacity: 1; }
+    .status.risk .tag { margin-left: auto; padding: 6px 9px; border-radius: 7px; background: rgba(12,14,18,.16); font-size: 11px; letter-spacing: 1.2px; }
+    .action-rule { position: relative; width: 2px; height: 22px; margin: 11px auto 9px; background: #43BDD3; }
+    .action-rule::after { content: ""; position: absolute; left: -4px; bottom: -1px; width: 8px; height: 8px; border-right: 2px solid #43BDD3; border-bottom: 2px solid #43BDD3; transform: rotate(45deg); }
+    .actions-label { position: relative; text-align: center; font-size: 12px; font-weight: 700; letter-spacing: 1.5px; color: #87D0DD; }
+    .actions { position: relative; margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .action { min-height: 34px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(135,208,221,.38); border-radius: 9px; color: #F4F6FA; font-size: 12px; font-weight: 600; text-align: center; padding: 5px; }
+    .action:last-child { grid-column: 1 / 3; }
+    .proof-surface { position: absolute; left: 521px; top: 292px; width: 497px; height: 335px; border-radius: 24px; background: rgba(135,208,221,.22); }
+    .headline { position: absolute; left: 562px; top: 97px; width: 454px; height: 162px; display: flex; align-items: flex-end; white-space: pre-line; font-size: 53px; line-height: 1; font-weight: 700; letter-spacing: -1.7px; }
+    .body { position: absolute; left: 572px; top: 335px; width: 410px; height: 226px; white-space: pre-line; font-size: 21px; line-height: 1.12; font-weight: 500; color: #181C25; }
+    .offer { position: absolute; left: 562px; top: 680px; width: 432px; height: 76px; display: flex; align-items: center; font-size: 25px; line-height: 1; font-weight: 700; letter-spacing: .15px; }
+    .offer::before { content: ""; width: 42px; height: 5px; margin-right: 15px; border-radius: 3px; background: #43BDD3; }
+    .cta-surface { position: absolute; left: 562px; top: 821px; width: 410px; height: 97px; border-radius: 18px; background: #0C0E12; }
+    .cta { position: absolute; left: 572px; top: 837px; width: 389px; height: 65px; display: flex; align-items: center; justify-content: center; font-size: 23px; line-height: 1; font-weight: 700; color: #F4F6FA; text-align: center; }
+    .logo { position: absolute; left: 76px; top: 929px; width: 238px; height: 59px; object-fit: contain; object-position: left center; }
+    .proof-callout { position: absolute; left: 38px; top: 59px; width: 59px; height: 59px; border-radius: 50%; opacity: .86; background: #43BDD3; border: 10px solid #F4F6FA; }
+  </style>
+</head>
+<body>
+  <main class="canvas" aria-label="Реклама Natal">
+    <section class="media-card" aria-hidden="true"></section>
+    <section class="hero-media" aria-label="Умовна схема статусів після візиту">
+      <div class="mechanism">
+        <div class="mechanism-title">СТАТУС ПІСЛЯ ВІЗИТУ</div>
+        <div class="status-list">
+          <div class="status">АКТИВНИЙ</div>
+          <div class="status risk">РИЗИК <span class="tag">ДІЯ</span></div>
+          <div class="status">ВІДТІК</div>
+        </div>
+        <div class="action-rule"></div>
+        <div class="actions-label">ДОРЕЧНИЙ СЦЕНАРІЙ</div>
+        <div class="actions">
+          <div class="action">НАГАДУВАННЯ</div>
+          <div class="action">ПРОПОЗИЦІЯ</div>
+          <div class="action">ПОВТОРНИЙ ЗАПИС</div>
+        </div>
+      </div>
+    </section>
+    <div class="proof-surface" aria-hidden="true"></div>
+    <h1 class="headline">Ризик видно
+до порожнього
+календаря</h1>
+    <div class="body">Після кожного візиту Natal оновлює статус:
+Активний, Ризик або Відтік.
+
+Для «Ризику» запускайте доречний
+сценарій повернення.</div>
+    <div class="offer">90 ДНІВ БЕЗКОШТОВНО</div>
+    <div class="cta-surface" aria-hidden="true"></div>
+    <div class="cta">СПРОБУВАТИ NATAL</div>
+    <img class="logo" src="../../assets/natal/logo-natal.png" alt="Natal">
+    <div class="proof-callout" aria-hidden="true"></div>
+  </main>
+</body>
+</html>

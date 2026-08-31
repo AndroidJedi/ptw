@@ -1,0 +1,48 @@
+{
+  "schema": "ptw.skynet.strategy-template.v1",
+  "template_id": "contrast_reframe",
+  "version": 3,
+  "source_sha256": "a98d4621a8fef65be40a96398434190cafc816bb93fa4e5ac3290e69fa096386",
+  "philosophy": "Define the product through a sharp but truthful contrast, then make the supplied mechanism concrete enough to avoid slogan-only copy.",
+  "narrative_sequence": [
+    "familiar assumption",
+    "short contrast",
+    "new frame",
+    "concrete mechanism",
+    "exact offer and CTA"
+  ],
+  "visual_grammar": "Two controlled visual states or one decisive interruption, short contrast typography, one shared focal subject, and no disconnected collage.",
+  "exact_sliders": {
+    "hook_pressure": 80,
+    "emotional_intensity": 58,
+    "conceptual_novelty": 86,
+    "information_density": 38,
+    "visual_complexity": 64
+  },
+  "studio_snapshot": {
+    "canvas": {"width": 1080, "height": 1080, "safe_margin": 72},
+    "frames": [
+      {"id": "brand", "x": 72, "y": 52, "width": 182, "height": 56},
+      {"id": "headline", "x": 72, "y": 150, "width": 936, "height": 156},
+      {"id": "mechanism-copy", "x": 72, "y": 326, "width": 820, "height": 82},
+      {"id": "contrast-left", "x": 72, "y": 452, "width": 376, "height": 294},
+      {"id": "scenario-right", "x": 464, "y": 452, "width": 544, "height": 294},
+      {"id": "offer", "x": 72, "y": 808, "width": 550, "height": 116},
+      {"id": "cta", "x": 690, "y": 812, "width": 318, "height": 96}
+    ],
+    "bindings": {
+      "headline": "candidate.headline",
+      "mechanism-copy": "candidate.primary_text",
+      "offer": "candidate.offer",
+      "cta": "candidate.cta",
+      "brand": "natal-logo-f465a0e1"
+    },
+    "palette": {
+      "ink": "#071118",
+      "panel": "#0D1A22",
+      "muted": "#52616B",
+      "paper": "#F3F6F6",
+      "cyan": "#7BD5EA"
+    }
+  }
+}

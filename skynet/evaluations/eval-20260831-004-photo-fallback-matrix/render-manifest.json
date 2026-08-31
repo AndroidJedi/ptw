@@ -1,0 +1,1486 @@
+{
+  "artifact_class": "diagnostic_only_not_candidates",
+  "candidate_activation_authorized": false,
+  "contacts": {
+    "contact-120-nearest.png": {
+      "byte_count": 49319,
+      "height": 720,
+      "sha256": "4c0cb6837e9fcf4f0dd4c25be22fa4384dea3677272b62fe0ea0eb70c20fa412",
+      "width": 720
+    },
+    "contact-360.png": {
+      "byte_count": 172411,
+      "height": 720,
+      "sha256": "9eacc59f1dc67108d6edc6d32f0daf448080b337454341ff9847aed5715d4ffc",
+      "width": 720
+    }
+  },
+  "controlled_design": {
+    "photo_available": false,
+    "protected_copy": {
+      "cta": "СПРОБУВАТИ NATAL",
+      "offer": "90 ДНІВ БЕЗКОШТОВНО"
+    },
+    "shared_content": {
+      "bullets": [
+        "Статус оновлюється після візиту",
+        "«Ризик» показує, хто охолов",
+        "Запустіть доречний сценарій"
+      ],
+      "cta": "СПРОБУВАТИ NATAL",
+      "hero_title": "ХТО ПОВЕРНЕТЬСЯ?",
+      "offer": "90 ДНІВ БЕЗКОШТОВНО",
+      "schema": "ptw.studio.universal-ad-content.v2",
+      "supporting_text": "Після кожного візиту Natal оновлює статус і підказує доречний сценарій повернення."
+    },
+    "sticker_available": false,
+    "strategy_order_row_major": [
+      "moment_tension",
+      "contrast_reframe",
+      "mechanism_proof",
+      "human_story"
+    ],
+    "strategy_sliders": "exact canonical v3 defaults"
+  },
+  "evaluation_id": "eval-20260831-004-photo-fallback-matrix",
+  "limits": [
+    "These renders bypass CandidateV2 generation and are not eligible for competition submission.",
+    "Texture availability does not satisfy any strategy's visual grammar or authorize a new candidate.",
+    "Automated geometry and contrast checks do not establish advertising effectiveness."
+  ],
+  "purpose": "Test whether the current adapter's four deterministic photo-strategy fallbacks systematically fail Natal brand contrast or strategy-message fit.",
+  "schema": "ptw.skynet.photo-fallback-matrix-render.v1",
+  "source_sha256": {
+    "approved_brief": "b7fe8e68cf044ee5e4ce3dc67b2b0ed65e9ec698319abb22f9f65442c0e3c387",
+    "candidate_activation_gate": "cbfc0516ee19f08a6dff159b56555a64d35d173017a771f96918d64376b2e864",
+    "pixel_preflight": "58840f589335ff09e2cbbf477a769d58e86f11e818456593f37b32586d9fbe75",
+    "studio_universal": "f397c678890328cb1072b142b8c9ebbbee10717c71d2db9807509fdb623767ec",
+    "studio_workspace": "d3043df39af3cca88064862e937e107c78553055835b40b08df8178263b36275",
+    "template_contrast_reframe": "a98d4621a8fef65be40a96398434190cafc816bb93fa4e5ac3290e69fa096386",
+    "template_human_story": "9de0eabc6b8ed918db6241d44efab754d820af461085a371337b3e9e0a9e78c1",
+    "template_mechanism_proof": "db33227cc6e28ee54fcf3ca9cbfb86e00fb9497cde00fa27d6d26d81d35049bb",
+    "template_moment_tension": "ce64bcd41506050ad6e4f02084480d0bba97a16ef55cc1733475d71f93ba1e6f",
+    "universal_experiment": "6ad133da058494d526d32fbecc3f0238ca2e22e92b5724c22377a139165818ae",
+    "visual_audit": "a5b194afb6b60e96a283b061c1a3808bdfabb4865ee048f431a524ac9583ae71"
+  },
+  "strategies": {
+    "contrast_reframe": {
+      "brand_prominence_audit": {
+        "assigned_box": {
+          "height": 76,
+          "width": 180,
+          "x": 840,
+          "y": 150
+        },
+        "bbox_canvas_area_ratio": 0.00648,
+        "failures": [
+          "Natal wordmark contrast is below the required floor"
+        ],
+        "median_background_rgb": [
+          10,
+          28,
+          51
+        ],
+        "normalized_center": [
+          0.8611,
+          0.1741
+        ],
+        "status": "failed",
+        "visible_bounds": [
+          840,
+          167,
+          1020,
+          209
+        ],
+        "visible_brand_pixels": 2220,
+        "visible_height": 42,
+        "visible_width": 180,
+        "wordmark_contrast_ratio": 1.47
+      },
+      "candidate_activation_gate": {
+        "candidate_activation_authorized": false,
+        "failures": [
+          {
+            "code": "deterministic_texture_diagnostic_only",
+            "message": "The current photo-strategy texture fallback is render-only diagnostic media and cannot receive candidate identity."
+          },
+          {
+            "code": "brand_prominence_failed",
+            "message": "The pixel-level brand-prominence audit did not pass."
+          }
+        ],
+        "media_mode": "deterministic_texture",
+        "schema": "ptw.skynet.universal-candidate-activation-gate.v1",
+        "status": "failed",
+        "strategy_id": "contrast_reframe"
+      },
+      "configuration": {
+        "background": {
+          "color": "#10233F",
+          "focal_x": 0.5,
+          "focal_y": 0.5,
+          "image_fit": "cover",
+          "image_layout": "left",
+          "image_percent": 75,
+          "mode": "texture",
+          "overlay_color": "#07182E",
+          "overlay_opacity": 0.68,
+          "texture": "marble",
+          "texture_intensity": 0.7
+        },
+        "bullets": {
+          "enabled": false,
+          "style": "check"
+        },
+        "cta": {
+          "background_color": "#FFD84D",
+          "position": "below_text",
+          "radius": 24,
+          "style": "filled",
+          "text_color": "#10233F"
+        },
+        "layout": {
+          "content_width": 500,
+          "content_x": 520,
+          "content_y": 150,
+          "gap": 17
+        },
+        "logo": {
+          "background_color": "#FFFFFF",
+          "background_enabled": false,
+          "enabled": true,
+          "position": "top_right",
+          "width": 180
+        },
+        "schema": "ptw.studio.universal-ad-config.v4",
+        "sticker": {
+          "enabled": false,
+          "object_scale": 0.9,
+          "offset_bottom": 0,
+          "offset_right": 0,
+          "position": "bottom_right",
+          "rotation": 5.0,
+          "width": 300
+        },
+        "typography": {
+          "alignment": "left",
+          "benefits_font_family": "Manrope",
+          "font_family": "Inter",
+          "hero_size": 110,
+          "hero_weight": 900,
+          "supporting_size": 28,
+          "text_color": "#FFFFFF"
+        }
+      },
+      "layout_audit": {
+        "collisions": [],
+        "gates": {
+          "collision_absent": true,
+          "component_coverage": true,
+          "contrast": true,
+          "exact_cta": true,
+          "exact_offer": true,
+          "overflow_absent": true,
+          "safe_area": true,
+          "semantic_flow": true,
+          "truncation_absent": true
+        },
+        "missing_nodes": [],
+        "overflow_nodes": [],
+        "passed": true,
+        "schema": "ptw.studio.universal-ad-layout-audit.v1",
+        "truncated_nodes": [],
+        "unsafe_nodes": []
+      },
+      "outputs": {
+        "contrast_reframe-1080.png": {
+          "byte_count": 89272,
+          "height": 1080,
+          "sha256": "8d7f938831fb432bad89c008049f1bfd4e8f0213918e296d71043d2641dcab03",
+          "width": 1080
+        },
+        "contrast_reframe-120.png": {
+          "byte_count": 6799,
+          "height": 120,
+          "sha256": "fc47300ebd0dbd29296e4c206c572bcdc67d34fb7640a5ac6e315c2b245087d8",
+          "width": 120
+        },
+        "contrast_reframe-360.png": {
+          "byte_count": 36279,
+          "height": 360,
+          "sha256": "42071a95320a3ecdcb254ba114b8c208b57b80e84afe0f1befb38971ef830a54",
+          "width": 360
+        }
+      },
+      "resolved_assets": {
+        "background_texture": "c45308547d696c9da06a791625f0b5b34e2c68d20c61ba1efc44fcf800015c9d",
+        "logo": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba"
+      },
+      "resolved_strategy": {
+        "media_mode": "deterministic_texture",
+        "requires_photo": false,
+        "setting_patch": {
+          "background.image_fit": "cover",
+          "background.image_layout": "left",
+          "background.image_percent": 75,
+          "background.mode": "texture",
+          "background.overlay_opacity": 0.68,
+          "background.texture": "marble",
+          "background.texture_intensity": 0.7,
+          "bullets.enabled": false,
+          "cta.position": "below_text",
+          "layout.content_width": 500,
+          "layout.content_x": 520,
+          "layout.content_y": 150,
+          "layout.gap": 17,
+          "sticker.enabled": false,
+          "typography.font_family": "Inter",
+          "typography.hero_size": 110,
+          "typography.hero_weight": 900,
+          "typography.supporting_size": 28
+        }
+      },
+      "selected_nodes": {
+        "cta": {
+          "box": {
+            "height": 0.07592592592592592,
+            "width": 0.23148148148148148,
+            "x": 0.48148148148148145,
+            "y": 0.6546296296296297
+          },
+          "text_layout": null,
+          "visible_bounds": {
+            "height": 0.07592592592592592,
+            "width": 0.23148148148148148,
+            "x": 0.48148148148148145,
+            "y": 0.6546296296296297
+          }
+        },
+        "hero_title": {
+          "box": {
+            "height": 0.22962962962962963,
+            "width": 0.46296296296296297,
+            "x": 0.48148148148148145,
+            "y": 0.23148148148148148
+          },
+          "text_layout": {
+            "font_size": 63,
+            "ink_height": 107.22,
+            "line_box_height": 118.44,
+            "line_count": 2,
+            "overflow": false,
+            "source_line_count": 2,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.09907407407407408,
+            "width": 0.4537037037037037,
+            "x": 0.4824074074074074,
+            "y": 0.23148148148148148
+          }
+        },
+        "logo": {
+          "box": {
+            "height": 0.06999999999999999,
+            "width": 0.16666666666666666,
+            "x": 0.7777777777777778,
+            "y": 0.1388888888888889
+          },
+          "text_layout": null,
+          "visible_bounds": {
+            "height": 0.041666666666666664,
+            "width": 0.16666666666666666,
+            "x": 0.7777777777777778,
+            "y": 0.1527777777777778
+          }
+        },
+        "offer": {
+          "box": {
+            "height": 0.05740740740740741,
+            "width": 0.46296296296296297,
+            "x": 0.48148148148148145,
+            "y": 0.5814814814814815
+          },
+          "text_layout": {
+            "font_size": 26,
+            "ink_height": 25.0,
+            "line_box_height": 28.6,
+            "line_count": 1,
+            "overflow": false,
+            "source_line_count": 1,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.023148148148148147,
+            "width": 0.2972222222222222,
+            "x": 0.4824074074074074,
+            "y": 0.5814814814814815
+          }
+        },
+        "supporting_text": {
+          "box": {
+            "height": 0.08888888888888889,
+            "width": 0.46296296296296297,
+            "x": 0.48148148148148145,
+            "y": 0.47685185185185186
+          },
+          "text_layout": {
+            "font_size": 27,
+            "ink_height": 90.72,
+            "line_box_height": 95.58,
+            "line_count": 3,
+            "overflow": false,
+            "source_line_count": 3,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.08425925925925926,
+            "width": 0.45185185185185184,
+            "x": 0.4824074074074074,
+            "y": 0.47685185185185186
+          }
+        }
+      },
+      "strict_visual_audit": {
+        "report": {
+          "name": "contrast_reframe_no_photo",
+          "text": {
+            "hero_title": {
+              "font_size": 63,
+              "line_count": 2,
+              "visible_bottom": 357.0,
+              "visible_top": 250.0
+            },
+            "logo": {
+              "background": false,
+              "position": [
+                840.0,
+                150.0
+              ],
+              "size": [
+                180.0,
+                75.6
+              ]
+            },
+            "offer": {
+              "font_size": 26,
+              "line_count": 1,
+              "visible_bottom": 653.0,
+              "visible_top": 628.0
+            },
+            "supporting_text": {
+              "font_size": 27,
+              "line_count": 3,
+              "visible_bottom": 606.0,
+              "visible_top": 515.0
+            }
+          }
+        },
+        "status": "passed"
+      },
+      "template": {
+        "defaults": {
+          "conceptual_novelty": 86,
+          "emotional_intensity": 58,
+          "hook_pressure": 80,
+          "information_density": 38,
+          "visual_complexity": 64
+        },
+        "philosophy": "Define the product through a sharp but truthful contrast, negation, misconception, or not-X-but-Y reframe, then make the mechanism concrete enough to avoid slogan-only copy.",
+        "version": 3,
+        "visual_grammar": [
+          "two controlled visual states or one decisive interruption",
+          "short contrast typography",
+          "one shared focal subject",
+          "no disconnected collage"
+        ]
+      }
+    },
+    "human_story": {
+      "brand_prominence_audit": {
+        "assigned_box": {
+          "height": 76,
+          "width": 180,
+          "x": 828,
+          "y": 270
+        },
+        "bbox_canvas_area_ratio": 0.00648,
+        "failures": [
+          "Natal wordmark contrast is below the required floor"
+        ],
+        "median_background_rgb": [
+          11,
+          29,
+          53
+        ],
+        "normalized_center": [
+          0.85,
+          0.2852
+        ],
+        "status": "failed",
+        "visible_bounds": [
+          828,
+          287,
+          1008,
+          329
+        ],
+        "visible_brand_pixels": 2228,
+        "visible_height": 42,
+        "visible_width": 180,
+        "wordmark_contrast_ratio": 1.46
+      },
+      "candidate_activation_gate": {
+        "candidate_activation_authorized": false,
+        "failures": [
+          {
+            "code": "deterministic_texture_diagnostic_only",
+            "message": "The current photo-strategy texture fallback is render-only diagnostic media and cannot receive candidate identity."
+          },
+          {
+            "code": "brand_prominence_failed",
+            "message": "The pixel-level brand-prominence audit did not pass."
+          }
+        ],
+        "media_mode": "deterministic_texture",
+        "schema": "ptw.skynet.universal-candidate-activation-gate.v1",
+        "status": "failed",
+        "strategy_id": "human_story"
+      },
+      "configuration": {
+        "background": {
+          "color": "#10233F",
+          "focal_x": 0.5,
+          "focal_y": 0.5,
+          "image_fit": "cover",
+          "image_layout": "full",
+          "image_percent": 75,
+          "mode": "texture",
+          "overlay_color": "#07182E",
+          "overlay_opacity": 0.58,
+          "texture": "travertine",
+          "texture_intensity": 0.74
+        },
+        "bullets": {
+          "enabled": false,
+          "style": "check"
+        },
+        "cta": {
+          "background_color": "#FFD84D",
+          "position": "bottom_left",
+          "radius": 24,
+          "style": "filled",
+          "text_color": "#10233F"
+        },
+        "layout": {
+          "content_width": 720,
+          "content_x": 72,
+          "content_y": 270,
+          "gap": 18
+        },
+        "logo": {
+          "background_color": "#FFFFFF",
+          "background_enabled": false,
+          "enabled": true,
+          "position": "top_right",
+          "width": 180
+        },
+        "schema": "ptw.studio.universal-ad-config.v4",
+        "sticker": {
+          "enabled": false,
+          "object_scale": 0.9,
+          "offset_bottom": 0,
+          "offset_right": 0,
+          "position": "bottom_right",
+          "rotation": 5.0,
+          "width": 300
+        },
+        "typography": {
+          "alignment": "left",
+          "benefits_font_family": "Inter",
+          "font_family": "Cormorant Garamond",
+          "hero_size": 103,
+          "hero_weight": 700,
+          "supporting_size": 30,
+          "text_color": "#FFFFFF"
+        }
+      },
+      "layout_audit": {
+        "collisions": [],
+        "gates": {
+          "collision_absent": true,
+          "component_coverage": true,
+          "contrast": true,
+          "exact_cta": true,
+          "exact_offer": true,
+          "overflow_absent": true,
+          "safe_area": true,
+          "semantic_flow": true,
+          "truncation_absent": true
+        },
+        "missing_nodes": [],
+        "overflow_nodes": [],
+        "passed": true,
+        "schema": "ptw.studio.universal-ad-layout-audit.v1",
+        "truncated_nodes": [],
+        "unsafe_nodes": []
+      },
+      "outputs": {
+        "human_story-1080.png": {
+          "byte_count": 137899,
+          "height": 1080,
+          "sha256": "1a47ca34461c871252e5a7376147b39f1817c41cf90ef11a144066e8ec03abdd",
+          "width": 1080
+        },
+        "human_story-120.png": {
+          "byte_count": 10813,
+          "height": 120,
+          "sha256": "54288e70845bea216b0bf5722af81a5a17475be0bd4d0c0e60f45bfdc41af401",
+          "width": 120
+        },
+        "human_story-360.png": {
+          "byte_count": 46349,
+          "height": 360,
+          "sha256": "c5ba962e08b9bb64fb68f3a10c04d65797e084587b5c63d5f7827aca08bb2436",
+          "width": 360
+        }
+      },
+      "resolved_assets": {
+        "background_texture": "4f838bba8da393b0421560fdb883a977f47ca13d4a369a5138b97cf12e4d7f06",
+        "logo": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba"
+      },
+      "resolved_strategy": {
+        "media_mode": "deterministic_texture",
+        "requires_photo": false,
+        "setting_patch": {
+          "background.image_fit": "cover",
+          "background.image_layout": "full",
+          "background.image_percent": 75,
+          "background.mode": "texture",
+          "background.overlay_opacity": 0.58,
+          "background.texture": "travertine",
+          "background.texture_intensity": 0.74,
+          "bullets.enabled": false,
+          "cta.position": "bottom_left",
+          "layout.content_width": 720,
+          "layout.content_x": 72,
+          "layout.content_y": 270,
+          "layout.gap": 18,
+          "sticker.enabled": false,
+          "typography.benefits_font_family": "Inter",
+          "typography.font_family": "Cormorant Garamond",
+          "typography.hero_size": 103,
+          "typography.hero_weight": 700,
+          "typography.supporting_size": 30
+        }
+      },
+      "selected_nodes": {
+        "cta": {
+          "box": {
+            "height": 0.07592592592592592,
+            "width": 0.3333333333333333,
+            "x": 0.06666666666666667,
+            "y": 0.8740740740740741
+          },
+          "text_layout": null,
+          "visible_bounds": {
+            "height": 0.07592592592592592,
+            "width": 0.3333333333333333,
+            "x": 0.06666666666666667,
+            "y": 0.8740740740740741
+          }
+        },
+        "hero_title": {
+          "box": {
+            "height": 0.21481481481481482,
+            "width": 0.6666666666666666,
+            "x": 0.06666666666666667,
+            "y": 0.25
+          },
+          "text_layout": {
+            "font_size": 100,
+            "ink_height": 162.0,
+            "line_box_height": 188.0,
+            "line_count": 2,
+            "overflow": false,
+            "source_line_count": 2,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.15,
+            "width": 0.6611111111111111,
+            "x": 0.06666666666666667,
+            "y": 0.25
+          }
+        },
+        "logo": {
+          "box": {
+            "height": 0.06999999999999999,
+            "width": 0.16666666666666666,
+            "x": 0.7666666666666667,
+            "y": 0.25
+          },
+          "text_layout": null,
+          "visible_bounds": {
+            "height": 0.041666666666666664,
+            "width": 0.16666666666666666,
+            "x": 0.7666666666666667,
+            "y": 0.2638888888888889
+          }
+        },
+        "offer": {
+          "box": {
+            "height": 0.05740740740740741,
+            "width": 0.6666666666666666,
+            "x": 0.06666666666666667,
+            "y": 0.587037037037037
+          },
+          "text_layout": {
+            "font_size": 28,
+            "ink_height": 27.0,
+            "line_box_height": 30.8,
+            "line_count": 1,
+            "overflow": false,
+            "source_line_count": 1,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.025,
+            "width": 0.29907407407407405,
+            "x": 0.06666666666666667,
+            "y": 0.587037037037037
+          }
+        },
+        "supporting_text": {
+          "box": {
+            "height": 0.08888888888888889,
+            "width": 0.6666666666666666,
+            "x": 0.06666666666666667,
+            "y": 0.48148148148148145
+          },
+          "text_layout": {
+            "font_size": 30,
+            "ink_height": 66.4,
+            "line_box_height": 70.8,
+            "line_count": 2,
+            "overflow": false,
+            "source_line_count": 2,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.06111111111111111,
+            "width": 0.5990740740740741,
+            "x": 0.06666666666666667,
+            "y": 0.48148148148148145
+          }
+        }
+      },
+      "strict_visual_audit": {
+        "report": {
+          "name": "human_story_no_photo",
+          "text": {
+            "hero_title": {
+              "font_size": 100,
+              "line_count": 2,
+              "visible_bottom": 432.0,
+              "visible_top": 270.0
+            },
+            "logo": {
+              "background": false,
+              "position": [
+                828.0,
+                270.0
+              ],
+              "size": [
+                180.0,
+                75.6
+              ]
+            },
+            "offer": {
+              "font_size": 28,
+              "line_count": 1,
+              "visible_bottom": 661.0,
+              "visible_top": 634.0
+            },
+            "supporting_text": {
+              "font_size": 30,
+              "line_count": 2,
+              "visible_bottom": 586.0,
+              "visible_top": 520.0
+            }
+          }
+        },
+        "status": "passed"
+      },
+      "template": {
+        "defaults": {
+          "conceptual_novelty": 68,
+          "emotional_intensity": 88,
+          "hook_pressure": 54,
+          "information_density": 50,
+          "visual_complexity": 72
+        },
+        "philosophy": "Use a compact human scene, founder observation, or identity-led narrative only when it reveals the origin, problem, or decision behind the supplied product.",
+        "version": 3,
+        "visual_grammar": [
+          "real candid photography only",
+          "unposed human interaction",
+          "environment carries context",
+          "product connection remains visible"
+        ]
+      }
+    },
+    "mechanism_proof": {
+      "brand_prominence_audit": {
+        "assigned_box": {
+          "height": 76,
+          "width": 180,
+          "x": 838,
+          "y": 142
+        },
+        "bbox_canvas_area_ratio": 0.00648,
+        "failures": [
+          "Natal wordmark contrast is below the required floor"
+        ],
+        "median_background_rgb": [
+          13,
+          31,
+          57
+        ],
+        "normalized_center": [
+          0.8593,
+          0.1667
+        ],
+        "status": "failed",
+        "visible_bounds": [
+          838,
+          159,
+          1018,
+          201
+        ],
+        "visible_brand_pixels": 2230,
+        "visible_height": 42,
+        "visible_width": 180,
+        "wordmark_contrast_ratio": 1.42
+      },
+      "candidate_activation_gate": {
+        "candidate_activation_authorized": false,
+        "failures": [
+          {
+            "code": "deterministic_texture_diagnostic_only",
+            "message": "The current photo-strategy texture fallback is render-only diagnostic media and cannot receive candidate identity."
+          },
+          {
+            "code": "brand_prominence_failed",
+            "message": "The pixel-level brand-prominence audit did not pass."
+          }
+        ],
+        "media_mode": "deterministic_texture",
+        "schema": "ptw.skynet.universal-candidate-activation-gate.v1",
+        "status": "failed",
+        "strategy_id": "mechanism_proof"
+      },
+      "configuration": {
+        "background": {
+          "color": "#10233F",
+          "focal_x": 0.5,
+          "focal_y": 0.5,
+          "image_fit": "cover",
+          "image_layout": "left",
+          "image_percent": 25,
+          "mode": "texture",
+          "overlay_color": "#07182E",
+          "overlay_opacity": 0.38,
+          "texture": "concrete",
+          "texture_intensity": 0.66
+        },
+        "bullets": {
+          "enabled": true,
+          "style": "check"
+        },
+        "cta": {
+          "background_color": "#FFD84D",
+          "position": "below_text",
+          "radius": 24,
+          "style": "filled",
+          "text_color": "#10233F"
+        },
+        "layout": {
+          "content_width": 680,
+          "content_x": 338,
+          "content_y": 142,
+          "gap": 12
+        },
+        "logo": {
+          "background_color": "#FFFFFF",
+          "background_enabled": false,
+          "enabled": true,
+          "position": "top_right",
+          "width": 180
+        },
+        "schema": "ptw.studio.universal-ad-config.v4",
+        "sticker": {
+          "enabled": false,
+          "object_scale": 0.9,
+          "offset_bottom": 0,
+          "offset_right": 0,
+          "position": "bottom_right",
+          "rotation": 5.0,
+          "width": 300
+        },
+        "typography": {
+          "alignment": "left",
+          "benefits_font_family": "Manrope",
+          "font_family": "Manrope",
+          "hero_size": 84,
+          "hero_weight": 800,
+          "supporting_size": 26,
+          "text_color": "#FFFFFF"
+        }
+      },
+      "layout_audit": {
+        "collisions": [],
+        "gates": {
+          "collision_absent": true,
+          "component_coverage": true,
+          "contrast": true,
+          "exact_cta": true,
+          "exact_offer": true,
+          "overflow_absent": true,
+          "safe_area": true,
+          "semantic_flow": true,
+          "truncation_absent": true
+        },
+        "missing_nodes": [],
+        "overflow_nodes": [],
+        "passed": true,
+        "schema": "ptw.studio.universal-ad-layout-audit.v1",
+        "truncated_nodes": [],
+        "unsafe_nodes": []
+      },
+      "outputs": {
+        "mechanism_proof-1080.png": {
+          "byte_count": 123282,
+          "height": 1080,
+          "sha256": "66fe1f0a671a1b9a124a08b0386b29a5cff79fe5ea43cacac63c61aa947b3091",
+          "width": 1080
+        },
+        "mechanism_proof-120.png": {
+          "byte_count": 10798,
+          "height": 120,
+          "sha256": "f9017e2cc57a5d020d79cf3d534e45bb576af948980e0da31e5660361f4106ba",
+          "width": 120
+        },
+        "mechanism_proof-360.png": {
+          "byte_count": 49479,
+          "height": 360,
+          "sha256": "39c46bada1d1656287aa10c0628ed7bf9f5dea510e39e3b3ec2fed41b3fd180f",
+          "width": 360
+        }
+      },
+      "resolved_assets": {
+        "background_texture": "acd0b25966ebbd008248c40746654585451266fe14e871c6f32d0ed8ad16543c",
+        "logo": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba"
+      },
+      "resolved_strategy": {
+        "media_mode": "deterministic_texture",
+        "requires_photo": false,
+        "setting_patch": {
+          "background.image_fit": "cover",
+          "background.image_layout": "left",
+          "background.image_percent": 25,
+          "background.mode": "texture",
+          "background.overlay_opacity": 0.38,
+          "background.texture": "concrete",
+          "background.texture_intensity": 0.66,
+          "bullets.enabled": true,
+          "bullets.style": "check",
+          "cta.position": "below_text",
+          "layout.content_width": 680,
+          "layout.content_x": 338,
+          "layout.content_y": 142,
+          "layout.gap": 12,
+          "sticker.enabled": false,
+          "typography.benefits_font_family": "Manrope",
+          "typography.font_family": "Manrope",
+          "typography.hero_size": 84,
+          "typography.hero_weight": 800,
+          "typography.supporting_size": 26
+        }
+      },
+      "selected_nodes": {
+        "bullet_1": {
+          "box": {
+            "height": 0.03888888888888889,
+            "width": 0.5833333333333334,
+            "x": 0.3592592592592593,
+            "y": 0.5787037037037037
+          },
+          "text_layout": {
+            "font_size": 22,
+            "ink_height": 23.0,
+            "line_box_height": 24.2,
+            "line_count": 1,
+            "overflow": false,
+            "source_line_count": 1,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.021296296296296296,
+            "width": 0.33240740740740743,
+            "x": 0.3592592592592593,
+            "y": 0.5787037037037037
+          }
+        },
+        "bullet_2": {
+          "box": {
+            "height": 0.03888888888888889,
+            "width": 0.5833333333333334,
+            "x": 0.3592592592592593,
+            "y": 0.6175925925925926
+          },
+          "text_layout": {
+            "font_size": 22,
+            "ink_height": 22.0,
+            "line_box_height": 24.2,
+            "line_count": 1,
+            "overflow": false,
+            "source_line_count": 1,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.020370370370370372,
+            "width": 0.2833333333333333,
+            "x": 0.36018518518518516,
+            "y": 0.6175925925925926
+          }
+        },
+        "bullet_3": {
+          "box": {
+            "height": 0.03888888888888889,
+            "width": 0.5833333333333334,
+            "x": 0.3592592592592593,
+            "y": 0.6564814814814814
+          },
+          "text_layout": {
+            "font_size": 22,
+            "ink_height": 23.0,
+            "line_box_height": 24.2,
+            "line_count": 1,
+            "overflow": false,
+            "source_line_count": 1,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.021296296296296296,
+            "width": 0.29259259259259257,
+            "x": 0.3592592592592593,
+            "y": 0.6564814814814814
+          }
+        },
+        "cta": {
+          "box": {
+            "height": 0.07592592592592592,
+            "width": 0.3148148148148148,
+            "x": 0.31296296296296294,
+            "y": 0.7064814814814815
+          },
+          "text_layout": null,
+          "visible_bounds": {
+            "height": 0.07592592592592592,
+            "width": 0.3148148148148148,
+            "x": 0.31296296296296294,
+            "y": 0.7064814814814815
+          }
+        },
+        "hero_title": {
+          "box": {
+            "height": 0.175,
+            "width": 0.6296296296296297,
+            "x": 0.31296296296296294,
+            "y": 0.22407407407407406
+          },
+          "text_layout": {
+            "font_size": 84,
+            "ink_height": 142.96,
+            "line_box_height": 157.92,
+            "line_count": 2,
+            "overflow": false,
+            "source_line_count": 2,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.13240740740740742,
+            "width": 0.5962962962962963,
+            "x": 0.31296296296296294,
+            "y": 0.22407407407407406
+          }
+        },
+        "logo": {
+          "box": {
+            "height": 0.06999999999999999,
+            "width": 0.16666666666666666,
+            "x": 0.7759259259259259,
+            "y": 0.13148148148148148
+          },
+          "text_layout": null,
+          "visible_bounds": {
+            "height": 0.041666666666666664,
+            "width": 0.16666666666666666,
+            "x": 0.7759259259259259,
+            "y": 0.14537037037037037
+          }
+        },
+        "offer": {
+          "box": {
+            "height": 0.05740740740740741,
+            "width": 0.6296296296296297,
+            "x": 0.31296296296296294,
+            "y": 0.5101851851851852
+          },
+          "text_layout": {
+            "font_size": 24,
+            "ink_height": 21.0,
+            "line_box_height": 26.4,
+            "line_count": 1,
+            "overflow": false,
+            "source_line_count": 1,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.019444444444444445,
+            "width": 0.2638888888888889,
+            "x": 0.3138888888888889,
+            "y": 0.5101851851851852
+          }
+        },
+        "supporting_text": {
+          "box": {
+            "height": 0.08888888888888889,
+            "width": 0.6296296296296297,
+            "x": 0.31296296296296294,
+            "y": 0.4101851851851852
+          },
+          "text_layout": {
+            "font_size": 26,
+            "ink_height": 57.68,
+            "line_box_height": 61.36,
+            "line_count": 2,
+            "overflow": false,
+            "source_line_count": 2,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.053703703703703705,
+            "width": 0.6129629629629629,
+            "x": 0.31296296296296294,
+            "y": 0.4101851851851852
+          }
+        }
+      },
+      "strict_visual_audit": {
+        "report": {
+          "name": "mechanism_proof_no_photo",
+          "text": {
+            "bullet_1": {
+              "font_size": 22,
+              "line_count": 1,
+              "visible_bottom": 648.0,
+              "visible_top": 625.0
+            },
+            "bullet_2": {
+              "font_size": 22,
+              "line_count": 1,
+              "visible_bottom": 689.0,
+              "visible_top": 667.0
+            },
+            "bullet_3": {
+              "font_size": 22,
+              "line_count": 1,
+              "visible_bottom": 732.0,
+              "visible_top": 709.0
+            },
+            "hero_title": {
+              "font_size": 84,
+              "line_count": 2,
+              "visible_bottom": 385.0,
+              "visible_top": 242.0
+            },
+            "logo": {
+              "background": false,
+              "position": [
+                838.0,
+                142.0
+              ],
+              "size": [
+                180.0,
+                75.6
+              ]
+            },
+            "offer": {
+              "font_size": 24,
+              "line_count": 1,
+              "visible_bottom": 572.0,
+              "visible_top": 551.0
+            },
+            "supporting_text": {
+              "font_size": 26,
+              "line_count": 2,
+              "visible_bottom": 501.0,
+              "visible_top": 443.0
+            }
+          }
+        },
+        "status": "passed"
+      },
+      "template": {
+        "defaults": {
+          "conceptual_novelty": 45,
+          "emotional_intensity": 35,
+          "hook_pressure": 60,
+          "information_density": 82,
+          "visual_complexity": 56
+        },
+        "philosophy": "Show how the promised result happens through supplied steps, visible product UI, process, timing, actors, or transparent proof. Credibility comes from mechanism, never invented evidence.",
+        "version": 3,
+        "visual_grammar": [
+          "approved product or process is visible",
+          "ordered hierarchy",
+          "real context around the mechanism",
+          "proof and promise share one scene"
+        ]
+      }
+    },
+    "moment_tension": {
+      "brand_prominence_audit": {
+        "assigned_box": {
+          "height": 76,
+          "width": 180,
+          "x": 828,
+          "y": 190
+        },
+        "bbox_canvas_area_ratio": 0.00648,
+        "failures": [
+          "Natal wordmark contrast is below the required floor"
+        ],
+        "median_background_rgb": [
+          10,
+          28,
+          52
+        ],
+        "normalized_center": [
+          0.85,
+          0.2111
+        ],
+        "status": "failed",
+        "visible_bounds": [
+          828,
+          207,
+          1008,
+          249
+        ],
+        "visible_brand_pixels": 2220,
+        "visible_height": 42,
+        "visible_width": 180,
+        "wordmark_contrast_ratio": 1.47
+      },
+      "candidate_activation_gate": {
+        "candidate_activation_authorized": false,
+        "failures": [
+          {
+            "code": "deterministic_texture_diagnostic_only",
+            "message": "The current photo-strategy texture fallback is render-only diagnostic media and cannot receive candidate identity."
+          },
+          {
+            "code": "brand_prominence_failed",
+            "message": "The pixel-level brand-prominence audit did not pass."
+          }
+        ],
+        "media_mode": "deterministic_texture",
+        "schema": "ptw.skynet.universal-candidate-activation-gate.v1",
+        "status": "failed",
+        "strategy_id": "moment_tension"
+      },
+      "configuration": {
+        "background": {
+          "color": "#10233F",
+          "focal_x": 0.5,
+          "focal_y": 0.5,
+          "image_fit": "cover",
+          "image_layout": "full",
+          "image_percent": 75,
+          "mode": "texture",
+          "overlay_color": "#07182E",
+          "overlay_opacity": 0.62,
+          "texture": "slate",
+          "texture_intensity": 0.78
+        },
+        "bullets": {
+          "enabled": false,
+          "style": "check"
+        },
+        "cta": {
+          "background_color": "#FFD84D",
+          "position": "below_text",
+          "radius": 24,
+          "style": "filled",
+          "text_color": "#10233F"
+        },
+        "layout": {
+          "content_width": 700,
+          "content_x": 72,
+          "content_y": 190,
+          "gap": 15
+        },
+        "logo": {
+          "background_color": "#FFFFFF",
+          "background_enabled": false,
+          "enabled": true,
+          "position": "top_right",
+          "width": 180
+        },
+        "schema": "ptw.studio.universal-ad-config.v4",
+        "sticker": {
+          "enabled": false,
+          "object_scale": 0.9,
+          "offset_bottom": 0,
+          "offset_right": 0,
+          "position": "bottom_right",
+          "rotation": 5.0,
+          "width": 300
+        },
+        "typography": {
+          "alignment": "left",
+          "benefits_font_family": "Manrope",
+          "font_family": "Oswald",
+          "hero_size": 120,
+          "hero_weight": 800,
+          "supporting_size": 28,
+          "text_color": "#FFFFFF"
+        }
+      },
+      "layout_audit": {
+        "collisions": [],
+        "gates": {
+          "collision_absent": true,
+          "component_coverage": true,
+          "contrast": true,
+          "exact_cta": true,
+          "exact_offer": true,
+          "overflow_absent": true,
+          "safe_area": true,
+          "semantic_flow": true,
+          "truncation_absent": true
+        },
+        "missing_nodes": [],
+        "overflow_nodes": [],
+        "passed": true,
+        "schema": "ptw.studio.universal-ad-layout-audit.v1",
+        "truncated_nodes": [],
+        "unsafe_nodes": []
+      },
+      "outputs": {
+        "moment_tension-1080.png": {
+          "byte_count": 81186,
+          "height": 1080,
+          "sha256": "3fd2e273d846ac9a88d326426e03a2e7a88f1c5154708a78c12c7b04f4c8ebf9",
+          "width": 1080
+        },
+        "moment_tension-120.png": {
+          "byte_count": 7767,
+          "height": 120,
+          "sha256": "ed7bb2670ceb2ad965323c5ce6fa04f64313fb5d8850baf4e7b32930b2fb1870",
+          "width": 120
+        },
+        "moment_tension-360.png": {
+          "byte_count": 39347,
+          "height": 360,
+          "sha256": "6979dd79dc681d1f6c926f922d7e01a9fc582e8a7f5c7288348912ef38c402d2",
+          "width": 360
+        }
+      },
+      "resolved_assets": {
+        "background_texture": "b30d3556bf2b8fa93d011376419ba407a99247af03ed7c375243b3dd6974912e",
+        "logo": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba"
+      },
+      "resolved_strategy": {
+        "media_mode": "deterministic_texture",
+        "requires_photo": false,
+        "setting_patch": {
+          "background.image_fit": "cover",
+          "background.image_layout": "full",
+          "background.image_percent": 75,
+          "background.mode": "texture",
+          "background.overlay_opacity": 0.62,
+          "background.texture": "slate",
+          "background.texture_intensity": 0.78,
+          "bullets.enabled": false,
+          "cta.position": "below_text",
+          "layout.content_width": 700,
+          "layout.content_x": 72,
+          "layout.content_y": 190,
+          "layout.gap": 15,
+          "sticker.enabled": false,
+          "typography.font_family": "Oswald",
+          "typography.hero_size": 120,
+          "typography.hero_weight": 800,
+          "typography.supporting_size": 28
+        }
+      },
+      "selected_nodes": {
+        "cta": {
+          "box": {
+            "height": 0.07592592592592592,
+            "width": 0.32407407407407407,
+            "x": 0.06666666666666667,
+            "y": 0.6138888888888889
+          },
+          "text_layout": null,
+          "visible_bounds": {
+            "height": 0.07592592592592592,
+            "width": 0.32407407407407407,
+            "x": 0.06666666666666667,
+            "y": 0.6138888888888889
+          }
+        },
+        "hero_title": {
+          "box": {
+            "height": 0.25,
+            "width": 0.6481481481481481,
+            "x": 0.06666666666666667,
+            "y": 0.17592592592592593
+          },
+          "text_layout": {
+            "font_size": 110,
+            "ink_height": 196.4,
+            "line_box_height": 206.8,
+            "line_count": 2,
+            "overflow": false,
+            "source_line_count": 2,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.1814814814814815,
+            "width": 0.6398148148148148,
+            "x": 0.06666666666666667,
+            "y": 0.17592592592592593
+          }
+        },
+        "logo": {
+          "box": {
+            "height": 0.06999999999999999,
+            "width": 0.16666666666666666,
+            "x": 0.7666666666666667,
+            "y": 0.17592592592592593
+          },
+          "text_layout": null,
+          "visible_bounds": {
+            "height": 0.041666666666666664,
+            "width": 0.16666666666666666,
+            "x": 0.7666666666666667,
+            "y": 0.18981481481481483
+          }
+        },
+        "offer": {
+          "box": {
+            "height": 0.05740740740740741,
+            "width": 0.6481481481481481,
+            "x": 0.06666666666666667,
+            "y": 0.5425925925925926
+          },
+          "text_layout": {
+            "font_size": 26,
+            "ink_height": 27.0,
+            "line_box_height": 28.6,
+            "line_count": 1,
+            "overflow": false,
+            "source_line_count": 1,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.025,
+            "width": 0.24074074074074073,
+            "x": 0.06759259259259259,
+            "y": 0.5425925925925926
+          }
+        },
+        "supporting_text": {
+          "box": {
+            "height": 0.08888888888888889,
+            "width": 0.6481481481481481,
+            "x": 0.06666666666666667,
+            "y": 0.4398148148148148
+          },
+          "text_layout": {
+            "font_size": 28,
+            "ink_height": 62.04,
+            "line_box_height": 66.08,
+            "line_count": 2,
+            "overflow": false,
+            "source_line_count": 2,
+            "truncated": false
+          },
+          "visible_bounds": {
+            "height": 0.05740740740740741,
+            "width": 0.5546296296296296,
+            "x": 0.06759259259259259,
+            "y": 0.4398148148148148
+          }
+        }
+      },
+      "strict_visual_audit": {
+        "report": {
+          "name": "moment_tension_no_photo",
+          "text": {
+            "hero_title": {
+              "font_size": 110,
+              "line_count": 2,
+              "visible_bottom": 386.0,
+              "visible_top": 190.0
+            },
+            "logo": {
+              "background": false,
+              "position": [
+                828.0,
+                190.0
+              ],
+              "size": [
+                180.0,
+                75.6
+              ]
+            },
+            "offer": {
+              "font_size": 26,
+              "line_count": 1,
+              "visible_bottom": 613.0,
+              "visible_top": 586.0
+            },
+            "supporting_text": {
+              "font_size": 28,
+              "line_count": 2,
+              "visible_bottom": 537.0,
+              "visible_top": 475.0
+            }
+          }
+        },
+        "status": "passed"
+      },
+      "template": {
+        "defaults": {
+          "conceptual_novelty": 60,
+          "emotional_intensity": 82,
+          "hook_pressure": 88,
+          "information_density": 42,
+          "visual_complexity": 58
+        },
+        "philosophy": "Open on one observable time, action, object, or unresolved customer moment. Turn that pain into tension, then reveal the supplied mechanism and exact offer without exaggeration.",
+        "version": 3,
+        "visual_grammar": [
+          "one candid real scene",
+          "one obvious focal action",
+          "headline names the moment",
+          "product or process visibly resolves the tension"
+        ]
+      }
+    }
+  }
+}

@@ -175,8 +175,15 @@ export interface CriticAction {
 export interface CriticPassDebug {
   pass_id: string
   pass_number: 1 | 2 | 3
+  critic_scope?: 'screening_group_1_of_2' | 'screening_group_2_of_2' | 'group_winner_comparison'
   active_candidate_ids: string[]
   hard_gates: Record<string, Record<string, boolean>>
+  element_scores?: Record<string, Record<string, {
+    task_fit: number
+    clarity: number
+    contribution: number
+    coherence: number
+  }>>
   candidate_scores: Record<string, CriticCandidateScore>
   ranking: string[]
   pairwise_results: CriticPairwiseResult[]

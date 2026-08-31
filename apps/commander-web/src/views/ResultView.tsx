@@ -1,10 +1,10 @@
 import {
-  Brain, Check, Copy, Download, FolderKanban, Menu, Pencil, Plus, RefreshCcw,
-  Search, Send, Smartphone, Sparkles, Square, Upload, X,
+  Brain, Check, Copy, Download, FolderKanban, Plus, RefreshCcw,
+  Send, Smartphone, Sparkles, Square, Upload, X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ApiClient } from '../api'
-import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
+import { Empty, ErrorState, Loading } from '../components/State'
 import { ResultDecisionTrace } from '../components/ResultDecisionTrace'
 import { translate, type Language } from '../i18n'
 import type {
@@ -60,8 +60,8 @@ function fileAsBase64(file: File): Promise<string> {
 const stageCopy: Record<ContentRun['current_stage'], { en: string; uk: string }> = {
   queued: { en: 'Creating five directions', uk: 'Створюємо п’ять напрямів' },
   initial_candidates: { en: 'Creating five directions', uk: 'Створюємо п’ять напрямів' },
-  critic_pass_1: { en: 'Improving the strongest direction', uk: 'Покращуємо найсильніший напрям' },
-  critic_pass_2: { en: 'Improving the strongest direction', uk: 'Покращуємо найсильніший напрям' },
+  critic_pass_1: { en: 'Screening the first three directions', uk: 'Перевіряємо перші три напрями' },
+  critic_pass_2: { en: 'Screening the remaining two directions', uk: 'Перевіряємо решту двох напрямів' },
   critic_pass_3: { en: 'Final review', uk: 'Фінальна перевірка' },
   materializing_result: { en: 'Final review', uk: 'Фінальна перевірка' },
   completed: { en: 'Completed', uk: 'Завершено' },
@@ -80,6 +80,34 @@ function platformFor(run: ContentRun): SocialPlatform {
 
 function reviewFor(run: ContentRun): ReviewState {
   return run.review_state || 'unreviewed'
+}
+
+function failureMessage(run: ContentRun, language: Language): string {
+  if ((run.error_message || '').startsWith('critic selected no eligible Universal Result')) {
+    return translate(
+      language,
+      'The critic completed all three stages, but neither finalist passed every eligibility rule. The complete intermediate evidence is shown below.',
+      'Критик завершив усі три етапи, але жоден фіналіст не пройшов усі правила придатності. Повні проміжні результати показано нижче.',
+    )
+  }
+  if ((run.error_message || '').startsWith('asset preflight needs ')) {
+    return translate(
+      language,
+      'This attempt used the retired photo preflight. Retry now—approved photos and Pexels are optional.',
+      'Ця спроба використовувала скасовану перевірку фотографій. Повторіть зараз — схвалені фото та Pexels необов’язкові.',
+    )
+  }
+  if (
+    run.error_code === 'LocalCodexError'
+    && (run.error_message || '').includes('TimeoutExpired')
+  ) {
+    return translate(
+      language,
+      'This is the immutable record of the earlier five-image timeout. The restarted app now uses smaller analysis artifacts and grouped 3–2–2 critic calls. Retry as a child artifact.',
+      'Це незмінний запис попереднього тайм-ауту з п’ятьма зображеннями. Перезапущений застосунок тепер використовує зменшені артефакти аналізу та згруповані виклики критика 3–2–2. Натисніть «Повторити як дочірній артефакт».',
+    )
+  }
+  return run.error_message || run.error_code || translate(language, 'Generation failed.', 'Не вдалося створити допис.')
 }
 
 function orderedRuns(runs: ContentRun[]): ContentRun[] {
@@ -135,8 +163,6 @@ export interface ResultViewProps {
   projects: ValidationProject[] | null
   runId?: string | null
   onProjectSelect: (projectId: string) => void
-  onNewProject: () => void
-  onRenameProject: (projectId: string, name: string) => Promise<void>
   onRunSelect: (runId: string | null) => void
   onOpenBriefs: () => void
   language: Language
@@ -145,8 +171,8 @@ export interface ResultViewProps {
 }
 
 export function ResultView({
-  api, projectId, projects, runId = null, onProjectSelect, onNewProject,
-  onRenameProject, onRunSelect, onOpenBriefs, language,
+  api, projectId, projects, runId = null, onProjectSelect,
+  onRunSelect, onOpenBriefs, language,
   localDemo = false, liveProduction = false,
 }: ResultViewProps) {
   const [briefs, setBriefs] = useState<ProductBrief[] | null>(null)
@@ -161,14 +187,7 @@ export function ResultView({
   const [platform, setPlatform] = useState<SocialPlatform>('instagram')
   const [briefId, setBriefId] = useState('')
   const [creating, setCreating] = useState(false)
-  const [projectSearch, setProjectSearch] = useState('')
-  const [platformFilter, setPlatformFilter] = useState<'all' | SocialPlatform>('all')
-  const [generationFilter, setGenerationFilter] = useState<'all' | 'active' | 'completed' | 'failed'>('all')
-  const [reviewFilter, setReviewFilter] = useState<'all' | ReviewState>('all')
-  const [navigatorOpen, setNavigatorOpen] = useState(false)
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
-  const [renaming, setRenaming] = useState(false)
-  const [projectName, setProjectName] = useState('')
   const [localAssets, setLocalAssets] = useState<LocalProjectAsset[]>([])
   const [learning, setLearning] = useState<LocalLearningSummary | null>(null)
   const [pexelsQuery, setPexelsQuery] = useState('')
@@ -184,23 +203,7 @@ export function ResultView({
   const selectedProject = projects?.find((item) => item.project_id === projectId) || null
   const comment = selectedRun ? commentDrafts[selectedRun.run_id] || '' : ''
   const selectedReview = selectedRun ? reviewFor(selectedRun) : 'unreviewed'
-
-  const visibleProjects = useMemo(() => {
-    const query = projectSearch.trim().toLocaleLowerCase()
-    return (projects || []).filter((item) => !query || item.name.toLocaleLowerCase().includes(query))
-  }, [projectSearch, projects])
-
-  const visibleRuns = useMemo(() => orderedRuns(runs).filter((run) => (
-    (platformFilter === 'all' || platformFor(run) === platformFilter)
-    && (generationFilter === 'all'
-      || (generationFilter === 'active' ? ACTIVE.has(run.status) : run.status === generationFilter))
-    && (reviewFilter === 'all' || reviewFor(run) === reviewFilter)
-  )), [generationFilter, platformFilter, reviewFilter, runs])
-
-  useEffect(() => {
-    setProjectName(selectedProject?.name || '')
-    setRenaming(false)
-  }, [selectedProject?.project_id, selectedProject?.name])
+  const availableRuns = useMemo(() => orderedRuns(runs), [runs])
 
   useEffect(() => {
     if (approved.length && !approved.some((item) => item.brief_id === briefId)) {
@@ -246,7 +249,7 @@ export function ResultView({
   }, [api, projectId])
 
   const loadLocalEvidence = async () => {
-    if (!localDemo || !projectId) { setLocalAssets([]); setLearning(null); return }
+    if (!localDemo || !projectId || !result) { setLocalAssets([]); setLearning(null); return }
     const [assets, summary] = await Promise.all([
       api.get<{ items: LocalProjectAsset[] }>(`/api/v1/projects/${projectId}/assets`),
       api.get<LocalLearningSummary>(`/api/v1/learning-summary?project_id=${encodeURIComponent(projectId)}`),
@@ -261,7 +264,7 @@ export function ResultView({
 
   useEffect(() => {
     void loadLocalEvidence().catch((cause: Error) => setError(cause.message))
-  }, [api, localDemo, projectId])
+  }, [api, localDemo, projectId, result?.creative_id])
 
   useEffect(() => {
     if (!runId || !projectId || runId === selectedRun?.run_id) return
@@ -275,6 +278,15 @@ export function ResultView({
     }, 2000)
     return () => window.clearInterval(timer)
   }, [selectedRun?.run_id, selectedRun?.status])
+
+  useEffect(() => {
+    if (!localDemo || selectedRun?.status !== 'failed' || debug) return
+    let active = true
+    void api.get<ContentDebug>(`/api/v1/content-runs/${selectedRun.run_id}/debug`)
+      .then((value) => { if (active) setDebug(value) })
+      .catch((cause: Error) => { if (active) setError(cause.message) })
+    return () => { active = false }
+  }, [api, debug, localDemo, selectedRun?.run_id, selectedRun?.status])
 
   useEffect(() => {
     if (!result?.asset_url) { setAssetUrl(''); return }
@@ -426,64 +438,29 @@ export function ResultView({
     setNotice(tr(`${label} copied.`, `${label} скопійовано.`))
   }
 
-  const saveProjectName = async () => {
-    if (!selectedProject || !projectName.trim()) return
-    setBusy(true); setError('')
-    try { await onRenameProject(selectedProject.project_id, projectName.trim()); setRenaming(false) }
-    catch (cause) { setError((cause as Error).message) }
-    finally { setBusy(false) }
-  }
-
   if (!briefs) return error ? <ErrorState message={error} retry={() => void loadWorkspace(runId)} language={language} /> : <Loading language={language} />
   return <div className="social-page">
-    <PageHeader eyebrow={tr('CREATE · REVIEW · IMPROVE', 'СТВОРЕННЯ · ОЦІНКА · ПОКРАЩЕННЯ')} title={tr('Social posts', 'Дописи для соцмереж')} />
-    {localDemo && <p className="notice" role="status">{tr(
-      'Local evaluation and learning only · no publishing, production mutation, or market-performance ingestion.',
-      'Лише локальна оцінка й навчання · без публікації, змін продакшну чи ринкових метрик.',
-    )}</p>}
     {error && <ErrorState message={error} language={language} />}
     {notice && <p className="notice" role="status">{notice}</p>}
-    <button className="secondary social-navigator-toggle" onClick={() => setNavigatorOpen((value) => !value)} aria-expanded={navigatorOpen}>
-      <Menu />{tr('Projects and artifacts', 'Проєкти й артефакти')}
-    </button>
+    <label className="social-project-picker">
+      <FolderKanban aria-hidden="true" />
+      <span>{tr('Project', 'Проєкт')}</span>
+      <select aria-label={tr('Project', 'Проєкт')} value={projectId || ''} onChange={(event) => onProjectSelect(event.target.value)}>
+        {!projectId && <option value="">{tr('Select a project', 'Виберіть проєкт')}</option>}
+        {(projects || []).map((project) => <option key={project.project_id} value={project.project_id}>{project.name}</option>)}
+      </select>
+    </label>
     <div className="social-workspace">
-      <aside className={`social-navigator ${navigatorOpen ? 'open' : ''}`} aria-label={tr('Projects and artifacts', 'Проєкти й артефакти')}>
-        <header><FolderKanban /><div><small>{tr('PROJECTS', 'ПРОЄКТИ')}</small><strong>{selectedProject?.name || tr('Choose a project', 'Виберіть проєкт')}</strong></div></header>
-        <label className="social-search"><span className="visually-hidden">{tr('Search projects', 'Пошук проєктів')}</span><Search /><input value={projectSearch} onChange={(event) => setProjectSearch(event.target.value)} placeholder={tr('Search projects', 'Пошук проєктів')} /></label>
-        <div className="social-project-list">
-          {visibleProjects.map((project) => <button key={project.project_id} className={project.project_id === projectId ? 'selected' : ''} onClick={() => { onProjectSelect(project.project_id); setNavigatorOpen(false) }}><strong>{project.name}</strong><span>{project.result_run_count} {tr('artifacts', 'артефактів')}</span></button>)}
-        </div>
-        <div className="social-project-actions">
-          <button className="ghost" onClick={() => setRenaming((value) => !value)} disabled={!selectedProject}><Pencil />{tr('Rename', 'Перейменувати')}</button>
-          <button className="ghost" onClick={onNewProject}><Plus />{tr('New', 'Новий')}</button>
-        </div>
-        {renaming && <div className="social-project-rename"><input maxLength={120} value={projectName} onChange={(event) => setProjectName(event.target.value)} aria-label={tr('Project name', 'Назва проєкту')} /><button className="primary" onClick={() => void saveProjectName()} disabled={busy || !projectName.trim()}><Check /></button><button className="ghost" onClick={() => setRenaming(false)}><X /></button></div>}
-        <div className="social-artifact-heading"><small>{tr('ARTIFACTS', 'АРТЕФАКТИ')}</small><button className="primary" onClick={() => { setCreating(true); setNavigatorOpen(false) }} disabled={!projectId}><Plus />{tr('Post', 'Допис')}</button></div>
-        <div className="social-filters">
-          <select aria-label={tr('Filter by platform', 'Фільтр за платформою')} value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value as typeof platformFilter)}><option value="all">{tr('All platforms', 'Усі платформи')}</option><option value="instagram">Instagram</option><option value="tiktok">TikTok</option></select>
-          <select aria-label={tr('Filter by generation status', 'Фільтр за статусом створення')} value={generationFilter} onChange={(event) => setGenerationFilter(event.target.value as typeof generationFilter)}><option value="all">{tr('All generation', 'Усі генерації')}</option><option value="active">{tr('In progress', 'У процесі')}</option><option value="completed">{tr('Completed', 'Завершені')}</option><option value="failed">{tr('Failed', 'Невдалі')}</option></select>
-          <select aria-label={tr('Filter by review', 'Фільтр за оцінкою')} value={reviewFilter} onChange={(event) => setReviewFilter(event.target.value as typeof reviewFilter)}><option value="all">{tr('All states', 'Усі стани')}</option><option value="unreviewed">{tr('Needs review', 'Очікує оцінки')}</option><option value="ready">{tr('Ready', 'Готово')}</option><option value="needs_changes">{tr('Needs changes', 'Потребує змін')}</option></select>
-        </div>
-        <div className="social-artifact-list">
-          {visibleRuns.map((run) => {
-            const runPlatform = platformFor(run)
-            const review = reviewFor(run)
-            const depth = Math.min(run.revision_number || (run.parent_run_id ? 1 : 0), 3)
-            return <button key={run.run_id} className={run.run_id === selectedRun?.run_id ? 'selected' : ''} style={{ '--revision-depth': depth } as CSSProperties & { '--revision-depth': number }} onClick={() => { onRunSelect(run.run_id); setNavigatorOpen(false) }}>
-              <span className="artifact-platform"><PlatformMark platform={runPlatform} />{runPlatform === 'tiktok' ? 'TikTok' : 'Instagram'} · R{(run.revision_number || 0) + 1}</span>
-              <strong>{ACTIVE.has(run.status) ? translate(language, stageCopy[run.current_stage].en, stageCopy[run.current_stage].uk) : run.status === 'failed' ? tr('Generation failed', 'Генерація не вдалася') : translate(language, reviewCopy[review].en, reviewCopy[review].uk)}</strong>
-              <small>{new Date(run.created_at).toLocaleString(language === 'uk' ? 'uk-UA' : 'en-US')}</small>
-            </button>
-          })}
-          {!visibleRuns.length && <p>{tr('No artifacts match these filters.', 'Немає артефактів за цими фільтрами.')}</p>}
-        </div>
-      </aside>
-
       <main className="social-detail">
-        <div className="social-detail-bar">
-          <div>{selectedRun && <><span className={`review-chip ${selectedReview}`}>{translate(language, reviewCopy[selectedReview].en, reviewCopy[selectedReview].uk)}</span><span>{platformFor(selectedRun) === 'tiktok' ? 'TikTok' : 'Instagram'} · R{(selectedRun.revision_number || 0) + 1}</span></>}</div>
+        {selectedRun && !creating && <div className="social-detail-bar">
+          <div>
+            <span className={`review-chip ${selectedReview}`}>{translate(language, reviewCopy[selectedReview].en, reviewCopy[selectedReview].uk)}</span>
+            {availableRuns.length > 1
+              ? <select aria-label={tr('Post', 'Допис')} value={selectedRun.run_id} onChange={(event) => onRunSelect(event.target.value)}>{availableRuns.map((run) => <option key={run.run_id} value={run.run_id}>{platformFor(run) === 'tiktok' ? 'TikTok' : 'Instagram'} · R{(run.revision_number || 0) + 1}</option>)}</select>
+              : <span>{platformFor(selectedRun) === 'tiktok' ? 'TikTok' : 'Instagram'} · R{(selectedRun.revision_number || 0) + 1}</span>}
+          </div>
           <button className="primary" onClick={() => setCreating(true)} disabled={!projectId}><Plus />{tr('New post', 'Новий допис')}</button>
-        </div>
+        </div>}
 
         {creating && <section className="social-create-card">
           <header><div><small>{tr('NEW SOCIAL POST', 'НОВИЙ ДОПИС')}</small><h2>{tr('Choose the destination', 'Оберіть платформу')}</h2></div><button className="ghost" onClick={() => setCreating(false)} aria-label={tr('Close', 'Закрити')}><X /></button></header>
@@ -504,7 +481,18 @@ export function ResultView({
 
         {selectedRun && <section className="social-artifact">
           {ACTIVE.has(selectedRun.status) && <div className="social-progress" role="status"><div><RefreshCcw className="spin" /><div><strong>{translate(language, stageCopy[selectedRun.current_stage].en, stageCopy[selectedRun.current_stage].uk)}</strong><span>{selectedRun.progress_percent}% · {tr('bounded maximum 45 minutes', 'максимум 45 хвилин')}</span></div></div><progress max={100} value={selectedRun.progress_percent} /></div>}
-          {selectedRun.status === 'failed' && <div className="social-failure"><h2>{tr('This artifact could not be completed', 'Не вдалося завершити цей артефакт')}</h2><p>{selectedRun.error_message || selectedRun.error_code}</p><button className="secondary" disabled={busy} onClick={() => void retry()}><RefreshCcw />{tr('Retry as a child artifact', 'Повторити як дочірній артефакт')}</button></div>}
+          {selectedRun.status === 'failed' && <div className="social-failure"><h2>{tr('This artifact could not be completed', 'Не вдалося завершити цей артефакт')}</h2><p>{failureMessage(selectedRun, language)}</p><button className="secondary" disabled={busy} onClick={() => void retry()}><RefreshCcw />{tr('Retry as a child artifact', 'Повторити як дочірній артефакт')}</button></div>}
+          {selectedRun.status === 'failed' && debug?.candidates.length ? <section className="failed-run-evidence">
+            <header>
+              <small>{tr('INTERMEDIATE RESULTS', 'ПРОМІЖНІ РЕЗУЛЬТАТИ')}</small>
+              <h2>{tr('Everything produced before the final rejection', 'Усе, що було створено до фінального відхилення')}</h2>
+              <p>{tr(
+                'These previews, gate failures, scores, rankings, comparisons, and observations are persisted evidence from this immutable run.',
+                'Ці прев’ю, непройдені перевірки, оцінки, рейтинги, порівняння та спостереження — збережені дані цього незмінного запуску.',
+              )}</p>
+            </header>
+            <ResultDecisionTrace value={debug} api={api} language={language} />
+          </section> : null}
           {result && <div className="social-review-layout">
             <div className="social-preview-column">
               <NativePostPreview platform={platformFor(selectedRun)} projectName={selectedProject?.name || 'Natal'} result={result} assetUrl={assetUrl} language={language} />
@@ -535,8 +523,8 @@ export function ResultView({
         </section>}
       </main>
     </div>
-    {localDemo && projectId && <section className="panel local-learning-panel">
-      <header><div><small>{tr('LOCAL QUALITY EVIDENCE', 'ЛОКАЛЬНІ ДОКАЗИ ЯКОСТІ')}</small><h2><Brain />{tr('Learning & evidence', 'Навчання й докази')}</h2></div><p>{tr('Internal evaluation only — never a market-performance claim.', 'Лише внутрішня оцінка — не твердження про ринкову ефективність.')}</p></header>
+    {localDemo && selectedRun && result && <section className="panel local-learning-panel">
+      <header><h2><Brain />{tr('Learning & evidence', 'Навчання й докази')}</h2><p>{tr('Internal evaluation only — never a market-performance claim.', 'Лише внутрішня оцінка — не твердження про ринкову ефективність.')}</p></header>
       <div className="local-evidence-grid">
         <section><h3>{tr('Approved asset pool', 'Пул схвалених ресурсів')}</h3>
           <label className="secondary local-upload"><Upload />{tr('Upload photo', 'Завантажити фото')}<input className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadLocalAsset(file); event.currentTarget.value = '' }} /></label>

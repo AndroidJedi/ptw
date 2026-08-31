@@ -1,0 +1,72 @@
+{
+  "schema": "ptw.skynet.render-manifest.v1",
+  "experiment_id": "exp-20260831-007",
+  "candidate_id": "cand-20260831-007-g",
+  "generation": 1,
+  "iteration": 1,
+  "frozen_at": "2026-08-31T12:25:58Z",
+  "inputs": [
+    {"path": "plans/exp-20260831-007-generation-packet.json", "sha256": "8a53e8955573f1c4ee97e0a3549669260814019ac862b0ab179ed4e7c9ef0f8f"},
+    {"path": "knowledge/research-2026-08-31-b2b-static.md", "sha256": "86b9ab9e725093da2c6d780454061aa9caa13a4eefea992ff1ede9be892e510a"},
+    {"path": "strategies/object_metaphor_v1.json", "sha256": "cc0b7dce40098a379ee3890feb107e5b5c7c5b7849c3043ff28c8d33ae3edae8"},
+    {"path": "studios/object_metaphor_square_v1.json", "sha256": "b6e20aff9e77a263e9875a27e5a27bc770e5a1a0293d5f81fd18bbbe1d3e7539"},
+    {"path": "experiments/exp-20260831-001/brief.json", "sha256": "b7fe8e68cf044ee5e4ce3dc67b2b0ed65e9ec698319abb22f9f65442c0e3c387"},
+    {"path": "experiments/exp-20260831-007/candidate.json", "sha256": "759934603b5215b75a4405c9542fc3fbe4cd609a4a0b9fc590f656a415712e17", "normalized_candidate_sha256": "64dc453a110dc61d078a866f2f1b34c8300937240ca2f912fa572324ecb8e2d8"},
+    {"path": "experiments/exp-20260831-007/template.json", "sha256": "a78f91da147e589b2968ede7a26c5bed58d0227269020ea9261473ad41175da3"},
+    {"path": "experiments/exp-20260831-007/image-prompt.md", "sha256": "35cce4bbc37829a92634511e7cc0add54119d5583202363a284120e2f13c4460"},
+    {"path": "experiments/exp-20260831-007/render.swift", "sha256": "6e196bcc74579f189eaff406b14fae32e2a8d273d14fd038ce9418a4485a3c33"},
+    {"path": "experiments/exp-20260831-007/render.sh", "sha256": "9324487bb860d926e7f801ed5282d70fa61e1f81966564286f57de8d2a36b7aa"},
+    {"path": "experiments/exp-20260831-007/copy/headline.txt", "sha256": "ce8837591bc27744797a1c7f3facb83b07d41593d2f95b7c7ff663c5ebbf175c"},
+    {"path": "experiments/exp-20260831-007/copy/primary.txt", "sha256": "d855ba226cac8419c61dc32397766df885e556b2313ebe267f95aa930132c2e3"},
+    {"path": "experiments/exp-20260831-007/copy/offer.txt", "sha256": "7ee98a0ffe69485e1d8150725040e41ca411ee94d2a19f13651bab37552017a0"},
+    {"path": "experiments/exp-20260831-007/copy/cta.txt", "sha256": "2f95134909087d9c50441c525e5938870798339db903c40afdcbbb331fa2f976"},
+    {"path": "experiments/exp-20260831-007/assets/return-loop-still-life-v1.png", "sha256": "6fcfea00464b54635097c69d8ad82c64d81cc87b1433e11433ed5efe817aedb5", "source_asset_id": "skynet-genimg-exp007-still-life-v1"},
+    {"path": "assets/natal/logo-natal.png", "sha256": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba"},
+    {"path": "assets/natal/inter.ttf", "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"}
+  ],
+  "outputs": [
+    {"path": "experiments/exp-20260831-007/renders/cand-20260831-007-g-v1.png", "sha256": "5f3ee7c9a9a188ed79d86f6fa3a9be26cd9bf628064043993313b67f6a0d84da", "mime_type": "image/png", "width": 1080, "height": 1080, "bytes": 1497059},
+    {"path": "experiments/exp-20260831-007/renders/cand-20260831-007-g-v1.jpg", "sha256": "1712031c52105e7d53e18fdd95ac69b77a880e8050cb1f2d950c6ec90ebe7484", "mime_type": "image/jpeg", "width": 1080, "height": 1080, "bytes": 134539, "jpeg_soi": true, "jpeg_eoi": true},
+    {"path": "experiments/exp-20260831-007/audit/preview-360.jpg", "sha256": "bab10db19d187ab2b97162c9cd36024bead6e3a7f89ac335a2dd752f6efa8d89", "mime_type": "image/jpeg", "width": 360, "height": 360, "bytes": 15112}
+  ],
+  "provenance": {
+    "strategy_id": "object_metaphor",
+    "strategy_version": 1,
+    "strategy_origin": "skynet_research_informed",
+    "strategy_sha256": "cc0b7dce40098a379ee3890feb107e5b5c7c5b7849c3043ff28c8d33ae3edae8",
+    "studio_id": "object_metaphor_square",
+    "studio_version": 1,
+    "studio_sha256": "b6e20aff9e77a263e9875a27e5a27bc770e5a1a0293d5f81fd18bbbe1d3e7539",
+    "research_sha256": "86b9ab9e725093da2c6d780454061aa9caa13a4eefea992ff1ede9be892e510a",
+    "verified": true
+  },
+  "generation": {
+    "background_provider": "built-in image generation",
+    "background_calls": 1,
+    "background_variants": 1,
+    "synthetic_people_or_faces": false,
+    "embedded_generated_copy": false,
+    "deterministic_compositor": "Swift CoreGraphics/AppKit",
+    "jpeg_encoder": "ffmpeg 8.0"
+  },
+  "replay": {
+    "post_freeze_replays": 3,
+    "master_sha256_before": "5f3ee7c9a9a188ed79d86f6fa3a9be26cd9bf628064043993313b67f6a0d84da",
+    "master_sha256_after": "5f3ee7c9a9a188ed79d86f6fa3a9be26cd9bf628064043993313b67f6a0d84da",
+    "delivery_sha256_before": "1712031c52105e7d53e18fdd95ac69b77a880e8050cb1f2d950c6ec90ebe7484",
+    "delivery_sha256_after": "1712031c52105e7d53e18fdd95ac69b77a880e8050cb1f2d950c6ec90ebe7484",
+    "byte_identical": true
+  },
+  "renderer_diagnostic_evidence": {
+    "untracked_first_compile_session": 1,
+    "artifact_present_at_reconciliation": false,
+    "tracked_compile_and_render_succeeded": true,
+    "resolution": "The wrapper did not retain the first long-running compile session identifier. No output artifact existed at immediate reconciliation. A separately tracked compile completed successfully, and two later warm-binary replays proved the frozen PNG and JPEG byte-identical."
+  },
+  "compiler_cache_cleanup": {
+    "removed_kib_approximate": 222908,
+    "recoverable_from": "experiments/exp-20260831-007/render.swift",
+    "retained_renderer": "runtime/swift-exp007/render-exp007",
+    "post_cleanup_replay_byte_identical": true
+  }
+}

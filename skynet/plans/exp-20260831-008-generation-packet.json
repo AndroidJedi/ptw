@@ -1,0 +1,106 @@
+{
+  "schema": "ptw.skynet.generation-packet.v1",
+  "packet_id": "packet-exp-20260831-008-h-v1",
+  "status": "reserved",
+  "experiment_id": "exp-20260831-008",
+  "reserved_candidate_id": "cand-20260831-008-h",
+  "reserved_source_asset_id": "skynet-native-exp008-selective-route-v1",
+  "generation_boundary": "controlled_after_mandatory_recovery",
+  "owner_task": "Create one Instagram square that truthfully contrasts untargeted broadcast noise with one status-triggered return route. Use one text-free deterministic non-human graphic in the canonical right hero frame, keep the contrast compact, and do not present the graphic as product UI.",
+  "approved_brief": {
+    "path": "experiments/exp-20260831-001/brief.json",
+    "brief_id": "brief-20260831-natal-retention-v1",
+    "sha256": "b7fe8e68cf044ee5e4ce3dc67b2b0ed65e9ec698319abb22f9f65442c0e3c387"
+  },
+  "brand_kit": {
+    "name": "Natal",
+    "font": "Inter",
+    "palette": {
+      "dark": "#0C0E12",
+      "ink": "#181C25",
+      "light": "#F4F6FA",
+      "muted": "#A3ADBD",
+      "accent": "#43BDD3",
+      "accent_soft": "#87D0DD"
+    },
+    "tone": "Compact, direct, calm, high-contrast and personally specific."
+  },
+  "brand_assets": [
+    {
+      "path": "assets/natal/logo-natal.png",
+      "source_id": "natal-logo-f465a0e1",
+      "sha256": "f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba"
+    },
+    {
+      "path": "assets/natal/inter.ttf",
+      "source_id": "natal-inter-29160a80",
+      "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"
+    }
+  ],
+  "strategy": {
+    "template_id": "contrast_reframe",
+    "version": 3,
+    "canonical_strategy_sha256": "ca606f52b760a0b5bf79b2d111a01871ead1fde68f332d6da5d19841ed794be9",
+    "canonical_source_file_sha256": "a98d4621a8fef65be40a96398434190cafc816bb93fa4e5ac3290e69fa096386",
+    "studio_template_sha256": "75896728867272254190376fe741ca3863f1c597e34274a340a2c8116d502f2e",
+    "studio_source_file_sha256": "c91936907fcbdf65737a223d6fdd61acc39b44d77d1b940b97b559705fa1d7ad",
+    "technique_guide": "ad-copy",
+    "technique_guide_sha256": "9845b640608d817748f09f5aad4c4a9f9f1695b7d90aa316b90076635ced340b",
+    "philosophy": "Define the product through a sharp but truthful contrast, negation, misconception, or not-X-but-Y reframe, then make the mechanism concrete enough to avoid slogan-only copy.",
+    "narrative_sequence": [
+      "familiar assumption",
+      "short contrast",
+      "new frame",
+      "concrete mechanism",
+      "exact offer and CTA"
+    ],
+    "visual_grammar": [
+      "two controlled visual states or one decisive interruption",
+      "short contrast typography",
+      "one shared focal subject",
+      "no disconnected collage"
+    ],
+    "sliders": {
+      "hook_pressure": 80,
+      "emotional_intensity": 58,
+      "conceptual_novelty": 86,
+      "information_density": 38,
+      "visual_complexity": 64
+    }
+  },
+  "writing_bundle": {
+    "principles_sha256": "8617fefc1967b17b05b9bbe76ea76ac2cd2b370ffeae66a74984d13d1d96a476",
+    "anti_patterns_sha256": "676e094c3847a2a419633e61ad64ee4911b85bc3c73c21d57e2137b52f6fa9f6",
+    "owner_lessons_sha256": "bf3e85126f5da48dea1adc640adca48d47cca10488b7b2edd2dd34023ed5c619",
+    "corpus_manifest_sha256": "974f34b4ba5903178530bcacc1ddb00087d373d591283f9ec868aac9bea69730",
+    "corpus_excerpt_ids": [
+      "natal-landing-02",
+      "natal-landing-05",
+      "natal-landing-09",
+      "natal-business-06"
+    ],
+    "corpus_excerpt_sha256": [
+      "31aa9249619a4b3ec0dab83a929b15fe9ea4924c38db7de2ffdaed685d224d78",
+      "39b76d3b05dc23695a6de429bdc9312840f66d5ee1ea75542286b5def5c233cc",
+      "71717bac323d0a71a6110f3ffcaba586812dfd55d0530564504f5eb8da350ec5",
+      "12acd3329c4045712c36b4e0a91af0ef67aa1d3a4b322ebf739ff4a3a3e61df3"
+    ]
+  },
+  "output_profile": "instagram_static_ad_v1",
+  "required_offer": "90 ДНІВ БЕЗКОШТОВНО",
+  "required_cta": "СПРОБУВАТИ NATAL",
+  "media_policy": {
+    "kind": "non_human_graphic",
+    "approved_by_brief": true,
+    "synthetic_people_or_faces_allowed": false,
+    "embedded_generated_copy_allowed": false,
+    "external_photo_required": false
+  },
+  "allowed_tool_catalog": [
+    "local_swift_coregraphics_renderer",
+    "local_sips_jpeg_encoder",
+    "local_ffmpeg_preview_deriver"
+  ],
+  "isolation_note": "Mandatory recovery and task reconciliation exposed summaries and pixels from prior candidates. Candidate H is a controlled canonical replacement experiment and must not be counted as generator-blind, candidate-blind, or used in the strict five-initial-candidate critic set.",
+  "activation_condition": "Canonical source digests, Brief digest, brand-asset digests, protected copy, and non-human media permission must all verify before rendering. The frozen Candidate D and its queue identity must remain untouched."
+}

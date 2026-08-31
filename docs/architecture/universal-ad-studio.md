@@ -306,24 +306,32 @@ An approved Product Brief and the digest of the current saved Studio state are
 mandatory. Unsaved drafts cannot start a run. The local-only
 `universal_ad_experiment_v1` adapter materializes the five canonical strategies
 as declared bounded setting patches while preserving palette, component IDs,
-logo identity, protected offer/CTA, and safe bounds. Four strategies require
-distinct owner-approved or Pexels-provenance real photos; `direct_offer` uses a
-solid/texture-led composition. Asset shortage fails preflight before any model
-call, and bundled Tune images or synthetic people are never substituted.
+logo identity, protected offer/CTA, and safe bounds. Photo-capable strategies
+use distinct owner-approved or Pexels-provenance real photos when available.
+Without them, adapter v4 uses four distinct canonical deterministic Studio
+textures with explicit non-human provenance; `direct_offer` remains natively
+texture-led. Pexels and manual asset management are optional enrichment rather
+than prerequisites, and bundled Tune images or synthetic people are never
+substituted.
 
 Each run invokes an authenticated Codex CLI in a new empty directory with an
-ephemeral session, read-only sandbox, strict JSON output schema, exact JPEG
-critic attachments, and one fresh bounded retry. Persisted provenance contains
+ephemeral session, read-only sandbox, strict JSON output schema, exact persisted
+480×480 analysis JPEG critic attachments derived at 4/9 scale from each
+authoritative 1080×1080 render, and one fresh bounded retry. Persisted provenance contains
 sanitized inputs/outputs, versions, IDs, and digests, never authentication,
 image base64, or hidden reasoning. Candidate generation uses
 `content-candidate-generator`; the existing three-pass
-`content-result-critic` contract compares five initial candidates, permits at
-most four Pass 1–2 improvements, narrows to two finalists, and either selects
-one eligible Result or fails closed.
+`content-result-critic` contract uses three `xhigh` calls with attachment counts
+`[3, 2, 2]`: it independently screens the first three and remaining two initial
+candidates, then compares only both group winners using their exact analysis
+JPEGs and both structured summaries. The local screens emit no actions or
+improvement generations, and the final comparison either selects one eligible
+Result or fails closed.
 
 Every candidate first renders an authoritative 1080×1080 PNG for geometry
-inspection, then one deterministic JPEG that is passed unchanged to the critic
-and release package. Server gates cover role coverage, overflow, truncation,
+inspection, then one deterministic full-size JPEG for owner preview and the
+release package, plus the persisted 480×480 critic analysis derivative. Server
+gates cover role coverage, overflow, truncation,
 collision, safe area, contrast, semantic flow, and exact offer/CTA. Ready
 appends accepted feedback/outcome/weight entities and creates one immutable ZIP
 containing the JPEG, source PNG, caption, alt text, approved Brief, Universal
@@ -368,7 +376,7 @@ locally with mutable, restart-safe Product Brief, Social Posts, Project asset,
 release, and owner-reviewed learning workflows beside Universal Studio and its
 Tune wizard. An authenticated Codex CLI is required for Brief, candidate, and
 critic generation. Firebase, PostgreSQL, and production credentials are not
-required. Supplying a local `PEXELS_API_KEY` enables approved real-photo
+required. Supplying a local `PEXELS_API_KEY` enables optional approved real-photo
 sourcing. The loopback API binds only to `127.0.0.1`; no deployment, production
 database mutation, publication, market ingestion, or automatic lesson approval
 occurs.

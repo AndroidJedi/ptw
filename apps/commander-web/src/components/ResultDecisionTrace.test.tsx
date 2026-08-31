@@ -95,4 +95,34 @@ describe('Result decision trace', () => {
       debug.candidates[0].preview.sha256,
     )
   })
+
+  it('shows grouped screening evidence and an explicit no-selection decision', async () => {
+    const first = criticPass(1, ids.slice(0, 3))
+    const second = criticPass(2, ids.slice(3))
+    const final = criticPass(3, [ids[0], ids[3]])
+    first.critic_scope = 'screening_group_1_of_2'
+    second.critic_scope = 'screening_group_2_of_2'
+    final.critic_scope = 'group_winner_comparison'
+    first.actions = []
+    second.actions = []
+    final.final_selection = null
+    for (const pass of [first, second, final]) {
+      for (const score of Object.values(pass.candidate_scores)) score.eligible = false
+    }
+    const debug: ContentDebug = {
+      candidates: ids.map(candidate),
+      critic_passes: [first, second, final],
+    }
+    const api = {
+      image: vi.fn().mockResolvedValue(new Blob(['jpeg'], { type: 'image/jpeg' })),
+    } as unknown as ApiClient
+
+    render(<ResultDecisionTrace value={debug} api={api} language="en" />)
+
+    expect(screen.getByText('Screen the first three')).toBeVisible()
+    expect(screen.getByText('Screen the remaining two')).toBeVisible()
+    expect(screen.getByText('Compare both group winners')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'No eligible finalist' })).toBeVisible()
+    expect(screen.getAllByText('Not eligible')).toHaveLength(5)
+  })
 })

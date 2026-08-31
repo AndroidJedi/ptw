@@ -1,4 +1,4 @@
-"""Strict Instagram-static recipe contract and deterministic Result renderer."""
+"""Strict static-social recipe contract and deterministic Result renderer."""
 
 from __future__ import annotations
 
@@ -21,6 +21,15 @@ RENDERER_VERSION = "ptw-result-instagram-renderer-v2"
 RENDERER_CONTRACT = {
     "version": RENDERER_VERSION,
     "canvas": [1080, 1080],
+    "format": "image/jpeg",
+    "font": "Natal Inter variable",
+    "handlers": ["media", "shape", "text"],
+    "quantization": "normalized geometry 0.001; typography 1px/100 weight",
+}
+TIKTOK_RENDERER_VERSION = "ptw-result-tiktok-photo-renderer-v1"
+TIKTOK_RENDERER_CONTRACT = {
+    "version": TIKTOK_RENDERER_VERSION,
+    "canvas": [1080, 1920],
     "format": "image/jpeg",
     "font": "Natal Inter variable",
     "handlers": ["media", "shape", "text"],
@@ -78,6 +87,26 @@ def _tool(
 
 PLACEMENT_ID = "studio.placement.instagram.feed_square.v1"
 PLACEMENT = {"width": 1080, "height": 1080, "label": "Instagram feed · square"}
+TIKTOK_PLACEMENT_ID = "studio.placement.tiktok.photo_vertical.v1"
+TIKTOK_PLACEMENT = {"width": 1080, "height": 1920, "label": "TikTok photo · vertical"}
+PROFILE_PLACEMENTS = {
+    "instagram_static_ad_v1": PLACEMENT_ID,
+    "tiktok_photo_post_v1": TIKTOK_PLACEMENT_ID,
+}
+PLACEMENTS = {
+    PLACEMENT_ID: {
+        **PLACEMENT,
+        "profile": "instagram_static_ad_v1",
+        "safe_zone": {"left": .04, "top": .04, "right": .96, "bottom": .96},
+        "renderer_version": RENDERER_VERSION,
+    },
+    TIKTOK_PLACEMENT_ID: {
+        **TIKTOK_PLACEMENT,
+        "profile": "tiktok_photo_post_v1",
+        "safe_zone": {"left": .06, "top": .08, "right": .82, "bottom": .84},
+        "renderer_version": TIKTOK_RENDERER_VERSION,
+    },
+}
 
 
 def _property(kind: str, *, minimum: float | None = None, maximum: float | None = None,
@@ -223,14 +252,48 @@ def tool_catalog() -> dict[str, Any]:
     return {**catalog, "catalog_sha256": digest}
 
 
+def tool_catalog_for_profile(profile: str) -> dict[str, Any]:
+    """Return the immutable channel catalog without changing Instagram v2 digests."""
+    if profile == "instagram_static_ad_v1":
+        return tool_catalog()
+    if profile != "tiktok_photo_post_v1":
+        raise ValueError("unknown static social profile")
+    items = json.loads(json.dumps(TOOL_CATALOG))
+    for item in items:
+        item["supported_profiles"] = [profile]
+        if item["tool_id"] == PLACEMENT_ID:
+            item["tool_id"] = TIKTOK_PLACEMENT_ID
+            item["label"] = TIKTOK_PLACEMENT["label"]
+        item["allowed_placements"] = [
+            TIKTOK_PLACEMENT_ID if value == PLACEMENT_ID else value
+            for value in item["allowed_placements"]
+        ]
+    catalog = {
+        "schema_version": 2,
+        "catalog_version": "ptw-studio-component-catalog-tiktok-v1",
+        "renderer_version": TIKTOK_RENDERER_VERSION,
+        "profile": profile,
+        "items": items,
+    }
+    _, digest = _canonical(catalog)
+    return {**catalog, "catalog_sha256": digest}
+
+
 def _canonical(value: Mapping[str, Any]) -> tuple[str, str]:
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return raw, hashlib.sha256(raw.encode()).hexdigest()
 
 
-def renderer_identity() -> dict[str, str]:
-    _, digest = _canonical(RENDERER_CONTRACT)
-    return {"version": RENDERER_VERSION, "sha256": digest}
+def renderer_identity(profile: str = "instagram_static_ad_v1") -> dict[str, str]:
+    contract = (
+        RENDERER_CONTRACT if profile == "instagram_static_ad_v1"
+        else TIKTOK_RENDERER_CONTRACT if profile == "tiktok_photo_post_v1"
+        else None
+    )
+    if contract is None:
+        raise ValueError("unknown static social renderer profile")
+    _, digest = _canonical(contract)
+    return {"version": str(contract["version"]), "sha256": digest}
 
 
 def validate_brand_kit(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -341,7 +404,7 @@ def _contrast_ratio(left: str, right: str) -> float:
 
 @dataclass(frozen=True, slots=True)
 class StudioRecipeV2:
-    """The sole structured visual contract for Instagram-static Results."""
+    """The sole structured visual contract for static-social Results."""
 
     value: Mapping[str, Any]
     digest: str
@@ -370,10 +433,12 @@ class StudioRecipeV2:
             if parsed_parent.version != 7:
                 raise ValueError("parent recipe ID must be a UUIDv7")
             parent_recipe_id = str(parsed_parent)
-        if value["placement_tool_id"] != PLACEMENT_ID:
-            raise ValueError("only the Instagram feed-square placement is available")
+        placement_tool_id = str(value["placement_tool_id"])
+        placement = PLACEMENTS.get(placement_tool_id)
+        if placement is None:
+            raise ValueError("the static-social placement is unavailable")
         if value["duration_seconds"] is not None or value["frame_rate"] is not None:
-            raise ValueError("Instagram-static recipes cannot declare duration or frame rate")
+            raise ValueError("Static-social recipes cannot declare duration or frame rate")
 
         raw_frames = value.get("frames")
         if not isinstance(raw_frames, list) or not 1 <= len(raw_frames) <= 32:
@@ -397,7 +462,7 @@ class StudioRecipeV2:
             if TOOLS_BY_ID.get(tool_id, {}).get("kind") != "frame":
                 raise ValueError(f"unknown Result frame tool ID: {tool_id}")
             if raw.get("timeline") is not None:
-                raise ValueError("Instagram-static frames cannot declare a timeline")
+                raise ValueError("static-social frames cannot declare a timeline")
             params = raw.get("params")
             if not isinstance(params, Mapping):
                 raise ValueError(f"frames[{index}].params must be an object")
@@ -414,13 +479,14 @@ class StudioRecipeV2:
                 raise ValueError(f"{tool_id} requires exactly {expected_assets} source assets")
             source_assets.update(asset_ids)
             frame = _frame(raw["frame"], f"frames[{index}]")
+            safe_zone = placement["safe_zone"]
             if tool_id in SAFE_ZONE_TOOLS and (
-                frame["x"] < SAFE_ZONE["left"]
-                or frame["y"] < SAFE_ZONE["top"]
-                or frame["x"] + frame["width"] > SAFE_ZONE["right"]
-                or frame["y"] + frame["height"] > SAFE_ZONE["bottom"]
+                frame["x"] < safe_zone["left"]
+                or frame["y"] < safe_zone["top"]
+                or frame["x"] + frame["width"] > safe_zone["right"]
+                or frame["y"] + frame["height"] > safe_zone["bottom"]
             ):
-                raise ValueError(f"{tool_id} must stay inside the Instagram safe zone")
+                raise ValueError(f"{tool_id} must stay inside the placement safe zone")
             frames.append({
                 "instance_id": instance_id,
                 "tool_id": tool_id,
@@ -522,9 +588,9 @@ class StudioRecipeV2:
             "brief_id": str(UUID(brief_id)),
             "parent_recipe_id": parent_recipe_id,
             "brand_kit_id": str(UUID(brand_kit_id)),
-            "placement_tool_id": PLACEMENT_ID,
-            "width": 1080,
-            "height": 1080,
+            "placement_tool_id": placement_tool_id,
+            "width": int(placement["width"]),
+            "height": int(placement["height"]),
             "duration_seconds": None,
             "frame_rate": None,
             "frames": sorted(frames, key=lambda item: item["z_index"]),
@@ -533,7 +599,7 @@ class StudioRecipeV2:
             "validation_ids": validation_ids,
             "source_reference_ids": source_refs,
             "source_asset_ids": sorted(source_assets),
-            "renderer_version": RENDERER_VERSION,
+            "renderer_version": str(placement["renderer_version"]),
             "share": {"caption": caption, "alt_text": alt_text},
         }
         _, digest = _canonical(normalized)
@@ -589,7 +655,7 @@ def _hex(value: str, fallback: str) -> tuple[int, int, int]:
 
 
 class StudioRenderer:
-    """Render one validated 1080×1080 Instagram Result deterministically."""
+    """Render one validated static-social Result deterministically."""
 
     def __init__(self, font_path: Path = SUPPORTED_FONTS["Inter"]) -> None:
         self.font_path = font_path
@@ -865,7 +931,9 @@ def build_manifest(
         "brief_id": recipe["brief_id"], "brand_kit_id": brand_kit["brand_kit_id"],
         "brand_kit_sha256": brand_kit.get("document_sha256"),
         "renderer_version": recipe.get("renderer_version", RENDERER_VERSION),
-        "renderer_sha256": renderer_identity()["sha256"] if application else None,
+        "renderer_sha256": renderer_identity(
+            str(PLACEMENTS[recipe["placement_tool_id"]]["profile"])
+        )["sha256"] if application else None,
         "placement_tool_id": recipe["placement_tool_id"],
         "tool_instances": tool_instances,
         "strategy_ids": list(recipe["strategy_ids"]),
@@ -883,7 +951,8 @@ def build_manifest(
         "source_refs": list(recipe["source_reference_ids"]),
         "resolved_recipe": {"document": dict(recipe), "sha256": recipe_digest},
         "output": {
-            "mime_type": rendered["mime_type"], "width": 1080, "height": 1080,
+            "mime_type": rendered["mime_type"],
+            "width": int(recipe["width"]), "height": int(recipe["height"]),
             "duration_seconds": None,
             "bytes_sha256": hashlib.sha256(rendered["bytes"]).hexdigest(),
         },

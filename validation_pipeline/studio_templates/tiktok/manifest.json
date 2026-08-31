@@ -1,0 +1,35 @@
+{
+  "schema": "ptw.studio.template-registry.v1",
+  "active": [
+    {
+      "template_id": "moment_tension",
+      "version": 3,
+      "strategy_sha256": "f249173f27a513658bbeabd5d6301c6a847ee4665b8af76d6870b79ade5bf40a",
+      "studio_sha256": "48cc1697702defc0cd453cdd377b8aadd233ba4d193f075ff31de318e748fad5"
+    },
+    {
+      "template_id": "contrast_reframe",
+      "version": 3,
+      "strategy_sha256": "ca606f52b760a0b5bf79b2d111a01871ead1fde68f332d6da5d19841ed794be9",
+      "studio_sha256": "3017ebd20720576dd57e9847af9367cb4c487306930145d4c31eca023b98c5fe"
+    },
+    {
+      "template_id": "mechanism_proof",
+      "version": 3,
+      "strategy_sha256": "8682cbba122e4faa5eeb9aabeaf7cb06ad42ff67a7dd2956f6ee2ab7eddbb2a6",
+      "studio_sha256": "6d42d030916f13292fde944597e2f0f646253d053dd3f4bc2797a39e0b590c45"
+    },
+    {
+      "template_id": "human_story",
+      "version": 3,
+      "strategy_sha256": "1dc1cfc8c3ac0a75cdbf447b48992e0ba9f154cf0e5eeae8782dc7805d264f53",
+      "studio_sha256": "4e1f79a8b5facbd8d3856c8dbf07a107b156edf1b5b641cddd6b161e6fda8ffe"
+    },
+    {
+      "template_id": "direct_offer",
+      "version": 3,
+      "strategy_sha256": "764563ecc46cc315769734c775614c01c3dde3149d71b6fabd61904204ef2ed4",
+      "studio_sha256": "3f9ff74c1bb0adf06251369ad79e1df2124da02a5303099743d2a3022933bb9a"
+    }
+  ]
+}

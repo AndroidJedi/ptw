@@ -432,6 +432,36 @@ def create_app(
                 request_id=str(UUID(str(request["request_id"]))), brief_id=parent["brief_id"],
                 task=parent["task"], output_profile=parent["output_profile"],
                 requested_by=x_ptw_actor[:200], parent_run_id=parent["run_id"],
+                revision_instruction=parent["context_bundle"].get("revision_instruction"),
+            )
+            if created:
+                run_background(active.execute, child["run_id"])
+            return {**child, "created": created}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="parent Result run not found") from error
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post(
+        "/internal/v1/content-runs/{run_id}/revisions",
+        dependencies=[Depends(authorize)], status_code=202,
+    )
+    async def revise_content_run(
+        run_id: str, request: Mapping[str, Any],
+        x_ptw_actor: str = Header(default="owner-web"),
+    ) -> dict[str, Any]:
+        active = require_result_runner()
+        if set(request) != {"request_id", "comment"}:
+            raise HTTPException(
+                status_code=400,
+                detail="Result revision requires request_id and comment",
+            )
+        try:
+            child, created = active.create_revision(
+                request_id=str(UUID(str(request["request_id"]))),
+                parent_run_id=str(UUID(run_id)),
+                comment=str(request["comment"]),
+                requested_by=x_ptw_actor[:200],
             )
             if created:
                 run_background(active.execute, child["run_id"])

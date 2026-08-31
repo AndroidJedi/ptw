@@ -16,12 +16,17 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from validation_pipeline.studio_universal import DEFAULT_CONFIG, DEFAULT_CONTENT
+from validation_pipeline.studio_universal import (
+    DEFAULT_CONFIG, DEFAULT_CONTENT, universal_alignment_rectangle,
+)
 from validation_pipeline.studio_workspace import UniversalStudioWorkspace
 
 
 CANVAS_SIZE = 1080
-TEXT_NODES = ("hero_title", "supporting_text", "bullet_1", "bullet_2", "bullet_3")
+BOUND_EPSILON = 1 / CANVAS_SIZE
+TEXT_NODES = (
+    "hero_title", "supporting_text", "offer", "bullet_1", "bullet_2", "bullet_3",
+)
 MARKER_NODES = ("bullet_marker_1", "bullet_marker_2", "bullet_marker_3")
 FLOW_NODES = (*TEXT_NODES, "cta")
 
@@ -35,8 +40,15 @@ def pixels(value: float) -> float:
     return value * CANVAS_SIZE
 
 
-def audit_variant(name: str, preview: Mapping[str, Any]) -> dict[str, Any]:
+def audit_variant(
+    name: str, preview: Mapping[str, Any], configuration: Mapping[str, Any],
+) -> dict[str, Any]:
     nodes = preview["resolved"]["nodes"]
+    alignment = universal_alignment_rectangle(configuration)
+    alignment_left = alignment["x"] / CANVAS_SIZE
+    alignment_top = alignment["y"] / CANVAS_SIZE
+    alignment_right = (alignment["x"] + alignment["width"]) / CANVAS_SIZE
+    alignment_bottom = (alignment["y"] + alignment["height"]) / CANVAS_SIZE
     inspected: dict[str, Any] = {}
     for node_id in TEXT_NODES:
         if node_id not in nodes:
@@ -93,10 +105,26 @@ def audit_variant(name: str, preview: Mapping[str, Any]) -> dict[str, Any]:
 
     cta = nodes["cta"]["box"]
     require(
-        cta["x"] >= 0.04 and cta["x"] + cta["width"] <= 0.96,
-        f"{name}: CTA leaves the horizontal safe area",
+        cta["x"] >= alignment_left - BOUND_EPSILON
+        and cta["x"] + cta["width"] <= alignment_right + BOUND_EPSILON,
+        f"{name}: CTA leaves the shared alignment rectangle",
     )
-    require(cta["y"] + cta["height"] <= 0.96, f"{name}: CTA leaves the bottom safe area")
+    require(
+        cta["y"] >= alignment_top - BOUND_EPSILON
+        and cta["y"] + cta["height"] <= alignment_bottom + BOUND_EPSILON,
+        f"{name}: CTA leaves the shared alignment rectangle",
+    )
+    for node_id in TEXT_NODES:
+        if node_id not in nodes:
+            continue
+        box = nodes[node_id]["box"]
+        require(
+            box["x"] >= alignment_left - BOUND_EPSILON
+            and box["x"] + box["width"] <= alignment_right + BOUND_EPSILON
+            and box["y"] >= alignment_top - BOUND_EPSILON
+            and box["y"] + box["height"] <= alignment_bottom + BOUND_EPSILON,
+            f"{name}: {node_id} leaves the shared alignment rectangle",
+        )
     if "logo" in nodes:
         logo = nodes["logo"]
         surface = nodes.get("logo_surface")
@@ -104,10 +132,13 @@ def audit_variant(name: str, preview: Mapping[str, Any]) -> dict[str, Any]:
         collision_box = logo_box if surface is None else surface["box"]
         require(logo["visible_bounds"] is not None, f"{name}: logo has no visible pixels")
         require(
-            collision_box["x"] >= 0.03 and collision_box["y"] >= 0.03
-            and collision_box["x"] + collision_box["width"] <= 0.97
-            and collision_box["y"] + collision_box["height"] <= 0.97,
-            f"{name}: logo treatment leaves the safe area",
+            collision_box["x"] >= alignment_left - BOUND_EPSILON
+            and collision_box["y"] >= alignment_top - BOUND_EPSILON
+            and collision_box["x"] + collision_box["width"]
+            <= alignment_right + BOUND_EPSILON
+            and collision_box["y"] + collision_box["height"]
+            <= alignment_bottom + BOUND_EPSILON,
+            f"{name}: logo treatment leaves the shared alignment rectangle",
         )
         if surface is not None:
             require(
@@ -169,6 +200,7 @@ def variants() -> list[tuple[str, dict[str, Any], dict[str, Any]]]:
     })
     editorial_config["cta"]["position"] = "bottom_left"
     editorial_config["sticker"]["enabled"] = False
+    editorial_config["logo"]["background_enabled"] = True
     editorial = ("editorial_bottom_left", editorial_config, copy.deepcopy(DEFAULT_CONTENT))
 
     urgent_config = copy.deepcopy(DEFAULT_CONFIG)
@@ -214,7 +246,7 @@ def main() -> None:
                 configuration=configuration,
                 content=content,
             )
-            report = audit_variant(name, preview)
+            report = audit_variant(name, preview, configuration)
             if output_dir is not None:
                 preview_path = output_dir / f"{name}.png"
                 preview_path.write_bytes(preview["bytes"])

@@ -188,6 +188,7 @@ export function StudioView({ api, language, tuneMode = false }: {
       JSON.stringify(configuration) === JSON.stringify(detail.configuration)
       && JSON.stringify(normalizedContent) === JSON.stringify(detail.content)
     )
+    window.sessionStorage.setItem('ptw.studio.unsaved', matchesPersisted ? '0' : '1')
     if (matchesPersisted) {
       if (previewMode.current === 'draft') {
         setPreviewBusy(true)
@@ -216,11 +217,11 @@ export function StudioView({ api, language, tuneMode = false }: {
       setDraftPreviewed(false)
       return
     }
-    if (!normalizedContent.hero_title.trim() || !normalizedContent.supporting_text.trim() || !normalizedContent.cta.trim()) {
+    if (!normalizedContent.hero_title.trim() || !normalizedContent.supporting_text.trim() || !normalizedContent.offer.trim() || !normalizedContent.cta.trim()) {
       setPreviewBusy(false)
       setPreviewError(tr(
-        'Complete the title, supporting text, and CTA to refresh the preview.',
-        'Заповніть заголовок, пояснення та CTA, щоб оновити прев’ю.',
+        'Complete the title, supporting text, offer, and CTA to refresh the preview.',
+        'Заповніть заголовок, пояснення, пропозицію та CTA, щоб оновити прев’ю.',
       ))
       return
     }
@@ -486,6 +487,7 @@ export function StudioView({ api, language, tuneMode = false }: {
         <div className="universal-component-card is-required"><span>{tr('ALWAYS ON', 'ЗАВЖДИ')}</span><strong>{tr('Background', 'Фон')}</strong><small>{tr('Mood & contrast', 'Настрій і контраст')}</small></div>
         <div className="universal-component-card is-required"><span>{tr('ALWAYS ON', 'ЗАВЖДИ')}</span><strong>{tr('Headline', 'Заголовок')}</strong><small>{tr('Primary hook', 'Головний хук')}</small></div>
         <div className="universal-component-card is-required"><span>{tr('ALWAYS ON', 'ЗАВЖДИ')}</span><strong>{tr('Supporting copy', 'Пояснення')}</strong><small>{tr('Reason to care', 'Причина зупинитись')}</small></div>
+        <div className="universal-component-card is-required"><span>{tr('ALWAYS ON', 'ЗАВЖДИ')}</span><strong>{tr('Offer', 'Пропозиція')}</strong><small>{tr('Protected value', 'Захищена цінність')}</small></div>
         <div className="universal-component-card is-required"><span>{tr('ALWAYS ON', 'ЗАВЖДИ')}</span><strong>CTA</strong><small>{tr('Next action', 'Наступна дія')}</small></div>
         <label className={`universal-component-card is-toggle ${configuration.bullets.enabled ? 'is-active' : ''}`}>
           <input aria-label="Enable bullets" type="checkbox" checked={configuration.bullets.enabled} onChange={(event) => patchConfig('bullets', { enabled: event.target.checked })} />
@@ -524,6 +526,7 @@ export function StudioView({ api, language, tuneMode = false }: {
           <small>{tr('SEMANTIC CONTENT', 'СЕМАНТИЧНИЙ ВМІСТ')}</small><h2>{tr('Compact ad message', 'Компактне рекламне повідомлення')}</h2>
           <label><span>{tr('Hero Title', 'Головний заголовок')}</span><textarea aria-label="Hero Title" rows={3} value={content.hero_title} onChange={(event) => setContent({ ...content, hero_title: event.target.value })} /></label>
           <label><span>{tr('Supporting Text', 'Пояснювальний текст')}</span><textarea aria-label="Supporting Text" rows={3} value={content.supporting_text} onChange={(event) => setContent({ ...content, supporting_text: event.target.value })} /></label>
+          <label><span>{tr('Offer', 'Пропозиція')}</span><textarea aria-label="Offer" rows={2} maxLength={160} value={content.offer} onChange={(event) => setContent({ ...content, offer: event.target.value })} /></label>
           <label><span>CTA</span><input aria-label="CTA" value={content.cta} onChange={(event) => setContent({ ...content, cta: event.target.value })} /></label>
           {configuration.bullets.enabled && <div className="universal-bullets">
             <label><span>{tr('Bullet style', 'Стиль маркера')}</span><select

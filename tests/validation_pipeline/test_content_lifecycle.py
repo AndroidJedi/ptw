@@ -29,7 +29,9 @@ class FakeBridge:
         call = len(self.candidate_calls) + 1
         self.candidate_calls.append(input_payload)
         brief = input_payload["approved_brief"]["document"]
-        instagram = input_payload["output_profile"] == "instagram_static_ad_v1"
+        static_social = input_payload["output_profile"] in {
+            "instagram_static_ad_v1", "tiktok_photo_post_v1",
+        }
         response = {
             "schema_version": 2,
             "hook": f"At 23:00, one question is still open · {call}",
@@ -41,17 +43,17 @@ class FakeBridge:
             "caption": "A specific first step for the decision that is already taking your attention.",
             "alt_text": (
                 "A real photograph beside a concise decision-session offer."
-                if instagram else "A text Result explaining one clear first step."
+                if static_social else "A text Result explaining one clear first step."
             ),
             "desired_emotion": "calm confidence",
             "visual_concept": (
                 "One candid real scene with a clear subject and reserved text hierarchy."
-                if instagram else "No visual is requested for the text profile."
+                if static_social else "No visual is requested for the text profile."
             ),
             "media_request": ({
                 "kind": "pexels_real_photo", "query": "adult making a decision at desk",
                 "source_asset_id": None, "reason": "A real photograph supports the supplied moment.",
-            } if instagram else {
+            } if static_social else {
                 "kind": "none", "query": "", "source_asset_id": None,
                 "reason": "The selected profile is text only.",
             }),
@@ -60,7 +62,7 @@ class FakeBridge:
             } for role in (
                 "background", "primary_subject", "headline_block", "supporting_text_block",
                 "offer_block", "cta_block", "brand_mark", "lighting_style", "composition",
-            )] if instagram else []),
+            )] if static_social else []),
         }
         invocation = {
             "bridge_request_id": call, "bridge_attempt": 1,
@@ -349,6 +351,92 @@ class ContentLifecycleTests(unittest.TestCase):
                      AND target.kind='studio_recipe' AND edge.attributes->>'input'='parent_recipe'"""
             ).fetchone()[0])
         self.assertEqual(4, parent_edges)
+
+    def test_tiktok_revision_is_idempotent_append_only_and_feedback_scoped(self) -> None:
+        brief = self._approved_brief()
+        run, created = self.orchestrator.create_run(
+            request_id=str(uuid4()), brief_id=brief["brief_id"],
+            task="Create one concise TikTok vertical photo post using a candid real photograph.",
+            output_profile="tiktok_photo_post_v1", requested_by="test",
+        )
+        self.assertTrue(created)
+        original = self.orchestrator.execute(run["run_id"])
+        original_result = self.repository.get_result(run["run_id"])
+        self.assertEqual((1080, 1920), (
+            original_result["asset_width"], original_result["asset_height"],
+        ))
+        self.assertEqual("image/jpeg", original_result["asset_mime_type"])
+        accepted = self.repository.record_feedback(
+            run["run_id"], decision="accepted", comment="Ready for export.",
+            requested_by="test",
+        )
+        self.assertEqual("ready", self.repository.get_run(run["run_id"])["review_state"])
+
+        revision_request_id = str(uuid4())
+        child, child_created = self.orchestrator.create_revision(
+            request_id=revision_request_id, parent_run_id=run["run_id"],
+            comment="Move the CTA higher and keep the tone calm.", requested_by="test",
+        )
+        self.assertTrue(child_created)
+        self.assertEqual(run["run_id"], child["parent_run_id"])
+        self.assertEqual("tiktok", child["platform"])
+        self.assertEqual(1, child["revision_number"])
+        instruction = child["context_bundle"]["revision_instruction"]
+        self.assertEqual("Move the CTA higher and keep the tone calm.", instruction["comment"])
+        self.assertEqual(original["creative_id"], instruction["creative_id"])
+        self.assertEqual("included_exactly", child["context_bundle"]["source_policy"][
+            "selected_revision_feedback"
+        ])
+        self.assertEqual("excluded", child["context_bundle"]["source_policy"]["owner_history"])
+        self.assertEqual("needs_changes", self.repository.get_run(run["run_id"])["review_state"])
+
+        repeated, repeated_created = self.orchestrator.create_revision(
+            request_id=revision_request_id, parent_run_id=run["run_id"],
+            comment="Move the CTA higher and keep the tone calm.", requested_by="test",
+        )
+        self.assertFalse(repeated_created)
+        self.assertEqual(child["run_id"], repeated["run_id"])
+        with self.assertRaisesRegex(ValueError, "different Result input"):
+            self.orchestrator.create_revision(
+                request_id=revision_request_id, parent_run_id=run["run_id"],
+                comment="Use an entirely different revision instruction.", requested_by="test",
+            )
+        self.orchestrator.execute(child["run_id"])
+        completed_child = self.repository.get_run(child["run_id"])
+        self.assertEqual("completed", completed_child["status"])
+        self.assertEqual((1080, 1920), (
+            completed_child["preview"]["width"], completed_child["preview"]["height"],
+        ))
+        revision_calls = self.bridge.candidate_calls[-9:]
+        self.assertTrue(all(
+            call["revision_instruction"] == instruction for call in revision_calls
+        ))
+
+        with self.authority.connection() as connection:
+            feedback_rows = connection.execute(
+                """SELECT feedback.entity_id,entity.attributes->>'decision'
+                     FROM commander_human_feedback feedback
+                     JOIN commander_entities entity ON entity.id=feedback.entity_id
+                    WHERE feedback.target_id=%s ORDER BY feedback.created_at,feedback.entity_id""",
+                (original["creative_id"],),
+            ).fetchall()
+            weight_count = int(connection.execute(
+                """SELECT count(*) FROM commander_weight_updates update_row
+                     JOIN commander_human_feedback feedback
+                       ON feedback.entity_id=update_row.feedback_id
+                    WHERE feedback.target_id=%s AND update_row.delta=0""",
+                (original["creative_id"],),
+            ).fetchone()[0])
+            feedback_edge = int(connection.execute(
+                """SELECT count(*) FROM commander_relationships
+                    WHERE source_id=%s AND relation='derived_from' AND target_id=%s
+                      AND attributes->>'input'='selected_revision_feedback'""",
+                (child["run_id"], instruction["feedback_id"]),
+            ).fetchone()[0])
+        self.assertEqual(["accepted", "rejected"], [row[1] for row in feedback_rows])
+        self.assertEqual(accepted["feedback_id"], str(feedback_rows[0][0]))
+        self.assertEqual(2, weight_count)
+        self.assertEqual(1, feedback_edge)
 
     def test_restart_fails_orphaned_queued_brief_and_releases_operation(self) -> None:
         brief, _ = self.authority.create_brief(

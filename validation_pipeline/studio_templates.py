@@ -16,8 +16,9 @@ from commander.ids import new_uuid7
 from .content import SLIDER_NAMES, TEMPLATE_IDS
 from .natal_brand import NATAL_COLORS
 from .studio import (
-    DEFAULT_GUARDS, DEFAULT_SOURCE_REFS, PLACEMENT_ID, TOOLS_BY_ID,
-    _frame, _validate_component_params, renderer_identity, tool_catalog,
+    DEFAULT_GUARDS, DEFAULT_SOURCE_REFS, PLACEMENT_ID, PROFILE_PLACEMENTS,
+    TIKTOK_PLACEMENT_ID, TOOLS_BY_ID, _frame, _validate_component_params,
+    renderer_identity, tool_catalog_for_profile,
 )
 
 
@@ -27,6 +28,7 @@ APPLICATION_TOOL_ID = "studio.layout.template_application.v1"
 TEMPLATE_VERSION = 3
 REPLAY_TEMPLATE_VERSIONS = frozenset({2, TEMPLATE_VERSION})
 TEMPLATE_DIRECTORY = Path(__file__).with_name("studio_templates") / "instagram"
+TIKTOK_TEMPLATE_DIRECTORY = Path(__file__).with_name("studio_templates") / "tiktok"
 REQUIRED_ELEMENT_ROLES = (
     "background", "primary_subject", "headline_block", "supporting_text_block",
     "offer_block", "cta_block", "brand_mark",
@@ -163,7 +165,16 @@ class StudioTemplate:
     digest: str
 
 
-def _normalize_template(value: Mapping[str, Any]) -> StudioTemplate:
+def _profile_for_placement(placement_tool_id: str) -> str:
+    for profile, placement in PROFILE_PLACEMENTS.items():
+        if placement == placement_tool_id:
+            return profile
+    raise ValueError("Studio template placement is unavailable")
+
+
+def _normalize_template(
+    value: Mapping[str, Any], *, expected_placement_id: str | None = None,
+) -> StudioTemplate:
     expected = {
         "schema", "template_id", "version", "active", "placement_tool_id",
         "components", "bindings", "tuning_rules",
@@ -174,8 +185,17 @@ def _normalize_template(value: Mapping[str, Any]) -> StudioTemplate:
     if template_id not in TEMPLATE_IDS or value.get("active") is not True:
         raise ValueError("Studio template identity or active flag is invalid")
     version = int(value["version"])
-    if version not in REPLAY_TEMPLATE_VERSIONS or value["placement_tool_id"] != PLACEMENT_ID:
-        raise ValueError("Studio templates must use a supported version and square placement")
+    placement_tool_id = str(value["placement_tool_id"])
+    if (
+        version not in REPLAY_TEMPLATE_VERSIONS
+        or placement_tool_id not in PROFILE_PLACEMENTS.values()
+        or expected_placement_id is not None and placement_tool_id != expected_placement_id
+    ):
+        raise ValueError("Studio templates must use a supported version and placement")
+    profile = _profile_for_placement(placement_tool_id)
+    catalog_tools = {
+        item["tool_id"]: item for item in tool_catalog_for_profile(profile)["items"]
+    }
     raw_components = value["components"]
     if not isinstance(raw_components, list) or not 7 <= len(raw_components) <= 20:
         raise ValueError("Studio templates require seven to twenty predefined components")
@@ -194,8 +214,8 @@ def _normalize_template(value: Mapping[str, Any]) -> StudioTemplate:
             raise ValueError("Studio component keys must be stable, readable, and unique")
         keys.add(key)
         tool_id = str(raw["tool_id"])
-        tool = TOOLS_BY_ID.get(tool_id)
-        if tool is None or tool["kind"] != "frame" or PLACEMENT_ID not in tool["allowed_placements"]:
+        tool = catalog_tools.get(tool_id)
+        if tool is None or tool["kind"] != "frame" or placement_tool_id not in tool["allowed_placements"]:
             raise ValueError(f"Studio component uses an unavailable catalog tool: {tool_id}")
         element_role = raw["element_role"]
         if element_role is not None:
@@ -252,7 +272,7 @@ def _normalize_template(value: Mapping[str, Any]) -> StudioTemplate:
                     raise ValueError("asset bindings may target only media or logo components")
             elif target.startswith("params."):
                 parameter = target.removeprefix("params.")
-                definition = TOOLS_BY_ID[component["tool_id"]]["parameter_schema"]["properties"].get(parameter)
+                definition = catalog_tools[component["tool_id"]]["parameter_schema"]["properties"].get(parameter)
                 expected_type = "string" if value_type == "text" else value_type
                 if definition is None or definition["type"] != expected_type:
                     raise ValueError("Studio binding type does not match its component parameter")
@@ -363,7 +383,7 @@ def _normalize_template(value: Mapping[str, Any]) -> StudioTemplate:
 
     document = {
         "schema": TEMPLATE_SCHEMA, "template_id": template_id, "version": version,
-        "active": True, "placement_tool_id": PLACEMENT_ID,
+        "active": True, "placement_tool_id": placement_tool_id,
         "components": components, "bindings": bindings, "tuning_rules": rules,
     }
     _, digest = _canonical(document)
@@ -371,8 +391,18 @@ def _normalize_template(value: Mapping[str, Any]) -> StudioTemplate:
 
 
 class StudioTemplateRegistry:
-    def __init__(self, directory: Path = TEMPLATE_DIRECTORY) -> None:
-        self.directory = directory
+    def __init__(
+        self, directory: Path | None = None, *, output_profile: str = "instagram_static_ad_v1",
+    ) -> None:
+        if output_profile not in PROFILE_PLACEMENTS:
+            raise ValueError("Studio template registry requires a static social profile")
+        self.output_profile = output_profile
+        self.placement_tool_id = PROFILE_PLACEMENTS[output_profile]
+        self.directory = directory or (
+            TEMPLATE_DIRECTORY
+            if output_profile == "instagram_static_ad_v1"
+            else TIKTOK_TEMPLATE_DIRECTORY
+        )
 
     def load_active(self, strategy_templates: Sequence[Any] = ()) -> tuple[StudioTemplate, ...]:
         manifest_path = self.directory / "manifest.json"
@@ -413,7 +443,9 @@ class StudioTemplateRegistry:
             if not isinstance(value, Mapping):
                 raise ValueError(f"Studio template {path.name} is not one document")
             if value.get("active") is True:
-                templates.append(_normalize_template(value))
+                templates.append(_normalize_template(
+                    value, expected_placement_id=self.placement_tool_id,
+                ))
         ids = [item.template_id for item in templates]
         if len(templates) != 5 or len(set(ids)) != 5 or set(ids) != set(TEMPLATE_IDS):
             raise ValueError("Studio registry must contain exactly five active template definitions")
@@ -450,10 +482,10 @@ def _binding_values(
         or list(brand_document.get("colors") or ()) != list(NATAL_COLORS)
         or list(brand_document.get("fonts") or ()) != ["Inter"]
     ):
-        raise ValueError("configured Instagram templates require the canonical Natal palette and Inter")
+        raise ValueError("configured social templates require the canonical Natal palette and Inter")
     logo_id = brand_document.get("logo_source_asset_id")
     if not logo_id:
-        raise ValueError("configured Instagram templates require the canonical Natal logo")
+        raise ValueError("configured social templates require the canonical Natal logo")
     return {
         "candidate.headline": str(candidate["headline"]),
         "candidate.primary_text": str(candidate["primary_text"]),
@@ -556,8 +588,9 @@ def _materialize(
     _, components_digest = _canonical(frames)
     _, bindings_digest = _canonical(binding_map)
     _, patch_digest = _canonical(patch)
-    catalog = tool_catalog()
-    renderer = renderer_identity()
+    profile = _profile_for_placement(str(template.document["placement_tool_id"]))
+    catalog = tool_catalog_for_profile(profile)
+    renderer = renderer_identity(profile)
     metadata = {
         "schema": APPLICATION_SCHEMA,
         "strategy_template": {
@@ -583,7 +616,8 @@ def _materialize(
     }
     return {
         "schema_version": 2, "parent_recipe_id": parent,
-        "placement_tool_id": PLACEMENT_ID, "duration_seconds": None, "frame_rate": None,
+        "placement_tool_id": template.document["placement_tool_id"],
+        "duration_seconds": None, "frame_rate": None,
         "frames": frames,
         "modifiers": [{"instance_id": modifier_id, "tool_id": APPLICATION_TOOL_ID, "params": metadata}],
         "strategy_ids": [
@@ -645,10 +679,11 @@ def replay_template_application(metadata: Mapping[str, Any]) -> dict[str, Any]:
         "template_id": template.template_id, "version": template.version, "sha256": template.digest,
     }:
         raise ValueError("Studio template snapshot identity or digest does not match")
-    catalog = tool_catalog()
+    profile = _profile_for_placement(str(template.document["placement_tool_id"]))
+    catalog = tool_catalog_for_profile(profile)
     if metadata["catalog"] != {
         "version": catalog["catalog_version"], "sha256": catalog["catalog_sha256"],
-    } or metadata["renderer"] != renderer_identity():
+    } or metadata["renderer"] != renderer_identity(profile):
         raise ValueError("Studio catalog or renderer identity does not match application metadata")
     normalized = {name: int(metadata["slider_input"][name]) / 100 for name in SLIDER_NAMES}
     if metadata["slider_normalized"] != normalized:

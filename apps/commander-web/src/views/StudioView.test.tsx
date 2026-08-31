@@ -9,6 +9,7 @@ const componentRoles = [
   ['sticker', ['sticker_object'], ['sticker_object']],
   ['hero_title', ['hero_title'], []],
   ['supporting_text', ['supporting_text'], []],
+  ['offer', ['offer'], []],
   ['bullet_list', ['bullet_marker_1', 'bullet_1', 'bullet_marker_2', 'bullet_2', 'bullet_marker_3', 'bullet_3'], []],
   ['cta', ['cta'], []],
   ['logo', ['logo_surface', 'logo'], ['logo']],
@@ -23,11 +24,11 @@ const componentDefinitions = componentRoles.map(([role, nodeIds, assetSlotIds]) 
 }))
 
 const detail: StudioUniversalDetail = {
-  schema: 'ptw.studio.universal-ad-workspace.v4',
+  schema: 'ptw.studio.universal-ad-workspace.v5',
   catalog: {
     schema: 'ptw.studio.universal-ad-catalog.v4',
-    template_id: 'universal_ad', template_version: 7,
-    semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'bullet_list', 'cta', 'logo'],
+    template_id: 'universal_ad', template_version: 9,
+    semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'offer', 'bullet_list', 'cta', 'logo'],
     components: componentDefinitions,
     asset_slots: {},
     variation: {
@@ -72,14 +73,16 @@ const detail: StudioUniversalDetail = {
     },
   },
   content: {
+    schema: 'ptw.studio.universal-ad-content.v2',
     hero_title: 'ІНВЕСТУВАТИ В УКРАЇНІ — ПРОСТІШЕ',
     supporting_text: 'Аналізуємо ваші цілі й підказуємо інструменти, що відповідають саме вам.',
+    offer: 'Безкоштовна 15-хвилинна консультація',
     bullets: ['Персональний підбір інструментів', 'Зрозуміле порівняння ризику', 'Наступний крок без зайвого шуму'],
     cta: 'ЗНАЙТИ СВОЄ',
   },
   component_settings: {
-    schema: 'ptw.studio.universal-ad-component-settings.v1',
-    template_id: 'universal_ad', template_version: 7,
+    schema: 'ptw.studio.universal-ad-component-settings.v2',
+    template_id: 'universal_ad', template_version: 9,
     configuration_schema: 'ptw.studio.universal-ad-config.v4',
     components: componentDefinitions.map(({ setting_ids, ...component }) => ({
       ...component,
@@ -206,16 +209,16 @@ describe('Universal Ad Studio', () => {
     const { api, post } = studioApi()
     render(<StudioView api={api} language="en" />)
 
-    expect(await screen.findByText('universal_ad · v7')).toBeInTheDocument()
+    expect(await screen.findByText('universal_ad · v9')).toBeInTheDocument()
     expect(screen.queryByText('ONE TEMPLATE · CONFIGURATION-FIRST')).not.toBeInTheDocument()
     expect(screen.queryByText('Universal Ad Studio')).not.toBeInTheDocument()
-    expect(screen.getByText('7 stable semantic roles')).toBeInTheDocument()
+    expect(screen.getByText('8 stable semantic roles')).toBeInTheDocument()
     expect(screen.getByAltText('Current universal advertising creative')).toHaveAttribute('src', 'blob:studio-preview')
     expect(screen.queryByText('Reference image')).not.toBeInTheDocument()
     expect(screen.queryByText('Primitive tree')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Feedback & iterations' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Build the composition at a glance' })).toBeInTheDocument()
-    expect(screen.getAllByText('ALWAYS ON')).toHaveLength(4)
+    expect(screen.getAllByText('ALWAYS ON')).toHaveLength(5)
     expect(screen.getByLabelText('Enable sticker')).toBeChecked()
     expect(screen.getByLabelText('Enable logo')).toBeChecked()
     expect(screen.getByLabelText('Enable logo')).toBeEnabled()
@@ -498,7 +501,7 @@ describe('Universal Ad Studio', () => {
       schema: 'ptw.studio.universal-ad-export.v4',
       template_id: 'universal_ad',
       component_settings: {
-        schema: 'ptw.studio.universal-ad-component-settings.v1',
+        schema: 'ptw.studio.universal-ad-component-settings.v2',
         sha256: '9'.repeat(64),
       },
       configuration: { cta: { style: 'outlined' } },

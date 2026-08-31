@@ -113,8 +113,10 @@ class MarketingCopyAdapter:
         return {"recipe": None, "render": None, "preview": self.preview_renderer.render(candidate.value)}
 
 
-class InstagramStaticAdapter:
-    profile_id = "instagram_static_ad_v1"
+class StaticSocialAdapter:
+    profile_id = ""
+    channel_name = "social"
+    canvas_name = "static social"
 
     def __init__(self, repository: Any, renderer: Any, pexels: Any, bridge: Any) -> None:
         self.repository = repository
@@ -173,7 +175,8 @@ class InstagramStaticAdapter:
                 raise ValueError("the one-call non-human graphic budget is exhausted")
             graphic = self.bridge.generate_non_human_graphic(
                 system_prompt=(
-                    "Generate exactly one square non-human graphic. No people, faces, text, letters, "
+                    f"Generate exactly one {self.canvas_name} non-human graphic. "
+                    "No people, faces, text, letters, "
                     "numbers, logos, watermarks, proof claims, urgency, or brand impersonation."
                 ),
                 input_payload={
@@ -211,7 +214,7 @@ class InstagramStaticAdapter:
                 }, requested_by=requested_by, approval_status="pending_review",
             )
             return source, True
-        raise ValueError("Instagram Result media request is unsupported")
+        raise ValueError(f"{self.channel_name} Result media request is unsupported")
 
     def _recipe(
         self, *, candidate: Mapping[str, Any], run: Mapping[str, Any],
@@ -220,13 +223,13 @@ class InstagramStaticAdapter:
         brand = run["context_bundle"]["brand_kit"]["document"]
         template_id = str(run["candidate_template_id"])
         parameters = dict(run["candidate_parameters"])
-        studio_template = StudioTemplateRegistry().get(template_id)
+        studio_template = StudioTemplateRegistry(output_profile=self.profile_id).get(template_id)
         context_version = next((
             item for item in run["context_bundle"]["template_versions"]
             if item["template_id"] == template_id
         ), None)
         if context_version is None:
-            raise ValueError("Instagram adapter cannot resolve the snapshotted strategy template")
+            raise ValueError("social adapter cannot resolve the snapshotted strategy template")
         if (
             int(context_version["studio_template_version"]) != studio_template.version
             or context_version["studio_template_sha256"] != studio_template.digest
@@ -313,6 +316,18 @@ class InstagramStaticAdapter:
         }
 
 
+class InstagramStaticAdapter(StaticSocialAdapter):
+    profile_id = "instagram_static_ad_v1"
+    channel_name = "Instagram"
+    canvas_name = "square"
+
+
+class TikTokPhotoAdapter(StaticSocialAdapter):
+    profile_id = "tiktok_photo_post_v1"
+    channel_name = "TikTok"
+    canvas_name = "vertical 9:16"
+
+
 def adapter_for_profile(
     profile: str, *, repository: Any, renderer: Any, pexels: Any, bridge: Any,
 ) -> ResultProfileAdapter:
@@ -320,4 +335,6 @@ def adapter_for_profile(
         return MarketingCopyAdapter()
     if profile == "instagram_static_ad_v1":
         return InstagramStaticAdapter(repository, renderer, pexels, bridge)
+    if profile == "tiktok_photo_post_v1":
+        return TikTokPhotoAdapter(repository, renderer, pexels, bridge)
     raise ValueError("unknown Result output profile")

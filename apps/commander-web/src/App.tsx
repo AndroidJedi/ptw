@@ -31,7 +31,7 @@ function persistLanguage(language: Language) {
   }
 }
 
-function initialConsoleLocation(): { page: Page; projectId: string | null } {
+function initialConsoleLocation(): { page: Page; projectId: string | null; runId: string | null } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
   const known = ['briefs', 'result', 'studio'].includes(requestedPage || '')
@@ -43,18 +43,21 @@ function initialConsoleLocation(): { page: Page; projectId: string | null } {
     const search = params.toString()
     window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
   }
-  return { page, projectId: params.get('project') }
+  return { page, projectId: params.get('project'), runId: page === 'result' ? params.get('run') : null }
 }
 
-function writeConsoleLocation(page: Page, projectId: string | null) {
+function writeConsoleLocation(
+  page: Page, projectId: string | null, runId: string | null = null, push = false,
+) {
   const params = new URLSearchParams(window.location.search)
   if (page === 'briefs') params.delete('page')
   else params.set('page', page)
   if (projectId) params.set('project', projectId)
   else params.delete('project')
-  params.delete('run')
+  if (page === 'result' && runId) params.set('run', runId)
+  else params.delete('run')
   const search = params.toString()
-  window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
+  window.history[push ? 'pushState' : 'replaceState']({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
 }
 
 function prefersRedirectSignIn() {
@@ -108,11 +111,12 @@ function Login({ startupError = '' }: { startupError?: string }) {
   </main>
 }
 
-function Console({ user, localDemo = false }: { user: User; localDemo?: boolean }) {
+function Console({ user, localDemo = false, liveProduction = false }: { user: User; localDemo?: boolean; liveProduction?: boolean }) {
   const initialLocation = useMemo(initialConsoleLocation, [])
   const [page, setPage] = useState<Page>(initialLocation.page)
   const [projects, setProjects] = useState<ValidationProject[] | null>(null)
   const [projectId, setProjectId] = useState<string | null>(initialLocation.projectId)
+  const [runId, setRunId] = useState<string | null>(initialLocation.runId)
   const [projectError, setProjectError] = useState('')
   const [language, setLanguage] = useState<Language>(initialLanguage)
   const api = useMemo(() => new ApiClient(user), [user])
@@ -125,7 +129,7 @@ function Console({ user, localDemo = false }: { user: User; localDemo?: boolean 
       ? requested
       : value.items[0]?.project_id || null
     setProjectId(nextId)
-    writeConsoleLocation(page, nextId)
+    writeConsoleLocation(page, nextId, page === 'result' ? runId : null)
     setProjectError('')
   }
 
@@ -137,13 +141,31 @@ function Console({ user, localDemo = false }: { user: User; localDemo?: boolean 
     })
   }, [api, page, projects])
 
+  useEffect(() => {
+    const restore = () => {
+      const location = initialConsoleLocation()
+      setPage(location.page)
+      setProjectId(location.projectId)
+      setRunId(location.runId)
+    }
+    window.addEventListener('popstate', restore)
+    return () => window.removeEventListener('popstate', restore)
+  }, [])
+
   const navigate = (nextPage: Page) => {
-    writeConsoleLocation(nextPage, projectId)
+    const nextRunId = nextPage === 'result' ? runId : null
+    writeConsoleLocation(nextPage, projectId, nextRunId, true)
     setPage(nextPage)
+    if (nextPage !== 'result') setRunId(null)
   }
   const selectProject = (nextProjectId: string) => {
     setProjectId(nextProjectId)
-    writeConsoleLocation(page, nextProjectId)
+    setRunId(null)
+    writeConsoleLocation(page, nextProjectId, null, true)
+  }
+  const selectRun = (nextRunId: string | null) => {
+    setRunId(nextRunId)
+    writeConsoleLocation('result', projectId, nextRunId, true)
   }
   const projectCreated = (project: ValidationProject) => {
     setProjects((items) => [project, ...(items || []).filter((item) => item.project_id !== project.project_id)])
@@ -161,7 +183,8 @@ function Console({ user, localDemo = false }: { user: User; localDemo?: boolean 
   const newProject = () => {
     setPage('briefs')
     setProjectId(null)
-    writeConsoleLocation('briefs', null)
+    setRunId(null)
+    writeConsoleLocation('briefs', null, null, true)
     window.setTimeout(() => document.getElementById('new-project-idea')?.focus(), 0)
   }
   const changeLanguage = () => setLanguage((current) => {
@@ -170,16 +193,23 @@ function Console({ user, localDemo = false }: { user: User; localDemo?: boolean 
     return next
   })
   return <Shell page={page} onPage={navigate} language={language} onLanguage={changeLanguage}>
+    {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Створення та ревізії запускають реальних провайдерів.' : 'Create and Improve actions invoke real providers.'}</span></div>}
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label={language === 'uk' ? 'Вийти' : 'Sign out'}><LogOut /></button></div>
-    {page !== 'studio' && <ProjectSwitcher projects={projects} projectId={projectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
+    {page === 'briefs' && <ProjectSwitcher projects={projects} projectId={projectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
     {page !== 'studio' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
     {page === 'briefs' && <ProductBriefView api={api} projectId={projectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onOpenResult={() => navigate('result')} language={language} localDemo={localDemo} />}
-    {page === 'result' && <ResultView key={projectId || 'no-project'} api={api} projectId={projectId} language={language} localDemo={localDemo} />}
+    {page === 'result' && <ResultView
+      api={api} projectId={projectId} projects={projects} runId={runId}
+      onProjectSelect={selectProject} onNewProject={newProject}
+      onRenameProject={renameProject} onRunSelect={selectRun}
+      onOpenBriefs={() => navigate('briefs')} language={language}
+      localDemo={localDemo} liveProduction={liveProduction}
+    />}
     {page === 'studio' && <StudioView api={api} language={language} tuneMode={localDemo} />}
   </Shell>
 }
 
-export function LiveApp() {
+export function LiveApp({ liveProduction = false }: { liveProduction?: boolean }) {
   const [user, setUser] = useState<User | null | undefined>(undefined)
   const [startupError, setStartupError] = useState('')
   useEffect(() => {
@@ -249,7 +279,7 @@ export function LiveApp() {
     }
   }, [])
   if (user === undefined) return <main className="boot" role="status" data-auth-persistence={AUTH_PERSISTENCE_MARKER}>PTW</main>
-  return user ? <Console user={user} /> : <Login startupError={startupError} />
+  return user ? <Console user={user} liveProduction={liveProduction} /> : <Login startupError={startupError} />
 }
 
 const e2eOwner = {
@@ -261,5 +291,6 @@ const e2eOwner = {
 export default function App() {
   const e2eMode = import.meta.env.DEV && (import.meta.env.VITE_E2E === 'true' || new URLSearchParams(window.location.search).has('e2e'))
   const localDemo = import.meta.env.DEV && import.meta.env.VITE_LOCAL_APP === 'true'
-  return e2eMode ? <Console user={e2eOwner} localDemo={localDemo} /> : <LiveApp />
+  const liveProduction = import.meta.env.DEV && import.meta.env.VITE_LIVE_PRODUCTION === 'true'
+  return e2eMode ? <Console user={e2eOwner} localDemo={localDemo} liveProduction={liveProduction} /> : <LiveApp liveProduction={liveProduction} />
 }

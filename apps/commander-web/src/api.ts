@@ -15,6 +15,11 @@ export function resolveApiBaseUrl(configured: string | undefined, production: bo
 }
 
 const baseUrl = resolveApiBaseUrl(import.meta.env.VITE_COMMANDER_API_URL, import.meta.env.PROD)
+const localStudioMode = import.meta.env.DEV && import.meta.env.VITE_LOCAL_STUDIO === 'true'
+
+function routeBaseUrl(path: string) {
+  return localStudioMode && path.startsWith('/api/v1/studio') ? '' : baseUrl
+}
 
 export async function fetchWithDeadline(
   input: RequestInfo | URL,
@@ -101,23 +106,25 @@ export async function validateImageResponse(
 export class ApiClient {
   constructor(private readonly user: User) {}
 
-  private async headers(json = false): Promise<HeadersInit> {
+  private async headers(path: string, json = false): Promise<HeadersInit> {
     const e2eMode = import.meta.env.DEV && (import.meta.env.VITE_E2E === 'true' || new URLSearchParams(window.location.search).has('e2e'))
-    const [token, appCheckToken] = e2eMode
+    const localStudio = localStudioMode && path.startsWith('/api/v1/studio')
+    const [token, appCheckToken] = e2eMode || localStudio
       ? [await this.user.getIdToken(), 'e2e-app-check']
       : await resolveFirebaseTokens(this.user.getIdToken(), getToken(appCheck, false))
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+    const ownerToken = localStudio ? 'e2e-owner-token' : token
+    const headers: Record<string, string> = { Authorization: `Bearer ${ownerToken}` }
     if (json) headers['Content-Type'] = 'application/json'
     headers['X-Firebase-AppCheck'] = appCheckToken
     return headers
   }
 
   async request<T>(path: string, init: RequestInit = {}, options: ApiRequestOptions = {}): Promise<T> {
-    const response = await fetchWithDeadline(`${baseUrl}${path}`, {
+    const response = await fetchWithDeadline(`${routeBaseUrl(path)}${path}`, {
       ...init,
       cache: 'no-store',
       credentials: 'omit',
-      headers: { ...(await this.headers(Boolean(init.body))), ...init.headers },
+      headers: { ...(await this.headers(path, Boolean(init.body))), ...init.headers },
     }, options.deadlineMs ?? API_DEADLINE_MS)
     const body = await jsonBody(response).catch((cause) => {
       if (!response.ok) return {}
@@ -140,9 +147,9 @@ export class ApiClient {
     path: string, body: unknown, expectedMimeType: string,
     options: ApiRequestOptions = {},
   ): Promise<Blob> {
-    const response = await fetchWithDeadline(`${baseUrl}${path}`, {
+    const response = await fetchWithDeadline(`${routeBaseUrl(path)}${path}`, {
       method: 'POST', body: JSON.stringify(body), cache: 'no-store',
-      credentials: 'omit', headers: await this.headers(true),
+      credentials: 'omit', headers: await this.headers(path, true),
     }, options.deadlineMs ?? API_DEADLINE_MS)
     if (!response.ok) {
       const value = await jsonBody(response).catch(() => ({})) as { detail?: unknown }
@@ -166,8 +173,8 @@ export class ApiClient {
   }
 
   async image(path: string, expectedMimeType: string, expectedSha256: string): Promise<Blob> {
-    const response = await fetchWithDeadline(`${baseUrl}${path}`, {
-      cache: 'no-store', credentials: 'omit', headers: await this.headers(),
+    const response = await fetchWithDeadline(`${routeBaseUrl(path)}${path}`, {
+      cache: 'no-store', credentials: 'omit', headers: await this.headers(path),
     })
     return validateImageResponse(response, expectedMimeType, expectedSha256)
   }
@@ -176,9 +183,26 @@ export class ApiClient {
     return this.image(path, expectedMimeType, expectedSha256)
   }
 
+  async download(path: string, expectedMimeType: string, options: ApiRequestOptions = {}): Promise<Blob> {
+    const response = await fetchWithDeadline(`${routeBaseUrl(path)}${path}`, {
+      cache: 'no-store', credentials: 'omit', headers: await this.headers(path),
+    }, options.deadlineMs ?? API_DEADLINE_MS)
+    if (!response.ok) {
+      const value = await jsonBody(response).catch(() => ({})) as { detail?: unknown }
+      throw new Error(typeof value.detail === 'string' ? value.detail : `HTTP ${response.status}`)
+    }
+    const contentType = (response.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase()
+    if (contentType !== expectedMimeType.toLowerCase()) throw new Error(`Authenticated download returned ${contentType || 'no content type'}.`)
+    const bytes = await response.arrayBuffer()
+    const expectedSha256 = response.headers.get('x-ptw-content-sha256') || ''
+    if (!/^[0-9a-f]{64}$/i.test(expectedSha256)) throw new Error('Authenticated download is missing its SHA-256 digest.')
+    if (await sha256Hex(bytes) !== expectedSha256.toLowerCase()) throw new Error('Authenticated download failed its stored SHA-256 integrity check.')
+    return new Blob([bytes], { type: contentType })
+  }
+
   async websocketUrl(path: string): Promise<string> {
     const { ticket } = await this.post<{ ticket: string }>('/api/v1/ws-tickets', { path })
-    const origin = baseUrl || window.location.origin
+    const origin = routeBaseUrl(path) || window.location.origin
     const url = new URL(path, origin)
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
     url.searchParams.set('ticket', ticket)

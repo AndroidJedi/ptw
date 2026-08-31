@@ -42,6 +42,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             ("POST", "/internal/v1/briefs/{brief_id}/retry"),
             ("POST", "/internal/v1/content-runs"),
             ("POST", "/internal/v1/content-runs/{run_id}/retry"),
+            ("POST", "/internal/v1/content-runs/{run_id}/revisions"),
         }
         handlers = {
             (method, route.path): route.endpoint

@@ -19,7 +19,8 @@ from validation_pipeline.studio_universal import (
     DEFAULT_CONFIG, DEFAULT_CONTENT, FONT_FAMILIES, SEMANTIC_ROLES, TEXTURE_PRESETS,
     build_universal_template, normalize_universal_config, semantic_data, texture_asset,
     universal_ad_catalog,
-    universal_component_settings, universal_content_from_generation,
+    universal_alignment_rectangle, universal_component_settings,
+    universal_content_from_generation,
 )
 from validation_pipeline.studio_workspace import UniversalStudioWorkspace
 
@@ -67,9 +68,9 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
     def test_one_fixed_template_opens_with_requested_investment_post(self) -> None:
         detail = self.workspace.detail()
         self.assertEqual("universal_ad", detail["catalog"]["template_id"])
-        self.assertEqual("ptw.studio.universal-ad-workspace.v4", detail["schema"])
+        self.assertEqual("ptw.studio.universal-ad-workspace.v5", detail["schema"])
         self.assertEqual("ptw.studio.universal-ad-catalog.v4", detail["catalog"]["schema"])
-        self.assertEqual(7, detail["catalog"]["template_version"])
+        self.assertEqual(9, detail["catalog"]["template_version"])
         self.assertEqual(list(SEMANTIC_ROLES), detail["catalog"]["semantic_roles"])
         self.assertEqual(
             [f"universal_ad.{role}" for role in SEMANTIC_ROLES],
@@ -92,7 +93,7 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         }
         self.assertEqual("image", background_settings["configuration.background.mode"])
         self.assertEqual(0.56, background_settings["configuration.background.overlay_opacity"])
-        self.assertTrue(logo_settings["configuration.logo.background_enabled"])
+        self.assertFalse(logo_settings["configuration.logo.background_enabled"])
         self.assertEqual("#FFFFFF", logo_settings["configuration.logo.background_color"])
         self.assertEqual(
             ["canvas", "background_media", "readability_overlay"],
@@ -125,7 +126,7 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         self.assertTrue(detail["configuration"]["logo"]["enabled"])
         self.assertEqual("top_right", detail["configuration"]["logo"]["position"])
         self.assertEqual(180, detail["configuration"]["logo"]["width"])
-        self.assertTrue(detail["configuration"]["logo"]["background_enabled"])
+        self.assertFalse(detail["configuration"]["logo"]["background_enabled"])
         self.assertEqual("#FFFFFF", detail["configuration"]["logo"]["background_color"])
         self.assertEqual(3, len(detail["content"]["bullets"]))
         preview = self.workspace.render_preview(state_sha256=detail["state_sha256"])
@@ -133,7 +134,7 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         self.assertEqual("ptw.studio.preview.v1", preview["resolved"]["schema"])
         self.assertTrue({
             "sticker_object", "bullet_marker_1", "bullet_1", "bullet_marker_2",
-            "bullet_2", "bullet_marker_3", "bullet_3", "logo_surface", "logo",
+            "bullet_2", "bullet_marker_3", "bullet_3", "logo",
         } <= set(
             preview["resolved"]["nodes"]
         ))
@@ -147,22 +148,18 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         self.assertEqual(
             NATAL_LOGO_SHA256, preview["resolved"]["asset_sha256"]["logo"],
         )
-        logo_surface = preview["resolved"]["nodes"]["logo_surface"]
+        self.assertNotIn("logo_surface", preview["resolved"]["nodes"])
         logo = preview["resolved"]["nodes"]["logo"]
-        self.assertLessEqual(logo_surface["box"]["x"], logo["box"]["x"])
-        self.assertLessEqual(logo_surface["box"]["y"], logo["box"]["y"])
-        self.assertGreaterEqual(
-            logo_surface["box"]["x"] + logo_surface["box"]["width"],
+        alignment = universal_alignment_rectangle(detail["configuration"])
+        self.assertAlmostEqual(alignment["y"] / 1080, logo["box"]["y"])
+        self.assertAlmostEqual(
+            (alignment["x"] + alignment["width"]) / 1080,
             logo["box"]["x"] + logo["box"]["width"],
-        )
-        self.assertGreaterEqual(
-            logo_surface["box"]["y"] + logo_surface["box"]["height"],
-            logo["box"]["y"] + logo["box"]["height"],
         )
         self.assertEqual(detail["component_settings"], preview["resolved"]["component_settings"])
 
         agent_context = self.workspace.agent_context()
-        self.assertEqual("ptw.studio.universal-ad-agent-context.v1", agent_context["schema"])
+        self.assertEqual("ptw.studio.universal-ad-agent-context.v2", agent_context["schema"])
         self.assertEqual(detail["state_sha256"], agent_context["state_sha256"])
         self.assertEqual(detail["component_settings"], agent_context["component_settings"])
         self.assertRegex(agent_context["sha256"], r"^[0-9a-f]{64}$")
@@ -179,6 +176,46 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         )
         for node_id in ("hero_title", "supporting_text", "bullet_1", "bullet_2", "bullet_3"):
             self.assertFalse(nodes[node_id]["text_layout"]["overflow"], node_id)
+
+    def test_logo_copy_and_cta_share_one_alignment_rectangle(self) -> None:
+        detail = self.workspace.detail()
+        config = copy.deepcopy(detail["configuration"])
+        config["cta"]["position"] = "bottom_left"
+        template = build_universal_template(config, detail["content"])
+        nodes = {
+            node["id"]: node["props"]
+            for node in template.document["root"]["children"]
+        }
+        alignment = universal_alignment_rectangle(config)
+        left, top = alignment["x"], alignment["y"]
+        right = left + alignment["width"]
+        bottom = top + alignment["height"]
+        self.assertEqual((left, top), (nodes["hero_title"]["x"], nodes["hero_title"]["y"]))
+        self.assertLessEqual(nodes["hero_title"]["x"] + nodes["hero_title"]["width"], right)
+        self.assertEqual((left, bottom), (
+            nodes["cta"]["x"], nodes["cta"]["y"] + nodes["cta"]["height"],
+        ))
+        self.assertEqual((top, right), (
+            nodes["logo"]["y"], nodes["logo"]["x"] + nodes["logo"]["width"],
+        ))
+
+        config["cta"]["position"] = "bottom_right"
+        config["logo"].update({"position": "top_left", "background_enabled": True})
+        template = build_universal_template(config, detail["content"])
+        nodes = {
+            node["id"]: node["props"]
+            for node in template.document["root"]["children"]
+        }
+        self.assertEqual((left, top), (
+            nodes["logo_surface"]["x"], nodes["logo_surface"]["y"],
+        ))
+        self.assertLessEqual(
+            nodes["logo_surface"]["x"] + nodes["logo_surface"]["width"], right,
+        )
+        self.assertEqual((right, bottom), (
+            nodes["cta"]["x"] + nodes["cta"]["width"],
+            nodes["cta"]["y"] + nodes["cta"]["height"],
+        ))
 
     def test_draft_preview_changes_pixels_without_persisting_editor_state(self) -> None:
         detail = self.workspace.detail()
@@ -373,12 +410,13 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
                 content=detail["content"],
             )["bytes_sha256"])
         self.assertLess(cta_positions["below_text"]["y"], 944)
-        self.assertEqual((54, 944), (
+        alignment = universal_alignment_rectangle(detail["configuration"])
+        self.assertEqual((alignment["x"], 944), (
             cta_positions["bottom_left"]["x"], cta_positions["bottom_left"]["y"],
         ))
         self.assertEqual(944, cta_positions["bottom_right"]["y"])
         self.assertEqual(
-            1080 - 54 - cta_positions["bottom_right"]["width"],
+            alignment["x"] + alignment["width"] - cta_positions["bottom_right"]["width"],
             cta_positions["bottom_right"]["x"],
         )
         self.assertEqual(
@@ -510,7 +548,7 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         self.assertEqual(75, upgraded["background"]["image_percent"])
         self.assertEqual("stone", upgraded["background"]["texture"])
         self.assertEqual("below_text", upgraded["cta"]["position"])
-        self.assertTrue(upgraded["logo"]["background_enabled"])
+        self.assertFalse(upgraded["logo"]["background_enabled"])
         self.assertEqual("#FFFFFF", upgraded["logo"]["background_color"])
 
         previous = copy.deepcopy(DEFAULT_CONFIG)
@@ -532,7 +570,7 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         recent["logo"].pop("background_color")
         upgraded_recent = normalize_universal_config(recent)
         self.assertEqual("ptw.studio.universal-ad-config.v4", upgraded_recent["schema"])
-        self.assertTrue(upgraded_recent["logo"]["background_enabled"])
+        self.assertFalse(upgraded_recent["logo"]["background_enabled"])
 
     def test_owner_background_upload_selects_image_mode(self) -> None:
         detail = self.workspace.detail()
@@ -565,7 +603,7 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         self.assertNotEqual(NATAL_LOGO_SHA256, logo["sha256"])
         self.assertTrue(uploaded["configuration"]["logo"]["enabled"])
         rendered = self.workspace.render_preview(state_sha256=uploaded["state_sha256"])
-        self.assertIn("logo_surface", rendered["resolved"]["nodes"])
+        self.assertNotIn("logo_surface", rendered["resolved"]["nodes"])
         self.assertIn("logo", rendered["resolved"]["nodes"])
 
     def test_logo_position_width_and_toggle_remain_bounded(self) -> None:
@@ -585,7 +623,9 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         logo_box = nodes["logo"]["box"]
         self.assertNotIn("logo_surface", nodes)
         self.assertIsNotNone(nodes["logo"]["visible_bounds"])
-        self.assertAlmostEqual(54 / 1080, logo_box["x"])
+        alignment = universal_alignment_rectangle(top_left)
+        self.assertAlmostEqual(alignment["x"] / 1080, logo_box["x"])
+        self.assertAlmostEqual(alignment["y"] / 1080, logo_box["y"])
         self.assertAlmostEqual(280 / 1080, logo_box["width"])
         self.assertGreaterEqual(
             nodes["hero_title"]["visible_bounds"]["y"],
@@ -709,10 +749,15 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             "headline": "A calmer first step",
             "primary_text": "Meet a real psychologist and see whether it feels right.",
             "supporting_text": "This remains a fallback only.",
+            "offer": "First consultation free",
             "cta": "Book the first conversation",
-        }, brief={"key_benefits": ["Real profiles", "Simple booking", "No card"]})
+        }, brief={
+            "offer": "First consultation free",
+            "key_benefits": ["Real profiles", "Simple booking", "No card"],
+        })
         self.assertEqual("A calmer first step", content["hero_title"])
         self.assertEqual("Meet a real psychologist and see whether it feels right.", content["supporting_text"])
+        self.assertEqual("First consultation free", content["offer"])
         self.assertEqual(["Real profiles", "Simple booking", "No card"], content["bullets"])
 
 
@@ -720,7 +765,6 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
 class UniversalStudioApiTests(unittest.TestCase):
     def test_loopback_app_serves_every_visible_owner_destination(self) -> None:
         from fastapi.testclient import TestClient
-        from validation_pipeline.local_owner_demo import PROJECT_ID, RUN_ID
         from validation_pipeline.studio_local_api import create_app
 
         headers = {
@@ -729,49 +773,16 @@ class UniversalStudioApiTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {
             "STUDIO_WORKSPACE_PATH": temporary,
+            "LOCAL_EXPERIMENT_PATH": str(Path(temporary) / "experiments"),
             "PEXELS_API_KEY": "",
         }, clear=False):
             with TestClient(create_app()) as client:
                 self.assertEqual(401, client.get("/api/v1/projects").status_code)
                 projects = client.get("/api/v1/projects?limit=100", headers=headers)
                 self.assertEqual(200, projects.status_code, projects.text)
-                self.assertEqual(PROJECT_ID, projects.json()["items"][0]["project_id"])
-
-                briefs = client.get(
-                    f"/api/v1/briefs?limit=100&project_id={PROJECT_ID}", headers=headers,
-                )
-                self.assertEqual(200, briefs.status_code, briefs.text)
-                brief_id = briefs.json()["items"][0]["brief_id"]
-                self.assertEqual(200, client.get(
-                    f"/api/v1/briefs/{brief_id}", headers=headers,
-                ).status_code)
-
-                runs = client.get(
-                    f"/api/v1/content-runs?limit=50&project_id={PROJECT_ID}", headers=headers,
-                )
-                self.assertEqual(200, runs.status_code, runs.text)
-                self.assertEqual(RUN_ID, runs.json()["items"][0]["run_id"])
-                result = client.get(f"/api/v1/content-runs/{RUN_ID}/result", headers=headers)
-                self.assertEqual(200, result.status_code, result.text)
-                asset = client.get(result.json()["asset_url"], headers=headers)
-                self.assertEqual(200, asset.status_code, asset.text)
-                self.assertEqual("image/jpeg", asset.headers["content-type"])
-                self.assertEqual(result.json()["asset_sha256"], sha256(asset.content).hexdigest())
-
-                debug = client.get(f"/api/v1/content-runs/{RUN_ID}/debug", headers=headers)
-                self.assertEqual(200, debug.status_code, debug.text)
-                candidates = debug.json()["candidates"]
-                self.assertEqual(5, len(candidates))
-                self.assertEqual(5, len({item["preview"]["sha256"] for item in candidates}))
-                for candidate in candidates:
-                    preview = client.get(candidate["preview"]["asset_url"], headers=headers)
-                    self.assertEqual(200, preview.status_code, preview.text)
-                    self.assertEqual(candidate["preview"]["sha256"], sha256(preview.content).hexdigest())
-
-                self.assertEqual(409, client.post(
-                    f"/api/v1/content-runs/{RUN_ID}/feedback",
-                    headers=headers, json={"decision": "accepted"},
-                ).status_code)
+                self.assertEqual([], projects.json()["items"])
+                self.assertEqual([], client.get("/api/v1/briefs?limit=100", headers=headers).json()["items"])
+                self.assertEqual(False, client.get("/api/v1/learning-summary", headers=headers).json()["market_performance"])
                 self.assertEqual(200, client.get("/api/v1/studio", headers=headers).status_code)
                 self.assertEqual(404, client.get("/api/v1/studio/templates", headers=headers).status_code)
                 self.assertEqual(404, client.get("/api/v1/studio/tune", headers=headers).status_code)

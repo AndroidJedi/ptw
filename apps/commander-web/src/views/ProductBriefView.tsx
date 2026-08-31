@@ -82,7 +82,7 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     setBusy(true); setError('')
     try {
       await api.post(`/api/v1/briefs/${selected.brief_id}/approve`, { honor_confirmed: true })
-      setNotice(tr('Approved. You can create the Instagram post now.', 'Схвалено. Тепер можна створити допис в Instagram.')); await load(selected.brief_id)
+      setNotice(tr('Approved. You can create a social post now.', 'Схвалено. Тепер можна створити допис для соцмереж.')); await load(selected.brief_id)
       await onProjectsRefresh(selected.project_id)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
@@ -94,17 +94,17 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
   }
   if (!projectId) return <>
     <PageHeader eyebrow={tr('NEW PROJECT · RAW IDEA ONLY', 'НОВИЙ ПРОЄКТ · ЛИШЕ СИРА ІДЕЯ')} title={tr('New Project', 'Новий проєкт')} />
-    {localDemo && <p className="notice" role="status">{tr('Local demo: provider-backed Product Brief generation is disabled. Select the representative Project to inspect the complete UI.', 'Локальне демо: генерацію продуктового брифу через провайдера вимкнено. Виберіть демонстраційний проєкт, щоб переглянути повний інтерфейс.')}</p>}
+    {localDemo && <p className="notice" role="status">{tr('Local learning workspace · Product Brief generation uses the authenticated Codex CLI and never touches production.', 'Локальний простір навчання · генерація продуктового брифу використовує автентифікований Codex CLI і не торкається продакшну.')}</p>}
     {error && <ErrorState message={error} language={language} />}{notice && <p className="notice" role="status">{notice}</p>}
     <section className="panel brief-create"><div><small>{tr('ONE PROJECT · ONE INITIAL HYPOTHESIS', 'ОДИН ПРОЄКТ · ОДНА ПОЧАТКОВА ГІПОТЕЗА')}</small><h2>{tr('What do you want to validate?', 'Що ви хочете перевірити?')}</h2><p>{tr('Generating an initial Brief creates and selects the new Project. Existing Project history stays separate.', 'Генерація початкового брифу створює та вибирає новий проєкт. Історія існуючих проєктів залишається окремо.')}</p></div>
       <textarea id="new-project-idea" rows={5} maxLength={10000} value={rawIdea} onChange={(event) => setRawIdea(event.target.value)} placeholder={tr('Describe one product idea…', 'Опишіть одну продуктову ідею…')} />
-      <button className="primary large" disabled={localDemo || busy || !rawIdea.trim()} onClick={create}><Sparkles />{tr('Generate Product Brief & Create Project', 'Згенерувати продуктовий бриф і створити проєкт')}</button>
+      <button className="primary large" disabled={busy || !rawIdea.trim()} onClick={create}><Sparkles />{tr('Generate Product Brief & Create Project', 'Згенерувати продуктовий бриф і створити проєкт')}</button>
     </section>
   </>
   if (!items) return error ? <ErrorState message={error} retry={() => void load()} language={language} /> : <Loading language={language} />
   return <>
     <PageHeader eyebrow={tr('STAGE 1 · ONE HYPOTHESIS', 'ЕТАП 1 · ОДНА ГІПОТЕЗА')} title={tr('Product Briefs', 'Продуктові брифи')} />
-    {localDemo && <p className="notice" role="status">{tr('Representative local data · provider-backed generation and correction are disabled.', 'Репрезентативні локальні дані · генерацію та виправлення через провайдера вимкнено.')}</p>}
+    {localDemo && <p className="notice" role="status">{tr('Local immutable Brief history · explicit approval is required before generation.', 'Локальна незмінна історія брифів · перед генерацією потрібне явне схвалення.')}</p>}
     {error && <ErrorState message={error} language={language} />}{notice && <p className="notice" role="status">{notice}</p>}
     {!items.length ? <Empty><Target className="empty-mark" /><h2>{tr('No Product Brief in this Project', 'У цьому проєкті немає продуктового брифу')}</h2><p>{tr('Use New Project to start a separate validation loop.', 'Скористайтеся «Новий проєкт», щоб почати окремий цикл валідації.')}</p></Empty> : <div className="brief-workspace">
       <aside className="panel brief-list"><small>{tr('BRIEF HISTORY', 'ІСТОРІЯ БРИФІВ')}</small>{items.map((item, index) => <button key={item.brief_id} className={selected?.brief_id === item.brief_id ? 'selected' : ''} onClick={() => void load(item.brief_id)}><strong>{index === 0 ? tr('Current Brief', 'Поточний бриф') : tr('Earlier Brief', 'Попередній бриф')} · {item.product || item.raw_idea.slice(0, 70)}</strong><span>{item.status} · {item.language?.toUpperCase() || '—'} · {item.approved ? tr('approved', 'схвалено') : tr('not approved', 'не схвалено')} · {new Date(item.created_at).toLocaleDateString(language === 'uk' ? 'uk-UA' : 'en-US')}</span></button>)}</aside>
@@ -112,8 +112,8 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
         {activeStatuses.has(selected.status) && <p className="generation-state"><RefreshCcw className="spin" /> {tr('Generating one testable hypothesis…', 'Генерується одна перевірювана гіпотеза…')}</p>}
         {selected.status === 'failed' && <div className="state error"><p>{selected.error_message || selected.error_code || tr('Generation failed', 'Генерація не вдалася')}</p><button className="secondary" disabled={busy} onClick={retry}>{tr('Retry', 'Повторити')}</button></div>}
         {selected.document && <><BriefDocument value={selected.document} language={language} />
-          <div className="approval-row">{selected.approved ? <><p><Check /> {tr('Approved for Instagram post creation', 'Схвалено для створення допису в Instagram')}</p><button className="primary" onClick={onOpenResult}><Sparkles />{tr('Create Instagram post', 'Створити допис в Instagram')}</button></> : <button className="primary" disabled={busy} onClick={approve}><Check />{tr('I can honor this promise and offer — approve', 'Я можу виконати цю обіцянку та пропозицію — схвалити')}</button>}</div>
-          <section className="brief-correction"><h2>{tr('Correct this hypothesis', 'Виправити цю гіпотезу')}</h2><p>{tr('Creates a new immutable Brief that must be approved again.', 'Створює новий незмінний бриф, який потрібно схвалити повторно.')}</p><textarea rows={4} maxLength={2000} value={correction} onChange={(event) => setCorrection(event.target.value)} disabled={localDemo} placeholder={tr('One correction for the complete Brief…', 'Одне виправлення для всього брифу…')} /><button className="secondary" disabled={localDemo || busy || !correction.trim()} onClick={correct}>{tr('Create replacement', 'Створити заміну')} <Send /></button></section>
+          <div className="approval-row">{selected.approved ? <><p><Check /> {tr('Approved for social post creation', 'Схвалено для створення дописів у соцмережах')}</p><button className="primary" onClick={onOpenResult}><Sparkles />{tr('Create social post', 'Створити допис для соцмереж')}</button></> : <button className="primary" disabled={busy} onClick={approve}><Check />{tr('I can honor this promise and offer — approve', 'Я можу виконати цю обіцянку та пропозицію — схвалити')}</button>}</div>
+          <section className="brief-correction"><h2>{tr('Correct this hypothesis', 'Виправити цю гіпотезу')}</h2><p>{tr('Creates a new immutable Brief that must be approved again.', 'Створює новий незмінний бриф, який потрібно схвалити повторно.')}</p><textarea rows={4} maxLength={2000} value={correction} onChange={(event) => setCorrection(event.target.value)} placeholder={tr('One correction for the complete Brief…', 'Одне виправлення для всього брифу…')} /><button className="secondary" disabled={busy || !correction.trim()} onClick={correct}>{tr('Create replacement', 'Створити заміну')} <Send /></button></section>
         </>}
       </div>}
     </div>}

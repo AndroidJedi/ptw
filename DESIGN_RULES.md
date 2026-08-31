@@ -1,13 +1,13 @@
 # PTW Result owner-console rules
 
 Status: canonical
-Updated: 2026-08-26
+Updated: 2026-08-30
 
 ## Navigation and trust
 
-- Primary navigation is Product Briefs, Instagram post, and owner-only
-  Universal Ad Studio. The first two are scoped by a human-readable Project
-  switcher; Studio is a separate one-template workspace.
+- Primary navigation is Product Briefs, Social posts, and owner-only Universal
+  Ad Studio. Social posts owns a compact searchable Project/artifact navigator;
+  Studio is a separate one-template workspace.
 - Old page locations and retired domain APIs do not exist.
 - Design first for 360 px and one-hand use with 44×44 CSS-pixel targets, no
   horizontal overflow, keyboard access, and reduced-motion support.
@@ -22,18 +22,24 @@ Updated: 2026-08-26
   Brief.
 - A correction creates a new UUID and complete replacement.
 - Approval explicitly confirms that the promise and exact offer can be
-  honored, then opens the Instagram post action. It does not auto-generate.
+  honored, then opens Social posts. It does not auto-generate.
 
 ## Result
 
-- Normal input is one approved Brief summary and Create Instagram post. The
-  server supplies the fixed task and canonical Natal identity; there is no
-  text-profile choice, task field, asset upload, or brand-kit form.
+- Normal input is an approved Brief plus Instagram or TikTok. The server maps
+  the platform to a fixed task/profile and supplies the canonical Natal
+  identity; there is no text-profile choice, task field, asset upload, or
+  brand-kit form.
 - Running state shows only: Creating five directions, Improving the strongest
   direction, Final review, elapsed/bounded maximum, and retry/failure state.
-- Completed state shows one final Instagram post, its caption, two-to-four
-  selection observations, Download/Use post, Create another, and simple
-  feedback.
+- Completed state is a platform-native Instagram square or TikTok vertical
+  photo mock post. Redundant source, hook/headline/body/CTA transcription, and
+  rationale are absent. Alt text, metadata, and bounded decision trace live in
+  one collapsed advanced panel.
+- Ready appends accepted feedback and unlocks image/copy export. Improve
+  requires a 3–2000 character comment, appends rejected feedback plus a
+  zero-delta WeightUpdate, and creates a lineage-linked child run. Review state
+  is always the latest immutable feedback projection.
 - Do not expose templates, sliders, alternate candidates, UUID entry, layers,
   recipes, prompts, or model controls in the normal journey.
 - Universal Ad Studio exposes only the fixed background, optional sticker,

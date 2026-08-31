@@ -13,13 +13,13 @@ from commander.ids import new_uuid7
 
 from .content import (
     CandidateV2, ContentContextAssembler, INSTAGRAM_REQUIRED_VISUAL_ROLES,
-    REQUIRED_COPY_SLOTS, SLIDER_NAMES, StrategyTemplate, TemplateRegistry,
+    REQUIRED_COPY_SLOTS, SLIDER_NAMES, STATIC_SOCIAL_PROFILES, StrategyTemplate, TemplateRegistry,
     candidate_output_schema, canonical_json, critic_output_schema, sha256_json,
     validate_critic_response,
 )
 from .content_adapters import adapter_for_profile
 from .natal_brand import natal_logo_bytes
-from .studio import tool_catalog
+from .studio import tool_catalog, tool_catalog_for_profile
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +44,8 @@ class CandidateGenerationOrchestrator:
     def create_run(
         self, *, request_id: str, brief_id: str, task: str, output_profile: str,
         requested_by: str, parent_run_id: str | None = None,
+        revision_instruction: Mapping[str, Any] | None = None,
+        revision_feedback: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], bool]:
         brief = self.repository.authority.get_brief(brief_id)
         if not brief["approved"] or brief["status"] != "completed":
@@ -63,14 +65,55 @@ class CandidateGenerationOrchestrator:
             )
         ]
         templates = self.template_registry.load_active()
+        catalog = (
+            tool_catalog_for_profile(output_profile)
+            if output_profile in STATIC_SOCIAL_PROFILES else tool_catalog()
+        )
         context = self.context_assembler.assemble_run(
             brief=brief, task=task, output_profile=output_profile, brand_kit=brand_kit,
-            approved_sources=approved_sources, tool_catalog=tool_catalog(), templates=templates,
+            approved_sources=approved_sources,
+            tool_catalog=catalog, templates=templates,
+            revision_instruction=revision_instruction,
         )
-        return self.repository.create_run(
+        create_arguments = dict(
             request_id=request_id, brief_id=brief_id, task=task, output_profile=output_profile,
             context=context, templates=templates, requested_by=requested_by,
             parent_run_id=parent_run_id,
+        )
+        if revision_feedback is not None:
+            create_arguments["revision_feedback"] = revision_feedback
+        return self.repository.create_run(**create_arguments)
+
+    def create_revision(
+        self, *, request_id: str, parent_run_id: str, comment: str, requested_by: str,
+    ) -> tuple[dict[str, Any], bool]:
+        parent = self.repository.get_run(parent_run_id)
+        if parent["status"] != "completed" or not parent.get("final_result_id"):
+            raise ValueError("a revision requires one completed Result artifact")
+        normalized = " ".join(comment.split())
+        if not 3 <= len(normalized) <= 2_000:
+            raise ValueError("revision comment must contain 3-2000 characters")
+        feedback_id = new_uuid7()
+        instruction = {
+            "schema_version": 1,
+            "feedback_id": feedback_id,
+            "parent_run_id": parent["run_id"],
+            "creative_id": parent["final_result_id"],
+            "comment": normalized,
+        }
+        return self.create_run(
+            request_id=request_id,
+            brief_id=parent["brief_id"],
+            task=parent["task"],
+            output_profile=parent["output_profile"],
+            requested_by=requested_by,
+            parent_run_id=parent["run_id"],
+            revision_instruction=instruction,
+            revision_feedback={
+                "feedback_id": feedback_id,
+                "creative_id": parent["final_result_id"],
+                "comment": normalized,
+            },
         )
 
     @staticmethod
@@ -110,9 +153,16 @@ class CandidateGenerationOrchestrator:
             "For instagram_static_ad_v1, visual_components must contain exactly these nine roles "
             "once each and in this order: " + ", ".join(INSTAGRAM_REQUIRED_VISUAL_ROLES) + ". "
             "Do not replace a required role with badge or decorative_element."
-            if context["output_profile"] == "instagram_static_ad_v1"
+            if context["output_profile"] in STATIC_SOCIAL_PROFILES
             else "For marketing_copy_v1, visual_components must be empty."
         )
+        revision_rule = ""
+        if context.get("revision_instruction"):
+            revision_rule = (
+                "Apply the supplied revision_instruction comment exactly as the requested change. "
+                "Keep the Brief, task, offer, CTA, brand, placement, and source policy protected. "
+                "Do not infer any other owner history."
+            )
         return "\n\n".join((
             writing["generator_core"], writing["principles"], writing["anti_patterns"],
             writing["technique"], writing["owner_lessons"],
@@ -125,6 +175,7 @@ class CandidateGenerationOrchestrator:
             "to candidate.primary_text. Make alt_text and all semantic visual_components describe "
             "that exact template composition; do not invent a different background, panel, logo "
             "position, typography treatment, or subject. " + profile_rule,
+            revision_rule,
         ))
 
     @staticmethod
@@ -134,7 +185,7 @@ class CandidateGenerationOrchestrator:
         candidate_id: str,
     ) -> dict[str, Any]:
         context = run["context_bundle"]["candidate_contexts"][template.template_id]
-        return {
+        payload = {
             "candidate_id": candidate_id,
             "run_id": run["run_id"],
             "context_digest": sha256_json(context),
@@ -155,6 +206,9 @@ class CandidateGenerationOrchestrator:
             "source_elements": [dict(item) for item in source_elements],
             "excluded_context": context["source_policy"],
         }
+        if context.get("revision_instruction"):
+            payload["revision_instruction"] = dict(context["revision_instruction"])
+        return payload
 
     @staticmethod
     def _merge_locked(

@@ -17,6 +17,14 @@ INSTAGRAM_TASK = (
     "Create one ready-to-publish Instagram feed post for the approved Product Brief "
     "using Natal's canonical visual identity."
 )
+TIKTOK_TASK = (
+    "Create one ready-to-export TikTok vertical photo post for the approved Product Brief "
+    "using Natal's canonical visual identity."
+)
+SOCIAL_PLATFORMS = {
+    "instagram": (INSTAGRAM_TASK, "instagram_static_ad_v1"),
+    "tiktok": (TIKTOK_TASK, "tiktok_photo_post_v1"),
+}
 
 
 def instagram_run_request(request: Mapping[str, Any]) -> dict[str, Any]:
@@ -28,6 +36,26 @@ def instagram_run_request(request: Mapping[str, Any]) -> dict[str, Any]:
         "brief_id": request["brief_id"],
         "task": INSTAGRAM_TASK,
         "output_profile": "instagram_static_ad_v1",
+    }
+
+
+def social_run_request(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Map one bounded social action to a fixed server-owned task and profile."""
+    if set(request) not in ({"request_id", "brief_id"}, {"request_id", "brief_id", "platform"}):
+        raise ValueError("Social post creation requires request_id, brief_id, and optional platform")
+    platform = (
+        "instagram" if "platform" not in request
+        else str(request["platform"]).strip().lower()
+    )
+    mapped = SOCIAL_PLATFORMS.get(platform)
+    if mapped is None:
+        raise ValueError("Social post platform must be instagram or tiktok")
+    task, profile = mapped
+    return {
+        "request_id": request["request_id"],
+        "brief_id": request["brief_id"],
+        "task": task,
+        "output_profile": profile,
     }
 
 
@@ -160,7 +188,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
     ) -> dict[str, Any]:
         try:
-            body = instagram_run_request(request)
+            body = social_run_request(request)
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
         return (await validation_bridge(
@@ -239,6 +267,15 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         return (await validation_bridge(
             "POST", f"/internal/v1/content-runs/{run_id}/feedback", body=request,
             actor=actor(identity),
+        )).json()
+
+    @app.post("/api/v1/content-runs/{run_id}/revisions", status_code=202)
+    async def revise_content_run(
+        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/content-runs/{run_id}/revisions", body=request,
+            actor=actor(identity), timeout=60,
         )).json()
 
     @app.post("/api/v1/content-runs/{run_id}/outcomes")

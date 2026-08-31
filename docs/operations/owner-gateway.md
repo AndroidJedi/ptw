@@ -2,14 +2,16 @@
 
 Owner Console uses Firebase Auth, exact verified Google owner identity, pinned
 UID, and App Check. Owner Gateway is the only normal instruction channel and
-proxies only Project, Product Brief, one-click Instagram Result, and
+proxies only Project, Product Brief, Social Post Result, and
 owner-only Universal Ad Studio APIs.
 Domain data is never stored in Firebase or service-worker caches.
 
-Navigation is Product Briefs, Instagram post, and Studio. The Project switcher
-is URL-backed and absent from Studio. Instagram creation accepts only the
-approved Brief action; Owner Gateway supplies the fixed task and profile while
-Validation provisions the canonical Natal identity. Studio configures one
+Navigation is Product Briefs, Social posts, and Studio. The Social Posts
+master-detail navigator and selected artifact are URL-backed by `project` and
+`run`; Studio is independent. Social creation accepts only request ID, approved
+Brief ID, and optional `instagram`/`tiktok` platform. Owner Gateway maps the
+platform to a fixed task/profile while Validation provisions the canonical
+Natal identity. Studio configures one
 fixed semantic ad structure with three fixed asset slots, Pexels sourcing,
 authenticated no-store previews, and immutable rendered versions; it is not
 the retired Ads workspace or an arbitrary editor. There is no public Project-asset or
@@ -18,18 +20,36 @@ traffic, analytics, or raw UUID-management workspace.
 
 Local app use has the loopback-only API documented in
 [`../architecture/universal-ad-studio.md`](../architecture/universal-ad-studio.md).
-The normal Brief/Result screens use clearly marked deterministic demonstration
-data and disable provider-backed generation; Universal Studio remains writable.
-Its explicit Tune mode may run Codex against a disposable snapshot and copy
-back only verified Universal Studio allowlisted files. These Tune routes are
+Briefs, approved Project assets, five-candidate Result runs, releases, and
+owner-approved lessons are mutable and restart-safe in the local file authority;
+Universal Studio remains a separate writable saved workspace. Provider-backed
+generation uses the authenticated Codex CLI only through an empty, ephemeral,
+read-only non-interactive boundary. Explicit Tune mode still uses its own
+disposable writable snapshot and may copy back only verified Universal Studio
+allowlisted files. All local experiment, release, lesson, and Tune routes are
 absent from Owner Gateway and Validation production APIs. The local app does
 not need Firebase, PostgreSQL, or production credentials. Do not bind that
 development API beyond `127.0.0.1`.
 
-Result status is durable and polled over HTTP. The completed view resolves the
+`scripts/run_live_social_workspace.sh` is a separate confirmation-gated local
+launcher. It uses real Firebase owner authentication and App Check for public
+Project, Brief, and Social Post routes, proxies only Studio to the authenticated
+loopback service, and shows a persistent live-data warning. It does not expose
+PostgreSQL, bridge credentials, providers, or copied production tokens to the
+browser.
+
+Result status is durable and polled over HTTP. Instagram uses a 1080×1080 JPEG;
+TikTok uses a 1080×1920 photo-post JPEG. Direct platform publishing is absent.
+The completed view resolves the
 displayed artifact to its final Creative UUID server-side before appending
 feedback, zero-delta WeightUpdate, skill proposal, and graph edges. The owner
 never copies an internal UUID into a form.
+
+Ready appends accepted feedback and gates the export package. Improve accepts
+only one 3–2000 character change comment, resolves the parent Creative
+server-side, and transactionally appends rejected HumanFeedback, a zero-delta
+WeightUpdate, outcome/graph lineage, and the pending child run. A later event
+changes only the current review projection; prior feedback is immutable.
 
 The completed view keeps one final post prominent. Its collapsed explanation
 loads the five initial candidate previews through authenticated run-and-

@@ -18,7 +18,9 @@ from uuid import UUID
 from .domain import RATING_PATTERN, TESTIMONIAL_PATTERN, UNSUPPLIED_PROOF_PATTERN
 
 
-OUTPUT_PROFILES = ("marketing_copy_v1", "instagram_static_ad_v1")
+OUTPUT_PROFILES = (
+    "marketing_copy_v1", "instagram_static_ad_v1", "tiktok_photo_post_v1",
+)
 SLIDER_NAMES = (
     "hook_pressure",
     "emotional_intensity",
@@ -53,6 +55,9 @@ INSTAGRAM_REQUIRED_VISUAL_ROLES = (
     "background", "primary_subject", "headline_block", "supporting_text_block",
     "offer_block", "cta_block", "brand_mark", "lighting_style", "composition",
 )
+STATIC_SOCIAL_PROFILES = frozenset({
+    "instagram_static_ad_v1", "tiktok_photo_post_v1",
+})
 ACTION_TYPES = (
     "recompose", "regenerate_elements", "rerun_template", "discard", "select_final",
 )
@@ -392,12 +397,13 @@ class ContentContextAssembler:
             return "hooks.md"
         if any(marker in normalized for marker in ("concise", "short", "brief", "корот", "стисл")):
             return "concise-product-copy.md"
-        return "ad-copy.md" if output_profile == "instagram_static_ad_v1" else "concise-product-copy.md"
+        return "ad-copy.md" if output_profile in STATIC_SOCIAL_PROFILES else "concise-product-copy.md"
 
     def assemble(
         self, *, brief: Mapping[str, Any], task: str, output_profile: str,
         brand_kit: Mapping[str, Any], approved_sources: Sequence[Mapping[str, Any]],
         tool_catalog: Mapping[str, Any], template: StrategyTemplate,
+        revision_instruction: Mapping[str, Any] | None = None,
     ) -> ContextBundleV1:
         if output_profile not in OUTPUT_PROFILES:
             raise ValueError("unknown content output profile")
@@ -508,12 +514,32 @@ class ContentContextAssembler:
                 "synthetic_people_faces": "prohibited",
             },
         }
+        if revision_instruction is not None:
+            expected = {"schema_version", "feedback_id", "parent_run_id", "creative_id", "comment"}
+            if set(revision_instruction) != expected or int(revision_instruction["schema_version"]) != 1:
+                raise ValueError("revision instruction fields do not match v1")
+            comment = " ".join(str(revision_instruction["comment"] or "").split())
+            if not 3 <= len(comment) <= 2_000:
+                raise ValueError("revision comment must contain 3-2000 characters")
+            normalized_revision = {
+                "schema_version": 1,
+                "feedback_id": str(UUID(str(revision_instruction["feedback_id"]))),
+                "parent_run_id": str(UUID(str(revision_instruction["parent_run_id"]))),
+                "creative_id": str(UUID(str(revision_instruction["creative_id"]))),
+                "comment": comment,
+            }
+            document["revision_instruction"] = normalized_revision
+            document["source_policy"] = {
+                **document["source_policy"],
+                "selected_revision_feedback": "included_exactly",
+            }
         return ContextBundleV1(document, sha256_json(document), writing_tokens, system_tokens)
 
     def assemble_run(
         self, *, brief: Mapping[str, Any], task: str, output_profile: str,
         brand_kit: Mapping[str, Any], approved_sources: Sequence[Mapping[str, Any]],
         tool_catalog: Mapping[str, Any], templates: Sequence[StrategyTemplate],
+        revision_instruction: Mapping[str, Any] | None = None,
     ) -> ContextBundleV1:
         if len(templates) != 5 or {item.template_id for item in templates} != set(TEMPLATE_IDS):
             raise ValueError("a Result run context requires the five active strategy templates")
@@ -521,14 +547,20 @@ class ContentContextAssembler:
             self.assemble(
                 brief=brief, task=task, output_profile=output_profile, brand_kit=brand_kit,
                 approved_sources=approved_sources, tool_catalog=tool_catalog, template=template,
+                revision_instruction=revision_instruction,
             )
             for template in templates
         ]
         first = bundles[0].document
         critic_context = self.critic_context()
         from .studio_templates import StudioTemplateRegistry
+        studio_output_profile = (
+            output_profile if output_profile in STATIC_SOCIAL_PROFILES
+            else "instagram_static_ad_v1"
+        )
         studio_templates = {
-            item.template_id: item for item in StudioTemplateRegistry().load_active(templates)
+            item.template_id: item
+            for item in StudioTemplateRegistry(output_profile=studio_output_profile).load_active(templates)
         }
         document = {
             "schema_version": 1,
@@ -558,6 +590,8 @@ class ContentContextAssembler:
                 "envelopes": {name: list(bounds) for name, bounds in template.envelopes.items()},
             } for template in templates],
         }
+        if "revision_instruction" in first:
+            document["revision_instruction"] = first["revision_instruction"]
         document["versions"] = {
             **dict(document["versions"]),
             "critic_context_sha256": critic_context["context_sha256"],
@@ -662,8 +696,8 @@ class CandidateV2:
             raise ValueError("only approved_asset media requests may identify a source asset")
         if output_profile == "marketing_copy_v1" and kind != "none":
             raise ValueError("the marketing copy profile cannot request visual media")
-        if output_profile == "instagram_static_ad_v1" and kind == "none":
-            raise ValueError("the Instagram profile requires approved real or non-human media")
+        if output_profile in STATIC_SOCIAL_PROFILES and kind == "none":
+            raise ValueError("a static social profile requires approved real or non-human media")
         normalized["media_request"] = {
             "kind": kind,
             "query": str(raw_media.get("query") or "").strip()[:300],
@@ -703,10 +737,10 @@ class CandidateV2:
                 "content": _bounded_text(raw.get("content"), f"visual_components[{index}].content", maximum=1000),
                 "source_ids": source_ids,
             })
-        if output_profile == "instagram_static_ad_v1":
+        if output_profile in STATIC_SOCIAL_PROFILES:
             required_visuals = set(INSTAGRAM_REQUIRED_VISUAL_ROLES)
             if required_visuals - seen_roles:
-                raise ValueError("Instagram candidate is missing required structured visual roles")
+                raise ValueError("static social candidate is missing required structured visual roles")
         elif components:
             raise ValueError("the marketing copy profile cannot return visual components")
         normalized["visual_components"] = components
@@ -723,11 +757,11 @@ def candidate_output_schema(
     approved_assets = sorted({str(UUID(str(item))) for item in approved_asset_ids})
     visual_roles = (
         INSTAGRAM_REQUIRED_VISUAL_ROLES
-        if output_profile == "instagram_static_ad_v1" else VISUAL_ROLES
+        if output_profile in STATIC_SOCIAL_PROFILES else VISUAL_ROLES
     )
     visual_count = (
         len(INSTAGRAM_REQUIRED_VISUAL_ROLES)
-        if output_profile == "instagram_static_ad_v1" else 0
+        if output_profile in STATIC_SOCIAL_PROFILES else 0
     )
     text = {"type": "string", "minLength": 1}
     return {

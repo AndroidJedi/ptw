@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+confirmation="${1:-}"
+required_confirmation="--confirm-live-production=LIVE_PRODUCTION_DATA"
+if [[ "$confirmation" != "$required_confirmation" || "$#" -ne 1 ]]; then
+  echo "Refusing to open the live workspace." >&2
+  echo "Run only when production mutations are intended:" >&2
+  echo "  scripts/run_live_social_workspace.sh '$required_confirmation'" >&2
+  exit 1
+fi
+
 repository="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 python="$repository/.venv/bin/python"
 workspace="${STUDIO_WORKSPACE_PATH:-$repository/.local/studio-workspace}"
@@ -11,6 +20,10 @@ if [[ ! -x "$python" ]]; then
 fi
 if [[ ! -d "$repository/apps/commander-web/node_modules" ]]; then
   echo "Missing web dependencies. Run: npm --prefix apps/commander-web ci" >&2
+  exit 1
+fi
+if [[ -z "${PTW_FIREBASE_APPCHECK_DEBUG_TOKEN:-}" ]]; then
+  echo "PTW_FIREBASE_APPCHECK_DEBUG_TOKEN must contain a registered Firebase App Check debug token." >&2
   exit 1
 fi
 
@@ -27,7 +40,7 @@ PY
 
 for port in 8088 5173; do
   if port_is_listening "$port"; then
-    echo "Local Studio port $port is already in use. Stop the prior Studio process and run this launcher again." >&2
+    echo "Live workspace port $port is already in use. Stop that process and try again." >&2
     exit 1
   fi
 done
@@ -45,7 +58,6 @@ STUDIO_WORKSPACE_PATH="$workspace" \
 STUDIO_TUNE_MODE=1 \
 STUDIO_TUNE_REPOSITORY_ROOT="$repository" \
 STUDIO_TUNE_STATE_PATH="$repository/.local/studio-tune" \
-LOCAL_EXPERIMENT_PATH="$repository/.local/owner-experiments" \
 "$python" -m uvicorn \
   validation_pipeline.studio_local_api:create_app --factory \
   --host 127.0.0.1 --port 8088 &
@@ -69,9 +81,13 @@ curl --fail --silent \
   -H 'Authorization: Bearer e2e-owner-token' \
   -H 'X-Firebase-AppCheck: e2e-app-check' \
   http://127.0.0.1:8088/api/v1/studio >/dev/null || {
-  echo "Local Owner API did not become ready on 127.0.0.1:8088." >&2
+  echo "Loopback Studio API did not become ready on 127.0.0.1:8088." >&2
   exit 1
 }
 
-echo "PTW local app: http://127.0.0.1:5173/?e2e=1"
-VITE_E2E=true VITE_LOCAL_APP=true npm --prefix apps/commander-web run dev -- --host 127.0.0.1 --strictPort
+echo "LIVE PRODUCTION DATA: create, Ready, and Improve actions affect production records and may invoke providers."
+echo "Open http://127.0.0.1:5173/ and sign in with the Firebase owner account."
+VITE_LIVE_PRODUCTION=true \
+VITE_LOCAL_STUDIO=true \
+VITE_APPCHECK_DEBUG_TOKEN="$PTW_FIREBASE_APPCHECK_DEBUG_TOKEN" \
+npm --prefix apps/commander-web run dev -- --host 127.0.0.1 --strictPort

@@ -3,15 +3,15 @@
 PTW is an owner-operated content validation loop:
 
 ```text
-one idea -> one approved Product Brief -> one-click Instagram post
+one idea -> one approved Product Brief -> one Instagram or TikTok photo post
   -> five isolated candidates -> three critic passes -> one final post
 ```
 
 Public Result generation uses only the approved Brief, a fixed server task,
 the canonical Natal brand kit, approved Project/Pexels sources, and versioned
-writing/template contracts. The Owner Console creates only a deterministic
-Instagram square post; it exposes no text profile, task field, asset upload, or
-brand-kit setup.
+writing/template contracts. The Owner Console creates one deterministic
+Instagram square post or TikTok vertical photo post; it exposes no text
+profile, task field, asset upload, or brand-kit setup.
 Exact offer/CTA, honest claims, real-photo policy, no synthetic people/faces,
 bounded retries, immutable lineage, and fail-closed final selection are
 mandatory.
@@ -32,16 +32,39 @@ npm --prefix apps/commander-web ci
 scripts/run_local_studio.sh
 ```
 
-Open `http://127.0.0.1:5173/?e2e=1`. Product Briefs and Instagram post use one
-clearly labeled deterministic local demonstration journey so every visible
-destination works without Firebase, PostgreSQL, or provider credentials.
-Provider-backed Brief correction/generation and Result generation are disabled
-in this standalone mode; the Universal Ad Studio is fully writable. Its reusable
-configuration, fixed-slot assets, source provenance, rendered PNGs, and
-immutable versions stay under `.local/studio-workspace`. The script binds both
-servers to `127.0.0.1`, stops the API when you press `Ctrl+C`, and does not
-deploy anything. Set `PEXELS_API_KEY` locally to enable background and
-isolated-object sourcing.
+Open `http://127.0.0.1:5173/?e2e=1`. Product Briefs, approved Project assets,
+five-candidate Instagram Result runs, releases, and owner-reviewed lessons use
+a restart-safe append-only local authority under `.local/owner-experiments`;
+Universal Studio configuration and saved state remain under
+`.local/studio-workspace`. An authenticated Codex CLI is required for Brief,
+candidate, and critic generation. Firebase, PostgreSQL, and production provider
+credentials are not required. The script binds both servers to `127.0.0.1`,
+stops the API when you press `Ctrl+C`, and does not deploy or publish anything.
+Set `PEXELS_API_KEY` locally to enable approved real-photo sourcing.
+
+To irreversibly clear only the three Owner-app local stores after stopping local
+runs and services:
+
+```sh
+scripts/reset_ptw_local.sh --confirm='RESET PTW LOCAL OWNER DATA'
+```
+
+The reset preserves unrelated `.local` archives and diagnostics and proves the
+allowlisted stores are empty.
+
+An explicitly separate development launcher can inspect and mutate live
+Project, Brief, and Social Post data through Firebase Auth, App Check, and the
+public Owner Gateway while keeping only Studio on loopback:
+
+```sh
+PTW_FIREBASE_APPCHECK_DEBUG_TOKEN=REGISTERED_TOKEN \
+  scripts/run_live_social_workspace.sh \
+  --confirm-live-production=LIVE_PRODUCTION_DATA
+```
+
+It displays a persistent `LIVE PRODUCTION DATA` banner and reconfirms create
+and revision actions. It never gives the browser PostgreSQL, bridge, provider,
+or production service credentials.
 
 ## Local verification
 
@@ -49,6 +72,8 @@ isolated-object sourcing.
 scripts/verify_ptw_result_schema.sh
 python3 scripts/verify_content_corpus.py
 python3 scripts/verify_ptw_skills.py
+python3 -m unittest discover -s tests/validation_pipeline -v
+python3 -m unittest discover -s tests/owner_gateway -v
 python3 -m unittest discover -s tests/commander -v
 python3 -m commander.demo --output-dir .local/commander-demo
 npm --prefix apps/commander-web run check

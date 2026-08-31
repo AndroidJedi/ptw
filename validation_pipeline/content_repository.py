@@ -39,8 +39,36 @@ class ContentResultRepository:
                          (SELECT count(*) FROM content_candidates candidate
                            WHERE candidate.run_id=run.entity_id),
                          (SELECT count(*) FROM content_critic_passes pass
-                           WHERE pass.run_id=run.entity_id)
-                    FROM content_generation_runs run"""
+                           WHERE pass.run_id=run.entity_id),
+                         review.feedback_id,review.decision,review.instruction,
+                         render.mime_type,render.width,render.height,render.bytes_sha256,
+                         (SELECT count(*)-1 FROM (
+                              WITH RECURSIVE ancestors(entity_id,parent_run_id) AS (
+                                  SELECT current.entity_id,current.parent_run_id
+                                    FROM content_generation_runs current
+                                   WHERE current.entity_id=run.entity_id
+                                  UNION ALL
+                                  SELECT parent.entity_id,parent.parent_run_id
+                                    FROM content_generation_runs parent
+                                    JOIN ancestors child ON parent.entity_id=child.parent_run_id
+                              ) SELECT entity_id FROM ancestors
+                          ) lineage)
+                    FROM content_generation_runs run
+                    LEFT JOIN content_results result ON result.creative_id=run.final_result_id
+                    LEFT JOIN studio_renders render ON render.entity_id=result.render_id
+                    LEFT JOIN LATERAL (
+                        SELECT feedback.entity_id AS feedback_id,
+                               entity.attributes->>'decision' AS decision,
+                               feedback.instruction
+                          FROM commander_relationships relationship
+                          JOIN commander_human_feedback feedback
+                            ON feedback.entity_id=relationship.source_id
+                          JOIN commander_entities entity ON entity.id=feedback.entity_id
+                         WHERE relationship.relation='evaluates'
+                           AND relationship.target_id=run.final_result_id
+                         ORDER BY feedback.created_at DESC,feedback.entity_id DESC
+                         LIMIT 1
+                    ) review ON true"""
 
     @staticmethod
     def _run_row(row: Sequence[Any]) -> dict[str, Any]:
@@ -50,12 +78,28 @@ class ContentResultRepository:
             "critic_pass_1": 45, "critic_pass_2": 67, "critic_pass_3": 86,
             "materializing_result": 95, "completed": 100, "failed": 100,
         }
+        decision = row[30]
+        review_state = (
+            "ready" if decision == "accepted"
+            else "needs_changes" if decision == "rejected"
+            else "unreviewed"
+        )
+        output_profile = str(row[7])
+        preview = None
+        if row[32] is not None:
+            preview = {
+                "asset_url": f"/api/v1/content-runs/{row[0]}/result/asset",
+                "mime_type": row[32], "width": int(row[33]), "height": int(row[34]),
+                "sha256": row[35],
+            }
         return {
             "run_id": str(row[0]), "request_id": str(row[1]),
             "parent_run_id": None if row[2] is None else str(row[2]),
             "project_id": str(row[3]), "brief_id": str(row[4]),
             "task_source_id": str(row[5]), "brand_kit_id": str(row[6]),
-            "output_profile": row[7], "task": row[8], "context_bundle": dict(row[9]),
+            "output_profile": output_profile,
+            "platform": "tiktok" if output_profile == "tiktok_photo_post_v1" else "instagram",
+            "task": row[8], "context_bundle": dict(row[9]),
             "context_sha256": row[10], "initial_candidate_ids": [str(item) for item in row[11]],
             "critic_pass_ids": [str(item) for item in row[12]],
             "status": row[13], "current_stage": row[14], "budget_state": dict(row[15]),
@@ -69,6 +113,11 @@ class ContentResultRepository:
             "candidate_count": candidate_count, "critic_pass_count": critic_count,
             "progress_percent": stage_progress[row[14]],
             "maximum_minutes": 45,
+            "review_state": review_state,
+            "review_feedback_id": None if row[29] is None else str(row[29]),
+            "review_comment": row[31] if row[29] is not None else None,
+            "preview": preview,
+            "revision_number": int(row[36]),
         }
 
     def get_run(self, run_id: str) -> dict[str, Any]:
@@ -92,6 +141,7 @@ class ContentResultRepository:
         self, *, request_id: str, brief_id: str, task: str, output_profile: str,
         context: ContextBundleV1, templates: Sequence[StrategyTemplate], requested_by: str,
         parent_run_id: str | None = None,
+        revision_feedback: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], bool]:
         from psycopg.types.json import Jsonb
 
@@ -112,6 +162,17 @@ class ContentResultRepository:
             raise ValueError("Result context does not match the selected Brief")
         if context.document["brand_kit"]["brand_kit_id"] != brand_kit["brand_kit_id"]:
             raise ValueError("Result context does not match the latest Project brand kit")
+        revision_instruction = context.document.get("revision_instruction")
+        if revision_feedback is not None:
+            if revision_instruction is None:
+                raise ValueError("revision feedback requires an exact ContextBundle instruction")
+            if set(revision_feedback) != {"feedback_id", "creative_id", "comment"}:
+                raise ValueError("revision feedback fields do not match v1")
+            if any(
+                str(revision_feedback[key]) != str(revision_instruction[key])
+                for key in ("feedback_id", "creative_id", "comment")
+            ):
+                raise ValueError("revision feedback does not match its ContextBundle instruction")
         parent_uuid = None if parent_run_id is None else UUID(parent_run_id)
         with self.authority.connection() as connection:
             existing = connection.execute(
@@ -119,15 +180,22 @@ class ContentResultRepository:
             ).fetchone()
             if existing is not None:
                 value = self._run_row(existing)
+                existing_revision = value["context_bundle"].get("revision_instruction")
                 if (
                     value["brief_id"] != brief_id or value["task"] != normalized_task
                     or value["output_profile"] != output_profile or value["parent_run_id"] != parent_run_id
+                    or (existing_revision is None) != (revision_instruction is None)
+                    or revision_instruction is not None and any(
+                        str(existing_revision[key]) != str(revision_instruction[key])
+                        for key in ("parent_run_id", "creative_id", "comment")
+                    )
                 ):
                     raise ValueError("request_id was already used with different Result input")
                 return value, False
             if parent_uuid is not None:
                 parent = connection.execute(
-                    "SELECT brief_id,project_id,task,output_profile FROM content_generation_runs WHERE entity_id=%s",
+                    """SELECT brief_id,project_id,task,output_profile,status,final_result_id
+                         FROM content_generation_runs WHERE entity_id=%s""",
                     (parent_uuid,),
                 ).fetchone()
                 if parent is None:
@@ -137,6 +205,21 @@ class ContentResultRepository:
                     or parent[2] != normalized_task or parent[3] != output_profile
                 ):
                     raise ValueError("a Result retry must preserve its parent source, task, and profile")
+                if revision_instruction is not None:
+                    if revision_feedback is not None:
+                        if (
+                            str(revision_instruction["parent_run_id"]) != parent_run_id
+                            or parent[4] != "completed" or parent[5] is None
+                            or str(revision_instruction["creative_id"]) != str(parent[5])
+                        ):
+                            raise ValueError("revision instruction does not resolve to the parent Creative")
+                    else:
+                        feedback_exists = connection.execute(
+                            "SELECT 1 FROM commander_human_feedback WHERE entity_id=%s",
+                            (UUID(str(revision_instruction["feedback_id"])),),
+                        ).fetchone()
+                        if feedback_exists is None:
+                            raise ValueError("revision retry cannot resolve its selected feedback")
             run_id, task_source_id = UUID(new_uuid7()), UUID(new_uuid7())
             candidate_ids = [UUID(new_uuid7()) for _ in range(5)]
             critic_pass_ids = [UUID(new_uuid7()) for _ in range(3)]
@@ -166,6 +249,16 @@ class ContentResultRepository:
                 "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'content_run',%s)",
                 (run_id, Jsonb({"schema_version": 1, "output_profile": output_profile})),
             )
+            if revision_feedback is not None:
+                self._record_feedback_in_connection(
+                    connection,
+                    run_id=parent_run_id or "",
+                    creative_id=str(revision_feedback["creative_id"]),
+                    decision="rejected",
+                    comment=str(revision_feedback["comment"]),
+                    requested_by=requested_by,
+                    feedback_id=str(revision_feedback["feedback_id"]),
+                )
             for index, candidate_id in enumerate(candidate_ids, start=1):
                 connection.execute(
                     "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'content_candidate',%s)",
@@ -205,6 +298,11 @@ class ContentResultRepository:
                   for pass_number, pass_id in enumerate(critic_pass_ids, start=1)],
                 *([(run_id, "rerun_of", parent_uuid, {})] if parent_uuid is not None else []),
             ]
+            if revision_instruction is not None:
+                edges.append((
+                    run_id, "derived_from", UUID(str(revision_instruction["feedback_id"])),
+                    {"input": "selected_revision_feedback"},
+                ))
             for item in context.document["approved_sources"]:
                 if item.get("source_asset_id"):
                     edges.append((run_id, "derived_from", UUID(item["source_asset_id"]), {"input": "approved_project_source"}))
@@ -620,7 +718,7 @@ class ContentResultRepository:
             value = self.authority.render_asset(str(row[0]))
             return {
                 "bytes": value["bytes"], "sha256": value["sha256"], "mime_type": value["mime_type"],
-                "width": 1080, "height": 1080,
+                "width": value["width"], "height": value["height"],
             }
         with self.authority.connection() as connection:
             row = connection.execute(
@@ -960,7 +1058,8 @@ class ContentResultRepository:
                 """SELECT result.creative_id,result.run_id,result.selected_candidate_id,
                           result.recipe_id,result.render_id,result.final_element_map,
                           result.decision_summary,result.result_sha256,result.created_at,
-                          candidate.document,candidate.document_sha256,render.bytes_sha256
+                          candidate.document,candidate.document_sha256,render.bytes_sha256,
+                          render.mime_type,render.width,render.height
                      FROM content_results result
                      JOIN content_candidates candidate ON candidate.entity_id=result.selected_candidate_id
                      LEFT JOIN studio_renders render ON render.entity_id=result.render_id
@@ -978,6 +1077,9 @@ class ContentResultRepository:
             "result_sha256": row[7], "created_at": row[8].isoformat(),
             "content": dict(row[9]), "content_sha256": row[10],
             "asset_sha256": row[11],
+            "asset_mime_type": row[12],
+            "asset_width": None if row[13] is None else int(row[13]),
+            "asset_height": None if row[14] is None else int(row[14]),
             "asset_url": None if row[4] is None else f"/api/v1/content-runs/{run_id}/result/asset",
         }
 
@@ -987,76 +1089,91 @@ class ContentResultRepository:
             raise KeyError(run_id)
         return self.authority.render_asset(result["render_id"])
 
-    def record_feedback(
-        self, run_id: str, *, decision: str, comment: str | None, requested_by: str,
+    def _record_feedback_in_connection(
+        self, connection: Any, *, run_id: str, creative_id: str, decision: str,
+        comment: str, requested_by: str, feedback_id: str | None = None,
     ) -> dict[str, Any]:
         from psycopg.types.json import Jsonb
 
+        if decision not in {"accepted", "rejected"}:
+            raise ValueError("Result feedback decision must be accepted or rejected")
+        normalized = comment.strip()
+        if len(normalized) > 2000:
+            raise ValueError("Result feedback comment must contain at most 2000 characters")
+        creative_uuid = UUID(creative_id)
+        feedback_uuid = UUID(feedback_id) if feedback_id is not None else UUID(new_uuid7())
+        weight_id, outcome_id = (UUID(new_uuid7()) for _ in range(2))
+        instruction = normalized or ("Owner accepted the Result." if decision == "accepted" else "Owner rejected the Result.")
+        lesson = (
+            f"Review the {decision} Result and generalize the owner comment without copying artifact details: "
+            f"{instruction}"
+        )[:500]
+        for entity_id, kind, attributes in (
+            (feedback_uuid, "human_feedback", {"domain": "content_result", "decision": decision}),
+            (weight_id, "weight_update", {"component": "content_result", "delta": 0}),
+            (outcome_id, "content_outcome", {"event_type": decision}),
+        ):
+            connection.execute(
+                "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,%s,%s)",
+                (entity_id, kind, Jsonb(attributes)),
+            )
+        connection.execute(
+            """INSERT INTO commander_human_feedback(
+                   entity_id,target_id,domain,section_id,instruction,actor
+               ) VALUES(%s,%s,'content_result','overall',%s,%s)""",
+            (feedback_uuid, creative_uuid, instruction, requested_by),
+        )
+        connection.execute(
+            """INSERT INTO commander_weight_updates(entity_id,feedback_id,component,delta,reason)
+               VALUES(%s,%s,'content_result',0,'Owner Result feedback requires reviewed skill proposals')""",
+            (weight_id, feedback_uuid),
+        )
+        connection.execute(
+            """INSERT INTO content_generation_outcomes(
+                   entity_id,run_id,creative_id,event_type,payload,source_type,source_id
+               ) VALUES(%s,%s,%s,%s,%s,'owner',%s)""",
+            (outcome_id, UUID(run_id), creative_uuid, decision, Jsonb({"comment": normalized}), requested_by),
+        )
+        proposal_ids: list[str] = []
+        for target_skill in ("content-candidate-generator", "content-result-critic"):
+            proposal_id = UUID(new_uuid7())
+            proposal_ids.append(str(proposal_id))
+            connection.execute(
+                """INSERT INTO content_generation_skill_proposals(
+                       id,feedback_id,creative_id,target_skill,lesson,status
+                   ) VALUES(%s,%s,%s,%s,%s,'pending')""",
+                (proposal_id, feedback_uuid, creative_uuid, target_skill, lesson),
+            )
+        for source, relation, target, attributes in (
+            (feedback_uuid, "evaluates", creative_uuid, {"decision": decision}),
+            (feedback_uuid, "contains", weight_id, {"member": "zero_delta_weight_update"}),
+            (weight_id, "adjusts", feedback_uuid, {"delta": 0}),
+            (UUID(run_id), "contains", outcome_id, {"member": "content_outcome"}),
+        ):
+            connection.execute(
+                "INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes) VALUES(%s,%s,%s,%s,%s)",
+                (UUID(new_uuid7()), source, relation, target, Jsonb(attributes)),
+            )
+        return {
+            "feedback_id": str(feedback_uuid), "creative_id": str(creative_uuid),
+            "weight_update_id": str(weight_id), "outcome_id": str(outcome_id),
+            "proposal_ids": proposal_ids, "decision": decision,
+        }
+
+    def record_feedback(
+        self, run_id: str, *, decision: str, comment: str | None, requested_by: str,
+    ) -> dict[str, Any]:
         if decision not in {"accepted", "rejected"}:
             raise ValueError("Result feedback decision must be accepted or rejected")
         normalized = "" if comment is None else comment.strip()
         if len(normalized) > 2000:
             raise ValueError("Result feedback comment must contain at most 2000 characters")
         result = self.get_result(run_id)
-        creative_id = UUID(result["creative_id"])
-        feedback_id, weight_id, outcome_id = (UUID(new_uuid7()) for _ in range(3))
-        instruction = normalized or ("Owner accepted the Result." if decision == "accepted" else "Owner rejected the Result.")
-        lesson = (
-            f"Review the {decision} Result and generalize the owner comment without copying artifact details: "
-            f"{instruction}"
-        )[:500]
         with self.authority.connection() as connection:
-            for entity_id, kind, attributes in (
-                (feedback_id, "human_feedback", {"domain": "content_result", "decision": decision}),
-                (weight_id, "weight_update", {"component": "content_result", "delta": 0}),
-                (outcome_id, "content_outcome", {"event_type": decision}),
-            ):
-                connection.execute(
-                    "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,%s,%s)",
-                    (entity_id, kind, Jsonb(attributes)),
-                )
-            connection.execute(
-                """INSERT INTO commander_human_feedback(
-                       entity_id,target_id,domain,section_id,instruction,actor
-                   ) VALUES(%s,%s,'content_result','overall',%s,%s)""",
-                (feedback_id, creative_id, instruction, requested_by),
+            return self._record_feedback_in_connection(
+                connection, run_id=run_id, creative_id=result["creative_id"],
+                decision=decision, comment=normalized, requested_by=requested_by,
             )
-            connection.execute(
-                """INSERT INTO commander_weight_updates(entity_id,feedback_id,component,delta,reason)
-                   VALUES(%s,%s,'content_result',0,'Owner Result feedback requires reviewed skill proposals')""",
-                (weight_id, feedback_id),
-            )
-            connection.execute(
-                """INSERT INTO content_generation_outcomes(
-                       entity_id,run_id,creative_id,event_type,payload,source_type,source_id
-                   ) VALUES(%s,%s,%s,%s,%s,'owner',%s)""",
-                (outcome_id, UUID(run_id), creative_id, decision, Jsonb({"comment": normalized}), requested_by),
-            )
-            proposal_ids: list[str] = []
-            for target_skill in ("content-candidate-generator", "content-result-critic"):
-                proposal_id = UUID(new_uuid7())
-                proposal_ids.append(str(proposal_id))
-                connection.execute(
-                    """INSERT INTO content_generation_skill_proposals(
-                           id,feedback_id,creative_id,target_skill,lesson,status
-                       ) VALUES(%s,%s,%s,%s,%s,'pending')""",
-                    (proposal_id, feedback_id, creative_id, target_skill, lesson),
-                )
-            for source, relation, target, attributes in (
-                (feedback_id, "evaluates", creative_id, {"decision": decision}),
-                (feedback_id, "contains", weight_id, {"member": "zero_delta_weight_update"}),
-                (weight_id, "adjusts", feedback_id, {"delta": 0}),
-                (UUID(run_id), "contains", outcome_id, {"member": "content_outcome"}),
-            ):
-                connection.execute(
-                    "INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes) VALUES(%s,%s,%s,%s,%s)",
-                    (UUID(new_uuid7()), source, relation, target, Jsonb(attributes)),
-                )
-        return {
-            "feedback_id": str(feedback_id), "creative_id": str(creative_id),
-            "weight_update_id": str(weight_id), "outcome_id": str(outcome_id),
-            "proposal_ids": proposal_ids, "decision": decision,
-        }
 
     def record_outcome(
         self, run_id: str, *, event_type: str, requested_by: str,

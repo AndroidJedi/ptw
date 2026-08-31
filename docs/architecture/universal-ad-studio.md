@@ -1,6 +1,7 @@
 # Universal Ad Studio
 
-Status: implemented locally, including owner-only Tune mode; not deployed
+Status: local Studio, evaluation, and owner-approved learning loop implemented;
+not deployed
 
 ## Product boundary
 
@@ -33,12 +34,13 @@ unless the owner explicitly requests the specific non-local operation.
 
 ## Fixed semantic structure
 
-`universal_ad` has exactly seven stable semantic roles:
+`universal_ad` has exactly eight stable semantic roles:
 
 - background;
 - optional sticker;
 - hero title;
 - supporting text;
+- required protected offer;
 - optional bullet list with at most three compact items;
 - CTA;
 - optional logo.
@@ -54,7 +56,7 @@ upgraded deterministically when read, so existing owner setup is not discarded.
 
 Each role also has a stable public component ID (`universal_ad.background`,
 `universal_ad.sticker`, `universal_ad.hero_title`,
-`universal_ad.supporting_text`, `universal_ad.bullet_list`,
+`universal_ad.supporting_text`, `universal_ad.offer`, `universal_ad.bullet_list`,
 `universal_ad.cta`, and `universal_ad.logo`). Catalog metadata maps each ID to
 its semantic role, renderer node IDs, fixed asset-slot IDs, and stable leaf
 setting IDs such as `configuration.background.overlay_opacity` or
@@ -62,8 +64,10 @@ setting IDs such as `configuration.background.overlay_opacity` or
 
 Existing Product Brief/Candidate generation remains the copy authority.
 `universal_content_from_generation()` maps its headline, primary/supporting
-text, CTA, and up to three Brief benefits into the fixed Studio roles without
-another provider call or a duplicate generation skill.
+text, exact Brief offer, CTA, and up to three Brief benefits into the fixed
+Studio roles without another provider call or a duplicate generation skill.
+The offer and CTA must render byte-for-byte; overlong protected copy is a Brief
+correction error and is never truncated.
 
 ## Background and assets
 
@@ -95,10 +99,10 @@ transform is suitable for simple object shots; complex scenes must use an
 owner-supplied transparent PNG/WebP. There is no second sticker system.
 
 The logo slot resolves to the digest-verified canonical Natal transparent PNG
-when the owner has not supplied another asset. New workspaces enable it at the
-top right by default. Its dedicated editor section keeps PNG/WebP upload, logo
-visibility, background visibility and color, top-left/top-right placement, and
-bounded width together. An upload replaces the Natal fallback with
+when the owner has not supplied another asset. New workspaces enable it without
+a backing surface at the top right by default. Its dedicated editor section
+keeps PNG/WebP upload, logo visibility, background visibility and color,
+top-left/top-right placement, and bounded width together. An upload replaces the Natal fallback with
 `owner_upload` provenance and enables the logo immediately. The renderer places
 the configured rounded contrast surface behind the mark when requested and
 moves copy below the visible logo treatment only when their horizontal regions
@@ -141,6 +145,12 @@ Instagram behavior.
 
 ## Visual layout quality
 
+Logo, copy, bullet, and CTA geometry shares one composition-alignment
+rectangle. Its top and left follow the content controls, while its right and
+bottom edges are safe canvas anchors. Top-corner logos and bottom CTA presets
+anchor inside those same edges; an enabled logo contrast surface is inset
+inside the rectangle rather than extending beyond it.
+
 Primitive text is positioned by its rendered glyph ink rather than nominal font
 line boxes. Top-aligned text therefore begins at the requested coordinate, and
 shrink fitting accounts for actual ink height, nominal line spacing, and all
@@ -166,9 +176,9 @@ versions below `STUDIO_WORKSPACE_PATH`. Each state digest covers configuration,
 content, asset digests, and source metadata. Optimistic writes reject stale
 state.
 
-The editor presents the seven stable roles in one component dock. Background,
-headline, supporting copy, and CTA are always-on cards; bullets, sticker, and
-logo are direct optional switches. Detailed visual settings use compact native
+The editor presents the eight stable roles in one component dock. Background,
+headline, supporting copy, offer, and CTA are always-on cards; bullets,
+sticker, and logo are direct optional switches. Detailed visual settings use compact native
 disclosures so the live creative remains the primary evaluation surface.
 Sticker and logo cannot be enabled before their fixed asset is available; the
 canonical Natal fallback means the logo slot is ready in a new workspace. The
@@ -187,8 +197,8 @@ to the creative.
 
 Approval stores the exact PNG, reusable configuration, semantic content, asset
 digests/provenance, internal primitive-template snapshot and digest, and render
-digest in `ptw.studio.universal-ad-version.v1`. It also stores the canonical
-`ptw.studio.universal-ad-component-settings.v1` manifest: all seven component
+digest in `ptw.studio.universal-ad-version.v2`. It also stores the canonical
+`ptw.studio.universal-ad-component-settings.v2` manifest: all eight component
 IDs with their node/asset IDs and every exact typed setting value. `GET
 /studio/versions/{version}` returns this immutable JSON record for replay and
 learning; its paired render remains separately digest-checked. This local version is suitable
@@ -200,7 +210,7 @@ current saved state. `POST /studio/component-settings` accepts either the saved
 state digest alone or that digest plus one complete draft configuration/content
 pair, normalizes it without persisting, and returns a digest-locked manifest.
 The editor's `Export config + IDs` action calls this route and downloads
-`ptw.studio.universal-ad-export.v3`, containing configuration, content,
+`ptw.studio.universal-ad-export.v4`, containing configuration, content,
 template/catalog identities, the base state digest, and the canonical component
 metadata. Resolved preview manifests embed the same metadata beside node geometry.
 
@@ -243,7 +253,7 @@ Interrupted runs fail durably and never copy a partial unverified diff into the
 checkout.
 
 At run creation, the loopback host captures a bounded
-`ptw.studio.universal-ad-agent-context.v1` from the current workspace. It
+`ptw.studio.universal-ad-agent-context.v2` from the current workspace. It
 contains state/template/context digests, exact component settings, and fixed
 asset identities/digests/provenance. That JSON is included in the run request
 digest, retained in `run.json`, and inserted explicitly into the Tune-agent
@@ -280,6 +290,69 @@ observable ones with focused regression coverage. The agent itself still cannot
 write the skill tree; only the authenticated loopback host action can perform
 this bounded local mutation, and production does not mount the route.
 
+## Local evaluation and learning authority
+
+The loopback app replaces the former hard-coded Brief/Result demo with the
+file-backed `LocalExperimentStore` below `.local/owner-experiments`. Digest-
+chained append-only revisions and immutable artifacts persist Projects, Briefs,
+approved asset pools, runs, candidates, elements, exact PNG/JPEG renders,
+provider invocations, three critic passes, typed actions, Results, feedback,
+outcomes, releases, checkpoints, lesson proposals, decisions, and snapshots.
+Writes use temporary files, `fsync`, and atomic replacement; request IDs are
+idempotent, UUIDv7 is authoritative, and interrupted queued/generating runs
+return to their latest persisted checkpoint on restart.
+
+An approved Product Brief and the digest of the current saved Studio state are
+mandatory. Unsaved drafts cannot start a run. The local-only
+`universal_ad_experiment_v1` adapter materializes the five canonical strategies
+as declared bounded setting patches while preserving palette, component IDs,
+logo identity, protected offer/CTA, and safe bounds. Four strategies require
+distinct owner-approved or Pexels-provenance real photos; `direct_offer` uses a
+solid/texture-led composition. Asset shortage fails preflight before any model
+call, and bundled Tune images or synthetic people are never substituted.
+
+Each run invokes an authenticated Codex CLI in a new empty directory with an
+ephemeral session, read-only sandbox, strict JSON output schema, exact JPEG
+critic attachments, and one fresh bounded retry. Persisted provenance contains
+sanitized inputs/outputs, versions, IDs, and digests, never authentication,
+image base64, or hidden reasoning. Candidate generation uses
+`content-candidate-generator`; the existing three-pass
+`content-result-critic` contract compares five initial candidates, permits at
+most four Pass 1–2 improvements, narrows to two finalists, and either selects
+one eligible Result or fails closed.
+
+Every candidate first renders an authoritative 1080×1080 PNG for geometry
+inspection, then one deterministic JPEG that is passed unchanged to the critic
+and release package. Server gates cover role coverage, overflow, truncation,
+collision, safe area, contrast, semantic flow, and exact offer/CTA. Ready
+appends accepted feedback/outcome/weight entities and creates one immutable ZIP
+containing the JPEG, source PNG, caption, alt text, approved Brief, Universal
+manifest, asset provenance, bounded decision trace, and file-digest manifest.
+It records downloads and never calls Instagram. Improve appends rejected
+feedback and creates a child from the selected candidate's immutable
+configuration and assets plus only the owner's revision instruction; it does
+not overwrite the editable Studio workspace.
+
+Feedback produces pending proposals for the Brief generator, candidate
+generator, critic, and declared Universal layout policy. Only an explicit owner
+decision may activate a versioned lesson. Pending and rejected proposals never
+enter a run; every later run stores the exact active lesson snapshot and digest.
+The reserved `agent` authority is rejected while owner-only mode is active.
+The Social Posts `Learning & evidence` panel reports internal gate rates,
+initial-to-final deltas, setting changes, owner outcomes, releases, and the
+review queue without claiming market performance.
+
+The irreversible local reset is deliberately narrower than `.local`:
+
+```sh
+scripts/reset_ptw_local.sh --confirm='RESET PTW LOCAL OWNER DATA'
+```
+
+It refuses active local Result/Tune runs and a running local service from this
+checkout, validates the exact target paths, clears only `.local/studio-workspace`,
+`.local/studio-tune`, and `.local/owner-experiments`, and proves all three are
+empty. Unrelated diagnostics and archives are preserved.
+
 ## Local use
 
 ```sh
@@ -291,12 +364,11 @@ scripts/run_local_studio.sh
 ```
 
 Open `http://127.0.0.1:5173/?e2e=1`. The complete visible Owner app runs
-locally: Product Briefs and Instagram post use one clearly marked deterministic
-demonstration journey, while Universal Ad Studio remains the writable local
-workspace. The launcher enables the local-only Test generation wizard when an
-authenticated Codex CLI and the local Python/web dependencies are available.
-Provider-backed Brief/Result generation is disabled in standalone mode. The
-loopback API binds only to `127.0.0.1`; Firebase, PostgreSQL, and production
-credentials are not required. Supplying a local `PEXELS_API_KEY` enables the
-bounded Studio sourcing controls. No deployment, database mutation,
-publication, or automatic promotion occurs.
+locally with mutable, restart-safe Product Brief, Social Posts, Project asset,
+release, and owner-reviewed learning workflows beside Universal Studio and its
+Tune wizard. An authenticated Codex CLI is required for Brief, candidate, and
+critic generation. Firebase, PostgreSQL, and production credentials are not
+required. Supplying a local `PEXELS_API_KEY` enables approved real-photo
+sourcing. The loopback API binds only to `127.0.0.1`; no deployment, production
+database mutation, publication, market ingestion, or automatic lesson approval
+occurs.

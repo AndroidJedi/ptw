@@ -36,7 +36,7 @@ _BUNDLED_ASSETS = {
         "origin": "canonical_natal_brand_asset",
     },
 }
-_AGENT_CONTEXT_SCHEMA = "ptw.studio.universal-ad-agent-context.v1"
+_AGENT_CONTEXT_SCHEMA = "ptw.studio.universal-ad-agent-context.v2"
 
 
 def _canonical(value: Any) -> tuple[str, str]:
@@ -245,6 +245,66 @@ class UniversalStudioWorkspace:
         }
         _, digest = _canonical(value)
         return {**value, "sha256": digest}
+
+    def capture_saved_export(self, state_sha256: str) -> dict[str, Any]:
+        """Capture the saved—not draft—Universal state for a local Result run."""
+
+        self._assert_state(state_sha256)
+        config, content = self._configuration(), self._content()
+        template = build_universal_template(config, content)
+        value = {
+            "schema": "ptw.studio.universal-ad-export.v4",
+            "template_id": UNIVERSAL_AD_TEMPLATE_ID,
+            "template_version": template.document["version"],
+            "state_sha256": state_sha256,
+            "template_sha256": template.digest,
+            "configuration": config,
+            "content": content,
+            "component_settings": universal_component_settings(config, content),
+            "assets": self._snapshot()["assets"],
+            "primitive_template": template.document,
+        }
+        _, digest = _canonical(value)
+        return {**value, "sha256": digest}
+
+    def render_experiment(
+        self, *, configuration: Mapping[str, Any], content: Mapping[str, Any],
+        background_asset: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Render one isolated local candidate without bundled creative fallbacks."""
+
+        config = normalize_universal_config(configuration)
+        normalized_content = normalize_universal_content(content)
+        assets: dict[str, Mapping[str, Any]] = {}
+        if config["background"]["mode"] == "image":
+            if background_asset is None:
+                raise ValueError("photo strategy requires one explicit approved Project asset")
+            assets["background_image"] = {
+                "bytes": bytes(background_asset["bytes"]),
+                "mime_type": str(background_asset["mime_type"]),
+            }
+        elif config["background"]["mode"] == "texture":
+            assets["background_texture"] = texture_asset(str(config["background"]["texture"]))
+        if config["logo"]["enabled"]:
+            logo = self._asset_record("logo")
+            if logo is None:
+                raise ValueError("Universal experiment requires the saved canonical logo identity")
+            assets["logo"] = {"bytes": logo["bytes"], "mime_type": logo["mime_type"]}
+        if config["sticker"]["enabled"]:
+            sticker = self._asset_record("sticker_object")
+            if sticker is None or sticker["source"].get("origin") == "bundled_tune_asset":
+                raise ValueError("Universal experiment sticker requires an approved non-bundled asset")
+            assets["sticker_object"] = {
+                "bytes": sticker["bytes"], "mime_type": sticker["mime_type"],
+            }
+        template = build_universal_template(config, normalized_content)
+        rendered = self.renderer.render_preview(
+            template, semantic_data=semantic_data(config, normalized_content), assets=assets,
+        )
+        rendered["resolved"]["component_settings"] = universal_component_settings(
+            config, normalized_content,
+        )
+        return rendered
 
     def save_configuration(
         self, *, base_sha256: str, configuration: Mapping[str, Any], content: Mapping[str, Any],

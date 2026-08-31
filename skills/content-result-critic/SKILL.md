@@ -15,7 +15,8 @@ the resolved contract.
 
 The application-side render mapping is exactly `candidate_id`, `bytes`,
 `sha256`, `mime_type`, `width`, and `height`. Require `image/jpeg`, exact
-1080×1080 dimensions, bounded SOI/EOI JPEG bytes, a matching SHA-256, and one
+1080×1080 dimensions for `instagram_static_ad_v1` or exact 1080×1920 dimensions
+for `tiktok_photo_post_v1`, bounded SOI/EOI JPEG bytes, a matching SHA-256, and one
 unique mapping per active candidate before transport encoding. The release
 canary must use this same persisted-preview shape; a hand-built reduced mapping
 does not prove the production boundary.

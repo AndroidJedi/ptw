@@ -10,7 +10,9 @@ HAS_FASTAPI = importlib.util.find_spec("fastapi") is not None
 if HAS_FASTAPI:
     from fastapi import HTTPException
     from fastapi.middleware.cors import CORSMiddleware
-    from owner_gateway.api import INSTAGRAM_TASK, create_app, instagram_run_request
+    from owner_gateway.api import (
+        INSTAGRAM_TASK, TIKTOK_TASK, create_app, instagram_run_request, social_run_request,
+    )
     from owner_gateway.auth import validate_owner_claims
 
 
@@ -65,6 +67,7 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/content-runs/{run_id}/result",
             "/api/v1/content-runs/{run_id}/candidates/{candidate_id}/asset",
             "/api/v1/content-runs/{run_id}/feedback",
+            "/api/v1/content-runs/{run_id}/revisions",
             "/api/v1/studio",
             "/api/v1/studio/configuration",
             "/api/v1/studio/assets/{slot}",
@@ -82,7 +85,7 @@ class OwnerClaimsTests(unittest.TestCase):
             path for path in paths if any(fragment in path for fragment in forbidden_fragments)
         ])
 
-    def test_public_result_input_is_one_click_instagram_only(self) -> None:
+    def test_public_social_input_maps_platform_to_server_owned_contract(self) -> None:
         value = instagram_run_request({"request_id": "request", "brief_id": "brief"})
         self.assertEqual({
             "request_id": "request", "brief_id": "brief",
@@ -92,6 +95,29 @@ class OwnerClaimsTests(unittest.TestCase):
             instagram_run_request({
                 "request_id": "request", "brief_id": "brief",
                 "task": "owner supplied", "output_profile": "marketing_copy_v1",
+            })
+        self.assertEqual({
+            "request_id": "request", "brief_id": "brief",
+            "task": INSTAGRAM_TASK, "output_profile": "instagram_static_ad_v1",
+        }, social_run_request({"request_id": "request", "brief_id": "brief"}))
+        self.assertEqual({
+            "request_id": "request", "brief_id": "brief",
+            "task": TIKTOK_TASK, "output_profile": "tiktok_photo_post_v1",
+        }, social_run_request({
+            "request_id": "request", "brief_id": "brief", "platform": "tiktok",
+        }))
+        with self.assertRaisesRegex(ValueError, "optional platform"):
+            social_run_request({
+                "request_id": "request", "brief_id": "brief", "platform": "instagram",
+                "task": "client injection",
+            })
+        with self.assertRaisesRegex(ValueError, "instagram or tiktok"):
+            social_run_request({
+                "request_id": "request", "brief_id": "brief", "platform": "youtube",
+            })
+        with self.assertRaisesRegex(ValueError, "instagram or tiktok"):
+            social_run_request({
+                "request_id": "request", "brief_id": "brief", "platform": None,
             })
 
     def test_wrong_owner_or_app_is_denied(self) -> None:

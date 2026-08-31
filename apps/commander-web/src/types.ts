@@ -51,7 +51,9 @@ export interface ProductBrief extends Partial<ProductBriefDocument> {
   created_at: string
 }
 
-export type OutputProfile = 'marketing_copy_v1' | 'instagram_static_ad_v1'
+export type SocialPlatform = 'instagram' | 'tiktok'
+export type ReviewState = 'unreviewed' | 'ready' | 'needs_changes'
+export type OutputProfile = 'marketing_copy_v1' | 'instagram_static_ad_v1' | 'tiktok_photo_post_v1'
 export type ResultRunStatus = 'queued' | 'generating' | 'completed' | 'failed'
 export type ResultRunStage =
   | 'queued'
@@ -70,6 +72,7 @@ export interface ContentRun {
   project_id: string
   brief_id: string
   output_profile: OutputProfile
+  platform?: SocialPlatform
   task: string
   status: ResultRunStatus
   current_stage: ResultRunStage
@@ -78,6 +81,11 @@ export interface ContentRun {
   error_code?: string | null
   error_message?: string | null
   final_result_id?: string | null
+  review_state?: ReviewState
+  review_feedback_id?: string | null
+  review_comment?: string | null
+  revision_number?: number
+  preview?: CandidatePreview | null
   created_at: string
   updated_at: string
 }
@@ -106,6 +114,9 @@ export interface ContentResult {
   content: CandidateContent
   content_sha256: string
   asset_sha256?: string | null
+  asset_mime_type?: 'image/jpeg' | null
+  asset_width?: number | null
+  asset_height?: number | null
   asset_url?: string | null
   created_at: string
 }
@@ -121,8 +132,8 @@ export interface CandidatePreview {
   asset_url: string
   sha256: string
   mime_type: 'image/jpeg'
-  width: 1080
-  height: 1080
+  width: number
+  height: number
 }
 
 export interface ContentCandidate {
@@ -266,8 +277,10 @@ export interface StudioUniversalConfiguration {
 }
 
 export interface StudioUniversalContent {
+  schema: 'ptw.studio.universal-ad-content.v2'
   hero_title: string
   supporting_text: string
+  offer: string
   bullets: string[]
   cta: string
 }
@@ -294,14 +307,14 @@ export interface StudioUniversalVersionSummary {
 
 export interface StudioUniversalComponentDefinition {
   component_id: string
-  role: 'background' | 'sticker' | 'hero_title' | 'supporting_text' | 'bullet_list' | 'cta' | 'logo'
+  role: 'background' | 'sticker' | 'hero_title' | 'supporting_text' | 'offer' | 'bullet_list' | 'cta' | 'logo'
   node_ids: string[]
   asset_slot_ids: string[]
   setting_ids: string[]
 }
 
 export interface StudioUniversalComponentSettings {
-  schema: 'ptw.studio.universal-ad-component-settings.v1'
+  schema: 'ptw.studio.universal-ad-component-settings.v2'
   template_id: 'universal_ad'
   template_version: number
   configuration_schema: 'ptw.studio.universal-ad-config.v4'
@@ -312,7 +325,7 @@ export interface StudioUniversalComponentSettings {
 }
 
 export interface StudioUniversalAgentContext {
-  schema: 'ptw.studio.universal-ad-agent-context.v1'
+  schema: 'ptw.studio.universal-ad-agent-context.v2'
   template_id: 'universal_ad'
   template_version: number
   state_sha256: string
@@ -326,7 +339,7 @@ export interface StudioUniversalCatalog {
   schema: 'ptw.studio.universal-ad-catalog.v4'
   template_id: 'universal_ad'
   template_version: number
-  semantic_roles: Array<'background' | 'sticker' | 'hero_title' | 'supporting_text' | 'bullet_list' | 'cta' | 'logo'>
+  semantic_roles: Array<'background' | 'sticker' | 'hero_title' | 'supporting_text' | 'offer' | 'bullet_list' | 'cta' | 'logo'>
   components: StudioUniversalComponentDefinition[]
   asset_slots: Record<string, {
     role: string
@@ -349,7 +362,7 @@ export interface StudioUniversalCatalog {
 }
 
 export interface StudioUniversalDetail {
-  schema: 'ptw.studio.universal-ad-workspace.v4'
+  schema: 'ptw.studio.universal-ad-workspace.v5'
   catalog: StudioUniversalCatalog
   state_sha256: string
   template_sha256: string

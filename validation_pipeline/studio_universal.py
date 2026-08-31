@@ -21,13 +21,14 @@ from .studio_primitives import PrimitiveTemplate
 
 UNIVERSAL_AD_TEMPLATE_ID = "universal_ad"
 UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v4"
+UNIVERSAL_AD_CONTENT_SCHEMA = "ptw.studio.universal-ad-content.v2"
 LEGACY_UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v1"
 PREVIOUS_UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v2"
 RECENT_UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v3"
-UNIVERSAL_AD_VERSION_SCHEMA = "ptw.studio.universal-ad-version.v1"
-UNIVERSAL_AD_WORKSPACE_SCHEMA = "ptw.studio.universal-ad-workspace.v4"
-UNIVERSAL_AD_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.universal-ad-component-settings.v1"
-UNIVERSAL_AD_TEMPLATE_VERSION = 7
+UNIVERSAL_AD_VERSION_SCHEMA = "ptw.studio.universal-ad-version.v2"
+UNIVERSAL_AD_WORKSPACE_SCHEMA = "ptw.studio.universal-ad-workspace.v5"
+UNIVERSAL_AD_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.universal-ad-component-settings.v2"
+UNIVERSAL_AD_TEMPLATE_VERSION = 9
 
 FONT_FAMILIES = ("Inter", "Manrope", "Oswald", "Cormorant Garamond")
 TEXTURE_PRESETS = (
@@ -37,7 +38,7 @@ CTA_POSITIONS = ("below_text", "bottom_left", "bottom_right")
 
 SEMANTIC_ROLES = (
     "background", "sticker", "hero_title", "supporting_text",
-    "bullet_list", "cta", "logo",
+    "offer", "bullet_list", "cta", "logo",
 )
 ASSET_SLOTS: dict[str, dict[str, Any]] = {
     "background_image": {
@@ -108,6 +109,19 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "asset_slot_ids": (),
         "setting_ids": (
             "content.supporting_text", "configuration.typography.font_family",
+            "configuration.typography.supporting_size", "configuration.typography.text_color",
+            "configuration.typography.alignment", "configuration.layout.content_x",
+            "configuration.layout.content_y", "configuration.layout.content_width",
+            "configuration.layout.gap",
+        ),
+    },
+    {
+        "component_id": "universal_ad.offer",
+        "role": "offer",
+        "node_ids": ("offer",),
+        "asset_slot_ids": (),
+        "setting_ids": (
+            "content.offer", "configuration.typography.font_family",
             "configuration.typography.supporting_size", "configuration.typography.text_color",
             "configuration.typography.alignment", "configuration.layout.content_x",
             "configuration.layout.content_y", "configuration.layout.content_width",
@@ -213,14 +227,16 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "enabled": True,
         "position": "top_right",
         "width": 180,
-        "background_enabled": True,
+        "background_enabled": False,
         "background_color": "#FFFFFF",
     },
 }
 
 DEFAULT_CONTENT: dict[str, Any] = {
+    "schema": UNIVERSAL_AD_CONTENT_SCHEMA,
     "hero_title": "ІНВЕСТУВАТИ В УКРАЇНІ — ПРОСТІШЕ",
     "supporting_text": "Аналізуємо ваші цілі й підказуємо інструменти, що відповідають саме вам.",
+    "offer": "Безкоштовна 15-хвилинна консультація",
     "bullets": [
         "Персональний підбір інструментів",
         "Зрозуміле порівняння ризику",
@@ -353,7 +369,7 @@ def _upgrade_config(value: Mapping[str, Any]) -> Mapping[str, Any]:
         "schema": UNIVERSAL_AD_CONFIG_SCHEMA,
         "logo": {
             **dict(logo),
-            "background_enabled": True,
+            "background_enabled": False,
             "background_color": "#FFFFFF",
         },
     }
@@ -462,8 +478,12 @@ def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def normalize_universal_content(value: Mapping[str, Any]) -> dict[str, Any]:
+    if isinstance(value, Mapping) and "schema" not in value:
+        value = {"schema": UNIVERSAL_AD_CONTENT_SCHEMA, **dict(value)}
     expected = set(DEFAULT_CONTENT)
     source = _object(value, expected, "Studio universal content")
+    if source["schema"] != UNIVERSAL_AD_CONTENT_SCHEMA:
+        raise ValueError("Studio universal content schema is invalid")
 
     def text(value: Any, label: str, maximum: int) -> str:
         normalized = " ".join(str(value).split())
@@ -476,8 +496,10 @@ def normalize_universal_content(value: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("Studio universal content supports at most three bullets")
     bullets = [text(item, f"content.bullets[{index}]", 100) for index, item in enumerate(raw_bullets)]
     return {
+        "schema": UNIVERSAL_AD_CONTENT_SCHEMA,
         "hero_title": text(source["hero_title"], "content.hero_title", 140),
         "supporting_text": text(source["supporting_text"], "content.supporting_text", 280),
+        "offer": text(source["offer"], "content.offer", 160),
         "bullets": bullets,
         "cta": text(source["cta"], "content.cta", 60),
     }
@@ -543,8 +565,10 @@ def universal_content_from_generation(
     if not isinstance(benefits, list):
         raise ValueError("Studio Product Brief key benefits must be a list")
     return normalize_universal_content({
+        "schema": UNIVERSAL_AD_CONTENT_SCHEMA,
         "hero_title": candidate.get("headline") or "",
         "supporting_text": supporting or "",
+        "offer": candidate.get("offer") or "",
         "bullets": benefits[:3],
         "cta": candidate.get("cta") or "",
     })
@@ -664,6 +688,27 @@ def _sticker_position(
     return x - offset_right, y - offset_bottom
 
 
+def universal_alignment_rectangle(config: Mapping[str, Any]) -> dict[str, float]:
+    """Return the shared logo, copy, and CTA alignment rectangle in canvas pixels."""
+
+    normalized = normalize_universal_config(config)
+    layout = normalized["layout"]
+    content_x = layout["content_x"]
+    if normalized["typography"]["alignment"] == "center":
+        content_x = round((1080 - layout["content_width"]) / 2)
+    alignment_right = max(
+        content_x + layout["content_width"],
+        1080 - content_x,
+    )
+    alignment_bottom = 1026
+    return {
+        "x": float(content_x),
+        "y": float(layout["content_y"]),
+        "width": float(alignment_right - content_x),
+        "height": float(alignment_bottom - layout["content_y"]),
+    }
+
+
 def build_universal_template(config: Mapping[str, Any], content: Mapping[str, Any]) -> PrimitiveTemplate:
     config = normalize_universal_config(config)
     content = normalize_universal_content(content)
@@ -677,28 +722,39 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
     bx, by, bw, bh = _background_box(
         background["image_layout"], background["image_percent"],
     )
-    content_x = layout["content_x"]
-    if typography["alignment"] == "center":
-        content_x = round((1080 - layout["content_width"]) / 2)
+    alignment_rectangle = universal_alignment_rectangle(config)
+    content_x = alignment_rectangle["x"]
+    alignment_top = alignment_rectangle["y"]
+    alignment_right = alignment_rectangle["x"] + alignment_rectangle["width"]
+    alignment_bottom = alignment_rectangle["y"] + alignment_rectangle["height"]
     logo_height = logo["width"] * 0.42
-    logo_x, logo_y = _corner_position(logo["position"], logo["width"], logo_height, 54)
     object_width = sticker["width"] * sticker["object_scale"]
     object_height = object_width * 0.58
+    logo_surface_padding_x = 18
+    logo_surface_padding_y = 12
+    logo_surface_width = logo["width"] + logo_surface_padding_x * 2
+    logo_surface_height = logo_height + logo_surface_padding_y * 2
+    logo_treatment_width = logo_surface_width if logo["background_enabled"] else logo["width"]
+    logo_treatment_height = logo_surface_height if logo["background_enabled"] else logo_height
+    logo_treatment_x = (
+        alignment_rectangle["x"]
+        if logo["position"] == "top_left"
+        else alignment_right - logo_treatment_width
+    )
+    logo_treatment_y = alignment_top
     if (
         sticker["enabled"] and sticker["position"].startswith("top")
         and logo["position"] == sticker["position"]
     ):
-        logo_y = 54 + object_height + 28
-    logo_surface_padding_x = 18
-    logo_surface_padding_y = 12
-    logo_surface_x = logo_x - logo_surface_padding_x
-    logo_surface_y = logo_y - logo_surface_padding_y
-    logo_surface_width = logo["width"] + logo_surface_padding_x * 2
-    logo_surface_height = logo_height + logo_surface_padding_y * 2
-    logo_collision_x = logo_surface_x if logo["background_enabled"] else logo_x
-    logo_collision_y = logo_surface_y if logo["background_enabled"] else logo_y
-    logo_collision_width = logo_surface_width if logo["background_enabled"] else logo["width"]
-    logo_collision_height = logo_surface_height if logo["background_enabled"] else logo_height
+        logo_treatment_y += object_height + 28
+    logo_surface_x = logo_treatment_x
+    logo_surface_y = logo_treatment_y
+    logo_x = logo_treatment_x + (logo_surface_padding_x if logo["background_enabled"] else 0)
+    logo_y = logo_treatment_y + (logo_surface_padding_y if logo["background_enabled"] else 0)
+    logo_collision_x = logo_treatment_x
+    logo_collision_y = logo_treatment_y
+    logo_collision_width = logo_treatment_width
+    logo_collision_height = logo_treatment_height
     content_y = layout["content_y"]
     if (
         logo["enabled"]
@@ -712,19 +768,22 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
     supporting_height = max(96, round(typography["supporting_size"] * 3.2))
     bullet_count = len(content["bullets"]) if bullets_enabled else 0
     bullet_step = max(42, round(typography["supporting_size"] * 1.45))
-    gap_count = 3 if bullet_count else 2
+    offer_height = max(62, round(typography["supporting_size"] * 2.0))
+    gap_count = 4 if bullet_count else 3
     ideal_before_cta = (
-        hero_height + supporting_height + bullet_step * bullet_count
+        hero_height + supporting_height + offer_height + bullet_step * bullet_count
         + layout["gap"] * gap_count
     )
-    available_before_cta = 1024 - 82 - content_y
+    available_before_cta = alignment_bottom - 82 - content_y
     vertical_scale = min(1.0, available_before_cta / ideal_before_cta)
     hero_height = round(hero_height * vertical_scale)
     supporting_height = round(supporting_height * vertical_scale)
+    offer_height = round(offer_height * vertical_scale)
     bullet_step = round(bullet_step * vertical_scale)
     effective_gap = round(layout["gap"] * vertical_scale)
     supporting_y = content_y + hero_height + effective_gap
-    bullet_y = supporting_y + supporting_height + effective_gap
+    offer_y = supporting_y + supporting_height + effective_gap
+    bullet_y = offer_y + offer_height + effective_gap
     bullet_space = bullet_step * bullet_count + effective_gap if bullets_enabled else 0
     flowing_cta_y = bullet_y + bullet_space
     common_text = {
@@ -761,6 +820,11 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
             "font_size": typography["supporting_size"], "min_font_size": 18,
             "font_weight": 500, "line_height": 1.18, "max_lines": 4,
         }, binding=("text", "content.supporting_text", True)),
+        _node("offer", "text", {
+            **common_text, "y": offer_y, "height": offer_height,
+            "font_size": max(22, typography["supporting_size"] - 2), "min_font_size": 18,
+            "font_weight": 800, "line_height": 1.1, "max_lines": 2,
+        }, binding=("text", "content.offer", True)),
     ]
     marker_width = 38
     marker_gap = 12
@@ -787,9 +851,9 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
         }, binding=("text", f"content.bullet_{index + 1}", False)))
     cta_width = min(420, max(230, round(layout["content_width"] * 0.5)))
     if cta["position"] == "bottom_left":
-        cta_x, cta_y = 54, 944
+        cta_x, cta_y = alignment_rectangle["x"], alignment_bottom - 82
     elif cta["position"] == "bottom_right":
-        cta_x, cta_y = 1080 - 54 - cta_width, 944
+        cta_x, cta_y = alignment_right - cta_width, alignment_bottom - 82
     else:
         cta_x = content_x if typography["alignment"] == "left" else round((1080 - cta_width) / 2)
         cta_y = flowing_cta_y
@@ -879,6 +943,7 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
             "sticker": ["sticker_object"],
             "hero_title": ["hero_title"],
             "supporting_text": ["supporting_text"],
+            "offer": ["offer"],
             "bullet_list": [
                 "bullet_marker_1", "bullet_1", "bullet_marker_2", "bullet_2",
                 "bullet_marker_3", "bullet_3",
@@ -903,7 +968,7 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
                 {"id": f"role_{role}", "scope": "template", "type": "required_role", "params": {"role": role}}
                 for role in SEMANTIC_ROLES
             ],
-            {"id": "fixed_tree", "scope": "template", "type": "max_nodes", "params": {"maximum": 16}},
+            {"id": "fixed_tree", "scope": "template", "type": "max_nodes", "params": {"maximum": 17}},
         ],
         "provenance": {
             "base_template_id": None, "base_version": None, "base_sha256": None,
@@ -920,6 +985,7 @@ def semantic_data(config: Mapping[str, Any], content: Mapping[str, Any]) -> dict
     data = {
         "content.hero_title": content["hero_title"],
         "content.supporting_text": content["supporting_text"],
+        "content.offer": content["offer"],
         "content.cta": content["cta"],
     }
     marker = {

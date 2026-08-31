@@ -5,7 +5,7 @@ import type { Page } from '../types'
 
 const items: Array<{ id: Page; en: string; uk: string; icon: typeof Target }> = [
   { id: 'briefs', en: 'Product Briefs', uk: 'Продуктові брифи', icon: Target },
-  { id: 'result', en: 'Instagram post', uk: 'Допис в Instagram', icon: Sparkles },
+  { id: 'result', en: 'Social posts', uk: 'Дописи для соцмереж', icon: Sparkles },
   { id: 'studio', en: 'Studio', uk: 'Студія', icon: Layers3 },
 ]
 

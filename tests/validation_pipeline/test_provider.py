@@ -182,6 +182,46 @@ class StructuredBridgeTests(unittest.TestCase):
                 output_schema={"type": "object"}, idempotency_key="critic-pass-uuid",
             )
 
+    def test_tiktok_critic_accepts_only_the_vertical_profile_dimensions(self) -> None:
+        class CaptureBridge(StructuredBridge):
+            def __init__(self):
+                super().__init__("https://bridge.invalid/internal/llm/structured", "token", "model")
+                self.posted = None
+
+            def _request(self, url, payload, *, timeout=30):
+                if payload is not None:
+                    self.posted = payload
+                    return {"request_id": 1}
+                return {
+                    "status": "completed",
+                    "result": {"response": {"ok": True}, "invocation": {"provider": "fake"}},
+                }
+
+        content = b"\xff\xd8vertical-critic-jpeg\xff\xd9"
+        image = {
+            "candidate_id": str(uuid4()), "bytes": content,
+            "sha256": hashlib.sha256(content).hexdigest(), "mime_type": "image/jpeg",
+            "width": 1080, "height": 1920,
+        }
+        bridge = CaptureBridge()
+        bridge.generate_content_critic(
+            system_prompt="Evaluate one vertical candidate.",
+            input_payload={"pass": 1, "output_profile": "tiktok_photo_post_v1"},
+            images=[image], output_schema={"type": "object"},
+            idempotency_key="critic-pass-uuid",
+        )
+        self.assertEqual((1080, 1920), (
+            bridge.posted["input_images"][0]["width"],
+            bridge.posted["input_images"][0]["height"],
+        ))
+        with self.assertRaisesRegex(ValueError, "1080x1920 JPEG"):
+            bridge.generate_content_critic(
+                system_prompt="Evaluate one vertical candidate.",
+                input_payload={"pass": 1, "output_profile": "tiktok_photo_post_v1"},
+                images=[{**image, "height": 1080}], output_schema={"type": "object"},
+                idempotency_key="critic-pass-square",
+            )
+
     def test_graphic_mode_is_always_one_attempt_key(self) -> None:
         class CaptureBridge(StructuredBridge):
             def __init__(self):

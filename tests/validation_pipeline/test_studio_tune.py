@@ -111,11 +111,11 @@ class StudioTuneServiceTests(unittest.TestCase):
     def test_agent_prompt_and_run_capture_exact_component_settings_json(self) -> None:
         prompts: list[str] = []
         context = {
-            "schema": "ptw.studio.universal-ad-agent-context.v1",
+            "schema": "ptw.studio.universal-ad-agent-context.v2",
             "template_id": "universal_ad",
             "state_sha256": "a" * 64,
             "component_settings": {
-                "schema": "ptw.studio.universal-ad-component-settings.v1",
+                "schema": "ptw.studio.universal-ad-component-settings.v2",
                 "components": [{
                     "component_id": "universal_ad.cta",
                     "node_ids": ["cta"],

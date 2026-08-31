@@ -15,14 +15,14 @@ A correction or retry creates a complete new Brief UUID with explicit
 `supersedes` and `derived_from` edges. Approval is an append-only record and
 requires the owner to confirm that the offer and promise can be honored.
 Approval does not automatically generate content; it opens the one-click
-Instagram post action.
+Social post action.
 
 ## Result handoff
 
 A Result run may read only:
 
 - the selected approved Product Brief;
-- one fixed server-owned Instagram task persisted as a permanent Project Source;
+- one fixed server-owned Instagram or TikTok task persisted as a permanent Project Source;
 - the automatically provisioned canonical Natal brand-kit revision;
 - explicitly approved Project assets and stock-photo source metadata;
 - versioned templates, bounded writing references, tool contracts, and skill
@@ -36,10 +36,21 @@ generation, recomposition, rendering, and final selection.
 
 PostgreSQL entities and relationships are complete authority. Owner Gateway
 exposes authenticated Project and Product Brief create/list/detail/correct/
-retry/approve operations and proxies one-click Instagram creation after
+retry/approve operations and proxies bounded Instagram/TikTok photo-post creation after
 approval. It does not expose task/profile, Project-asset, or brand-kit setup
 surfaces. Empty production state is valid; no samples or fake proof are seeded.
 
 The only schema baseline is `db/migrations/001_ptw_result_v1.sql`. There are no
 batch, Ad Creative, Landing, Positioning, idea, publication, campaign, lead,
 job-control, or compatibility tables.
+
+The loopback app is an explicit local exception to the production persistence
+boundary. Its mutable Product Brief and Instagram-square evaluation workflow
+uses the digest-verified append-only authority under
+`.local/owner-experiments`, while `.local/studio-workspace` remains the saved
+Universal Studio authority. Local run creation accepts only request ID,
+approved Brief ID, fixed `instagram`, and the saved Studio state digest; the
+server resolves the task, five strategies, approved Project assets, skill
+contexts, and active owner-approved lesson snapshot. These files never become
+production evidence automatically, and the local workflow performs no
+publishing, traffic, analytics, or market-performance ingestion.

@@ -20,12 +20,13 @@ const requiredMarkers = {
   'PTW reCAPTCHA Enterprise site key': '6LfFjYstAAAAAJaFuUPZYS9U17vROLcN7Fx6iOQL',
   'Safari-safe Auth persistence': 'ptw-auth-local-storage-v1',
   'Validation Project workspace': 'PROJECT WORKSPACE',
-  'one-click Instagram workspace': 'NATAL · ONE FINAL POST',
-  'automatic Natal identity': 'Natal branding is applied automatically. Nothing else is required.',
+  'Social Posts workspace': 'CREATE · REVIEW · IMPROVE',
+  'platform-native post creation': 'NEW SOCIAL POST',
   'Bounded initial stage': 'Creating five directions',
   'Bounded improvement stage': 'Improving the strongest direction',
   'Bounded final stage': 'Final review',
-  'Single public explanation': 'WHY THIS DIRECTION',
+  'append-only artifact evaluation': 'EVALUATE ARTIFACT',
+  'collapsed advanced details': 'Export details and decision trace',
   'single universal Studio': 'universal_ad · v',
 }
 
@@ -84,4 +85,4 @@ if (chromatic.length) {
   throw new Error(`Commander chrome must remain monochrome; found: ${chromatic.join(', ')}`)
 }
 
-process.stdout.write('Verified one-click Natal Instagram flow, App Check, Safari Auth, monochrome chrome, and service-worker markers in production build.\n')
+process.stdout.write('Verified Social Posts flow, App Check, Safari Auth, monochrome chrome, and service-worker markers in production build.\n')

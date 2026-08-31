@@ -8,7 +8,7 @@ needed for the task.
 | Current checkpoint | [`architecture/commander-current-state.md`](architecture/commander-current-state.md) |
 | Product Brief | [`architecture/simplified-validation-pipeline.md`](architecture/simplified-validation-pipeline.md) and `skills/product-brief-generator/SKILL.md` |
 | Result generation | [`architecture/content-result-agent.md`](architecture/content-result-agent.md), `skills/content-candidate-generator/SKILL.md`, and `skills/content-result-critic/SKILL.md` |
-| Instagram recipe/render adapter | [`architecture/ad-studio.md`](architecture/ad-studio.md) |
+| Static social recipe/render adapters | [`architecture/ad-studio.md`](architecture/ad-studio.md) |
 | Universal Ad Studio | [`architecture/universal-ad-studio.md`](architecture/universal-ad-studio.md), [`architecture/ad-studio.md`](architecture/ad-studio.md), [`../skills/studio-tune-local/SKILL.md`](../skills/studio-tune-local/SKILL.md) for Tune changes, and [`../skills/studio-ui-visual-audit/SKILL.md`](../skills/studio-ui-visual-audit/SKILL.md) for visual QA |
 | Owner UI and authentication | [`operations/owner-gateway.md`](operations/owner-gateway.md) and [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
 | Deployment and reset | [`operations/commander.md`](operations/commander.md) and [`operations/disaster-recovery.md`](operations/disaster-recovery.md) |

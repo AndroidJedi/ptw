@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+import argparse
 import hashlib
 import json
 import os
@@ -26,26 +27,30 @@ STRATEGY_DIRECTORY = Path(os.environ.get(
 )).parent / "references/templates"
 
 
-def _jpeg() -> bytes:
+def _jpeg(*, width: int, height: int) -> bytes:
     from PIL import Image, ImageDraw
 
-    image = Image.new("RGB", (1080, 1080), "#735A52")
+    image = Image.new("RGB", (width, height), "#735A52")
     draw = ImageDraw.Draw(image)
     for index in range(12):
         color = (55 + index * 12, 76 + index * 8, 96 + index * 5)
-        draw.rectangle((index * 90, 0, (index + 1) * 90, 1080), fill=color)
-    draw.ellipse((550, 130, 1030, 610), fill="#D9B69C")
-    draw.rectangle((610, 520, 940, 1040), fill="#4C3542")
+        left = round(index * width / 12)
+        right = round((index + 1) * width / 12)
+        draw.rectangle((left, 0, right, height), fill=color)
+    draw.ellipse((round(width * .51), round(height * .12), round(width * .95), round(height * .56)), fill="#D9B69C")
+    draw.rectangle((round(width * .56), round(height * .48), round(width * .87), round(height * .96)), fill="#4C3542")
     output = BytesIO()
     image.save(output, format="JPEG", quality=92, optimize=True, progressive=False)
     return output.getvalue()
 
 
-def run_canary() -> dict[str, Any]:
+def run_canary(output_profile: str = "instagram_static_ad_v1") -> dict[str, Any]:
     from PIL import Image, ImageChops, ImageStat
 
     strategies = TemplateRegistry(STRATEGY_DIRECTORY).load_active()
-    studios = StudioTemplateRegistry().load_active(strategies)
+    if output_profile not in {"instagram_static_ad_v1", "tiktok_photo_post_v1"}:
+        raise ValueError("Studio canary requires a static social profile")
+    studios = StudioTemplateRegistry(output_profile=output_profile).load_active(strategies)
     project_id, brief_id, brand_kit_id, logo_id, media_id = [new_uuid7() for _ in range(5)]
     brand = natal_brand_document(logo_id)
     brief = {"offer": "First short assessment free", "cta": "Book a session"}
@@ -57,7 +62,8 @@ def run_canary() -> dict[str, Any]:
         "caption": "A focused first step for one unresolved decision.",
         "alt_text": "A person in a real setting beside a concise decision-session offer.",
     }
-    media_bytes = _jpeg()
+    width, height = (1080, 1920) if output_profile == "tiktok_photo_post_v1" else (1080, 1080)
+    media_bytes = _jpeg(width=width, height=height)
     assets = {
         media_id: {
             "bytes": media_bytes, "mime_type": "image/jpeg", "origin": "canary",
@@ -199,13 +205,22 @@ def run_canary() -> dict[str, Any]:
             brand_kit=brand_record, assets=assets,
         )
     return {
-        "status": "ok", "templates": reports, "pairwise_distinction": distinctions,
+        "status": "ok", "output_profile": output_profile,
+        "dimensions": {"width": width, "height": height},
+        "templates": reports, "pairwise_distinction": distinctions,
         "language_renders": {"en": 5, "uk": 5},
     }
 
 
 def main() -> None:
-    print(json.dumps(run_canary(), ensure_ascii=False, sort_keys=True))
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--output-profile",
+        choices=("instagram_static_ad_v1", "tiktok_photo_post_v1"),
+        default="instagram_static_ad_v1",
+    )
+    args = parser.parse_args()
+    print(json.dumps(run_canary(args.output_profile), ensure_ascii=False, sort_keys=True))
 
 
 if __name__ == "__main__":

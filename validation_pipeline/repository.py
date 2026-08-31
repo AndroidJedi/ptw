@@ -888,9 +888,11 @@ class ValidationRepository:
                     """INSERT INTO studio_renders(
                            entity_id,recipe_id,attempt_id,mime_type,width,height,bytes,bytes_sha256,
                            manifest,manifest_sha256,embedded_manifest,renderer_version
-                       ) VALUES(%s,%s,%s,'image/jpeg',1080,1080,%s,%s,%s,%s,%s,%s)""",
+                       ) VALUES(%s,%s,%s,'image/jpeg',%s,%s,%s,%s,%s,%s,%s,%s)""",
                     (
-                        render_id, UUID(recipe_id), attempt_id, rendered["bytes"],
+                        render_id, UUID(recipe_id), attempt_id,
+                        int(recipe["document"]["width"]), int(recipe["document"]["height"]),
+                        rendered["bytes"],
                         manifest["output"]["bytes_sha256"], Jsonb(manifest), _sha(manifest),
                         rendered["embedded_manifest"], recipe["renderer_version"],
                     ),
@@ -935,12 +937,15 @@ class ValidationRepository:
     def render_asset(self, render_id: str) -> dict[str, Any]:
         with self.connection() as connection:
             row = connection.execute(
-                "SELECT bytes,bytes_sha256,mime_type FROM studio_renders WHERE entity_id=%s",
+                "SELECT bytes,bytes_sha256,mime_type,width,height FROM studio_renders WHERE entity_id=%s",
                 (UUID(render_id),),
             ).fetchone()
         if row is None:
             raise KeyError(render_id)
-        return {"bytes": bytes(row[0]), "sha256": row[1], "mime_type": row[2]}
+        return {
+            "bytes": bytes(row[0]), "sha256": row[1], "mime_type": row[2],
+            "width": int(row[3]), "height": int(row[4]),
+        }
 
     # Temporary method aliases are intentionally absent. The only vocabulary is Project/Result.
 

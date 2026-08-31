@@ -1,11 +1,14 @@
-# Instagram static recipe and render adapter
+# Static social recipe and render adapters
 
 Status: production Result adapter plus separate local Universal Ad Studio
 
 ## Boundary
 
-`StudioRecipeV2` is the production visual contract used only by
-`instagram_static_ad_v1`. Historical v1 recipes and renders remain immutable
+`StudioRecipeV2` is the static visual contract used by the channel adapters.
+`instagram_static_ad_v1` retains its 1080×1080 placement, renderer identity,
+template digests, and byte-exact historical replay. The local
+`tiktok_photo_post_v1` adapter adds a 1080×1920 placement and five separate
+version-3 vertical snapshots. Historical v1 recipes and renders remain immutable
 and keep their original renderer behavior. The separate owner-only Universal
 Ad Studio exposes one `universal_ad` structure through
 `ptw.studio.universal-ad-config.v4`; it does not mutate deployed
@@ -28,14 +31,14 @@ its component UUID authority, or the Instagram adapter.
 The channel-neutral Result core gives the adapter a validated candidate,
 server-assigned visual-element UUIDs, the automatically provisioned canonical
 Natal brand kit, and approved sources.
-The adapter resolves real photography from approved Project assets or Pexels,
+Each adapter resolves real photography from approved Project assets or Pexels,
 applies one of five Git-owned component templates, validates it, renders the exact JPEG, and
-returns recipe/render IDs and digests. Instagram-specific placement, safe area,
-frame grammar, and 1080×1080 rendering never enter the generic orchestrator.
+returns recipe/render IDs and digests. Platform placement, safe area, copy
+limits, template registry, and dimensions never enter the generic orchestrator.
 
 The internal catalog defines media, logo, headline, body, offer, CTA, badge,
 and shape tools with stable IDs, handlers, exact parameter schemas, defaults,
-bounds, square-placement allowlists, and tunable paths. Templates identify
+bounds, profile-specific placement allowlists, and tunable paths. Templates identify
 components by readable keys, not persisted UUIDs. Application reserves fresh
 UUIDv7 instances, resolves only canonical Natal palette/Inter/logo and approved
 media bindings, then converts exact sliders to quantized typed patches. There
@@ -58,7 +61,7 @@ and the canonical dark Natal logo must have a topmost containing light surface.
 ## Contract
 
 A recipe binds one Project, approved Brief, immutable Natal brand-kit revision,
-placement `instagram.feed_square.v1`, ordered UUIDv7 frame instances, approved
+one fixed square or vertical-photo placement, ordered UUIDv7 frame instances, approved
 source IDs, caption, alt text, guards, renderer version, and canonical digest.
 Required visual roles are background, primary subject, headline, supporting
 text, offer, CTA, and brand mark. Badge and decorative elements are optional.
@@ -68,7 +71,8 @@ MIME, digest, crop, source, real-photo, brand, safe-area, collision, contrast,
 text overflow, caption, and accessibility checks fail closed before a candidate
 can reach the critic.
 
-Pillow deterministically produces one 1080×1080 JPEG. Exact bytes, SHA-256,
+Pillow deterministically produces one profile-sized JPEG: 1080×1080 for
+Instagram or 1080×1920 for TikTok. Exact bytes, SHA-256,
 complete resolved recipe, render attempt, media attribution, enriched manifest,
 and graph edges are stored in
 PostgreSQL. The critic receives the exact rendered bytes as a digest-mapped

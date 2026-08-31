@@ -3,7 +3,7 @@
 ## Flow
 
 ```text
-approved Product Brief + fixed server task + canonical Natal brand/assets
+approved Product Brief + server-mapped social task + canonical Natal brand/assets
   -> bounded ContextBundleV1
   -> five isolated versioned strategies
   -> validated CandidateV2 documents and previews
@@ -32,8 +32,9 @@ retain exact 0–100 values and template-specific envelopes. Critic deltas are
 multiples of five, change at most two dimensions, and change a chosen dimension
 by at least ten.
 
-The Instagram adapter, not the generic orchestrator, resolves each slider into
-an ordered typed component patch. Only numeric interpolation, enumerated steps,
+The Instagram square and TikTok vertical-photo adapters, not the generic
+orchestrator, resolve each slider into an ordered typed component patch. Only
+numeric interpolation, enumerated steps,
 and bounded optional-component thresholds are accepted. Geometry is quantized
 to 0.001 and typography to declared integer steps. The patch cannot change
 component identity, tool IDs, protected copy, source assets, palette bindings,
@@ -54,6 +55,28 @@ the versioned element and weighted candidate thresholds. If neither finalist
 qualifies, the run fails closed and exposes retry guidance rather than a bad
 result.
 
+## Local Universal experiment profile
+
+The loopback-only `universal_ad_experiment_v1` profile reuses the same five
+strategy documents and three-pass critic contracts through a separate versioned
+adapter. It captures one saved `universal_ad` export, resolves the declared
+strategy slider patches server-side, assigns distinct approved real-photo
+assets to the four photographic strategies, and generates each candidate in
+isolation through `content-candidate-generator`. It renders an authoritative
+1080×1080 PNG plus a deterministic JPEG, runs deterministic geometry and
+protected-copy gates, attaches those exact JPEG bytes to every critic call, and
+permits at most four improvements before the two-candidate final pass.
+
+Local authority is file-backed and append-only below
+`.local/owner-experiments`; it is independent of PostgreSQL and production
+Result state. Every run binds the approved Brief digest, saved Studio-state
+digest, strategy/template versions, asset provenance, candidate/render digests,
+critic/action trace, and exact owner-approved lesson snapshot. Ready creates an
+immutable Instagram-ready download package but performs no platform call.
+Improve creates a child from the selected candidate's immutable configuration
+and assets plus only the owner instruction. No TikTok adapter, publishing,
+analytics, market evidence, or automatic learning is enabled for this profile.
+
 ## Identity and persistence
 
 Server-assigned UUIDv7 is primary identity. Exact reuse points to the same
@@ -68,7 +91,7 @@ recipes, renders, sources, entities, and graph edges. Only bounded run/action
 status transitions update. A retry creates a child run and never overwrites its
 parent.
 
-Every configured Instagram recipe carries one
+Every configured static-social recipe carries one
 `studio.layout.template_application.v1` modifier: the immutable template
 snapshot, strategy/Studio/catalog/renderer versions and digests, exact and
 normalized sliders, component-key-to-UUID map, protected typed bindings,
@@ -79,10 +102,14 @@ source/output digests, and the same production identities. Replaying the stored
 snapshot, bindings, sliders, and reserved IDs must reproduce the canonical
 recipe digest and decoded pixels.
 
-The owner normally sees only the approved source, one Instagram create action,
-three progress stages, one final post, two-to-four selection observations,
-download/use, retry, and feedback. The public path has no text profile, task
-field, asset upload, or brand-kit setup. The collapsed owner-only explanation
+The owner normally sees a searchable Project/artifact navigator, one approved
+Brief selector, Instagram/TikTok choice, three progress stages, one native post
+preview, Ready/Improve, retry, and export. The public path has no text profile,
+task field, asset upload, or brand-kit setup. Ready and Improve append immutable
+feedback/WeightUpdate/outcome entities. Improve transactionally creates a child
+run whose ContextBundle contains only the selected versioned revision
+instruction and exact feedback UUID; unrelated owner history stays excluded.
+The collapsed owner-only explanation
 lays out the five initial candidate JPEGs, their exact five parameter values,
 Pass 1 gate/score results, and the persisted three-pass ranking, pairwise,
 action, observation, and final-selection trail. Candidate JPEGs use

@@ -12,12 +12,14 @@ from validation_pipeline.content import (
     CandidateV2, CorpusStore, INSTAGRAM_REQUIRED_VISUAL_ROLES, TemplateRegistry,
     candidate_output_schema, critic_output_schema, final_eligible, weighted_candidate_score,
 )
-from validation_pipeline.content_adapters import InstagramStaticAdapter
+from validation_pipeline.content_adapters import InstagramStaticAdapter, TikTokPhotoAdapter
 from validation_pipeline.natal_brand import (
     NATAL_COLORS, NATAL_FONT_PATH, NATAL_FONT_SHA256, NATAL_LOGO_SHA256,
     natal_brand_document, natal_logo_bytes,
 )
-from validation_pipeline.studio import StudioRenderer, tool_catalog, validate_recipe
+from validation_pipeline.studio import (
+    TIKTOK_PLACEMENT_ID, StudioRenderer, tool_catalog, tool_catalog_for_profile, validate_recipe,
+)
 from validation_pipeline.studio_templates import (
     StudioTemplateRegistry, _normalize_template, apply_studio_template,
     replay_template_application,
@@ -31,8 +33,8 @@ REFERENCES = ROOT / "skills/content-candidate-generator/references"
 
 class ResultContractsTests(unittest.TestCase):
     @staticmethod
-    def _recipe_run(template, brand, brief):
-        studio = StudioTemplateRegistry().get(template.template_id)
+    def _recipe_run(template, brand, brief, output_profile="instagram_static_ad_v1"):
+        studio = StudioTemplateRegistry(output_profile=output_profile).get(template.template_id)
         return {
             "candidate_template_id": template.template_id,
             "candidate_parameters": dict(template.defaults),
@@ -177,6 +179,104 @@ class ResultContractsTests(unittest.TestCase):
             self.assertFalse(component["parameter_schema"]["additionalProperties"])
             self.assertEqual(["studio.placement.instagram.feed_square.v1"], component["allowed_placements"])
             self.assertTrue(component["tunable_paths"])
+
+    def test_tiktok_profile_has_five_distinct_versioned_vertical_templates(self) -> None:
+        strategies = TemplateRegistry(REFERENCES / "templates").load_active()
+        studios = StudioTemplateRegistry(output_profile="tiktok_photo_post_v1").load_active(
+            strategies
+        )
+        self.assertEqual(5, len(studios))
+        self.assertEqual(5, len({item.digest for item in studios}))
+        self.assertTrue(all(item.version == 3 for item in studios))
+        self.assertTrue(all(
+            item.document["placement_tool_id"] == TIKTOK_PLACEMENT_ID for item in studios
+        ))
+        catalog = tool_catalog_for_profile("tiktok_photo_post_v1")
+        frames = [item for item in catalog["items"] if item["kind"] == "frame"]
+        self.assertTrue(all(item["allowed_placements"] == [TIKTOK_PLACEMENT_ID] for item in frames))
+
+    def test_tiktok_templates_materialize_1080_by_1920_inside_the_vertical_contract(self) -> None:
+        strategies = TemplateRegistry(REFERENCES / "templates").load_active()
+        project_id, brief_id, brand_kit_id, logo_id, media_id = [new_uuid7() for _ in range(5)]
+        element_ids = {role: new_uuid7() for role in (
+            "background", "primary_subject", "headline_block", "supporting_text_block",
+            "offer_block", "cta_block", "brand_mark",
+        )}
+        candidate = {
+            "hook": "One visible customer moment", "headline": "A specific vertical headline",
+            "primary_text": "The exact mechanism stays readable in the vertical safe area.",
+            "supporting_text": "A short concrete mechanism.",
+            "offer": "First consultation free", "cta": "Book now",
+            "caption": "A complete TikTok description.",
+            "alt_text": "A vertical photo post with a calm call to action.",
+            "visual_components": [
+                {"role": "composition", "content": "Vertical subject", "source_ids": []},
+                {"role": "lighting_style", "content": "Natural daylight", "source_ids": []},
+            ],
+        }
+        brand = natal_brand_document(logo_id)
+        adapter = TikTokPhotoAdapter(None, None, None, None)
+        signatures = set()
+        for strategy in strategies:
+            brief = {"offer": candidate["offer"], "cta": candidate["cta"]}
+            recipe = adapter._recipe(
+                candidate=candidate,
+                run=self._recipe_run(strategy, brand, brief, "tiktok_photo_post_v1"),
+                element_ids=element_ids, media_id=media_id,
+            )
+            contract = validate_recipe(
+                recipe, project_id=project_id, brief_id=brief_id,
+                brand_kit_id=brand_kit_id, brief=brief, brand_document=brand,
+            )
+            self.assertEqual((1080, 1920), (contract.value["width"], contract.value["height"]))
+            self.assertEqual(TIKTOK_PLACEMENT_ID, contract.value["placement_tool_id"])
+            metadata = contract.value["modifiers"][0]["params"]
+            signatures.add(tuple(
+                (item["key"], item["tool_id"], item["frame"]["x"], item["frame"]["y"])
+                for item in metadata["template_snapshot"]["components"]
+            ))
+            self.assertEqual(recipe, replay_template_application(metadata))
+        self.assertEqual(5, len(signatures))
+
+    @unittest.skipUnless(importlib.util.find_spec("PIL") is not None, "Pillow is required")
+    def test_tiktok_renderer_emits_a_vertical_jpeg(self) -> None:
+        from io import BytesIO
+        from PIL import Image
+
+        strategy = TemplateRegistry(REFERENCES / "templates").load_active()[0]
+        project_id, brief_id, brand_kit_id, logo_id, media_id = [new_uuid7() for _ in range(5)]
+        brief = {"offer": "First consultation free", "cta": "Book now"}
+        brand = natal_brand_document(logo_id)
+        recipe = TikTokPhotoAdapter(None, None, None, None)._recipe(
+            candidate={
+                "hook": "A concrete moment", "headline": "A clear vertical headline",
+                "primary_text": "A readable vertical mechanism.",
+                "supporting_text": "A bounded supporting line.",
+                "offer": brief["offer"], "cta": brief["cta"], "caption": "Description",
+                "alt_text": "A vertical branded photo post.",
+            },
+            run=self._recipe_run(strategy, brand, brief, "tiktok_photo_post_v1"),
+            element_ids={role: new_uuid7() for role in (
+                "background", "primary_subject", "headline_block", "supporting_text_block",
+                "offer_block", "cta_block", "brand_mark",
+            )}, media_id=media_id,
+        )
+        contract = validate_recipe(
+            recipe, project_id=project_id, brief_id=brief_id,
+            brand_kit_id=brand_kit_id, brief=brief, brand_document=brand,
+        )
+        media = BytesIO()
+        Image.new("RGB", (1080, 1920), "#4A4A4A").save(media, format="JPEG")
+        rendered = StudioRenderer().render(
+            recipe_id=new_uuid7(), recipe_digest=contract.digest, recipe=contract.value,
+            brand_kit={"document": brand}, assets={
+                logo_id: {"bytes": natal_logo_bytes(), "mime_type": "image/png"},
+                media_id: {"bytes": media.getvalue(), "mime_type": "image/jpeg"},
+            },
+        )
+        with Image.open(BytesIO(rendered["bytes"])) as image:
+            self.assertEqual((1080, 1920), image.size)
+            self.assertEqual("JPEG", image.format)
 
     def test_active_templates_reject_localized_static_text_and_unprotected_logo(self) -> None:
         path = ROOT / "validation_pipeline/studio_templates/instagram/contrast_reframe_v3.json"

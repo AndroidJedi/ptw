@@ -21,9 +21,14 @@ or refer to another candidate.
 - Result business input is exactly the approved Product Brief, owner task,
   Project brand kit, approved Project assets, allowed tool catalog, one strategy
   template, its exact digest-locked Studio component snapshot, exact slider
-  configuration, and deterministic writing bundle.
+  configuration, deterministic writing bundle, and—only for a lineage-linked
+  revision—the one selected `revision_instruction` with its permanent feedback,
+  parent-run, and Creative IDs.
 - Never request or infer from raw idea, research, market context, prior outputs,
   owner history, performance data, campaigns, or landing copy.
+- When `revision_instruction` is present, apply that exact requested change and
+  no other owner history; never alter its protected Brief, task, platform,
+  offer, CTA, brand, or source-policy values.
 - Preserve the Product Brief offer and CTA byte-for-byte in their protected
   fields and make both visible in every rendered profile.
 - Refer only to supplied source, element, tool, Project, Brief, template, and
@@ -44,7 +49,10 @@ or refer to another candidate.
   non-human graphic direction. Use approved Project assets when identified;
   otherwise request a bounded Pexels real photo. Request a non-human generated
   graphic only when the task explicitly permits it.
-- For `instagram_static_ad_v1`, return exactly nine visual components, once
+- `tiktok_photo_post_v1` follows the same media policy, using the supplied
+  vertical TikTok photo template and treating `caption` as the exported post
+  description.
+- For either static-social profile, return exactly nine visual components, once
   each, in this order: `background`, `primary_subject`, `headline_block`,
   `supporting_text_block`, `offer_block`, `cta_block`, `brand_mark`,
   `lighting_style`, and `composition`. Do not substitute optional badges or

@@ -238,7 +238,7 @@ CREATE TABLE studio_renders (
     attempt_id uuid NOT NULL UNIQUE REFERENCES studio_render_attempts(id) ON DELETE RESTRICT,
     mime_type text NOT NULL CHECK (mime_type='image/jpeg'),
     width integer NOT NULL CHECK (width=1080),
-    height integer NOT NULL CHECK (height=1080),
+    height integer NOT NULL CHECK (height IN (1080,1920)),
     bytes bytea NOT NULL,
     bytes_sha256 char(64) NOT NULL,
     manifest jsonb NOT NULL,
@@ -256,7 +256,9 @@ CREATE TABLE content_generation_runs (
     brief_id uuid NOT NULL REFERENCES product_briefs(entity_id) ON DELETE RESTRICT,
     task_source_id uuid NOT NULL UNIQUE REFERENCES commander_sources(entity_id) ON DELETE RESTRICT,
     brand_kit_id uuid NOT NULL REFERENCES project_brand_kits(entity_id) ON DELETE RESTRICT,
-    output_profile text NOT NULL CHECK (output_profile IN ('marketing_copy_v1','instagram_static_ad_v1')),
+    output_profile text NOT NULL CHECK (output_profile IN (
+        'marketing_copy_v1','instagram_static_ad_v1','tiktok_photo_post_v1'
+    )),
     task text NOT NULL CHECK (length(btrim(task)) BETWEEN 1 AND 4000),
     context_bundle jsonb NOT NULL,
     context_sha256 char(64) NOT NULL,
@@ -337,7 +339,7 @@ CREATE TABLE content_candidate_previews (
     candidate_id uuid PRIMARY KEY REFERENCES content_candidates(entity_id) ON DELETE RESTRICT,
     mime_type text NOT NULL CHECK (mime_type='image/jpeg'),
     width integer NOT NULL CHECK (width=1080),
-    height integer NOT NULL CHECK (height=1080),
+    height integer NOT NULL CHECK (height IN (1080,1920)),
     bytes bytea NOT NULL,
     bytes_sha256 char(64) NOT NULL,
     renderer_version text NOT NULL,

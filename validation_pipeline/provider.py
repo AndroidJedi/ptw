@@ -134,6 +134,8 @@ class StructuredBridge:
         encoded: list[dict[str, Any]] = []
         total = 0
         seen: set[str] = set()
+        profile = str(input_payload.get("output_profile") or "instagram_static_ad_v1")
+        expected_size = (1080, 1920) if profile == "tiktok_photo_post_v1" else (1080, 1080)
         for item in images:
             if set(item) != {
                 "candidate_id", "bytes", "sha256", "mime_type", "width", "height",
@@ -151,17 +153,20 @@ class StructuredBridge:
                 or not 1 <= len(data) <= MAX_CRITIC_IMAGE_BYTES
                 or digest != str(item["sha256"])
                 or str(item["mime_type"]) != "image/jpeg"
-                or int(item["width"]) != 1080
-                or int(item["height"]) != 1080
+                or int(item["width"]) != expected_size[0]
+                or int(item["height"]) != expected_size[1]
             ):
-                raise ValueError("Result critic attachment is not an exact bounded 1080x1080 JPEG")
+                raise ValueError(
+                    "Result critic attachment is not an exact bounded "
+                    f"{expected_size[0]}x{expected_size[1]} JPEG"
+                )
             total += len(data)
             encoded.append({
                 "candidate_id": candidate_id,
                 "mime_type": "image/jpeg",
                 "digest": digest,
-                "width": 1080,
-                "height": 1080,
+                "width": expected_size[0],
+                "height": expected_size[1],
                 "bytes_base64": base64.b64encode(data).decode("ascii"),
             })
         if total > MAX_CRITIC_TOTAL_IMAGE_BYTES:

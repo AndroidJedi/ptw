@@ -1,9 +1,149 @@
 # Commander current state
 
-Updated: 2026-08-30
+Updated: 2026-08-31
 Branch: `codex/web-only-commander`
 
 ## Current milestone
+
+The local Universal Ad evaluation and owner-approved learning loop is complete
+in the dirty checkout and is not deployed. The former deterministic local
+Brief/Result demo is replaced by a digest-chained, append-only file authority
+under `.local/owner-experiments`. It persists UUIDv7 Projects, Briefs, approved
+assets, runs, candidates/elements, exact PNG/JPEG artifacts, sanitized provider
+invocations, three critic passes, typed actions, Results, feedback,
+WeightUpdates, outcomes, releases, checkpoints, lesson proposals/decisions,
+lesson snapshots, and relationship edges with atomic writes and idempotent
+request reservations. Startup requeues interrupted work with its latest
+checkpoint ID; immutable artifacts and prior revisions are retained.
+
+Local Brief generation/correction/retry/explicit approval now uses
+`product-brief-generator`. Run creation accepts only request ID, approved Brief
+ID, fixed Instagram platform, and the saved Studio state digest. The server
+captures the saved export, resolves all task/configuration/skills/strategies/
+lessons, and refuses unsaved drafts. Project asset upload, Pexels sourcing, and
+owner approval are local-only; the four photographic strategies require
+distinct approved real photos and fail preflight before model calls when the
+pool is insufficient. Bundled Tune images and synthetic people are excluded.
+
+The authenticated Codex CLI boundary uses empty temporary working directories,
+ephemeral sessions, the read-only sandbox, strict output schemas, exact JPEG
+critic attachments, one fresh retry, timeouts, and sanitized digest provenance.
+The `universal_ad_experiment_v1` adapter maps the five existing strategies to
+declared bounded Universal setting patches. Five isolated initial candidates,
+at most four improvements across Passes 1–2, two Pass-3 finalists, and one
+eligible selection or no Result reuse the canonical candidate and critic
+skills. Every 1080×1080 PNG is audited for role coverage, overflow,
+truncation, collision, safe area, contrast, semantic flow, and byte-exact
+offer/CTA before its deterministic JPEG can be scored.
+
+Universal Studio now has eight stable roles: background, sticker, hero title,
+supporting text, required offer, bullets, CTA, and logo. The configuration
+contract remains `ptw.studio.universal-ad-config.v4`; content is v2, workspace
+v5, component settings v2, immutable version v2, export v4, agent context v2,
+and the internal template is v9. Ready leaves the editable workspace unchanged,
+appends owner feedback/outcomes, and creates a digest-manifested immutable ZIP
+with the critic-identical JPEG and canonical PNG. Improve creates an immutable
+child from the selected candidate plus only the owner revision instruction.
+
+The Social Posts workspace exposes local asset controls and a `Learning &
+evidence` panel with gate rates, score deltas, setting changes, outcomes,
+releases, and the lesson queue. Feedback proposes bounded lessons for the Brief
+generator, candidate generator, critic, and Universal layout policy. Only
+active owner-approved lessons enter later digest-locked snapshots; pending and
+rejected proposals do not. The reserved agent authority is rejected. Evidence
+is explicitly internal and is not presented as market performance.
+
+Local verification passes 85 Validation tests with four disposable-PostgreSQL
+tests skipped, 5 Owner Gateway tests, 32 web unit tests and the production
+build, all 18 Playwright checks across desktop Chrome, 360-pixel Chrome, and
+iPhone WebKit, all 7 Commander tests and the demo, the six-variant focused
+Studio visual audit, canonical PTW skill verification, Python compilation, and
+`git diff --check`. Docker Desktop is installed but its daemon socket is absent,
+so built-image and disposable-PostgreSQL checks remain environment-blocked and
+production was not used as a substitute. No deploy, publishing call,
+production reset/mutation, or market-performance ingestion occurred.
+
+The confirmation-gated `scripts/reset_ptw_local.sh` validates exact paths,
+refuses active runs/Tune work or a local service from this checkout, deletes
+only `.local/studio-workspace`, `.local/studio-tune`, and
+`.local/owner-experiments`, proves them empty, and preserves unrelated `.local`
+diagnostics and archives. The confirmed reset was executed after stopping the
+checkout's loopback launcher; all three allowlisted stores are empty and the
+focused `.local/studio-audit-local-loop` evidence remains present. A real acceptance run still requires an owner-approved
+Brief and four approved real-photo assets; automated tests do not impersonate
+that approval.
+
+## Prior milestone
+
+The Social Posts workspace refactor is complete locally and is not deployed.
+The former Instagram-only Result page is now a responsive master-detail
+workspace for Instagram square posts and TikTok vertical photo posts. Its
+searchable navigator switches Projects, filters platform/review state, groups
+child revisions beneath their original artifact, and persists the selection in
+`?page=result&project=<uuid>&run=<uuid>`. At 360 px it becomes a compact drawer
+with no horizontal overflow. The normal detail view is a platform-native mock
+post; the duplicated source, hook/headline/body/CTA transcription, rationale,
+and open technical trace are removed. Alt text, authoritative asset metadata,
+and the bounded decision trace remain in one collapsed advanced panel.
+
+New post selects Instagram or TikTok and defaults to the newest approved
+Product Brief. Generation is enabled whenever an approved Brief exists and no
+request is active; otherwise the screen explains the prerequisite and links to
+Product Briefs. Ready appends accepted feedback and unlocks the validated
+image/caption/alt export package. Improve requires a normalized 3–2000
+character comment and transactionally appends rejected HumanFeedback, a
+zero-delta WeightUpdate, outcome/graph edges, and a pending child run. The
+child inherits Project, Brief, task, and platform and contains only the selected
+versioned revision instruction. Review state is the latest feedback projection;
+older feedback and weight history remain immutable. Failed children stay in the
+navigator and use the existing idempotent retry path. No platform publishing,
+training, or automatic weight change was added.
+
+The public create boundary accepts only request ID, Brief ID, and optional
+`instagram`/`tiktok`; omitted platform remains backward-compatible Instagram.
+Owner Gateway maps both channels to fixed server-owned tasks/profiles and
+rejects task/profile injection. Run-list rows now project platform, review
+state, revision number, parent run, and compact render metadata in one query.
+The new revision route resolves the parent Creative server-side and persists
+feedback plus child lineage in one idempotent PostgreSQL transaction.
+
+`tiktok_photo_post_v1` stays behind a channel adapter. It adds placement
+`studio.placement.tiktok.photo_vertical.v1`, five digest-locked version-3
+vertical snapshots, profile-specific safe bounds/catalog/renderer identity,
+and deterministic 1080×1920 JPEG output. The Instagram placement, active
+snapshot digests, default renderer identity, and historical byte-exact replay
+are unchanged. A full five-template TikTok canary passes English/Ukrainian
+rendering and all ten pairwise distinction checks.
+
+The safe deterministic loopback launcher remains unchanged. A separate
+`scripts/run_live_social_workspace.sh` requires the exact
+`--confirm-live-production=LIVE_PRODUCTION_DATA` flag and a registered App
+Check debug token. It uses real Firebase owner Auth/App Check for Project,
+Brief, and Social Post traffic through the public Owner Gateway, routes only
+Studio to its existing loopback service, shows a persistent live-data banner,
+and reconfirms create/revision actions. It never exposes PostgreSQL, platform
+bridge, provider credentials, or copied production service tokens to the
+browser.
+
+The clean schema baseline changes to admit the TikTok output profile and
+1920-pixel render height. Therefore TikTok/revision generation cannot be used
+against production until the owner separately authorizes the confirmation-
+gated reset and rollout. No deployment, reset, production mutation, or direct
+social-platform call was performed in this milestone.
+
+Local verification passes 76 Validation tests (four disposable-PostgreSQL
+tests skip because this checkout has no running Docker daemon or test DSN), all
+5 Owner Gateway tests, all 32 web unit/build checks, all 18 Playwright checks
+across desktop Chrome, 360-pixel Chrome, and iPhone WebKit, all 7 Commander
+tests in the project environment, the Commander demo, the full TikTok
+five-template bilingual canary, the 40-example Result corpus check, the PTW
+skill-contract check, launcher shell validation, and `git diff --check`.
+Docker schema application and the new transactional PostgreSQL lifecycle test
+remain environment-blocked rather than simulated; production was not used as
+a substitute.
+
+The prior local Universal Ad Studio milestone follows and remains part of the
+same dirty checkout.
 
 The Universal Ad Studio refactor is complete locally and is not deployed. The
 Owner Console's third `Studio` destination now exposes one fixed
@@ -21,7 +161,7 @@ tree, arbitrary property inspector, reference upload, pixel matching, or
 calibration history.
 
 The local Studio settings milestone now advances the universal configuration
-to `ptw.studio.universal-ad-config.v4` and internal template version 7. The
+to `ptw.studio.universal-ad-config.v4` and internal template version 8. The
 background inspector shows exact hex colors, removes paper, and offers grain
 plus deterministic stone, marble, concrete, granite, slate, and travertine
 surfaces with a texture-intensity slider. It exposes overlay color and opacity
@@ -45,13 +185,17 @@ right and bottom adjustments. The placement disclosure is now named only
 width, object scale, and the two offsets each refresh the unsaved preview;
 transient numeric typing no longer poisons the draft, and the bounded offsets
 accept -720 through 720 so the owner's 500-pixel adjustment renders normally.
-The fixed seven-role semantic structure, three asset slots, generic primitive
-renderer, and Instagram adapter boundary remain unchanged.
+Logo, copy, bullets, and CTA now fit one composition-alignment rectangle. The
+top-corner logo and bottom CTA presets use the same content-controlled top/left
+and safe right/bottom edges. The fixed seven-role semantic structure, three
+asset slots, generic primitive renderer, and Instagram adapter boundary remain
+unchanged.
 
-New workspaces resolve the verified canonical Natal PNG in the logo slot,
-enable it at the top right by default, and render it over a light rounded
-contrast surface. A dedicated logo disclosure keeps upload, visibility,
-background visibility/color, top-corner position, and bounded width together.
+New workspaces resolve the verified canonical Natal PNG in the logo slot and
+enable it without a backing surface at the top right by default. The optional
+rounded contrast surface remains owner-controlled. A dedicated logo disclosure
+keeps upload, visibility, background visibility/color, top-corner position, and
+bounded width together.
 The owner can remove the background while keeping the logo visible or upload a
 PNG/WebP replacement; an upload overrides the fallback with owner provenance
 and re-enables the logo. Layout and audit rules keep the visible logo treatment
@@ -156,7 +300,7 @@ object with a smooth white die-cut contour sized from the actual fitted alpha
 silhouette, reserved transparent edge room, and a subtle outside shadow. It has
 bounded position, rotation, width, and object scale, with no rectangular paper
 backing or blurred white glow. This render contract is the local internal
-Universal Studio template version 7. Bullets, sticker, and logo can be omitted
+Universal Studio template version 8. Bullets, sticker, and logo can be omitted
 without changing
 the semantic structure or breaking the composition.
 
@@ -199,7 +343,7 @@ reference/calibration routes, evaluator, installer, tests, and text fixtures
 were removed. No deployment, reset, database mutation, publication, or
 production contact was performed.
 
-Local verification passes the complete 70-test Validation suite (three
+Local verification passes the complete 71-test Validation suite (three
 disposable-PostgreSQL lifecycle tests skipped), five Owner Gateway tests, all
 28 web unit tests, the production web build, and all 18 Playwright journeys on
 desktop Chromium, 360 px Chromium, and iPhone WebKit. All seven Commander tests,

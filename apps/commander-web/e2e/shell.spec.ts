@@ -18,6 +18,7 @@ const studioComponents = [
   ['sticker', ['sticker_object'], ['sticker_object']],
   ['hero_title', ['hero_title'], []],
   ['supporting_text', ['supporting_text'], []],
+  ['offer', ['offer'], []],
   ['bullet_list', ['bullet_marker_1', 'bullet_1', 'bullet_marker_2', 'bullet_2', 'bullet_marker_3', 'bullet_3'], []],
   ['cta', ['cta'], []],
   ['logo', ['logo_surface', 'logo'], ['logo']],
@@ -27,10 +28,10 @@ const studioComponents = [
 }))
 
 const studioDetail = {
-  schema: 'ptw.studio.universal-ad-workspace.v4',
+  schema: 'ptw.studio.universal-ad-workspace.v5',
   catalog: {
-    schema: 'ptw.studio.universal-ad-catalog.v4', template_id: 'universal_ad', template_version: 7,
-    semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'bullet_list', 'cta', 'logo'],
+    schema: 'ptw.studio.universal-ad-catalog.v4', template_id: 'universal_ad', template_version: 9,
+    semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'offer', 'bullet_list', 'cta', 'logo'],
     components: studioComponents,
     asset_slots: {},
     variation: {
@@ -57,10 +58,14 @@ const studioDetail = {
     sticker: { enabled: false, position: 'top_right', rotation: -6, width: 320, object_scale: 0.82, offset_right: 0, offset_bottom: 0 },
     logo: { enabled: true, position: 'top_right', width: 180, background_enabled: true, background_color: '#FFFFFF' },
   },
-  content: { hero_title: 'PROVE THE IDEA', supporting_text: 'A focused offer.', bullets: [], cta: 'TEST DEMAND' },
+  content: {
+    schema: 'ptw.studio.universal-ad-content.v2', hero_title: 'PROVE THE IDEA',
+    supporting_text: 'A focused offer.', offer: 'First consultation free',
+    bullets: [], cta: 'TEST DEMAND',
+  },
   component_settings: {
-    schema: 'ptw.studio.universal-ad-component-settings.v1', template_id: 'universal_ad',
-    template_version: 7, configuration_schema: 'ptw.studio.universal-ad-config.v4',
+    schema: 'ptw.studio.universal-ad-component-settings.v2', template_id: 'universal_ad',
+    template_version: 9, configuration_schema: 'ptw.studio.universal-ad-config.v4',
     components: studioComponents.map(({ setting_ids: _settingIds, ...component }) => ({
       ...component, settings: [],
     })),
@@ -103,10 +108,11 @@ const brief = {
 
 const run = {
   run_id: runId, request_id: runId, parent_run_id: null, project_id: projectId,
-  brief_id: briefId, output_profile: 'instagram_static_ad_v1',
+  brief_id: briefId, output_profile: 'instagram_static_ad_v1', platform: 'instagram',
   task: 'Create one ready-to-publish Instagram feed post using Natal.',
   status: 'completed', current_stage: 'completed', progress_percent: 100,
   maximum_minutes: 45, final_result_id: creativeId,
+  review_state: 'unreviewed', revision_number: 0,
   created_at: '2026-08-26T08:10:00Z', updated_at: '2026-08-26T08:14:00Z',
 }
 
@@ -117,7 +123,9 @@ const result = {
     'The hook starts with a concrete moment of hesitation.',
     'The offer and next step remain immediately clear.',
   ],
-  result_sha256: 'c'.repeat(64), content_sha256: 'd'.repeat(64), asset_url: null,
+  result_sha256: 'c'.repeat(64), content_sha256: 'd'.repeat(64),
+  asset_url: `/api/v1/content-runs/${runId}/result/asset`, asset_sha256: candidateSha256,
+  asset_mime_type: 'image/jpeg', asset_width: 1080, asset_height: 1080,
   created_at: '2026-08-26T08:14:00Z',
   content: {
     hook: 'You do not need to commit to therapy to start one honest conversation.',
@@ -125,7 +133,8 @@ const result = {
     supporting_text: 'Transparent profiles. Simple booking. No card required.',
     offer: briefDocument.offer, cta: briefDocument.cta,
     caption: 'One conversation can make the next step clearer.',
-    alt_text: '', desired_emotion: 'calm confidence', visual_concept: '',
+    alt_text: 'A calm square therapy post with one clear next step.',
+    desired_emotion: 'calm confidence', visual_concept: '',
   },
 }
 
@@ -192,6 +201,11 @@ test.beforeEach(async ({ page }) => {
       status, contentType: 'application/json', body: JSON.stringify(value),
     })
     if (url.pathname === '/api/v1/projects') return json({ items: [project], next_cursor: null })
+    if (url.pathname === `/api/v1/projects/${projectId}/assets`) return json({ items: [] })
+    if (url.pathname === '/api/v1/learning-summary') return json({
+      schema: 'ptw.local-learning-summary.v1', market_performance: false,
+      runs: [], lesson_queue: [], approved_lessons: [],
+    })
     if (url.pathname === '/api/v1/studio' && method === 'GET') return json(studioDetail)
     if (url.pathname === '/api/v1/studio/tune' && method === 'GET') return json({
       schema: 'ptw.studio.tune-service.v1', mode: 'local_only', available: true,
@@ -244,6 +258,12 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname === '/api/v1/content-runs' && method === 'GET') return json({ items: [run], next_cursor: null })
     if (url.pathname === `/api/v1/content-runs/${runId}`) return json(run)
     if (url.pathname === `/api/v1/content-runs/${runId}/result`) return json(result)
+    if (url.pathname === `/api/v1/content-runs/${runId}/result/asset`) return route.fulfill({
+      status: 200,
+      contentType: 'image/jpeg',
+      headers: { ETag: `"${candidateSha256}"`, 'Cache-Control': 'private, no-store' },
+      body: candidateBytes,
+    })
     if (url.pathname === `/api/v1/content-runs/${runId}/debug`) return json(debug)
     if (url.pathname.includes(`/api/v1/content-runs/${runId}/candidates/`) && url.pathname.endsWith('/asset')) {
       return route.fulfill({
@@ -258,12 +278,12 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('shows Product Brief, one-click Instagram post, and Universal Ad Studio workspaces', async ({ page }) => {
+test('shows Product Brief, Social Posts, and Universal Ad Studio workspaces', async ({ page }, testInfo) => {
   await page.goto('/?e2e=1')
   await expect(page.getByRole('button', { name: 'Продуктові брифи' }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Змінити мову' }).click()
   await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Instagram post' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Social posts' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Studio' }).first()).toBeVisible()
   await page.reload()
   await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
@@ -271,15 +291,30 @@ test('shows Product Brief, one-click Instagram post, and Universal Ad Studio wor
   await expect(page.getByText('Ads', { exact: true })).toHaveCount(0)
   await expect(page.getByText('Landing', { exact: true })).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'Instagram post' }).first().click()
-  await expect(page.getByRole('heading', { name: 'Instagram post' })).toBeVisible()
-  await expect(page.getByText('Natal branding is applied automatically. Nothing else is required.')).toBeVisible()
+  await page.getByRole('button', { name: 'Social posts' }).first().click()
+  await expect(page.getByRole('heading', { name: 'Social posts' })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => Object.fromEntries(
+    new URLSearchParams(window.location.search),
+  ))).toMatchObject({ page: 'result', project: projectId, run: runId })
   await expect(page.getByLabel('Task')).toHaveCount(0)
   await expect(page.getByRole('radio', { name: 'Text' })).toHaveCount(0)
   await expect(page.getByText('PROJECT BRAND KIT')).toHaveCount(0)
-  await expect(page.getByText(result.content.hook)).toBeVisible()
-  await expect(page.getByText('WHY THIS DIRECTION')).toBeVisible()
-  await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
+  await expect(page.getByRole('article', { name: 'instagram post preview' })).toBeVisible()
+  await expect(page.getByText(result.content.caption)).toBeVisible()
+  await expect(page.getByText(result.content.hook)).toHaveCount(0)
+  await expect(page.getByText(result.content.headline)).toHaveCount(0)
+  await expect(page.getByText('WHY THIS DIRECTION')).toHaveCount(0)
+  await expect(page.getByText('SOURCE', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Learning & evidence' })).toBeVisible()
+  await expect(page.getByText('Internal evaluation only — never a market-performance claim.')).toBeVisible()
+  if (testInfo.project.name === 'desktop') {
+    await expect(page.getByLabel('Projects and artifacts')).toBeVisible()
+  } else {
+    await expect(page.getByLabel('Projects and artifacts')).toBeHidden()
+    await page.getByRole('button', { name: 'Projects and artifacts' }).click()
+    await expect(page.getByLabel('Projects and artifacts')).toBeVisible()
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
 test('opens the Universal Ad Studio and persists its bounded configuration', async ({ page }) => {
@@ -291,7 +326,7 @@ test('opens the Universal Ad Studio and persists its bounded configuration', asy
   await expect(page.locator('.universal-canvas-panel')).toBeVisible()
   await expect(page.locator('.universal-controls')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Build the composition at a glance' })).toBeVisible()
-  await expect(page.getByText('ALWAYS ON')).toHaveCount(4)
+  await expect(page.getByText('ALWAYS ON')).toHaveCount(5)
   await expect(page.getByLabel('Enable logo')).toBeChecked()
   await expect(page.getByLabel('Upload logo', { exact: true })).toBeEnabled()
   const logoOffPreviewRequest = page.waitForRequest((candidate) => {
@@ -500,24 +535,24 @@ test('opens the local Tune wizard and submits all three generation inputs', asyn
 test('separates new Project creation from the selected Project workspace', async ({ page }) => {
   await page.goto('/?e2e=1')
   await page.getByRole('button', { name: 'Змінити мову' }).click()
-  await expect(page.getByText('BRIEF HISTORY')).toBeVisible()
+  await expect(page.getByText('BRIEF HISTORY', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'What do you want to validate?' })).toHaveCount(0)
 
   await page.getByRole('button', { name: 'New Project' }).click()
   await expect(page.getByRole('heading', { name: 'New Project' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'What do you want to validate?' })).toBeVisible()
-  await expect(page.getByText('BRIEF HISTORY')).toHaveCount(0)
+  await expect(page.getByText('BRIEF HISTORY', { exact: true })).toHaveCount(0)
 
   await page.getByLabel('Existing Project').selectOption(projectId)
-  await expect(page.getByText('BRIEF HISTORY')).toBeVisible()
+  await expect(page.getByText('BRIEF HISTORY', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'What do you want to validate?' })).toHaveCount(0)
 })
 
-test('shows five candidate layouts, parameters, and the visual decision path', async ({ page }) => {
+test('keeps candidate parameters and the decision path in collapsed advanced details', async ({ page }) => {
   await page.goto('/?e2e=1')
   await page.getByRole('button', { name: 'Змінити мову' }).click()
-  await page.getByRole('button', { name: 'Instagram post' }).first().click()
-  await page.getByText('See all five directions and the decision').click()
+  await page.getByRole('button', { name: 'Social posts' }).first().click()
+  await page.getByText('Export details and decision trace').click()
 
   await expect(page.getByRole('heading', { name: 'Every image and its exact generation parameters' })).toBeVisible()
   await expect(page.locator('.candidate-card')).toHaveCount(5)

@@ -12,7 +12,7 @@ const componentRoles = [
   ['offer', ['offer'], []],
   ['bullet_list', ['bullet_marker_1', 'bullet_1', 'bullet_marker_2', 'bullet_2', 'bullet_marker_3', 'bullet_3'], []],
   ['cta', ['cta'], []],
-  ['logo', ['logo_surface', 'logo'], ['logo']],
+  ['logo', ['logo'], ['logo']],
 ] as const
 
 const componentDefinitions = componentRoles.map(([role, nodeIds, assetSlotIds]) => ({
@@ -27,7 +27,7 @@ const detail: StudioUniversalDetail = {
   schema: 'ptw.studio.universal-ad-workspace.v5',
   catalog: {
     schema: 'ptw.studio.universal-ad-catalog.v4',
-    template_id: 'universal_ad', template_version: 9,
+    template_id: 'universal_ad', template_version: 10,
     semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'offer', 'bullet_list', 'cta', 'logo'],
     components: componentDefinitions,
     asset_slots: {},
@@ -69,7 +69,7 @@ const detail: StudioUniversalDetail = {
     },
     logo: {
       enabled: true, position: 'top_right', width: 180,
-      background_enabled: true, background_color: '#FFFFFF',
+      background_enabled: false, background_color: '#FFFFFF',
     },
   },
   content: {
@@ -82,7 +82,7 @@ const detail: StudioUniversalDetail = {
   },
   component_settings: {
     schema: 'ptw.studio.universal-ad-component-settings.v2',
-    template_id: 'universal_ad', template_version: 9,
+    template_id: 'universal_ad', template_version: 10,
     configuration_schema: 'ptw.studio.universal-ad-config.v4',
     components: componentDefinitions.map(({ setting_ids, ...component }) => ({
       ...component,
@@ -95,13 +95,16 @@ const detail: StudioUniversalDetail = {
       slot: 'background_image', role: 'background', description: 'Background',
       allowed_mime_types: ['image/jpeg', 'image/png', 'image/webp'], available: true,
       mime_type: 'image/png', sha256: 'f'.repeat(64), byte_count: 1000,
-      source: { origin: 'bundled_tune_asset' },
+      source: { origin: 'pexels', provider: 'pexels', external_id: '4100' },
     },
     {
       slot: 'sticker_object', role: 'sticker', description: 'Sticker',
       allowed_mime_types: ['image/png', 'image/webp'], available: true,
       mime_type: 'image/png', sha256: 'e'.repeat(64), byte_count: 1000,
-      source: { origin: 'bundled_tune_asset' },
+      source: {
+        origin: 'pexels', provider: 'pexels', external_id: '4101',
+        transformation: 'edge_color_soft_alpha_v1',
+      },
     },
     {
       slot: 'logo', role: 'logo', description: 'Logo',
@@ -209,7 +212,7 @@ describe('Universal Ad Studio', () => {
     const { api, post } = studioApi()
     render(<StudioView api={api} language="en" />)
 
-    expect(await screen.findByText('universal_ad · v9')).toBeInTheDocument()
+    expect(await screen.findByText('universal_ad · v10')).toBeInTheDocument()
     expect(screen.queryByText('ONE TEMPLATE · CONFIGURATION-FIRST')).not.toBeInTheDocument()
     expect(screen.queryByText('Universal Ad Studio')).not.toBeInTheDocument()
     expect(screen.getByText('8 stable semantic roles')).toBeInTheDocument()
@@ -286,16 +289,16 @@ describe('Universal Ad Studio', () => {
     expect(screen.getAllByText(/owner_upload/).length).toBeGreaterThan(0)
   })
 
-  it('keeps logo visibility, background, position, size, and upload together', async () => {
+  it('keeps logo visibility, position, size, and upload together without a backing control', async () => {
     const { api } = studioApi()
     render(<StudioView api={api} language="en" />)
 
     await screen.findByText('Preview matches the saved setup')
-    fireEvent.click(screen.getByText('Brand mark and background'))
+    fireEvent.click(screen.getByText('Brand mark'))
     expect(screen.getByLabelText('Upload logo')).toBeInTheDocument()
     expect(screen.getByLabelText('Show logo')).toBeChecked()
-    expect(screen.getByLabelText('Show logo background')).toBeChecked()
-    expect(screen.getByLabelText('Logo background color')).toHaveValue('#ffffff')
+    expect(screen.queryByLabelText('Show logo background')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Logo background color')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Logo position')).toHaveValue('top_right')
     expect(screen.getByLabelText('Logo width')).toHaveValue(180)
 
@@ -320,18 +323,6 @@ describe('Universal Ad Studio', () => {
     ))
     expect(screen.getByLabelText('Enable logo')).toBeChecked()
     expect(await screen.findByText('Preview matches the saved setup')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByLabelText('Show logo background'))
-    await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
-      expect.objectContaining({
-        configuration: expect.objectContaining({
-          logo: expect.objectContaining({ enabled: true, background_enabled: false }),
-        }),
-      }),
-      'image/png',
-      { deadlineMs: 90_000 },
-    ))
 
     fireEvent.change(screen.getByLabelText('Logo position'), { target: { value: 'top_left' } })
     fireEvent.change(screen.getByLabelText('Logo width'), { target: { value: '240' } })

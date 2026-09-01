@@ -1,6 +1,6 @@
 # Commander current state
 
-Updated: 2026-08-31
+Updated: 2026-09-01
 Branch: `codex/web-only-commander`
 
 ## Current milestone
@@ -20,31 +20,55 @@ Local Brief generation/correction/retry/explicit approval now uses
 `product-brief-generator`. Run creation accepts only request ID, approved Brief
 ID, fixed Instagram platform, and the saved Studio state digest. The server
 captures the saved export, resolves all task/configuration/skills/strategies/
-lessons, and refuses unsaved drafts. Project asset upload, Pexels sourcing, and
-owner approval are local-only optional enrichment. Photo-capable strategies use
-distinct approved real photos when available; otherwise adapter v4 assigns four
-distinct deterministic Studio textures with explicit non-human provenance.
-Missing assets or `PEXELS_API_KEY` no longer block one-click generation.
-Bundled Tune images and synthetic people remain excluded.
+lessons, and refuses unsaved drafts. Adapter v8 requires `PEXELS_API_KEY` and
+sources exactly three fresh, distinct Pexels real photographs for the three
+image-backed directions on every new run. Their provider/photo/license/query/
+run provenance is retained, and later runs exclude earlier Project provider IDs
+and image digests. The remaining directions use one deterministic texture and
+one solid composition. The contrast direction sources a separate
+ultra-realistic Pexels object, isolates it deterministically, and records a
+texture-alignment direction covering light, palette, material, grain, and
+perspective. Generated, procedural, repeated, and repository-bundled background
+or sticker fallbacks are removed; absent Pexels configuration or unusable media
+fails before candidate generation. The five strategies retain different crops,
+palettes, typography, hierarchy, CTA treatment, composition, and optional-role
+states.
 
 The authenticated Codex CLI boundary uses empty temporary working directories,
 ephemeral sessions, the read-only sandbox, strict output schemas, exact
 persisted JPEG critic attachments, one fresh retry, timeouts, and sanitized
-digest provenance. Local structured calls retain `xhigh` reasoning. Each
+digest provenance. Active local Result runs now expose one confirmation-gated
+Terminate button. Its loopback-only route sets a run-scoped cancellation event,
+terminates the exact Codex process group without a fresh retry, and appends a
+terminal `terminated` checkpoint/revision while retaining intermediate
+evidence. Terminated runs can be retried only as immutable children; production
+routes and state are unchanged. Local structured calls retain `xhigh` reasoning. Each
 candidate keeps its authoritative 1080×1080 PNG and JPEG while the critic
 receives a separate deterministic 480×480 analysis JPEG: approximately five
 times fewer pixels and, on the incident set, 5.2 times fewer encoded bytes.
 The derivative persists its source digests, exact rational scale, dimensions,
 and encoder version; full-resolution deterministic gates remain authoritative.
 The `universal_ad_experiment_v1` adapter maps the five existing strategies to
-declared bounded Universal setting patches. Five isolated initial candidates
+declared bounded Universal setting patches. Its pre-critic diversity audit
+requires five unique setting signatures and background colors, sticker
+presence with Pexels/isolation/texture-alignment provenance, exactly three
+image-backed directions with three distinct Pexels IDs, SHA-256 values, and
+treatments, no logo-backing node, multiple
+background modes, four font families and CTA treatments, and minimum pairwise
+declared-setting and decoded-pixel distances.
+Owner-approved layout patches replay only onto their originating strategy;
+legacy unscoped patches cannot collapse every direction into the selected
+recipe. Five isolated initial candidates
 enter three `xhigh` critic calls with exact attachment counts `[3, 2, 2]`: an
 independent three-candidate screen, an independent two-candidate screen, then a
 comparison of only both group winners with both structured summaries. The
 local screens permit no improvement actions. One eligible selection or no
-Result reuses the canonical candidate and critic skills. Every 1080×1080 PNG is audited for role coverage, overflow,
-truncation, collision, safe area, contrast, semantic flow, and byte-exact
-offer/CTA before its deterministic JPEG can be scored.
+Result reuses the canonical candidate and critic skills. Every 1080×1080 PNG is
+audited for role coverage, overflow, truncation, collision, safe area, contrast,
+semantic flow, and byte-exact offer/CTA before its deterministic JPEG can be
+scored. Button primitives now retain their internal text-layout diagnostics;
+the protected CTA uses a wider bounded treatment and cannot silently clip while
+the layout audit reports success.
 
 A disposable real-Codex canary replayed the failed incident inputs through this
 exact grouped boundary without touching the experiment store. At `xhigh`, all
@@ -55,14 +79,18 @@ full-size JPEGs, a 5.213× reduction. The final comparison returned no eligible
 selection for those historical candidates, so quality still failed closed
 after transport completed rather than timing out.
 
-Failed local Results now load their bounded debug evidence automatically even
-without a final Creative. The Console displays all persisted candidate
+Completed local Results now load their bounded selection evidence automatically
+and place all five authenticated candidate previews before the final post, with
+the selected direction visibly marked and the exact three-stage critic path
+shown in the main view instead of hiding it inside export details. Failed local
+Results likewise load their bounded debug evidence automatically even without a
+final Creative. The Console displays all persisted candidate
 previews, the correct three/two screening score for each, failed gates, score
 dimensions, eligibility, reason codes, rankings, pairwise results,
 observations, and the explicit no-selection comparison. The incident also
 exposed and fixed a semantic/render mismatch: candidate metadata had called the
 captured canonical Natal logo empty and described hidden bullet lists. Adapter
-v4 injects the resolved optional-role contract before generation,
+v8 injects the resolved optional-role contract before generation,
 deterministically aligns alt text and role descriptions to the exact render,
 records those transformations, and supplies captured saved-logo provenance to
 the critic as approved Studio identity.
@@ -71,7 +99,11 @@ Universal Studio now has eight stable roles: background, sticker, hero title,
 supporting text, required offer, bullets, CTA, and logo. The configuration
 contract remains `ptw.studio.universal-ad-config.v4`; content is v2, workspace
 v5, component settings v2, immutable version v2, export v4, agent context v2,
-and the internal template is v9. Ready leaves the editable workspace unchanged,
+and the internal template is v10. Template v10 removes the logo backing node
+and editor controls; stored v4 backing fields remain readable but always
+normalize disabled. New workspaces start on a deterministic texture with no sticker and no bundled
+background/sticker assets; only the canonical transparent logo is preloaded.
+Ready leaves the editable workspace unchanged,
 appends owner feedback/outcomes, and creates a digest-manifested immutable ZIP
 with the authoritative full-size JPEG and canonical PNG. Improve creates an immutable
 child from the selected candidate plus only the owner revision instruction.
@@ -93,12 +125,17 @@ later digest-locked snapshots; pending and rejected proposals do not. The
 reserved agent authority is rejected. Evidence is explicitly internal and is
 not presented as market performance.
 
-Local verification passes 86 Validation tests with four disposable-PostgreSQL
-tests skipped, 5 Owner Gateway tests, 38 web unit tests and the production
+Local verification passes 93 Validation tests with four disposable-PostgreSQL
+tests skipped, 5 Owner Gateway tests, 41 web unit tests and the production
 build, all 21 Playwright checks across desktop Chrome, 360-pixel Chrome, and
 iPhone WebKit, all 7 Commander tests and the demo, the six-variant focused
-Studio visual audit, canonical PTW skill verification, Python compilation, and
-`git diff --check`. Docker Desktop is installed but its daemon socket is absent,
+Studio visual audit including CTA text-fit diagnostics and an explicit ban on
+the removed logo-surface node, full-resolution inspection of the five
+within-run directions, and a two-run regression proving all three Pexels
+background IDs and SHA-256 values are distinct within each run and not reused
+across runs, plus photographed-sticker provenance and isolation coverage,
+canonical PTW skill verification, Python compilation, and `git diff --check`. Docker Desktop
+is installed but its daemon socket is absent,
 so built-image and disposable-PostgreSQL checks remain environment-blocked and
 production was not used as a substitute. No deploy, publishing call,
 production reset/mutation, or market-performance ingestion occurred.
@@ -377,8 +414,8 @@ Pexels, preview, component-metadata, approval, immutable-version-detail, and
 immutable-version-render routes. All PNGs are
 private, no-store, SHA-256 and ETag explicit. The loopback launcher exposes the
 same Studio contract, local-only Tune routes, and the representative normal
-journey described above, without Firebase; Pexels is optional unless its local
-key is provided. Obsolete
+journey described above, without Firebase. Pexels remains optional for manual
+Studio editing but is required for Result creation. Obsolete
 reference/calibration routes, evaluator, installer, tests, and text fixtures
 were removed. No deployment, reset, database mutation, publication, or
 production contact was performed.

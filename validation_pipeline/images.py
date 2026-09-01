@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import ssl
 from typing import Any
 from urllib.parse import urlparse
 import urllib.error
 import urllib.parse
 import urllib.request
+
+import certifi
 
 
 MAX_DOWNLOAD_BYTES = 12 * 1024 * 1024
@@ -57,6 +60,7 @@ class PexelsClient:
             raise RuntimeError("PEXELS_API_KEY is required for real-photo creatives")
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
+        self.ssl_context = ssl.create_default_context(cafile=certifi.where())
 
     def search(self, query: str, *, per_page: int = 10) -> list[PexelsPhoto]:
         normalized = query.strip()
@@ -68,7 +72,9 @@ class PexelsClient:
             headers={"Authorization": self.api_key, "User-Agent": "PTW-Validation/1"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            with urllib.request.urlopen(
+                request, timeout=self.timeout_seconds, context=self.ssl_context,
+            ) as response:
                 raw = response.read(MAX_DOWNLOAD_BYTES + 1)
         except urllib.error.HTTPError as error:
             if error.code == 429:
@@ -121,7 +127,9 @@ class PexelsClient:
             headers={"Authorization": self.api_key, "User-Agent": "PTW-Validation/1"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            with urllib.request.urlopen(
+                request, timeout=self.timeout_seconds, context=self.ssl_context,
+            ) as response:
                 raw = response.read(MAX_DOWNLOAD_BYTES + 1)
         except urllib.error.HTTPError as error:
             if error.code == 429:
@@ -153,7 +161,9 @@ class PexelsClient:
         if not _is_https_host(photo.image_url, PEXELS_IMAGE_HOST):
             raise ValueError("Pexels image URL is outside the allowed CDN")
         request = urllib.request.Request(photo.image_url, headers={"User-Agent": "PTW-Validation/1"})
-        with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+        with urllib.request.urlopen(
+            request, timeout=self.timeout_seconds, context=self.ssl_context,
+        ) as response:
             if not _is_https_host(response.geturl(), PEXELS_IMAGE_HOST):
                 raise ValueError("Pexels download redirected outside the allowed CDN")
             content_type = str(response.headers.get("Content-Type") or "").split(";", 1)[0].lower()

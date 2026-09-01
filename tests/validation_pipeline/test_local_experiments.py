@@ -7,16 +7,21 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import threading
+import time
 import unittest
 from uuid import uuid4
 import zipfile
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from validation_pipeline.content import HARD_GATES, WEIGHTS
-from validation_pipeline.local_codex import LocalCodexError, LocalCodexStructuredProvider
+from validation_pipeline.local_codex import (
+    LocalCodexCancelled, LocalCodexError, LocalCodexStructuredProvider,
+)
 from validation_pipeline.local_experiment_store import LocalExperimentStore
 from validation_pipeline.local_experiments import LocalExperimentService, LOCAL_VISUAL_ROLES
+from validation_pipeline.images import PexelsPhoto
 from validation_pipeline.studio_workspace import UniversalStudioWorkspace
 
 
@@ -109,6 +114,31 @@ class FakeStructuredProvider:
         }
 
 
+class BlockingStructuredProvider(FakeStructuredProvider):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = threading.Event()
+        self.cancelled = threading.Event()
+
+    def call(self, *, mode, input_payload, response_validator=None, **kwargs):
+        if mode != "content_candidate_generation":
+            return super().call(
+                mode=mode, input_payload=input_payload,
+                response_validator=response_validator, **kwargs,
+            )
+        self.calls.append({"mode": mode, "payload": input_payload, "images": []})
+        cancel_event = kwargs.get("cancel_event")
+        if not isinstance(cancel_event, threading.Event):
+            raise AssertionError("active Result provider call requires a cancellation event")
+        self.started.set()
+        if not cancel_event.wait(timeout=5):
+            raise AssertionError("active Result provider call was not cancelled")
+        self.cancelled.set()
+        raise LocalCodexCancelled([{
+            "attempt": 1, "status": "terminated", "error_type": "LocalCodexCancelled",
+        }])
+
+
 def image_bytes(color: tuple[int, int, int]) -> bytes:
     image = Image.new("RGB", (1200, 1200), color)
     output = BytesIO()
@@ -116,16 +146,56 @@ def image_bytes(color: tuple[int, int, int]) -> bytes:
     return output.getvalue()
 
 
+class FakePexels:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+        self.counter = 0
+
+    def select(self, query: str, category: str, *, used_ids: set[str]):
+        while True:
+            self.counter += 1
+            photo_id = str(700000 + self.counter)
+            if photo_id not in used_ids:
+                break
+        is_sticker = "compass object" in query
+        image = Image.new("RGB", (1200, 1200), (238, 225, 199) if is_sticker else (
+            30 + self.counter * 23 % 190,
+            40 + self.counter * 37 % 170,
+            50 + self.counter * 47 % 160,
+        ))
+        if is_sticker:
+            draw = ImageDraw.Draw(image)
+            accent = self.counter % 37
+            draw.ellipse(
+                (315, 250, 885, 820), fill=(25, 49 + accent, 78),
+                outline=(183, 136, 49 + accent), width=34,
+            )
+            draw.polygon(((600, 305), (710, 650), (600, 585), (490, 650)), fill=(222, 174, 61))
+            draw.polygon(((600, 765), (490, 475), (600, 535), (710, 475)), fill=(108, 27, 70))
+        output = BytesIO()
+        image.save(output, format="JPEG", quality=94)
+        self.calls.append({"query": query, "category": category, "photo_id": photo_id})
+        return PexelsPhoto(
+            photo_id=photo_id, width=1200, height=1200,
+            image_url=f"https://images.pexels.com/photos/{photo_id}/image.jpeg",
+            page_url=f"https://www.pexels.com/photo/{photo_id}/",
+            photographer=f"Photographer {photo_id}",
+            photographer_url=f"https://www.pexels.com/@photographer-{photo_id}/",
+            alt="A real photographed object" if is_sticker else "A real editorial photograph",
+        ), output.getvalue()
+
+
 class LocalExperimentFlowTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.provider = FakeStructuredProvider()
+        self.pexels = FakePexels()
         self.workspace = UniversalStudioWorkspace(self.root / "studio")
         self.store = LocalExperimentStore(self.root / "experiments")
         self.service = LocalExperimentService(
             store=self.store, workspace=self.workspace, provider=self.provider,
-            repository_root=Path(__file__).resolve().parents[2], pexels=None,
+            repository_root=Path(__file__).resolve().parents[2], pexels=self.pexels,
         )
 
     def tearDown(self) -> None:
@@ -242,7 +312,7 @@ class LocalExperimentFlowTests(unittest.TestCase):
             and Image.open(BytesIO(image["bytes"])).size == (480, 480)
             for call in critic_calls for image in call["images"]
         ))
-        self.assertEqual(4, len({item["asset_id"] for item in initial if item["asset_id"]}))
+        self.assertEqual(3, len({item["asset_id"] for item in initial if item["asset_id"]}))
         self.assertEqual([1, 2, 3], [item["pass_number"] for item in debug["critic_passes"]])
         self.assertTrue(all(item["layout_audit"]["passed"] for item in initial))
         self.assertTrue(all(item["content"]["offer"] == brief["document"]["offer"] for item in initial))
@@ -288,7 +358,8 @@ class LocalExperimentFlowTests(unittest.TestCase):
         snapshot = self.store.get("lesson_snapshots", next_run["learning_snapshot_id"])
         snapshot_ids = [item["lesson_id"] for item in snapshot["lessons"]]
         self.assertEqual([approved["lesson"]["lesson_id"]], snapshot_ids)
-        self.assertEqual("completed", self.service.execute_run(next_run["run_id"])["status"])
+        next_completed = self.service.execute_run(next_run["run_id"])
+        self.assertEqual("completed", next_completed["status"], next_completed.get("error_message"))
         next_candidates = [
             item for item in self.service.debug(next_run["run_id"])["candidates"]
             if item["generation_kind"] == "initial"
@@ -309,6 +380,55 @@ class LocalExperimentFlowTests(unittest.TestCase):
         self.assertIn("selected no eligible", failed["error_message"])
         with self.assertRaisesRegex(ValueError, "not completed"):
             self.service.get_result(run["run_id"])
+
+    def test_owner_terminates_active_run_and_can_retry_as_child(self) -> None:
+        _project, brief = self._approved_brief()
+        provider = BlockingStructuredProvider()
+        self.service.provider = provider
+        run, _ = self.service.create_run(
+            request_id=str(uuid4()), brief_id=brief["brief_id"], platform="instagram",
+            studio_state_sha256=self.workspace.detail()["state_sha256"],
+            requested_by="test-owner",
+        )
+        outcome: dict[str, dict] = {}
+        worker = threading.Thread(
+            target=lambda: outcome.setdefault("run", self.service.execute_run(run["run_id"])),
+            daemon=True,
+        )
+        worker.start()
+        self.assertTrue(provider.started.wait(timeout=5))
+
+        terminated = self.service.terminate_run(run["run_id"], "test-owner")
+        worker.join(timeout=5)
+
+        self.assertFalse(worker.is_alive())
+        self.assertTrue(provider.cancelled.is_set())
+        self.assertEqual("terminated", terminated["status"])
+        self.assertEqual("terminated", terminated["current_stage"])
+        self.assertEqual("test-owner", terminated["terminated_by"])
+        self.assertEqual("terminated", outcome["run"]["status"])
+        self.assertIsNone(terminated["final_result_id"])
+        invocation = self.store.list("provider_invocations")[0]
+        self.assertEqual("terminated", invocation["status"])
+        self.assertEqual("LocalCodexCancelled", invocation["error_type"])
+        checkpoints = [
+            item for item in self.store.list("checkpoints")
+            if item["run_id"] == run["run_id"]
+        ]
+        self.assertEqual(1, len([item for item in checkpoints if item["stage"] == "terminated"]))
+        history_length = len(self.store.history("runs", run["run_id"]))
+        self.assertEqual(
+            terminated,
+            self.service.terminate_run(run["run_id"], "test-owner"),
+        )
+        self.assertEqual(history_length, len(self.store.history("runs", run["run_id"])))
+
+        retry, created = self.service.retry_run(
+            run["run_id"], request_id=str(uuid4()), requested_by="test-owner",
+        )
+        self.assertTrue(created)
+        self.assertEqual(run["run_id"], retry["parent_run_id"])
+        self.assertEqual("queued", retry["status"])
 
     def test_improve_starts_immutable_child_and_replay_ignores_later_draft(self) -> None:
         project, brief = self._approved_brief()
@@ -344,7 +464,7 @@ class LocalExperimentFlowTests(unittest.TestCase):
         self.assertFalse(created)
         self.assertEqual(run["run_id"], replay["run_id"])
 
-    def test_missing_optional_photos_use_distinct_deterministic_texture_fallbacks(self) -> None:
+    def test_empty_asset_pool_sources_three_fresh_pexels_photos_and_real_sticker(self) -> None:
         project, brief = self._approved_brief()
         studio = self.workspace.detail()
         run, _ = self.service.create_run(
@@ -358,19 +478,118 @@ class LocalExperimentFlowTests(unittest.TestCase):
             if item["generation_kind"] == "initial"
         ]
         photo_capable = [item for item in initial if item["template_id"] != "direct_offer"]
-        self.assertEqual([None] * 4, [item["asset_id"] for item in photo_capable])
-        self.assertEqual(4, len({
-            item["configuration"]["background"]["texture"] for item in photo_capable
+        self.assertEqual(3, len([item for item in photo_capable if item["asset_id"]]))
+        by_strategy = {item["template_id"]: item for item in initial}
+        self.assertEqual(
+            ["image", "image", "texture", "image", "solid"],
+            [item["configuration"]["background"]["mode"] for item in initial],
+        )
+        self.assertEqual(5, len({
+            item["configuration"]["background"]["color"] for item in initial
         }))
+        pexels_backgrounds = [
+            item for item in photo_capable
+            if item["asset_provenance"].get("source", {}).get("provider") == "pexels"
+        ]
+        self.assertEqual(
+            {"moment_tension", "contrast_reframe", "human_story"},
+            {item["template_id"] for item in pexels_backgrounds},
+        )
+        self.assertEqual(3, len({item["asset_provenance"]["sha256"] for item in pexels_backgrounds}))
         self.assertTrue(all(
-            item["configuration"]["background"]["mode"] == "texture"
-            and item["asset_provenance"]["origin"] == "deterministic_studio_texture"
-            and item["asset_provenance"]["no_synthetic_people"]
-            for item in photo_capable
+            item["render_asset_provenance"]["background"]["authority"]
+            == "approved_pexels_photo"
+            and item["asset_provenance"]["source"]["selection_policy"]
+            == "fresh_distinct_per_run_v1"
+            for item in pexels_backgrounds
         ))
+        self.assertEqual(
+            {"mechanism_proof"},
+            {
+                item["template_id"] for item in photo_capable
+                if item["asset_provenance"]["origin"] == "deterministic_studio_texture"
+            },
+        )
+        self.assertTrue(all(
+            "logo_surface" not in item["universal_manifest"]["nodes"]
+            and not item["configuration"]["logo"]["background_enabled"]
+            for item in initial
+        ))
+        self.assertEqual(
+            ["contrast_reframe"],
+            [item["template_id"] for item in initial if item["configuration"]["sticker"]["enabled"]],
+        )
+        self.assertEqual(
+            "approved_pexels_photo_sticker",
+            by_strategy["contrast_reframe"]["render_asset_provenance"]["sticker"]["authority"],
+        )
+        sticker_source = by_strategy["contrast_reframe"]["render_asset_provenance"]["sticker"]["source"]
+        self.assertEqual("pexels", sticker_source["provider"])
+        self.assertEqual("edge_color_soft_alpha_v1", sticker_source["transformation"])
+        self.assertEqual("warm matte paper", sticker_source["texture_alignment"]["surface"])
+        self.assertIn("solid-color background", by_strategy["direct_offer"]["document"]["alt_text"])
+        self.assertNotIn("textured background", by_strategy["direct_offer"]["document"]["alt_text"])
+        self.assertEqual(5, len({
+            (
+                item["configuration"]["background"]["mode"],
+                item["configuration"]["background"]["color"],
+                item["configuration"]["typography"]["font_family"],
+                item["configuration"]["cta"]["style"],
+                item["configuration"]["sticker"]["enabled"],
+            )
+            for item in initial
+        }))
         self.assertEqual(5, len([
             item for item in self.provider.calls if item["mode"] == "content_candidate_generation"
         ]))
+        diversity_checkpoint = next(
+            item for item in self.store.list("checkpoints")
+            if item["run_id"] == run["run_id"] and item["stage"] == "critic_pass_1"
+        )
+        diversity = diversity_checkpoint["evidence"]["diversity_audit"]
+        self.assertTrue(diversity["passed"])
+        self.assertTrue(all(diversity["gates"].values()))
+        self.assertEqual(3, len(diversity["image_backgrounds"]))
+        self.assertEqual(3, len(diversity["distinct_image_background_sha256"]))
+        self.assertGreaterEqual(diversity["minimum_setting_differences"], 8)
+        self.assertGreaterEqual(diversity["minimum_mean_rgb_delta"], 12.0)
+
+    def test_missing_pexels_configuration_fails_closed_without_generated_fallback(self) -> None:
+        _project, brief = self._approved_brief()
+        self.service.pexels = None
+        with self.assertRaisesRegex(RuntimeError, "PEXELS_API_KEY is required"):
+            self.service.create_run(
+                request_id=str(uuid4()), brief_id=brief["brief_id"], platform="instagram",
+                studio_state_sha256=self.workspace.detail()["state_sha256"],
+                requested_by="test-owner",
+            )
+        self.assertEqual([], self.store.list("runs"))
+        self.assertEqual([], self.store.list("candidates"))
+
+    def test_pexels_backgrounds_are_fresh_across_runs_and_distinct_within_each_run(self) -> None:
+        _project, brief = self._approved_brief()
+        studio = self.workspace.detail()
+        external_ids_by_run: list[set[str]] = []
+        for _index in range(2):
+            run, created = self.service.create_run(
+                request_id=str(uuid4()), brief_id=brief["brief_id"], platform="instagram",
+                studio_state_sha256=studio["state_sha256"], requested_by="test-owner",
+            )
+            self.assertTrue(created)
+            completed = self.service.execute_run(run["run_id"])
+            self.assertEqual("completed", completed["status"], completed.get("error_message"))
+            candidates = [
+                item for item in self.service.debug(run["run_id"])["candidates"]
+                if item["generation_kind"] == "initial"
+                and item["configuration"]["background"]["mode"] == "image"
+            ]
+            self.assertEqual(3, len(candidates))
+            external_ids = {
+                item["asset_provenance"]["source"]["external_id"] for item in candidates
+            }
+            self.assertEqual(3, len(external_ids))
+            external_ids_by_run.append(external_ids)
+        self.assertTrue(external_ids_by_run[0].isdisjoint(external_ids_by_run[1]))
 
 
 class LocalCodexProviderTests(unittest.TestCase):
@@ -453,6 +672,52 @@ class LocalCodexProviderTests(unittest.TestCase):
         self.assertEqual(["TimeoutExpired", "TimeoutExpired"], [
             item["error_type"] for item in captured.exception.attempts
         ])
+
+    def test_cancellation_terminates_the_active_cli_process_without_retry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            marker = root / "started"
+            executable = root / "codex-test"
+            executable.write_text(
+                "#!/usr/bin/env python3\n"
+                "from pathlib import Path\n"
+                "import time\n"
+                f"Path({str(marker)!r}).write_text('started', encoding='utf-8')\n"
+                "time.sleep(30)\n",
+                encoding="utf-8",
+            )
+            executable.chmod(0o755)
+            provider = LocalCodexStructuredProvider(str(executable), timeout_seconds=30)
+            cancel_event = threading.Event()
+            errors: list[BaseException] = []
+
+            def invoke() -> None:
+                try:
+                    provider.call(
+                        mode="test", system_prompt="Return the object.",
+                        input_payload={"value": 1}, output_schema={"type": "object"},
+                        idempotency_key="cancel", prompt_version="v1",
+                        cancel_event=cancel_event,
+                    )
+                except BaseException as error:
+                    errors.append(error)
+
+            worker = threading.Thread(target=invoke, daemon=True)
+            worker.start()
+            deadline = time.monotonic() + 5
+            while not marker.exists() and time.monotonic() < deadline:
+                time.sleep(0.02)
+            self.assertTrue(marker.exists())
+            cancel_event.set()
+            worker.join(timeout=5)
+
+            self.assertFalse(worker.is_alive())
+            self.assertEqual(1, len(errors))
+            self.assertIsInstance(errors[0], LocalCodexCancelled)
+            self.assertEqual(
+                ["terminated"],
+                [item["status"] for item in errors[0].attempts],
+            )
 
 
 class LocalExperimentStoreTests(unittest.TestCase):

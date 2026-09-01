@@ -33,6 +33,8 @@ Updated: 2026-08-30
   brand-kit form.
 - Running state shows only: Creating five directions, Improving the strongest
   direction, Final review, elapsed/bounded maximum, and retry/failure state.
+  The loopback-only local evaluator also shows one confirmation-gated Terminate
+  action while a run is active; production Owner Console does not expose it.
 - Completed state is a platform-native Instagram square or TikTok vertical
   photo mock post. Redundant source, hook/headline/body/CTA transcription, and
   rationale are absent. Alt text, metadata, and bounded decision trace live in
@@ -48,6 +50,14 @@ Updated: 2026-08-30
   meaningful mood/layout controls; three fixed asset slots; and immutable
   version approval. Primitive trees, arbitrary properties, references,
   calibration, and template-library controls remain internal or absent.
+- Every local five-direction generation must contain exactly three image-backed
+  candidates sourced as three fresh, distinct Pexels photographs with retained
+  provider/license provenance and visibly different treatments. Generated,
+  procedural, bundled, or repeated image fallbacks are forbidden. A visible
+  sticker must be an isolated ultra-realistic Pexels photograph whose lighting,
+  palette, material, grain, perspective, and surface treatment fit its
+  background. The logo is a transparent mark only: no renderer backing surface
+  or editor backing controls are allowed.
 - Loopback-only Tune mode may expose a Test generation wizard for project idea,
   desired implementation, and iterative feedback. It must isolate code changes,
   enforce a Studio-only file allowlist, verify before copy-back, and remain

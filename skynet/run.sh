@@ -4,13 +4,13 @@ set -u
 
 skynet_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 codex_bin=${SKYNET_CODEX_BIN:-codex}
-restart_delay=${SKYNET_RESTART_DELAY_SECONDS:-5}
+restart_delay=${SKYNET_RESTART_DELAY_SECONDS:-900}
 runner_root="$skynet_root/runtime/runner"
 stop_requested=0
 child_pid=
 
 case "$restart_delay" in
-    ''|*[!0-9]*) restart_delay=5 ;;
+    ''|*[!0-9]*) restart_delay=900 ;;
 esac
 
 stop_runner() {
@@ -62,4 +62,3 @@ done
 
 printf '%s event=supervisor-stopped\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
     >> "$runner_root/lifecycle.log"
-

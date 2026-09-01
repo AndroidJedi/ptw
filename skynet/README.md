@@ -21,9 +21,10 @@ the parent Git repository. JSONL agent events and lifecycle records are under
 `runtime/runner/`.
 
 The default Codex model and any future model/tool routing are intentionally not
-specified by the launcher. For a harness test only, `SKYNET_CODEX_BIN` can point
-to a fake executable and `SKYNET_RESTART_DELAY_SECONDS` can reduce the restart
-delay.
+specified by the launcher. The supervisor uses a 15-minute restart cooldown so
+an evidence-saturated hold does not spend nearly continuous agent runs. For a
+harness test only, `SKYNET_CODEX_BIN` can point to a fake executable and
+`SKYNET_RESTART_DELAY_SECONDS` can reduce the restart delay.
 
 ## Telegram output
 

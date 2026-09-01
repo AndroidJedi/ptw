@@ -21,7 +21,7 @@ const studioComponents = [
   ['offer', ['offer'], []],
   ['bullet_list', ['bullet_marker_1', 'bullet_1', 'bullet_marker_2', 'bullet_2', 'bullet_marker_3', 'bullet_3'], []],
   ['cta', ['cta'], []],
-  ['logo', ['logo_surface', 'logo'], ['logo']],
+  ['logo', ['logo'], ['logo']],
 ].map(([role, nodeIds, assetSlotIds]) => ({
   component_id: `universal_ad.${role}`, role, node_ids: nodeIds,
   asset_slot_ids: assetSlotIds, setting_ids: [],
@@ -30,7 +30,7 @@ const studioComponents = [
 const studioDetail = {
   schema: 'ptw.studio.universal-ad-workspace.v5',
   catalog: {
-    schema: 'ptw.studio.universal-ad-catalog.v4', template_id: 'universal_ad', template_version: 9,
+    schema: 'ptw.studio.universal-ad-catalog.v4', template_id: 'universal_ad', template_version: 10,
     semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'offer', 'bullet_list', 'cta', 'logo'],
     components: studioComponents,
     asset_slots: {},
@@ -56,7 +56,7 @@ const studioDetail = {
     bullets: { enabled: false, style: 'circle' },
     cta: { style: 'filled', position: 'below_text', background_color: '#111111', text_color: '#FFFFFF', radius: 24 },
     sticker: { enabled: false, position: 'top_right', rotation: -6, width: 320, object_scale: 0.82, offset_right: 0, offset_bottom: 0 },
-    logo: { enabled: true, position: 'top_right', width: 180, background_enabled: true, background_color: '#FFFFFF' },
+    logo: { enabled: true, position: 'top_right', width: 180, background_enabled: false, background_color: '#FFFFFF' },
   },
   content: {
     schema: 'ptw.studio.universal-ad-content.v2', hero_title: 'PROVE THE IDEA',
@@ -65,7 +65,7 @@ const studioDetail = {
   },
   component_settings: {
     schema: 'ptw.studio.universal-ad-component-settings.v2', template_id: 'universal_ad',
-    template_version: 9, configuration_schema: 'ptw.studio.universal-ad-config.v4',
+    template_version: 10, configuration_schema: 'ptw.studio.universal-ad-config.v4',
     components: studioComponents.map(({ setting_ids: _settingIds, ...component }) => ({
       ...component, settings: [],
     })),
@@ -363,19 +363,17 @@ test('opens the Universal Ad Studio and persists its bounded configuration', asy
   await logoOnPreviewRequest
   await expect(page.getByLabel('Enable logo')).toBeChecked()
   await expect(page.getByText('Preview matches the saved setup')).toBeVisible()
-  await page.getByText('Brand mark and background').click()
+  await page.getByText('Brand mark').click()
   await expect(page.getByText('image/png · canonical_natal_brand_asset', { exact: true })).toBeVisible()
   await expect(page.getByLabel('Show logo', { exact: true })).toBeChecked()
-  await expect(page.getByLabel('Show logo background')).toBeChecked()
+  await expect(page.getByLabel('Show logo background')).toHaveCount(0)
   await expect(page.getByLabel('Logo position')).toHaveValue('top_right')
   await expect(page.getByLabel('Logo width')).toHaveValue('180')
   const logoPreviewRequest = page.waitForRequest((candidate) => {
     if (!candidate.url().endsWith('/api/v1/studio/preview')) return false
     const body = candidate.postDataJSON()
-    return body?.configuration?.logo?.background_enabled === false
-      && body?.configuration?.logo?.position === 'top_left'
+    return body?.configuration?.logo?.position === 'top_left'
   })
-  await page.getByLabel('Show logo background').uncheck()
   await page.getByLabel('Logo position').selectOption('top_left')
   expect((await logoPreviewRequest).postDataJSON().configuration.logo.enabled).toBe(true)
   await expect(page.getByAltText('Current universal advertising creative')).toBeVisible()

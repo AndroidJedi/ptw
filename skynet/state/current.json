@@ -1,13 +1,13 @@
 {
   "schema": "ptw.skynet.state.v1",
-  "updated_at": "2026-08-31T16:02:42Z",
-  "run_ordinal": 23,
-  "phase": "unchanged_external_trigger_hold",
+  "updated_at": "2026-08-31T23:24:26Z",
+  "run_ordinal": 109,
+  "phase": "unchanged_external_trigger_hold_with_supervisor_backoff",
   "mission_status": "active",
   "recovery": {
     "prior_creative_state_found": true,
     "interrupted_experiment_found": false,
-    "notes": "Restored experiments 001-008, seven frozen deliveries and queue identities, exact manifests and audits, two research records, standardized preflight, four prior evaluations, the blocked packet 005, the reusable candidate gate, and the deterministic run-13 trigger baseline. The open runner record belongs to this live run; no interrupted creative, sending reservation, receipt, failure record, external feedback, explicit media/provider authority record, or approved real Project photo exists. Run 23 performed the required fresh-wake reconciliation once; evidence fingerprint 40f15ad2d9919b952f370a4a2edd136bb8e63577301f868d8f8b3748ea80fc82 and snapshot SHA-256 9b543010e011a73e933e76ba5918730c57810ab356afbbb97e411a41fb5196d0 were unchanged. No creative, candidate, selection prior, or queue event changed."
+    "notes": "Restored experiments 001-008, seven frozen deliveries and queue identities, exact manifests and audits, two research records, standardized preflight, four prior evaluations, blocked packet 005, the reusable candidate gate, the deterministic run-13 trigger baseline, and the run-99 supervisor-cadence decision. Lifecycle evidence confirms run 108 exited successfully; runner 20260831T232209Z-72122-109 is the active fresh wake, not interrupted prior work. The parent worktree remains outside SKYNET's mutation boundary and its unrelated human changes were preserved. No interrupted creative, sending reservation, receipt, failure record, external feedback, explicit media/provider authority record, approved real Project photo, or materially different approved Brief exists. Run 109 performed the required fresh-wake reconciliation exactly once; evidence fingerprint 40f15ad2d9919b952f370a4a2edd136bb8e63577301f868d8f8b3748ea80fc82 and snapshot SHA-256 9b543010e011a73e933e76ba5918730c57810ab356afbbb97e411a41fb5196d0 remained byte-identical, with queue 7, sending 0, receipts 0, no owner feedback, no authority record, and no actionable local trigger. Candidate H's queued delivery remains digest-identical to its frozen JPEG at SHA-256 3cca60ea20c265a11a843dbe5ccf1e22e5207c2fb6aa221820a1520d13d1c5c6. All 68 durable non-runner JSON records parsed successfully. The useful negative result is stable: the portfolio is evidence-saturated locally, H remains an action prior rather than an outcome winner, and another same-Brief creative would add selection noise without resolving delivery, feedback, or authorized-media uncertainty. No creative, candidate, selection prior, queue event, operating rule, external system, provider, or delivery changed, so the checkpoint-coalescing policy correctly created no new numbered checkpoint."
   },
   "strategy": {
     "summary": "Retain seven frozen same-Brief artifacts and use A, B, C, F, G, and H as the clean standardized-preflight portfolio. H is the primary local selection prior; G, A, and B are orthogonal object-, problem-, and offer-led challengers; C and F are deliberate-read mechanism controls. D remains durable and queued as a failed-gate legacy artifact superseded locally by H. Preserve honest media, protected copy, controlled-generation labels, digest-locked provenance, and the distinction between a local action prior and an outcome winner.",
@@ -37,8 +37,8 @@
       "blocker": "The canonical strategy, packet owner task, and media policy require real candid photography; no approved Project photo or authorized Pexels provider is available, and generated people or arbitrary Internet images are prohibited. The current adapter's travertine fallback does not satisfy the prerequisite: diagnostic eval-20260831-003 passed geometry but lacked the required scene/subject and failed wordmark contrast at 1.46:1."
     },
     "next_strategy": {
-      "status": "unchanged_trigger_hold",
-      "action": "Run tools/reconcile_triggers.py once on a fresh wake. Keep H as the primary local selection prior while the evidence fingerprint is unchanged, retaining G, A, and B as orthogonal challengers. Bind any exact external result before updating the prior. Do not spend another same-Brief image call, reinterpret any deterministic texture as Candidate E, rerun the closed fallback matrix, or queue another direction without new evidence. Any future photo strategy must use authorized approved photography and pass the activation gate; any typography or non-human graphic must use a genuinely matching non-photo strategy."
+      "status": "unchanged_trigger_hold_with_evidence_economical_cadence",
+      "action": "Run tools/reconcile_triggers.py once on a fresh wake. Keep H as the primary local selection prior while the evidence fingerprint is unchanged, retaining G, A, and B as orthogonal challengers. On an unchanged wake, update state/current.json in place and create no new numbered checkpoint. Bind any exact external result before updating the prior. Do not spend another same-Brief image call, reinterpret any deterministic texture as Candidate E, rerun the closed fallback matrix, or queue another direction without new evidence. Any future photo strategy must use authorized approved photography and pass the activation gate; any typography or non-human graphic must use a genuinely matching non-photo strategy. Let the new 900-second supervisor default take effect on the next ordinary supervisor launch; do not kill an active process solely to force this non-urgent cadence change."
     }
   },
   "durable_paths": {
@@ -63,7 +63,9 @@
     "latest_diagnostic_deriver": "evaluations/eval-20260831-004-photo-fallback-matrix/derive.py",
     "candidate_activation_gate": "tools/universal_candidate_gate.py",
     "trigger_reconciler": "tools/reconcile_triggers.py",
-    "trigger_snapshot": "state/external-trigger-snapshot.json"
+    "trigger_snapshot": "state/external-trigger-snapshot.json",
+    "restart_supervisor": "run.sh",
+    "supervisor_cadence_checkpoint": "checkpoints/2026-08-31-supervisor-cadence-051.md"
   },
   "resource_use": {
     "built_in_image_calls_cumulative": 2,
@@ -90,13 +92,16 @@
     "trigger_snapshot_invocations_this_run": 1,
     "successful_runtime_test_suite_invocations_this_run": 0,
     "runtime_test_executions_passed_this_run": 0,
-    "starting_workspace_kib_approximate": 21908,
-    "peak_workspace_kib_approximate": 22064,
+    "shell_syntax_checks_this_run": 0,
+    "supervisor_starts_observed_cumulative": 109,
+    "supervisor_starts_since_checkpoint_coalescing_observed": 52,
+    "starting_workspace_kib_approximate": 45776,
+    "peak_workspace_kib_approximate": 45940,
     "disposable_audit_output_removed_kib_approximate": 0,
-    "workspace_kib_before_final_checkpoint": 21992,
-    "ending_workspace_kib_approximate": 22064,
+    "workspace_kib_before_final_checkpoint": 45940,
+    "ending_workspace_kib_approximate": 45940,
     "approximate_new_cost_usd": 0,
-    "cost_note": "Run 23 used one deterministic local trigger snapshot. It was byte-identical to the baseline and reported no actionable local trigger. No test suite was repeated because no code or contract changed. No visual inspection, CandidateV2 generation, creative render, derivative, preflight pixel read, activation-gate check, built-in image call, Internet research, provider/critic call, Telegram queue/sender/poller, paid external service, or publishing call was invoked."
+    "cost_note": "Run 109 used one successful deterministic local trigger reconciliation, local state and lifecycle reads, one exact active-delivery digest comparison, and one parse-validation pass over the durable non-runner JSON records. The trigger snapshot remained byte-identical and reported no actionable trigger. No command or validation failure occurred. No test suite was repeated because no code or contract changed. No visual inspection, CandidateV2 generation, creative render, derivative, preflight pixel read, activation-gate call, built-in image call, Internet research, provider/critic call, Telegram queue/sender/poller, paid external service, publishing call, or external mutation was invoked. Approximate new monetary cost is USD 0 excluding unmetered agent inference."
   },
   "verification": {
     "runtime_tests_passed": 18,
@@ -104,6 +109,8 @@
     "pre_fix_test_failures_this_run": 0,
     "pre_execution_import_errors_this_run": 0,
     "verification_harness_errors_this_run": 0,
+    "read_only_summary_query_schema_errors_this_run": 0,
+    "read_only_summary_query_path_errors_this_run": 0,
     "validation_suite_invocations_this_run": 0,
     "validation_suite_confirmed_complete_this_run": 0,
     "untracked_validation_session_invocations_this_run": 0,
@@ -123,7 +130,7 @@
     "standardized_preflight_failed_candidates": ["cand-20260831-004-d"],
     "protected_text_regions_pixel_checked_this_run": 0,
     "brand_marks_pixel_checked_this_run": 0,
-    "queue_artifact_copies_digest_checked_this_run": 0,
+    "queue_artifact_copies_digest_checked_this_run": 1,
     "preflight_invoked_this_run": false,
     "glance_audit_candidates_inspected": 6,
     "glance_audit_raw_masters_inspected": 6,
@@ -140,7 +147,7 @@
     "active_visual_viewports_passed": ["six 1080x1080 raw portfolio PNGs", "six 360x360 portfolio previews", "six 120x120 portfolio stress thumbnails"],
     "glance_audit_viewports_inspected": ["1080x1080 raw PNG", "360x360 clean-portfolio comparison", "120x120 clean-portfolio stress comparison"],
     "ptw_skill_verification": "not_required_no_ptw_skill_change",
-    "git_diff_check": "passed",
+    "git_diff_check": "passed_scoped_to_state_current_only",
     "active_preflight_report_sha256": "916b230df1e9005bf28515fad4642271511b23066e9d8638c92710fedeb8699f",
     "dependency_complete_runtime": "not_invoked_this_run_no_commander_runtime_change",
     "fallback_diagnostic_layout_audit": "passed",
@@ -172,9 +179,19 @@
     "trigger_snapshot_actionable_local_trigger_present": false,
     "trigger_snapshot_telegram_counts": {"queue": 7, "sending": 0, "receipts": 0},
     "candidate_generation_invoked_this_run": false,
-    "competition_submission_queued_this_run": false
+    "competition_submission_queued_this_run": false,
+    "restart_supervisor_default_delay_seconds": 900,
+    "restart_supervisor_environment_override_preserved": true,
+    "restart_supervisor_running_process_reload_required": true,
+    "restart_supervisor_sha256": "c6e48a1163a91a993f1e74548d03b3de385b548fa4e80e8289f24205c8503ac7",
+    "readme_sha256": "dd21b25555ec86586533b839fa01240c1e3180097823cbee896edeecc21f8635",
+    "durable_json_files_validated_this_run": 68,
+    "inventory_shell_failures_this_run": 0,
+    "supervisor_cadence_checkpoint_sha256": "a09763f54af941d90970aa91a0421471f23243171b07bdd4ca0537d36df737a7",
+    "knowledge_evidence_sha256": "300a432898d08c2aebc6d50316f3fdd4925dcbe507dd724cad3ed88f5f4e9d38"
   },
   "unfinished_work": [
+    "The already-running supervisor loaded the former delay before run.sh changed. The 900-second default applies on its next ordinary launch; do not kill or replace an active process solely to force this non-urgent cadence improvement.",
     "All seven outbound events remain queued locally with no sending reservation, receipt, failure record, or external feedback; never poll Telegram or wait for delivery.",
     "No external competition feedback exists for any exact artifact.",
     "The strict content-result critic still lacks four generator-blind initial candidates.",
@@ -187,6 +204,6 @@
     "The canonical adapter can render all four photo strategies without a photo, but eval-20260831-004 proves every texture fallback is only render-safe, not candidate-valid: all lack their required visual subject and all fail the wordmark contrast floor. The reusable activation gate now rejects them before candidate identity; never bypass it or relabel a fallback as Candidate E.",
     "The browser renderer is unusable under the current sandbox; use retained CoreGraphics executable/source paths. For long native compiles, always preserve the returned execution session ID before polling."
   ],
-  "last_checkpoint": "checkpoints/2026-08-31-trigger-hold-015.md",
-  "next_action": "Run tools/reconcile_triggers.py once on the next fresh wake. If evidence fingerprint 40f15ad2d9919b952f370a4a2edd136bb8e63577301f868d8f8b3748ea80fc82 is unchanged and no materially new approved Brief appears, preserve H and the clean portfolio without another image, matrix, preflight, queue event, or routine progress message. If it changes, inspect only changed durable records: bind exact feedback to event ID and frozen digest before learning; activate packet 005 only from explicit authorized real-photo evidence and then apply the candidate gate. A new creative experiment requires new external evidence, authorized media, or a materially different approved Brief."
+  "last_checkpoint": "checkpoints/2026-08-31-supervisor-cadence-051.md",
+  "next_action": "Run tools/reconcile_triggers.py once on the next fresh wake. If evidence fingerprint 40f15ad2d9919b952f370a4a2edd136bb8e63577301f868d8f8b3748ea80fc82 is unchanged and no materially new approved Brief appears, preserve H and the clean portfolio, update state/current.json in place, and create no new numbered checkpoint, image, matrix, preflight, queue event, or routine progress message. If it changes, inspect only changed durable records: bind exact feedback to event ID and frozen digest before learning; activate packet 005 only from explicit authorized real-photo evidence and then apply the candidate gate. A new creative experiment requires new external evidence, authorized media, or a materially different approved Brief. Let the 900-second default become active on the next ordinary supervisor launch; do not restart or kill the current service just for the cadence change."
 }

@@ -17,7 +17,7 @@ from validation_pipeline.natal_brand import NATAL_LOGO_SHA256
 from validation_pipeline.studio import StudioRenderer
 from validation_pipeline.studio_universal import (
     DEFAULT_CONFIG, DEFAULT_CONTENT, FONT_FAMILIES, SEMANTIC_ROLES, TEXTURE_PRESETS,
-    build_universal_template, normalize_universal_config, semantic_data, texture_asset,
+    build_universal_template, isolate_object, normalize_universal_config, semantic_data, texture_asset,
     universal_ad_catalog,
     universal_alignment_rectangle, universal_component_settings,
     universal_content_from_generation,
@@ -65,12 +65,25 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
+    def test_sticker_isolation_rejects_a_retained_rectangular_scene(self) -> None:
+        from PIL import Image, ImageDraw
+
+        image = Image.new("RGB", (1080, 1080), "#202060")
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((540, 0, 1080, 540), fill="#D05020")
+        draw.rectangle((0, 540, 540, 1080), fill="#20A060")
+        draw.rectangle((540, 540, 1080, 1080), fill="#E0C030")
+        output = BytesIO()
+        image.save(output, format="JPEG", quality=94)
+        with self.assertRaisesRegex(ValueError, "rectangular scene"):
+            isolate_object(output.getvalue())
+
     def test_one_fixed_template_opens_with_requested_investment_post(self) -> None:
         detail = self.workspace.detail()
         self.assertEqual("universal_ad", detail["catalog"]["template_id"])
         self.assertEqual("ptw.studio.universal-ad-workspace.v5", detail["schema"])
         self.assertEqual("ptw.studio.universal-ad-catalog.v4", detail["catalog"]["schema"])
-        self.assertEqual(9, detail["catalog"]["template_version"])
+        self.assertEqual(10, detail["catalog"]["template_version"])
         self.assertEqual(list(SEMANTIC_ROLES), detail["catalog"]["semantic_roles"])
         self.assertEqual(
             [f"universal_ad.{role}" for role in SEMANTIC_ROLES],
@@ -91,37 +104,30 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             item["setting_id"]: item["value"]
             for item in components["universal_ad.logo"]["settings"]
         }
-        self.assertEqual("image", background_settings["configuration.background.mode"])
+        self.assertEqual("texture", background_settings["configuration.background.mode"])
         self.assertEqual(0.56, background_settings["configuration.background.overlay_opacity"])
-        self.assertFalse(logo_settings["configuration.logo.background_enabled"])
-        self.assertEqual("#FFFFFF", logo_settings["configuration.logo.background_color"])
+        self.assertNotIn("configuration.logo.background_enabled", logo_settings)
+        self.assertNotIn("configuration.logo.background_color", logo_settings)
         self.assertEqual(
             ["canvas", "background_media", "readability_overlay"],
             components["universal_ad.background"]["node_ids"],
         )
         self.assertEqual(["background_image"], components["universal_ad.background"]["asset_slot_ids"])
-        self.assertEqual(
-            ["logo_surface", "logo"], components["universal_ad.logo"]["node_ids"],
-        )
+        self.assertEqual(["logo"], components["universal_ad.logo"]["node_ids"])
         self.assertEqual({"background_image", "sticker_object", "logo"}, {
             item["slot"] for item in detail["assets"]
         })
         assets = {item["slot"]: item for item in detail["assets"]}
-        self.assertTrue(assets["background_image"]["available"])
-        self.assertTrue(assets["sticker_object"]["available"])
-        self.assertEqual("bundled_tune_asset", assets["background_image"]["source"]["origin"])
-        self.assertEqual(
-            "investment-hryvnia-sticker.png",
-            assets["sticker_object"]["source"]["filename"],
-        )
+        self.assertFalse(assets["background_image"]["available"])
+        self.assertFalse(assets["sticker_object"]["available"])
         self.assertTrue(assets["logo"]["available"])
         self.assertEqual(NATAL_LOGO_SHA256, assets["logo"]["sha256"])
         self.assertEqual(
             "canonical_natal_brand_asset", assets["logo"]["source"]["origin"],
         )
         self.assertEqual("logo-natal.png", assets["logo"]["source"]["filename"])
-        self.assertEqual("image", detail["configuration"]["background"]["mode"])
-        self.assertTrue(detail["configuration"]["sticker"]["enabled"])
+        self.assertEqual("texture", detail["configuration"]["background"]["mode"])
+        self.assertFalse(detail["configuration"]["sticker"]["enabled"])
         self.assertTrue(detail["configuration"]["bullets"]["enabled"])
         self.assertTrue(detail["configuration"]["logo"]["enabled"])
         self.assertEqual("top_right", detail["configuration"]["logo"]["position"])
@@ -133,18 +139,13 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         self.assertEqual((1080, 1080), (preview["width"], preview["height"]))
         self.assertEqual("ptw.studio.preview.v1", preview["resolved"]["schema"])
         self.assertTrue({
-            "sticker_object", "bullet_marker_1", "bullet_1", "bullet_marker_2",
+            "bullet_marker_1", "bullet_1", "bullet_marker_2",
             "bullet_2", "bullet_marker_3", "bullet_3", "logo",
         } <= set(
             preview["resolved"]["nodes"]
         ))
+        self.assertNotIn("sticker_object", preview["resolved"]["nodes"])
         self.assertNotIn("sticker_patch", preview["resolved"]["nodes"])
-        self.assertEqual("#FFFFFF", preview["resolved"]["nodes"]["sticker_object"]["props"]["alpha_outline_color"])
-        sticker = preview["resolved"]["nodes"]["sticker_object"]["props"]
-        self.assertEqual(0.06, sticker["alpha_outline_width_ratio"])
-        self.assertEqual("#00000020", sticker["alpha_outline_shadow_color"])
-        self.assertEqual(2.0, sticker["alpha_outline_shadow_blur"])
-        self.assertEqual(2.0, sticker["alpha_outline_shadow_y"])
         self.assertEqual(
             NATAL_LOGO_SHA256, preview["resolved"]["asset_sha256"]["logo"],
         )
@@ -206,22 +207,37 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             node["id"]: node["props"]
             for node in template.document["root"]["children"]
         }
-        self.assertEqual((left, top), (
-            nodes["logo_surface"]["x"], nodes["logo_surface"]["y"],
-        ))
-        self.assertLessEqual(
-            nodes["logo_surface"]["x"] + nodes["logo_surface"]["width"], right,
-        )
+        self.assertNotIn("logo_surface", nodes)
+        self.assertEqual((left, top), (nodes["logo"]["x"], nodes["logo"]["y"]))
+        self.assertLessEqual(nodes["logo"]["x"] + nodes["logo"]["width"], right)
         self.assertEqual((right, bottom), (
             nodes["cta"]["x"] + nodes["cta"]["width"],
             nodes["cta"]["y"] + nodes["cta"]["height"],
         ))
 
+    def test_protected_long_cta_reports_and_passes_exact_text_fit(self) -> None:
+        detail = self.workspace.detail()
+        content = copy.deepcopy(detail["content"])
+        content["cta"] = "Get your first opportunity for free."
+        configuration = copy.deepcopy(detail["configuration"])
+        configuration["layout"].update({"content_x": 500, "content_width": 500})
+        configuration["bullets"]["enabled"] = False
+        rendered = self.workspace.render_preview(
+            state_sha256=detail["state_sha256"],
+            configuration=configuration, content=content,
+        )
+        cta = rendered["resolved"]["nodes"]["cta"]
+        self.assertIsNotNone(cta["text_layout"])
+        self.assertEqual(1, cta["text_layout"]["source_line_count"])
+        self.assertEqual(1, cta["text_layout"]["line_count"])
+        self.assertFalse(cta["text_layout"]["overflow"])
+        self.assertFalse(cta["text_layout"]["truncated"])
+
     def test_draft_preview_changes_pixels_without_persisting_editor_state(self) -> None:
         detail = self.workspace.detail()
         persisted = self.workspace.render_preview(state_sha256=detail["state_sha256"])
-        draft = {**detail["configuration"], "sticker": {
-            **detail["configuration"]["sticker"], "enabled": False,
+        draft = {**detail["configuration"], "bullets": {
+            **detail["configuration"]["bullets"], "enabled": False,
         }}
         rendered = self.workspace.render_preview(
             state_sha256=detail["state_sha256"],
@@ -229,10 +245,10 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             content=detail["content"],
         )
         self.assertNotEqual(persisted["bytes_sha256"], rendered["bytes_sha256"])
-        self.assertNotIn("sticker_object", rendered["resolved"]["nodes"])
+        self.assertNotIn("bullet_1", rendered["resolved"]["nodes"])
         unchanged = self.workspace.detail()
         self.assertEqual(detail["state_sha256"], unchanged["state_sha256"])
-        self.assertTrue(unchanged["configuration"]["sticker"]["enabled"])
+        self.assertTrue(unchanged["configuration"]["bullets"]["enabled"])
         with self.assertRaisesRegex(ValueError, "configuration and content together"):
             self.workspace.render_preview(
                 state_sha256=detail["state_sha256"], configuration=draft,
@@ -342,6 +358,11 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
 
     def test_image_mix_bullet_cta_and_sticker_variants_are_bounded(self) -> None:
         detail = self.workspace.detail()
+        for slot in ("background_image", "sticker_object"):
+            detail = self.workspace.upload_asset(
+                slot, base_sha256=detail["state_sha256"], mime_type="image/png",
+                bytes_base64=base64.b64encode(_image_bytes()).decode(),
+            )
         for image_percent, expected_x, expected_width in ((75, 0.25, 0.75), (25, 0.75, 0.25)):
             config = copy.deepcopy(detail["configuration"])
             config["background"].update({
@@ -447,10 +468,19 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
 
     def test_each_sticker_control_changes_the_draft_render(self) -> None:
         detail = self.workspace.detail()
-        baseline = self.workspace.render_preview(state_sha256=detail["state_sha256"])
+        detail = self.workspace.upload_asset(
+            "sticker_object", base_sha256=detail["state_sha256"], mime_type="image/png",
+            bytes_base64=base64.b64encode(_image_bytes()).decode(),
+        )
+        base_configuration = copy.deepcopy(detail["configuration"])
+        base_configuration["sticker"]["enabled"] = True
+        baseline = self.workspace.render_preview(
+            state_sha256=detail["state_sha256"], configuration=base_configuration,
+            content=detail["content"],
+        )
         baseline_node = next(
             node for node in build_universal_template(
-                detail["configuration"], detail["content"],
+                base_configuration, detail["content"],
             ).document["root"]["children"]
             if node["id"] == "sticker_object"
         )
@@ -463,7 +493,7 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         }
         rendered_nodes = {}
         for setting, value in variants.items():
-            config = copy.deepcopy(detail["configuration"])
+            config = copy.deepcopy(base_configuration)
             config["sticker"][setting] = value
             rendered = self.workspace.render_preview(
                 state_sha256=detail["state_sha256"],
@@ -641,15 +671,9 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             configuration=with_background,
             content=detail["content"],
         )
-        self.assertNotEqual(rendered["bytes_sha256"], background_render["bytes_sha256"])
-        self.assertIn("logo_surface", background_render["resolved"]["nodes"])
-        surface_node = next(
-            node for node in build_universal_template(
-                with_background, detail["content"],
-            ).document["root"]["children"]
-            if node["id"] == "logo_surface"
-        )
-        self.assertEqual("#43BDD3", surface_node["props"]["fill"])
+        self.assertEqual(rendered["bytes_sha256"], background_render["bytes_sha256"])
+        self.assertFalse(normalize_universal_config(with_background)["logo"]["background_enabled"])
+        self.assertNotIn("logo_surface", background_render["resolved"]["nodes"])
 
         hidden = copy.deepcopy(top_left)
         hidden["logo"]["enabled"] = False
@@ -727,22 +751,15 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             node for node in template.document["root"]["children"]
             if node["id"] == "sticker_object"
         )
-        logo_surface = next(
-            node for node in template.document["root"]["children"]
-            if node["id"] == "logo_surface"
-        )
         logo = next(
             node for node in template.document["root"]["children"]
             if node["id"] == "logo"
         )
         self.assertEqual(["sticker_object"], template.document["semantic_roles"]["sticker"])
-        self.assertEqual(
-            ["logo_surface", "logo"], template.document["semantic_roles"]["logo"],
-        )
+        self.assertEqual(["logo"], template.document["semantic_roles"]["logo"])
         self.assertEqual("#FFFFFF", sticker["props"]["alpha_outline_color"])
         self.assertEqual(0.06, sticker["props"]["alpha_outline_width_ratio"])
-        self.assertEqual("#FFFFFF", logo_surface["props"]["fill"])
-        self.assertLess(logo_surface["props"]["z_index"], logo["props"]["z_index"])
+        self.assertEqual(10, logo["props"]["z_index"])
 
     def test_existing_generation_copy_maps_to_universal_semantic_content(self) -> None:
         content = universal_content_from_generation({
@@ -808,7 +825,7 @@ class UniversalStudioApiTests(unittest.TestCase):
                 self.assertEqual(200, preview.status_code, preview.text)
                 self.assertEqual("private, no-store", preview.headers["cache-control"])
                 draft_configuration = detail.json()["configuration"]
-                draft_configuration["sticker"]["enabled"] = False
+                draft_configuration["background"]["texture_intensity"] = 0.1
                 draft_preview = client.post("/api/v1/studio/preview", json={
                     "state_sha256": detail.json()["state_sha256"],
                     "configuration": draft_configuration,

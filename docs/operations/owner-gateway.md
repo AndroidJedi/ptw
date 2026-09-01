@@ -24,6 +24,11 @@ Local app use has the loopback-only API documented in
 [`../architecture/universal-ad-studio.md`](../architecture/universal-ad-studio.md).
 Briefs, approved Project assets, five-candidate Result runs, releases, and
 owner-approved lessons are mutable and restart-safe in the local file authority;
+an active local Result has one confirmation-gated Terminate action. The bounded
+loopback endpoint marks the append-only run `terminated`, stops its exact active
+Codex process group without retrying it, retains intermediate evidence, and
+allows a later retry only as a child run. This route and status mutation remain
+absent from Owner Gateway and the production Validation API.
 Universal Studio remains a separate writable saved workspace. Provider-backed
 generation uses the authenticated Codex CLI only through an empty, ephemeral,
 read-only non-interactive boundary. That boundary explicitly retains `xhigh`

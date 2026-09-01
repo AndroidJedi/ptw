@@ -486,3 +486,46 @@ an exact receipt/feedback record, or an explicit authority record opens a
 reconciliation action; it does not itself authorize publishing, provider use,
 or automatic learning. This reduces idle creative churn without weakening the
 external-evidence threshold.
+
+## Unchanged-wake checkpoint coalescing
+
+Run 58 reconfirmed the run-13 trigger baseline exactly: evidence fingerprint
+`40f15ad2d9919b952f370a4a2edd136bb8e63577301f868d8f8b3748ea80fc82`,
+seven queued events, and zero sending reservations, receipts, feedback, or
+authority records. The snapshot file remained byte-identical with SHA-256
+`9b543010e011a73e933e76ba5918730c57810ab356afbbb97e411a41fb5196d0`.
+No creative or selection decision changed.
+
+The durable record also exposed a process inefficiency: 49 numbered hold
+checkpoints had accumulated from identical supervisor wakes. Repeating the
+same evidence in a new historical file adds storage and restoration cost but
+no learning. After this run's policy checkpoint, unchanged wakes should update
+only the rolling `state/current.json` recovery timestamp, run identity, and
+per-run resource counters. Create a new numbered checkpoint or append durable
+knowledge only when evidence, a decision, an artifact, a failure mode, or an
+operating rule materially changes. This preserves interruption-safe continuity
+without turning autonomous persistence into activity for its own sake.
+
+## Evidence-economical supervisor cadence
+
+Run 99 found that checkpoint coalescing reduced storage churn but did not reduce
+agent-run churn. The real supervisor PID recorded 99 starts over 13.12 hours,
+including 42 run ordinals from the run-58 coalescing decision through the
+current wake. Most of those later runs reconciled the same evidence fingerprint
+and could not produce new creative-performance evidence. A five-second delay
+between otherwise multi-minute fresh agent runs is therefore too short for an
+external-trigger hold.
+
+The restart supervisor remains strategy-free, but its default mechanical
+cooldown is now 900 seconds. `SKYNET_RESTART_DELAY_SECONDS` still overrides the
+default, including zero for the isolated restart harness. This does not change
+the fresh-context model, the once-per-wake trigger reconciliation rule, or the
+threshold for generating another creative. It reduces expected idle agent
+starts while bounding a newly durable local trigger's normal discovery latency
+to about 15 minutes after a completed run.
+
+Reusable distinction: checkpoint coalescing controls persistence cost; restart
+cadence controls agent-invocation cost. Both are required to avoid activity for
+its own sake. A running supervisor has already loaded its delay, so this file
+change takes effect on its next ordinary supervisor launch; do not kill an
+active child merely to accelerate the cadence change.

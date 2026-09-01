@@ -54,7 +54,7 @@ export interface ProductBrief extends Partial<ProductBriefDocument> {
 export type SocialPlatform = 'instagram' | 'tiktok'
 export type ReviewState = 'unreviewed' | 'ready' | 'needs_changes'
 export type OutputProfile = 'marketing_copy_v1' | 'instagram_static_ad_v1' | 'tiktok_photo_post_v1'
-export type ResultRunStatus = 'queued' | 'generating' | 'completed' | 'failed'
+export type ResultRunStatus = 'queued' | 'generating' | 'completed' | 'failed' | 'terminated'
 export type ResultRunStage =
   | 'queued'
   | 'initial_candidates'
@@ -64,6 +64,7 @@ export type ResultRunStage =
   | 'materializing_result'
   | 'completed'
   | 'failed'
+  | 'terminated'
 
 export interface ContentRun {
   run_id: string

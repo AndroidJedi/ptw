@@ -1,5 +1,5 @@
 import {
-  Brain, Check, Copy, Download, FolderKanban, Plus, RefreshCcw,
+  Brain, Check, CircleStop, Copy, Download, FolderKanban, Plus, RefreshCcw,
   Send, Smartphone, Sparkles, Square, Upload, X,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -9,10 +9,11 @@ import { ResultDecisionTrace } from '../components/ResultDecisionTrace'
 import { translate, type Language } from '../i18n'
 import type {
   ContentDebug, ContentResult, ContentRun, ProductBrief, ReviewState,
-  SocialPlatform, ValidationProject,
+  SocialPlatform, StudioUniversalDetail, ValidationProject,
 } from '../types'
 
 const ACTIVE = new Set(['queued', 'generating'])
+const WITH_INTERMEDIATE_EVIDENCE = new Set(['failed', 'terminated'])
 
 interface LocalProjectAsset {
   source_asset_id: string
@@ -66,6 +67,7 @@ const stageCopy: Record<ContentRun['current_stage'], { en: string; uk: string }>
   materializing_result: { en: 'Final review', uk: 'Фінальна перевірка' },
   completed: { en: 'Completed', uk: 'Завершено' },
   failed: { en: 'Failed', uk: 'Не вдалося' },
+  terminated: { en: 'Terminated', uk: 'Зупинено' },
 }
 
 const reviewCopy: Record<ReviewState, { en: string; uk: string }> = {
@@ -280,7 +282,12 @@ export function ResultView({
   }, [selectedRun?.run_id, selectedRun?.status])
 
   useEffect(() => {
-    if (!localDemo || selectedRun?.status !== 'failed' || debug) return
+    if (
+      !localDemo
+      || !selectedRun
+      || (selectedRun.status !== 'completed' && !WITH_INTERMEDIATE_EVIDENCE.has(selectedRun.status))
+      || debug
+    ) return
     let active = true
     void api.get<ContentDebug>(`/api/v1/content-runs/${selectedRun.run_id}/debug`)
       .then((value) => { if (active) setDebug(value) })
@@ -319,10 +326,16 @@ export function ResultView({
     setBusy(true); setError(''); setNotice('')
     try {
       const request = localDemo
-        ? await api.get<{ state_sha256: string }>('/api/v1/studio').then((studio) => ({
-          request_id: crypto.randomUUID(), brief_id: briefId,
-          platform: 'instagram' as const, studio_state_sha256: studio.state_sha256,
-        }))
+        ? await api.get<StudioUniversalDetail>('/api/v1/studio').then((studio) => {
+          if (!studio.pexels_available) throw new Error(tr(
+            'Pexels is not configured. Set PEXELS_API_KEY before creating a post.',
+            'Pexels не налаштовано. Додайте PEXELS_API_KEY перед створенням допису.',
+          ))
+          return {
+            request_id: crypto.randomUUID(), brief_id: briefId,
+            platform: 'instagram' as const, studio_state_sha256: studio.state_sha256,
+          }
+        })
         : { request_id: crypto.randomUUID(), brief_id: briefId, platform }
       const run = await api.post<ContentRun>('/api/v1/content-runs', request, { deadlineMs: 60_000 })
       setCreating(false)
@@ -341,6 +354,24 @@ export function ResultView({
       }, { deadlineMs: 60_000 })
       onRunSelect(child.run_id)
       await loadWorkspace(child.run_id)
+    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+  }
+
+  const terminate = async () => {
+    if (!localDemo || !selectedRun || !ACTIVE.has(selectedRun.status)) return
+    if (!window.confirm(tr(
+      'Terminate this local run now? Anything already produced will remain as immutable evidence.',
+      'Зупинити цей локальний запуск зараз? Усе вже створене залишиться як незмінний доказ.',
+    ))) return
+    setBusy(true); setError('')
+    try {
+      const terminated = await api.post<ContentRun>(
+        `/api/v1/content-runs/${selectedRun.run_id}/terminate`, {},
+      )
+      setSelectedRun(terminated)
+      setRuns((items) => items.map((item) => item.run_id === terminated.run_id ? terminated : item))
+      setNotice(tr('Run terminated.', 'Запуск зупинено.'))
+      await loadWorkspace(terminated.run_id)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
 
@@ -472,7 +503,7 @@ export function ResultView({
             ? <label>{tr('Approved Product Brief', 'Схвалений продуктовий бриф')}<select value={briefId} onChange={(event) => setBriefId(event.target.value)}>{approved.map((item) => <option key={item.brief_id} value={item.brief_id}>{item.product}</option>)}</select></label>
             : approved[0] && <p className="social-brief-choice"><Check />{approved[0].product}</p>}
           {!approved.length && <div className="social-no-brief"><p>{tr('Approve a completed Product Brief before creating a post.', 'Схваліть завершений продуктовий бриф перед створенням допису.')}</p><button className="secondary" onClick={onOpenBriefs}>{tr('Open Product Briefs', 'Відкрити продуктові брифи')}</button></div>}
-          {localDemo && <p className="social-live-hint">{tr('Uses the current saved Universal Studio export, five strategies, and three critic passes.', 'Використовує поточний збережений експорт Universal Studio, п’ять стратегій і три етапи критика.')}</p>}
+          {localDemo && <p className="social-live-hint">{tr('Requires Pexels for three distinct photo backgrounds and one photographed sticker, then runs five strategies and three critic passes.', 'Потребує Pexels для трьох різних фототлів і одного сфотографованого стікера, а потім запускає п’ять стратегій і три етапи критика.')}</p>}
           <button className="primary large" disabled={busy || !briefId} onClick={() => void create()}><Sparkles />{tr('Create post', 'Створити допис')}</button>
         </section>}
 
@@ -480,12 +511,21 @@ export function ResultView({
         {projectId && !selectedRun && !creating && <Empty><Sparkles className="empty-mark" /><h2>{tr('Create the first social post', 'Створіть перший допис')}</h2><button className="primary" onClick={() => setCreating(true)}><Plus />{tr('New post', 'Новий допис')}</button></Empty>}
 
         {selectedRun && <section className="social-artifact">
-          {ACTIVE.has(selectedRun.status) && <div className="social-progress" role="status"><div><RefreshCcw className="spin" /><div><strong>{translate(language, stageCopy[selectedRun.current_stage].en, stageCopy[selectedRun.current_stage].uk)}</strong><span>{selectedRun.progress_percent}% · {tr('bounded maximum 45 minutes', 'максимум 45 хвилин')}</span></div></div><progress max={100} value={selectedRun.progress_percent} /></div>}
+          {ACTIVE.has(selectedRun.status) && <div className="social-progress">
+            <div className="social-progress-header">
+              <div className="social-progress-state" role="status"><RefreshCcw className="spin" /><div><strong>{translate(language, stageCopy[selectedRun.current_stage].en, stageCopy[selectedRun.current_stage].uk)}</strong><span>{selectedRun.progress_percent}% · {tr('bounded maximum 45 minutes', 'максимум 45 хвилин')}</span></div></div>
+              {localDemo && <button className="secondary terminate-run" disabled={busy} onClick={() => void terminate()}><CircleStop />{tr('Terminate run', 'Зупинити запуск')}</button>}
+            </div>
+            <progress max={100} value={selectedRun.progress_percent} />
+          </div>}
           {selectedRun.status === 'failed' && <div className="social-failure"><h2>{tr('This artifact could not be completed', 'Не вдалося завершити цей артефакт')}</h2><p>{failureMessage(selectedRun, language)}</p><button className="secondary" disabled={busy} onClick={() => void retry()}><RefreshCcw />{tr('Retry as a child artifact', 'Повторити як дочірній артефакт')}</button></div>}
-          {selectedRun.status === 'failed' && debug?.candidates.length ? <section className="failed-run-evidence">
+          {selectedRun.status === 'terminated' && <div className="social-failure social-terminated"><h2>{tr('Run terminated', 'Запуск зупинено')}</h2><p>{tr('The active Codex call was stopped. Anything already produced remains attached to this immutable run.', 'Активний виклик Codex зупинено. Усе вже створене залишається пов’язаним із цим незмінним запуском.')}</p><button className="secondary" disabled={busy} onClick={() => void retry()}><RefreshCcw />{tr('Retry as a child artifact', 'Повторити як дочірній артефакт')}</button></div>}
+          {WITH_INTERMEDIATE_EVIDENCE.has(selectedRun.status) && debug?.candidates.length ? <section className="failed-run-evidence">
             <header>
               <small>{tr('INTERMEDIATE RESULTS', 'ПРОМІЖНІ РЕЗУЛЬТАТИ')}</small>
-              <h2>{tr('Everything produced before the final rejection', 'Усе, що було створено до фінального відхилення')}</h2>
+              <h2>{selectedRun.status === 'terminated'
+                ? tr('Everything produced before termination', 'Усе, що було створено до зупинки')
+                : tr('Everything produced before the final rejection', 'Усе, що було створено до фінального відхилення')}</h2>
               <p>{tr(
                 'These previews, gate failures, scores, rankings, comparisons, and observations are persisted evidence from this immutable run.',
                 'Ці прев’ю, непройдені перевірки, оцінки, рейтинги, порівняння та спостереження — збережені дані цього незмінного запуску.',
@@ -493,13 +533,28 @@ export function ResultView({
             </header>
             <ResultDecisionTrace value={debug} api={api} language={language} />
           </section> : null}
+          {localDemo && selectedRun.status === 'completed' && result ? <section className="result-selection-evidence" aria-labelledby="result-selection-heading">
+            <header>
+              <small>{tr('SELECTION EVIDENCE', 'ДОКАЗИ ВИБОРУ')}</small>
+              <h2 id="result-selection-heading">{tr('Chosen from five generated directions', 'Обрано з п’яти створених напрямів')}</h2>
+              <p>{tr(
+                'All five images are shown here. The selected direction is marked Final, followed by the exact three-stage critic path that chose it.',
+                'Тут показано всі п’ять зображень. Обраний напрям позначено як «Фінал», нижче наведено точний триетапний шлях рішення критика.',
+              )}</p>
+            </header>
+            {debug
+              ? <ResultDecisionTrace value={debug} api={api} selectedCandidateId={result.selected_candidate_id} language={language} />
+              : <p className="result-selection-loading">{tr('Loading all five verified images…', 'Завантаження всіх п’яти перевірених зображень…')}</p>}
+          </section> : null}
           {result && <div className="social-review-layout">
             <div className="social-preview-column">
               <NativePostPreview platform={platformFor(selectedRun)} projectName={selectedProject?.name || 'Natal'} result={result} assetUrl={assetUrl} language={language} />
               <details className="social-advanced" onToggle={(event) => { if ((event.currentTarget as HTMLDetailsElement).open && !debug) void api.get<ContentDebug>(`/api/v1/content-runs/${selectedRun.run_id}/debug`).then(setDebug).catch((cause: Error) => setError(cause.message)) }}>
                 <summary>{tr('Export details and decision trace', 'Деталі експорту та рішення')}</summary>
                 <dl><dt>{tr('Alt text', 'Альтернативний текст')}</dt><dd>{result.content.alt_text}</dd><dt>{tr('Asset', 'Файл')}</dt><dd>{result.asset_mime_type || 'image/jpeg'} · {result.asset_width || 1080} × {result.asset_height || (platformFor(selectedRun) === 'tiktok' ? 1920 : 1080)}</dd><dt>SHA-256</dt><dd><code>{result.asset_sha256}</code></dd></dl>
-                {debug ? <ResultDecisionTrace value={debug} api={api} selectedCandidateId={result.selected_candidate_id} language={language} /> : <p>{tr('Loading bounded trace…', 'Завантаження обмеженого трасування…')}</p>}
+                {localDemo
+                  ? <p>{tr('The five candidates and their selection path are shown above the final post.', 'П’ять кандидатів і шлях їх відбору показано над фінальним дописом.')}</p>
+                  : debug ? <ResultDecisionTrace value={debug} api={api} selectedCandidateId={result.selected_candidate_id} language={language} /> : <p>{tr('Loading bounded trace…', 'Завантаження обмеженого трасування…')}</p>}
               </details>
             </div>
             <aside className="social-review-panel">

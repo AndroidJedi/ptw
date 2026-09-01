@@ -47,6 +47,16 @@ and explicitly expands the task.
 
 ## Apple-style sticker treatment
 
+The sticker source must be an ultra-realistic photograph of a physical object
+obtained through the bounded Pexels API, with provider, photo, photographer,
+license, query, and transformation provenance retained. Never use image
+generation, procedural drawing, illustration, vector art, emoji, screenshots,
+or a repository-bundled fallback for this role. Select an object that visibly
+belongs to its background: align light direction and softness, color
+temperature, palette, material, surface texture, perspective, grain, and scale.
+If no compatible photograph can be isolated cleanly, fail the iteration rather
+than fabricating or compositing an unrelated sticker.
+
 When the owner asks for an Apple/iOS-style sticker, derive the white die-cut
 background from the isolated subject's final alpha silhouette. Size the solid
 white contour at roughly 5–8% of the actual fitted visible subject width, not

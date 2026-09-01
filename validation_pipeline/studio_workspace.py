@@ -21,16 +21,7 @@ from .studio_universal import (
 )
 
 
-_BUNDLED_ASSET_ROOT = Path(__file__).with_name("studio_assets") / "universal_ad"
 _BUNDLED_ASSETS = {
-    "background_image": {
-        "path": _BUNDLED_ASSET_ROOT / "ukraine-investment-background.png",
-        "origin": "bundled_tune_asset",
-    },
-    "sticker_object": {
-        "path": _BUNDLED_ASSET_ROOT / "investment-hryvnia-sticker.png",
-        "origin": "bundled_tune_asset",
-    },
     "logo": {
         "path": NATAL_LOGO_PATH,
         "origin": "canonical_natal_brand_asset",
@@ -101,7 +92,7 @@ class UniversalStudioWorkspace:
             if bundled is None:
                 return None
             path = bundled["path"]
-            data = natal_logo_bytes() if slot == "logo" else path.read_bytes()
+            data = natal_logo_bytes()
             filename = path.name
             inspected = inspect_media(data, "image/png")
             return {
@@ -270,6 +261,7 @@ class UniversalStudioWorkspace:
     def render_experiment(
         self, *, configuration: Mapping[str, Any], content: Mapping[str, Any],
         background_asset: Mapping[str, Any] | None = None,
+        sticker_asset: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Render one isolated local candidate without bundled creative fallbacks."""
 
@@ -291,9 +283,9 @@ class UniversalStudioWorkspace:
                 raise ValueError("Universal experiment requires the saved canonical logo identity")
             assets["logo"] = {"bytes": logo["bytes"], "mime_type": logo["mime_type"]}
         if config["sticker"]["enabled"]:
-            sticker = self._asset_record("sticker_object")
-            if sticker is None or sticker["source"].get("origin") == "bundled_tune_asset":
-                raise ValueError("Universal experiment sticker requires an approved non-bundled asset")
+            sticker = sticker_asset or self._asset_record("sticker_object")
+            if sticker is None:
+                raise ValueError("Universal experiment sticker requires an approved photo asset")
             assets["sticker_object"] = {
                 "bytes": sticker["bytes"], "mime_type": sticker["mime_type"],
             }

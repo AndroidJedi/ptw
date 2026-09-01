@@ -162,10 +162,12 @@ button svg { width: 17px; height: 17px; }
 .social-brief-choice { display: flex; align-items: center; gap: 8px; }
 .social-no-brief { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 .social-no-brief p { margin: 0; }
-.social-progress > div { display: flex; align-items: center; gap: 11px; }
-.social-progress > div > div { display: grid; gap: 3px; }
+.social-progress-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 11px; }
+.social-progress-state { display: flex; align-items: center; gap: 11px; }
+.social-progress-state > div { display: grid; gap: 3px; }
 .social-progress span, .social-failure p { color: var(--muted); font-size: 10px; }
 .social-progress progress { width: 100%; height: 7px; accent-color: var(--white); }
+.terminate-run { min-height: 44px; }
 .social-failure h2 { margin: 0; }
 .failed-run-evidence { overflow: hidden; border: 1px solid var(--line); border-radius: 17px; background: #0d0d0d; }
 .failed-run-evidence > header { padding: 20px 20px 4px; }
@@ -173,6 +175,13 @@ button svg { width: 17px; height: 17px; }
 .failed-run-evidence > header h2 { margin: 5px 0 8px; font-size: clamp(20px, 3vw, 30px); }
 .failed-run-evidence > header p { max-width: 760px; margin: 0; color: var(--soft); font-size: 11px; line-height: 1.5; }
 .failed-run-evidence .decision-trace { border-top: 0; }
+.result-selection-evidence { overflow: hidden; border: 1px solid var(--line); border-radius: 17px; background: #0d0d0d; }
+.result-selection-evidence > header { padding: 20px 20px 4px; }
+.result-selection-evidence > header small { color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .13em; }
+.result-selection-evidence > header h2 { margin: 5px 0 8px; font-size: clamp(20px, 3vw, 30px); }
+.result-selection-evidence > header p { max-width: 760px; margin: 0; color: var(--soft); font-size: 11px; line-height: 1.5; }
+.result-selection-evidence .decision-trace { border-top: 0; }
+.result-selection-loading { min-height: 140px; margin: 0; padding: 30px 20px; display: grid; place-items: center; color: var(--muted); font-size: 11px; }
 .social-review-layout { min-width: 0; display: grid; grid-template-columns: minmax(360px, 1fr) minmax(280px, 340px); gap: 14px; align-items: start; }
 .social-preview-column { min-width: 0; display: grid; justify-items: center; gap: 12px; }
 .native-post { width: min(100%, 620px); overflow: hidden; border: 1px solid #373737; border-radius: 17px; color: #ededed; background: #111; box-shadow: 0 18px 50px rgba(0, 0, 0, .28); }

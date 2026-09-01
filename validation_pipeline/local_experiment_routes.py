@@ -196,6 +196,15 @@ def local_experiment_router(
         except (KeyError, ValueError) as error:
             raise fail(error) from error
 
+    @router.post("/content-runs/{run_id}/terminate")
+    def terminate_run(run_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        if request:
+            raise HTTPException(status_code=400, detail="local Result termination has no input fields")
+        try:
+            return service.terminate_run(run_id, "loopback:owner")
+        except (KeyError, ValueError) as error:
+            raise fail(error) from error
+
     @router.get("/content-runs/{run_id}/result")
     def result(run_id: str) -> dict[str, Any]:
         try:

@@ -56,6 +56,67 @@ const result: ContentResult = {
   created_at: '2026-08-26T10:45:00Z',
 }
 
+function completedDebug(): ContentDebug {
+  const candidateIds = [
+    '018f07ea-7f20-7000-8000-000000000101',
+    result.selected_candidate_id,
+    '018f07ea-7f20-7000-8000-000000000103',
+    '018f07ea-7f20-7000-8000-000000000104',
+    '018f07ea-7f20-7000-8000-000000000105',
+  ]
+  const candidates = candidateIds.map((candidateId, index) => ({
+    candidate_id: candidateId,
+    alias: `C${index + 1}`,
+    round: 0,
+    generation_kind: 'initial' as const,
+    template_id: ['moment_tension', 'contrast_reframe', 'mechanism_proof', 'human_story', 'direct_offer'][index],
+    template_version: 6,
+    parameters: {
+      hook_pressure: 50 + index,
+      emotional_intensity: 45 + index,
+      conceptual_novelty: 60 + index,
+      information_density: 40 + index,
+      visual_complexity: 35 + index,
+    },
+    document: { ...result.content, hook: `Candidate hook ${index + 1}`, alt_text: `Candidate ${index + 1}` },
+    preview: {
+      asset_url: `/api/v1/content-runs/${run.run_id}/candidates/${candidateId}/asset`,
+      sha256: String(index + 1).repeat(64), mime_type: 'image/jpeg' as const, width: 1080, height: 1080,
+    },
+  }))
+  const criticPass = (
+    passNumber: 1 | 2 | 3,
+    activeCandidateIds: string[],
+    criticScope: 'screening_group_1_of_2' | 'screening_group_2_of_2' | 'group_winner_comparison',
+  ): ContentDebug['critic_passes'][number] => ({
+    pass_id: `pass-${passNumber}`,
+    pass_number: passNumber,
+    critic_scope: criticScope,
+    active_candidate_ids: activeCandidateIds,
+    hard_gates: Object.fromEntries(activeCandidateIds.map((candidateId) => [candidateId, { exact_offer_cta: true }])),
+    candidate_scores: Object.fromEntries(activeCandidateIds.map((candidateId, index) => [candidateId, {
+      scores: { message_clarity: 9 - index }, complexity: 'none' as const,
+      weighted_total: 90 - index, eligible: true, reason_codes: ['clear_message'],
+    }])),
+    ranking: activeCandidateIds,
+    pairwise_results: [],
+    observations: [`Pass ${passNumber} completed.`],
+    actions: [],
+    final_selection: passNumber === 3
+      ? { candidate_id: result.selected_candidate_id, decision_summary: ['C2 was the clearest eligible direction.'] }
+      : null,
+  })
+  return {
+    candidates,
+    critic_passes: [
+      criticPass(1, candidateIds.slice(0, 3), 'screening_group_1_of_2'),
+      criticPass(2, candidateIds.slice(3), 'screening_group_2_of_2'),
+      criticPass(3, [result.selected_candidate_id, candidateIds[3]], 'group_winner_comparison'),
+    ],
+    result,
+  }
+}
+
 function props(api: ApiClient, extras: Partial<ComponentProps<typeof ResultView>> = {}) {
   return {
     api, projectId, projects: [project], language: 'en' as const,
@@ -122,6 +183,65 @@ describe('Social Posts workspace', () => {
     await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/content-runs', {
       request_id: expect.any(String), brief_id: brief.brief_id, platform: 'tiktok',
     }, { deadlineMs: 60_000 }))
+  })
+
+  it('fails local creation before run persistence when Pexels is unavailable', async () => {
+    const post = vi.fn()
+    const api = {
+      get: vi.fn(async (path: string) => {
+        if (path.startsWith('/api/v1/briefs?')) return { items: [brief] }
+        if (path.startsWith('/api/v1/content-runs?')) return { items: [] }
+        if (path === '/api/v1/studio') return { state_sha256: 'a'.repeat(64), pexels_available: false }
+        throw new Error(`Unexpected GET ${path}`)
+      }),
+      post, image: vi.fn(), media: vi.fn(), websocketUrl: vi.fn(), request: vi.fn(),
+    } as unknown as ApiClient
+
+    render(<ResultView {...props(api, { localDemo: true })} />)
+    await screen.findByRole('heading', { name: 'Create the first social post' })
+    fireEvent.click(screen.getByRole('button', { name: 'New post' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Create post' }))
+
+    expect(await screen.findByText(/Pexels is not configured/)).toBeInTheDocument()
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('terminates an active local run and preserves it as a retryable artifact', async () => {
+    let current = {
+      ...run, status: 'generating', current_stage: 'initial_candidates',
+      progress_percent: 10, final_result_id: null,
+    } as ContentRun
+    const post = vi.fn(async (path: string, body: unknown) => {
+      if (path === `/api/v1/content-runs/${run.run_id}/terminate`) {
+        expect(body).toEqual({})
+        current = { ...current, status: 'terminated', current_stage: 'terminated' }
+        return current
+      }
+      throw new Error(`Unexpected POST ${path}`)
+    })
+    const api = {
+      get: vi.fn(async (path: string) => {
+        if (path.startsWith('/api/v1/briefs?')) return { items: [brief] }
+        if (path.startsWith('/api/v1/content-runs?')) return { items: [current] }
+        if (path === `/api/v1/content-runs/${run.run_id}`) return current
+        if (path === `/api/v1/content-runs/${run.run_id}/debug`) return { candidates: [], critic_passes: [] }
+        throw new Error(`Unexpected GET ${path}`)
+      }),
+      post, image: vi.fn(), media: vi.fn(), websocketUrl: vi.fn(), request: vi.fn(),
+    } as unknown as ApiClient
+    const confirmation = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<ResultView {...props(api, { runId: run.run_id, localDemo: true })} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Terminate run' }))
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith(
+      `/api/v1/content-runs/${run.run_id}/terminate`, {},
+    ))
+    expect(await screen.findByRole('heading', { name: 'Run terminated' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Retry as a child artifact' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Terminate run' })).not.toBeInTheDocument()
+    expect(confirmation).toHaveBeenCalledOnce()
+    confirmation.mockRestore()
   })
 
   it('explains the missing approved Brief instead of silently disabling creation', async () => {
@@ -235,6 +355,34 @@ describe('Social Posts workspace', () => {
     expect(screen.queryByText(/correct the Brief\/assets\/layout/)).not.toBeInTheDocument()
     expect(screen.getByText('Every image and its exact generation parameters')).toBeVisible()
     expect(api.get).toHaveBeenCalledWith(`/api/v1/content-runs/${failed.run_id}/debug`)
+  })
+
+  it('shows all five alternatives and the selected direction on a completed local run', async () => {
+    const debug = completedDebug()
+    const api = {
+      get: vi.fn(async (path: string) => {
+        if (path.startsWith('/api/v1/briefs?')) return { items: [brief] }
+        if (path.startsWith('/api/v1/content-runs?')) return { items: [run] }
+        if (path === `/api/v1/content-runs/${run.run_id}`) return run
+        if (path === `/api/v1/content-runs/${run.run_id}/result`) return result
+        if (path === `/api/v1/content-runs/${run.run_id}/debug`) return debug
+        if (path === `/api/v1/projects/${projectId}/assets`) return { items: [] }
+        if (path.startsWith('/api/v1/learning-summary?')) return {
+          market_performance: false, runs: [], lesson_queue: [], approved_lessons: [],
+        }
+        throw new Error(`Unexpected GET ${path}`)
+      }),
+      post: vi.fn(), image: vi.fn(async () => new Blob(['image'], { type: 'image/jpeg' })),
+      media: vi.fn(), websocketUrl: vi.fn(), request: vi.fn(),
+    } as unknown as ApiClient
+
+    render(<ResultView {...props(api, { runId: run.run_id, localDemo: true })} />)
+
+    expect(await screen.findByRole('heading', { name: 'Chosen from five generated directions' })).toBeVisible()
+    expect(await screen.findByText('Every image and its exact generation parameters')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Selected C2' })).toBeVisible()
+    await waitFor(() => expect(screen.getAllByRole('img')).toHaveLength(6))
+    expect(api.get).toHaveBeenCalledWith(`/api/v1/content-runs/${run.run_id}/debug`)
   })
 
   it('shows a native post, gates export behind Ready, and does not transcribe rendered fields', async () => {

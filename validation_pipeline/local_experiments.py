@@ -25,19 +25,21 @@ from .domain import (
     infer_language, product_brief_schema,
 )
 from .images import PexelsClient
-from .local_codex import LocalCodexStructuredProvider, sanitized
+from .local_codex import LocalCodexCancelled, LocalCodexStructuredProvider, sanitized
 from .local_experiment_store import LocalExperimentStore, sha256_json, utc_now
 from .service import load_product_brief_skill, product_brief_system_prompt
 from .studio import inspect_media
 from .studio_universal import (
-    SEMANTIC_ROLES, UNIVERSAL_AD_CONTENT_SCHEMA, normalize_universal_config,
-    normalize_universal_content, universal_content_from_generation,
+    SEMANTIC_ROLES, UNIVERSAL_AD_CONTENT_SCHEMA, isolate_object,
+    normalize_universal_config, normalize_universal_content,
+    universal_content_from_generation,
 )
 from .studio_workspace import UniversalStudioWorkspace
 from .universal_experiment import (
+    MINIMUM_IMAGE_BACKGROUND_DIRECTIONS, PEXELS_IMAGE_BACKGROUND_STRATEGIES,
     PHOTO_FALLBACK_PATCHES, PHOTO_STRATEGIES, PROFILE_ID, STRATEGY_PATCHES,
-    audit_universal_render, deterministic_analysis_jpeg, deterministic_jpeg,
-    resolve_strategy_patch,
+    audit_candidate_diversity, audit_universal_render,
+    deterministic_analysis_jpeg, deterministic_jpeg, resolve_strategy_patch,
 )
 
 
@@ -53,6 +55,10 @@ COPY_ELEMENT_SLOTS = (
     "hook", "headline", "primary_text", "supporting_text", "offer", "cta",
     "caption", "alt_text", "desired_emotion", "visual_concept", "media_request",
 )
+
+
+class _RunTerminationRequested(RuntimeError):
+    pass
 
 
 def _uuid(value: Any, label: str) -> str:
@@ -200,7 +206,7 @@ def _render_aligned_document(
             if logo["visible"] else "No logo is rendered in this strategy."
         ),
         "sticker": (
-            "A saved approved sticker asset is visibly rendered."
+            "An ultra-realistic isolated Pexels photograph is visibly rendered as the sticker."
             if sticker["visible"] else "No sticker is rendered in this strategy."
         ),
     }
@@ -222,7 +228,13 @@ def _render_aligned_document(
     if language == "uk":
         background_text = (
             "схвалене фотографічне тло"
-            if background["mode"] == "image"
+            if background["media_kind"] == "approved_photo"
+            else "перевірене фотографічне тло без людей"
+            if background["media_kind"] == "reviewed_non_human_image"
+            else "перевірене графічне тло без людей"
+            if background["media_kind"] == "reviewed_non_human_graphic"
+            else "суцільне кольорове тло"
+            if background["media_kind"] == "native_non_photo"
             else f"текстуроване тло «{background.get('texture') or background['mode']}»"
         )
         parts = [
@@ -238,11 +250,17 @@ def _render_aligned_document(
         if logo["visible"]:
             parts.append("Видно збережений логотип Natal.")
         if sticker["visible"]:
-            parts.append("Видно схвалений декоративний об’єкт.")
+            parts.append("Видно ультрареалістичний стікер із фотографії Pexels.")
     else:
         background_text = (
             "an approved photographic background"
-            if background["mode"] == "image"
+            if background["media_kind"] == "approved_photo"
+            else "a reviewed non-human photographic background"
+            if background["media_kind"] == "reviewed_non_human_image"
+            else "a reviewed non-human graphic background"
+            if background["media_kind"] == "reviewed_non_human_graphic"
+            else "a solid-color background"
+            if background["media_kind"] == "native_non_photo"
             else f"a {background.get('texture') or background['mode']} textured background"
         )
         parts = [
@@ -258,7 +276,7 @@ def _render_aligned_document(
         if logo["visible"]:
             parts.append("The saved Natal logo is visible.")
         if sticker["visible"]:
-            parts.append("An approved decorative object is visible.")
+            parts.append("An ultra-realistic sticker isolated from a Pexels photograph is visible.")
     alt_text = " ".join(parts)
     if len(alt_text) > 1000:
         raise ValueError("deterministic Universal alt text exceeds 1000 characters")
@@ -284,6 +302,9 @@ class LocalExperimentService:
         self.repository_root = repository_root
         self.pexels = pexels
         self._execution_lock = threading.RLock()
+        self._cancellation_lock = threading.RLock()
+        self._cancellation_events: dict[str, threading.Event] = {}
+        self._run_context = threading.local()
         self.product_skill_path = repository_root / "skills/product-brief-generator/SKILL.md"
         self.generator_skill_path = repository_root / "skills/content-candidate-generator/SKILL.md"
         self.critic_skill_path = repository_root / "skills/content-result-critic/SKILL.md"
@@ -315,6 +336,12 @@ class LocalExperimentService:
             values.append(f"REFERENCE {path.name}:\n{path.read_text(encoding='utf-8')}")
         return "\n\n".join(values)
 
+    def _raise_if_termination_requested(self, run_id: str) -> None:
+        event = getattr(self._run_context, "cancel_event", None)
+        run = self.store.get("runs", run_id)
+        if (event is not None and event.is_set()) or run.get("status") == "terminated":
+            raise _RunTerminationRequested("local Result run was terminated by the owner")
+
     def _record_invocation(
         self, *, target_id: str, mode: str, input_payload: Mapping[str, Any],
         response: Mapping[str, Any] | None, invocation: Mapping[str, Any] | None,
@@ -327,7 +354,10 @@ class LocalExperimentService:
             "response": None if response is None else sanitized(response),
             "response_sha256": None if response is None else sha256_json(response),
             "provenance": sanitized(invocation or {}),
-            "status": "failed" if error else "completed",
+            "status": (
+                "terminated" if isinstance(error, LocalCodexCancelled)
+                else "failed" if error else "completed"
+            ),
             "error_type": None if error is None else type(error).__name__,
             "created_at": utc_now(),
         }
@@ -337,6 +367,9 @@ class LocalExperimentService:
 
     def _provider_call(self, *, target_id: str, mode: str, **kwargs: Any) -> dict[str, Any]:
         payload = dict(kwargs["input_payload"])
+        cancel_event = getattr(self._run_context, "cancel_event", None)
+        if cancel_event is not None:
+            kwargs["cancel_event"] = cancel_event
         try:
             result = self.provider.call(mode=mode, **kwargs)
         except Exception as error:
@@ -637,66 +670,181 @@ class LocalExperimentService:
         data = self.store.artifact(value["artifact"]["path"], expected_sha256=value["sha256"])
         return {**value, "bytes": data}
 
+    @staticmethod
+    def _pexels_background_query(brief: Mapping[str, Any], strategy_id: str) -> str:
+        directions = {
+            "moment_tension": "modern city business office blue hour cinematic photography",
+            "contrast_reframe": "financial planning desk warm natural paper editorial photography",
+            "mechanism_proof": "modern glass architecture geometric daylight photography",
+            "human_story": "thoughtful workspace window natural light documentary photography",
+        }
+        product = " ".join(str(brief["product"]).split())[:56]
+        return f"{product} {directions[strategy_id]}"[:160].rstrip()
+
     def _resolve_candidate_assets(
         self, run: Mapping[str, Any], brief: Mapping[str, Any],
     ) -> dict[str, str | None]:
-        approved = [item for item in self.list_assets(run["project_id"]) if item.get("approved")]
-        distinct: list[dict[str, Any]] = []
-        seen: set[str] = set()
-        for item in approved:
-            if item["sha256"] not in seen:
-                distinct.append(item)
-                seen.add(item["sha256"])
-        photo_order = [item for item in TEMPLATE_IDS if item in PHOTO_STRATEGIES]
-        assignments: dict[str, str | None] = {}
-        base_strategy = run.get("immutable_base_strategy_id")
-        base_asset = run.get("immutable_base_asset_id")
-        remaining = list(distinct)
-        if base_strategy in PHOTO_STRATEGIES:
-            if base_asset:
-                selected = next((item for item in remaining if item["source_asset_id"] == base_asset), None)
-                if selected is None:
-                    raise ValueError("immutable child-run base asset is no longer approved in its Project pool")
-                assignments[str(base_strategy)] = str(base_asset)
-                remaining.remove(selected)
-            else:
-                # Preserve an immutable texture-backed parent even if photos are
-                # added to the Project before the child run starts.
-                assignments[str(base_strategy)] = None
+        """Resolve exactly three distinct, run-fresh Pexels photo backgrounds."""
 
-        open_strategies = [item for item in photo_order if item not in assignments]
-        used_external: set[str] = {
-            str(item.get("source", {}).get("external_id")) for item in distinct
-            if item.get("source", {}).get("external_id")
+        all_assets = self.list_assets(run["project_id"])
+        assignments = {strategy_id: None for strategy_id in PHOTO_STRATEGIES}
+        used_external = {
+            str(item.get("source", {}).get("external_id"))
+            for item in all_assets if item.get("source", {}).get("external_id")
         }
-        attempts = 0
-        while len(remaining) < len(open_strategies) and self.pexels is not None:
-            strategy = open_strategies[len(remaining)]
-            query = f"{brief['product']} {brief['target_audience']} candid {strategy.replace('_', ' ')}"
-            attempts += 1
-            try:
-                photo, data = self.pexels.select(query, brief["product"], used_ids=used_external)
+        used_digests = {str(item["sha256"]) for item in all_assets}
+        base_strategy = str(run.get("immutable_base_strategy_id") or "")
+        base_asset_id = run.get("immutable_base_asset_id")
+        if base_strategy in PHOTO_STRATEGIES and base_asset_id:
+            base_asset = next((
+                item for item in all_assets
+                if item["source_asset_id"] == base_asset_id and item.get("approved")
+            ), None)
+            if base_asset is None:
+                raise ValueError("immutable child-run base asset is no longer approved in its Project pool")
+            if base_asset.get("source", {}).get("provider") != "pexels":
+                raise ValueError("immutable child-run photo is not a Pexels source")
+            assignments[base_strategy] = str(base_asset_id)
+        for item in all_assets:
+            source = item.get("source", {})
+            strategy_id = str(source.get("strategy_id") or "")
+            if (
+                item.get("approved")
+                and source.get("provider") == "pexels"
+                and source.get("usage") == "candidate_background"
+                and source.get("run_id") == run["run_id"]
+                and strategy_id in PHOTO_STRATEGIES
+                and assignments[strategy_id] is None
+            ):
+                assignments[strategy_id] = str(item["source_asset_id"])
+
+        required = MINIMUM_IMAGE_BACKGROUND_DIRECTIONS - sum(
+            asset_id is not None for asset_id in assignments.values()
+        )
+        if required > 0 and self.pexels is None:
+            raise RuntimeError(
+                "PEXELS_API_KEY is required: every post needs three distinct real-photo backgrounds"
+            )
+
+        strategy_order = [
+            *PEXELS_IMAGE_BACKGROUND_STRATEGIES,
+            *(strategy_id for strategy_id in TEMPLATE_IDS if strategy_id in PHOTO_STRATEGIES),
+        ]
+        open_strategies: list[str] = []
+        for strategy_id in strategy_order:
+            if strategy_id not in open_strategies and assignments[strategy_id] is None:
+                open_strategies.append(strategy_id)
+
+        for strategy_id in open_strategies[:required]:
+            query = self._pexels_background_query(brief, strategy_id)
+            selected_asset: dict[str, Any] | None = None
+            for _attempt in range(3):
+                photo, data = self.pexels.select(
+                    query, "business editorial photography", used_ids=used_external,
+                )
                 used_external.add(photo.photo_id)
-                asset = self.upload_asset(
+                digest = hashlib.sha256(data).hexdigest()
+                if digest in used_digests:
+                    continue
+                selected_asset = self.upload_asset(
                     project_id=run["project_id"], title=f"Pexels · {photo.photographer}",
                     mime_type="image/jpeg", data=data, requested_by="local-preflight",
                     origin="pexels", source={
                         "origin": "pexels", **photo.source_metadata(), "query": query,
-                        "transformation": "none", "no_synthetic_people": True,
+                        "transformation": "none", "usage": "candidate_background",
+                        "strategy_id": strategy_id, "run_id": run["run_id"],
+                        "selection_policy": "fresh_distinct_per_run_v1",
+                        "no_synthetic_people": True,
                     }, approval_status="approved",
                 )
-            except Exception:
-                # Pexels is optional enrichment. A provider outage or unusable
-                # response falls back to the canonical deterministic texture.
+                used_digests.add(digest)
                 break
-            if asset["sha256"] not in seen:
-                remaining.append(asset)
-                seen.add(asset["sha256"])
-            if attempts >= len(open_strategies) * 2:
-                break
-        for strategy in open_strategies:
-            assignments[strategy] = remaining.pop(0)["source_asset_id"] if remaining else None
+            if selected_asset is None:
+                raise RuntimeError(
+                    f"Pexels did not return a fresh distinct photo for {strategy_id}"
+                )
+            assignments[strategy_id] = str(selected_asset["source_asset_id"])
+
+        if sum(asset_id is not None for asset_id in assignments.values()) != MINIMUM_IMAGE_BACKGROUND_DIRECTIONS:
+            raise ValueError("exactly three Pexels image-backed candidate directions are required")
         return assignments
+
+    def _resolve_sticker_asset(
+        self, run: Mapping[str, Any], brief: Mapping[str, Any],
+    ) -> str:
+        """Resolve one ultra-realistic Pexels object and isolate it deterministically."""
+
+        all_assets = self.list_assets(run["project_id"])
+        existing = next((
+            item for item in all_assets
+            if item.get("approved")
+            and item.get("source", {}).get("provider") == "pexels"
+            and item.get("source", {}).get("usage") == "sticker_object"
+            and item.get("source", {}).get("run_id") == run["run_id"]
+        ), None)
+        if existing is not None:
+            return str(existing["source_asset_id"])
+        base_asset_id = run.get("immutable_base_sticker_asset_id")
+        if base_asset_id:
+            base_asset = next((
+                item for item in all_assets
+                if item["source_asset_id"] == base_asset_id and item.get("approved")
+            ), None)
+            if (
+                base_asset is None
+                or base_asset.get("source", {}).get("provider") != "pexels"
+                or base_asset.get("source", {}).get("usage") != "sticker_object"
+            ):
+                raise ValueError("immutable child-run sticker is not an approved Pexels photo object")
+            return str(base_asset_id)
+        if self.pexels is None:
+            raise RuntimeError(
+                "PEXELS_API_KEY is required: the sticker must come from a real Pexels photograph"
+            )
+
+        used_external = {
+            str(item.get("source", {}).get("external_id"))
+            for item in all_assets if item.get("source", {}).get("external_id")
+        }
+        used_digests = {str(item["sha256"]) for item in all_assets}
+        product = " ".join(str(brief["product"]).split())[:48]
+        query = (
+            f"{product} brass compass object warm beige background realistic studio photography"
+        )[:160].rstrip()
+        last_error: Exception | None = None
+        for _attempt in range(6):
+            try:
+                photo, source_data = self.pexels.select(
+                    query, "realistic physical object neutral background", used_ids=used_external,
+                )
+                used_external.add(photo.photo_id)
+                data = isolate_object(source_data)
+                digest = hashlib.sha256(data).hexdigest()
+                if digest in used_digests:
+                    continue
+                asset = self.upload_asset(
+                    project_id=run["project_id"], title=f"Pexels sticker · {photo.photographer}",
+                    mime_type="image/png", data=data, requested_by="local-preflight",
+                    origin="pexels", source={
+                        "origin": "pexels", **photo.source_metadata(), "query": query,
+                        "transformation": "edge_color_soft_alpha_v1",
+                        "usage": "sticker_object", "run_id": run["run_id"],
+                        "selection_policy": "fresh_ultra_realistic_photo_object_v1",
+                        "texture_alignment": {
+                            "strategy_id": "contrast_reframe",
+                            "surface": "warm matte paper",
+                            "lighting": "soft warm natural light",
+                            "palette": "cream navy brass",
+                        },
+                        "no_synthetic_people": True,
+                    }, approval_status="approved",
+                )
+                return str(asset["source_asset_id"])
+            except Exception as error:
+                last_error = error
+        raise RuntimeError(
+            "Pexels did not return an isolatable ultra-realistic sticker object"
+        ) from last_error
 
     # Lessons ---------------------------------------------------------------------
 
@@ -712,6 +860,7 @@ class LocalExperimentService:
             "lessons": [{
                 "lesson_id": item["lesson_id"], "target": item["target"],
                 "version": item["version"], "text": item["text"],
+                "strategy_id": item.get("strategy_id"),
                 "layout_patch": item.get("layout_patch") or [], "sha256": item["sha256"],
             } for item in lessons],
         }
@@ -752,6 +901,11 @@ class LocalExperimentService:
         )
         if existing_run_id is not None:
             return self.get_run(existing_run_id), False
+        if self.pexels is None:
+            raise RuntimeError(
+                "PEXELS_API_KEY is required before creating a post with three photo backgrounds "
+                "and a photographed sticker"
+            )
         if parent is None:
             studio_export = self.workspace.capture_saved_export(studio_state_sha256)
         else:
@@ -790,6 +944,9 @@ class LocalExperimentService:
             "learning_snapshot_sha256": snapshot["sha256"],
             "revision_instruction": None if revision_instruction is None else dict(revision_instruction),
             "immutable_base_asset_id": None if immutable_base is None else immutable_base.get("asset_id"),
+            "immutable_base_sticker_asset_id": (
+                None if immutable_base is None else immutable_base.get("sticker_asset_id")
+            ),
             "immutable_base_strategy_id": None if immutable_base is None else immutable_base.get("template_id"),
             "created_at": now, "updated_at": now,
         }
@@ -801,19 +958,50 @@ class LocalExperimentService:
         return run, True
 
     def _checkpoint(self, run_id: str, stage: str, progress: int, **evidence: Any) -> dict[str, Any]:
-        checkpoint_id = new_uuid7()
-        checkpoint = {
-            "checkpoint_id": checkpoint_id, "run_id": run_id, "stage": stage,
-            "progress_percent": progress, "evidence": sanitized(evidence), "created_at": utc_now(),
-        }
-        self.store.append("checkpoints", checkpoint_id, checkpoint)
-        run = self.store.get("runs", run_id)
-        self.store.append("runs", run_id, {
-            **run, "status": "generating", "current_stage": stage,
-            "progress_percent": progress, "checkpoint_id": checkpoint_id,
-            "updated_at": utc_now(),
-        })
-        return checkpoint
+        with self._cancellation_lock:
+            self._raise_if_termination_requested(run_id)
+            checkpoint_id = new_uuid7()
+            checkpoint = {
+                "checkpoint_id": checkpoint_id, "run_id": run_id, "stage": stage,
+                "progress_percent": progress, "evidence": sanitized(evidence), "created_at": utc_now(),
+            }
+            self.store.append("checkpoints", checkpoint_id, checkpoint)
+            run = self.store.get("runs", run_id)
+            self.store.append("runs", run_id, {
+                **run, "status": "generating", "current_stage": stage,
+                "progress_percent": progress, "checkpoint_id": checkpoint_id,
+                "updated_at": utc_now(),
+            })
+            return checkpoint
+
+    def terminate_run(self, run_id: str, requested_by: str) -> dict[str, Any]:
+        run_id = _uuid(run_id, "run_id")
+        with self._cancellation_lock:
+            run = self.get_run(run_id)
+            if run["status"] == "terminated":
+                return run
+            if run["status"] not in {"queued", "generating"}:
+                raise ValueError("only an active local Result run can be terminated")
+            event = self._cancellation_events.get(run_id)
+            if event is not None:
+                event.set()
+            checkpoint_id = new_uuid7()
+            terminated_at = utc_now()
+            self.store.append("checkpoints", checkpoint_id, {
+                "checkpoint_id": checkpoint_id, "run_id": run_id,
+                "stage": "terminated",
+                "progress_percent": int(run.get("progress_percent") or 0),
+                "evidence": {"requested_by": requested_by},
+                "created_at": terminated_at,
+            })
+            terminated = {
+                **run, "status": "terminated", "current_stage": "terminated",
+                "termination_checkpoint_id": checkpoint_id,
+                "terminated_by": requested_by, "terminated_at": terminated_at,
+                "updated_at": terminated_at,
+            }
+            self.store.append("runs", run_id, terminated)
+            return terminated
 
     def _lesson_texts(self, snapshot_id: str, target: str) -> list[str]:
         snapshot = self.store.get("lesson_snapshots", snapshot_id)
@@ -841,6 +1029,10 @@ class LocalExperimentService:
         for lesson in snapshot["lessons"]:
             if lesson["target"] != "universal_ad_layout_policy":
                 continue
+            if lesson.get("strategy_id") != strategy_id:
+                # Unscoped legacy local lessons remain as textual evidence but
+                # cannot mutate every strategy into the same selected recipe.
+                continue
             for delta in lesson.get("layout_patch") or []:
                 setting_id = str(delta.get("setting_id") or "")
                 if not setting_id.startswith("configuration."):
@@ -865,8 +1057,10 @@ class LocalExperimentService:
             "The exact offer and CTA are protected. The resolved_render_contract is authoritative "
             "for the optional roles that will actually be visible: describe its bullets, sticker, "
             "background, and saved logo exactly in visual_components and alt_text. A saved canonical "
-            "logo is an approved Studio identity, not an invented candidate asset. Use only the "
-            "assigned asset for candidate-sourced media. Do not evaluate other candidates or invent "
+            "logo is an approved Studio identity, not an invented candidate asset. Photo backgrounds "
+            "and the isolated sticker are exact Pexels-sourced assets with retained provenance; never "
+            "describe them as generated graphics. Use only the assigned asset for candidate-sourced "
+            "media. Do not evaluate other candidates or invent "
             "proof, urgency, people, IDs, or market evidence.\n\n"
             f"STRATEGY:\n{json.dumps(template.document, ensure_ascii=False, sort_keys=True)}"
         )
@@ -889,7 +1083,8 @@ class LocalExperimentService:
 
     def _generate_candidate(
         self, *, run: Mapping[str, Any], brief: Mapping[str, Any],
-        template: StrategyTemplate, asset_id: str | None, alias: str,
+        template: StrategyTemplate, asset_id: str | None, sticker_asset_id: str,
+        alias: str,
         generation_kind: str = "initial", parent: Mapping[str, Any] | None = None,
         action: Mapping[str, Any] | None = None, parameters: Mapping[str, int] | None = None,
     ) -> dict[str, Any]:
@@ -898,14 +1093,9 @@ class LocalExperimentService:
         assigned_asset = None if asset_id is None else self.store.get("project_assets", asset_id)
         snapshot_lessons = self._lesson_texts(run["learning_snapshot_id"], "content-candidate-generator")
         saved_assets = run["studio_export"].get("assets") or []
-        sticker_available = any(
-            item.get("slot") == "sticker_object" and item.get("available")
-            and (item.get("source") or {}).get("origin") != "bundled_tune_asset"
-            for item in saved_assets
-        )
         resolved = resolve_strategy_patch(
             run["studio_export"]["configuration"], template.template_id, sliders,
-            sticker_available=sticker_available, photo_available=asset_id is not None,
+            sticker_available=True, photo_available=asset_id is not None,
         )
         lesson_configuration, applied_layout_lessons = self._layout_lesson_base(
             resolved["configuration"], snapshot_id=run["learning_snapshot_id"],
@@ -928,11 +1118,20 @@ class LocalExperimentService:
             item for item in saved_assets
             if item.get("slot") == "logo" and item.get("available")
         ), None)
-        sticker_asset = next((
-            item for item in saved_assets
-            if item.get("slot") == "sticker_object" and item.get("available")
-            and (item.get("source") or {}).get("origin") != "bundled_tune_asset"
-        ), None)
+        background = self.asset_bytes(asset_id) if asset_id is not None else None
+        sticker_asset = (
+            self.asset_bytes(sticker_asset_id)
+            if resolved["configuration"]["sticker"]["enabled"] else None
+        )
+        if background is not None and background.get("source", {}).get("provider") != "pexels":
+            raise ValueError("Universal experiment photo background must retain Pexels provenance")
+        if sticker_asset is not None and (
+            sticker_asset.get("source", {}).get("provider") != "pexels"
+            or sticker_asset.get("source", {}).get("usage") != "sticker_object"
+            or sticker_asset.get("source", {}).get("transformation")
+            != "edge_color_soft_alpha_v1"
+        ):
+            raise ValueError("Universal experiment sticker must be an isolated Pexels photo object")
         if resolved["configuration"]["logo"]["enabled"] and logo_asset is None:
             raise ValueError("Universal experiment saved logo provenance is unavailable")
         render_contract = {
@@ -940,6 +1139,23 @@ class LocalExperimentService:
                 "mode": resolved["configuration"]["background"]["mode"],
                 "texture": resolved["configuration"]["background"].get("texture"),
                 "source_asset_id": asset_id,
+                "media_kind": resolved["media_mode"],
+                "sha256": None if background is None else background["sha256"],
+                "source": (
+                    None if background is None
+                    else deepcopy(background.get("source") or {
+                        "origin": background.get("origin"),
+                        "preset": background.get("preset"),
+                        "variant_id": background.get("variant_id"),
+                        "selection": background.get("selection"),
+                    })
+                ),
+                "authority": (
+                    "approved_pexels_photo" if asset_id is not None
+                    else "deterministic_studio_texture"
+                    if resolved["media_mode"] == "deterministic_texture"
+                    else "native_solid_background"
+                ),
             },
             "bullets": {
                 "visible": bool(resolved["configuration"]["bullets"]["enabled"]),
@@ -960,8 +1176,12 @@ class LocalExperimentService:
                 "slot": "sticker_object",
                 "sha256": None if sticker_asset is None else sticker_asset["sha256"],
                 "mime_type": None if sticker_asset is None else sticker_asset["mime_type"],
-                "source": None if sticker_asset is None else deepcopy(sticker_asset.get("source") or {}),
-                "authority": "captured_saved_studio_asset" if sticker_asset else None,
+                "source": (
+                    None if sticker_asset is None
+                    else deepcopy(sticker_asset.get("source") or {})
+                ),
+                "source_asset_id": None if sticker_asset is None else sticker_asset_id,
+                "authority": "approved_pexels_photo_sticker" if sticker_asset else None,
             },
         }
         payload = {
@@ -994,7 +1214,7 @@ class LocalExperimentService:
             system_prompt=self._candidate_prompt(template), input_payload=payload,
             output_schema=_candidate_schema(asset_id),
             idempotency_key=f"{run['run_id']}:{candidate_id}:candidate",
-            prompt_version="local-universal-candidate-v2",
+            prompt_version="local-universal-candidate-v3",
             response_validator=lambda value: _validate_local_candidate(
                 value, brief=brief["document"], asset_id=asset_id,
             ),
@@ -1017,17 +1237,21 @@ class LocalExperimentService:
         content = universal_content_from_generation(document, brief=brief["document"])
         if content["offer"] != brief["document"]["offer"] or content["cta"] != brief["document"]["cta"]:
             raise ValueError("Universal protected copy changed during content mapping")
-        background = None if asset_id is None else self.asset_bytes(asset_id)
         rendered = self.workspace.render_experiment(
             configuration=resolved["configuration"], content=content,
-            background_asset=background,
+            background_asset=background, sticker_asset=sticker_asset,
         )
         rendered_asset_digests = rendered["resolved"].get("asset_sha256") or {}
-        for role in ("logo", "sticker"):
+        for role in ("background", "logo", "sticker"):
             contract_asset = render_contract[role]
+            slot = (
+                "background_image" if role == "background"
+                and resolved["configuration"]["background"]["mode"] == "image"
+                else contract_asset.get("slot")
+            )
             if (
-                contract_asset["visible"]
-                and rendered_asset_digests.get(contract_asset["slot"])
+                (contract_asset.get("visible") or role == "background" and slot is not None)
+                and rendered_asset_digests.get(slot)
                 != contract_asset["sha256"]
             ):
                 raise ValueError(f"Universal rendered {role} does not match captured Studio provenance")
@@ -1060,6 +1284,7 @@ class LocalExperimentService:
             "document": document, "document_sha256": sha256_json(document),
             "elements": elements, "provider_invocation_id": result["invocation_id"],
             "asset_id": asset_id,
+            "sticker_asset_id": sticker_asset_id,
             "document_transformations": document_transformations,
             "experiment_adapter": {
                 "profile": resolved["profile"], "version": resolved["adapter_version"],
@@ -1069,13 +1294,18 @@ class LocalExperimentService:
                 key: background[key] for key in (
                     "source_asset_id", "sha256", "mime_type", "origin", "source",
                 )
-            } if background is not None else {
+            } if asset_id is not None and background is not None else {
                 "origin": "deterministic_studio_texture",
                 "preset": resolved["configuration"]["background"]["texture"],
                 "sha256": rendered["resolved"]["asset_sha256"]["background_texture"],
-                "review_status": "canonical_adapter_fallback",
+                "review_status": "deterministic_texture_direction",
                 "no_synthetic_people": True,
-            } if resolved["configuration"]["background"]["mode"] == "texture" else None),
+            } if resolved["configuration"]["background"]["mode"] == "texture" else {
+                "origin": "native_solid_background",
+                "color": resolved["configuration"]["background"]["color"],
+                "review_status": "native_solid_direction",
+                "no_synthetic_people": True,
+            }),
             "render_asset_provenance": render_contract,
             "universal_manifest": rendered["resolved"],
             "resolved_setting_patch": resolved["setting_patch"],
@@ -1240,14 +1470,17 @@ class LocalExperimentService:
                 "4/9-scale derivative of the digest-bound authoritative 1080x1080 render. "
                 "The supplied render.asset_provenance is authoritative: a visible saved Studio "
                 "logo with captured_saved_studio_identity authority is approved and must not fail "
-                "the Project/brand/media gate merely because it has no candidate asset UUID. "
+                "the Project/brand/media gate merely because it has no candidate asset UUID. Each "
+                "image background and visible sticker is a source-ID-explicit Pexels photograph; "
+                "the sticker retains its deterministic isolation transform and texture-alignment "
+                "direction. No generated or repository-bundled image is authorized. "
                 f"{phase_instruction} Apply hard gates before scoring. Return concise structured "
                 "observations, never hidden reasoning."
             ),
             input_payload=payload,
             output_schema=output_schema,
             idempotency_key=f"{run['run_id']}:critic-pass-{pass_number}",
-            prompt_version=f"local-universal-critic-pass-{pass_number}-v2",
+            prompt_version=f"local-universal-critic-pass-{pass_number}-v3",
             images=images, response_validator=validate,
         )
         normalized = dict(result["response"])
@@ -1312,7 +1545,9 @@ class LocalExperimentService:
                 improved = self._generate_candidate(
                     run=run, brief=brief,
                     template=self.templates_by_id[base["template_id"]],
-                    asset_id=base["asset_id"], alias=f"{base['alias']}.{base['round'] + 1}",
+                    asset_id=base["asset_id"],
+                    sticker_asset_id=base["sticker_asset_id"],
+                    alias=f"{base['alias']}.{base['round'] + 1}",
                     generation_kind="improvement", parent=base, action=action,
                     parameters=parameters,
                 )
@@ -1346,41 +1581,62 @@ class LocalExperimentService:
     def execute_run(self, run_id: str) -> dict[str, Any]:
         run_id = _uuid(run_id, "run_id")
         with self._execution_lock:
-            run = self.get_run(run_id)
-            if run["status"] == "completed":
-                return run
-            brief = self.get_brief(run["brief_id"])
+            with self._cancellation_lock:
+                run = self.get_run(run_id)
+                if run["status"] in {"completed", "terminated"}:
+                    return run
+                cancel_event = threading.Event()
+                self._cancellation_events[run_id] = cancel_event
+            self._run_context.cancel_event = cancel_event
             try:
+                brief = self.get_brief(run["brief_id"])
                 self._checkpoint(run_id, "initial_candidates", 10, boundary="asset_resolution")
                 asset_by_strategy = self._resolve_candidate_assets(run, brief["document"])
+                sticker_asset_id = self._resolve_sticker_asset(run, brief["document"])
+                resolved_run = self.get_run(run_id)
+                self.store.append("runs", run_id, {
+                    **resolved_run,
+                    "resolved_asset_ids_by_strategy": dict(asset_by_strategy),
+                    "resolved_sticker_asset_id": sticker_asset_id,
+                    "updated_at": utc_now(),
+                })
+                self._raise_if_termination_requested(run_id)
                 run = self.get_run(run_id)
                 initial: list[dict[str, Any]] = []
                 for index, template in enumerate(self.templates, 1):
+                    self._raise_if_termination_requested(run_id)
                     initial.append(self._generate_candidate(
                         run=run, brief=brief, template=template,
-                        asset_id=asset_by_strategy.get(template.template_id), alias=f"C{index}",
+                        asset_id=asset_by_strategy.get(template.template_id),
+                        sticker_asset_id=sticker_asset_id,
+                        alias=f"C{index}",
                     ))
                 if len(initial) != 5 or len({item["preview"]["sha256"] for item in initial}) != 5:
                     raise ValueError("five initial Universal candidates must have distinct deterministic renders")
-                media_signatures: list[str] = []
-                for item in initial:
-                    if item["template_id"] not in PHOTO_STRATEGIES:
-                        continue
-                    if item["asset_id"] is not None:
-                        media_signatures.append(f"asset:{item['asset_id']}")
-                    else:
-                        background = item["configuration"]["background"]
-                        if background["mode"] != "texture":
-                            raise ValueError("asset-free strategy must use a deterministic texture fallback")
-                        media_signatures.append(f"texture:{background['texture']}")
-                if len(media_signatures) != len(set(media_signatures)):
-                    raise ValueError("photo-capable strategies must retain distinct media directions")
+                diversity_audit = audit_candidate_diversity(
+                    initial,
+                    png_by_candidate_id={
+                        item["candidate_id"]: self.store.artifact(
+                            item["png"]["path"], expected_sha256=item["png"]["sha256"],
+                        )
+                        for item in initial
+                    },
+                )
+                if not diversity_audit["passed"]:
+                    failed_gates = sorted(
+                        key for key, passed in diversity_audit["gates"].items() if not passed
+                    )
+                    raise ValueError(
+                        "five initial Universal candidates are not visibly distinct: "
+                        + ", ".join(failed_gates)
+                    )
 
                 first_group, second_group = initial[:3], initial[3:]
                 self._checkpoint(
                     run_id, "critic_pass_1", 42,
                     candidate_ids=[item["candidate_id"] for item in first_group],
                     critic_scope="screening_group_1_of_2",
+                    diversity_audit=diversity_audit,
                 )
                 pass1 = self._critic_pass(
                     run=run, candidates=first_group, pass_number=1, previous_passes=[],
@@ -1408,32 +1664,44 @@ class LocalExperimentService:
                 if not selected["layout_audit"]["passed"]:
                     raise ValueError("selected Universal Result failed deterministic layout gates")
                 self._checkpoint(run_id, "materializing_result", 94, selected_candidate_id=selected["candidate_id"])
-                result = self._create_result(run, selected, selection["decision_summary"])
-                completed = {
-                    **self.get_run(run_id), "status": "completed", "current_stage": "completed",
-                    "progress_percent": 100, "final_result_id": result["creative_id"],
-                    "preview": {
-                        "asset_url": result["asset_url"], "sha256": result["asset_sha256"],
-                        "mime_type": "image/jpeg", "width": 1080, "height": 1080,
-                    },
-                    "improvement_calls": 0, "updated_at": utc_now(),
-                }
-                self.store.append("runs", run_id, completed)
-                return completed
+                with self._cancellation_lock:
+                    self._raise_if_termination_requested(run_id)
+                    result = self._create_result(run, selected, selection["decision_summary"])
+                    completed = {
+                        **self.get_run(run_id), "status": "completed", "current_stage": "completed",
+                        "progress_percent": 100, "final_result_id": result["creative_id"],
+                        "preview": {
+                            "asset_url": result["asset_url"], "sha256": result["asset_sha256"],
+                            "mime_type": "image/jpeg", "width": 1080, "height": 1080,
+                        },
+                        "improvement_calls": 0, "updated_at": utc_now(),
+                    }
+                    self.store.append("runs", run_id, completed)
+                    return completed
             except Exception as error:
-                failed = {
-                    **self.get_run(run_id), "status": "failed", "current_stage": "failed",
-                    "error_code": type(error).__name__, "error_message": str(error)[:1000],
-                    "updated_at": utc_now(),
-                }
-                self.store.append("runs", run_id, failed)
-                checkpoint_id = new_uuid7()
-                self.store.append("checkpoints", checkpoint_id, {
-                    "checkpoint_id": checkpoint_id, "run_id": run_id, "stage": "failed",
-                    "progress_percent": int(failed.get("progress_percent") or 0),
-                    "evidence": {"error_type": type(error).__name__}, "created_at": utc_now(),
-                })
-                return failed
+                with self._cancellation_lock:
+                    current = self.get_run(run_id)
+                    if cancel_event.is_set() or current["status"] == "terminated":
+                        return current
+                    failed = {
+                        **current, "status": "failed", "current_stage": "failed",
+                        "error_code": type(error).__name__, "error_message": str(error)[:1000],
+                        "updated_at": utc_now(),
+                    }
+                    self.store.append("runs", run_id, failed)
+                    checkpoint_id = new_uuid7()
+                    self.store.append("checkpoints", checkpoint_id, {
+                        "checkpoint_id": checkpoint_id, "run_id": run_id, "stage": "failed",
+                        "progress_percent": int(failed.get("progress_percent") or 0),
+                        "evidence": {"error_type": type(error).__name__}, "created_at": utc_now(),
+                    })
+                    return failed
+            finally:
+                if hasattr(self._run_context, "cancel_event"):
+                    del self._run_context.cancel_event
+                with self._cancellation_lock:
+                    if self._cancellation_events.get(run_id) is cancel_event:
+                        self._cancellation_events.pop(run_id, None)
 
     def _create_result(
         self, run: Mapping[str, Any], candidate: Mapping[str, Any],
@@ -1622,6 +1890,9 @@ class LocalExperimentService:
             proposal = {
                 "proposal_id": proposal_id, "target": target, "status": "pending",
                 "generalized_text": texts[target],
+                "strategy_id": (
+                    selected["template_id"] if target == "universal_ad_layout_policy" else None
+                ),
                 "layout_patch": selected["resolved_setting_deltas"] if target == "universal_ad_layout_policy" else [],
                 "evidence": {
                     "run_id": run["run_id"], "creative_id": result["creative_id"],
@@ -1742,7 +2013,7 @@ class LocalExperimentService:
 
     def retry_run(self, run_id: str, *, request_id: str, requested_by: str) -> tuple[dict[str, Any], bool]:
         parent = self.get_run(run_id)
-        if parent["status"] not in {"completed", "failed"}:
+        if parent["status"] not in {"completed", "failed", "terminated"}:
             raise ValueError("a local run can be retried only after it is terminal")
         return self.create_run(
             request_id=request_id, brief_id=parent["brief_id"], platform="instagram",
@@ -1811,6 +2082,7 @@ class LocalExperimentService:
             body = {
                 "lesson_id": lesson_id, "target": proposal["target"],
                 "version": len(existing) + 1, "status": "active", "text": text,
+                "strategy_id": proposal.get("strategy_id"),
                 "layout_patch": proposal.get("layout_patch") or [],
                 "evidence": proposal["evidence"], "proposal_id": proposal_id,
                 "decision_id": decision_id, "approval_authority": "owner",

@@ -28,7 +28,7 @@ RECENT_UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v3"
 UNIVERSAL_AD_VERSION_SCHEMA = "ptw.studio.universal-ad-version.v2"
 UNIVERSAL_AD_WORKSPACE_SCHEMA = "ptw.studio.universal-ad-workspace.v5"
 UNIVERSAL_AD_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.universal-ad-component-settings.v2"
-UNIVERSAL_AD_TEMPLATE_VERSION = 9
+UNIVERSAL_AD_TEMPLATE_VERSION = 10
 
 FONT_FAMILIES = ("Inter", "Manrope", "Oswald", "Cormorant Garamond")
 TEXTURE_PRESETS = (
@@ -163,12 +163,11 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
     {
         "component_id": "universal_ad.logo",
         "role": "logo",
-        "node_ids": ("logo_surface", "logo"),
+        "node_ids": ("logo",),
         "asset_slot_ids": ("logo",),
         "setting_ids": (
             "configuration.logo.enabled", "configuration.logo.position",
-            "configuration.logo.width", "configuration.logo.background_enabled",
-            "configuration.logo.background_color",
+            "configuration.logo.width",
         ),
     },
 )
@@ -176,7 +175,7 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
 DEFAULT_CONFIG: dict[str, Any] = {
     "schema": UNIVERSAL_AD_CONFIG_SCHEMA,
     "background": {
-        "mode": "image",
+        "mode": "texture",
         "color": "#10233F",
         "texture": "stone",
         "texture_intensity": 0.7,
@@ -215,7 +214,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "radius": 24,
     },
     "sticker": {
-        "enabled": True,
+        "enabled": False,
         "position": "bottom_right",
         "rotation": 5,
         "width": 300,
@@ -387,6 +386,10 @@ def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
     cta = _object(root["cta"], set(DEFAULT_CONFIG["cta"]), "cta")
     sticker = _object(root["sticker"], set(DEFAULT_CONFIG["sticker"]), "sticker")
     logo = _object(root["logo"], set(DEFAULT_CONFIG["logo"]), "logo")
+    _boolean(logo["background_enabled"], "logo.background_enabled")
+    logo_background_color = _color(
+        logo["background_color"], "logo.background_color",
+    )
     normalized = {
         "schema": UNIVERSAL_AD_CONFIG_SCHEMA,
         "background": {
@@ -462,12 +465,10 @@ def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
             "enabled": _boolean(logo["enabled"], "logo.enabled"),
             "position": _enum(logo["position"], ("top_left", "top_right"), "logo.position"),
             "width": _integer(logo["width"], "logo.width", 80, 280),
-            "background_enabled": _boolean(
-                logo["background_enabled"], "logo.background_enabled",
-            ),
-            "background_color": _color(
-                logo["background_color"], "logo.background_color",
-            ),
+            # Kept in the v4 payload only for stored-version compatibility.
+            # The logo component has no backing-surface node as of template v10.
+            "background_enabled": False,
+            "background_color": logo_background_color,
         },
     }
     if normalized["layout"]["content_x"] + normalized["layout"]["content_width"] > 1032:
@@ -730,31 +731,20 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
     logo_height = logo["width"] * 0.42
     object_width = sticker["width"] * sticker["object_scale"]
     object_height = object_width * 0.58
-    logo_surface_padding_x = 18
-    logo_surface_padding_y = 12
-    logo_surface_width = logo["width"] + logo_surface_padding_x * 2
-    logo_surface_height = logo_height + logo_surface_padding_y * 2
-    logo_treatment_width = logo_surface_width if logo["background_enabled"] else logo["width"]
-    logo_treatment_height = logo_surface_height if logo["background_enabled"] else logo_height
-    logo_treatment_x = (
+    logo_x = (
         alignment_rectangle["x"]
-        if logo["position"] == "top_left"
-        else alignment_right - logo_treatment_width
+        if logo["position"] == "top_left" else alignment_right - logo["width"]
     )
-    logo_treatment_y = alignment_top
+    logo_y = alignment_top
     if (
         sticker["enabled"] and sticker["position"].startswith("top")
         and logo["position"] == sticker["position"]
     ):
-        logo_treatment_y += object_height + 28
-    logo_surface_x = logo_treatment_x
-    logo_surface_y = logo_treatment_y
-    logo_x = logo_treatment_x + (logo_surface_padding_x if logo["background_enabled"] else 0)
-    logo_y = logo_treatment_y + (logo_surface_padding_y if logo["background_enabled"] else 0)
-    logo_collision_x = logo_treatment_x
-    logo_collision_y = logo_treatment_y
-    logo_collision_width = logo_treatment_width
-    logo_collision_height = logo_treatment_height
+        logo_y += object_height + 28
+    logo_collision_x = logo_x
+    logo_collision_y = logo_y
+    logo_collision_width = logo["width"]
+    logo_collision_height = logo_height
     content_y = layout["content_y"]
     if (
         logo["enabled"]
@@ -849,7 +839,9 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
             "font_weight": 600, "line_height": 1.1, "max_lines": 2,
             "visible": visible,
         }, binding=("text", f"content.bullet_{index + 1}", False)))
-    cta_width = min(420, max(230, round(layout["content_width"] * 0.5)))
+    # Protected CTA copy can be up to 60 characters. Keep the one-line button
+    # useful even in the narrow 500px editorial content column.
+    cta_width = min(520, max(440, round(layout["content_width"] * 0.75)))
     if cta["position"] == "bottom_left":
         cta_x, cta_y = alignment_rectangle["x"], alignment_bottom - 82
     elif cta["position"] == "bottom_right":
@@ -906,18 +898,6 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
             "alpha_outline_shadow_blur": 2, "alpha_outline_shadow_y": 2,
             "visible": sticker["enabled"],
         }),
-        _node("logo_surface", "shape", {
-            "position": "absolute",
-            "x": logo_surface_x,
-            "y": logo_surface_y,
-            "width": logo_surface_width,
-            "height": logo_surface_height,
-            "z_index": 9,
-            "fill": logo["background_color"],
-            "opacity": 0.94,
-            "radius": 18,
-            "visible": logo["enabled"] and logo["background_enabled"],
-        }),
         _node("logo", "image", {
             "position": "absolute", "x": logo_x, "y": logo_y,
             "width": logo["width"], "height": logo_height, "z_index": 10,
@@ -949,7 +929,7 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
                 "bullet_marker_3", "bullet_3",
             ],
             "cta": ["cta"],
-            "logo": ["logo_surface", "logo"],
+            "logo": ["logo"],
         },
         "assets": {
             key: {
@@ -1158,6 +1138,23 @@ def isolate_object(data: bytes) -> bytes:
     if bounds is None:
         raise ValueError("Pexels sticker isolation produced no visible object")
     image = image.crop(bounds)
+    alpha = image.getchannel("A")
+    total = image.width * image.height
+    transparent_ratio = sum(alpha.histogram()[:25]) / total
+    corner = max(1, min(image.size) // 20)
+    corner_means = [
+        ImageStat.Stat(alpha.crop(box)).mean[0]
+        for box in (
+            (0, 0, corner, corner),
+            (image.width - corner, 0, image.width, corner),
+            (0, image.height - corner, corner, image.height),
+            (image.width - corner, image.height - corner, image.width, image.height),
+        )
+    ]
+    if transparent_ratio < 0.08 or sum(value <= 32 for value in corner_means) < 3:
+        raise ValueError(
+            "Pexels sticker isolation retained a rectangular scene; choose a simpler object source"
+        )
     output = BytesIO()
     image.save(output, format="PNG", optimize=False)
     return output.getvalue()

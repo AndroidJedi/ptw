@@ -1558,6 +1558,7 @@ class PrimitivePreviewRenderer:
                     command.clips, command.opacity, command.z_path,
                 )
             text = self._text_layer(text_command, str(text_props["text"]))
+            text_layout = _deep_copy(text.info.get("ptw_text_layout"))
             surface.alpha_composite(
                 text,
                 (
@@ -1565,6 +1566,7 @@ class PrimitivePreviewRenderer:
                     round(text_command.box.y - box.y),
                 ),
             )
+            surface.info["ptw_text_layout"] = text_layout
             return surface
         if primitive_type in {"image", "icon"} and props.get("asset"):
             record = self._asset_record(str(props["asset"]), declarations, assets)

@@ -70,6 +70,19 @@ or refer to another candidate.
   empty or describe a hidden role as rendered. The local adapter
   deterministically aligns optional-role descriptions and alt text to the
   exact resolved render and records those transformations before persistence.
+- For an initial `universal_ad_experiment_v1` set, require exactly three
+  image-backed directions. Each must use a different run-fresh Pexels real
+  photograph, retain its provider/photo/license/query provenance, and use a
+  visibly different crop, overlay, hierarchy, and composition. Never replace a
+  missing Pexels result with a repository asset, generated image, procedural
+  graphic, or repeated photo; fail before candidate generation instead.
+- A visible sticker must be isolated from an ultra-realistic photograph of a
+  physical Pexels object. Never generate, draw, vectorize, or procedurally
+  construct the sticker. Choose a source whose light direction, color
+  temperature, material, surface texture, perspective, grain, and palette
+  belong to the assigned background treatment. Retain the Pexels source ID and
+  deterministic isolation transform, and reject rectangular patches, halos,
+  implausible cutouts, or a visually unrelated pasted-on object.
 - The visual completes the message. Do not decorate unrelated copy, stack prior
   JPEGs, combine incompatible scenes, or embed copy in generated media.
 - Return one strict JSON object only. Server code assigns UUIDv7 element IDs,
@@ -100,6 +113,9 @@ or refer to another candidate.
 
 - Never generate synthetic people or faces. Reviewed non-human graphics are
   allowed only through the server's explicit single-call Result path.
+- Generated or procedural media is never authorized for a Universal experiment
+  background or sticker, even when another static-social path permits a
+  reviewed non-human graphic.
 - Do not publish ads, purchase traffic, create campaigns, add UTMs, or consume
   click/conversion analytics.
 - Do not score candidates, make critic actions, select a final result, mutate

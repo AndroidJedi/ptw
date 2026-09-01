@@ -60,11 +60,19 @@ result.
 The loopback-only `universal_ad_experiment_v1` profile reuses the same five
 strategy documents and three-pass critic contracts through a separate versioned
 adapter. It captures one saved `universal_ad` export, resolves the declared
-strategy slider patches server-side, assigns distinct approved real-photo
-assets to photo-capable strategies when available, and otherwise uses their
-distinct canonical deterministic Studio-texture fallbacks. Pexels is optional
-enrichment, never a run prerequisite. Each candidate is generated in isolation
-through `content-candidate-generator`. The adapter renders an authoritative
+strategy slider patches server-side, and sources exactly three fresh, distinct
+Pexels photographs for three differently treated image-backed directions. One
+deterministic Studio texture and one solid direct-offer direction complete the
+set. Adapter v8 owns a different palette, typography hierarchy, CTA treatment,
+composition, and optional-role state for every strategy. The contrast direction
+uses a separately sourced ultra-realistic Pexels object, deterministically
+isolated as a sticker and selected to match the background's lighting, palette,
+material, grain, perspective, and surface treatment. Provider/photo/license,
+query, transformation, and run provenance are retained. Missing Pexels
+configuration or unusable provider results fail before candidate generation;
+there is no generated, procedural, bundled, or repeated image fallback. Each
+candidate is generated in isolation through
+`content-candidate-generator`. The adapter renders an authoritative
 1080×1080 PNG plus a deterministic full-size JPEG, runs deterministic geometry
 and protected-copy gates at full resolution, and persists a second deterministic
 480×480 analysis JPEG for critic transport. The analysis derivative is scaled
@@ -73,7 +81,13 @@ and has approximately five times fewer pixels. Only those exact persisted
 analysis bytes enter critic calls. The local profile independently screens the
 first three and remaining two initial candidates, then compares only both group
 winners with both structured summaries. Exact attachment counts are `[3, 2,
-2]`; screening actions and local improvement generations are disabled.
+2]`; screening actions and local improvement generations are disabled. Before
+the critic can run, a set-level audit requires five distinct setting signatures
+and background colors, image and sticker presence, multiple background modes,
+four font families and CTA treatments, and minimum pairwise setting and decoded-
+pixel distances. Owner-approved layout patches are scoped to the strategy that
+produced them; legacy unscoped patches remain textual evidence and cannot
+collapse all five strategies into one recipe.
 
 Local authority is file-backed and append-only below
 `.local/owner-experiments`; it is independent of PostgreSQL and production
@@ -84,6 +98,12 @@ immutable Instagram-ready download package but performs no platform call.
 Improve creates a child from the selected candidate's immutable configuration
 and assets plus only the owner instruction. No TikTok adapter, publishing,
 analytics, market evidence, or automatic learning is enabled for this profile.
+While a local run is queued or generating, the owner may terminate it through
+one loopback-only action. The service sets a run-scoped cancellation event,
+terminates the exact Codex process group, appends a `terminated` checkpoint and
+run revision, and never converts that owner decision into a failed or completed
+state. Generated candidates remain inspectable evidence; retry creates a child
+run. Production lifecycle routes and states are unchanged.
 
 ## Identity and persistence
 

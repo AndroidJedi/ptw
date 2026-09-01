@@ -577,7 +577,7 @@ export function StudioView({ api, language, tuneMode = false }: {
         </details>
 
         <details className="panel universal-section universal-disclosure">
-          <summary><span><small>{tr('LOGO', 'ЛОГОТИП')}</small><strong>{tr('Brand mark and background', 'Знак бренду та фон')}</strong></span><em>{configuration.logo.enabled ? tr('VISIBLE', 'ВИДИМИЙ') : tr('HIDDEN', 'ПРИХОВАНИЙ')}</em></summary>
+          <summary><span><small>{tr('LOGO', 'ЛОГОТИП')}</small><strong>{tr('Brand mark', 'Знак бренду')}</strong></span><em>{configuration.logo.enabled ? tr('VISIBLE', 'ВИДИМИЙ') : tr('HIDDEN', 'ПРИХОВАНИЙ')}</em></summary>
           <div className="universal-section-body">
             <div className="universal-inline-upload">
               <div><strong>{tr('Logo asset', 'Файл логотипа')}</strong><span>{logoAsset?.available ? `${logoAsset.mime_type} · ${String(logoAsset.source?.origin || 'stored')}` : tr('No logo supplied', 'Логотип не додано')}</span></div>
@@ -594,16 +594,6 @@ export function StudioView({ api, language, tuneMode = false }: {
                 onChange={(event) => patchConfig('logo', { enabled: event.target.checked })}
               />{tr('Show logo in the creative', 'Показувати логотип у креативі')}</label>
               {configuration.logo.enabled && <>
-                <label className="universal-toggle universal-field-span"><input
-                  aria-label="Show logo background" type="checkbox"
-                  checked={configuration.logo.background_enabled}
-                  onChange={(event) => patchConfig('logo', { background_enabled: event.target.checked })}
-                />{tr('Show background behind logo', 'Показувати фон під логотипом')}</label>
-                {configuration.logo.background_enabled && <ColorField
-                  label={tr('Logo background color', 'Колір фону логотипа')}
-                  value={configuration.logo.background_color}
-                  onChange={(value) => patchConfig('logo', { background_color: value })}
-                />}
                 <label><span>{tr('Logo position', 'Позиція логотипа')}</span><select
                   aria-label="Logo position" value={configuration.logo.position}
                   onChange={(event) => patchConfig('logo', { position: event.target.value as StudioUniversalConfiguration['logo']['position'] })}

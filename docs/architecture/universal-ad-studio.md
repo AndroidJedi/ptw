@@ -86,7 +86,12 @@ There are exactly three external asset slots: `background_image`,
 `sticker_object`, and `logo`. Background and sticker searches reuse the
 existing bounded Pexels client and retain provider ID, source URL,
 photographer, license, query, and transformation provenance. Pexels sticker
-objects pass through one deterministic edge-color soft-alpha cutout. The
+objects must be ultra-realistic photographs of physical objects selected to
+match the assigned background's light direction and softness, color
+temperature, palette, material, surface texture, perspective, grain, and
+scale. Generated, illustrated, vector, procedural, screenshot, and bundled
+sticker fallbacks are forbidden. The selected photograph passes through one
+deterministic edge-color soft-alpha cutout. The
 renderer gives the isolated alpha silhouette a smooth white die-cut contour
 approximately 5–8% of the actual fitted visible subject width, followed by a
 subtle soft shadow immediately outside that contour. The renderer reserves
@@ -100,14 +105,15 @@ owner-supplied transparent PNG/WebP. There is no second sticker system.
 
 The logo slot resolves to the digest-verified canonical Natal transparent PNG
 when the owner has not supplied another asset. New workspaces enable it without
-a backing surface at the top right by default. Its dedicated editor section
-keeps PNG/WebP upload, logo visibility, background visibility and color,
-top-left/top-right placement, and bounded width together. An upload replaces the Natal fallback with
-`owner_upload` provenance and enables the logo immediately. The renderer places
-the configured rounded contrast surface behind the mark when requested and
-moves copy below the visible logo treatment only when their horizontal regions
-intersect. Removing the background keeps the mark visible; disabling the logo
-hides both the mark and its surface.
+a backing surface at the top right by default. Template v10 removes the backing
+node and its editor controls entirely. Stored v4 configuration fields remain
+read-compatible but `background_enabled` always normalizes to `false`, so an
+old version or layout lesson cannot restore the surface. Its dedicated editor
+section keeps PNG/WebP upload, logo visibility, top-left/top-right placement,
+and bounded width together. An upload replaces the Natal fallback with
+`owner_upload` provenance and enables the logo immediately. Copy moves below
+the visible transparent mark only when their horizontal regions intersect;
+disabling the logo hides the mark.
 
 Disabled sticker, bullets, and logo nodes remain semantically mapped but do not
 render. Enabling a photo, sticker, or logo without its fixed asset fails the
@@ -133,23 +139,19 @@ scale, and both offsets each trigger a draft render independently. Numeric
 fields retain transient typing locally and send only complete in-range values,
 so one unfinished entry cannot invalidate later preview updates.
 
-The local Tune snapshot opens with a concrete Ukrainian investment-assistant
-experiment: one editorial photo background, one golden hryvnia-symbol sticker,
-three benefit callouts, and the canonical Natal logo. The two generated bitmap
-assets are bundled with Studio and reported with explicit
-`bundled_tune_asset` provenance; the logo reuses the canonical digest-pinned
-brand asset with `canonical_natal_brand_asset` provenance. An owner upload or
-Pexels selection in the applicable fixed slot still overrides its fallback.
-This is starter state for the local experiment, not a new template or
-Instagram behavior.
+The local Tune snapshot opens with a deterministic textured background, no
+sticker, three benefit callouts, and the canonical Natal logo. Background and
+sticker slots begin empty; the bounded Pexels API or an explicit owner upload
+must populate them before either role can render. No generated or bundled
+background/sticker fallback exists. The logo alone reuses the canonical
+digest-pinned brand asset with `canonical_natal_brand_asset` provenance.
 
 ## Visual layout quality
 
 Logo, copy, bullet, and CTA geometry shares one composition-alignment
 rectangle. Its top and left follow the content controls, while its right and
 bottom edges are safe canvas anchors. Top-corner logos and bottom CTA presets
-anchor inside those same edges; an enabled logo contrast surface is inset
-inside the rectangle rather than extending beyond it.
+anchor inside those same edges. There is no logo contrast-surface geometry.
 
 Primitive text is positioned by its rendered glyph ink rather than nominal font
 line boxes. Top-aligned text therefore begins at the requested coordinate, and
@@ -165,7 +167,7 @@ from browser-preview defects and runs a deterministic geometry matrix across
 default, high-density, centered/minimal, editorial bottom-left, urgent
 bottom-right, and logo-without-background configurations. It rejects text
 overflow or truncation, edge-touch clipping, semantic-flow collisions, CTA
-safe-area escapes, missing configured logo contrast surfaces, and logo/copy collisions
+safe-area escapes, any reintroduced logo-surface node, and logo/copy collisions
 before full-resolution inspection.
 
 ## Persistence and routes
@@ -182,7 +184,7 @@ sticker, and logo are direct optional switches. Detailed visual settings use com
 disclosures so the live creative remains the primary evaluation surface.
 Sticker and logo cannot be enabled before their fixed asset is available; the
 canonical Natal fallback means the logo slot is ready in a new workspace. The
-logo disclosure owns its upload, show/hide, background, position, and size
+logo disclosure owns its upload, show/hide, position, and size
 controls instead of splitting those decisions across unrelated panels.
 
 Editor changes are previewed before save. After a short debounce, the client
@@ -305,14 +307,31 @@ return to their latest persisted checkpoint on restart.
 An approved Product Brief and the digest of the current saved Studio state are
 mandatory. Unsaved drafts cannot start a run. The local-only
 `universal_ad_experiment_v1` adapter materializes the five canonical strategies
-as declared bounded setting patches while preserving palette, component IDs,
-logo identity, protected offer/CTA, and safe bounds. Photo-capable strategies
-use distinct owner-approved or Pexels-provenance real photos when available.
-Without them, adapter v4 uses four distinct canonical deterministic Studio
-textures with explicit non-human provenance; `direct_offer` remains natively
-texture-led. Pexels and manual asset management are optional enrichment rather
-than prerequisites, and bundled Tune images or synthetic people are never
-substituted.
+as declared bounded setting patches while preserving component IDs, logo
+identity, protected offer/CTA, and safe bounds. Adapter v8 gives every strategy
+an intentionally different visible palette, hierarchy, CTA treatment,
+composition, and optional-role state. Each run sources exactly three fresh,
+distinct Pexels real photographs for `moment_tension`, `contrast_reframe`, and
+`human_story`, with separate queries, SHA-256 values, crops, overlays, palettes,
+typography, and layouts. The other directions remain one deterministic texture
+and one solid direct-offer composition. `contrast_reframe` also receives one
+separately sourced ultra-realistic Pexels photo object, deterministically
+isolated and directed to match its warm tactile treatment. Same-run recovery
+reuses the persisted Pexels IDs; later runs exclude every earlier Project
+provider ID and digest. Missing provider configuration, repeated photos, failed
+isolation, or incomplete provenance fail closed. Generated, procedural,
+repository-bundled, or synthetic image substitutes are never authorized.
+
+The initial set fails before critic transport unless all five setting
+signatures and background colors are distinct, exactly three image-backed
+directions use three different Pexels IDs, image digests, and treatments, the
+one sticker has Pexels/isolation/texture-alignment provenance, no logo backing
+node exists, multiple
+background modes and four font/CTA treatments are present, and every pair
+clears minimum declared-setting and decoded-pixel distances.
+Strategy-owned layout lessons replay only onto their originating strategy;
+legacy unscoped patches remain textual evidence and cannot overwrite every
+direction with one selected recipe.
 
 Each run invokes an authenticated Codex CLI in a new empty directory with an
 ephemeral session, read-only sandbox, strict JSON output schema, exact persisted
@@ -376,7 +395,8 @@ locally with mutable, restart-safe Product Brief, Social Posts, Project asset,
 release, and owner-reviewed learning workflows beside Universal Studio and its
 Tune wizard. An authenticated Codex CLI is required for Brief, candidate, and
 critic generation. Firebase, PostgreSQL, and production credentials are not
-required. Supplying a local `PEXELS_API_KEY` enables optional approved real-photo
-sourcing. The loopback API binds only to `127.0.0.1`; no deployment, production
+required. A local `PEXELS_API_KEY` is required before Result creation so the
+three photo backgrounds and photographed sticker can be sourced. The loopback
+API binds only to `127.0.0.1`; no deployment, production
 database mutation, publication, market ingestion, or automatic lesson approval
 occurs.

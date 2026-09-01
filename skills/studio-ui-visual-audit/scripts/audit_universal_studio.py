@@ -103,7 +103,16 @@ def audit_variant(
         gap = pixels(current["y"] - previous["y"] - previous["height"])
         require(gap >= 2, f"{name}: {previous_id} collides with {current_id} ({gap:.2f}px)")
 
-    cta = nodes["cta"]["box"]
+    cta_node = nodes["cta"]
+    cta = cta_node["box"]
+    cta_layout = cta_node["text_layout"]
+    require(cta_layout is not None, f"{name}: CTA has no text-layout diagnostics")
+    require(not cta_layout["overflow"], f"{name}: CTA overflows or truncates")
+    require(not cta_layout["truncated"], f"{name}: CTA text is truncated")
+    inspected["cta"] = {
+        "font_size": cta_layout["font_size"],
+        "line_count": cta_layout["line_count"],
+    }
     require(
         cta["x"] >= alignment_left - BOUND_EPSILON
         and cta["x"] + cta["width"] <= alignment_right + BOUND_EPSILON,
@@ -128,8 +137,9 @@ def audit_variant(
     if "logo" in nodes:
         logo = nodes["logo"]
         surface = nodes.get("logo_surface")
+        require(surface is None, f"{name}: removed logo backing surface reappeared")
         logo_box = logo["box"]
-        collision_box = logo_box if surface is None else surface["box"]
+        collision_box = logo_box
         require(logo["visible_bounds"] is not None, f"{name}: logo has no visible pixels")
         require(
             collision_box["x"] >= alignment_left - BOUND_EPSILON
@@ -140,21 +150,6 @@ def audit_variant(
             <= alignment_bottom + BOUND_EPSILON,
             f"{name}: logo treatment leaves the shared alignment rectangle",
         )
-        if surface is not None:
-            require(
-                surface["visible_bounds"] is not None,
-                f"{name}: enabled logo background has no visible pixels",
-            )
-            surface_box = surface["box"]
-            require(
-                surface_box["x"] <= logo_box["x"]
-                and surface_box["y"] <= logo_box["y"]
-                and surface_box["x"] + surface_box["width"]
-                >= logo_box["x"] + logo_box["width"]
-                and surface_box["y"] + surface_box["height"]
-                >= logo_box["y"] + logo_box["height"],
-                f"{name}: logo leaves its enabled background",
-            )
         for node_id in FLOW_NODES:
             if node_id not in nodes or nodes[node_id]["visible_bounds"] is None:
                 continue
@@ -165,11 +160,11 @@ def audit_variant(
                 and visible["y"] < collision_box["y"] + collision_box["height"]
                 and visible["y"] + visible["height"] > collision_box["y"]
             )
-            require(not overlaps, f"{name}: logo surface collides with {node_id}")
+            require(not overlaps, f"{name}: logo collides with {node_id}")
         inspected["logo"] = {
             "position": [round(pixels(logo_box["x"]), 2), round(pixels(logo_box["y"]), 2)],
             "size": [round(pixels(logo_box["width"]), 2), round(pixels(logo_box["height"]), 2)],
-            "background": surface is not None,
+            "background": False,
         }
     return {"name": name, "text": inspected}
 
@@ -200,7 +195,6 @@ def variants() -> list[tuple[str, dict[str, Any], dict[str, Any]]]:
     })
     editorial_config["cta"]["position"] = "bottom_left"
     editorial_config["sticker"]["enabled"] = False
-    editorial_config["logo"]["background_enabled"] = True
     editorial = ("editorial_bottom_left", editorial_config, copy.deepcopy(DEFAULT_CONTENT))
 
     urgent_config = copy.deepcopy(DEFAULT_CONFIG)

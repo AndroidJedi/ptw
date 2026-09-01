@@ -13,8 +13,11 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import tempfile
+import threading
+import time
 from typing import Any
 
 
@@ -24,6 +27,18 @@ class LocalCodexError(RuntimeError):
     def __init__(self, message: str, attempts: Sequence[Mapping[str, Any]]) -> None:
         super().__init__(message)
         self.attempts = [dict(item) for item in attempts]
+
+
+class LocalCodexCancelled(RuntimeError):
+    """A structured call stopped by its owning local Result run."""
+
+    def __init__(self, attempts: Sequence[Mapping[str, Any]]) -> None:
+        super().__init__("local Codex structured call was terminated by the owner")
+        self.attempts = [dict(item) for item in attempts]
+
+
+class _CancellationRequested(RuntimeError):
+    pass
 
 
 def canonical_json(value: Any) -> str:
@@ -82,7 +97,7 @@ class LocalCodexStructuredProvider:
         self.reasoning_effort = reasoning_effort
         self.timeout_seconds = timeout_seconds
         self.maximum_attempts = maximum_attempts
-        self.executor = executor or subprocess.run
+        self.executor = executor
 
     @staticmethod
     def _environment() -> dict[str, str]:
@@ -120,6 +135,82 @@ class LocalCodexStructuredProvider:
             f"INPUT_JSON:\n{canonical_json(input_payload)}\n"
         )
 
+    @staticmethod
+    def _stop_process(process: subprocess.Popen[str]) -> None:
+        if process.poll() is not None:
+            return
+        try:
+            if os.name == "posix":
+                os.killpg(process.pid, signal.SIGTERM)
+            else:
+                process.terminate()
+            process.wait(timeout=2)
+        except (ProcessLookupError, subprocess.TimeoutExpired):
+            if process.poll() is None:
+                try:
+                    if os.name == "posix":
+                        os.killpg(process.pid, signal.SIGKILL)
+                    else:
+                        process.kill()
+                except ProcessLookupError:
+                    pass
+                process.wait(timeout=2)
+
+    def _execute(
+        self, command: Sequence[str], *, prompt: str, cwd: Path,
+        cancel_event: threading.Event | None,
+    ) -> subprocess.CompletedProcess[str]:
+        if self.executor is not None:
+            completed = self.executor(
+                command,
+                input=prompt,
+                text=True,
+                capture_output=True,
+                cwd=cwd,
+                env=self._environment(),
+                timeout=self.timeout_seconds,
+                check=False,
+            )
+            if cancel_event is not None and cancel_event.is_set():
+                raise _CancellationRequested()
+            return completed
+
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=cwd,
+            env=self._environment(),
+            start_new_session=os.name == "posix",
+        )
+        deadline = time.monotonic() + self.timeout_seconds
+        pending_input: str | None = prompt
+        while True:
+            if cancel_event is not None and cancel_event.is_set():
+                self._stop_process(process)
+                process.communicate()
+                raise _CancellationRequested()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                self._stop_process(process)
+                stdout, stderr = process.communicate()
+                raise subprocess.TimeoutExpired(
+                    command, self.timeout_seconds, output=stdout, stderr=stderr,
+                )
+            try:
+                stdout, stderr = process.communicate(
+                    input=pending_input, timeout=min(0.1, remaining),
+                )
+                return subprocess.CompletedProcess(
+                    command, process.returncode, stdout=stdout, stderr=stderr,
+                )
+            except subprocess.TimeoutExpired:
+                # communicate() may be retried after a timeout, but stdin must
+                # be supplied only on the first call.
+                pending_input = None
+
     def call(
         self,
         *,
@@ -131,6 +222,7 @@ class LocalCodexStructuredProvider:
         prompt_version: str,
         images: Sequence[Mapping[str, Any]] = (),
         response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> dict[str, Any]:
         attempts: list[dict[str, Any]] = []
         input_digest = sha256_json(sanitized(input_payload))
@@ -174,15 +266,13 @@ class LocalCodexStructuredProvider:
                     "ephemeral": True,
                 }
                 try:
-                    completed = self.executor(
+                    if cancel_event is not None and cancel_event.is_set():
+                        raise _CancellationRequested()
+                    completed = self._execute(
                         command,
-                        input=self._prompt(system_prompt, input_payload),
-                        text=True,
-                        capture_output=True,
+                        prompt=self._prompt(system_prompt, input_payload),
                         cwd=root,
-                        env=self._environment(),
-                        timeout=self.timeout_seconds,
-                        check=False,
+                        cancel_event=cancel_event,
                     )
                     record.update({
                         "exit_code": int(completed.returncode),
@@ -214,6 +304,13 @@ class LocalCodexStructuredProvider:
                             "attempts": attempts,
                         },
                     }
+                except _CancellationRequested as error:
+                    record.update({
+                        "status": "terminated",
+                        "error_type": "LocalCodexCancelled",
+                    })
+                    attempts.append(record)
+                    raise LocalCodexCancelled(attempts) from error
                 except Exception as error:
                     last_error = error
                     record.update({"status": "failed", "error_type": type(error).__name__})

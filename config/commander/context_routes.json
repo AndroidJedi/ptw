@@ -15,8 +15,7 @@
     "content_result": {
       "canonical": [
         "docs/architecture/content-result-agent.md",
-        "skills/content-candidate-generator/SKILL.md",
-        "skills/content-result-critic/SKILL.md"
+        "skills/content-candidate-generator/SKILL.md"
       ],
       "optional": ["DESIGN_RULES.md"]
     },

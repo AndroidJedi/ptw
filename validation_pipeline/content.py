@@ -15,7 +15,10 @@ import re
 from typing import Any, Iterable, Mapping, Sequence
 from uuid import UUID
 
-from .domain import RATING_PATTERN, TESTIMONIAL_PATTERN, UNSUPPLIED_PROOF_PATTERN
+from .domain import (
+    RATING_PATTERN, TESTIMONIAL_PATTERN, UNSUPPLIED_PROOF_PATTERN,
+    require_language,
+)
 
 
 OUTPUT_PROFILES = (
@@ -58,28 +61,8 @@ INSTAGRAM_REQUIRED_VISUAL_ROLES = (
 STATIC_SOCIAL_PROFILES = frozenset({
     "instagram_static_ad_v1", "tiktok_photo_post_v1",
 })
-ACTION_TYPES = (
-    "recompose", "regenerate_elements", "rerun_template", "discard", "select_final",
-)
-MAX_WRITING_BUNDLE_TOKENS = 5_500
+MAX_WRITING_BUNDLE_TOKENS = 6_500
 MAX_SYSTEM_CONTEXT_TOKENS = 8_000
-MAX_ACTIVE_BY_PASS = {1: 5, 2: 5, 3: 2}
-HARD_GATES = (
-    "task_brief_relevance", "exact_offer_cta", "language_required_fields",
-    "honest_claims", "project_brand_media_tools", "one_coherent_message",
-    "no_synthetic_people_faces", "safe_crop_layout", "protected_copy_legible",
-    "caption_alt_text_accessible",
-)
-WEIGHTS = {
-    "task_brief_suitability": 0.20,
-    "hook_strength": 0.15,
-    "message_clarity": 0.15,
-    "persuasion_action": 0.15,
-    "coherence": 0.15,
-    "specificity_credibility": 0.10,
-    "composition_legibility": 0.05,
-    "originality_tone": 0.05,
-}
 URGENCY_PATTERN = re.compile(
     r"\b(?:act now|last chance|only \d+ left|ends today|limited time|hurry|"
     r"останній шанс|лише \d+ залиш|тільки сьогодні|поспіш)\b",
@@ -93,6 +76,21 @@ def canonical_json(value: Any) -> str:
 
 def sha256_json(value: Any) -> str:
     return hashlib.sha256(canonical_json(value).encode()).hexdigest()
+
+
+def digest_locked_reference(path: Path) -> tuple[str, str]:
+    """Read one reference only when its checked-in SHA-256 sidecar matches."""
+    if not path.is_file():
+        raise RuntimeError(f"required Result context reference is unavailable: {path}")
+    digest_path = path.with_suffix(".sha256")
+    if not digest_path.is_file():
+        raise RuntimeError(f"required Result context digest is unavailable: {digest_path}")
+    text = path.read_text(encoding="utf-8")
+    digest = hashlib.sha256(text.encode()).hexdigest()
+    expected = digest_path.read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"[0-9a-f]{64}", expected) or digest != expected:
+        raise RuntimeError(f"Result context reference digest mismatch: {path}")
+    return text, digest
 
 
 def estimate_tokens(value: str) -> int:
@@ -197,14 +195,14 @@ class StrategyTemplate:
             before, after = int(current[slider]), int(proposed[slider])
             low, high = self.envelopes[slider]
             if not low <= after <= high:
-                raise ValueError("critic slider values must stay inside the template envelope")
+                raise ValueError("owner tune slider values must stay inside the template envelope")
             if before != after:
                 if abs(after - before) < 10 or (after - before) % 5:
-                    raise ValueError("critic slider changes must move by a multiple of five and at least ten")
+                    raise ValueError("owner tune slider changes must move by a multiple of five and at least ten")
                 changed.append(slider)
             result[slider] = after
         if not 1 <= len(changed) <= 2:
-            raise ValueError("one critic adjustment may change one or two slider dimensions")
+            raise ValueError("one owner tune adjustment may change one or two slider dimensions")
         return result
 
     def runtime_bands(self, values: Mapping[str, int]) -> dict[str, str]:
@@ -369,11 +367,10 @@ class ContentContextAssembler:
     """Build one complete, bounded and reproducible context snapshot."""
 
     def __init__(
-        self, *, generator_skill_path: Path, critic_skill_path: Path,
+        self, *, generator_skill_path: Path,
         template_registry: TemplateRegistry, corpus_store: CorpusStore,
     ) -> None:
         self.generator_skill_path = generator_skill_path
-        self.critic_skill_path = critic_skill_path
         self.template_registry = template_registry
         self.corpus_store = corpus_store
 
@@ -420,13 +417,12 @@ class ContentContextAssembler:
             reference_root / "owner-lessons.md",
         )
         generator_core, principles, anti_patterns, technique, owner_lessons = self._read_required(paths)
-        critic_reference_root = self.critic_skill_path.parent / "references"
-        critic_parts = self._read_required((
-            self.critic_skill_path,
-            critic_reference_root / "evaluation-contract.md",
-            critic_reference_root / "owner-lessons.md",
-        ))
-        critic_snapshot = "\n\n".join(critic_parts)
+        post_copy_style = ""
+        post_copy_style_sha256 = ""
+        if output_profile in STATIC_SOCIAL_PROFILES:
+            post_copy_style, post_copy_style_sha256 = digest_locked_reference(
+                reference_root / "post-copy-style.md"
+            )
         manifest, examples, corpus_digest = self.corpus_store.load()
         selected = self.corpus_store.retrieve(
             examples,
@@ -435,10 +431,10 @@ class ContentContextAssembler:
             technique=technique_name.removesuffix(".md"),
             audience=str(brief["document"].get("target_audience") or ""),
         )
-        writing_sections = (
-            generator_core, principles, anti_patterns, technique, owner_lessons,
-            template.prompt_fragment,
-        )
+        writing_sections = tuple(item for item in (
+            generator_core, principles, anti_patterns, technique, post_copy_style,
+            owner_lessons, template.prompt_fragment,
+        ) if item)
         writing_bundle = "\n\n".join((*writing_sections, *(item.excerpt for item in selected)))
         writing_tokens = estimate_tokens(writing_bundle)
         system_context = "\n\n".join((*writing_sections, *(item.excerpt for item in selected)))
@@ -502,11 +498,14 @@ class ContentContextAssembler:
                 "selection_order": [item.example_id for item in selected],
                 "technique_id": technique_name.removesuffix(".md"),
                 "writing_bundle_tokens": writing_tokens,
+                **({"post_copy_style": post_copy_style} if post_copy_style else {}),
             },
             "versions": {
                 "generator_skill_sha256": hashlib.sha256(generator_core.encode()).hexdigest(),
-                "critic_skill_sha256": hashlib.sha256(critic_snapshot.encode()).hexdigest(),
                 "corpus_version": int(manifest["version"]), "corpus_sha256": corpus_digest,
+                **({
+                    "post_copy_style_sha256": post_copy_style_sha256,
+                } if post_copy_style else {}),
             },
             "source_policy": {
                 "raw_idea": "excluded", "research": "excluded", "prior_outputs": "excluded",
@@ -552,7 +551,6 @@ class ContentContextAssembler:
             for template in templates
         ]
         first = bundles[0].document
-        critic_context = self.critic_context()
         from .studio_templates import StudioTemplateRegistry
         studio_output_profile = (
             output_profile if output_profile in STATIC_SOCIAL_PROFILES
@@ -569,7 +567,6 @@ class ContentContextAssembler:
             "approved_sources": first["approved_sources"], "tool_catalog": first["tool_catalog"],
             "tool_catalog_sha256": first["tool_catalog_sha256"],
             "source_policy": first["source_policy"], "versions": first["versions"],
-            "critic_context": critic_context,
             "candidate_contexts": {
                 template.template_id: {
                     **dict(bundle.document),
@@ -592,51 +589,11 @@ class ContentContextAssembler:
         }
         if "revision_instruction" in first:
             document["revision_instruction"] = first["revision_instruction"]
-        document["versions"] = {
-            **dict(document["versions"]),
-            "critic_context_sha256": critic_context["context_sha256"],
-        }
         return ContextBundleV1(
             document=document, digest=sha256_json(document),
             writing_bundle_tokens=max(item.writing_bundle_tokens for item in bundles),
             system_context_tokens=max(item.system_context_tokens for item in bundles),
         )
-
-    def critic_context(self) -> Mapping[str, Any]:
-        reference_root = self.generator_skill_path.parent / "references"
-        critic, evaluation_contract, owner_lessons, principles, anti_patterns = self._read_required((
-            self.critic_skill_path,
-            self.critic_skill_path.parent / "references" / "evaluation-contract.md",
-            self.critic_skill_path.parent / "references" / "owner-lessons.md",
-            reference_root / "writing-principles.md",
-            reference_root / "anti-patterns.md",
-        ))
-        _, examples, corpus_digest = self.corpus_store.load()
-        anchors = sorted(
-            (item for item in examples if item.quality_tier == "canonical" and "critic_anchor" in item.techniques),
-            key=lambda item: item.example_id,
-        )[:2]
-        if len(anchors) != 2:
-            raise ValueError("critic context requires exactly two neutral anchor examples")
-        document = {
-            "critic_core": critic, "evaluation_contract": evaluation_contract,
-            "owner_lessons": owner_lessons,
-            "principles": principles, "anti_patterns": anti_patterns,
-            "anchors": [{"example_id": item.example_id, "excerpt": item.excerpt} for item in anchors],
-            "corpus_sha256": corpus_digest,
-        }
-        tokens = estimate_tokens("\n\n".join((
-            critic, evaluation_contract, owner_lessons, principles, anti_patterns,
-            *(item.excerpt for item in anchors),
-        )))
-        if tokens > MAX_SYSTEM_CONTEXT_TOKENS:
-            raise ValueError(f"Result critic context overflow: system={tokens}; context was not truncated")
-        return {
-            **document,
-            "system_context_tokens": tokens,
-            "context_sha256": sha256_json(document),
-        }
-
 
 @dataclass(frozen=True, slots=True)
 class CandidateV2:
@@ -669,6 +626,14 @@ class CandidateV2:
         document = brief.get("document") or brief
         if normalized["offer"] != document.get("offer") or normalized["cta"] != document.get("cta"):
             raise ValueError("candidate must preserve the exact Product Brief offer and CTA")
+        require_language(
+            str(document.get("language") or ""),
+            [normalized[name] for name in (
+                "hook", "headline", "primary_text", "supporting_text",
+                "offer", "cta", "caption", "alt_text",
+            )],
+            "candidate user-facing copy",
+        )
         raw_media = value.get("media_request")
         media_fields = {"kind", "query", "source_asset_id", "reason"}
         if not isinstance(raw_media, Mapping) or set(raw_media) != media_fields:
@@ -807,330 +772,4 @@ def candidate_output_schema(
                 },
             },
         },
-    }
-
-
-def weighted_candidate_score(scores: Mapping[str, Any], complexity: str) -> int:
-    if set(scores) != set(WEIGHTS):
-        raise ValueError("candidate scores must contain every weighted dimension")
-    values = {name: int(scores[name]) for name in WEIGHTS}
-    if any(not 1 <= value <= 10 for value in values.values()):
-        raise ValueError("candidate dimension scores must be integers from one to ten")
-    if complexity not in {"none", "moderate", "harmful"}:
-        raise ValueError("unknown complexity correction")
-    total = round(sum(values[name] * 10 * weight for name, weight in WEIGHTS.items()))
-    return total - (5 if complexity == "moderate" else 0)
-
-
-def final_eligible(evaluation: Mapping[str, Any]) -> bool:
-    if evaluation.get("complexity") == "harmful":
-        return False
-    hard_gates = evaluation.get("hard_gates")
-    dimensions = evaluation.get("scores")
-    elements = evaluation.get("element_scores")
-    if not isinstance(hard_gates, Mapping) or not hard_gates or not all(hard_gates.values()):
-        return False
-    if not isinstance(dimensions, Mapping) or not isinstance(elements, Mapping):
-        return False
-    try:
-        total = weighted_candidate_score(dimensions, str(evaluation.get("complexity")))
-    except (TypeError, ValueError):
-        return False
-    if (
-        int(dimensions.get("task_brief_suitability", 0)) < 8
-        or int(dimensions.get("message_clarity", 0)) < 8
-        or int(dimensions.get("coherence", 0)) < 8
-        or int(dimensions.get("hook_strength", 0)) < 7
-        or int(dimensions.get("persuasion_action", 0)) < 7
-        or total < 80
-    ):
-        return False
-    for scores in elements.values():
-        if not isinstance(scores, Mapping) or int(scores.get("contribution", 0)) < 7:
-            return False
-    return True
-
-
-def critic_output_schema(pass_number: int, candidate_ids: Sequence[str], element_ids: Sequence[str]) -> dict[str, Any]:
-    if pass_number not in {1, 2, 3}:
-        raise ValueError("critic pass must be one, two, or three")
-    candidate_enum = list(candidate_ids)
-    element_enum = list(element_ids)
-    score_properties = {name: {"type": "integer", "minimum": 1, "maximum": 10} for name in WEIGHTS}
-    element_score = {
-        "type": "object", "additionalProperties": False,
-        "required": ["element_id", "task_fit", "clarity", "contribution", "coherence"],
-        "properties": {
-            "element_id": {"type": "string", "enum": element_enum},
-            **{name: {"type": "integer", "minimum": 1, "maximum": 10} for name in (
-                "task_fit", "clarity", "contribution", "coherence",
-            )},
-        },
-    }
-    return {
-        "type": "object", "additionalProperties": False,
-        "required": ["pass", "evaluations", "ranking", "pairwise", "actions", "observations", "final_selection"],
-        "properties": {
-            "pass": {"type": "integer", "enum": [pass_number]},
-            "evaluations": {
-                "type": "array", "minItems": len(candidate_enum), "maxItems": len(candidate_enum),
-                "items": {
-                    "type": "object", "additionalProperties": False,
-                    "required": ["candidate_id", "hard_gates", "element_scores", "scores", "complexity", "reason_codes"],
-                    "properties": {
-                        "candidate_id": {"type": "string", "enum": candidate_enum},
-                        "hard_gates": {
-                            "type": "object", "additionalProperties": False,
-                            "required": list(HARD_GATES),
-                            "properties": {name: {"type": "boolean"} for name in HARD_GATES},
-                        },
-                        "element_scores": {
-                            "type": "array", "minItems": 1, "maxItems": len(element_enum),
-                            "items": element_score,
-                        },
-                        "scores": {"type": "object", "additionalProperties": False, "required": list(WEIGHTS), "properties": score_properties},
-                        "complexity": {"type": "string", "enum": ["none", "moderate", "harmful"]},
-                        "reason_codes": {"type": "array", "maxItems": 12, "items": {"type": "string"}},
-                    },
-                },
-            },
-            "ranking": {"type": "array", "minItems": len(candidate_enum), "maxItems": len(candidate_enum), "items": {"type": "string", "enum": candidate_enum}},
-            "pairwise": {
-                "type": "array", "maxItems": 3,
-                "items": {
-                    "type": "object", "additionalProperties": False,
-                    "required": ["left", "right", "winner", "reason_codes"],
-                    "properties": {
-                        "left": {"type": "string", "enum": candidate_enum},
-                        "right": {"type": "string", "enum": candidate_enum},
-                        "winner": {"type": "string", "enum": candidate_enum},
-                        "reason_codes": {"type": "array", "maxItems": 6, "items": {"type": "string"}},
-                    },
-                },
-            },
-            "actions": {
-                "type": "array", "maxItems": 4 if pass_number < 3 else 0,
-                "items": {
-                    "type": "object", "additionalProperties": False,
-                    "required": ["action_type", "base_candidate_id", "template_id", "locked_element_ids", "target_element_ids", "source_element_ids", "slider_values", "reason_codes"],
-                    "properties": {
-                        "action_type": {"type": "string", "enum": list(ACTION_TYPES[:-1])},
-                        "base_candidate_id": {
-                            "type": ["string", "null"], "enum": [None, *candidate_enum],
-                        },
-                        "template_id": {"type": ["string", "null"], "enum": [None]},
-                        "locked_element_ids": {"type": "array", "items": {"type": "string", "enum": element_enum}},
-                        "target_element_ids": {"type": "array", "items": {"type": "string", "enum": element_enum}},
-                        "source_element_ids": {"type": "array", "items": {"type": "string", "enum": element_enum}},
-                        "slider_values": {
-                            "type": ["object", "null"], "additionalProperties": False,
-                            "required": list(SLIDER_NAMES),
-                            "properties": {
-                                name: {"type": "integer", "minimum": 0, "maximum": 100}
-                                for name in SLIDER_NAMES
-                            },
-                        },
-                        "reason_codes": {"type": "array", "maxItems": 8, "items": {"type": "string"}},
-                    },
-                },
-            },
-            "observations": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "string", "maxLength": 300}},
-            "final_selection": {
-                "type": ["object", "null"],
-                "properties": {
-                    "candidate_id": {"type": "string", "enum": candidate_enum},
-                    "decision_summary": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"type": "string", "maxLength": 300}},
-                },
-                "required": ["candidate_id", "decision_summary"], "additionalProperties": False,
-            },
-        },
-    }
-
-
-def validate_critic_response(
-    value: Mapping[str, Any], *, pass_number: int, candidate_ids: Sequence[str],
-    element_ids: Sequence[str], templates: Mapping[str, StrategyTemplate],
-    candidate_parameters: Mapping[str, Mapping[str, int]],
-    candidate_templates: Mapping[str, str] | None = None,
-    candidate_element_ids: Mapping[str, Sequence[str]] | None = None,
-    candidate_regeneration_counts: Mapping[str, int] | None = None,
-) -> dict[str, Any]:
-    expected = {"pass", "evaluations", "ranking", "pairwise", "actions", "observations", "final_selection"}
-    if set(value) != expected or int(value.get("pass") or 0) != pass_number:
-        raise ValueError("critic response fields or pass number do not match")
-    if len(candidate_ids) > MAX_ACTIVE_BY_PASS[pass_number] or len(candidate_ids) < (2 if pass_number == 3 else 1):
-        raise ValueError("critic active candidate count exceeds the pass boundary")
-    allowed_candidates, allowed_elements = set(candidate_ids), set(element_ids)
-    evaluations = value.get("evaluations")
-    if not isinstance(evaluations, list) or {item.get("candidate_id") for item in evaluations if isinstance(item, Mapping)} != allowed_candidates:
-        raise ValueError("critic must evaluate every active candidate exactly once")
-    normalized_evaluations: list[dict[str, Any]] = []
-    for raw in evaluations:
-        if not isinstance(raw, Mapping) or set(raw) != {
-            "candidate_id", "hard_gates", "element_scores", "scores", "complexity", "reason_codes",
-        }:
-            raise ValueError("critic evaluation fields do not match v1")
-        hard_gates = raw.get("hard_gates")
-        element_scores = raw.get("element_scores")
-        if (
-            not isinstance(hard_gates, Mapping) or set(hard_gates) != set(HARD_GATES)
-            or not all(isinstance(item, bool) for item in hard_gates.values())
-        ):
-            raise ValueError("critic hard gates must contain the complete boolean gate set")
-        candidate_id = str(raw["candidate_id"])
-        if not isinstance(element_scores, list):
-            raise ValueError("critic element scores must be a bounded structured list")
-        scored_ids = [
-            str(item.get("element_id")) for item in element_scores if isinstance(item, Mapping)
-        ]
-        if (
-            len(scored_ids) != len(element_scores)
-            or len(scored_ids) != len(set(scored_ids))
-            or set(scored_ids) - allowed_elements
-        ):
-            raise ValueError("critic element scores reference unknown or duplicate elements")
-        if candidate_element_ids is not None and set(scored_ids) != set(candidate_element_ids[candidate_id]):
-            raise ValueError("critic must score every required element in each active candidate")
-        normalized_elements: dict[str, dict[str, int]] = {}
-        for score_value in element_scores:
-            if not isinstance(score_value, Mapping) or set(score_value) != {
-                "element_id", "task_fit", "clarity", "contribution", "coherence",
-            }:
-                raise ValueError("element score fields do not match v1")
-            element_id = str(score_value["element_id"])
-            parsed = {
-                name: int(score_value[name])
-                for name in ("task_fit", "clarity", "contribution", "coherence")
-            }
-            if any(not 1 <= score <= 10 for score in parsed.values()):
-                raise ValueError("element scores must be integers from one to ten")
-            normalized_elements[element_id] = parsed
-        complexity = str(raw.get("complexity"))
-        total = weighted_candidate_score(raw.get("scores") or {}, complexity)
-        normalized_evaluation = {**dict(raw), "element_scores": normalized_elements}
-        normalized_evaluations.append({
-            **normalized_evaluation, "weighted_total": total,
-            "eligible": final_eligible(normalized_evaluation),
-        })
-    proposed_ranking = list(map(str, value.get("ranking") or []))
-    if len(proposed_ranking) != len(allowed_candidates) or set(proposed_ranking) != allowed_candidates:
-        raise ValueError("critic ranking must contain every active candidate exactly once")
-    actions = value.get("actions")
-    if not isinstance(actions, list) or len(actions) > (0 if pass_number == 3 else 4):
-        raise ValueError("critic action count exceeds the pass boundary")
-    normalized_actions: list[dict[str, Any]] = []
-    for raw in actions:
-        if not isinstance(raw, Mapping) or set(raw) != {
-            "action_type", "base_candidate_id", "template_id", "locked_element_ids",
-            "target_element_ids", "source_element_ids", "slider_values", "reason_codes",
-        }:
-            raise ValueError("critic action fields do not match v1")
-        action_type = str(raw.get("action_type"))
-        if action_type not in ACTION_TYPES[:-1]:
-            raise ValueError("critic emitted an unsupported improvement action")
-        base = raw.get("base_candidate_id")
-        if base is not None and str(base) not in allowed_candidates:
-            raise ValueError("critic action references an inactive base candidate")
-        referenced = [
-            *list(raw.get("locked_element_ids") or []),
-            *list(raw.get("target_element_ids") or []),
-            *list(raw.get("source_element_ids") or []),
-        ]
-        if not set(map(str, referenced)) <= allowed_elements:
-            raise ValueError("critic action references an unknown element UUID")
-        template_id = raw.get("template_id")
-        sliders = raw.get("slider_values")
-        normalized_sliders = None
-        if action_type == "rerun_template":
-            if base is None or not isinstance(sliders, Mapping) or candidate_templates is None:
-                raise ValueError("rerun_template requires a base candidate and slider configuration")
-            if template_id is not None:
-                raise ValueError("an anonymized critic must not name a strategy template")
-            resolved_template_id = candidate_templates[str(base)]
-            normalized_sliders = templates[resolved_template_id].validate_adjustment(
-                candidate_parameters[str(base)], sliders,
-            )
-            template_id = resolved_template_id
-        elif template_id is not None or sliders is not None:
-            raise ValueError("only rerun_template may change template sliders")
-        normalized_actions.append({
-            **dict(raw), "template_id": template_id, "slider_values": normalized_sliders,
-        })
-    final_selection = value.get("final_selection")
-    if pass_number < 3 and final_selection is not None:
-        raise ValueError("only critic Pass 3 may select a final result")
-    if pass_number == 3:
-        if actions:
-            raise ValueError("critic Pass 3 cannot initiate generation")
-        if final_selection is not None:
-            if not isinstance(final_selection, Mapping) or set(final_selection) != {"candidate_id", "decision_summary"}:
-                raise ValueError("final selection fields do not match v1")
-            chosen = str(final_selection.get("candidate_id"))
-            by_id = {item["candidate_id"]: item for item in normalized_evaluations}
-            if chosen not in allowed_candidates or not by_id[chosen]["eligible"]:
-                raise ValueError("critic cannot select a final candidate that is not eligible")
-            summary = [str(item).strip() for item in final_selection.get("decision_summary") or []]
-            if not 2 <= len(summary) <= 4 or any(not 1 <= len(item) <= 300 for item in summary):
-                raise ValueError("public selection summary requires two to four concise observations")
-            final_selection = {"candidate_id": chosen, "decision_summary": summary}
-    by_id = {item["candidate_id"]: item for item in normalized_evaluations}
-    regeneration_counts = {
-        candidate_id: int((candidate_regeneration_counts or {}).get(candidate_id, 0))
-        for candidate_id in allowed_candidates
-    }
-    complexity_order = {"none": 0, "moderate": 1, "harmful": 2}
-
-    def score_key(candidate_id: str) -> tuple[Any, ...]:
-        evaluation = by_id[candidate_id]
-        return (
-            not evaluation["eligible"], -int(evaluation["weighted_total"]),
-            complexity_order[evaluation["complexity"]], regeneration_counts[candidate_id],
-            candidate_id,
-        )
-
-    score_order = sorted(allowed_candidates, key=score_key)
-    compared = score_order[:min(3, len(score_order))]
-    raw_pairwise = value.get("pairwise")
-    if not isinstance(raw_pairwise, list):
-        raise ValueError("critic pairwise results must be a list")
-    expected_pairs = (
-        {frozenset((compared[0], compared[1]))}
-        if pass_number == 3
-        else {
-            frozenset((compared[0], compared[1])),
-            frozenset((compared[0], compared[2])),
-            frozenset((compared[1], compared[2])),
-        } if len(compared) >= 3 else set()
-    )
-    actual_pairs: set[frozenset[str]] = set()
-    pairwise_wins = {candidate_id: 0 for candidate_id in compared}
-    for item in raw_pairwise:
-        if not isinstance(item, Mapping) or set(item) != {"left", "right", "winner", "reason_codes"}:
-            raise ValueError("critic pairwise fields do not match v1")
-        left, right, winner = str(item["left"]), str(item["right"]), str(item["winner"])
-        if left == right or {left, right} - allowed_candidates or winner not in {left, right}:
-            raise ValueError("critic pairwise comparison references invalid candidates or winner")
-        actual_pairs.add(frozenset((left, right)))
-        pairwise_wins[winner] += 1
-    if actual_pairs != expected_pairs or len(raw_pairwise) != len(expected_pairs):
-        raise ValueError("critic pairwise comparisons must cover the ranked top candidates exactly once")
-    compared_order = sorted(
-        compared,
-        key=lambda candidate_id: (
-            not by_id[candidate_id]["eligible"], -pairwise_wins[candidate_id],
-            -int(by_id[candidate_id]["weighted_total"]),
-            complexity_order[by_id[candidate_id]["complexity"]],
-            regeneration_counts[candidate_id], candidate_id,
-        ),
-    )
-    ranking = [*compared_order, *(item for item in score_order if item not in compared)]
-    if proposed_ranking != ranking:
-        raise ValueError("critic ranking conflicts with deterministic pairwise ordering")
-    if final_selection is not None and final_selection["candidate_id"] != ranking[0]:
-        raise ValueError("final selection must be the deterministic pairwise winner")
-    return {
-        "pass": pass_number, "evaluations": normalized_evaluations, "ranking": ranking,
-        "pairwise": list(raw_pairwise), "actions": normalized_actions,
-        "observations": [str(item).strip()[:300] for item in value.get("observations") or []],
-        "final_selection": final_selection,
     }

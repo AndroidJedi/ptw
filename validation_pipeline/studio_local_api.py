@@ -15,6 +15,7 @@ from .local_codex import LocalCodexStructuredProvider
 from .local_experiment_routes import local_experiment_router
 from .local_experiment_store import LocalExperimentStore
 from .local_experiments import LocalExperimentService
+from .review_notifications import CommanderReviewNotifier
 from .studio_routes import studio_router
 from .studio_tune import StudioTuneService, studio_tune_router
 from .studio_workspace import UniversalStudioWorkspace
@@ -37,6 +38,8 @@ def create_app(
         pexels=PexelsClient(pexels_key) if pexels_key else None,
     )
     pexels = PexelsClient(pexels_key) if pexels_key else None
+    notification_url = os.environ.get("COMMANDER_REVIEW_NOTIFICATION_URL", "").strip()
+    notification_token = os.environ.get("OWNER_GATEWAY_BRIDGE_TOKEN", "").strip()
     experiment_service = experiment_service or LocalExperimentService(
         store=LocalExperimentStore(Path(os.environ.get(
             "LOCAL_EXPERIMENT_PATH", ".local/owner-experiments",
@@ -52,6 +55,10 @@ def create_app(
         ),
         repository_root=Path(__file__).resolve().parents[1],
         pexels=pexels,
+        notifier=(
+            CommanderReviewNotifier(notification_url, notification_token)
+            if notification_url and notification_token else None
+        ),
     )
     recovery_tasks: set[asyncio.Task[Any]] = set()
 
@@ -64,6 +71,12 @@ def create_app(
             task.add_done_callback(recovery_tasks.discard)
         for run_id in recovered["run_ids"]:
             task = asyncio.create_task(asyncio.to_thread(experiment_service.execute_run, run_id))
+            recovery_tasks.add(task)
+            task.add_done_callback(recovery_tasks.discard)
+        for run_id in recovered["notification_run_ids"]:
+            task = asyncio.create_task(asyncio.to_thread(
+                experiment_service.resume_review_notification, run_id,
+            ))
             recovery_tasks.add(task)
             task.add_done_callback(recovery_tasks.discard)
         yield

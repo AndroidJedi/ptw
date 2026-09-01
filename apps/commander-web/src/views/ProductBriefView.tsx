@@ -59,7 +59,7 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     setBusy(true); setError(''); setNotice('')
     try {
       const result = await api.post<{ project: ValidationProject; brief: ProductBrief }>('/api/v1/briefs', {
-        request_id: crypto.randomUUID(), raw_idea: rawIdea.trim(),
+        request_id: crypto.randomUUID(), raw_idea: rawIdea.trim(), language,
       })
       onProjectCreated(result.project)
       setRawIdea(''); setNotice(tr('Project created. One Product Brief is being generated from the idea.', 'Проєкт створено. З ідеї генерується один продуктовий бриф.')); await load(result.brief.brief_id, result.project.project_id)

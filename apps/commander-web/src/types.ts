@@ -52,17 +52,21 @@ export interface ProductBrief extends Partial<ProductBriefDocument> {
 }
 
 export type SocialPlatform = 'instagram' | 'tiktok'
-export type ReviewState = 'unreviewed' | 'ready' | 'needs_changes'
 export type OutputProfile = 'marketing_copy_v1' | 'instagram_static_ad_v1' | 'tiktok_photo_post_v1'
-export type ResultRunStatus = 'queued' | 'generating' | 'completed' | 'failed' | 'terminated'
+export type ResultRunStatus =
+  | 'queued'
+  | 'generating'
+  | 'awaiting_review'
+  | 'approved'
+  | 'superseded'
+  | 'failed'
+  | 'terminated'
 export type ResultRunStage =
   | 'queued'
-  | 'initial_candidates'
-  | 'critic_pass_1'
-  | 'critic_pass_2'
-  | 'critic_pass_3'
-  | 'materializing_result'
-  | 'completed'
+  | 'generating_creatives'
+  | 'awaiting_review'
+  | 'approved'
+  | 'superseded'
   | 'failed'
   | 'terminated'
 
@@ -79,19 +83,24 @@ export interface ContentRun {
   current_stage: ResultRunStage
   progress_percent: number
   maximum_minutes: 45
+  generation_kind: 'initial' | 'regenerate_all' | 'tune'
+  generated_creative_ids: string[]
+  review_creative_ids: string[]
+  approved_creative_id?: string | null
+  notification_state?: 'not_configured' | 'not_scheduled' | 'pending' | 'delivered' | 'definite_failure' | 'ambiguous'
+  notification_receipt_id?: string | null
+  tuned_creative_id?: string | null
+  carried_review_creative_ids?: string[]
+  learning_snapshot_id?: string
+  learning_snapshot_sha256?: string
   error_code?: string | null
   error_message?: string | null
-  final_result_id?: string | null
-  review_state?: ReviewState
-  review_feedback_id?: string | null
-  review_comment?: string | null
   revision_number?: number
-  preview?: CandidatePreview | null
   created_at: string
   updated_at: string
 }
 
-export interface CandidateContent {
+export interface CreativeContent {
   hook: string
   headline: string
   primary_text: string
@@ -104,99 +113,81 @@ export interface CandidateContent {
   visual_concept: string
 }
 
-export interface ContentResult {
-  creative_id: string
-  run_id: string
-  selected_candidate_id: string
-  recipe_id?: string | null
-  render_id?: string | null
-  decision_summary: string[]
-  result_sha256: string
-  content: CandidateContent
-  content_sha256: string
-  asset_sha256?: string | null
-  asset_mime_type?: 'image/jpeg' | null
-  asset_width?: number | null
-  asset_height?: number | null
-  asset_url?: string | null
-  created_at: string
-}
-
-export type CandidateParameterName =
+export type CreativeParameterName =
   | 'hook_pressure'
   | 'emotional_intensity'
   | 'conceptual_novelty'
   | 'information_density'
   | 'visual_complexity'
 
-export interface CandidatePreview {
+export interface CreativePreview {
   asset_url: string
   sha256: string
-  mime_type: 'image/jpeg'
+  mime_type: 'image/jpeg' | 'image/png'
   width: number
   height: number
 }
 
-export interface ContentCandidate {
-  candidate_id: string
-  alias: string
+export interface ContentCreative {
+  creative_id: string
+  run_id: string
+  slot: string
   round: number
-  generation_kind: 'initial' | 'recomposition' | 'element_regeneration' | 'template_rerun'
-  parent_candidate_id?: string | null
+  generation_kind: 'initial' | 'regenerate_all' | 'tune'
+  parent_creative_id?: string | null
   template_id: string
   template_version: number
-  parameters: Record<CandidateParameterName, number>
-  document: CandidateContent
-  preview: CandidatePreview
+  parameters: Record<CreativeParameterName, number>
+  document: CreativeContent
+  document_sha256: string
+  recipe_id?: string | null
+  render_id?: string | null
+  preview: CreativePreview
+  created_at: string
 }
 
-export interface CriticCandidateScore {
-  scores: Record<string, number>
-  complexity: 'none' | 'moderate' | 'harmful'
-  weighted_total: number
-  eligible: boolean
-  reason_codes: string[]
+export interface OwnerReviewAction {
+  action_id: string
+  request_id: string
+  action_type: 'approve' | 'regenerate_all' | 'tune'
+  status: 'processing' | 'completed' | 'failed'
+  creative_id?: string | null
+  comment?: string | null
+  child_run_id?: string | null
+  created_at: string
+  updated_at: string
 }
 
-export interface CriticPairwiseResult {
-  left: string
-  right: string
-  winner: string
-  reason_codes: string[]
+export interface LearningRule {
+  rule_id: string
+  rule_type: 'preferred_direction' | 'preferred_layout' | 'tune_instruction' | 'exploration_exclusions'
+  strategy_id?: string | null
+  output_profile?: OutputProfile | null
+  instruction?: string | null
+  layout_patch?: Array<Record<string, unknown>>
+  exclusions?: Record<string, unknown>
+  sha256: string
+  created_at?: string
 }
 
-export interface CriticAction {
-  action_type: 'recompose' | 'regenerate_elements' | 'rerun_template' | 'discard'
-  base_candidate_id?: string | null
-  output_candidate_id?: string | null
-  parameter_deltas?: Record<string, [number, number]> | null
-  status: string
+export interface NotificationReceipt {
+  receipt_id: string
+  status: 'pending' | 'delivered' | 'definite_failure' | 'ambiguous'
+  attempt_count: number
+  provider_message_id?: string | null
+  error_code?: string | null
+  error_message?: string | null
+  created_at: string
+  updated_at: string
 }
 
-export interface CriticPassDebug {
-  pass_id: string
-  pass_number: 1 | 2 | 3
-  critic_scope?: 'screening_group_1_of_2' | 'screening_group_2_of_2' | 'group_winner_comparison'
-  active_candidate_ids: string[]
-  hard_gates: Record<string, Record<string, boolean>>
-  element_scores?: Record<string, Record<string, {
-    task_fit: number
-    clarity: number
-    contribution: number
-    coherence: number
-  }>>
-  candidate_scores: Record<string, CriticCandidateScore>
-  ranking: string[]
-  pairwise_results: CriticPairwiseResult[]
-  observations: string[]
-  actions: CriticAction[]
-  final_selection?: { candidate_id: string; decision_summary: string[] } | null
-}
-
-export interface ContentDebug {
-  candidates: ContentCandidate[]
-  critic_passes: CriticPassDebug[]
-  result?: ContentResult | null
+export interface ContentReview {
+  schema: 'ptw.owner-creative-review.v1'
+  run: ContentRun
+  creatives: ContentCreative[]
+  owner_actions: OwnerReviewAction[]
+  notification?: NotificationReceipt | null
+  applied_project_rules: LearningRule[]
 }
 
 export interface ProjectAsset {

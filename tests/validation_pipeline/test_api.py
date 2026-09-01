@@ -26,7 +26,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             pexels_api_key="pexels-key",
             product_brief_skill_path=Path("unused-product-brief-skill"),
             content_candidate_generator_skill_path=Path("unused-candidate-skill"),
-            content_result_critic_skill_path=Path("unused-critic-skill"),
+            commander_review_notification_url="http://commander/review-notifications",
         )
 
     def test_background_starting_routes_execute_on_the_event_loop(self) -> None:
@@ -42,7 +42,8 @@ class ValidationApiRouteTests(unittest.TestCase):
             ("POST", "/internal/v1/briefs/{brief_id}/retry"),
             ("POST", "/internal/v1/content-runs"),
             ("POST", "/internal/v1/content-runs/{run_id}/retry"),
-            ("POST", "/internal/v1/content-runs/{run_id}/revisions"),
+            ("POST", "/internal/v1/content-runs/{run_id}/review/regenerate-all"),
+            ("POST", "/internal/v1/content-runs/{run_id}/review/tune"),
         }
         handlers = {
             (method, route.path): route.endpoint
@@ -59,10 +60,14 @@ class ValidationApiRouteTests(unittest.TestCase):
         project_id = "01900000-0000-7000-8000-000000000002"
 
         class Repository:
+            def __init__(self) -> None:
+                self.create_input = None
+
             def recover_interrupted(self) -> dict[str, int]:
                 return {"briefs": 0, "renders": 0, "content_attempts": 0}
 
             def create_brief(self, **_value):
+                self.create_input = _value
                 return ({"brief_id": brief_id, "project_id": project_id, "status": "queued"}, True)
 
             def acquire_operation(self, kind: str, identifier: str) -> bool:
@@ -96,10 +101,12 @@ class ValidationApiRouteTests(unittest.TestCase):
                 json={
                     "request_id": "01900000-0000-7000-8000-000000000003",
                     "raw_idea": "One focused validation idea.",
+                    "language": "uk",
                 },
             )
             self.assertEqual(202, response.status_code, response.text)
             self.assertTrue(runner.called.wait(timeout=1))
+            self.assertEqual("uk", repository.create_input["required_language"])
 
     def test_busy_brief_admission_returns_conflict_instead_of_500(self) -> None:
         class Repository:
@@ -125,23 +132,24 @@ class ValidationApiRouteTests(unittest.TestCase):
                 json={
                     "request_id": "01900000-0000-7000-8000-000000000004",
                     "raw_idea": "A concurrent idea.",
+                    "language": "en",
                 },
             )
 
         self.assertEqual(409, response.status_code, response.text)
         self.assertEqual("another generation operation is active", response.json()["detail"])
 
-    def test_candidate_preview_is_run_scoped_and_never_cached(self) -> None:
+    def test_creative_asset_is_review_run_scoped_and_never_cached(self) -> None:
         run_id = "01900000-0000-7000-8000-000000000010"
-        candidate_id = "01900000-0000-7000-8000-000000000011"
+        creative_id = "01900000-0000-7000-8000-000000000011"
 
         class Repository:
             def recover_interrupted(self) -> dict[str, int]:
                 return {"briefs": 0, "renders": 0, "content_attempts": 0}
 
         class ContentRepository:
-            def candidate_preview(self, identifier: str, *, expected_run_id: str) -> dict:
-                if identifier != candidate_id or expected_run_id != run_id:
+            def creative_preview(self, identifier: str, *, expected_run_id: str) -> dict:
+                if identifier != creative_id or expected_run_id != run_id:
                     raise KeyError(identifier)
                 return {
                     "bytes": b"\xff\xd8candidate\xff\xd9", "sha256": "a" * 64,
@@ -158,7 +166,7 @@ class ValidationApiRouteTests(unittest.TestCase):
         )
         with TestClient(app) as client:
             response = client.get(
-                f"/internal/v1/content-runs/{run_id}/candidates/{candidate_id}/asset",
+                f"/internal/v1/content-runs/{run_id}/creatives/{creative_id}/asset",
                 headers={"X-PTW-Owner-Gateway-Token": "owner-token"},
             )
 

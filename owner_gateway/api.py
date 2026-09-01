@@ -209,82 +209,90 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def content_run(run_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return (await validation_bridge("GET", f"/internal/v1/content-runs/{run_id}")).json()
 
-    @app.get("/api/v1/content-runs/{run_id}/result")
-    async def content_result(run_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("GET", f"/internal/v1/content-runs/{run_id}/result")).json()
+    @app.get("/api/v1/content-runs/{run_id}/review")
+    async def content_review(run_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", f"/internal/v1/content-runs/{run_id}/review",
+        )).json()
 
-    @app.get("/api/v1/content-runs/{run_id}/result/asset")
-    async def content_result_asset(
-        run_id: str, _identity: OwnerIdentity = Depends(owner)
+    @app.get("/api/v1/content-runs/{run_id}/creatives/{creative_id}/asset")
+    async def content_creative_asset(
+        run_id: str, creative_id: str, _identity: OwnerIdentity = Depends(owner),
     ) -> Response:
         response = await validation_bridge(
-            "GET", f"/internal/v1/content-runs/{run_id}/result/asset", timeout=60
-        )
-        headers = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
-        if response.headers.get("etag"):
-            headers["ETag"] = response.headers["etag"]
-        return Response(
-            content=response.content,
-            media_type=response.headers.get("content-type", "application/octet-stream"),
-            headers=headers,
-        )
-
-    @app.get("/api/v1/content-runs/{run_id}/candidates/{candidate_id}/asset")
-    async def content_candidate_asset(
-        run_id: str, candidate_id: str, _identity: OwnerIdentity = Depends(owner)
-    ) -> Response:
-        response = await validation_bridge(
-            "GET",
-            f"/internal/v1/content-runs/{run_id}/candidates/{candidate_id}/asset",
+            "GET", f"/internal/v1/content-runs/{run_id}/creatives/{creative_id}/asset",
             timeout=60,
         )
         headers = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
-        if response.headers.get("etag"):
-            headers["ETag"] = response.headers["etag"]
+        for name in ("etag", "x-ptw-content-sha256"):
+            if response.headers.get(name):
+                headers[name] = response.headers[name]
         return Response(
             content=response.content,
             media_type=response.headers.get("content-type", "application/octet-stream"),
             headers=headers,
         )
 
-    @app.get("/api/v1/content-runs/{run_id}/debug")
-    async def content_debug(run_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("GET", f"/internal/v1/content-runs/{run_id}/debug")).json()
+    @app.get("/api/v1/content-runs/{run_id}/creatives/{creative_id}/export")
+    async def content_creative_export(
+        run_id: str, creative_id: str, _identity: OwnerIdentity = Depends(owner),
+    ) -> Response:
+        response = await validation_bridge(
+            "GET", f"/internal/v1/content-runs/{run_id}/creatives/{creative_id}/export",
+            timeout=60,
+        )
+        headers = {
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        }
+        for name in ("x-ptw-content-sha256", "content-disposition"):
+            if response.headers.get(name):
+                headers[name] = response.headers[name]
+        return Response(content=response.content, media_type="application/zip", headers=headers)
+
+    @app.post("/api/v1/content-runs/{run_id}/review/approve")
+    async def approve_content_review(
+        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/content-runs/{run_id}/review/approve",
+            body=request, actor=actor(identity),
+        )).json()
+
+    @app.post("/api/v1/content-runs/{run_id}/review/regenerate-all", status_code=202)
+    async def regenerate_content_review(
+        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/content-runs/{run_id}/review/regenerate-all",
+            body=request, actor=actor(identity), timeout=60,
+        )).json()
+
+    @app.post("/api/v1/content-runs/{run_id}/review/tune", status_code=202)
+    async def tune_content_review(
+        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/content-runs/{run_id}/review/tune",
+            body=request, actor=actor(identity), timeout=60,
+        )).json()
+
+    @app.post("/api/v1/content-runs/{run_id}/review-notification/retry")
+    async def retry_content_review_notification(
+        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/content-runs/{run_id}/review-notification/retry",
+            body=request, actor=actor(identity),
+        )).json()
 
     @app.post("/api/v1/content-runs/{run_id}/retry", status_code=202)
     async def retry_content_run(
-        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         return (await validation_bridge(
             "POST", f"/internal/v1/content-runs/{run_id}/retry", body=request,
             actor=actor(identity), timeout=60,
-        )).json()
-
-    @app.post("/api/v1/content-runs/{run_id}/feedback")
-    async def content_feedback(
-        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/content-runs/{run_id}/feedback", body=request,
-            actor=actor(identity),
-        )).json()
-
-    @app.post("/api/v1/content-runs/{run_id}/revisions", status_code=202)
-    async def revise_content_run(
-        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/content-runs/{run_id}/revisions", body=request,
-            actor=actor(identity), timeout=60,
-        )).json()
-
-    @app.post("/api/v1/content-runs/{run_id}/outcomes")
-    async def content_outcome(
-        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/content-runs/{run_id}/outcomes", body=request,
-            actor=actor(identity),
         )).json()
 
     @app.get("/api/v1/studio")

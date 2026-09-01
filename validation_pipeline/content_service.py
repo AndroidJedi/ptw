@@ -1,4 +1,4 @@
-"""Durable five-template Result orchestration with three bounded critic passes."""
+"""Durable five-Creative owner-review orchestration."""
 
 from __future__ import annotations
 
@@ -14,8 +14,7 @@ from commander.ids import new_uuid7
 from .content import (
     CandidateV2, ContentContextAssembler, INSTAGRAM_REQUIRED_VISUAL_ROLES,
     REQUIRED_COPY_SLOTS, SLIDER_NAMES, STATIC_SOCIAL_PROFILES, StrategyTemplate, TemplateRegistry,
-    candidate_output_schema, canonical_json, critic_output_schema, sha256_json,
-    validate_critic_response,
+    candidate_output_schema, sha256_json,
 )
 from .content_adapters import adapter_for_profile
 from .natal_brand import natal_logo_bytes
@@ -28,11 +27,12 @@ class GeneratedCandidate:
 
 
 class CandidateGenerationOrchestrator:
-    """Server-authorized execution of isolated generators and typed critic actions."""
+    """Server-authorized generation of five owner-reviewable Creatives."""
 
     def __init__(
         self, *, repository: Any, bridge: Any, context_assembler: ContentContextAssembler,
         template_registry: TemplateRegistry, recipe_renderer: Any, pexels: Any,
+        notifier: Any,
     ) -> None:
         self.repository = repository
         self.bridge = bridge
@@ -40,6 +40,7 @@ class CandidateGenerationOrchestrator:
         self.template_registry = template_registry
         self.recipe_renderer = recipe_renderer
         self.pexels = pexels
+        self.notifier = notifier
 
     def create_run(
         self, *, request_id: str, brief_id: str, task: str, output_profile: str,
@@ -47,6 +48,8 @@ class CandidateGenerationOrchestrator:
         revision_instruction: Mapping[str, Any] | None = None,
         revision_feedback: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], bool]:
+        if self.notifier is None:
+            raise RuntimeError("Commander review-notification relay is not configured")
         brief = self.repository.authority.get_brief(brief_id)
         if not brief["approved"] or brief["status"] != "completed":
             raise ValueError("Result generation requires an approved completed Product Brief")
@@ -84,38 +87,6 @@ class CandidateGenerationOrchestrator:
             create_arguments["revision_feedback"] = revision_feedback
         return self.repository.create_run(**create_arguments)
 
-    def create_revision(
-        self, *, request_id: str, parent_run_id: str, comment: str, requested_by: str,
-    ) -> tuple[dict[str, Any], bool]:
-        parent = self.repository.get_run(parent_run_id)
-        if parent["status"] != "completed" or not parent.get("final_result_id"):
-            raise ValueError("a revision requires one completed Result artifact")
-        normalized = " ".join(comment.split())
-        if not 3 <= len(normalized) <= 2_000:
-            raise ValueError("revision comment must contain 3-2000 characters")
-        feedback_id = new_uuid7()
-        instruction = {
-            "schema_version": 1,
-            "feedback_id": feedback_id,
-            "parent_run_id": parent["run_id"],
-            "creative_id": parent["final_result_id"],
-            "comment": normalized,
-        }
-        return self.create_run(
-            request_id=request_id,
-            brief_id=parent["brief_id"],
-            task=parent["task"],
-            output_profile=parent["output_profile"],
-            requested_by=requested_by,
-            parent_run_id=parent["run_id"],
-            revision_instruction=instruction,
-            revision_feedback={
-                "feedback_id": feedback_id,
-                "creative_id": parent["final_result_id"],
-                "comment": normalized,
-            },
-        )
-
     @staticmethod
     def _deadline_ok(run: Mapping[str, Any]) -> None:
         deadline = datetime.fromisoformat(str(run["deadline_at"]))
@@ -149,6 +120,7 @@ class CandidateGenerationOrchestrator:
     @staticmethod
     def _candidate_system_prompt(context: Mapping[str, Any]) -> str:
         writing = context["writing"]
+        required_language = str(context["brief"]["document"]["language"])
         profile_rule = (
             "For instagram_static_ad_v1, visual_components must contain exactly these nine roles "
             "once each and in this order: " + ", ".join(INSTAGRAM_REQUIRED_VISUAL_ROLES) + ". "
@@ -158,15 +130,27 @@ class CandidateGenerationOrchestrator:
         )
         revision_rule = ""
         if context.get("revision_instruction"):
+            revision = context["revision_instruction"]
             revision_rule = (
+                "Generate a fresh exploration direction. Do not reuse any identity listed in "
+                "revision_instruction.excluded_identities. Keep the Brief, task, offer, CTA, "
+                "brand, placement, and source policy protected."
+                if revision.get("action") == "regenerate_all" else
                 "Apply the supplied revision_instruction comment exactly as the requested change. "
                 "Keep the Brief, task, offer, CTA, brand, placement, and source policy protected. "
                 "Do not infer any other owner history."
             )
         return "\n\n".join((
             writing["generator_core"], writing["principles"], writing["anti_patterns"],
-            writing["technique"], writing["owner_lessons"],
+            writing["technique"], writing.get("post_copy_style") or "",
+            writing["owner_lessons"],
+            "ACTIVE_PROJECT_OWNER_LEARNING:\n" + json.dumps(
+                context.get("owner_learning") or {"rules": []}, ensure_ascii=False,
+            ),
             context["template"]["document"]["prompt_fragment"],
+            f"REQUIRED_OUTPUT_LANGUAGE: {required_language}. The approved Brief language is "
+            "authoritative for hook, headline, primary_text, supporting_text, offer, CTA, "
+            "caption, and alt_text. Style examples in another language never change it.",
             "Return exactly one strict CandidateV2 JSON object. Do not mention any other candidate. "
             "Preserve the supplied offer and CTA exactly. Use only supplied identifiers. "
             "The supplied Studio template is the authoritative render contract: its frames, tools, "
@@ -181,14 +165,14 @@ class CandidateGenerationOrchestrator:
     @staticmethod
     def _candidate_payload(
         run: Mapping[str, Any], template: StrategyTemplate, parameters: Mapping[str, int],
-        *, action: Mapping[str, Any] | None, source_elements: Sequence[Mapping[str, Any]],
-        candidate_id: str,
+        *, candidate_id: str,
     ) -> dict[str, Any]:
         context = run["context_bundle"]["candidate_contexts"][template.template_id]
         payload = {
             "candidate_id": candidate_id,
             "run_id": run["run_id"],
             "context_digest": sha256_json(context),
+            "required_language": context["brief"]["document"]["language"],
             "approved_brief": context["brief"], "task": context["task"],
             "output_profile": context["output_profile"], "brand_kit": context["brand_kit"],
             "approved_sources": context["approved_sources"],
@@ -202,38 +186,12 @@ class CandidateGenerationOrchestrator:
             } for example_id, excerpt in zip(
                 context["writing"]["example_ids"], context["writing"]["examples"],
             )],
-            "improvement_action": None if action is None else dict(action),
-            "source_elements": [dict(item) for item in source_elements],
+            "owner_learning": context.get("owner_learning") or {"rules": []},
             "excluded_context": context["source_policy"],
         }
         if context.get("revision_instruction"):
             payload["revision_instruction"] = dict(context["revision_instruction"])
         return payload
-
-    @staticmethod
-    def _merge_locked(
-        candidate: CandidateV2, locked: Sequence[Mapping[str, Any]], *, brief: Mapping[str, Any],
-        output_profile: str,
-    ) -> CandidateV2:
-        if not locked:
-            return candidate
-        value = json.loads(canonical_json(candidate.value))
-        components = list(value["visual_components"])
-        for element in locked:
-            slot, payload, ordinal = element["slot"], element["payload"], int(element["ordinal"])
-            if slot in REQUIRED_COPY_SLOTS[:-1]:
-                value[slot] = payload["value"]
-            elif slot == "media_request":
-                value["media_request"] = dict(payload)
-            else:
-                matches = [index for index, item in enumerate(components) if item["role"] == slot]
-                if ordinal < len(matches):
-                    components[matches[ordinal]] = {
-                        "role": slot, "content": payload["content"],
-                        "source_ids": list(payload.get("source_ids") or []),
-                    }
-        value["visual_components"] = components
-        return CandidateV2.from_dict(value, brief=brief, output_profile=output_profile)
 
     @staticmethod
     def _element_type(slot: str) -> str:
@@ -246,13 +204,8 @@ class CandidateGenerationOrchestrator:
     @classmethod
     def _normalize_elements(
         cls, *, alias: str, candidate: CandidateV2,
-        locked: Sequence[Mapping[str, Any]], source_elements: Sequence[Mapping[str, Any]],
-        target_elements: Sequence[Mapping[str, Any]], action_type: str | None,
         reserved_instance_ids: Mapping[str, str] | None = None,
     ) -> tuple[list[dict[str, Any]], dict[str, str]]:
-        locked_by_slot = {(item["slot"], int(item["ordinal"])): item for item in locked}
-        source_ids = [item["element_id"] for item in source_elements]
-        target_by_slot = {(item["slot"], int(item["ordinal"])): item for item in target_elements}
         raw: list[tuple[str, int, Mapping[str, Any]]] = []
         for slot in REQUIRED_COPY_SLOTS:
             payload = (
@@ -271,64 +224,36 @@ class CandidateGenerationOrchestrator:
         elements: list[dict[str, Any]] = []
         instance_ids: dict[str, str] = {}
         for slot, ordinal, payload in raw:
-            locked_item = locked_by_slot.get((slot, ordinal))
-            if locked_item is not None:
-                element = {
-                    **dict(locked_item), "reuse_mode": "reuse_exact",
-                    "source_element_ids": [],
-                }
-            else:
-                target = target_by_slot.get((slot, ordinal))
-                reuse_mode = (
-                    "replacement" if target is not None
-                    else "adapt_concept" if action_type == "recompose" and slot in {
-                        "visual_concept", "background", "primary_subject", "lighting_style", "composition",
-                    }
-                    else "generated"
-                )
-                contributing = (
-                    [target["element_id"]] if target is not None
-                    else source_ids if reuse_mode == "adapt_concept" else []
-                )
-                element = {
-                    "element_id": (
-                        (reserved_instance_ids or {})[slot]
-                        if slot in (reserved_instance_ids or {}) else new_uuid7()
-                    ),
-                    "display_alias": f"{alias}.{slot.upper()}.{ordinal + 1:02d}",
-                    "slot": slot, "ordinal": ordinal, "element_type": cls._element_type(slot),
-                    "payload": dict(payload), "reuse_mode": reuse_mode,
-                    "source_element_ids": contributing,
-                }
+            element = {
+                "element_id": (
+                    (reserved_instance_ids or {})[slot]
+                    if slot in (reserved_instance_ids or {}) else new_uuid7()
+                ),
+                "display_alias": f"{alias}.{slot.upper()}.{ordinal + 1:02d}",
+                "slot": slot, "ordinal": ordinal, "element_type": cls._element_type(slot),
+                "payload": dict(payload), "reuse_mode": "generated",
+                "source_element_ids": [],
+            }
             elements.append(element)
             if ordinal == 0:
                 instance_ids[slot] = str(element["element_id"])
         return elements, instance_ids
 
-    def _call_candidate(
-        self, *, run: Mapping[str, Any], candidate_id: str, alias: str,
+    def _call_creative(
+        self, *, run: Mapping[str, Any], creative_id: str, alias: str,
         template: StrategyTemplate, parameters: Mapping[str, int], round_number: int,
-        generation_kind: str, parent_candidate_id: str | None,
-        action: Mapping[str, Any] | None = None,
+        generation_kind: str, parent_creative_id: str | None,
     ) -> dict[str, Any]:
         self._deadline_ok(run)
-        all_candidates = self.repository.list_candidates(run["run_id"])
-        elements_by_id = {
-            item["element_id"]: item for candidate in all_candidates for item in candidate["elements"]
-        }
-        locked = [elements_by_id[item] for item in (action or {}).get("locked_element_ids", [])]
-        sources = [elements_by_id[item] for item in (action or {}).get("source_element_ids", [])]
-        targets = [elements_by_id[item] for item in (action or {}).get("target_element_ids", [])]
         payload = self._candidate_payload(
-            run, template, parameters, action=action, source_elements=sources,
-            candidate_id=candidate_id,
+            run, template, parameters, candidate_id=creative_id,
         )
         allowed_source_ids = self._supplied_uuid_ids(payload)
         approved_asset_ids = sorted({
             str(item["source_asset_id"])
             for item in payload["approved_sources"] if item.get("source_asset_id")
         })
-        key = f"{run['run_id']}:{candidate_id}:content_candidate_generation"
+        key = f"{run['run_id']}:{creative_id}:content_candidate_generation"
         brief = run["context_bundle"]["brief"]["document"]
 
         def validate_response(value: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -339,7 +264,7 @@ class CandidateGenerationOrchestrator:
             ).value
 
         attempt_id, invocation_id = self.repository.start_invocation(
-            candidate_id, mode="content_candidate_generation", idempotency_key=key, request=payload,
+            creative_id, mode="content_candidate_generation", idempotency_key=key, request=payload,
         )
         try:
             response = self.bridge.generate_content_candidate(
@@ -352,7 +277,7 @@ class CandidateGenerationOrchestrator:
                     allowed_source_ids=allowed_source_ids,
                     approved_asset_ids=approved_asset_ids,
                 ),
-                prompt_version=f"ptw-content-candidate-v2.1-{template.template_id}-v{template.version}",
+                prompt_version=f"ptw-content-candidate-v2.2-{template.template_id}-v{template.version}",
                 idempotency_key=key,
                 response_validator=validate_response,
             )
@@ -365,10 +290,7 @@ class CandidateGenerationOrchestrator:
                 allowed_source_ids=allowed_source_ids,
                 approved_asset_ids=approved_asset_ids,
             )
-            candidate = self._merge_locked(
-                candidate, locked, brief=brief, output_profile=run["output_profile"],
-            )
-            existing_recipe = self.repository.authority.get_candidate_recipe(candidate_id)
+            existing_recipe = self.repository.authority.get_creative_recipe(creative_id)
             reserved_instance_ids: dict[str, str] = {}
             if existing_recipe is not None:
                 role_for_tool = {
@@ -387,9 +309,7 @@ class CandidateGenerationOrchestrator:
                     if role is not None:
                         reserved_instance_ids[role] = frame["instance_id"]
             elements, instance_ids = self._normalize_elements(
-                alias=alias, candidate=candidate, locked=locked, source_elements=sources,
-                target_elements=targets, action_type=None if action is None else str(action["action_type"]),
-                reserved_instance_ids=reserved_instance_ids,
+                alias=alias, candidate=candidate, reserved_instance_ids=reserved_instance_ids,
             )
             if (
                 candidate.value["media_request"]["kind"] == "non_human_graphic"
@@ -404,14 +324,14 @@ class CandidateGenerationOrchestrator:
                 renderer=self.recipe_renderer, pexels=self.pexels, bridge=self.bridge,
             )
             parent_recipe = (
-                None if parent_candidate_id is None
-                else self.repository.authority.get_candidate_recipe(parent_candidate_id)
+                None if parent_creative_id is None
+                else self.repository.authority.get_creative_recipe(parent_creative_id)
             )
             materialized = adapter.materialize(
                 candidate=candidate,
                 run={
                     **run,
-                    "candidate_id": candidate_id,
+                    "creative_id": creative_id,
                     "candidate_template_id": template.template_id,
                     "candidate_parameters": dict(parameters),
                     "parent_recipe_id": None if parent_recipe is None else parent_recipe["recipe_id"],
@@ -432,14 +352,15 @@ class CandidateGenerationOrchestrator:
                             "an exactly reused primary subject must retain its resolved media source"
                         )
                     element["payload"]["source_ids"] = [resolved_media_id]
-            stored = self.repository.persist_candidate(
-                run_id=run["run_id"], candidate_id=candidate_id, alias=alias,
+            stored = self.repository.persist_creative(
+                run_id=run["run_id"], creative_id=creative_id, slot=alias,
                 round_number=round_number, generation_kind=generation_kind,
-                parent_candidate_id=parent_candidate_id, template=template,
+                parent_creative_id=parent_creative_id, template=template,
                 parameters=parameters, candidate=candidate, elements=elements,
                 materialized=materialized, provider_provenance=invocation,
+                provider_invocation_id=invocation_id,
             )
-            self._checkpoint_candidate(stored)
+            self._checkpoint_creative(stored)
             return stored
         except Exception as error:
             self.repository.finish_invocation(
@@ -451,23 +372,31 @@ class CandidateGenerationOrchestrator:
             )
             raise
 
-    def _initial_candidates(
+    def _initial_creatives(
         self, run: Mapping[str, Any], templates: Sequence[StrategyTemplate],
     ) -> list[dict[str, Any]]:
-        existing = {item["candidate_id"]: item for item in self.repository.list_candidates(run["run_id"])}
+        parent = None
+        if run["generation_kind"] == "tune":
+            parent = self.repository.get_creative(run["tuned_creative_id"])
+            templates = [next(item for item in templates if item.template_id == run["tuned_strategy_id"])]
+        existing = {item["creative_id"]: item for item in self.repository.list_creatives(run["run_id"])}
         jobs: list[tuple[int, str, StrategyTemplate]] = []
-        for index, (candidate_id, template) in enumerate(zip(run["initial_candidate_ids"], templates), start=1):
-            if candidate_id not in existing:
-                jobs.append((index, candidate_id, template))
+        for index, (creative_id, template) in enumerate(zip(run["reserved_creative_ids"], templates), start=1):
+            if creative_id not in existing:
+                jobs.append((index, creative_id, template))
         if jobs:
             with ThreadPoolExecutor(max_workers=2, thread_name_prefix="ptw-result-generator") as executor:
                 futures = {
                     executor.submit(
-                        self._call_candidate, run=run, candidate_id=candidate_id, alias=f"C{index}",
-                        template=template, parameters=template.defaults, round_number=0,
-                        generation_kind="initial", parent_candidate_id=None,
-                    ): candidate_id
-                    for index, candidate_id, template in jobs
+                        self._call_creative, run=run, creative_id=creative_id,
+                        alias=parent["slot"] if parent is not None else f"C{index}",
+                        template=template,
+                        parameters=parent["parameters"] if parent is not None else template.defaults,
+                        round_number=0 if parent is None else int(parent["round"]) + 1,
+                        generation_kind=run["generation_kind"],
+                        parent_creative_id=None if parent is None else parent["creative_id"],
+                    ): creative_id
+                    for index, creative_id, template in jobs
                 }
                 errors: list[Exception] = []
                 for future in as_completed(futures):
@@ -479,366 +408,128 @@ class CandidateGenerationOrchestrator:
                     raise RuntimeError(
                         f"An initial Result direction failed after its fresh structured retry: {errors[0]}"
                     ) from errors[0]
-        values = [existing[candidate_id] for candidate_id in run["initial_candidate_ids"]]
-        if len(values) != 5 or len({item["template_id"] for item in values}) != 5:
-            raise RuntimeError("Result run did not materialize five isolated template candidates")
+        values = [existing[creative_id] for creative_id in run["reserved_creative_ids"]]
+        expected = 1 if run["generation_kind"] == "tune" else 5
+        if len(values) != expected or (
+            expected == 5 and len({item["template_id"] for item in values}) != 5
+        ):
+            raise RuntimeError("Result run did not materialize its isolated Creative directions")
         for item in values:
-            self._checkpoint_candidate(item)
+            self._checkpoint_creative(item)
         return values
 
-    def _checkpoint_candidate(self, candidate: Mapping[str, Any]) -> None:
+    def _checkpoint_creative(self, creative: Mapping[str, Any]) -> None:
         self.repository.checkpoint(
-            candidate["run_id"], stage="candidate_rendered", target_id=candidate["candidate_id"],
+            creative["run_id"], stage="creative_rendered", target_id=creative["creative_id"],
             payload={
-                "candidate_id": candidate["candidate_id"], "alias": candidate["alias"],
-                "round": candidate["round"], "template_id": candidate["template_id"],
-                "document_sha256": candidate["document_sha256"],
-                "recipe_id": candidate["recipe_id"], "render_id": candidate["render_id"],
-                "preview_sha256": self.repository.candidate_preview(candidate["candidate_id"])["sha256"],
+                "creative_id": creative["creative_id"], "slot": creative["slot"],
+                "round": creative["round"], "template_id": creative["template_id"],
+                "document_sha256": creative["document_sha256"],
+                "recipe_id": creative["recipe_id"], "render_id": creative["render_id"],
+                "preview_sha256": self.repository.creative_preview(creative["creative_id"])["sha256"],
             },
         )
-
-    @staticmethod
-    def _critic_system_prompt(context: Mapping[str, Any], pass_number: int) -> str:
-        return "\n\n".join((
-            context["critic_core"], context["evaluation_contract"], context["owner_lessons"],
-            context["principles"], context["anti_patterns"],
-            "Neutral anchors:\n" + "\n".join(item["excerpt"] for item in context["anchors"]),
-            f"Perform critic Pass {pass_number}. Candidate strategy names are intentionally hidden. "
-            "For rerun_template actions, set template_id to null and adjust only the supplied sliders. "
-            "The attached JPEG and each candidate's resolved_render are the authoritative visual "
-            "contract. visual_components express semantic intent, not alternate frame geometry. "
-            "Judge real pixel/copy/accessibility mismatches, but do not penalize conformity to the "
-            "resolved render merely because freeform component prose proposes another layout. "
-            "Return reason codes and concise observations, never private reasoning.",
-        ))
-
-    def _resolved_render_contract(self, candidate_id: str) -> dict[str, Any]:
-        recipe = self.repository.authority.get_candidate_recipe(candidate_id)
-        if recipe is None:
-            return {
-                "renderer_version": "ptw-content-text-preview-v1",
-                "placement_tool_id": None,
-                "frames": [],
-                "share": {},
-            }
-        document = recipe["document"]
-        return {
-            "renderer_version": recipe["renderer_version"],
-            "placement_tool_id": document["placement_tool_id"],
-            "frames": [{
-                "instance_id": frame["instance_id"],
-                "tool_id": frame["tool_id"],
-                "frame": dict(frame["frame"]),
-                "z_index": int(frame["z_index"]),
-                "params": dict(frame["params"]),
-                "source_asset_ids": list(frame["source_asset_ids"]),
-            } for frame in document["frames"]],
-            "share": dict(document["share"]),
-        }
-
-    def _critic_call(
-        self, *, run: Mapping[str, Any], pass_number: int,
-        active: Sequence[Mapping[str, Any]], prior_summaries: Sequence[Mapping[str, Any]],
-        templates: Mapping[str, StrategyTemplate],
-    ) -> dict[str, Any]:
-        self._deadline_ok(run)
-        maximum = {1: 5, 2: 5, 3: 2}[pass_number]
-        if len(active) != maximum:
-            raise ValueError(f"critic Pass {pass_number} requires exactly {maximum} active candidates")
-        pass_id = self.repository.reserve_critic_pass(run["run_id"], pass_number)
-        candidate_ids = [item["candidate_id"] for item in active]
-        element_ids = [element["element_id"] for item in active for element in item["elements"]]
-        element_map = {
-            item["candidate_id"]: [element["element_id"] for element in item["elements"]]
-            for item in active
-        }
-        payload = {
-            "run_id": run["run_id"], "pass": pass_number,
-            "approved_brief": run["context_bundle"]["brief"], "task": run["task"],
-            "output_profile": run["output_profile"],
-            "protected": {
-                "offer": run["context_bundle"]["brief"]["document"]["offer"],
-                "cta": run["context_bundle"]["brief"]["document"]["cta"],
-                "project_id": run["project_id"], "brand_kit_id": run["brand_kit_id"],
-                "source_policy": run["context_bundle"]["source_policy"],
-            },
-            "candidates": [{
-                "candidate_id": item["candidate_id"], "anonymous_alias": f"A{index}",
-                "document": item["document"], "document_sha256": item["document_sha256"],
-                "elements": [{
-                    "element_id": element["element_id"], "display_alias": element["display_alias"],
-                    "slot": element["slot"], "payload": element["payload"],
-                } for element in item["elements"]],
-                "parameters": item["parameters"], "regeneration_count": item["round"],
-                "render_mapping": self.repository.candidate_preview(item["candidate_id"])["sha256"],
-                "resolved_render": self._resolved_render_contract(item["candidate_id"]),
-            } for index, item in enumerate(active, start=1)],
-            "prior_pass_summaries": [dict(item) for item in prior_summaries],
-        }
-        images = [{
-            "candidate_id": item["candidate_id"],
-            **self.repository.candidate_preview(item["candidate_id"]),
-        } for item in active]
-        key = f"{run['run_id']}:critic-pass-{pass_number}"
-        attempt_id, invocation_id = self.repository.start_invocation(
-            pass_id, mode="content_result_critic", idempotency_key=key, request=payload,
-        )
-        def validate_response(value: Mapping[str, Any]) -> Mapping[str, Any]:
-            return validate_critic_response(
-                value, pass_number=pass_number, candidate_ids=candidate_ids,
-                element_ids=element_ids, templates=templates,
-                candidate_parameters={item["candidate_id"]: item["parameters"] for item in active},
-                candidate_templates={item["candidate_id"]: item["template_id"] for item in active},
-                candidate_element_ids=element_map,
-                candidate_regeneration_counts={
-                    item["candidate_id"]: int(item["round"]) for item in active
-                },
-            )
-        try:
-            response = self.bridge.generate_content_critic(
-                system_prompt=self._critic_system_prompt(
-                    run["context_bundle"]["critic_context"], pass_number
-                ),
-                input_payload=payload, images=images,
-                output_schema=critic_output_schema(pass_number, candidate_ids, element_ids),
-                prompt_version=f"ptw-content-result-critic-v1.1-pass-{pass_number}",
-                idempotency_key=key,
-                response_validator=validate_response,
-            )
-            invocation = dict(response["invocation"])
-            self.repository.finish_invocation(
-                attempt_id, invocation_id, response=response["response"], provenance=invocation,
-            )
-            validated = dict(response["response"])
-            generation_actions = [
-                item for item in validated["actions"] if item["action_type"] != "discard"
-            ]
-            if pass_number == 1 and len(generation_actions) > 2:
-                raise ValueError("critic Pass 1 exceeded its two-call improvement ceiling")
-            self.repository.persist_critic_pass(
-                pass_id=pass_id, run_id=run["run_id"], value=validated,
-                provider_provenance=invocation,
-            )
-            stored = {"pass_id": pass_id, **validated}
-            self._checkpoint_critic(stored)
-            return stored
-        except Exception as error:
-            self.repository.finish_invocation(
-                attempt_id, invocation_id, response=None,
-                provenance=getattr(error, "invocation", None)
-                or getattr(self.bridge, "last_invocation", {}), error=error,
-            )
-            raise
-
-    def _checkpoint_critic(self, critic_pass: Mapping[str, Any]) -> None:
-        self.repository.checkpoint(
-            critic_pass.get("run_id") or self.repository.get_candidate(
-                critic_pass["ranking"][0]
-            )["run_id"],
-            stage=f"critic_pass_{critic_pass['pass']}", target_id=critic_pass["pass_id"],
-            payload={
-                "pass_id": critic_pass["pass_id"], "pass": critic_pass["pass"],
-                "ranking": list(critic_pass["ranking"]),
-                "action_count": len(critic_pass.get("actions") or []),
-                "final_selection": critic_pass["final_selection"],
-            },
-        )
-
-    def _checkpoint_action(
-        self, action: Mapping[str, Any], candidate: Mapping[str, Any],
-    ) -> None:
-        self.repository.checkpoint(
-            action["run_id"], stage="improvement_action_completed", target_id=action["action_id"],
-            payload={
-                "action_id": action["action_id"], "action_type": action["action_type"],
-                "output_candidate_id": candidate["candidate_id"],
-            },
-        )
-
-    @staticmethod
-    def _ordered_candidates(
-        ids: Sequence[str], candidates: Mapping[str, Mapping[str, Any]], *, maximum: int,
-    ) -> list[Mapping[str, Any]]:
-        result: list[Mapping[str, Any]] = []
-        for candidate_id in ids:
-            if candidate_id in candidates and all(item["candidate_id"] != candidate_id for item in result):
-                result.append(candidates[candidate_id])
-            if len(result) == maximum:
-                break
-        if len(result) != maximum:
-            raise RuntimeError("Result critic could not form the bounded active candidate set")
-        return result
-
-    def _execute_actions(
-        self, *, run: Mapping[str, Any], critic_pass: Mapping[str, Any], pass_number: int,
-        templates: Mapping[str, StrategyTemplate],
-    ) -> list[dict[str, Any]]:
-        actions = self.repository.list_actions(critic_pass["pass_id"])
-        generated: list[dict[str, Any]] = []
-        for action in actions:
-            if action["status"] == "completed":
-                candidate = self.repository.get_candidate(action["output_candidate_id"])
-                self._checkpoint_action(action, candidate)
-                generated.append(candidate)
-                continue
-            if action["status"] in {"failed", "discarded"}:
-                continue
-            if action["action_type"] == "discard":
-                self.repository.discard_action(action["action_id"], reason="critic discarded the direction")
-                continue
-            try:
-                already_materialized = self.repository.get_candidate(action["reserved_candidate_id"])
-            except KeyError:
-                already_materialized = None
-            if already_materialized is not None:
-                self.repository.start_action(action["action_id"])
-                self.repository.finish_action(
-                    action["action_id"], output_candidate_id=already_materialized["candidate_id"],
-                )
-                self._checkpoint_action(action, already_materialized)
-                generated.append(already_materialized)
-                continue
-            run = self.repository.get_run(run["run_id"])
-            if int(run["budget_state"]["improvement_generation_remaining"]) <= 0:
-                self.repository.discard_action(action["action_id"], reason="four-call improvement budget exhausted")
-                continue
-            self.repository.start_action(action["action_id"])
-            command = action["command"]
-            base = self.repository.get_candidate(command["base_candidate_id"])
-            template = templates[str(command.get("template_id") or base["template_id"])]
-            parameters = command.get("slider_values") or base["parameters"]
-            generation_kind = {
-                "recompose": "recomposition",
-                "regenerate_elements": "element_regeneration",
-                "rerun_template": "template_rerun",
-            }[action["action_type"]]
-            alias_prefix = "S" if action["action_type"] == "recompose" else "R"
-            alias = f"{alias_prefix}{pass_number * 10 + action['ordinal'] + 1}"
-            try:
-                candidate = self._call_candidate(
-                    run=run, candidate_id=action["reserved_candidate_id"], alias=alias,
-                    template=template, parameters=parameters, round_number=pass_number,
-                    generation_kind=generation_kind, parent_candidate_id=base["candidate_id"],
-                    action=command,
-                )
-                self.repository.finish_action(
-                    action["action_id"], output_candidate_id=candidate["candidate_id"],
-                )
-                self._checkpoint_action(action, candidate)
-                generated.append(candidate)
-            except Exception as error:
-                self.repository.finish_action(action["action_id"], error=error)
-                raise
-        return generated
-
-    @staticmethod
-    def _pass_summary(value: Mapping[str, Any]) -> dict[str, Any]:
-        return {
-            "pass": value["pass"], "ranking": list(value["ranking"]),
-            "observations": list(value["observations"]),
-            "weighted_totals": {
-                item["candidate_id"]: item["weighted_total"] for item in value["evaluations"]
-            },
-        }
 
     def execute(self, run_id: str) -> dict[str, Any]:
         run = self.repository.get_run(run_id)
-        if run["status"] == "completed":
-            result = self.repository.get_result(run_id)
-            self._checkpoint_result(result)
-            return result
-        if run["status"] == "failed":
-            raise ValueError(run["error_message"] or "Result run is failed")
-        templates_tuple = self.template_registry.load_active()
-        templates = {item.template_id: item for item in templates_tuple}
+        if run["status"] in {"awaiting_review", "approved", "superseded", "failed"}:
+            return run
         try:
-            if len(self.repository.list_candidates(run_id)) < 5:
-                self.repository.set_stage(run_id, "initial_candidates")
-            run = self.repository.get_run(run_id)
-            initial = self._initial_candidates(run, templates_tuple)
-
-            pass1 = self.repository.get_critic_pass(run_id, 1)
-            if pass1 is None:
-                self.repository.set_stage(run_id, "critic_pass_1")
-                pass1 = self._critic_call(
-                    run=self.repository.get_run(run_id), pass_number=1, active=initial,
-                    prior_summaries=[], templates=templates,
+            self.repository.set_stage(run_id, "generating_creatives")
+            templates = self.template_registry.load_active()
+            creatives = self._initial_creatives(self.repository.get_run(run_id), templates)
+            creative_ids = [item["creative_id"] for item in creatives]
+            expected = 1 if run["generation_kind"] == "tune" else 5
+            if len(creative_ids) != expected or len(set(creative_ids)) != expected:
+                raise RuntimeError("Result run did not create the required distinct Creatives")
+            document_digests = {item["document_sha256"] for item in creatives}
+            render_digests = {
+                self.repository.creative_preview(item["creative_id"])["sha256"]
+                for item in creatives
+            }
+            if len(document_digests) != expected or len(render_digests) != expected:
+                raise RuntimeError("generated review Creatives must have distinct documents and renders")
+            if len({item["provider_invocation_id"] for item in creatives}) != expected:
+                raise RuntimeError("generated Creatives must have distinct provider invocation identities")
+            if run["output_profile"] in STATIC_SOCIAL_PROFILES:
+                media_digests = [item["media_identity_sha256"] for item in creatives]
+                if None in media_digests or len(set(media_digests)) != expected:
+                    raise RuntimeError("generated social Creatives must have distinct media identities")
+            if run["generation_kind"] == "regenerate_all" and run["parent_run_id"]:
+                parent_review = self.repository.get_review(run["parent_run_id"])["creatives"]
+                if document_digests & {item["document_sha256"] for item in parent_review}:
+                    raise RuntimeError("regenerate-all reused an excluded Creative document")
+                if render_digests & {
+                    self.repository.creative_preview(item["creative_id"])["sha256"]
+                    for item in parent_review
+                }:
+                    raise RuntimeError("regenerate-all reused an excluded Creative render")
+                media_digests = {
+                    item["media_identity_sha256"] for item in creatives
+                    if item["media_identity_sha256"] is not None
+                }
+                if media_digests & {
+                    item["media_identity_sha256"] for item in parent_review
+                    if item["media_identity_sha256"] is not None
+                }:
+                    raise RuntimeError("regenerate-all reused an excluded Creative media identity")
+                if {item["provider_invocation_id"] for item in creatives} & {
+                    item["provider_invocation_id"] for item in parent_review
+                }:
+                    raise RuntimeError("regenerate-all reused an excluded provider invocation")
+            awaiting = self.repository.mark_awaiting_review(run_id, creative_ids)
+            try:
+                self.repository.deliver_review_notification(
+                    run_id, notifier=self.notifier, manual_retry=False,
                 )
-            self._checkpoint_critic(pass1)
-            improvements1 = self._execute_actions(
-                run=self.repository.get_run(run_id), critic_pass=pass1, pass_number=1,
-                templates=templates,
-            )
-            by_id = {item["candidate_id"]: item for item in [*initial, *improvements1]}
-            active2 = self._ordered_candidates(
-                [*[item["candidate_id"] for item in improvements1], *pass1["ranking"]],
-                by_id, maximum=5,
-            )
-
-            pass2 = self.repository.get_critic_pass(run_id, 2)
-            if pass2 is None:
-                self.repository.set_stage(run_id, "critic_pass_2")
-                pass2 = self._critic_call(
-                    run=self.repository.get_run(run_id), pass_number=2, active=active2,
-                    prior_summaries=[self._pass_summary(pass1)], templates=templates,
-                )
-            self._checkpoint_critic(pass2)
-            improvements2 = self._execute_actions(
-                run=self.repository.get_run(run_id), critic_pass=pass2, pass_number=2,
-                templates=templates,
-            )
-            by_id.update({item["candidate_id"]: item for item in improvements2})
-            finalists = self._ordered_candidates(
-                [*[item["candidate_id"] for item in improvements2], *pass2["ranking"]],
-                by_id, maximum=2,
-            )
-
-            pass3 = self.repository.get_critic_pass(run_id, 3)
-            if pass3 is None:
-                self.repository.set_stage(run_id, "critic_pass_3")
-                pass3 = self._critic_call(
-                    run=self.repository.get_run(run_id), pass_number=3, active=finalists,
-                    prior_summaries=[self._pass_summary(pass1), self._pass_summary(pass2)],
-                    templates=templates,
-                )
-            self._checkpoint_critic(pass3)
-            selection = pass3["final_selection"]
-            if selection is None:
-                raise ValueError(
-                    "No candidate passed every final Result gate. Create an immutable retry to "
-                    "generate five fresh directions from the approved Product Brief."
-                )
-            self.repository.set_stage(run_id, "materializing_result")
-            result = self.repository.finalize(
-                run_id, selected_candidate_id=selection["candidate_id"],
-                decision_summary=selection["decision_summary"],
-            )
-            self._checkpoint_result(result)
-            return result
+            except Exception:
+                # Notification delivery is observable and retryable; it never hides
+                # an otherwise valid review set.
+                pass
+            return self.repository.get_run(awaiting["run_id"])
         except Exception as error:
-            self.repository.fail_run(run_id, error)
-            raise
+            return self.repository.fail_run(run_id, error)
 
-    def _checkpoint_result(self, result: Mapping[str, Any]) -> None:
-        self.repository.checkpoint(
-            result["run_id"], stage="completed", target_id=result["creative_id"],
-            payload={
-                "creative_id": result["creative_id"],
-                "selected_candidate_id": result["selected_candidate_id"],
-                "result_sha256": result["result_sha256"],
-            },
+    def approve(
+        self, *, run_id: str, request_id: str, creative_id: str, requested_by: str,
+    ) -> dict[str, Any]:
+        return self.repository.approve_review(
+            run_id=run_id, request_id=request_id, creative_id=creative_id,
+            requested_by=requested_by,
+        )
+
+    def regenerate_all(
+        self, *, run_id: str, request_id: str, requested_by: str,
+    ) -> tuple[dict[str, Any], bool]:
+        child, created = self.repository.create_regenerate_all(
+            run_id=run_id, request_id=request_id, requested_by=requested_by,
+            create_run=self.create_run,
+        )
+        return child, created
+
+    def tune(
+        self, *, run_id: str, request_id: str, creative_id: str,
+        comment: str, requested_by: str,
+    ) -> tuple[dict[str, Any], bool]:
+        return self.repository.create_tune(
+            run_id=run_id, request_id=request_id, creative_id=creative_id,
+            comment=comment, requested_by=requested_by, create_run=self.create_run,
+        )
+
+    def retry_notification(self, run_id: str) -> dict[str, Any]:
+        return self.repository.deliver_review_notification(
+            run_id, notifier=self.notifier, manual_retry=True,
         )
 
     def resume_incomplete(self) -> dict[str, int]:
-        resumed, failed = 0, 0
+        resumed = 0
         for run_id in self.repository.recoverable_runs():
-            try:
-                # Lifecycle checkpoints are idempotent. A run is restarted only
-                # when no terminal Result exists; completed candidate/pass rows
-                # remain the authoritative skip markers.
-                self.execute(run_id)
-                resumed += 1
-            except Exception:
-                failed += 1
-        return {"resumed": resumed, "failed": failed}
+            self.execute(run_id)
+            resumed += 1
+        notifications = 0
+        for run_id in self.repository.recoverable_notification_runs():
+            self.repository.deliver_review_notification(
+                run_id, notifier=self.notifier, manual_retry=False,
+            )
+            notifications += 1
+        return {"resumed": resumed, "notifications": notifications}

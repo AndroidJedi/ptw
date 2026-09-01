@@ -68,16 +68,15 @@ text, offer, CTA, and brand mark. Badge and decorative elements are optional.
 
 The exact protected offer and CTA must be present and readable. Media ownership,
 MIME, digest, crop, source, real-photo, brand, safe-area, collision, contrast,
-text overflow, caption, and accessibility checks fail closed before a candidate
-can reach the critic.
+text overflow, caption, and accessibility checks fail closed before a transient
+CandidateV2 becomes a reviewable Creative.
 
 Pillow deterministically produces one profile-sized JPEG: 1080×1080 for
 Instagram or 1080×1920 for TikTok. Exact bytes, SHA-256,
 complete resolved recipe, render attempt, media attribution, enriched manifest,
-and graph edges are stored in
-PostgreSQL. The critic receives the exact rendered bytes as a digest-mapped
-private JPEG attachment plus an anonymous resolved frame contract; raw base64
-and Studio template identity are not inserted into its prompt.
+and graph edges are stored in PostgreSQL. The owner loads those exact bytes
+through an authenticated Creative asset route; raw base64 never enters prompts
+or browser JSON.
 
 One `studio.layout.template_application.v1` modifier stores the strategy,
 Studio template, catalog, and renderer identities; immutable template snapshot;

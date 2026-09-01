@@ -11,8 +11,8 @@
     },
     {
       "name": "validation-pipeline",
-      "description": "Product Briefs, five isolated Result candidates, three critic passes, rendering, and immutable lineage",
-      "paths": ["commander/**", "validation_pipeline/**", "skills/product-brief-generator/**", "skills/content-candidate-generator/**", "skills/content-result-critic/**", "tests/validation_pipeline/**", "db/**", "docker-compose*.yml", "requirements*.txt"],
+      "description": "Product Briefs, five isolated Creatives, deterministic rendering, owner review, learning, notification, and immutable lineage",
+      "paths": ["commander/**", "validation_pipeline/**", "skills/product-brief-generator/**", "skills/content-candidate-generator/**", "tests/validation_pipeline/**", "db/**", "docker-compose*.yml", "requirements*.txt"],
       "validation": [
         ["python3", "-m", "unittest", "discover", "-s", "tests/validation_pipeline", "-v"],
         ["python3", "-m", "unittest", "tests.commander.test_telegram_boundary", "-v"],

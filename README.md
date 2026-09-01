@@ -3,8 +3,8 @@
 PTW is an owner-operated content validation loop:
 
 ```text
-one idea -> one approved Product Brief -> one Instagram or TikTok photo post
-  -> five isolated candidates -> three critic passes -> one final post
+one idea -> one approved Product Brief -> five isolated Creatives
+  -> owner Approve | Regenerate all | Tune one with comment
 ```
 
 Public Result generation uses only the approved Brief, a fixed server task,
@@ -13,8 +13,9 @@ writing/template contracts. The Owner Console creates one deterministic
 Instagram square post or TikTok vertical photo post; it exposes no text
 profile, task field, asset upload, or brand-kit setup.
 Exact offer/CTA, honest claims, real-photo policy, no synthetic people/faces,
-bounded retries, immutable lineage, and fail-closed final selection are
-mandatory.
+bounded retries, deterministic integrity, immutable lineage, and owner-only
+selection are mandatory. No automatic evaluation, score, rank, or final choice
+exists.
 
 There is no legacy five-Ad batch, separate Ads workspace, Landing, Admin job
 system, publishing, campaign, traffic, UTM, analytics, or automatic
@@ -33,24 +34,28 @@ scripts/run_local_studio.sh
 ```
 
 Open `http://127.0.0.1:5173/?e2e=1`. Product Briefs, approved Project assets,
-five-candidate Instagram Result runs, releases, and owner-reviewed lessons use
+five-Creative Instagram review runs, exports, feedback, rules, and snapshots use
 a restart-safe append-only local authority under `.local/owner-experiments`;
 Universal Studio configuration and saved state remain under
 `.local/studio-workspace`. An authenticated Codex CLI is required for Brief,
-candidate, and critic generation. Firebase, PostgreSQL, and production provider
+and CandidateV2 generation. Firebase, PostgreSQL, and production provider
 credentials are not required. The script binds both servers to `127.0.0.1`,
 stops the API when you press `Ctrl+C`, and does not deploy or publish anything.
-Set `PEXELS_API_KEY` locally to enable approved real-photo sourcing.
+The launcher automatically reads `PEXELS_API_KEY` from the ignored local file
+`.local/local-studio.env` when the variable is not already exported. Keep that
+file owner-readable only (`chmod 600`); approved real-photo sourcing fails
+closed if the credential is absent.
 
-To irreversibly clear only the three Owner-app local stores after stopping local
-runs and services:
+To irreversibly clear only local Result review data after stopping local runs
+and services:
 
 ```sh
-scripts/reset_ptw_local.sh --confirm='RESET PTW LOCAL OWNER DATA'
+scripts/reset_ptw_local.sh --scope owner-experiments \
+  --confirm='RESET PTW LOCAL RESULT DATA'
 ```
 
-The reset preserves unrelated `.local` archives and diagnostics and proves the
-allowlisted stores are empty.
+The reset preserves every other `.local` store, archive, and diagnostic and
+proves `.local/owner-experiments` is empty.
 
 An explicitly separate development launcher can inspect and mutate live
 Project, Brief, and Social Post data through Firebase Auth, App Check, and the

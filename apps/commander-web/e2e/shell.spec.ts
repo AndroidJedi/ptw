@@ -5,12 +5,11 @@ const projectId = '018f07ea-7f20-7000-8000-000000000001'
 const sourceId = '018f07ea-7f20-7000-8000-000000000002'
 const briefId = '018f07ea-7f20-7000-8000-000000000003'
 const runId = '018f07ea-7f20-7000-8000-000000000005'
-const creativeId = '018f07ea-7f20-7000-8000-000000000006'
-const candidateIds = Array.from({ length: 5 }, (_value, index) =>
+const creativeIds = Array.from({ length: 5 }, (_value, index) =>
   `018f07ea-7f20-7000-8000-${String(index + 10).padStart(12, '0')}`,
 )
-const candidateBytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9])
-const candidateSha256 = createHash('sha256').update(candidateBytes).digest('hex')
+const creativeBytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9])
+const creativeSha256 = createHash('sha256').update(creativeBytes).digest('hex')
 const studioPreviewBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
 const studioPreviewSha256 = createHash('sha256').update(studioPreviewBytes).digest('hex')
 const studioComponents = [
@@ -110,37 +109,16 @@ const run = {
   run_id: runId, request_id: runId, parent_run_id: null, project_id: projectId,
   brief_id: briefId, output_profile: 'instagram_static_ad_v1', platform: 'instagram',
   task: 'Create one ready-to-publish Instagram feed post using Natal.',
-  status: 'completed', current_stage: 'completed', progress_percent: 100,
-  maximum_minutes: 45, final_result_id: creativeId,
-  review_state: 'unreviewed', revision_number: 0,
+  status: 'awaiting_review', current_stage: 'awaiting_review', progress_percent: 100,
+  maximum_minutes: 45, generation_kind: 'initial',
+  generated_creative_ids: creativeIds, review_creative_ids: creativeIds,
+  approved_creative_id: null, notification_state: 'delivered', revision_number: 0,
   created_at: '2026-08-26T08:10:00Z', updated_at: '2026-08-26T08:14:00Z',
 }
 
-const result = {
-  creative_id: creativeId, run_id: runId, selected_candidate_id: candidateIds[0],
-  recipe_id: null, render_id: null,
-  decision_summary: [
-    'The hook starts with a concrete moment of hesitation.',
-    'The offer and next step remain immediately clear.',
-  ],
-  result_sha256: 'c'.repeat(64), content_sha256: 'd'.repeat(64),
-  asset_url: `/api/v1/content-runs/${runId}/result/asset`, asset_sha256: candidateSha256,
-  asset_mime_type: 'image/jpeg', asset_width: 1080, asset_height: 1080,
-  created_at: '2026-08-26T08:14:00Z',
-  content: {
-    hook: 'You do not need to commit to therapy to start one honest conversation.',
-    headline: 'A calmer first step', primary_text: 'Meet a real psychologist and see whether it feels right.',
-    supporting_text: 'Transparent profiles. Simple booking. No card required.',
-    offer: briefDocument.offer, cta: briefDocument.cta,
-    caption: 'One conversation can make the next step clearer.',
-    alt_text: 'A calm square therapy post with one clear next step.',
-    desired_emotion: 'calm confidence', visual_concept: '',
-  },
-}
-
-const candidates = candidateIds.map((candidateId, index) => ({
-  candidate_id: candidateId, alias: `C${index + 1}`, round: 0, generation_kind: 'initial',
-  parent_candidate_id: null,
+const creatives = creativeIds.map((creativeId, index) => ({
+  creative_id: creativeId, run_id: runId, slot: `C${index + 1}`, round: 0,
+  generation_kind: 'initial', parent_creative_id: null,
   template_id: ['moment_tension', 'contrast_reframe', 'mechanism_proof', 'human_story', 'direct_offer'][index],
   template_version: 1,
   parameters: {
@@ -149,48 +127,27 @@ const candidates = candidateIds.map((candidateId, index) => ({
     visual_complexity: 20 + index,
   },
   document: {
-    hook: `Candidate hook ${index + 1}`, headline: `Candidate headline ${index + 1}`,
+    hook: `Creative hook ${index + 1}`, headline: `Creative headline ${index + 1}`,
     primary_text: 'One clear message.', supporting_text: 'One supporting point.',
     offer: briefDocument.offer, cta: briefDocument.cta, caption: 'Caption',
-    alt_text: `Candidate preview ${index + 1}`, desired_emotion: 'calm confidence',
+    alt_text: `Creative preview ${index + 1}`, desired_emotion: 'calm confidence',
     visual_concept: 'One coherent layout.',
   },
+  document_sha256: String(index + 1).repeat(64),
   preview: {
-    asset_url: `/api/v1/content-runs/${runId}/candidates/${candidateId}/asset`,
-    sha256: candidateSha256, mime_type: 'image/jpeg', width: 1080, height: 1080,
+    asset_url: `/api/v1/content-runs/${runId}/creatives/${creativeId}/asset`,
+    sha256: creativeSha256, mime_type: 'image/jpeg', width: 1080, height: 1080,
   },
+  created_at: '2026-08-26T08:14:00Z',
 }))
 
-const criticPass = (passNumber: 1 | 2 | 3, ranking: string[]) => ({
-  pass_id: `pass-${passNumber}`, pass_number: passNumber, active_candidate_ids: ranking,
-  hard_gates: Object.fromEntries(ranking.map((id) => [id, {
-    exact_offer_cta: true, honest_claims: true, safe_crop_layout: true,
-  }])),
-  element_scores: {},
-  candidate_scores: Object.fromEntries(ranking.map((id, index) => [id, {
-    scores: { message_clarity: 10 - index }, complexity: 'none',
-    weighted_total: 92 - index, eligible: true, reason_codes: ['clear_message'],
-  }])),
-  ranking,
-  pairwise_results: [{
-    left: ranking[0], right: ranking[1], winner: ranking[0], reason_codes: ['clearer'],
-  }],
-  observations: [`Pass ${passNumber} retained the clearest direction.`],
-  actions: passNumber < 3 ? [{
-    action_type: 'regenerate_elements', base_candidate_id: ranking[0], status: 'completed',
-  }] : [],
-  final_selection: passNumber === 3 ? {
-    candidate_id: ranking[0], decision_summary: result.decision_summary,
-  } : null,
-})
-
-const debug = {
-  candidates,
-  critic_passes: [
-    criticPass(1, candidateIds), criticPass(2, candidateIds.slice(0, 3)),
-    criticPass(3, candidateIds.slice(0, 2)),
-  ],
-  result,
+const review = {
+  schema: 'ptw.owner-creative-review.v1', run, creatives, owner_actions: [],
+  notification: {
+    receipt_id: '018f07ea-7f20-7000-8000-000000000090', status: 'delivered',
+    attempt_count: 1, created_at: '2026-08-26T08:14:00Z', updated_at: '2026-08-26T08:14:00Z',
+  },
+  applied_project_rules: [],
 }
 
 test.beforeEach(async ({ page }) => {
@@ -204,7 +161,7 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname === `/api/v1/projects/${projectId}/assets`) return json({ items: [] })
     if (url.pathname === '/api/v1/learning-summary') return json({
       schema: 'ptw.local-learning-summary.v1', market_performance: false,
-      runs: [], lesson_queue: [], approved_lessons: [],
+      runs: [], project_rules: [],
     })
     if (url.pathname === '/api/v1/studio' && method === 'GET') return json(studioDetail)
     if (url.pathname === '/api/v1/studio/tune' && method === 'GET') return json({
@@ -257,23 +214,15 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname === `/api/v1/briefs/${briefId}`) return json(brief)
     if (url.pathname === '/api/v1/content-runs' && method === 'GET') return json({ items: [run], next_cursor: null })
     if (url.pathname === `/api/v1/content-runs/${runId}`) return json(run)
-    if (url.pathname === `/api/v1/content-runs/${runId}/result`) return json(result)
-    if (url.pathname === `/api/v1/content-runs/${runId}/result/asset`) return route.fulfill({
-      status: 200,
-      contentType: 'image/jpeg',
-      headers: { ETag: `"${candidateSha256}"`, 'Cache-Control': 'private, no-store' },
-      body: candidateBytes,
-    })
-    if (url.pathname === `/api/v1/content-runs/${runId}/debug`) return json(debug)
-    if (url.pathname.includes(`/api/v1/content-runs/${runId}/candidates/`) && url.pathname.endsWith('/asset')) {
+    if (url.pathname === `/api/v1/content-runs/${runId}/review`) return json(review)
+    if (url.pathname.includes(`/api/v1/content-runs/${runId}/creatives/`) && url.pathname.endsWith('/asset')) {
       return route.fulfill({
         status: 200,
         contentType: 'image/jpeg',
-        headers: { ETag: `"${candidateSha256}"`, 'Cache-Control': 'private, no-store' },
-        body: candidateBytes,
+        headers: { ETag: `"${creativeSha256}"`, 'X-PTW-Content-SHA256': creativeSha256, 'Cache-Control': 'private, no-store' },
+        body: creativeBytes,
       })
     }
-    if (url.pathname.endsWith('/feedback') || url.pathname.endsWith('/outcomes')) return json({ status: 'recorded' })
     return json({ detail: `Unhandled ${method} ${url.pathname}` }, 404)
   })
 })
@@ -285,7 +234,7 @@ test('discards stale deep-link IDs before loading Project-scoped resources', asy
   page.on('request', (request) => requestedUrls.push(request.url()))
 
   await page.goto(`/?e2e=1&page=result&project=${staleProjectId}&run=${staleRunId}`)
-  await expect(page.locator('article.native-post')).toBeVisible()
+  await expect(page.locator('.creative-review-card')).toHaveCount(5)
   await expect.poll(() => page.evaluate(() => Object.fromEntries(
     new URLSearchParams(window.location.search),
   ))).toMatchObject({ page: 'result', project: projectId, run: runId })
@@ -319,17 +268,16 @@ test('shows Product Brief, Social Posts, and Universal Ad Studio workspaces', as
   await expect(page.getByLabel('Task')).toHaveCount(0)
   await expect(page.getByRole('radio', { name: 'Text' })).toHaveCount(0)
   await expect(page.getByText('PROJECT BRAND KIT')).toHaveCount(0)
-  await expect(page.getByRole('article', { name: 'instagram post preview' })).toBeVisible()
-  await expect(page.getByText(result.content.caption)).toBeVisible()
-  await expect(page.getByText(result.content.hook)).toHaveCount(0)
-  await expect(page.getByText(result.content.headline)).toHaveCount(0)
-  await expect(page.getByText('WHY THIS DIRECTION')).toHaveCount(0)
+  await expect(page.locator('.creative-review-card')).toHaveCount(5)
+  await expect(page.getByRole('heading', { name: 'Five verified creative directions' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Approve' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Tune selected' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Regenerate all' })).toBeVisible()
   await expect(page.getByText('SOURCE', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: 'Learning & evidence' })).toBeVisible()
-  await expect(page.getByText('Internal evaluation only — never a market-performance claim.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Owner learning' })).toBeVisible()
   await expect(page.getByText('LOCAL QUALITY EVIDENCE')).toHaveCount(0)
   await expect(page.getByLabel('Project')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'New post' })).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'New set' })).toHaveCount(1)
   await expect(page.getByRole('button', { name: 'Rename' })).toHaveCount(0)
   await expect(page.getByLabel('Filter by platform')).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
@@ -347,6 +295,8 @@ test('opens the Universal Ad Studio and persists its bounded configuration', asy
   await expect(page.getByText('ALWAYS ON')).toHaveCount(5)
   await expect(page.getByLabel('Enable logo')).toBeChecked()
   await expect(page.getByLabel('Upload logo', { exact: true })).toBeEnabled()
+  await expect(page.getByLabel('Upload sticker_object asset')).toHaveCount(0)
+  await expect(page.getByText('Pexels photograph only')).toBeVisible()
   const logoOffPreviewRequest = page.waitForRequest((candidate) => {
     if (!candidate.url().endsWith('/api/v1/studio/preview')) return false
     return candidate.postDataJSON()?.configuration?.logo?.enabled === false
@@ -467,7 +417,10 @@ test('live previews every bounded sticker placement control', async ({ page }) =
           mime_type: 'image/png',
           sha256: 'd'.repeat(64),
           byte_count: 1024,
-          source: { origin: 'bundled_tune_asset' },
+          source: {
+            origin: 'pexels', provider: 'pexels', media_type: 'photograph',
+            subject_type: 'physical_object', transformation: 'edge_color_soft_alpha_v1',
+          },
         } : asset),
       }),
     })
@@ -564,19 +517,15 @@ test('separates new Project creation from the selected Project workspace', async
   await expect(page.getByRole('heading', { name: 'What do you want to validate?' })).toHaveCount(0)
 })
 
-test('keeps candidate parameters and the decision path in collapsed advanced details', async ({ page }) => {
+test('shows five owner-review cards on desktop and mobile without overflow', async ({ page }) => {
   await page.goto('/?e2e=1')
   await page.getByRole('button', { name: 'Змінити мову' }).click()
   await page.getByRole('button', { name: 'Social posts' }).first().click()
-  await page.getByText('Export details and decision trace').click()
-
-  await expect(page.getByRole('heading', { name: 'Every image and its exact generation parameters' })).toBeVisible()
-  await expect(page.locator('.candidate-card')).toHaveCount(5)
-  await expect(page.locator('.candidate-image-wrap img')).toHaveCount(5)
-  await expect(page.getByText('Hook pressure')).toHaveCount(5)
-  await expect(page.getByRole('heading', { name: 'Screen all five' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Compare improvements' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Choose the finalist' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Selected C1' })).toBeVisible()
+  await expect(page.locator('.creative-review-card')).toHaveCount(5)
+  await expect(page.locator('.creative-review-image img')).toHaveCount(5)
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
+
+  await page.setViewportSize({ width: 360, height: 800 })
+  await expect(page.locator('.creative-review-card')).toHaveCount(5)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

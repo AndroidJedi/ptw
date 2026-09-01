@@ -12,8 +12,9 @@ BRIEF_ID = "01900000-0000-7000-8000-000000000011"
 
 
 class FakeRepository:
-    def __init__(self, attempt_number: int = 2) -> None:
+    def __init__(self, attempt_number: int = 2, required_language: str | None = "en") -> None:
         self.attempt_number = attempt_number
+        self.required_language = required_language
         self.created_invocation: dict = {}
         self.completed_invocation: dict = {}
         self.failed_invocation: dict = {}
@@ -27,8 +28,11 @@ class FakeRepository:
         self.assert_stage = stage
         return "01900000-0000-7000-8000-000000000012", self.attempt_number
 
-    def source(self, _brief_id: str) -> dict[str, str]:
-        return {"content": "An English idea for one focused validation service."}
+    def source(self, _brief_id: str) -> dict[str, str | None]:
+        return {
+            "content": "An English idea for one focused validation service.",
+            "required_language": self.required_language,
+        }
 
     def create_invocation(self, **value) -> dict[str, str]:
         self.created_invocation = value
@@ -64,10 +68,26 @@ class FakeBridge:
 
     def generate(self, **value) -> dict:
         self.call = value
-        return {
-            "response": {
+        if self.language == "uk":
+            document = {
                 "schema_version": 1,
-                "language": self.language,
+                "language": "uk",
+                "product": "Сесія сфокусованої перевірки",
+                "target_audience": "Люди, які перевіряють одну ранню ідею послуги",
+                "main_pain": "Перша ринкова обіцянка досі нечітка",
+                "promise": "Перетворити одну ідею на конкретний крок перевірки",
+                "key_benefits": [
+                    "Одна сфокусована гіпотеза", "Один практичний наступний крок",
+                    "Простіший початок",
+                ],
+                "cta": "Забронювати першу сесію",
+                "trust_strategy": "Пояснити процес і межі до зобов'язання",
+                "offer": "Безкоштовна 15-хвилинна консультація наставника",
+            }
+        else:
+            document = {
+                "schema_version": 1,
+                "language": "en",
                 "product": "Focused Validation Session",
                 "target_audience": "People testing one early service idea",
                 "main_pain": "The first market promise is still unclear",
@@ -78,13 +98,15 @@ class FakeBridge:
                 "cta": "Book the first session",
                 "trust_strategy": "Explain the process and scope before commitment",
                 "offer": "Free 15-minute mentor call",
-            },
+            }
+        return {
+            "response": document,
             "invocation": {"bridge_request_id": 912, "bridge_attempt": 1},
         }
 
 
 class ProductBriefServiceTests(unittest.TestCase):
-    def test_schema_can_bind_the_server_inferred_language(self) -> None:
+    def test_schema_can_bind_the_owner_selected_language(self) -> None:
         self.assertEqual("en", product_brief_schema("en")["properties"]["language"]["const"])
         with self.assertRaisesRegex(ValueError, "must be uk or en"):
             product_brief_schema("fr")
@@ -116,12 +138,26 @@ class ProductBriefServiceTests(unittest.TestCase):
             product_brief_skill_path=ROOT / "skills/product-brief-generator/SKILL.md",
         )
 
-        with self.assertRaisesRegex(ValueError, "inferred language"):
+        with self.assertRaisesRegex(ValueError, "required language"):
             runner.generate_brief(BRIEF_ID, operation_reserved=True)
 
         self.assertEqual(912, repository.failed_invocation["provenance"]["bridge_request_id"])
         self.assertFalse(repository.finished)
         self.assertTrue(repository.released)
+
+    def test_english_idea_uses_persisted_ukrainian_language(self) -> None:
+        repository = FakeRepository(required_language="uk")
+        bridge = FakeBridge(language="uk")
+        runner = ValidationRunner(
+            repository, bridge,
+            product_brief_skill_path=ROOT / "skills/product-brief-generator/SKILL.md",
+        )
+
+        runner.generate_brief(BRIEF_ID, operation_reserved=True)
+
+        self.assertEqual("uk", bridge.call["input_payload"]["required_language"])
+        self.assertEqual("uk", repository.completed_invocation["response"]["language"])
+        self.assertIn("Безкоштовна", repository.completed_invocation["response"]["offer"])
 
 
 if __name__ == "__main__":

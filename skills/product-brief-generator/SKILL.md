@@ -15,10 +15,10 @@ generating or correcting a Brief.
 ## Method
 
 1. Treat the raw idea as the only business input.
-2. Infer `uk` when Ukrainian Cyrillic letters dominate and `en` when Latin
-   letters dominate; default to `en` on a tie or ambiguous input. The server
-   passes this derived `required_language` and constrains the output schema to
-   that exact value; use it for the `language` field and every output string.
+2. Use the server-supplied `required_language`, chosen by the owner when the
+   Project is created. It is authoritative even when the raw idea is written in
+   another language. The server constrains the output schema to that exact
+   value; use it for the `language` field and every output string.
 3. Think like a direct-response marketer and choose one promising
    differentiation: a narrower first audience, clearer promise, emotional
    angle, trust mechanism, faster perceived result, lower friction, easier
@@ -35,7 +35,7 @@ generating or correcting a Brief.
    only when supplied. Never invent testimonials, ratings, customers, results,
    credentials, urgency, deadlines, or scarcity.
 8. Return strict structured output only. Server validation assigns `brief_id`,
-   checks the shape and inferred language, and owns persistence.
+   checks the shape and required language, and owns persistence.
 
 ## Corrections and approval
 
@@ -62,7 +62,7 @@ generating or correcting a Brief.
 
 ## Verification
 
-Check strict shape, inferred language, three to five distinct benefits,
+Check strict shape, required language, three to five distinct benefits,
 mandatory offer, singular CTA, fabricated-proof rejection, deterministic
 digest, immutable replacement lineage, retries, and approval gating.
 

@@ -1,6 +1,6 @@
 ---
 name: content-candidate-generator
-description: Generate one isolated PTW Result candidate from one approved Product Brief, owner task, Project brand kit, approved Project assets, one versioned strategy template, and exact sliders. Use for Result candidate generation, real-photo direction, or generator lesson proposals. Do not use for criticism, Product Brief generation, raw-idea analysis, research, publishing, campaigns, traffic, analytics, or optimization.
+description: Generate one isolated transient PTW CandidateV2 from one approved Product Brief, owner task, Project brand kit, approved Project assets, one versioned strategy template, exact sliders, and the active owner-learning snapshot. Use for Creative generation or real-photo direction. Do not use for evaluation, Product Brief generation, raw-idea analysis, research, publishing, campaigns, traffic, analytics, or optimization.
 ---
 
 # Content Candidate Generator
@@ -13,19 +13,26 @@ or refer to another candidate.
 - For `content_candidate_generation`, read `references/writing-principles.md`,
   `references/anti-patterns.md`, the injected task-specific technique guide,
   the one injected template strategy, and only the injected corpus excerpts.
+- For `instagram_static_ad_v1`, `tiktok_photo_post_v1`, and loopback
+  `universal_ad_experiment_v1`, also read the complete injected
+  `references/post-copy-style.md`. Apply its direct examples as structural
+  style anchors for hook, headline, primary/supporting text, and caption. Keep
+  alt text factual and preserve protected offer and CTA byte-for-byte.
 - Do not load the corpus wholesale. The server-selected excerpt order and
   context digest are authoritative.
 
 ## Input boundary
 
 - Result business input is exactly the approved Product Brief, owner task,
-  Project brand kit, approved Project assets, allowed tool catalog, one strategy
+  Project brand kit, approved Project assets, allowed tool catalog, the immutable
+  Project-scoped owner-learning snapshot, one strategy
   template, its exact digest-locked Studio component snapshot, exact slider
   configuration, deterministic writing bundle, and—only for a lineage-linked
   revision—the one selected `revision_instruction` with its permanent feedback,
   parent-run, and Creative IDs.
 - Never request or infer from raw idea, research, market context, prior outputs,
-  owner history, performance data, campaigns, or landing copy.
+  unsupplied owner history, performance data, campaigns, or landing copy. Apply
+  only the server-supplied active owner rules and immutable run snapshot.
 - When `revision_instruction` is present, apply that exact requested change and
   no other owner history; never alter its protected Brief, task, platform,
   offer, CTA, brand, or source-policy values.
@@ -97,17 +104,22 @@ or refer to another candidate.
 - Use conversational Ukrainian where the Brief language is Ukrainian; do not
   create grammar by keyword substitution or copy another source Project's
   brand vocabulary.
+- The approved Brief language is authoritative for every user-facing copy
+  field. An idea or style anchor in another language never changes the output
+  language.
 - Keep one dominant promise, then support it with concrete actors, timing,
   numbers, actions, or a small sequence that the supplied context supports.
 
-## Feedback and learning
+## Owner feedback and learning
 
-- Feedback evaluates the resolved immutable final Creative UUID, not a candidate,
-  isolated hook, CTA, or image.
-- Each feedback creates append-only feedback and weight entities plus an
-  editable generalized lesson proposal.
-- Promotion may update only `references/owner-lessons.md` after explicit owner
-  review. Never silently mutate this skill from performance or feedback.
+- The provider CandidateV2 is transient. Server code validates and renders it,
+  then assigns the immutable Creative UUID used by owner feedback.
+- Approve, Regenerate all, and Tune append HumanFeedback, WeightUpdate, Project
+  rules, learning snapshots, and graph lineage immediately. Never create lesson
+  proposals or mutate this skill from feedback or performance.
+- Apply exact strategy-scoped tune instructions, preferred direction/sliders,
+  output-profile-scoped layout settings, and exploration exclusions only when
+  they are present in the supplied learning snapshot.
 
 ## Boundaries
 
@@ -118,8 +130,8 @@ or refer to another candidate.
   reviewed non-human graphic.
 - Do not publish ads, purchase traffic, create campaigns, add UTMs, or consume
   click/conversion analytics.
-- Do not score candidates, make critic actions, select a final result, mutate
-  sliders, or learn automatically.
+- Do not score, rank, compare, evaluate, or select Creatives. Only the owner can
+  Approve, Regenerate all, or Tune through the web review set.
 - Do not change protected Brief, task, brand, placement, source-policy, offer,
   or CTA values.
 

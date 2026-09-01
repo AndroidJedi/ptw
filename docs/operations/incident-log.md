@@ -24,6 +24,47 @@ Historical retired-domain incidents are available only in Git history.
 Append new incidents with symptom, exact cause, durable fix, verification, and
 the narrowest skill update. Never record secrets or ephemeral release hashes.
 
+## 2026-09-01: loopback Result creation mislabeled a Pexels PNG as JPEG
+
+- Symptom: two local five-post Result runs failed at the 10% asset-resolution
+  checkpoint with `Result source image MIME does not match its decoded format`.
+- Cause: the Pexels API supplied a `large2x` CDN URL whose negotiated response
+  decoded as PNG. Every Pexels caller nevertheless labeled the returned bytes
+  `image/jpeg`, so the strict stored-asset inspection correctly rejected them.
+- Durable fix: the bounded Pexels client now replaces any CDN format hint with
+  an explicit JPEG request, sends a JPEG Accept header, and verifies both the
+  response Content-Type and the fully decoded JPEG format before returning
+  bytes. Callers retain exact provider provenance, and the general MIME/byte
+  integrity check remains fail-closed. The Owner Console incident skill now
+  forbids inferring a Pexels MIME from its URL or caller assumptions.
+- Verification: focused regressions cover JPEG format normalization, retained
+  CDN sizing/compression parameters, non-JPEG HTTP rejection, and decoded-byte
+  mismatch rejection. A live local Pexels canary confirms that the previously
+  PNG-backed photo ID is delivered as a decoded JPEG when the explicit format
+  is requested. No production service, database, Telegram integration, or
+  deployment was touched.
+
+## 2026-09-01: loopback Result creation required an unavailable Commander relay
+
+- Symptom: creating a local five-post review set failed immediately with
+  `Commander review-notification relay is not configured`.
+- Cause: the loopback launcher intentionally had no production Telegram or
+  Commander credentials, but local run admission unconditionally required a
+  notifier before reserving the run. The documented notification failure path
+  therefore could not produce the web review it was meant to preserve.
+- Durable fix: loopback runs now record `not_configured`, create no delivery
+  receipt, and proceed to the authenticated five-card review when no relay is
+  supplied. Explicit endpoint-plus-token configuration still uses the typed
+  Commander relay; production remains strict and no delivery is faked. The
+  Owner Console incident skill now preserves this local/production boundary.
+- Verification: the focused local lifecycle regression proves five reviewable
+  Creatives and no receipt without a notifier. All 99 Validation tests ran (96
+  passed; three disposable-PostgreSQL lifecycle tests skipped), all nine
+  Commander tests passed in the project environment, and Owner Gateway, 35 web
+  unit tests, production build, 21 desktop/mobile/WebKit journeys, skill,
+  compilation, demo, and diff checks passed. No production service, Telegram
+  provider, token, or database was touched by this local correction.
+
 ## 2026-08-27: adequate Instagram Brief exhausted every final Result gate
 
 - Symptom: run `01a04342-24e6-7d86-86c2-9b4e12d04b6c` rendered five initial

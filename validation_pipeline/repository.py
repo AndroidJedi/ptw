@@ -10,6 +10,8 @@ from uuid import UUID
 
 from commander.ids import new_uuid7
 
+from .domain import infer_language
+
 
 def _sha(value: Any) -> str:
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -126,7 +128,7 @@ class ValidationRepository:
         }
 
     def create_brief(
-        self, *, request_id: str, raw_idea: str, requested_by: str,
+        self, *, request_id: str, raw_idea: str, required_language: str, requested_by: str,
         reserve_operation: bool = False,
     ) -> tuple[dict[str, Any], bool]:
         from psycopg.types.json import Jsonb
@@ -135,13 +137,25 @@ class ValidationRepository:
         idea = raw_idea.strip()
         if not 1 <= len(idea) <= 10_000:
             raise ValueError("raw idea must contain 1-10000 characters")
+        if required_language not in {"uk", "en"}:
+            raise ValueError("required language must be uk or en")
         with self.connection() as connection:
             existing = connection.execute(
                 self._brief_select() + " WHERE brief.request_id=%s", (request_uuid,)
             ).fetchone()
             if existing is not None:
                 value = self._brief_row(existing)
-                if value["raw_idea"] != idea:
+                source_row = connection.execute(
+                    "SELECT metadata FROM commander_sources WHERE entity_id=%s",
+                    (UUID(value["owner_idea_source_id"]),),
+                ).fetchone()
+                metadata = {} if source_row is None else dict(source_row[0] or {})
+                existing_language = str(
+                    metadata.get("required_language")
+                    or (value.get("document") or {}).get("language")
+                    or infer_language(value["raw_idea"])
+                )
+                if value["raw_idea"] != idea or existing_language != required_language:
                     raise ValueError("request_id was already used with different Product Brief input")
                 if reserve_operation and value["status"] == "queued":
                     self._acquire_operation(connection, "product_brief", value["brief_id"])
@@ -155,8 +169,11 @@ class ValidationRepository:
             connection.execute(
                 """INSERT INTO commander_sources(
                        entity_id,source_type,title,provider,external_id,content,content_sha256,metadata
-                   ) VALUES(%s,'owner_idea','Owner idea','owner',%s,%s,%s,'{}'::jsonb)""",
-                (source_id, request_uuid.hex, idea, digest),
+                   ) VALUES(%s,'owner_idea','Owner idea','owner',%s,%s,%s,%s)""",
+                (
+                    source_id, request_uuid.hex, idea, digest,
+                    Jsonb({"required_language": required_language}),
+                ),
             )
             connection.execute(
                 "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'validation_project',%s)",
@@ -290,12 +307,17 @@ class ValidationRepository:
         brief = self.get_brief(brief_id)
         with self.connection() as connection:
             row = connection.execute(
-                "SELECT entity_id,content,content_sha256 FROM commander_sources WHERE entity_id=%s",
+                "SELECT entity_id,content,content_sha256,metadata FROM commander_sources WHERE entity_id=%s",
                 (UUID(brief["owner_idea_source_id"]),),
             ).fetchone()
         if row is None:
             raise KeyError(brief_id)
-        return {"source_id": str(row[0]), "content": row[1], "content_sha256": row[2]}
+        metadata = dict(row[3] or {})
+        required_language = metadata.get("required_language")
+        return {
+            "source_id": str(row[0]), "content": row[1], "content_sha256": row[2],
+            "required_language": required_language if required_language in {"uk", "en"} else None,
+        }
 
     def feedback(self, feedback_id: str) -> dict[str, str]:
         with self.connection() as connection:
@@ -576,11 +598,11 @@ class ValidationRepository:
             ).fetchall()
         return [self._asset_row(row) for row in rows]
 
-    def get_candidate_media_asset(self, candidate_id: str) -> dict[str, Any] | None:
+    def get_creative_media_asset(self, creative_id: str) -> dict[str, Any] | None:
         with self.connection() as connection:
             row = connection.execute(
-                "SELECT entity_id FROM project_assets WHERE metadata->>'content_candidate_id'=%s",
-                (str(UUID(candidate_id)),),
+                "SELECT entity_id FROM project_assets WHERE metadata->>'content_creative_id'=%s",
+                (str(UUID(creative_id)),),
             ).fetchone()
         return None if row is None else self.get_project_asset(str(row[0]))
 
@@ -698,17 +720,17 @@ class ValidationRepository:
         )
 
     def create_recipe(
-        self, project_id: str, *, candidate_id: str, brief_id: str, brand_kit_id: str,
+        self, project_id: str, *, creative_id: str, brief_id: str, brand_kit_id: str,
         document: Mapping[str, Any], requested_by: str,
     ) -> dict[str, Any]:
         from psycopg.types.json import Jsonb
         from .studio import validate_recipe
 
-        project_uuid, candidate_uuid = UUID(project_id), UUID(candidate_id)
+        project_uuid, creative_uuid = UUID(project_id), UUID(creative_id)
         brief_uuid, kit_uuid = UUID(brief_id), UUID(brand_kit_id)
         with self.connection() as connection:
             existing = connection.execute(
-                "SELECT entity_id FROM studio_recipes WHERE candidate_id=%s", (candidate_uuid,),
+                "SELECT entity_id FROM studio_recipes WHERE creative_id=%s", (creative_uuid,),
             ).fetchone()
             if existing is not None:
                 recipe = self.get_recipe(str(existing[0]))
@@ -717,13 +739,13 @@ class ValidationRepository:
                     or recipe["brief_id"] != brief_id
                     or recipe["brand_kit_id"] != brand_kit_id
                 ):
-                    raise ValueError("candidate recipe ownership cannot change")
+                    raise ValueError("creative recipe ownership cannot change")
                 return recipe
             if connection.execute(
-                "SELECT 1 FROM commander_entities WHERE id=%s AND kind='content_candidate'",
-                (candidate_uuid,),
+                "SELECT 1 FROM commander_entities WHERE id=%s AND kind='content_creative'",
+                (creative_uuid,),
             ).fetchone() is None:
-                raise ValueError("recipe candidate UUID was not reserved by the server")
+                raise ValueError("recipe creative UUID was not reserved by the server")
             row = connection.execute(
                 """SELECT brief.document FROM product_briefs brief
                    JOIN product_brief_approvals approval ON approval.brief_id=brief.entity_id
@@ -745,37 +767,34 @@ class ValidationRepository:
             if contract.value["schema_version"] != 2 or contract.value["duration_seconds"] is not None:
                 raise ValueError("Result rendering accepts static StudioRecipeV2 only")
             parent = None if contract.value["parent_recipe_id"] is None else UUID(contract.value["parent_recipe_id"])
-            candidate_parent = connection.execute(
-                """SELECT parent_candidate_id FROM content_candidates WHERE entity_id=%s
-                   UNION ALL
-                   SELECT base_candidate_id FROM content_improvement_actions
-                   WHERE reserved_candidate_id=%s LIMIT 1""",
-                (candidate_uuid, candidate_uuid),
+            creative_parent = connection.execute(
+                "SELECT parent_creative_id FROM content_creatives WHERE entity_id=%s",
+                (creative_uuid,),
             ).fetchone()
-            expected_parent_candidate = None if candidate_parent is None else candidate_parent[0]
+            expected_parent_creative = None if creative_parent is None else creative_parent[0]
             if parent is None:
-                if expected_parent_candidate is not None:
-                    raise ValueError("an improved candidate recipe must reference its base recipe")
+                if expected_parent_creative is not None:
+                    raise ValueError("an improved creative recipe must reference its base recipe")
             else:
                 parent_row = connection.execute(
-                    "SELECT candidate_id FROM studio_recipes WHERE entity_id=%s AND project_id=%s",
+                    "SELECT creative_id FROM studio_recipes WHERE entity_id=%s AND project_id=%s",
                     (parent, project_uuid),
                 ).fetchone()
                 if parent_row is None:
                     raise ValueError("parent recipe must belong to the Project")
-                if expected_parent_candidate is None or parent_row[0] != expected_parent_candidate:
-                    raise ValueError("parent recipe must belong to the candidate's direct base")
+                if expected_parent_creative is None or parent_row[0] != expected_parent_creative:
+                    raise ValueError("parent recipe must belong to the creative's direct base")
             for asset_id in contract.value["source_asset_ids"]:
                 if connection.execute(
                     """SELECT 1 FROM project_assets WHERE entity_id=%s AND project_id=%s AND (
                            approval_status='approved' OR (
                              origin='ai_generated' AND approval_status='pending_review'
-                             AND metadata->>'content_candidate_id'=%s
+                             AND metadata->>'content_creative_id'=%s
                            )
                        )""",
-                    (UUID(asset_id), project_uuid, str(candidate_uuid)),
+                    (UUID(asset_id), project_uuid, str(creative_uuid)),
                 ).fetchone() is None:
-                    raise ValueError("every recipe asset must be approved or scoped to critic review")
+                    raise ValueError("every recipe asset must be approved or scoped to this Creative")
             entity_id = UUID(new_uuid7())
             connection.execute(
                 "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'studio_recipe',%s)",
@@ -783,11 +802,11 @@ class ValidationRepository:
             )
             connection.execute(
                 """INSERT INTO studio_recipes(
-                       entity_id,candidate_id,project_id,brief_id,brand_kit_id,parent_recipe_id,
+                       entity_id,creative_id,project_id,brief_id,brand_kit_id,parent_recipe_id,
                        placement_tool_id,document,document_sha256,renderer_version,created_by
                    ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (
-                    entity_id, candidate_uuid, project_uuid, brief_uuid, kit_uuid, parent,
+                    entity_id, creative_uuid, project_uuid, brief_uuid, kit_uuid, parent,
                     contract.value["placement_tool_id"], Jsonb(dict(contract.value)),
                     contract.digest, contract.value["renderer_version"], requested_by,
                 ),
@@ -813,7 +832,7 @@ class ValidationRepository:
     def get_recipe(self, recipe_id: str) -> dict[str, Any]:
         with self.connection() as connection:
             row = connection.execute(
-                """SELECT entity_id,candidate_id,project_id,brief_id,brand_kit_id,parent_recipe_id,
+                """SELECT entity_id,creative_id,project_id,brief_id,brand_kit_id,parent_recipe_id,
                           placement_tool_id,document,document_sha256,renderer_version,created_by,created_at
                    FROM studio_recipes WHERE entity_id=%s""",
                 (UUID(recipe_id),),
@@ -821,17 +840,17 @@ class ValidationRepository:
         if row is None:
             raise KeyError(recipe_id)
         return {
-            "recipe_id": str(row[0]), "candidate_id": str(row[1]), "project_id": str(row[2]),
+            "recipe_id": str(row[0]), "creative_id": str(row[1]), "project_id": str(row[2]),
             "brief_id": str(row[3]), "brand_kit_id": str(row[4]),
             "parent_recipe_id": None if row[5] is None else str(row[5]),
             "placement_tool_id": row[6], "document": dict(row[7]), "document_sha256": row[8],
             "renderer_version": row[9], "created_by": row[10], "created_at": row[11].isoformat(),
         }
 
-    def get_candidate_recipe(self, candidate_id: str) -> dict[str, Any] | None:
+    def get_creative_recipe(self, creative_id: str) -> dict[str, Any] | None:
         with self.connection() as connection:
             row = connection.execute(
-                "SELECT entity_id FROM studio_recipes WHERE candidate_id=%s", (UUID(candidate_id),),
+                "SELECT entity_id FROM studio_recipes WHERE creative_id=%s", (UUID(creative_id),),
             ).fetchone()
         return None if row is None else self.get_recipe(str(row[0]))
 
@@ -972,7 +991,7 @@ class ValidationRepository:
                           error_message='service restarted during Result generation',
                           completed_at=clock_timestamp()
                    WHERE status='started' AND stage IN (
-                     'content_candidate_generation','content_result_critic',
+                     'content_candidate_generation',
                      'content_non_human_graphic_generation'
                    )"""
             ).rowcount
@@ -998,7 +1017,7 @@ class ValidationRepository:
                           (SELECT count(*) FROM product_brief_approvals),
                           (SELECT count(*) FROM project_assets),
                           (SELECT count(*) FROM content_generation_runs),
-                          (SELECT count(*) FROM content_results)"""
+                          (SELECT count(*) FROM content_generation_runs WHERE status='approved')"""
             ).fetchone()
         return {
             "operation": None if guard is None or guard[1] is None else {

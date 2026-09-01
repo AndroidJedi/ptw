@@ -2,728 +2,93 @@
 
 Updated: 2026-09-01
 Branch: `codex/web-only-commander`
+Deployment: not authorized; local checkout only
 
 ## Current milestone
 
-The local Universal Ad evaluation and owner-approved learning loop is complete
-in the dirty checkout and is not deployed. The former deterministic local
-Brief/Result demo is replaced by a digest-chained, append-only file authority
-under `.local/owner-experiments`. It persists UUIDv7 Projects, Briefs, approved
-assets, runs, candidates/elements, exact PNG/JPEG artifacts, sanitized provider
-invocations, three critic passes, typed actions, Results, feedback,
-WeightUpdates, outcomes, releases, checkpoints, lesson proposals/decisions,
-lesson snapshots, and relationship edges with atomic writes and idempotent
-request reservations. Startup requeues interrupted work with its latest
-checkpoint ID; immutable artifacts and prior revisions are retained.
+The Result lifecycle is now owner-reviewed and five-Creative-first. The
+automatic evaluator subsystem, subjective scoring/ranking, improvement actions,
+eligibility decisions, reduced analysis artifacts, lesson proposals, and
+automatic final selection have been removed from runtime contracts, persistence,
+provider modes, APIs, Owner Console, skills, schema verification, and canonical
+documentation.
 
-Local Brief generation/correction/retry/explicit approval now uses
-`product-brief-generator`. Run creation accepts only request ID, approved Brief
-ID, fixed Instagram platform, and the saved Studio state digest. The server
-captures the saved export, resolves all task/configuration/skills/strategies/
-lessons, and refuses unsaved drafts. Adapter v8 requires `PEXELS_API_KEY` and
-sources exactly three fresh, distinct Pexels real photographs for the three
-image-backed directions on every new run. Their provider/photo/license/query/
-run provenance is retained, and later runs exclude earlier Project provider IDs
-and image digests. The remaining directions use one deterministic texture and
-one solid composition. The contrast direction sources a separate
-ultra-realistic Pexels object, isolates it deterministically, and records a
-texture-alignment direction covering light, palette, material, grain, and
-perspective. Generated, procedural, repeated, and repository-bundled background
-or sticker fallbacks are removed; absent Pexels configuration or unusable media
-fails before candidate generation. The five strategies retain different crops,
-palettes, typography, hierarchy, CTA treatment, composition, and optional-role
-states.
+Initial and Regenerate-all runs make exactly five isolated transient CandidateV2
+calls. Tune makes one call, replaces the selected slot, and carries four Creative
+UUIDs unchanged. Server integrity checks remain fail-closed for protected copy,
+approved Brief language, claims, media authority, recipe/render identity,
+clipping/collision/layout safety, and five distinct document/render/media
+identities. A successful run stops at `awaiting_review` with exactly five
+reviewable Creative UUIDs.
 
-The authenticated Codex CLI boundary uses empty temporary working directories,
-ephemeral sessions, the read-only sandbox, strict output schemas, exact
-persisted JPEG critic attachments, one fresh retry, timeouts, and sanitized
-digest provenance. Active local Result runs now expose one confirmation-gated
-Terminate button. Its loopback-only route sets a run-scoped cancellation event,
-terminates the exact Codex process group without a fresh retry, and appends a
-terminal `terminated` checkpoint/revision while retaining intermediate
-evidence. Terminated runs can be retried only as immutable children; production
-routes and state are unchanged. Local structured calls retain `xhigh` reasoning. Each
-candidate keeps its authoritative 1080×1080 PNG and JPEG while the critic
-receives a separate deterministic 480×480 analysis JPEG: approximately five
-times fewer pixels and, on the incident set, 5.2 times fewer encoded bytes.
-The derivative persists its source digests, exact rational scale, dimensions,
-and encoder version; full-resolution deterministic gates remain authoritative.
-The `universal_ad_experiment_v1` adapter maps the five existing strategies to
-declared bounded Universal setting patches. Its pre-critic diversity audit
-requires five unique setting signatures and background colors, sticker
-presence with Pexels/isolation/texture-alignment provenance, exactly three
-image-backed directions with three distinct Pexels IDs, SHA-256 values, and
-treatments, no logo-backing node, multiple
-background modes, four font families and CTA treatments, and minimum pairwise
-declared-setting and decoded-pixel distances.
-Owner-approved layout patches replay only onto their originating strategy;
-legacy unscoped patches cannot collapse every direction into the selected
-recipe. Five isolated initial candidates
-enter three `xhigh` critic calls with exact attachment counts `[3, 2, 2]`: an
-independent three-candidate screen, an independent two-candidate screen, then a
-comparison of only both group winners with both structured summaries. The
-local screens permit no improvement actions. One eligible selection or no
-Result reuses the canonical candidate and critic skills. Every 1080×1080 PNG is
-audited for role coverage, overflow, truncation, collision, safe area, contrast,
-semantic flow, and byte-exact offer/CTA before its deterministic JPEG can be
-scored. Button primitives now retain their internal text-layout diagnostics;
-the protected CTA uses a wider bounded treatment and cannot silently clip while
-the layout audit reports success.
+The Owner Console presents a five-card authenticated review grid. Selecting a
+card enables Approve or Tune; Regenerate all applies to the set. Approved runs
+show a native post and authenticated deterministic export. The learning panel
+shows only ID-explicit owner actions and active Project rules. There are no
+subjective metrics or hidden selection surfaces. Social posts does not contain
+the former loopback asset/Pexels and run/snapshot evidence panel, and its create
+form does not explain backend integrity checks or the absence of an evaluator.
 
-A disposable real-Codex canary replayed the failed incident inputs through this
-exact grouped boundary without touching the experiment store. At `xhigh`, all
-three calls completed on their first attempts in 322.47, 218.87, and 232.84
-seconds, each below the unchanged 420-second per-attempt limit. The five
-analysis artifacts totaled 147,914 bytes instead of 771,017 bytes for the
-full-size JPEGs, a 5.213× reduction. The final comparison returned no eligible
-selection for those historical candidates, so quality still failed closed
-after transport completed rather than timing out.
+Approve, Regenerate all, and Tune are request-UUID idempotent and reject stale
+or concurrent actions. A parent remains actionable until a child successfully
+reaches `awaiting_review`; failed/terminated children mark their action failed.
+Owner feedback, WeightUpdates, outcomes, learning rules/snapshots, and graph
+lineage append immediately. Project/strategy/output-profile scope is enforced,
+and Product Brief generation remains isolated from Result learning.
 
-Completed local Results now load their bounded selection evidence automatically
-and place all five authenticated candidate previews before the final post, with
-the selected direction visibly marked and the exact three-stage critic path
-shown in the main view instead of hiding it inside export details. Failed local
-Results likewise load their bounded debug evidence automatically even without a
-final Creative. The Console displays all persisted candidate
-previews, the correct three/two screening score for each, failed gates, score
-dimensions, eligibility, reason codes, rankings, pairwise results,
-observations, and the explicit no-selection comparison. The incident also
-exposed and fixed a semantic/render mismatch: candidate metadata had called the
-captured canonical Natal logo empty and described hidden bullet lists. Adapter
-v8 injects the resolved optional-role contract before generation,
-deterministically aligns alt text and role descriptions to the exact render,
-records those transformations, and supplies captured saved-logo provenance to
-the critic as approved Studio identity.
+Review notification uses a typed Validation → Commander relay. The delivery
+receipt is persisted before send. Definite failures retry boundedly, ambiguous
+sends do not auto-repeat, and the web review remains available on failure with
+manual retry. Telegram remains notifications plus `/help`, `/status`, `/stop`;
+it accepts no owner-review mutation. The loopback app does not require or fake
+this production relay: without explicit relay configuration it records
+`not_configured` and still completes the authenticated five-card web review.
 
-Universal Studio now has eight stable roles: background, sticker, hero title,
-supporting text, required offer, bullets, CTA, and logo. The configuration
-contract remains `ptw.studio.universal-ad-config.v4`; content is v2, workspace
-v5, component settings v2, immutable version v2, export v4, agent context v2,
-and the internal template is v10. Template v10 removes the logo backing node
-and editor controls; stored v4 backing fields remain readable but always
-normalize disabled. New workspaces start on a deterministic texture with no sticker and no bundled
-background/sticker assets; only the canonical transparent logo is preloaded.
-Ready leaves the editable workspace unchanged,
-appends owner feedback/outcomes, and creates a digest-manifested immutable ZIP
-with the authoritative full-size JPEG and canonical PNG. Improve creates an immutable
-child from the selected candidate plus only the owner revision instruction.
+The local Universal profile preserves the prior saved-Studio, language, copy
+style, and Pexels requirements: exactly three fresh distinct real-photo
+background directions, a screened Pexels physical-object sticker, one texture,
+one solid direction, and full-resolution deterministic diversity/layout audits.
+Its file authority is `.local/owner-experiments`; local terminate applies only
+to active runs.
 
-Social Posts now has one compact Project selector instead of duplicating
-Project search, creation, renaming, artifact filters, and creation controls in a
-second sidebar. Historical posts remain selectable in the result toolbar, and
-an empty Project presents exactly one new-post action. The page title and
-decorative section labels are absent. Local asset controls and the `Learning &
-evidence` panel appear only beneath a selected completed Result, with gate
-rates, score deltas, setting changes, outcomes, releases, and the lesson queue.
-Project- and run-scoped requests are withheld until the asynchronously loaded
-Project catalogue validates URL-backed selections. A stale deep link left by a
-local reset is replaced with the first available Project and its current run,
-or cleared for an empty authority, without emitting expected 404 requests.
-Feedback proposes bounded lessons for the Brief generator, candidate generator,
-critic, and Universal layout policy. Only active owner-approved lessons enter
-later digest-locked snapshots; pending and rejected proposals do not. The
-reserved agent authority is rejected. Evidence is explicitly internal and is
-not presented as market performance.
+## Verification status
 
-Local verification passes 93 Validation tests with four disposable-PostgreSQL
-tests skipped, 5 Owner Gateway tests, 41 web unit tests and the production
-build, all 21 Playwright checks across desktop Chrome, 360-pixel Chrome, and
-iPhone WebKit, all 7 Commander tests and the demo, the six-variant focused
-Studio visual audit including CTA text-fit diagnostics and an explicit ban on
-the removed logo-surface node, full-resolution inspection of the five
-within-run directions, and a two-run regression proving all three Pexels
-background IDs and SHA-256 values are distinct within each run and not reused
-across runs, plus photographed-sticker provenance and isolation coverage,
-canonical PTW skill verification, Python compilation, and `git diff --check`. Docker Desktop
-is installed but its daemon socket is absent,
-so built-image and disposable-PostgreSQL checks remain environment-blocked and
-production was not used as a substitute. No deploy, publishing call,
-production reset/mutation, or market-performance ingestion occurred.
+Passed locally on 2026-09-01:
 
-The confirmation-gated `scripts/reset_ptw_local.sh` validates exact paths,
-refuses active runs/Tune work or a local service from this checkout, deletes
-only `.local/studio-workspace`, `.local/studio-tune`, and
-`.local/owner-experiments`, proves them empty, and preserves unrelated `.local`
-diagnostics and archives. The confirmed reset was executed after stopping the
-checkout's loopback launcher; all three allowlisted stores are empty and the
-focused `.local/studio-audit-local-loop` evidence remains present. A real
-acceptance run still requires an owner-approved Brief; approved photos remain
-optional enrichment. Automated tests do not impersonate that approval.
+- Validation: 99 tests ran; 96 passed and the three production-lifecycle tests
+  were skipped because no disposable PostgreSQL target is configured.
+- Owner Gateway: 5 tests passed.
+- Commander: 9 tests passed in the project virtualenv. The required system
+  Python invocation also passed its six dependency-free tests and skipped the
+  three FastAPI tests; the virtualenv invocation passed all nine.
+- Commander web: 35 unit tests, the production TypeScript/Vite build, and all
+  21 Playwright desktop/mobile/WebKit tests passed.
+- The 40-example content corpus, 21 post-copy anchors, deterministic Studio
+  template/render audit, canonical skill verification, Python compilation,
+  Commander demo, and `git diff --check` passed.
 
-## Prior milestone
+The Docker daemon is unavailable, so the disposable PostgreSQL schema verifier
+and the built-image FastAPI/Pillow test command could not run. No production
+database, external provider, live Telegram canary, Firebase release, or
+independent platform repository was touched.
 
-The Social Posts workspace refactor is complete locally and is not deployed.
-The former Instagram-only Result page is now a responsive master-detail
-workspace for Instagram square posts and TikTok vertical photo posts. Its
-searchable navigator switches Projects, filters platform/review state, groups
-child revisions beneath their original artifact, and persists the selection in
-`?page=result&project=<uuid>&run=<uuid>`. At 360 px it becomes a compact drawer
-with no horizontal overflow. The normal detail view is a platform-native mock
-post; the duplicated source, hook/headline/body/CTA transcription, rationale,
-and open technical trace are removed. Alt text, authoritative asset metadata,
-and the bounded decision trace remain in one collapsed advanced panel.
-
-New post selects Instagram or TikTok and defaults to the newest approved
-Product Brief. Generation is enabled whenever an approved Brief exists and no
-request is active; otherwise the screen explains the prerequisite and links to
-Product Briefs. Ready appends accepted feedback and unlocks the validated
-image/caption/alt export package. Improve requires a normalized 3–2000
-character comment and transactionally appends rejected HumanFeedback, a
-zero-delta WeightUpdate, outcome/graph edges, and a pending child run. The
-child inherits Project, Brief, task, and platform and contains only the selected
-versioned revision instruction. Review state is the latest feedback projection;
-older feedback and weight history remain immutable. Failed children stay in the
-navigator and use the existing idempotent retry path. No platform publishing,
-training, or automatic weight change was added.
-
-The public create boundary accepts only request ID, Brief ID, and optional
-`instagram`/`tiktok`; omitted platform remains backward-compatible Instagram.
-Owner Gateway maps both channels to fixed server-owned tasks/profiles and
-rejects task/profile injection. Run-list rows now project platform, review
-state, revision number, parent run, and compact render metadata in one query.
-The new revision route resolves the parent Creative server-side and persists
-feedback plus child lineage in one idempotent PostgreSQL transaction.
-
-`tiktok_photo_post_v1` stays behind a channel adapter. It adds placement
-`studio.placement.tiktok.photo_vertical.v1`, five digest-locked version-3
-vertical snapshots, profile-specific safe bounds/catalog/renderer identity,
-and deterministic 1080×1920 JPEG output. The Instagram placement, active
-snapshot digests, default renderer identity, and historical byte-exact replay
-are unchanged. A full five-template TikTok canary passes English/Ukrainian
-rendering and all ten pairwise distinction checks.
-
-The safe deterministic loopback launcher remains unchanged. A separate
-`scripts/run_live_social_workspace.sh` requires the exact
-`--confirm-live-production=LIVE_PRODUCTION_DATA` flag and a registered App
-Check debug token. It uses real Firebase owner Auth/App Check for Project,
-Brief, and Social Post traffic through the public Owner Gateway, routes only
-Studio to its existing loopback service, shows a persistent live-data banner,
-and reconfirms create/revision actions. It never exposes PostgreSQL, platform
-bridge, provider credentials, or copied production service tokens to the
-browser.
-
-The clean schema baseline changes to admit the TikTok output profile and
-1920-pixel render height. Therefore TikTok/revision generation cannot be used
-against production until the owner separately authorizes the confirmation-
-gated reset and rollout. No deployment, reset, production mutation, or direct
-social-platform call was performed in this milestone.
-
-Local verification passes 76 Validation tests (four disposable-PostgreSQL
-tests skip because this checkout has no running Docker daemon or test DSN), all
-5 Owner Gateway tests, all 32 web unit/build checks, all 18 Playwright checks
-across desktop Chrome, 360-pixel Chrome, and iPhone WebKit, all 7 Commander
-tests in the project environment, the Commander demo, the full TikTok
-five-template bilingual canary, the 40-example Result corpus check, the PTW
-skill-contract check, launcher shell validation, and `git diff --check`.
-Docker schema application and the new transactional PostgreSQL lifecycle test
-remain environment-blocked rather than simulated; production was not used as
-a substitute.
-
-The prior local Universal Ad Studio milestone follows and remains part of the
-same dirty checkout.
-
-The Universal Ad Studio refactor is complete locally and is not deployed. The
-Owner Console's third `Studio` destination now exposes one fixed
-`universal_ad` structure rather than an arbitrary primitive-tree or
-reference-calibration workflow. Its stable semantic roles are background,
-optional sticker, hero title, supporting text, optional bullets, CTA, and
-optional logo. The screen contains compact semantic-content, mood, typography,
-spacing, CTA, optional-element, asset, Pexels, preview, and immutable-version
-controls. A prominent seven-card component dock keeps the four required roles
-and all three optional roles visible at a glance; optional cards are direct
-keyboard-accessible switches, while detailed background, hierarchy, CTA,
-sticker, and logo inspectors stay collapsed until needed. The current creative
-remains the dominant sticky panel. There is no template selector/import, layer
-tree, arbitrary property inspector, reference upload, pixel matching, or
-calibration history.
-
-The local Studio settings milestone now advances the universal configuration
-to `ptw.studio.universal-ad-config.v4` and internal template version 8. The
-background inspector shows exact hex colors, removes paper, and offers grain
-plus deterministic stone, marble, concrete, granite, slate, and travertine
-surfaces with a texture-intensity slider. It exposes overlay color and opacity
-as visibly responsive controls and supports both 75% image / 25% background and
-25% image / 75% background splits. Selecting Image reveals sample-image upload
-in that inspector; a background upload also selects image mode. Never-deployed
-local v1/v2/v3 workspace configuration is upgraded deterministically on read.
-
-Bullets now switch among check, filled-circle, and outlined-circle markers.
-Benefit text has an independent font selector, while its markers use a stable
-Inter symbol node so check/circle glyphs render with every benefit font. Roboto
-Condensed is no longer owner-selectable; Inter, Manrope, Oswald, and Cormorant
-Garamond span neutral, friendly, urgent, and editorial/premium moods and render
-the verified Ukrainian glyph sample. CTA text/background colors combine with
-filled, gradient, reverse, link, and outlined treatments, and the CTA can sit
-below the text flow, at bottom left, or at bottom right. Sticker size can reach
-a full-canvas treatment, and its position presets now cover the four corners,
-right/bottom edge peeks, hero title, benefits, and CTA anchors, with independent
-right and bottom adjustments. The placement disclosure is now named only
-`Розміщення стікера`. Rotation,
-width, object scale, and the two offsets each refresh the unsaved preview;
-transient numeric typing no longer poisons the draft, and the bounded offsets
-accept -720 through 720 so the owner's 500-pixel adjustment renders normally.
-Logo, copy, bullets, and CTA now fit one composition-alignment rectangle. The
-top-corner logo and bottom CTA presets use the same content-controlled top/left
-and safe right/bottom edges. The fixed seven-role semantic structure, three
-asset slots, generic primitive renderer, and Instagram adapter boundary remain
+The confirmation-gated local reset completed after verification. It removed
+6,156 entries from `.local/owner-experiments`, left that authority empty, and a
+content/permission/symlink manifest proved all 10,794 other `.local` paths were
 unchanged.
 
-New workspaces resolve the verified canonical Natal PNG in the logo slot and
-enable it without a backing surface at the top right by default. The optional
-rounded contrast surface remains owner-controlled. A dedicated logo disclosure
-keeps upload, visibility, background visibility/color, top-corner position, and
-bounded width together.
-The owner can remove the background while keeping the logo visible or upload a
-PNG/WebP replacement; an upload overrides the fallback with owner provenance
-and re-enables the logo. Layout and audit rules keep the visible logo treatment
-in the safe area and move intersecting wide copy below it.
+## Rollout boundary
 
-Those seven roles are now machine-addressable as stable component IDs from
-`universal_ad.background` through `universal_ad.logo`. Catalog schema v4 maps
-each component ID to its semantic role, renderer node IDs, fixed asset-slot IDs,
-and leaf setting IDs. Workspace schema v4 includes a canonical
-`ptw.studio.universal-ad-component-settings.v1` manifest with every exact typed
-setting value and its own digest. The same manifest is embedded in resolved
-preview metadata and each newly approved immutable JSON version. Authenticated
-detail, draft-metadata, and immutable-version-detail routes make it directly
-available to agents and later learning/replay consumers; the editor's Export
-config + IDs action downloads the current draft with that canonical metadata.
+A future rollout requires an explicitly authorized clean Commander schema reset;
+old lifecycle data is intentionally not migrated. Before that rollout the
+unrelated platform bridge must independently advertise only Product Brief,
+Brief revision, and Candidate generation JSON modes. Live Telegram capability
+cannot be claimed until authorization/routing/provider delivery, persistence,
+restart, ambiguity, definite failure, and user-facing retry paths pass in the
+deployed environment.
 
-Every bounded content edit and component/configuration toggle now requests a
-debounced draft render and replaces the preview without persisting editor state.
-The draft preview is bound to the current state digest, normalized by the same
-strict configuration/content contract as a save, and ignored if a newer edit is
-already in flight. Returning a draft to its saved configuration restores the
-saved PNG instead of leaving the last draft render visible; the logo's first
-hidden-to-visible toggle is covered explicitly. Explicit Save setup remains the
-only way to advance current workspace state. Optional Sticker and Logo switches are disabled with an upload
-instruction when their fixed asset slot is unavailable, avoiding a knowingly
-broken preview; the canonical Natal fallback makes Logo available by default.
-Render progress, unsaved-preview success, and preview failures are visible
-directly above the creative instead of only in the page-level status line.
+## Next work
 
-The loopback Studio now also exposes a local-only Test generation wizard in
-explicit Tune mode. The owner supplies a project idea, desired implementation,
-and optional feedback for each iteration. A non-interactive Codex run works in
-a disposable mirror of the current dirty checkout and may revise only the
-Universal Studio renderer/configuration surface, focused tests, styles, and
-Studio UI components (including the wizard UI). Out-of-scope writes and file
-deletions fail closed. Focused Python/web tests, the Owner Console production
-build, and whitespace validation must pass before optimistic, atomic copy-back.
-The Tune runner, launcher, authentication, production routes, Result adapter,
-database, deployment, and publication boundaries are not writable by the
-agent. Production does not mount Tune routes.
-
-Each Tune run captures the saved workspace's bounded agent-context JSON before
-its disposable mirror starts. The run request digest and durable record include
-exact component IDs/settings plus asset/state/template digests, and the same
-JSON is inserted into the agent prompt as the current-state authority. This
-avoids losing owner selections merely because `.local` workspace files are
-excluded from the source mirror and makes the run input reproducible.
-
-Successful Tune iterations now retain the exact 1080×1080 PNG rendered from the
-verified isolated snapshot. The completion card shows that creative beside the
-agent report through an authenticated run-scoped, SHA-256/ETag-verified,
-private-no-store endpoint. Older completed runs are rendered from their retained
-snapshots on first inspection, so the first investment-service experiment is
-visible without rerunning it or accepting a stale in-memory Studio preview.
-The review screen now keeps the creative and next-iteration feedback field
-together at the top, retains the original idea and implementation across
-reloads, and exposes explicit Back to Studio and new-direction actions. A
-completed run reviews its exact run-scoped PNG; a safely stopped run reviews the
-current Studio PNG instead. Raw runner tracebacks remain in the durable run
-record but are never rendered in the owner interface. The Studio command bar
-names Feedback & iterations directly, so closing the dialog does not hide the
-return path.
-
-The same review panel now has an explicit Save as reusable rule action. It
-promotes the current feedback, falling back to the feedback that produced a
-completed iteration when the next-feedback field is empty, into the canonical Studio Tune skill's
-owner-approved rules reference, links its content digest to the originating run,
-and deduplicates equivalent approvals. Every later Tune snapshot reads those
-rules and must preserve observable rules with regression coverage. Ordinary
-feedback still cannot rewrite agent instructions: this mutation is available
-only through the authenticated loopback owner action and remains absent from
-production.
-
-The canonical `studio-tune-local` skill now makes verified local-checkout
-application the default for owner Studio tuning requests. It explicitly
-withholds commit, push, pull-request, remote, production, publication, and
-deployment actions unless the owner names that non-local target.
-
-Universal Studio text now aligns by actual rendered glyph ink and fits against
-both ink height and nominal line spacing. The investment creative's three-line
-hero begins at its configured top coordinate, no longer touches the clipped
-bottom edge, and retains a measured positive gap before the supporting copy.
-Resolved text nodes expose fitted size, rendered/source line counts, truncation,
-and overflow so layout failures are inspectable. Focused tests lock the top
-alignment, unclipped title edge, and semantic-block separation.
-
-The new canonical `studio-ui-visual-audit` skill separates raw creative defects
-from browser-preview defects and supplies deterministic default, high-density,
-centered/minimal, editorial bottom-left, urgent bottom-right, and logo-without-
-background geometry gates.
-`studio-tune-local` requires
-that audit for typography, positioning, spacing, component-layout, preview, and
-Studio CSS changes. Its canonical desktop link is installed. This repair is
-local only and was not deployed.
-
-`ptw.studio.universal-ad-config.v4` is the reusable strict configuration.
-Unknown structure fails closed, and all numeric/enum controls are bounded to
-properties with meaningful visual impact. Solid, deterministic grain/mineral
-texture, and photo backgrounds share full/partial placement,
-fit, focal point, intensity, and readability-overlay controls. The one sticker consists of an isolated
-object with a smooth white die-cut contour sized from the actual fitted alpha
-silhouette, reserved transparent edge room, and a subtle outside shadow. It has
-bounded position, rotation, width, and object scale, with no rectangular paper
-backing or blurred white glow. This render contract is the local internal
-Universal Studio template version 8. Bullets, sticker, and logo can be omitted
-without changing
-the semantic structure or breaking the composition.
-
-The loopback launcher now runs the complete visible Owner app rather than a UI
-whose non-Studio destinations point at absent routes. Product Briefs and
-Instagram post use one explicitly labeled deterministic local demonstration
-journey with five distinct candidate JPEGs; provider-backed generation and
-correction remain disabled. Studio is the writable local workspace. All local
-routes keep the same fake-owner header boundary, bind only to `127.0.0.1`, and
-do not contact production, mutate PostgreSQL, or publish.
-
-The existing primitive system and `StudioRenderer.render_preview()` remain
-internal implementation machinery for deterministic PNG rendering, fonts,
-image fit, alpha, transforms, z-order, clipping, and visible measurements. The
-two generic primitive fixtures remain engineering benchmarks only and are not
-runtime templates. The historical production `StudioRecipeV2` JPEG path,
-five active Result strategy snapshots, and byte-exact replay remain unchanged.
-
-`UniversalStudioWorkspace` owns one current configuration, semantic content,
-three fixed asset slots (`background_image`, `sticker_object`, and `logo`),
-provider provenance, exact state digests, previews, and append-only immutable
-versions under `STUDIO_WORKSPACE_PATH`. Background and sticker sourcing reuse
-the existing bounded Pexels client. Sticker photos pass through one
-deterministic edge-color soft-alpha cutout; complex sources must use an
-owner-supplied transparent PNG/WebP. Approval stores the exact PNG,
-configuration, content, asset provenance/digests, internal template snapshot
-and digest, render digest, and canonical component-settings manifest. Preview
-rendering accepts either the persisted
-state digest alone or that digest plus a complete draft configuration/content
-pair; the latter is rendered in memory and never mutates the workspace.
-
-Validation and Owner Gateway expose only detail, configuration, fixed-asset,
-Pexels, preview, component-metadata, approval, immutable-version-detail, and
-immutable-version-render routes. All PNGs are
-private, no-store, SHA-256 and ETag explicit. The loopback launcher exposes the
-same Studio contract, local-only Tune routes, and the representative normal
-journey described above, without Firebase. Pexels remains optional for manual
-Studio editing but is required for Result creation. Obsolete
-reference/calibration routes, evaluator, installer, tests, and text fixtures
-were removed. No deployment, reset, database mutation, publication, or
-production contact was performed.
-
-Local verification passes the complete 71-test Validation suite (three
-disposable-PostgreSQL lifecycle tests skipped), five Owner Gateway tests, all
-28 web unit tests, the production web build, and all 18 Playwright journeys on
-desktop Chromium, 360 px Chromium, and iPhone WebKit. All seven Commander tests,
-the Commander demo, primitive-engine canary, canonical PTW skill verifier,
-skill-validator, deterministic six-variant visual-geometry audit,
-Python compilation, exact default/editorial/urgent/mineral full-resolution
-inspections, the seven-preset texture matrix, and
-`git diff --check` also pass. Built-image tests were not run because the local
-Docker daemon is unavailable.
-
-The current production state remains the Result v1/v2 milestone described
-below.
-
-PTW has been rebuilt as a clean first-version Product Brief → one-click Natal
-Instagram post system.
-The old five-Ad batch, Ads workspace, Studio Wizard/editor, automatic nested
-validator, Landing, Admin jobs, root broker, Positioning, idea-generation, and
-their tables, routes, services, skills, tests, and assets are removed.
-
-The database now has one baseline migration,
-`db/migrations/001_ptw_result_v1.sql`. It contains only shared graph/source/
-feedback/control authority, Projects and Product Briefs, approved Project
-assets and brand kits, static recipe/render authority, provider provenance, and
-the Result lifecycle. A schema verifier applies the baseline twice and rejects
-any retired table family.
-
-Result v1 implements:
-
-- deterministic `ContextBundleV1` selection from the approved Brief, fixed
-  server-owned Instagram task, canonical Natal brand kit, approved Project
-  sources, five template versions, selected writing references, and skill
-  digests;
-- exactly five isolated initial `CandidateV2` generations;
-- at most four improvement generations and exactly three critic passes;
-- stable server-reserved UUIDv7 candidate, critic-pass, action, element,
-  recipe, render, and Result identities;
-- exact element reuse plus `supersedes` and multi-source `derived_from`
-  lineage;
-- internal generic `marketing_copy_v1` and `instagram_static_ad_v1` adapters,
-  with only Instagram exposed through Owner Gateway;
-- strict static `StudioRecipeV2` validation and deterministic 1080×1080 JPEG
-  rendering for the Instagram adapter;
-- fail-closed hard gates, scoring, pairwise comparison, and one immutable final
-  Result Creative;
-- owner status/result/debug/retry/feedback APIs and a Product Brief + one-click
-  Instagram post Owner Console. Validation automatically provisions the
-  digest-pinned Natal logo, palette, and Inter font; public asset and brand-kit
-  setup routes are absent.
-
-The latest deployed milestone replaces the completed Result's raw debug
-JSON presentation with a collapsed visual explanation: five initial candidate
-JPEG cards, exact per-candidate parameter values, Pass 1 gates and scores, and
-a three-pass ranking/pairwise/improvement/final-selection path. Candidate
-previews are exposed only through authenticated run-scoped no-store routes and
-retain browser-side MIME, digest, and ETag verification. Focused web unit/build
-checks, Playwright on desktop, 360 px Chromium, and iPhone WebKit, the
-Validation and Owner Gateway built-image suites, the disposable PostgreSQL
-Result lifecycle, the clean and idempotent schema verifier, Commander
-tests/demo, canonical skill verification, and `git diff --check` pass.
-
-The independent platform worktree now advertises only four JSON modes and one
-reviewed non-human graphic mode. It validates one-to-five digest-mapped JPEG
-critic attachments, rejects image generation in JSON modes, uses fresh
-ephemeral calls, deduplicates per-attempt idempotency keys, and serves generated
-PNG bytes through an authenticated digest-checked endpoint. Its database is
-upgraded additively and preserved.
-
-## Verification completed locally
-
-- clean baseline/idempotent PostgreSQL migration verifier;
-- full disposable PostgreSQL Result lifecycle: five initial candidates, four
-  improvements, three passes, one Result, and append-only feedback lineage;
-- content corpus and PTW skill verification;
-- 27 focused independent-platform tests and disposable platform migration journey;
-- Validation, Owner Gateway, and Commander built-image suites;
-- Owner Console unit tests, production build, and Playwright coverage on desktop,
-  360 px Chromium, and iPhone WebKit;
-- Commander demo and `git diff --check` at intermediate checkpoints.
-
-The current Natal one-click repair passes the clean/idempotent schema verifier,
-the disposable PostgreSQL lifecycle, Validation and Owner Gateway built-image
-tests, a built-image 1080×1080 Natal logo/Inter render, canonical skill/corpus
-verification, Owner Console unit/build checks, Playwright on desktop, 360 px
-Chromium, and iPhone WebKit, Commander tests/demo, and `git diff --check`.
-
-## Production deployment
-
-Result v1 was deployed on 2026-08-26 as release
-`result-v1-20260826-1345`. The application reset completed from commit
-`02556ec4f90ba8c73802411c2dc4f5cbb8113090`; the independent Result bridge is
-at `4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`.
-
-The Product Brief scheduling and language-contract incident was repaired
-in-place without a reset. Commander, Validation, and Owner Gateway then ran
-release `result-v1-20260826-1415-language-hotfix` from commit
-`3b5691cd4791c7b1629a1b6ab8b2056da1960215`; the independent Result bridge
-remains on its separately versioned healthy release. Production table counts
-were preserved. The earliest Brief from the incident completed on retry as an
-English schema-v1 document; its failed first attempt and completed second
-attempt have distinct exact provider lineage. The four duplicate submissions
-are preserved as failed, and the singleton operation guard is empty.
-
-The Result brand-kit prerequisite flow was deployed as
-`result-v1-20260826-1450-brand-kit-hotfix` from commit
-`64083f8183e6572dffe092ccec63c64d900e23ff` through the owner-confirmed clean
-reset. Six Projects and six Briefs were removed as authorized; all
-Commander-owned business tables were empty afterward and independent platform
-counts were unchanged. The empty-logo UUID failure is fixed, required brand
-setup precedes Result creation, all five services use the matching versioned
-tag, Firebase Hosting serves `App-DiuEpJxy.js`, and live Auth/App Check/CORS,
-provider, dependency, Telegram, schema, and resource audits passed.
-
-Immediate owner verification found two follow-up UI defects: EN/УКР changed
-only its own label, and new-Project creation was stacked above the selected
-Project workspace. The repairs were deployed as
-`result-v1-20260826-1505-owner-ui-hotfix` from commit
-`9535a749b96bb265d2c07f5d22876fbac351b155` through a second owner-confirmed
-clean reset. One Project and one Brief were removed as authorized; all
-Commander-owned business rows were zero afterward and independent platform
-counts were unchanged across the reset. The complete visible console now
-switches between English and Ukrainian with reload persistence, and new versus
-existing Project workflows render as separate modes. Unit, build, desktop,
-360 px Chromium, and iPhone WebKit checks pass. Firebase Hosting serves
-`App-Dinvy60U.js`; its live bytes contain the language-storage marker and both
-new-Project language variants. The live gateway, unauthenticated rejection,
-CORS, service-worker, provider, Pexels, dependency, skill, Telegram, schema,
-and resource audits passed.
-
-The production Commander database contains only `001_ptw_result_v1.sql`, and
-no retired table family remains. The obsolete owner-control volume, Git
-watcher, credential agent, Positioning, and idea containers are absent.
-Structured/multimodal bridge, real Product Brief, Pexels, schema, dependency,
-resource, public bundle, retired-route, CORS, and readiness canaries passed.
-All three application services are healthy on the matching owner-UI hotfix
-tag; the independent API and worker are healthy on the same release tag at
-bridge revision `4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`, and the locked
-24-hour resource follow-up timer remains active.
-
-The one-click Natal repair was deployed through the owner-confirmed clean reset
-as `result-v1-20260826-1710-natal-one-click` from application commit
-`be3e129dc05923e6342a8c3325921ea518f33b83` and independent-platform commit
-`4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`. The authorized reset irreversibly
-removed one Project, one Brief, and one prior brand kit. Every Commander-owned
-business table is empty, only `001_ptw_result_v1.sql` is recorded, no retired
-table remains, and independent platform counts were unchanged.
-
-Commander, Validation, Owner Gateway, platform API, and platform worker are all
-healthy on the matching versioned tag with zero restarts. Firebase Hosting
-serves `App-DwBfSv3E.js`; the live bytes contain the one-click Natal identity
-and progress contract and exclude brand-kit setup, task entry, Text mode, and
-the retired workspaces. Bridge, Pexels, dependency, skill, Telegram direct
-canary, schema, 1 GB resource, hashed-bundle, Auth/App Check, unauthenticated
-rejection, retired-route, service-worker, and CORS checks passed. No deployment
-OOM event occurred, and the locked 24-hour resource audit is scheduled for
-2026-08-27 14:17 UTC. Because the required clean-reset state contains no Result,
-the live authenticated Result-image digest/ETag check is deferred to the first
-real post; built-image lifecycle and 1080x1080 JPEG checks passed before release.
-
-The initial Instagram Result UUID incident was repaired in place without a
-reset as `result-v1-20260827-0900-uuid-hotfix` from application commit
-`20ca7858082021076e0add35bc2511828c3676de`; the independent platform remains at
-`4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`. One generated direction had mixed
-`studio.*` tool IDs into a UUID-only visual `source_ids` array because that
-structured-schema field accepted unrestricted strings. Candidate schemas now
-bind exact server-supplied UUIDv7 enums, approved media IDs have their own
-Project-asset enum, and the domain boundary repeats both checks.
-
-The live bridge generated and domain-validated the real UUID-allowlisted
-`CandidateV2` twice, with Product Brief, correction, critic, and Pexels canaries
-also passing. All Commander table counts were identical across the in-place
-rollout; independent-platform counts were identical across the application
-cutover after the explicit canaries. Commander, Validation, and Owner Gateway
-are healthy on the matching hotfix tag with zero restarts. Dependency, skill,
-schema, public Auth/App Check/CORS/retired-route, and immediate 1 GB/OOM audits
-passed. Failed run `01a041c0-af7c-7881-bec4-bf4ebc2d23cf` remains immutable,
-and the empty operation guard permits its normal Owner Console retry as a new
-child run.
-
-The follow-up incomplete-visual-role incident was repaired in place without a
-reset as `result-v1-20260827-0930-role-hotfix` from application commit
-`ff05f65ae86ffd7a96699ba4de9d438e940113eb`; the independent platform remains at
-`4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`. Instagram candidate schemas now
-require exactly the nine adapter roles, the ordinary prompt enumerates that
-same ordered set, and complete `CandidateV2` validation runs inside the fresh
-two-attempt provider boundary instead of after a schema-only success.
-
-Both pre-cutover and post-cutover live bridge canaries generated and
-domain-validated exact-nine-role Candidates, with fresh Product Brief,
-correction, critic, and Pexels canaries also passing. Commander counts were
-preserved and platform counts were unchanged by the application cutover.
-Commander, Validation, and Owner Gateway are healthy on the matching role
-hotfix tag with zero restarts. Schema, dependency, skill, public bundle,
-Auth/CORS, and immediate 1 GB/OOM audits passed. Failed run
-`01a041d9-3a09-7fd4-af84-b9a863a57303` remains immutable, and the empty
-operation guard permits its normal Owner Console retry as a new child run.
-
-The follow-up Result critic preview-mapping incident was repaired in place
-without a reset as `result-v1-20260827-1025-critic-hotfix` from application
-commit `1dbc3029988b4bb06d28dbc53689a8d6ac832e3b`; the independent platform
-remains at `4f9225febfcb828faae459ef3c0a4cdf7a30a5dd`. The application now accepts
-the exact persisted preview mapping including `mime_type`, validates the JPEG
-and digest before transport, emits strict list-shaped element scores, and runs
-complete critic-domain validation inside the fresh two-attempt boundary. The
-release canary exercises this real contract rather than a marker response.
-
-Both pre-cutover and post-cutover live bridge rounds passed the real multimodal
-critic schema, exact mapped JPEG, pixel inspection, and domain validator, with
-fresh Product Brief, correction, candidate, and Pexels canaries also passing.
-Commander counts were preserved and platform counts were unchanged by the
-application cutover. Commander, Validation, and Owner Gateway are healthy on
-the matching critic hotfix tag with zero restarts. Dependency, skill, schema,
-public bundle, Auth/CORS, and immediate 1 GB/OOM audits passed. Failed run
-`01a041f1-a430-7662-b27f-2339197e794b` and its five rendered candidates remain
-immutable, and the empty operation guard permits its normal Owner Console retry
-as a new child run.
-
-The visual Result decision trace was deployed in place without a reset as
-`result-v1-20260827-1140-decision-trace` from application commit
-`5cfa759b00742329636a425a42cafc029bd8ddb9`; the independent platform remains
-at `4f9225febfcb828faae459ef3c0a4cdf7a30a5dd` and its images were not changed.
-The live Owner Console serves entry bundle `index-D5UxwWt3.js` and lazy app
-bundle `App-pDzkFjZl.js`; the latter contains the five-direction, exact-
-parameter, and three-pass decision markers. The new candidate asset route
-rejects unauthenticated access and a real persisted candidate JPEG passed its
-internal run scope, MIME, no-store, SHA-256, and ETag checks.
-
-Fresh Product Brief, correction, UUID-allowlisted candidate, real mapped
-multimodal critic, and Pexels canaries passed before and after cutover. A first
-attempt safely restored the prior matching application tag when its
-preservation window incorrectly included expected platform canary bookkeeping;
-Commander counts remained unchanged. The corrected cutover compared counts
-only across application replacement and restart, preserving one Project, one
-Brief, four runs, nineteen candidates, three critic passes, and one Result;
-independent-platform counts were also unchanged across that cutover. All three
-application services are healthy on the matching tag with zero restart counts,
-emergency stop is off, dependency/skill/schema/public Auth/App Check/CORS/
-bundle/Telegram audits pass, no deployment OOM evidence exists, and the locked
-24-hour resource audit is scheduled for 2026-08-28 08:38:53 UTC.
-
-The active Studio alignment fix is deployed as immutable version 3. Candidate
-contexts now include the complete digest-locked Studio snapshot; visible Instagram copy binds to
-`headline` and `primary_text`; and the anonymous critic payload includes the
-resolved frame contract alongside each JPEG. Validation rejects localized
-static template text and requires the dark Natal logo's topmost containing
-layer to be a light surface. Persisted v2 snapshots retain their original
-bindings and replay path. The final-gate error now directs the owner to an
-immutable retry from the approved Brief instead of unavailable task/asset
-controls. The in-place Linux/amd64 release
-`result-v3-20260827-1645-final-gates` preserved every table count across
-replacement and explicit restart, passed the five-template English/Ukrainian
-canary, live bridge/Pexels, schema/dependency/public-console/authenticated-image,
-restart, immediate 1 GB, replay, and OOM audits, and left all three services
-healthy with zero restart counts.
-
-Immutable child run `01a04385-395a-7897-a3e2-0852ed3e83ae` completed from the
-failed parent with seven candidates, three critic passes, and Result Creative
-`01a04395-6373-7ad7-b081-1f81d2656520`. Its selected `direct_offer@3` scored 90
-with no complexity penalty. Protected headline, primary text, offer, and CTA
-bindings match; deterministic replay reproduces the exact JPEG; and all five
-initial candidates have distinct structural signatures with minimum pairwise
-decoded-pixel RMS 91.86. The operation guard is clear, no new OOM evidence
-exists, and the locked follow-up audit is scheduled for 2026-08-28 13:58:26
-UTC.
-
-The agent-controlled Studio template v2 milestone is deployed in place. Five
-Git-owned
-`ptw.studio.template.v1` component trees now replace the shared hardcoded
-Instagram skeleton: photo tension, split contrast, structured mechanism proof,
-editorial human story, and typography-first direct offer. The five active
-strategy documents are version 2 and digest-lock their matching Studio
-definition at startup. The internal catalog exposes strict predefined media,
-logo, headline, body, offer, CTA, badge, and shape tools without restoring any
-Studio UI or public route.
-
-Every slider now resolves through declared deterministic component rules and a
-quantized ordered patch. Each new recipe embeds its immutable template snapshot,
-protected bindings, exact/normalized sliders, component UUID map,
-catalog/renderer identities, and parent recipe/base digest; child recipes add a
-direct `derived_from` edge. Render manifests include the complete resolved
-recipe and production digests. Historical v1 pixels remain byte-identical.
-
-The Linux/amd64 release `result-v2-20260827-1450-studio-templates`, built from
-application commit `ddd5b844082916df51c2c1a6a640bce4591d520d`, passes 32
-built-image Validation tests, seven Commander tests and demo, five
-Owner Gateway tests, 17 Owner web tests/build, the three-test disposable
-PostgreSQL lifecycle (including nine persisted Instagram recipes and four
-direct parent edges), the idempotent clean-schema journey, canonical skill
-verification, and diff hygiene. Its standalone non-persisting canary renders
-five English and five Ukrainian recipes, replays identical canonical recipes
-and decoded pixels, verifies complete manifests, and reports all ten pairwise
-visual differences above the materiality threshold.
-
-The preservation-gated production cutover completed without a reset. Exact
-all-table snapshots were identical across application replacement and explicit
-restart recovery; the retained core state is one Project, one Brief, four runs,
-nineteen candidates/recipes/renders, three critic passes, and one Result. The
-independent platform remains at
-`4f9225febfcb828faae459ef3c0a4cdf7a30a5dd` on its prior images. Pre- and
-post-cutover Studio, live four-mode bridge/critic, and Pexels canaries passed,
-as did schema, dependency, canonical-skill, Telegram direct, authenticated
-JPEG MIME/no-store/digest/ETag, public Auth/App Check/CORS/retired-route, and
-immediate 1 GB audits. Commander, Validation, and Owner Gateway are healthy on
-the matching v2 tag with zero restart counts after the recovery test;
-emergency stop is off, no deployment OOM evidence exists, 2 GiB swap remains
-available, and the locked 24-hour audit is scheduled for
-2026-08-28 12:35:40 UTC.
+Do not deploy or reset production without a separately authorized rollout. At
+that time, start with the disposable PostgreSQL/schema and built-image checks,
+then follow the clean-reset and live notification canary boundaries above.

@@ -52,17 +52,17 @@ commander_relationships
 commander_schema_migrations
 commander_sources
 commander_weight_updates
-content_candidate_elements
-content_candidate_previews
-content_candidates
-content_critic_passes
+content_creative_approvals
+content_creative_elements
+content_creative_previews
+content_creatives
 content_elements
 content_generation_checkpoints
 content_generation_outcomes
 content_generation_runs
-content_generation_skill_proposals
-content_improvement_actions
-content_results
+content_learning_rules
+content_learning_snapshots
+content_review_actions
 product_brief_approvals
 product_briefs
 project_assets
@@ -70,6 +70,7 @@ project_brand_kits
 studio_recipes
 studio_render_attempts
 studio_renders
+telegram_delivery_receipts
 validation_generation_attempts
 validation_projects
 validation_provider_invocations
@@ -104,6 +105,9 @@ BEGIN
       OR table_name LIKE '%batch%'
       OR table_name LIKE '%publication%'
       OR table_name LIKE '%campaign%'
+      OR table_name LIKE '%critic%'
+      OR table_name LIKE '%candidate%'
+      OR table_name='content_results'
     )
   ) THEN
     RAISE EXCEPTION 'a retired table exists';

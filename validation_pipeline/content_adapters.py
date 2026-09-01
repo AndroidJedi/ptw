@@ -133,7 +133,7 @@ class StaticSocialAdapter:
         }
         kind = request["kind"]
         if kind in {"pexels_real_photo", "non_human_graphic"}:
-            persisted = self.repository.get_candidate_media_asset(run["candidate_id"])
+            persisted = self.repository.get_creative_media_asset(run["creative_id"])
             if persisted is not None:
                 expected = hashlib.sha256(json.dumps(
                     request, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
@@ -162,7 +162,7 @@ class StaticSocialAdapter:
                 license_name=metadata["license"], attribution=metadata["attribution"],
                 metadata={
                     **metadata, "alt": photo.alt, "no_synthetic_people": True,
-                    "content_candidate_id": run["candidate_id"],
+                    "content_creative_id": run["creative_id"],
                     "media_request_sha256": request_digest,
                 },
                 requested_by=requested_by,
@@ -207,7 +207,7 @@ class StaticSocialAdapter:
                 metadata={
                     **image, "bridge_invocation": graphic["invocation"],
                     "no_synthetic_people": True, "alt_text": graphic["response"]["alt_text"],
-                    "content_candidate_id": run["candidate_id"],
+                    "content_creative_id": run["creative_id"],
                     "media_request_sha256": hashlib.sha256(json.dumps(
                         request, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
                     ).encode()).hexdigest(),
@@ -253,7 +253,7 @@ class StaticSocialAdapter:
         self, *, candidate: CandidateV2, run: Mapping[str, Any],
         element_ids: Mapping[str, str], requested_by: str,
     ) -> Mapping[str, Any]:
-        existing_recipe = self.repository.get_candidate_recipe(run["candidate_id"])
+        existing_recipe = self.repository.get_creative_recipe(run["creative_id"])
         if existing_recipe is not None:
             render = self.repository.get_recipe_render(existing_recipe["recipe_id"])
             if render is None:
@@ -305,7 +305,7 @@ class StaticSocialAdapter:
             brand_document=run["context_bundle"]["brand_kit"]["document"],
         )
         recipe = self.repository.create_recipe(
-            run["project_id"], candidate_id=run["candidate_id"], brief_id=run["brief_id"],
+            run["project_id"], creative_id=run["creative_id"], brief_id=run["brief_id"],
             brand_kit_id=run["brand_kit_id"],
             document=recipe_submission, requested_by=requested_by,
         )

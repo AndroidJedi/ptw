@@ -7,7 +7,7 @@ needed for the task.
 | --- | --- |
 | Current checkpoint | [`architecture/commander-current-state.md`](architecture/commander-current-state.md) |
 | Product Brief | [`architecture/simplified-validation-pipeline.md`](architecture/simplified-validation-pipeline.md) and `skills/product-brief-generator/SKILL.md` |
-| Result generation | [`architecture/content-result-agent.md`](architecture/content-result-agent.md), `skills/content-candidate-generator/SKILL.md`, and `skills/content-result-critic/SKILL.md` |
+| Result generation and owner review | [`architecture/content-result-agent.md`](architecture/content-result-agent.md) and `skills/content-candidate-generator/SKILL.md` |
 | Static social recipe/render adapters | [`architecture/ad-studio.md`](architecture/ad-studio.md) |
 | Universal Ad Studio | [`architecture/universal-ad-studio.md`](architecture/universal-ad-studio.md), [`architecture/ad-studio.md`](architecture/ad-studio.md), [`../skills/studio-tune-local/SKILL.md`](../skills/studio-tune-local/SKILL.md) for Tune changes, and [`../skills/studio-ui-visual-audit/SKILL.md`](../skills/studio-ui-visual-audit/SKILL.md) for visual QA |
 | Owner UI and authentication | [`operations/owner-gateway.md`](operations/owner-gateway.md) and [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
@@ -16,8 +16,9 @@ needed for the task.
 
 ## Authority
 
-- `ptw_commander.public` owns Product Brief and Result entities, edges, source
-  snapshots, recipes, renders, feedback, and provider provenance.
+- `ptw_commander.public` owns Product Brief, Creative review, learning,
+  notification, export, graph, source, recipe, render, feedback, and provider
+  provenance entities.
 - `/opt/ptw/platform` has unrelated Git and PostgreSQL histories. Its
   authenticated structured bridge is the only integration; its database is
   never reset by the application deployment.

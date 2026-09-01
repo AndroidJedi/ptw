@@ -49,7 +49,10 @@ ASSET_SLOTS: dict[str, dict[str, Any]] = {
     "sticker_object": {
         "role": "sticker",
         "allowed_mime_types": ("image/png", "image/webp"),
-        "description": "Optional isolated object rendered with a die-cut alpha contour.",
+        "description": (
+            "Optional Pexels photograph of a physical object, screened and isolated "
+            "before its die-cut alpha contour is rendered."
+        ),
     },
     "logo": {
         "role": "logo",
@@ -1100,8 +1103,8 @@ def isolate_object(data: bytes) -> bytes:
     """Create a deterministic soft-alpha cutout for simple Pexels object shots.
 
     The transform intentionally targets backgrounds close to the image-edge
-    color.  It is bounded and reproducible; complex scenes should use an owner-
-    supplied transparent PNG instead of pretending the cutout is reliable.
+    color. It is bounded and reproducible; complex scenes fail instead of being
+    accepted as a rectangular or non-photographic sticker.
     """
     from PIL import Image, ImageStat
 

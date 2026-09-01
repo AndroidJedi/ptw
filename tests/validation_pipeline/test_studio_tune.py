@@ -274,7 +274,11 @@ class StudioTuneServiceTests(unittest.TestCase):
             "X-Firebase-AppCheck": "e2e-app-check",
         }
         with tempfile.TemporaryDirectory() as workspace, patch.dict(
-            "os.environ", {"STUDIO_WORKSPACE_PATH": workspace, "STUDIO_TUNE_MODE": "0"},
+            "os.environ", {
+                "STUDIO_WORKSPACE_PATH": workspace,
+                "LOCAL_EXPERIMENT_PATH": str(Path(workspace) / "owner-experiments"),
+                "STUDIO_TUNE_MODE": "0",
+            },
             clear=False,
         ):
             with TestClient(create_app(tune_service=Service())) as client:

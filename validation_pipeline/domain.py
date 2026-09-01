@@ -78,6 +78,27 @@ def infer_language(raw_idea: str) -> str:
     return "uk" if cyrillic > latin else "en"
 
 
+def require_language(required_language: str, values: Sequence[Any], label: str) -> None:
+    """Require aggregate user-facing copy to use the owner-selected language."""
+    if required_language not in {"uk", "en"}:
+        raise ValueError(f"{label} required language must be uk or en")
+    combined = " ".join(str(value or "") for value in values)
+    if infer_language(combined) != required_language:
+        raise ValueError(f"{label} must use required language {required_language}")
+
+
+def _require_brief_field_language(required_language: str, value: str, label: str) -> None:
+    if infer_language(value) == required_language:
+        return
+    letters = re.findall(r"[A-Za-zА-Яа-яІіЇїЄєҐґ]+", value)
+    is_compact_brand_name = (
+        label == "product" and len(value) <= 60 and len(letters) <= 4
+        and not re.search(r"[.!?…]", value)
+    )
+    if not is_compact_brand_name:
+        raise ValueError(f"Product Brief {label} must use required language {required_language}")
+
+
 def _canonical(value: Mapping[str, Any]) -> tuple[str, str]:
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return raw, hashlib.sha256(raw.encode()).hexdigest()
@@ -90,12 +111,17 @@ class ProductBriefV1:
     quality_gates: Mapping[str, bool]
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any], *, raw_idea: str) -> "ProductBriefV1":
+    def from_dict(
+        cls, value: Mapping[str, Any], *, raw_idea: str,
+        required_language: str | None = None,
+    ) -> "ProductBriefV1":
         expected = {"schema_version", "language", *BRIEF_FIELDS}
         _exact(value, expected, "product_brief")
-        language = infer_language(raw_idea)
+        language = required_language or infer_language(raw_idea)
+        if language not in {"uk", "en"}:
+            raise ValueError("Product Brief required language must be uk or en")
         if value.get("schema_version") != 1 or value.get("language") != language:
-            raise ValueError("Product Brief version or inferred language does not match")
+            raise ValueError("Product Brief version or required language does not match")
         benefits = [
             _text(item, f"key_benefits[{index}]", 240)
             for index, item in enumerate(_items(value.get("key_benefits"), "key_benefits", 3, 5))
@@ -117,10 +143,24 @@ class ProductBriefV1:
             "trust_strategy": _text(value.get("trust_strategy"), "trust_strategy", 500),
             "offer": offer,
         }
+        require_language(
+            language,
+            [normalized[field] for field in BRIEF_FIELDS if field != "key_benefits"]
+            + list(normalized["key_benefits"]),
+            "Product Brief",
+        )
+        for field in BRIEF_FIELDS:
+            if field == "key_benefits":
+                for index, benefit in enumerate(normalized[field]):
+                    _require_brief_field_language(
+                        language, benefit, f"key_benefits[{index}]",
+                    )
+            else:
+                _require_brief_field_language(language, str(normalized[field]), field)
         _, digest = _canonical(normalized)
         quality = {
             "strict_shape": True,
-            "language_inferred": True,
+            "language_required": True,
             "one_hypothesis": True,
             "three_to_five_benefits": True,
             "strong_offer_present": True,

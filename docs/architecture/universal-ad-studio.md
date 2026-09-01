@@ -89,9 +89,13 @@ photographer, license, query, and transformation provenance. Pexels sticker
 objects must be ultra-realistic photographs of physical objects selected to
 match the assigned background's light direction and softness, color
 temperature, palette, material, surface texture, perspective, grain, and
-scale. Generated, illustrated, vector, procedural, screenshot, and bundled
-sticker fallbacks are forbidden. The selected photograph passes through one
-deterministic edge-color soft-alpha cutout. The
+scale. The provider record, search query, and downloaded source must pass a
+fail-closed photographic-object screen before isolation: explicit illustration,
+icon, vector, render, emoji, logo, symbol, cartoon, or digital-art language is
+rejected, and the source must decode as a full-size opaque JPEG photograph.
+Generated, illustrated, vector, procedural, screenshot, owner-uploaded, and
+bundled sticker fallbacks are forbidden. The selected photograph passes through
+one deterministic edge-color soft-alpha cutout. The
 renderer gives the isolated alpha silhouette a smooth white die-cut contour
 approximately 5–8% of the actual fitted visible subject width, followed by a
 subtle soft shadow immediately outside that contour. The renderer reserves
@@ -99,9 +103,9 @@ transparent room around the subject before expanding its alpha silhouette, so
 edge-touching cutouts retain a continuous rounded contour instead of clipping
 into a rectangular patch. Only the final edge is narrowly antialiased; neither
 the silhouette nor the object is pre-blurred into a glow. There is no
-rectangular paper backing. That
-transform is suitable for simple object shots; complex scenes must use an
-owner-supplied transparent PNG/WebP. There is no second sticker system.
+rectangular paper backing. If a compatible photographed object cannot be
+isolated cleanly, the sticker fails unavailable; there is no direct sticker
+upload or second sticker system.
 
 The logo slot resolves to the digest-verified canonical Natal transparent PNG
 when the owner has not supplied another asset. New workspaces enable it without
@@ -292,14 +296,14 @@ observable ones with focused regression coverage. The agent itself still cannot
 write the skill tree; only the authenticated loopback host action can perform
 this bounded local mutation, and production does not mount the route.
 
-## Local evaluation and learning authority
+## Local owner review and learning authority
 
 The loopback app replaces the former hard-coded Brief/Result demo with the
 file-backed `LocalExperimentStore` below `.local/owner-experiments`. Digest-
 chained append-only revisions and immutable artifacts persist Projects, Briefs,
-approved asset pools, runs, candidates, elements, exact PNG/JPEG renders,
-provider invocations, three critic passes, typed actions, Results, feedback,
-outcomes, releases, checkpoints, lesson proposals, decisions, and snapshots.
+approved asset pools, runs, Creatives, elements, exact PNG/JPEG renders,
+provider invocations, owner review actions, feedback, WeightUpdates, outcomes,
+exports, checkpoints, Project rules, notification receipts, and snapshots.
 Writes use temporary files, `fsync`, and atomic replacement; request IDs are
 idempotent, UUIDv7 is authoritative, and interrupted queued/generating runs
 return to their latest persisted checkpoint on restart.
@@ -308,7 +312,7 @@ An approved Product Brief and the digest of the current saved Studio state are
 mandatory. Unsaved drafts cannot start a run. The local-only
 `universal_ad_experiment_v1` adapter materializes the five canonical strategies
 as declared bounded setting patches while preserving component IDs, logo
-identity, protected offer/CTA, and safe bounds. Adapter v8 gives every strategy
+identity, protected offer/CTA, and safe bounds. Adapter v9 gives every strategy
 an intentionally different visible palette, hierarchy, CTA treatment,
 composition, and optional-role state. Each run sources exactly three fresh,
 distinct Pexels real photographs for `moment_tension`, `contrast_reframe`, and
@@ -322,7 +326,7 @@ provider ID and digest. Missing provider configuration, repeated photos, failed
 isolation, or incomplete provenance fail closed. Generated, procedural,
 repository-bundled, or synthetic image substitutes are never authorized.
 
-The initial set fails before critic transport unless all five setting
+The initial set fails before owner notification unless all five setting
 signatures and background colors are distinct, exactly three image-backed
 directions use three different Pexels IDs, image digests, and treatments, the
 one sticker has Pexels/isolation/texture-alignment provenance, no logo backing
@@ -334,51 +338,43 @@ legacy unscoped patches remain textual evidence and cannot overwrite every
 direction with one selected recipe.
 
 Each run invokes an authenticated Codex CLI in a new empty directory with an
-ephemeral session, read-only sandbox, strict JSON output schema, exact persisted
-480×480 analysis JPEG critic attachments derived at 4/9 scale from each
-authoritative 1080×1080 render, and one fresh bounded retry. Persisted provenance contains
-sanitized inputs/outputs, versions, IDs, and digests, never authentication,
-image base64, or hidden reasoning. Candidate generation uses
-`content-candidate-generator`; the existing three-pass
-`content-result-critic` contract uses three `xhigh` calls with attachment counts
-`[3, 2, 2]`: it independently screens the first three and remaining two initial
-candidates, then compares only both group winners using their exact analysis
-JPEGs and both structured summaries. The local screens emit no actions or
-improvement generations, and the final comparison either selects one eligible
-Result or fails closed.
+ephemeral session, read-only sandbox, strict JSON output schema, and one fresh
+bounded retry. Persisted provenance contains sanitized inputs/outputs, versions,
+IDs, and digests, never authentication, image base64, or hidden reasoning.
+CandidateV2 generation uses `content-candidate-generator` exactly five times for
+Initial/Regenerate-all and once for Tune. The server performs deterministic
+validation and rendering; no render is attached to a subsequent model call.
 
-Every candidate first renders an authoritative 1080×1080 PNG for geometry
-inspection, then one deterministic full-size JPEG for owner preview and the
-release package, plus the persisted 480×480 critic analysis derivative. Server
+Every transient CandidateV2 first renders an authoritative 1080×1080 PNG for
+geometry inspection, then one deterministic full-size JPEG for owner review and
+the export package. Server
 gates cover role coverage, overflow, truncation,
-collision, safe area, contrast, semantic flow, and exact offer/CTA. Ready
-appends accepted feedback/outcome/weight entities and creates one immutable ZIP
-containing the JPEG, source PNG, caption, alt text, approved Brief, Universal
-manifest, asset provenance, bounded decision trace, and file-digest manifest.
-It records downloads and never calls Instagram. Improve appends rejected
-feedback and creates a child from the selected candidate's immutable
-configuration and assets plus only the owner's revision instruction; it does
-not overwrite the editable Studio workspace.
+collision, safe area, contrast, semantic flow, and exact offer/CTA. Awaiting
+review displays exactly five Creative UUIDs. Approve creates accepted feedback,
+WeightUpdate, outcome, rules, graph lineage, and one immutable ZIP containing
+the JPEG, source PNG, caption, alt text, approved Brief, Universal manifest,
+asset provenance, owner-review manifest, and file digests. Regenerate all
+records five rejections and generates five fresh directions. Tune records the
+exact owner instruction and replaces one slot without overwriting Studio.
 
-Feedback produces pending proposals for the Brief generator, candidate
-generator, critic, and declared Universal layout policy. Only an explicit owner
-decision may activate a versioned lesson. Pending and rejected proposals never
-enter a run; every later run stores the exact active lesson snapshot and digest.
-The reserved `agent` authority is rejected while owner-only mode is active.
-The Social Posts `Learning & evidence` panel reports internal gate rates,
-initial-to-final deltas, setting changes, owner outcomes, releases, and the
-review queue without claiming market performance.
+Owner actions append Project-scoped learning rules immediately. Tune/copy
+guidance is strategy scoped and layout rules are additionally output-profile
+scoped. New rules supersede through graph lineage, never row mutation; each
+later run stores the exact active snapshot and digest. Product Brief generation
+does not consume these rules. The Social Posts learning panel reports only
+owner actions, rules, snapshots, and outcomes, without market-performance claims.
 
 The irreversible local reset is deliberately narrower than `.local`:
 
 ```sh
-scripts/reset_ptw_local.sh --confirm='RESET PTW LOCAL OWNER DATA'
+scripts/reset_ptw_local.sh --scope owner-experiments \
+  --confirm='RESET PTW LOCAL RESULT DATA'
 ```
 
-It refuses active local Result/Tune runs and a running local service from this
-checkout, validates the exact target paths, clears only `.local/studio-workspace`,
-`.local/studio-tune`, and `.local/owner-experiments`, and proves all three are
-empty. Unrelated diagnostics and archives are preserved.
+It refuses active local Result runs and a running local service from this
+checkout, validates the exact target, clears only `.local/owner-experiments`,
+and proves it is empty. Studio state, Tune work, diagnostics, and archives are
+preserved.
 
 ## Local use
 
@@ -393,8 +389,8 @@ scripts/run_local_studio.sh
 Open `http://127.0.0.1:5173/?e2e=1`. The complete visible Owner app runs
 locally with mutable, restart-safe Product Brief, Social Posts, Project asset,
 release, and owner-reviewed learning workflows beside Universal Studio and its
-Tune wizard. An authenticated Codex CLI is required for Brief, candidate, and
-critic generation. Firebase, PostgreSQL, and production credentials are not
+Tune wizard. An authenticated Codex CLI is required for Brief and transient
+CandidateV2 generation. Firebase, PostgreSQL, and production credentials are not
 required. A local `PEXELS_API_KEY` is required before Result creation so the
 three photo backgrounds and photographed sticker can be sourced. The loopback
 API binds only to `127.0.0.1`; no deployment, production

@@ -52,7 +52,7 @@ class FakePexels:
             image_url=f"https://images.pexels.com/photos/{photo_id}/image.jpeg",
             page_url=f"https://www.pexels.com/photo/{photo_id}/",
             photographer="Studio Test", photographer_url="https://www.pexels.com/@studio-test/",
-            alt="Test object",
+            alt="Photograph of a real red ceramic object",
         ), _image_bytes(mime_type="image/jpeg", object_on_white=query == "red object")
 
 
@@ -358,11 +358,14 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
 
     def test_image_mix_bullet_cta_and_sticker_variants_are_bounded(self) -> None:
         detail = self.workspace.detail()
-        for slot in ("background_image", "sticker_object"):
-            detail = self.workspace.upload_asset(
-                slot, base_sha256=detail["state_sha256"], mime_type="image/png",
-                bytes_base64=base64.b64encode(_image_bytes()).decode(),
-            )
+        detail = self.workspace.upload_asset(
+            "background_image", base_sha256=detail["state_sha256"], mime_type="image/png",
+            bytes_base64=base64.b64encode(_image_bytes()).decode(),
+        )
+        detail = self.workspace.source_pexels(
+            "sticker_object", base_sha256=detail["state_sha256"],
+            query="red object", isolate=True,
+        )
         for image_percent, expected_x, expected_width in ((75, 0.25, 0.75), (25, 0.75, 0.25)):
             config = copy.deepcopy(detail["configuration"])
             config["background"].update({
@@ -468,9 +471,9 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
 
     def test_each_sticker_control_changes_the_draft_render(self) -> None:
         detail = self.workspace.detail()
-        detail = self.workspace.upload_asset(
-            "sticker_object", base_sha256=detail["state_sha256"], mime_type="image/png",
-            bytes_base64=base64.b64encode(_image_bytes()).decode(),
+        detail = self.workspace.source_pexels(
+            "sticker_object", base_sha256=detail["state_sha256"],
+            query="red object", isolate=True,
         )
         base_configuration = copy.deepcopy(detail["configuration"])
         base_configuration["sticker"]["enabled"] = True
@@ -687,12 +690,16 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
 
     def test_image_sticker_logo_and_immutable_version(self) -> None:
         detail = self.workspace.detail()
-        for slot in ("background_image", "sticker_object", "logo"):
+        for slot in ("background_image", "logo"):
             data = _image_bytes()
             detail = self.workspace.upload_asset(
                 slot, base_sha256=detail["state_sha256"], mime_type="image/png",
                 bytes_base64=base64.b64encode(data).decode(),
             )
+        detail = self.workspace.source_pexels(
+            "sticker_object", base_sha256=detail["state_sha256"],
+            query="red object", isolate=True,
+        )
         config = detail["configuration"]
         config["background"]["mode"] = "image"
         config["background"]["image_layout"] = "right"
@@ -739,8 +746,45 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         sticker = next(item for item in detail["assets"] if item["slot"] == "sticker_object")
         self.assertEqual("image/png", sticker["mime_type"])
         self.assertEqual("edge_color_soft_alpha_v1", sticker["source"]["transformation"])
+        self.assertEqual("photograph", sticker["source"]["media_type"])
+        self.assertEqual(
+            "ptw.pexels-photographic-object-evidence.v1",
+            sticker["source"]["photographic_object_evidence"]["schema"],
+        )
         self.assertTrue(detail["configuration"]["sticker"]["enabled"])
         self.workspace.render_preview(state_sha256=detail["state_sha256"])
+
+    def test_direct_sticker_upload_is_rejected(self) -> None:
+        detail = self.workspace.detail()
+        pexels_call_count = len(self.workspace.pexels.calls)
+        with self.assertRaisesRegex(ValueError, "non-photographic"):
+            self.workspace.source_pexels(
+                "sticker_object", base_sha256=detail["state_sha256"],
+                query="3D compass icon", isolate=True,
+            )
+        self.assertEqual(pexels_call_count, len(self.workspace.pexels.calls))
+        with self.assertRaisesRegex(ValueError, "Pexels photograph"):
+            self.workspace.upload_asset(
+                "sticker_object", base_sha256=detail["state_sha256"],
+                mime_type="image/png",
+                bytes_base64=base64.b64encode(_image_bytes()).decode(),
+            )
+        self.workspace._store_asset(
+            "sticker_object", mime_type="image/png", data=_image_bytes(),
+            source={"origin": "owner_upload"},
+        )
+        current = self.workspace.detail()
+        sticker = next(
+            item for item in current["assets"] if item["slot"] == "sticker_object"
+        )
+        self.assertFalse(sticker["available"])
+        configuration = copy.deepcopy(current["configuration"])
+        configuration["sticker"]["enabled"] = True
+        with self.assertRaisesRegex(ValueError, "screened Pexels photograph"):
+            self.workspace.render_preview(
+                state_sha256=current["state_sha256"], configuration=configuration,
+                content=current["content"],
+            )
 
     def test_template_builder_keeps_optional_roles_mapped_when_omitted(self) -> None:
         template = build_universal_template(DEFAULT_CONFIG, DEFAULT_CONTENT)
@@ -819,6 +863,16 @@ class UniversalStudioApiTests(unittest.TestCase):
             with TestClient(app) as client:
                 detail = client.get("/api/v1/studio")
                 self.assertEqual(200, detail.status_code, detail.text)
+                rejected_sticker_upload = client.post(
+                    "/api/v1/studio/assets/sticker_object",
+                    json={
+                        "base_sha256": detail.json()["state_sha256"],
+                        "mime_type": "image/png",
+                        "bytes_base64": base64.b64encode(_image_bytes()).decode(),
+                    },
+                )
+                self.assertEqual(400, rejected_sticker_upload.status_code)
+                self.assertIn("Pexels photograph", rejected_sticker_upload.text)
                 preview = client.post("/api/v1/studio/preview", json={
                     "state_sha256": detail.json()["state_sha256"],
                 })

@@ -18,8 +18,9 @@ offer: string
 Every string must be concise, concrete, non-empty, and written in `language`.
 The output is one testable marketing hypothesis. The offer must reduce friction
 and be practically honor-able; it does not redefine the proposed product.
-The server derives `required_language` from the raw idea and binds `language`
-to that exact value in the structured-output schema.
+The owner-selected Project language is persisted as `required_language`. The
+server binds `language` to that exact value in the structured-output schema,
+even when the raw idea is written in another language.
 
 Do not include IDs, sources, assumptions, alternatives, market analysis,
 confidence, performance projections, hooks, image ideas, landing copy, or

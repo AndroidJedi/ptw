@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import threading
@@ -11,19 +10,15 @@ from typing import Any, Callable, Mapping
 import urllib.error
 import urllib.parse
 import urllib.request
-from uuid import UUID
 
 
 JSON_MODES = (
     "product_brief",
     "product_brief_revision",
     "content_candidate_generation",
-    "content_result_critic",
 )
 MEDIA_MODES = ("content_non_human_graphic_generation",)
 MAX_GRAPHIC_BYTES = 10 * 1024 * 1024
-MAX_CRITIC_IMAGE_BYTES = 1_500_000
-MAX_CRITIC_TOTAL_IMAGE_BYTES = 8 * 1024 * 1024
 
 
 class StructuredCallError(RuntimeError):
@@ -42,7 +37,6 @@ class StructuredBridge:
         self.timeout_seconds = timeout_seconds
         self.last_invocation: dict[str, Any] = {}
         self._json_slots = threading.BoundedSemaphore(2)
-        self._critic_slots = threading.BoundedSemaphore(1)
         self._media_slots = threading.BoundedSemaphore(1)
 
     def capabilities(self) -> dict[str, Any]:
@@ -86,7 +80,6 @@ class StructuredBridge:
             input_payload=input_payload,
             output_schema=output_schema,
             prompt_version=prompt_version,
-            input_images=None,
             maximum_attempts=1,
             idempotency_key=idempotency_key,
         )
@@ -112,72 +105,6 @@ class StructuredBridge:
             input_payload=input_payload,
             output_schema=output_schema,
             prompt_version=prompt_version,
-            input_images=None,
-            maximum_attempts=2,
-            idempotency_key=idempotency_key,
-            response_validator=response_validator,
-        )
-
-    def generate_content_critic(
-        self,
-        *,
-        system_prompt: str,
-        input_payload: Mapping[str, Any],
-        images: list[Mapping[str, Any]],
-        output_schema: Mapping[str, Any],
-        idempotency_key: str,
-        prompt_version: str = "ptw-content-result-critic-v1",
-        response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
-    ) -> dict[str, Any]:
-        if not 1 <= len(images) <= 5:
-            raise ValueError("Result critic requires one to five mapped JPEG attachments")
-        encoded: list[dict[str, Any]] = []
-        total = 0
-        seen: set[str] = set()
-        profile = str(input_payload.get("output_profile") or "instagram_static_ad_v1")
-        expected_size = (1080, 1920) if profile == "tiktok_photo_post_v1" else (1080, 1080)
-        for item in images:
-            if set(item) != {
-                "candidate_id", "bytes", "sha256", "mime_type", "width", "height",
-            }:
-                raise ValueError("Result critic image mapping fields do not match v1")
-            candidate_id = str(UUID(str(item["candidate_id"])))
-            if candidate_id in seen:
-                raise ValueError("Result critic candidate mappings must be unique")
-            seen.add(candidate_id)
-            data = bytes(item["bytes"])
-            digest = hashlib.sha256(data).hexdigest()
-            if (
-                not data.startswith(b"\xff\xd8")
-                or not data.endswith(b"\xff\xd9")
-                or not 1 <= len(data) <= MAX_CRITIC_IMAGE_BYTES
-                or digest != str(item["sha256"])
-                or str(item["mime_type"]) != "image/jpeg"
-                or int(item["width"]) != expected_size[0]
-                or int(item["height"]) != expected_size[1]
-            ):
-                raise ValueError(
-                    "Result critic attachment is not an exact bounded "
-                    f"{expected_size[0]}x{expected_size[1]} JPEG"
-                )
-            total += len(data)
-            encoded.append({
-                "candidate_id": candidate_id,
-                "mime_type": "image/jpeg",
-                "digest": digest,
-                "width": expected_size[0],
-                "height": expected_size[1],
-                "bytes_base64": base64.b64encode(data).decode("ascii"),
-            })
-        if total > MAX_CRITIC_TOTAL_IMAGE_BYTES:
-            raise ValueError("Result critic attachments exceed the eight MB aggregate limit")
-        return self._json_call(
-            mode="content_result_critic",
-            system_prompt=system_prompt,
-            input_payload=input_payload,
-            output_schema=output_schema,
-            prompt_version=prompt_version,
-            input_images=encoded,
             maximum_attempts=2,
             idempotency_key=idempotency_key,
             response_validator=response_validator,
@@ -239,12 +166,11 @@ class StructuredBridge:
         input_payload: Mapping[str, Any],
         output_schema: Mapping[str, Any],
         prompt_version: str,
-        input_images: list[Mapping[str, Any]] | None,
         maximum_attempts: int,
         idempotency_key: str,
         response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        slot = self._critic_slots if mode == "content_result_critic" else self._json_slots
+        slot = self._json_slots
         if not slot.acquire(timeout=max(0, self.timeout_seconds)):
             raise TimeoutError(f"{mode} could not enter its bounded execution slot")
         try:
@@ -254,7 +180,6 @@ class StructuredBridge:
                 input_payload=input_payload,
                 output_schema=output_schema,
                 prompt_version=prompt_version,
-                input_images=input_images,
                 maximum_attempts=maximum_attempts,
                 idempotency_key=idempotency_key,
                 response_validator=response_validator,
@@ -270,17 +195,12 @@ class StructuredBridge:
         input_payload: Mapping[str, Any],
         output_schema: Mapping[str, Any],
         prompt_version: str,
-        input_images: list[Mapping[str, Any]] | None,
         maximum_attempts: int,
         idempotency_key: str,
         response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
         if mode not in JSON_MODES:
             raise ValueError("unsupported Result-only JSON bridge mode")
-        if mode == "content_candidate_generation" and input_images:
-            raise ValueError("Result candidate generation is JSON-only")
-        if mode == "content_result_critic" and not input_images:
-            raise ValueError("Result critic requires mapped render attachments")
         context_hash = self._digest(input_payload)
         deadline = time.monotonic() + self.timeout_seconds
         failed_request_ids: list[int] = []
@@ -296,8 +216,6 @@ class StructuredBridge:
                 context_hash=context_hash,
                 idempotency_key=f"{idempotency_key}:attempt:{attempt}",
             )
-            if input_images is not None:
-                request["input_images"] = [dict(item) for item in input_images]
             queued = self._request(self.url, request)
             request_id = int(queued["request_id"])
             result: Mapping[str, Any] | None = None

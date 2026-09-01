@@ -1,4 +1,4 @@
-"""Loopback-only API routes for the durable local evaluation authority."""
+"""Loopback-only API routes for durable owner Creative review."""
 
 from __future__ import annotations
 
@@ -40,11 +40,12 @@ def local_experiment_router(
 
     @router.post("/briefs", status_code=202)
     def create_brief(request: Mapping[str, Any], background: BackgroundTasks) -> dict[str, Any]:
-        if set(request) != {"request_id", "raw_idea"}:
+        if set(request) != {"request_id", "raw_idea", "language"}:
             raise HTTPException(status_code=400, detail="Product Brief request fields do not match v1")
         try:
             project, brief, created = service.create_brief(
                 request_id=str(request["request_id"]), raw_idea=str(request["raw_idea"]),
+                required_language=str(request["language"]),
                 requested_by="loopback:owner",
             )
             if created:
@@ -205,10 +206,10 @@ def local_experiment_router(
         except (KeyError, ValueError) as error:
             raise fail(error) from error
 
-    @router.get("/content-runs/{run_id}/result")
-    def result(run_id: str) -> dict[str, Any]:
+    @router.get("/content-runs/{run_id}/review")
+    def review(run_id: str) -> dict[str, Any]:
         try:
-            return service.get_result(run_id)
+            return service.get_review(run_id)
         except (KeyError, ValueError) as error:
             raise fail(error) from error
 
@@ -222,55 +223,69 @@ def local_experiment_router(
             },
         )
 
-    @router.get("/content-runs/{run_id}/result/asset")
-    def result_asset(run_id: str) -> Response:
+    @router.get("/content-runs/{run_id}/creatives/{creative_id}/asset")
+    def creative_asset(run_id: str, creative_id: str) -> Response:
         try:
-            return image_response(service.result_asset(run_id))
+            return image_response(service.creative_asset(run_id, creative_id))
         except (KeyError, ValueError) as error:
             raise fail(error) from error
 
-    @router.get("/content-runs/{run_id}/result/source.png")
-    def result_source(run_id: str) -> Response:
+    @router.get("/content-runs/{run_id}/creatives/{creative_id}/source.png")
+    def creative_source(run_id: str, creative_id: str) -> Response:
         try:
-            return image_response(service.result_asset(run_id, source_png=True))
+            return image_response(service.creative_asset(run_id, creative_id, source_png=True))
         except (KeyError, ValueError) as error:
             raise fail(error) from error
 
-    @router.get("/content-runs/{run_id}/candidates/{candidate_id}/asset")
-    def candidate_asset(run_id: str, candidate_id: str) -> Response:
+    @router.post("/content-runs/{run_id}/review/approve")
+    def approve(run_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        if set(request) != {"request_id", "creative_id"}:
+            raise HTTPException(status_code=400, detail="Approve requires request_id and creative_id")
         try:
-            return image_response(service.candidate_asset(run_id, candidate_id))
-        except (KeyError, ValueError) as error:
-            raise fail(error) from error
-
-    @router.get("/content-runs/{run_id}/debug")
-    def debug(run_id: str) -> dict[str, Any]:
-        try:
-            return service.debug(run_id)
-        except (KeyError, ValueError) as error:
-            raise fail(error) from error
-
-    @router.post("/content-runs/{run_id}/feedback")
-    def ready(run_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
-        if set(request) != {"decision"} or request.get("decision") != "accepted":
-            raise HTTPException(status_code=400, detail="local Ready feedback accepts one completed Result")
-        try:
-            return service.ready(run_id, "loopback:owner")
+            return service.approve(
+                run_id, request_id=str(request["request_id"]),
+                creative_id=str(request["creative_id"]), requested_by="loopback:owner",
+            )
         except (KeyError, RuntimeError, ValueError) as error:
             raise fail(error) from error
 
-    @router.post("/content-runs/{run_id}/revisions", status_code=202)
-    def improve(run_id: str, request: Mapping[str, Any], background: BackgroundTasks) -> dict[str, Any]:
-        if set(request) != {"request_id", "comment"}:
-            raise HTTPException(status_code=400, detail="local Improve fields do not match v1")
+    @router.post("/content-runs/{run_id}/review/regenerate-all", status_code=202)
+    def regenerate_all(run_id: str, request: Mapping[str, Any], background: BackgroundTasks) -> dict[str, Any]:
+        if set(request) != {"request_id"}:
+            raise HTTPException(status_code=400, detail="Regenerate all requires one request_id")
         try:
-            child, created = service.improve(
+            child, created = service.regenerate_all(
                 run_id, request_id=str(request["request_id"]),
-                comment=str(request["comment"]), requested_by="loopback:owner",
+                requested_by="loopback:owner",
             )
             if created:
                 background.add_task(service.execute_run, child["run_id"])
             return {**child, "created": created}
+        except (KeyError, RuntimeError, ValueError) as error:
+            raise fail(error) from error
+
+    @router.post("/content-runs/{run_id}/review/tune", status_code=202)
+    def tune(run_id: str, request: Mapping[str, Any], background: BackgroundTasks) -> dict[str, Any]:
+        if set(request) != {"request_id", "creative_id", "comment"}:
+            raise HTTPException(status_code=400, detail="Tune requires request_id, creative_id, and comment")
+        try:
+            child, created = service.tune(
+                run_id, request_id=str(request["request_id"]),
+                creative_id=str(request["creative_id"]), comment=str(request["comment"]),
+                requested_by="loopback:owner",
+            )
+            if created:
+                background.add_task(service.execute_run, child["run_id"])
+            return {**child, "created": created}
+        except (KeyError, RuntimeError, ValueError) as error:
+            raise fail(error) from error
+
+    @router.post("/content-runs/{run_id}/review-notification/retry")
+    def retry_notification(run_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        if request:
+            raise HTTPException(status_code=400, detail="notification retry has no input fields")
+        try:
+            return service.retry_review_notification(run_id)
         except (KeyError, RuntimeError, ValueError) as error:
             raise fail(error) from error
 
@@ -288,9 +303,12 @@ def local_experiment_router(
         except (KeyError, RuntimeError, ValueError) as error:
             raise fail(error) from error
 
-    @router.get("/content-runs/{run_id}/release")
-    def release(run_id: str) -> Response:
+    @router.get("/content-runs/{run_id}/creatives/{creative_id}/export")
+    def export(run_id: str, creative_id: str) -> Response:
         try:
+            run = service.get_run(run_id)
+            if run.get("approved_creative_id") != creative_id:
+                raise ValueError("only the approved Creative can be exported")
             value = service.release_download(run_id)
             return Response(
                 content=value["bytes"], media_type="application/zip",
@@ -303,41 +321,11 @@ def local_experiment_router(
         except (KeyError, ValueError) as error:
             raise fail(error) from error
 
-    @router.post("/content-runs/{run_id}/outcomes")
-    def outcomes(run_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
-        if set(request) != {"event_type"} or request.get("event_type") != "downloaded":
-            raise HTTPException(status_code=400, detail="only bounded local download outcomes are accepted")
-        try:
-            # Package download is the authoritative local download event.
-            value = service.release_download(run_id)
-            return {"recorded": True, "release_id": value["release_id"]}
-        except (KeyError, ValueError) as error:
-            raise fail(error) from error
-
     @router.get("/learning-summary")
     def learning_summary(project_id: str | None = None) -> dict[str, Any]:
         try:
             return service.learning_summary(project_id)
         except ValueError as error:
-            raise fail(error) from error
-
-    @router.get("/lessons/pending")
-    def pending_lessons() -> dict[str, Any]:
-        return {"items": service.list_lesson_proposals("pending")}
-
-    @router.post("/lessons/{proposal_id}/decision")
-    def lesson_decision(proposal_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
-        allowed = {"decision", "approval_authority", "edited_text"}
-        if set(request) - allowed or not {"decision", "approval_authority"} <= set(request):
-            raise HTTPException(status_code=400, detail="lesson decision fields do not match v1")
-        try:
-            return service.decide_lesson(
-                proposal_id, decision=str(request["decision"]),
-                edited_text=None if request.get("edited_text") is None else str(request["edited_text"]),
-                approval_authority=str(request["approval_authority"]),
-                requested_by="loopback:owner",
-            )
-        except (KeyError, ValueError) as error:
             raise fail(error) from error
 
     return router

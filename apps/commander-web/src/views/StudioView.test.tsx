@@ -223,6 +223,8 @@ describe('Universal Ad Studio', () => {
     expect(screen.getByRole('heading', { name: 'Build the composition at a glance' })).toBeInTheDocument()
     expect(screen.getAllByText('ALWAYS ON')).toHaveLength(5)
     expect(screen.getByLabelText('Enable sticker')).toBeChecked()
+    expect(screen.queryByLabelText('Upload sticker_object asset')).not.toBeInTheDocument()
+    expect(screen.getByText('Pexels photograph only')).toBeInTheDocument()
     expect(screen.getByLabelText('Enable logo')).toBeChecked()
     expect(screen.getByLabelText('Enable logo')).toBeEnabled()
     expect(screen.getByLabelText('Bullet 3')).toHaveValue('Наступний крок без зайвого шуму')

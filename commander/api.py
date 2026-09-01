@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hmac
+import json
 from typing import Any, Mapping
+from urllib import error, parse, request
 
 from fastapi import FastAPI, Header, HTTPException
 
@@ -26,6 +28,11 @@ def create_app(settings: Settings) -> FastAPI:
         if not hmac.compare_digest(token, settings.telegram_bot_token):
             raise HTTPException(status_code=403, detail="invalid bridge token")
 
+    def authorize_internal(authorization: str) -> None:
+        expected = f"Bearer {settings.internal_bridge_token}"
+        if not settings.internal_bridge_token or not hmac.compare_digest(authorization, expected):
+            raise HTTPException(status_code=403, detail="invalid internal notification token")
+
     def status() -> dict[str, Any]:
         import psycopg
         with connection() as database:
@@ -40,7 +47,7 @@ def create_app(settings: Settings) -> FastAPI:
                      (SELECT count(*) FROM validation_projects),
                      (SELECT count(*) FROM product_briefs),
                      (SELECT count(*) FROM content_generation_runs),
-                     (SELECT count(*) FROM content_results)"""
+                     (SELECT count(*) FROM content_generation_runs WHERE status='approved')"""
             ).fetchone()
         with psycopg.connect(settings.platform_database_url, connect_timeout=5) as platform:
             platform_control = platform.execute(
@@ -140,6 +147,63 @@ def create_app(settings: Settings) -> FastAPI:
         else:
             reply = f"This command is available only in the web console: {settings.owner_web_url}"
         return {"ok": True, "duplicate": False, "result": {"response": reply}}
+
+    @app.post("/internal/review-notifications")
+    def internal_review_notification(
+        event: Mapping[str, Any], authorization: str = Header(default=""),
+    ) -> dict[str, Any]:
+        authorize_internal(authorization)
+        expected = {
+            "schema", "notification_id", "run_id", "project_id", "project_name",
+            "platform", "creative_count",
+        }
+        if set(event) != expected or event.get("schema") != "ptw.owner-review-notification.v1":
+            raise HTTPException(status_code=400, detail="review notification fields do not match v1")
+        if int(event.get("creative_count") or 0) != 5:
+            raise HTTPException(status_code=400, detail="owner review notification requires five posts")
+        project_name = " ".join(str(event["project_name"] or "").split())[:160]
+        platform = " ".join(str(event["platform"] or "").split())[:40]
+        deep_link = (
+            f"{settings.owner_web_url}/?"
+            + parse.urlencode({
+                "project": str(event["project_id"]), "run": str(event["run_id"]),
+                "view": "result-review",
+            })
+        )
+        message = f"{project_name} · {platform}\nfive posts ready\n{deep_link}"
+        body = json.dumps({
+            "chat_id": settings.owner_chat_id, "text": message,
+            "disable_web_page_preview": True,
+        }, separators=(",", ":")).encode()
+        outgoing = request.Request(
+            f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage",
+            data=body, method="POST", headers={"Content-Type": "application/json"},
+        )
+        try:
+            with request.urlopen(outgoing, timeout=10) as response:
+                value = json.loads(response.read().decode())
+        except error.HTTPError as failure:
+            return {
+                "status": "definite_failure", "provider_message_id": None,
+                "error_code": f"telegram_http_{failure.code}",
+                "error_message": "Telegram rejected the notification request",
+            }
+        except (TimeoutError, error.URLError, OSError, json.JSONDecodeError) as failure:
+            return {
+                "status": "ambiguous", "provider_message_id": None,
+                "error_code": type(failure).__name__,
+                "error_message": "Telegram delivery outcome is unknown",
+            }
+        result = value.get("result") if isinstance(value, Mapping) else None
+        if value.get("ok") is not True or not isinstance(result, Mapping):
+            return {
+                "status": "definite_failure", "provider_message_id": None,
+                "error_code": "telegram_not_ok", "error_message": "Telegram did not accept the message",
+            }
+        return {
+            "status": "delivered", "provider_message_id": str(result.get("message_id")),
+            "error_code": None, "error_message": None,
+        }
 
     return app
 

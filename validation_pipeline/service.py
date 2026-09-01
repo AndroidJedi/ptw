@@ -27,10 +27,11 @@ def load_product_brief_skill(path: Path) -> str:
 def product_brief_system_prompt(skill_snapshot: str, required_language: str) -> str:
     return (
         "Use the canonical Product Brief Generator skill below. Return one strict "
-        "ProductBriefV1 object. The raw idea is the only business input. Infer Ukrainian "
-        "or English, choose one hypothesis, include one honest low-friction offer, and "
-        "never invent research, testimonials, ratings, results, or proof. The server "
-        f"inferred required_language={required_language}; the language field and every "
+        "ProductBriefV1 object. The raw idea is the only business input. Choose one "
+        "hypothesis, include one honest low-friction offer, and never invent research, "
+        "testimonials, ratings, results, or proof. The owner selected "
+        f"required_language={required_language} when creating the Project; the language "
+        "field and every "
         "output string must use exactly that language. A correction returns a complete "
         "immutable replacement.\n\nCANONICAL_SKILL:\n" + skill_snapshot
     )
@@ -65,7 +66,6 @@ class ValidationRunner:
         try:
             attempt_id, attempt_number = self.repository.start_attempt(brief_id, stage="product_brief")
             source = self.repository.source(brief_id)
-            required_language = infer_language(source["content"])
             base = None
             correction = None
             mode = "product_brief"
@@ -75,6 +75,12 @@ class ValidationRunner:
                     raise RuntimeError("base Product Brief is unavailable")
                 correction = self.repository.feedback(brief["feedback_id"])
                 mode = "product_brief_revision"
+            required_language = str(
+                source.get("required_language")
+                or (base or {}).get("document", {}).get("language")
+                or (brief.get("document") or {}).get("language")
+                or infer_language(source["content"])
+            )
             payload = {
                 "brief_id": brief_id,
                 "raw_idea": source["content"],
@@ -97,12 +103,14 @@ class ValidationRunner:
                     system_prompt=product_brief_system_prompt(self._skill(), required_language),
                     input_payload=payload,
                     output_schema=product_brief_schema(required_language),
-                    prompt_version=f"product_brief_v1:{mode}",
+                    prompt_version=f"product_brief_v2:{mode}",
                     idempotency_key=provider_attempt_key,
                 )
                 response = dict(result["response"])
                 provenance = dict(result["invocation"])
-                document = ProductBriefV1.from_dict(response, raw_idea=source["content"])
+                document = ProductBriefV1.from_dict(
+                    response, raw_idea=source["content"], required_language=required_language,
+                )
                 self.repository.complete_invocation(
                     invocation["id"], document.to_dict(), provenance
                 )
@@ -124,12 +132,19 @@ class ValidationRunner:
 def validate_create_input(value: Mapping[str, Any]) -> dict[str, str]:
     from uuid import UUID
 
-    if set(value) != {"request_id", "raw_idea"}:
+    if set(value) != {"request_id", "raw_idea", "language"}:
         raise ValueError("Product Brief request fields do not match the v1 contract")
     raw = str(value.get("raw_idea") or "").strip()
     if not 1 <= len(raw) <= 10_000:
         raise ValueError("raw_idea must contain 1-10000 characters")
-    return {"request_id": str(UUID(str(value["request_id"]))), "raw_idea": raw}
+    language = str(value.get("language") or "")
+    if language not in {"uk", "en"}:
+        raise ValueError("language must be uk or en")
+    return {
+        "request_id": str(UUID(str(value["request_id"]))),
+        "raw_idea": raw,
+        "required_language": language,
+    }
 
 
 def validate_revision_input(value: Mapping[str, Any]) -> dict[str, str]:

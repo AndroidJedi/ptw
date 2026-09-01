@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-from io import BytesIO
-import hashlib
 import json
 from uuid import uuid4
 
 from commander.ids import new_uuid7
 
 from .content import (
-    CandidateV2, INSTAGRAM_REQUIRED_VISUAL_ROLES, SLIDER_NAMES, candidate_output_schema,
-    critic_output_schema, validate_critic_response,
+    CandidateV2, INSTAGRAM_REQUIRED_VISUAL_ROLES, candidate_output_schema,
 )
 from .config import Settings
 from .domain import ProductBriefV1, product_brief_schema
@@ -47,7 +44,9 @@ def main() -> None:
             prompt_version="ptw_result_bridge_canary_v1",
             idempotency_key=f"canary:{marker}:{mode}",
         )
-        document = ProductBriefV1.from_dict(value["response"], raw_idea=raw_idea)
+        document = ProductBriefV1.from_dict(
+            value["response"], raw_idea=raw_idea, required_language=required_language,
+        )
         base_document = document.to_dict()
         invocations.append({"mode": mode, "request_id": value["invocation"].get("bridge_request_id")})
 
@@ -100,64 +99,6 @@ def main() -> None:
         "request_id": candidate["invocation"].get("bridge_request_id"),
         "response_sha256": candidate_document.digest,
     })
-
-    from PIL import Image
-    output = BytesIO()
-    Image.new("RGB", (1080, 1080), "#181C25").save(output, format="JPEG", quality=85)
-    image = output.getvalue()
-    digest = hashlib.sha256(image).hexdigest()
-    critic_element_id = new_uuid7()
-    critic_parameters = {name: 50 for name in SLIDER_NAMES}
-    critic_payload = {
-        "run_id": new_uuid7(), "pass": 1,
-        "approved_brief": {"document": candidate_brief},
-        "task": candidate_payload["task"], "output_profile": "instagram_static_ad_v1",
-        "protected": {
-            "offer": candidate_brief["offer"], "cta": candidate_brief["cta"],
-            "project_id": new_uuid7(), "brand_kit_id": new_uuid7(),
-            "source_policy": {"synthetic_people_faces": "prohibited"},
-        },
-        "candidates": [{
-            "candidate_id": candidate_id, "anonymous_alias": "A1",
-            "document": candidate_document.value,
-            "document_sha256": candidate_document.digest,
-            "elements": [{
-                "element_id": critic_element_id, "display_alias": "A1.HOOK.01",
-                "slot": "hook", "payload": {"text": candidate_document.value["hook"]},
-            }],
-            "parameters": critic_parameters, "regeneration_count": 0,
-            "render_mapping": digest,
-        }],
-        "prior_pass_summaries": [],
-    }
-    critic = provider.generate_content_critic(
-        system_prompt=(
-            "Deployment canary. Inspect the exact mapped JPEG and return a strict critic Pass 1 "
-            "document. Evaluate the single candidate and its single supplied element. Set every "
-            "hard gate true, every element and candidate score to 10, complexity to none, ranking "
-            "to the supplied candidate, pairwise and actions to empty arrays, one concise "
-            "observation, and final_selection to null."
-        ),
-        input_payload=critic_payload,
-        images=[{
-            "candidate_id": candidate_id, "bytes": image, "sha256": digest,
-            "mime_type": "image/jpeg", "width": 1080, "height": 1080,
-        }],
-        output_schema=critic_output_schema(1, [candidate_id], [critic_element_id]),
-        prompt_version="ptw_result_bridge_canary_v1",
-        idempotency_key=f"canary:{marker}:content_result_critic",
-        response_validator=lambda value: validate_critic_response(
-            value, pass_number=1, candidate_ids=[candidate_id],
-            element_ids=[critic_element_id], templates={},
-            candidate_parameters={candidate_id: critic_parameters},
-            candidate_templates=None,
-            candidate_element_ids={candidate_id: [critic_element_id]},
-            candidate_regeneration_counts={candidate_id: 0},
-        ),
-    )
-    if critic["response"].get("pass") != 1 or critic["response"].get("ranking") != [candidate_id]:
-        raise SystemExit("bridge canary failed for content_result_critic")
-    invocations.append({"mode": "content_result_critic", "request_id": critic["invocation"].get("bridge_request_id"), "input_sha256": digest})
 
     print(json.dumps({
         "status": "ok", "canary_id": marker, "capabilities": capabilities,

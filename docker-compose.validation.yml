@@ -16,7 +16,7 @@ services:
       VALIDATION_LLM_MODEL: ${VALIDATION_LLM_MODEL:-codex-cli-default}
       PRODUCT_BRIEF_SKILL_PATH: /run/ptw-auth/skills/product-brief-generator/SKILL.md
       CONTENT_CANDIDATE_GENERATOR_SKILL_PATH: /run/ptw-auth/skills/content-candidate-generator/SKILL.md
-      CONTENT_RESULT_CRITIC_SKILL_PATH: /run/ptw-auth/skills/content-result-critic/SKILL.md
+      COMMANDER_REVIEW_NOTIFICATION_URL: http://ptw-commander-api:8080/internal/review-notifications
       PEXELS_API_KEY: ${PEXELS_API_KEY:?set PEXELS_API_KEY in the root-owned runtime environment}
     volumes:
       - ./skills:/run/ptw-auth/skills:ro

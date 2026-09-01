@@ -18,14 +18,18 @@ def main() -> None:
         "validation_projects", "product_briefs", "product_brief_approvals",
         "validation_generation_attempts", "validation_provider_invocations",
         "project_assets", "project_brand_kits", "studio_recipes", "studio_renders",
-        "content_generation_runs", "content_candidates", "content_elements",
-        "content_critic_passes", "content_improvement_actions", "content_results",
+        "content_generation_runs", "content_creatives", "content_creative_previews",
+        "content_elements", "content_creative_elements", "content_review_actions",
+        "content_learning_rules", "content_learning_snapshots", "content_creative_approvals",
+        "telegram_delivery_receipts",
         "content_generation_outcomes", "content_generation_checkpoints",
     }
     forbidden = {
         "creative_batches", "ad_creatives", "ad_creative_assets", "ad_studio_templates",
         "ad_studio_sample_sets", "ad_studio_wizard_proposals", "ad_studio_publications",
         "landing_builds", "landing_draft_sets", "commander_ad_batches",
+        "content_candidates", "content_critic_passes", "content_improvement_actions",
+        "content_results", "content_generation_skill_proposals",
     }
     with repository.connection() as connection:
         rows = connection.execute(

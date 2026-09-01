@@ -12,7 +12,6 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILLS = (
     "product-brief-generator",
     "content-candidate-generator",
-    "content-result-critic",
     "studio-tune-local",
     "studio-ui-visual-audit",
     "ptw-owner-console-incident",
@@ -70,7 +69,7 @@ def main() -> None:
 
     for retired in (
         "marketing-positioning", "ad-creative-generator", "ad-creative-validator", "ad-studio-composer",
-        "natal-landing-builder",
+        "natal-landing-builder", "content-result-critic",
     ):
         require(not (canonical_root / retired).exists(), f"retired {retired} skill remains")
         require(not (desktop_root / retired).exists(), f"retired desktop {retired} skill remains")

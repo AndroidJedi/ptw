@@ -11,12 +11,12 @@ from typing import Any, Mapping, Sequence
 from PIL import Image, ImageChops, ImageStat
 
 from .content import TEMPLATE_IDS
+from .images import PEXELS_PHOTOGRAPHIC_OBJECT_EVIDENCE_SCHEMA
 from .studio_universal import normalize_universal_config
 
 
 PROFILE_ID = "universal_ad_experiment_v1"
-ADAPTER_VERSION = 8
-ANALYSIS_IMAGE_SIZE = (480, 480)
+ADAPTER_VERSION = 9
 PHOTO_STRATEGIES = frozenset({
     "moment_tension", "contrast_reframe", "mechanism_proof", "human_story",
 })
@@ -160,23 +160,23 @@ def _get(root: Mapping[str, Any], path: str) -> Any:
     return root[group][key]
 
 
-def audit_candidate_diversity(
-    candidates: Sequence[Mapping[str, Any]], *, png_by_candidate_id: Mapping[str, bytes],
+def audit_creative_diversity(
+    creatives: Sequence[Mapping[str, Any]], *, png_by_creative_id: Mapping[str, bytes],
 ) -> dict[str, Any]:
-    """Fail closed unless all five initial candidates are visibly different."""
+    """Fail closed unless all five review Creatives are visibly different."""
 
-    if len(candidates) != 5:
-        raise ValueError("Universal diversity audit requires exactly five candidates")
-    candidate_ids = [str(item["candidate_id"]) for item in candidates]
-    if len(set(candidate_ids)) != 5 or set(png_by_candidate_id) != set(candidate_ids):
-        raise ValueError("Universal diversity audit candidate/render IDs do not match")
+    if len(creatives) != 5:
+        raise ValueError("Universal diversity audit requires exactly five Creatives")
+    creative_ids = [str(item["creative_id"]) for item in creatives]
+    if len(set(creative_ids)) != 5 or set(png_by_creative_id) != set(creative_ids):
+        raise ValueError("Universal diversity audit Creative/render IDs do not match")
     configurations = {
-        candidate_id: normalize_universal_config(item["configuration"])
-        for candidate_id, item in zip(candidate_ids, candidates)
+        creative_id: normalize_universal_config(item["configuration"])
+        for creative_id, item in zip(creative_ids, creatives)
     }
     signatures = {
-        candidate_id: tuple(_get(configuration, path) for path in _DIVERSITY_PATHS)
-        for candidate_id, configuration in configurations.items()
+        creative_id: tuple(_get(configuration, path) for path in _DIVERSITY_PATHS)
+        for creative_id, configuration in configurations.items()
     }
     modes = {item["background"]["mode"] for item in configurations.values()}
     colors = {item["background"]["color"] for item in configurations.values()}
@@ -186,10 +186,10 @@ def audit_candidate_diversity(
     image_treatments: set[tuple[Any, ...]] = set()
     sticker_sources: list[dict[str, Any]] = []
     logo_backing_absent = True
-    for candidate_id, candidate in zip(candidate_ids, candidates):
-        configuration = configurations[candidate_id]
+    for creative_id, creative in zip(creative_ids, creatives):
+        configuration = configurations[creative_id]
         background = (
-            (candidate.get("render_asset_provenance") or {}).get("background") or {}
+            (creative.get("render_asset_provenance") or {}).get("background") or {}
         )
         if (
             configuration["background"]["mode"] == "image"
@@ -199,7 +199,7 @@ def audit_candidate_diversity(
             digest = str(background.get("sha256") or "")
             if len(digest) == 64:
                 image_backgrounds.append({
-                    "candidate_id": candidate_id,
+                    "creative_id": creative_id,
                     "sha256": digest,
                     "media_kind": str(background["media_kind"]),
                     "external_id": str(background["source"].get("external_id") or ""),
@@ -213,11 +213,11 @@ def audit_candidate_diversity(
                     configuration["layout"]["content_x"],
                 ))
         if configuration["sticker"]["enabled"]:
-            sticker = ((candidate.get("render_asset_provenance") or {}).get("sticker") or {})
+            sticker = ((creative.get("render_asset_provenance") or {}).get("sticker") or {})
             sticker_sources.append(sticker)
         node_ids = {
             str(node.get("id"))
-            for node in ((candidate.get("universal_manifest") or {}).get("nodes") or [])
+            for node in ((creative.get("universal_manifest") or {}).get("nodes") or [])
             if isinstance(node, Mapping)
         }
         logo_backing_absent = (
@@ -227,17 +227,17 @@ def audit_candidate_diversity(
         )
     image_digests = {item["sha256"] for item in image_backgrounds}
     pairs: list[dict[str, Any]] = []
-    for left_id, right_id in combinations(candidate_ids, 2):
+    for left_id, right_id in combinations(creative_ids, 2):
         setting_differences = sum(
             left != right for left, right in zip(signatures[left_id], signatures[right_id])
         )
-        with Image.open(BytesIO(png_by_candidate_id[left_id])) as left_source:
+        with Image.open(BytesIO(png_by_creative_id[left_id])) as left_source:
             left = left_source.convert("RGB").resize((64, 64), Image.Resampling.LANCZOS)
-        with Image.open(BytesIO(png_by_candidate_id[right_id])) as right_source:
+        with Image.open(BytesIO(png_by_creative_id[right_id])) as right_source:
             right = right_source.convert("RGB").resize((64, 64), Image.Resampling.LANCZOS)
         mean_rgb_delta = round(sum(ImageStat.Stat(ImageChops.difference(left, right)).mean) / 3, 3)
         pairs.append({
-            "left_candidate_id": left_id, "right_candidate_id": right_id,
+            "left_creative_id": left_id, "right_creative_id": right_id,
             "setting_differences": setting_differences,
             "mean_rgb_delta": mean_rgb_delta,
         })
@@ -263,6 +263,11 @@ def audit_candidate_diversity(
             and sticker_sources[0].get("authority") == "approved_pexels_photo_sticker"
             and sticker_sources[0].get("source_asset_id")
             and sticker_sources[0].get("source", {}).get("provider") == "pexels"
+            and sticker_sources[0].get("source", {}).get("media_type") == "photograph"
+            and sticker_sources[0].get("source", {}).get("subject_type") == "physical_object"
+            and sticker_sources[0].get("source", {}).get(
+                "photographic_object_evidence", {},
+            ).get("schema") == PEXELS_PHOTOGRAPHIC_OBJECT_EVIDENCE_SCHEMA
             and sticker_sources[0].get("source", {}).get("transformation")
             == "edge_color_soft_alpha_v1"
             and bool(sticker_sources[0].get("source", {}).get("texture_alignment"))
@@ -275,7 +280,7 @@ def audit_candidate_diversity(
         "logo_backing_absent": logo_backing_absent,
     }
     return {
-        "schema": "ptw.studio.universal-ad-diversity-audit.v3",
+        "schema": "ptw.studio.universal-ad-diversity-audit.v4",
         "passed": all(gates.values()), "gates": gates,
         "background_modes": sorted(modes), "background_colors": sorted(colors),
         "font_families": sorted(fonts), "cta_styles": sorted(cta_styles),
@@ -354,32 +359,6 @@ def deterministic_jpeg(png: bytes) -> dict[str, Any]:
         "bytes": data, "sha256": hashlib.sha256(data).hexdigest(),
         "mime_type": "image/jpeg", "width": 1080, "height": 1080,
         "encoder": "pillow-jpeg-q92-subsampling-0-v1",
-    }
-
-
-def deterministic_analysis_jpeg(png: bytes) -> dict[str, Any]:
-    """Create the persisted, pixel-bounded critic transport derivative."""
-
-    source_sha256 = hashlib.sha256(png).hexdigest()
-    with Image.open(BytesIO(png)) as source:
-        image = source.convert("RGB")
-        if image.size != (1080, 1080):
-            raise ValueError("Universal analysis source PNG must be exactly 1080x1080")
-        image = image.resize(ANALYSIS_IMAGE_SIZE, Image.Resampling.LANCZOS)
-        output = BytesIO()
-        image.save(
-            output, format="JPEG", quality=85, subsampling=2,
-            optimize=False, progressive=False,
-        )
-    data = output.getvalue()
-    return {
-        "bytes": data, "sha256": hashlib.sha256(data).hexdigest(),
-        "mime_type": "image/jpeg", "width": ANALYSIS_IMAGE_SIZE[0],
-        "height": ANALYSIS_IMAGE_SIZE[1],
-        "encoder": "pillow-lanczos-480-jpeg-q85-subsampling-2-v1",
-        "source_png_sha256": source_sha256,
-        "source_width": 1080, "source_height": 1080,
-        "scale_numerator": 4, "scale_denominator": 9,
     }
 
 

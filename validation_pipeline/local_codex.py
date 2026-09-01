@@ -110,7 +110,6 @@ class LocalCodexStructuredProvider:
 
     def _command(
         self, *, workdir: Path, schema_path: Path, output_path: Path,
-        image_paths: Sequence[Path],
     ) -> list[str]:
         command = [
             self.codex_binary, "exec", "--ephemeral", "--ignore-rules",
@@ -121,8 +120,6 @@ class LocalCodexStructuredProvider:
         ]
         if self.model:
             command.extend(("--model", self.model))
-        for path in image_paths:
-            command.extend(("--image", str(path)))
         command.append("-")
         return command
 
@@ -220,22 +217,11 @@ class LocalCodexStructuredProvider:
         output_schema: Mapping[str, Any],
         idempotency_key: str,
         prompt_version: str,
-        images: Sequence[Mapping[str, Any]] = (),
         response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> dict[str, Any]:
         attempts: list[dict[str, Any]] = []
         input_digest = sha256_json(sanitized(input_payload))
-        image_digests: list[str] = []
-        for item in images:
-            data = bytes(item["bytes"])
-            digest = hashlib.sha256(data).hexdigest()
-            if digest != str(item["sha256"]):
-                raise ValueError("Codex critic image digest mismatch")
-            if str(item.get("mime_type")) != "image/jpeg":
-                raise ValueError("Codex critic accepts exact JPEG attachments only")
-            image_digests.append(digest)
-
         last_error: Exception | None = None
         for attempt in range(1, self.maximum_attempts + 1):
             with tempfile.TemporaryDirectory(prefix="ptw-local-codex-") as temporary:
@@ -243,14 +229,8 @@ class LocalCodexStructuredProvider:
                 schema_path = root / "output-schema.json"
                 output_path = root / "response.json"
                 schema_path.write_text(canonical_json(output_schema), encoding="utf-8")
-                image_paths: list[Path] = []
-                for index, item in enumerate(images, 1):
-                    path = root / f"critic-{index}.jpg"
-                    path.write_bytes(bytes(item["bytes"]))
-                    image_paths.append(path)
                 command = self._command(
                     workdir=root, schema_path=schema_path, output_path=output_path,
-                    image_paths=image_paths,
                 )
                 record: dict[str, Any] = {
                     "attempt": attempt,
@@ -258,7 +238,6 @@ class LocalCodexStructuredProvider:
                     "idempotency_key": f"{idempotency_key}:attempt:{attempt}",
                     "prompt_version": prompt_version,
                     "input_sha256": input_digest,
-                    "image_sha256": image_digests,
                     "model": self.model or "codex-cli-default",
                     "reasoning_effort": self.reasoning_effort,
                     "timeout_seconds": self.timeout_seconds,
@@ -300,7 +279,6 @@ class LocalCodexStructuredProvider:
                             "mode": mode,
                             "prompt_version": prompt_version,
                             "input_sha256": input_digest,
-                            "image_sha256": image_digests,
                             "attempts": attempts,
                         },
                     }
@@ -322,6 +300,3 @@ class LocalCodexStructuredProvider:
 
     def generate(self, **kwargs: Any) -> dict[str, Any]:
         return self.call(**kwargs)
-
-    def generate_content_critic(self, **kwargs: Any) -> dict[str, Any]:
-        return self.call(mode="content_result_critic", **kwargs)

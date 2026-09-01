@@ -9,9 +9,11 @@ import unittest
 
 from commander.ids import new_uuid7
 from validation_pipeline.content import (
-    CandidateV2, CorpusStore, INSTAGRAM_REQUIRED_VISUAL_ROLES, TemplateRegistry,
-    candidate_output_schema, critic_output_schema, final_eligible, weighted_candidate_score,
+    CandidateV2, ContentContextAssembler, CorpusStore, INSTAGRAM_REQUIRED_VISUAL_ROLES,
+    TemplateRegistry, digest_locked_reference,
+    candidate_output_schema,
 )
+from validation_pipeline.content_service import CandidateGenerationOrchestrator
 from validation_pipeline.content_adapters import InstagramStaticAdapter, TikTokPhotoAdapter
 from validation_pipeline.natal_brand import (
     NATAL_COLORS, NATAL_FONT_PATH, NATAL_FONT_SHA256, NATAL_LOGO_SHA256,
@@ -351,7 +353,7 @@ class ResultContractsTests(unittest.TestCase):
         self.assertTrue(all(sum(one.source_project == item.source_project for one in selected) <= 2 for item in selected))
 
     def test_candidate_preserves_exact_offer_and_cta(self) -> None:
-        brief = {"offer": "First consultation free", "cta": "Book now"}
+        brief = {"language": "en", "offer": "First consultation free", "cta": "Book now"}
         value = {
             "schema_version": 2, "hook": "At 23:00, the question is still open.",
             "headline": "Start with one conversation", "primary_text": "A clear first step.",
@@ -415,43 +417,113 @@ class ResultContractsTests(unittest.TestCase):
         value["visual_components"][0]["source_ids"] = ["studio.frame.media.v1"]
         with self.assertRaisesRegex(ValueError, "server-supplied UUIDs"):
             CandidateV2.from_dict(
-                value, brief={"offer": value["offer"], "cta": value["cta"]},
+                value, brief={"language": "en", "offer": value["offer"], "cta": value["cta"]},
                 output_profile="instagram_static_ad_v1",
                 allowed_source_ids=[brief_id, logo_id, approved_photo_id],
                 approved_asset_ids=[logo_id, approved_photo_id],
             )
 
-    def test_critic_schema_binds_action_ids_and_complete_slider_shape(self) -> None:
-        candidate_ids = [new_uuid7(), new_uuid7()]
-        element_ids = [new_uuid7(), new_uuid7()]
-        schema = critic_output_schema(3, candidate_ids, element_ids)
-        action = schema["properties"]["actions"]["items"]["properties"]
+    def test_static_social_prompts_include_fixed_post_anchors_only_for_posts(self) -> None:
+        templates = TemplateRegistry(REFERENCES / "templates")
+        assembler = ContentContextAssembler(
+            generator_skill_path=ROOT / "skills/content-candidate-generator/SKILL.md",
+            template_registry=templates,
+            corpus_store=CorpusStore(
+                REFERENCES / "corpus/manifest.json", REFERENCES / "corpus/examples.jsonl",
+            ),
+        )
+        brief_id, project_id, brand_id, logo_id = [new_uuid7() for _ in range(4)]
+        brief_document = {
+            "schema_version": 1, "language": "en", "product": "Decision Session",
+            "target_audience": "Independent founders", "main_pain": "The next step is unclear",
+            "promise": "Choose one practical next step",
+            "key_benefits": ["Clear sequence", "Bounded scope", "Practical action"],
+            "cta": "Book a session", "trust_strategy": "Explain the process first",
+            "offer": "First short assessment free",
+        }
+        brief = {
+            "brief_id": brief_id, "project_id": project_id, "approved": True,
+            "status": "completed", "document": brief_document, "document_sha256": "a" * 64,
+        }
+        brand = {
+            "brand_kit_id": brand_id, "document": natal_brand_document(logo_id),
+            "document_sha256": "b" * 64,
+        }
+        anchors = (
+            "Система, що повертає клієнтів. Поки ви займаєтесь роботою.",
+            "5 незнайомців. 1 стіл.",
+            "Не соцмережа. Не застосунок для знайомств.",
+            "Track Your Wins, Not Your Slips",
+        )
+        for output_profile in ("instagram_static_ad_v1", "tiktok_photo_post_v1"):
+            for template in templates.load_active():
+                context = assembler.assemble(
+                    brief=brief, task="Create one focused social post.",
+                    output_profile=output_profile, brand_kit=brand, approved_sources=[],
+                    tool_catalog=tool_catalog_for_profile(output_profile), template=template,
+                ).document
+                prompt = CandidateGenerationOrchestrator._candidate_system_prompt(context)
+                self.assertTrue(all(anchor in prompt for anchor in anchors))
+                self.assertIn("Never transfer a source product's", prompt)
+                self.assertIn("Preserve the supplied offer and CTA exactly", prompt)
+                self.assertEqual("excluded", context["source_policy"]["raw_idea"])
+                self.assertEqual(brief_document, context["brief"]["document"])
+                self.assertEqual(brand["document"], context["brand_kit"]["document"])
+                expected_digest = hashlib.sha256(
+                    (REFERENCES / "post-copy-style.md").read_bytes()
+                ).hexdigest()
+                self.assertEqual(expected_digest, context["versions"]["post_copy_style_sha256"])
 
-        self.assertEqual([None, *candidate_ids], action["base_candidate_id"]["enum"])
-        self.assertEqual([None], action["template_id"]["enum"])
-        self.assertFalse(action["slider_values"]["additionalProperties"])
+        text_context = assembler.assemble(
+            brief=brief, task="Create concise copy.", output_profile="marketing_copy_v1",
+            brand_kit=brand, approved_sources=[], tool_catalog=tool_catalog(),
+            template=templates.load_active()[0],
+        ).document
+        text_prompt = CandidateGenerationOrchestrator._candidate_system_prompt(text_context)
+        self.assertNotIn("post_copy_style", text_context["writing"])
+        self.assertNotIn("post_copy_style_sha256", text_context["versions"])
+        self.assertNotIn("# Post copy style anchors v1", text_prompt)
+
+        reference_text, reference_digest = digest_locked_reference(
+            REFERENCES / "post-copy-style.md"
+        )
+        self.assertIn("# Post copy style anchors v1", reference_text)
         self.assertEqual(
-            {
-                "hook_pressure", "emotional_intensity", "conceptual_novelty",
-                "information_density", "visual_complexity",
-            },
-            set(action["slider_values"]["required"]),
+            (REFERENCES / "post-copy-style.sha256").read_text().strip(),
+            reference_digest,
         )
 
-    def test_final_thresholds_fail_closed(self) -> None:
-        scores = {
-            "task_brief_suitability": 8, "hook_strength": 7, "message_clarity": 8,
-            "persuasion_action": 7, "coherence": 8, "specificity_credibility": 10,
-            "composition_legibility": 10, "originality_tone": 10,
+    def test_candidate_rejects_wrong_language_before_persistence(self) -> None:
+        value = {
+            "schema_version": 2, "hook": "One clear moment", "headline": "One useful step",
+            "primary_text": "See the sequence before making a larger commitment.",
+            "supporting_text": "A practical process with a bounded scope.",
+            "offer": "Безкоштовна коротка консультація", "cta": "Забронювати розмову",
+            "caption": "Start with one focused conversation.",
+            "alt_text": "A square post with a headline and button.",
+            "desired_emotion": "calm confidence", "visual_concept": "One real scene.",
+            "media_request": {
+                "kind": "none", "query": "", "source_asset_id": None,
+                "reason": "Text profile.",
+            },
+            "visual_components": [],
         }
-        self.assertGreaterEqual(weighted_candidate_score(scores, "none"), 80)
-        evaluation = {
-            "complexity": "none", "hard_gates": {"all": True}, "scores": scores,
-            "element_scores": {"hook": {"contribution": 7}},
-        }
-        self.assertTrue(final_eligible(evaluation))
-        evaluation["element_scores"] = {"hook": {"contribution": 6}}
-        self.assertFalse(final_eligible(evaluation))
+        with self.assertRaisesRegex(ValueError, "required language uk"):
+            CandidateV2.from_dict(
+                value,
+                brief={"language": "uk", "offer": value["offer"], "cta": value["cta"]},
+                output_profile="marketing_copy_v1",
+            )
+
+        value["offer"] = "Free short consultation"
+        value["cta"] = "Book the conversation"
+        value["caption"] = "Trusted by 500 customers. Start with one conversation."
+        with self.assertRaisesRegex(ValueError, "unsupported proof"):
+            CandidateV2.from_dict(
+                value,
+                brief={"language": "en", "offer": value["offer"], "cta": value["cta"]},
+                output_profile="marketing_copy_v1",
+            )
 
     def test_five_templates_map_to_five_valid_distinct_instagram_layouts(self) -> None:
         templates = TemplateRegistry(REFERENCES / "templates").load_active()

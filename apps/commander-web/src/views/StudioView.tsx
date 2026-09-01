@@ -124,7 +124,9 @@ export function StudioView({ api, language, tuneMode = false }: {
   const [content, setContent] = useState<StudioUniversalContent | null>(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [backgroundQuery, setBackgroundQuery] = useState('')
-  const [stickerQuery, setStickerQuery] = useState('')
+  const [stickerQuery, setStickerQuery] = useState(
+    'real physical object on a plain warm background close-up photograph',
+  )
   const [changeNote, setChangeNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
@@ -662,14 +664,14 @@ export function StudioView({ api, language, tuneMode = false }: {
 
     <section className="panel universal-assets-panel">
       <small>{tr('THREE FIXED ASSET SLOTS', 'ТРИ ФІКСОВАНІ МІСЦЯ ДЛЯ РЕСУРСІВ')}</small><h2>{tr('Background, sticker object, logo (Natal by default)', 'Фон, об’єкт стікера, логотип (Natal за замовчуванням)')}</h2>
-      <div className="studio-asset-list">{detail.assets.map((asset) => <div key={asset.slot}><div><strong>{asset.slot}</strong><span>{asset.available ? `${asset.mime_type} · ${Math.round((asset.byte_count || 0) / 1024)} KB · ${String(asset.source?.origin || 'stored')}` : tr('Optional · not supplied', 'Необов’язково · не надано')}</span></div><label className="secondary"><Upload />{tr('Upload', 'Завантажити')}<input aria-label={`Upload ${asset.slot} asset`} type="file" accept={asset.allowed_mime_types.join(',')} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAsset(asset.slot, file); event.currentTarget.value = '' }} /></label></div>)}</div>
+      <div className="studio-asset-list">{detail.assets.map((asset) => <div key={asset.slot}><div><strong>{asset.slot}</strong><span>{asset.available ? `${asset.mime_type} · ${Math.round((asset.byte_count || 0) / 1024)} KB · ${String(asset.source?.origin || 'stored')}` : tr('Optional · not supplied', 'Необов’язково · не надано')}</span></div>{asset.slot === 'sticker_object' ? <span className="studio-note">{tr('Pexels photograph only', 'Лише фотографія Pexels')}</span> : <label className="secondary"><Upload />{tr('Upload', 'Завантажити')}<input aria-label={`Upload ${asset.slot} asset`} type="file" accept={asset.allowed_mime_types.join(',')} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAsset(asset.slot, file); event.currentTarget.value = '' }} /></label>}</div>)}</div>
       <div className="universal-pexels-grid">
         <label><span>{tr('Pexels background query', 'Запит фону Pexels')}</span><input aria-label="Pexels background query" value={backgroundQuery} onChange={(event) => setBackgroundQuery(event.target.value)} /></label>
         <button className="secondary" disabled={busy || !detail.pexels_available || backgroundQuery.trim().length < 2} onClick={() => void sourcePexels('background_image', backgroundQuery)}><Search />{tr('Source background', 'Знайти фон')}</button>
         <label><span>{tr('Pexels sticker object query', 'Запит об’єкта стікера Pexels')}</span><input aria-label="Pexels sticker query" value={stickerQuery} onChange={(event) => setStickerQuery(event.target.value)} /></label>
         <button className="secondary" disabled={busy || !detail.pexels_available || stickerQuery.trim().length < 2} onClick={() => void sourcePexels('sticker_object', stickerQuery)}><Search />{tr('Source & isolate object', 'Знайти й ізолювати об’єкт')}</button>
       </div>
-      {!detail.pexels_available && <p className="studio-note">{tr('Pexels is not configured in this local runtime; fixed-slot uploads remain available.', 'Pexels не налаштовано в цьому локальному середовищі; завантаження у фіксовані місця доступні.')}</p>}
+      {!detail.pexels_available && <p className="studio-note">{tr('Pexels is not configured in this local runtime. The sticker stays unavailable; background and logo uploads remain available.', 'Pexels не налаштовано в цьому локальному середовищі. Стікер недоступний; завантаження фону й логотипа залишаються доступними.')}</p>}
     </section>
 
     <section className="panel studio-approval universal-approval">

@@ -17,6 +17,7 @@ from .content_repository import ContentResultRepository
 from .content_service import CandidateGenerationOrchestrator
 from .images import PexelsClient
 from .provider import StructuredBridge
+from .review_notifications import CommanderReviewNotifier
 from .repository import ValidationRepository
 from .service import ValidationRunner, validate_create_input, validate_revision_input
 from .studio import StudioRenderer
@@ -63,7 +64,6 @@ def create_app(
         try:
             assembler = ContentContextAssembler(
                 generator_skill_path=settings.content_candidate_generator_skill_path,
-                critic_skill_path=settings.content_result_critic_skill_path,
                 template_registry=templates,
                 corpus_store=CorpusStore(
                     reference_root / "corpus/manifest.json",
@@ -77,6 +77,10 @@ def create_app(
                 template_registry=templates,
                 recipe_renderer=recipe_renderer,
                 pexels=pexels,
+                notifier=CommanderReviewNotifier(
+                    settings.commander_review_notification_url,
+                    settings.owner_gateway_token,
+                ),
             )
         except Exception as error:
             content_error = error
@@ -369,138 +373,157 @@ def create_app(
         except (KeyError, ValueError) as error:
             raise HTTPException(status_code=404, detail="Result run not found") from error
 
-    @app.get("/internal/v1/content-runs/{run_id}/result", dependencies=[Depends(authorize)])
-    def content_result(run_id: str) -> dict[str, Any]:
+    @app.get("/internal/v1/content-runs/{run_id}/review", dependencies=[Depends(authorize)])
+    def content_review(run_id: str) -> dict[str, Any]:
         try:
-            run = content_repository.get_run(str(UUID(run_id)))
-            if run["status"] != "completed":
-                raise ValueError("Result run is not completed")
-            return content_repository.get_result(run["run_id"])
+            return content_repository.get_review(str(UUID(run_id)))
         except KeyError as error:
-            raise HTTPException(status_code=404, detail="Result not found") from error
+            raise HTTPException(status_code=404, detail="review set not found") from error
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
-    @app.get("/internal/v1/content-runs/{run_id}/result/asset", dependencies=[Depends(authorize)])
-    def content_result_asset(run_id: str) -> Response:
-        try:
-            value = content_repository.result_asset(str(UUID(run_id)))
-            return Response(
-                content=value["bytes"], media_type=value["mime_type"],
-                headers={"Cache-Control": "private, no-store", "ETag": f'"{value["sha256"]}"'},
-            )
-        except (KeyError, ValueError) as error:
-            raise HTTPException(status_code=404, detail="rendered Result asset not found") from error
-
     @app.get(
-        "/internal/v1/content-runs/{run_id}/candidates/{candidate_id}/asset",
+        "/internal/v1/content-runs/{run_id}/creatives/{creative_id}/asset",
         dependencies=[Depends(authorize)],
     )
-    def content_candidate_asset(run_id: str, candidate_id: str) -> Response:
+    def content_creative_asset(run_id: str, creative_id: str) -> Response:
         try:
-            normalized_run_id = str(UUID(run_id))
-            normalized_candidate_id = str(UUID(candidate_id))
-            value = content_repository.candidate_preview(
-                normalized_candidate_id, expected_run_id=normalized_run_id,
+            value = content_repository.creative_preview(
+                str(UUID(creative_id)), expected_run_id=str(UUID(run_id)),
             )
             return Response(
                 content=value["bytes"], media_type=value["mime_type"],
-                headers={"Cache-Control": "private, no-store", "ETag": f'"{value["sha256"]}"'},
+                headers={
+                    "Cache-Control": "private, no-store",
+                    "ETag": f'"{value["sha256"]}"',
+                    "X-PTW-Content-SHA256": value["sha256"],
+                },
             )
         except (KeyError, ValueError) as error:
-            raise HTTPException(status_code=404, detail="candidate preview not found") from error
+            raise HTTPException(status_code=404, detail="Creative asset not found") from error
 
-    @app.get("/internal/v1/content-runs/{run_id}/debug", dependencies=[Depends(authorize)])
-    def content_debug(run_id: str) -> dict[str, Any]:
+    @app.get(
+        "/internal/v1/content-runs/{run_id}/creatives/{creative_id}/export",
+        dependencies=[Depends(authorize)],
+    )
+    def content_creative_export(run_id: str, creative_id: str) -> Response:
         try:
-            return content_repository.debug(str(UUID(run_id)))
-        except (KeyError, ValueError) as error:
-            raise HTTPException(status_code=404, detail="Result run not found") from error
-
-    @app.post("/internal/v1/content-runs/{run_id}/retry", dependencies=[Depends(authorize)], status_code=202)
-    async def retry_content_run(
-        run_id: str, request: Mapping[str, Any], x_ptw_actor: str = Header(default="owner-web")
-    ) -> dict[str, Any]:
-        active = require_result_runner()
-        if set(request) != {"request_id"}:
-            raise HTTPException(status_code=400, detail="Result retry requires one request_id")
-        try:
-            parent = content_repository.get_run(str(UUID(run_id)))
-            if parent["status"] not in {"completed", "failed"}:
-                raise ValueError("a Result can be retried only after its parent run is terminal")
-            child, created = active.create_run(
-                request_id=str(UUID(str(request["request_id"]))), brief_id=parent["brief_id"],
-                task=parent["task"], output_profile=parent["output_profile"],
-                requested_by=x_ptw_actor[:200], parent_run_id=parent["run_id"],
-                revision_instruction=parent["context_bundle"].get("revision_instruction"),
+            value = content_repository.creative_export(
+                str(UUID(run_id)), str(UUID(creative_id)),
             )
-            if created:
-                run_background(active.execute, child["run_id"])
-            return {**child, "created": created}
+            return Response(
+                content=value["bytes"], media_type="application/zip",
+                headers={
+                    "Cache-Control": "private, no-store",
+                    "X-PTW-Content-SHA256": value["sha256"],
+                    "Content-Disposition": f'attachment; filename="ptw-{creative_id}.zip"',
+                },
+            )
         except KeyError as error:
-            raise HTTPException(status_code=404, detail="parent Result run not found") from error
+            raise HTTPException(status_code=404, detail="Creative export not found") from error
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.post(
-        "/internal/v1/content-runs/{run_id}/revisions",
-        dependencies=[Depends(authorize)], status_code=202,
+        "/internal/v1/content-runs/{run_id}/review/approve",
+        dependencies=[Depends(authorize)],
     )
-    async def revise_content_run(
+    def approve_content_review(
         run_id: str, request: Mapping[str, Any],
         x_ptw_actor: str = Header(default="owner-web"),
     ) -> dict[str, Any]:
-        active = require_result_runner()
-        if set(request) != {"request_id", "comment"}:
-            raise HTTPException(
-                status_code=400,
-                detail="Result revision requires request_id and comment",
-            )
+        if set(request) != {"request_id", "creative_id"}:
+            raise HTTPException(status_code=400, detail="Approve requires request_id and creative_id")
         try:
-            child, created = active.create_revision(
-                request_id=str(UUID(str(request["request_id"]))),
-                parent_run_id=str(UUID(run_id)),
-                comment=str(request["comment"]),
+            return require_result_runner().approve(
+                run_id=str(UUID(run_id)), request_id=str(UUID(str(request["request_id"]))),
+                creative_id=str(UUID(str(request["creative_id"]))),
+                requested_by=x_ptw_actor[:200],
+            )
+        except (RuntimeError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post(
+        "/internal/v1/content-runs/{run_id}/review/regenerate-all",
+        dependencies=[Depends(authorize)], status_code=202,
+    )
+    async def regenerate_content_review(
+        run_id: str, request: Mapping[str, Any],
+        x_ptw_actor: str = Header(default="owner-web"),
+    ) -> dict[str, Any]:
+        if set(request) != {"request_id"}:
+            raise HTTPException(status_code=400, detail="Regenerate all requires one request_id")
+        try:
+            active = require_result_runner()
+            child, created = active.regenerate_all(
+                run_id=str(UUID(run_id)), request_id=str(UUID(str(request["request_id"]))),
                 requested_by=x_ptw_actor[:200],
             )
             if created:
                 run_background(active.execute, child["run_id"])
             return {**child, "created": created}
-        except KeyError as error:
-            raise HTTPException(status_code=404, detail="parent Result run not found") from error
-        except ValueError as error:
+        except (RuntimeError, ValueError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
-    @app.post("/internal/v1/content-runs/{run_id}/feedback", dependencies=[Depends(authorize)])
-    def content_feedback(
-        run_id: str, request: Mapping[str, Any], x_ptw_actor: str = Header(default="owner-web")
+    @app.post(
+        "/internal/v1/content-runs/{run_id}/review/tune",
+        dependencies=[Depends(authorize)], status_code=202,
+    )
+    async def tune_content_review(
+        run_id: str, request: Mapping[str, Any],
+        x_ptw_actor: str = Header(default="owner-web"),
     ) -> dict[str, Any]:
-        if set(request) - {"decision", "comment"} or "decision" not in request:
-            raise HTTPException(status_code=400, detail="Result feedback requires decision and optional comment")
+        if set(request) != {"request_id", "creative_id", "comment"}:
+            raise HTTPException(status_code=400, detail="Tune requires request_id, creative_id, and comment")
         try:
-            return content_repository.record_feedback(
-                str(UUID(run_id)), decision=str(request["decision"]),
-                comment=None if request.get("comment") is None else str(request["comment"]),
-                requested_by=x_ptw_actor[:200],
+            active = require_result_runner()
+            child, created = active.tune(
+                run_id=str(UUID(run_id)), request_id=str(UUID(str(request["request_id"]))),
+                creative_id=str(UUID(str(request["creative_id"]))),
+                comment=str(request["comment"]), requested_by=x_ptw_actor[:200],
             )
-        except KeyError as error:
-            raise HTTPException(status_code=404, detail="completed Result not found") from error
-        except ValueError as error:
+            if created:
+                run_background(active.execute, child["run_id"])
+            return {**child, "created": created}
+        except (RuntimeError, ValueError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
-    @app.post("/internal/v1/content-runs/{run_id}/outcomes", dependencies=[Depends(authorize)])
-    def content_outcome(
-        run_id: str, request: Mapping[str, Any], x_ptw_actor: str = Header(default="owner-web")
-    ) -> dict[str, Any]:
-        if set(request) != {"event_type"}:
-            raise HTTPException(status_code=400, detail="Result outcome requires one event_type")
+    @app.post(
+        "/internal/v1/content-runs/{run_id}/review-notification/retry",
+        dependencies=[Depends(authorize)],
+    )
+    def retry_content_review_notification(run_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        if request:
+            raise HTTPException(status_code=400, detail="notification retry has no input fields")
         try:
-            return content_repository.record_outcome(
-                str(UUID(run_id)), event_type=str(request["event_type"]), requested_by=x_ptw_actor[:200]
+            return require_result_runner().retry_notification(str(UUID(run_id)))
+        except (RuntimeError, ValueError) as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @app.post(
+        "/internal/v1/content-runs/{run_id}/retry",
+        dependencies=[Depends(authorize)], status_code=202,
+    )
+    async def retry_content_run(
+        run_id: str, request: Mapping[str, Any],
+        x_ptw_actor: str = Header(default="owner-web"),
+    ) -> dict[str, Any]:
+        if set(request) != {"request_id"}:
+            raise HTTPException(status_code=400, detail="Result retry requires one request_id")
+        try:
+            active = require_result_runner()
+            parent = content_repository.get_run(str(UUID(run_id)))
+            if parent["status"] != "failed":
+                raise ValueError("Result retry is available only for failed generation")
+            child, created = active.create_run(
+                request_id=str(UUID(str(request["request_id"]))),
+                brief_id=parent["brief_id"], task=parent["task"],
+                output_profile=parent["output_profile"], requested_by=x_ptw_actor[:200],
             )
-        except KeyError as error:
-            raise HTTPException(status_code=404, detail="completed Result not found") from error
-        except ValueError as error:
+            if created:
+                run_background(active.execute, child["run_id"])
+            return {**child, "created": created}
+        except (RuntimeError, ValueError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
     return app

@@ -4,6 +4,19 @@ set -euo pipefail
 repository="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 python="$repository/.venv/bin/python"
 workspace="${STUDIO_WORKSPACE_PATH:-$repository/.local/studio-workspace}"
+local_secrets="${PTW_LOCAL_SECRETS_PATH:-$repository/.local/local-studio.env}"
+
+if [[ -z "${PEXELS_API_KEY:-}" && -f "$local_secrets" ]]; then
+  if [[ -L "$local_secrets" ]]; then
+    echo "Refusing symlinked local secrets file: $local_secrets" >&2
+    exit 1
+  fi
+  pexels_line="$(grep -m 1 '^PEXELS_API_KEY=' "$local_secrets" || true)"
+  if [[ -n "$pexels_line" ]]; then
+    export PEXELS_API_KEY="${pexels_line#PEXELS_API_KEY=}"
+  fi
+  unset pexels_line
+fi
 
 if [[ ! -x "$python" ]]; then
   echo "Missing .venv. Run: python3 -m venv .venv && .venv/bin/python -m pip install -r requirements-validation.txt" >&2
@@ -11,6 +24,10 @@ if [[ ! -x "$python" ]]; then
 fi
 if [[ ! -d "$repository/apps/commander-web/node_modules" ]]; then
   echo "Missing web dependencies. Run: npm --prefix apps/commander-web ci" >&2
+  exit 1
+fi
+if [[ -z "${PEXELS_API_KEY:-}" ]]; then
+  echo "Missing PEXELS_API_KEY. Save it in $local_secrets with mode 600." >&2
   exit 1
 fi
 

@@ -9,7 +9,10 @@ from pathlib import Path
 import re
 from typing import Any, Mapping
 
-from .images import PexelsClient
+from .images import (
+    PEXELS_PHOTOGRAPHIC_OBJECT_EVIDENCE_SCHEMA, PexelsClient,
+    validate_pexels_photographic_object, validate_pexels_photographic_object_query,
+)
 from .natal_brand import NATAL_LOGO_PATH, natal_logo_bytes
 from .studio import MAX_IMAGE_BYTES, StudioRenderer, inspect_media
 from .studio_universal import (
@@ -33,6 +36,18 @@ _AGENT_CONTEXT_SCHEMA = "ptw.studio.universal-ad-agent-context.v2"
 def _canonical(value: Any) -> tuple[str, str]:
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return raw, hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _approved_sticker_photo(record: Mapping[str, Any] | None) -> bool:
+    source = {} if record is None else record.get("source") or {}
+    return bool(
+        source.get("provider") == "pexels"
+        and source.get("media_type") == "photograph"
+        and source.get("subject_type") == "physical_object"
+        and source.get("transformation") == "edge_color_soft_alpha_v1"
+        and source.get("photographic_object_evidence", {}).get("schema")
+        == PEXELS_PHOTOGRAPHIC_OBJECT_EVIDENCE_SCHEMA
+    )
 
 
 class UniversalStudioWorkspace:
@@ -119,6 +134,8 @@ class UniversalStudioWorkspace:
         records: dict[str, Mapping[str, Any]] = {}
         for slot in ASSET_SLOTS:
             record = self._asset_record(slot)
+            if slot == "sticker_object" and not _approved_sticker_photo(record):
+                continue
             if record is not None:
                 records[slot] = {"bytes": record["bytes"], "mime_type": record["mime_type"]}
         if config["background"]["mode"] == "texture":
@@ -129,6 +146,8 @@ class UniversalStudioWorkspace:
         summaries = []
         for slot, declaration in ASSET_SLOTS.items():
             record = self._asset_record(slot)
+            if slot == "sticker_object" and not _approved_sticker_photo(record):
+                record = None
             summaries.append({
                 "slot": slot,
                 "role": declaration["role"],
@@ -284,8 +303,10 @@ class UniversalStudioWorkspace:
             assets["logo"] = {"bytes": logo["bytes"], "mime_type": logo["mime_type"]}
         if config["sticker"]["enabled"]:
             sticker = sticker_asset or self._asset_record("sticker_object")
-            if sticker is None:
-                raise ValueError("Universal experiment sticker requires an approved photo asset")
+            if not _approved_sticker_photo(sticker):
+                raise ValueError(
+                    "Universal experiment sticker requires a screened Pexels photograph"
+                )
             assets["sticker_object"] = {
                 "bytes": sticker["bytes"], "mime_type": sticker["mime_type"],
             }
@@ -336,6 +357,11 @@ class UniversalStudioWorkspace:
         self, slot: str, *, base_sha256: str, mime_type: str, bytes_base64: str,
     ) -> dict[str, Any]:
         self._assert_state(base_sha256)
+        if slot == "sticker_object":
+            raise ValueError(
+                "Studio stickers must be isolated from a screened Pexels photograph; "
+                "direct sticker uploads are not allowed"
+            )
         try:
             data = base64.b64decode(bytes_base64, validate=True)
         except (TypeError, ValueError) as error:
@@ -359,22 +385,57 @@ class UniversalStudioWorkspace:
             raise ValueError("Pexels is available only for the background and sticker slots")
         if self.pexels is None:
             raise RuntimeError("Pexels is not configured for this Studio runtime")
+        if slot == "sticker_object" and not isolate:
+            raise ValueError(
+                "Pexels sticker objects must use the bounded background-isolation transform"
+            )
         query = " ".join(query.split())
         if not 2 <= len(query) <= 160:
             raise ValueError("Pexels query must contain 2 to 160 characters")
+        if slot == "sticker_object":
+            validate_pexels_photographic_object_query(query)
         used_ids = {
             str(record["source"].get("external_id"))
             for record in (self._asset_record(item) for item in ASSET_SLOTS)
             if record is not None and isinstance(record.get("source"), Mapping)
             and record["source"].get("provider") == "pexels"
         }
-        photo, data = self.pexels.select(query, query, used_ids=used_ids)
+        photo = None
+        data = b""
+        photographic_object_evidence = None
+        last_error: Exception | None = None
+        attempts = 6 if slot == "sticker_object" else 1
+        for _attempt in range(attempts):
+            try:
+                photo, data = self.pexels.select(
+                    query,
+                    (
+                        "real physical object on a plain warm background close-up photograph"
+                        if slot == "sticker_object" else query
+                    ),
+                    used_ids=used_ids,
+                )
+                used_ids.add(photo.photo_id)
+                if slot == "sticker_object":
+                    photographic_object_evidence = validate_pexels_photographic_object(
+                        photo, data, query=query,
+                    )
+                    data = isolate_object(data)
+                break
+            except Exception as error:
+                last_error = error
+                photo = None
+        if photo is None:
+            if slot == "sticker_object":
+                raise RuntimeError(
+                    "Pexels did not return an isolatable real photographed object"
+                ) from last_error
+            raise RuntimeError(
+                "Pexels did not return a usable photographic background"
+            ) from last_error
         mime_type = "image/jpeg"
         transformation = "none"
         if slot == "sticker_object":
-            if not isolate:
-                raise ValueError("Pexels sticker objects must use the bounded background-isolation transform")
-            data = isolate_object(data)
             mime_type = "image/png"
             transformation = "edge_color_soft_alpha_v1"
         source = {
@@ -382,7 +443,13 @@ class UniversalStudioWorkspace:
             **photo.source_metadata(),
             "query": query,
             "transformation": transformation,
+            "media_type": "photograph",
         }
+        if slot == "sticker_object":
+            source.update({
+                "subject_type": "physical_object",
+                "photographic_object_evidence": photographic_object_evidence,
+            })
         self._store_asset(slot, mime_type=mime_type, data=data, source=source)
         config = self._configuration()
         if slot == "background_image":
@@ -403,10 +470,13 @@ class UniversalStudioWorkspace:
         config = self._configuration() if configuration is None else normalize_universal_config(configuration)
         normalized_content = self._content() if content is None else normalize_universal_content(content)
         template = build_universal_template(config, normalized_content)
+        assets = self._asset_records(config)
+        if config["sticker"]["enabled"] and "sticker_object" not in assets:
+            raise ValueError("Studio sticker requires a screened Pexels photograph")
         rendered = self.renderer.render_preview(
             template,
             semantic_data=semantic_data(config, normalized_content),
-            assets=self._asset_records(config),
+            assets=assets,
         )
         rendered["resolved"]["component_settings"] = universal_component_settings(
             config, normalized_content,

@@ -31,20 +31,24 @@ Updated: 2026-08-30
   the platform to a fixed task/profile and supplies the canonical Natal
   identity; there is no text-profile choice, task field, asset upload, or
   brand-kit form.
-- Running state shows only: Creating five directions, Improving the strongest
-  direction, Final review, elapsed/bounded maximum, and retry/failure state.
-  The loopback-only local evaluator also shows one confirmation-gated Terminate
-  action while a run is active; production Owner Console does not expose it.
-- Completed state is a platform-native Instagram square or TikTok vertical
-  photo mock post. Redundant source, hook/headline/body/CTA transcription, and
-  rationale are absent. Alt text, metadata, and bounded decision trace live in
-  one collapsed advanced panel.
-- Ready appends accepted feedback and unlocks image/copy export. Improve
-  requires a 3–2000 character comment, appends rejected feedback plus a
-  zero-delta WeightUpdate, and creates a lineage-linked child run. Review state
-  is always the latest immutable feedback projection.
-- Do not expose templates, sliders, alternate candidates, UUID entry, layers,
+- Running state shows only queued/generating five directions, elapsed/bounded
+  maximum, and retry/failure state.
+  The loopback-only local review flow also shows one confirmation-gated
+  Terminate action while a run is active; production Owner Console does not
+  expose it.
+- Awaiting-review state shows exactly five authenticated Creative cards.
+  Selecting one enables Approve or Tune; Regenerate all applies to the set.
+  Tune requires a 3–2000 character comment and replaces one slot. Approved
+  state shows the native post and unlocked export.
+- Owner actions append feedback, WeightUpdates, rules, snapshots, outcomes, and
+  graph lineage immediately. Do not show subjective scores, ranks, comparisons,
+  eligibility judgments, or automatic choice.
+- Do not expose templates, sliders, UUID entry, layers,
   recipes, prompts, or model controls in the normal journey.
+- Social posts remains a creation/review surface in production and loopback. It
+  does not expose Project asset upload/Pexels sourcing, duplicate local Project
+  evidence or run/snapshot history, or explanatory copy about server integrity
+  checks and absent automatic evaluation. Asset sourcing belongs to Studio.
 - Universal Ad Studio exposes only the fixed background, optional sticker,
   hero title, supporting text, optional bullets, CTA, and optional logo roles;
   meaningful mood/layout controls; three fixed asset slots; and immutable
@@ -65,19 +69,16 @@ Updated: 2026-08-30
 - Studio preview and immutable-version renders are authenticated,
   digest-checked, and no-store. Approval stores the exact PNG, configuration,
   semantic content, asset provenance/digests, and internal template digest.
-- A collapsed owner-only explanation may show all five initial candidate
-  previews, their exact five parameter values, and a visual rendering of the
-  persisted gate, score, ranking, pairwise, action, observation, and final-
-  selection trail. Deeper debug may expose bounded versions, IDs, digests,
-  retry counts, and lineage. Neither surface may expose chain-of-thought,
-  credentials, raw attachment base64, or unrestricted source contents.
+- Owner learning may show ID-explicit actions, child lineage, exact comments,
+  active Project rules, digests, and notification state. It may not expose
+  chain-of-thought, credentials, raw media bytes, or unrestricted sources.
 - There is no publishing, campaign, traffic, UTM, analytics, or optimization
   action.
 
 ## Caching and reset
 
 - Cache only public shell resources. Never cache API, authenticated render,
-  debug, or feedback responses.
+  review, export, notification, or feedback responses.
 - The reset preview names only `ptw_commander.public`, explicitly states that
   the independent platform database is preserved, and requires
   `RESET PTW PRODUCTION`.

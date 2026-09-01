@@ -17,9 +17,7 @@ class Settings:
     content_candidate_generator_skill_path: Path = Path(
         "/run/ptw-auth/skills/content-candidate-generator/SKILL.md"
     )
-    content_result_critic_skill_path: Path = Path(
-        "/run/ptw-auth/skills/content-result-critic/SKILL.md"
-    )
+    commander_review_notification_url: str = "http://commander-api:8080/internal/review-notifications"
     studio_workspace_path: Path = Path("/tmp/ptw-studio-workspace")
 
     @classmethod
@@ -48,10 +46,10 @@ class Settings:
                 "CONTENT_CANDIDATE_GENERATOR_SKILL_PATH",
                 "/run/ptw-auth/skills/content-candidate-generator/SKILL.md",
             )),
-            content_result_critic_skill_path=Path(os.environ.get(
-                "CONTENT_RESULT_CRITIC_SKILL_PATH",
-                "/run/ptw-auth/skills/content-result-critic/SKILL.md",
-            )),
+            commander_review_notification_url=os.environ.get(
+                "COMMANDER_REVIEW_NOTIFICATION_URL",
+                "http://commander-api:8080/internal/review-notifications",
+            ).strip(),
             studio_workspace_path=Path(os.environ.get(
                 "STUDIO_WORKSPACE_PATH", "/tmp/ptw-studio-workspace",
             )),

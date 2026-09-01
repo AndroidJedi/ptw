@@ -34,7 +34,7 @@ def sha256_json(value: Any) -> str:
 class LocalExperimentStore:
     """One-record-per-revision authority; projections are reconstructed on read."""
 
-    schema = "ptw.local-owner-experiment-store.v1"
+    schema = "ptw.local-owner-experiment-store.v2"
 
     def __init__(self, root: Path | str) -> None:
         self.root = Path(root)

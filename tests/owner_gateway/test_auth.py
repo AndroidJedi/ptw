@@ -64,10 +64,13 @@ class OwnerClaimsTests(unittest.TestCase):
         paths = {route.path for route in create_app(self.settings, verifier=Verifier()).routes}
         required = {
             "/api/v1/projects", "/api/v1/briefs", "/api/v1/content-runs",
-            "/api/v1/content-runs/{run_id}/result",
-            "/api/v1/content-runs/{run_id}/candidates/{candidate_id}/asset",
-            "/api/v1/content-runs/{run_id}/feedback",
-            "/api/v1/content-runs/{run_id}/revisions",
+            "/api/v1/content-runs/{run_id}/review",
+            "/api/v1/content-runs/{run_id}/creatives/{creative_id}/asset",
+            "/api/v1/content-runs/{run_id}/creatives/{creative_id}/export",
+            "/api/v1/content-runs/{run_id}/review/approve",
+            "/api/v1/content-runs/{run_id}/review/regenerate-all",
+            "/api/v1/content-runs/{run_id}/review/tune",
+            "/api/v1/content-runs/{run_id}/review-notification/retry",
             "/api/v1/studio",
             "/api/v1/studio/configuration",
             "/api/v1/studio/assets/{slot}",
@@ -79,6 +82,12 @@ class OwnerClaimsTests(unittest.TestCase):
         self.assertTrue(required <= paths)
         self.assertNotIn("/api/v1/project-assets", paths)
         self.assertNotIn("/api/v1/project-brand-kits", paths)
+        for retired in (
+            "/api/v1/content-runs/{run_id}/result",
+            "/api/v1/content-runs/{run_id}/feedback",
+            "/api/v1/content-runs/{run_id}/revisions",
+        ):
+            self.assertNotIn(retired, paths)
         self.assertFalse([path for path in paths if "/studio/templates" in path])
         forbidden_fragments = ("ad-batches", "ad-creatives", "ad-studio", "landing", "publish", "campaign")
         self.assertFalse([

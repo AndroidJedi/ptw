@@ -2,13 +2,34 @@
 set -euo pipefail
 
 repository="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-confirmation="${1:-}"
-expected="RESET PTW LOCAL OWNER DATA"
+scope=""
+confirmation=""
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --scope) scope="${2:-}"; shift 2 ;;
+    --scope=*) scope="${1#*=}"; shift ;;
+    --confirm) confirmation="${2:-}"; shift 2 ;;
+    --confirm=*) confirmation="${1#*=}"; shift ;;
+    *) echo "usage: scripts/reset_ptw_local.sh --scope owner-experiments --confirm='RESET PTW LOCAL RESULT DATA'" >&2; exit 2 ;;
+  esac
+done
 
-if [[ "$confirmation" != "--confirm=$expected" ]]; then
-  echo "Refusing irreversible local reset. Use: scripts/reset_ptw_local.sh --confirm='$expected'" >&2
+[[ "$scope" == "owner-experiments" ]] || {
+  echo "only the owner-experiments scope is allowed" >&2
   exit 2
-fi
+}
+[[ "$confirmation" == "RESET PTW LOCAL RESULT DATA" ]] || {
+  echo "exact local Result reset confirmation is required" >&2
+  exit 2
+}
+
+target="$repository/.local/owner-experiments"
+local_root="$repository/.local"
+[[ "$target" == "$local_root/owner-experiments" ]] || {
+  echo "refusing unexpected reset target: $target" >&2
+  exit 1
+}
+[[ ! -L "$target" ]] || { echo "refusing symlink reset target" >&2; exit 1; }
 
 if command -v lsof >/dev/null 2>&1; then
   for port in 8088 5173; do
@@ -23,12 +44,9 @@ if command -v lsof >/dev/null 2>&1; then
   done
 fi
 
-python_binary="${repository}/.venv/bin/python"
-if [[ ! -x "$python_binary" ]]; then
-  python_binary="$(command -v python3)"
-fi
-
-"$python_binary" - "$repository" <<'PY'
+python_binary="$repository/.venv/bin/python"
+[[ -x "$python_binary" ]] || python_binary="$(command -v python3)"
+"$python_binary" - "$target" "$local_root" <<'PY'
 from __future__ import annotations
 
 import json
@@ -36,12 +54,14 @@ from pathlib import Path
 import shutil
 import sys
 
-repository = Path(sys.argv[1]).resolve()
-local_root = (repository / ".local").resolve()
-allowed_names = {"studio-workspace", "studio-tune", "owner-experiments"}
-targets = [local_root / name for name in sorted(allowed_names)]
+target = Path(sys.argv[1])
+local_root = Path(sys.argv[2]).resolve()
+if target.resolve() != local_root / "owner-experiments" or target.parent.resolve() != local_root:
+    raise SystemExit(f"refusing non-allowlisted reset target: {target}")
+if target.is_symlink():
+    raise SystemExit(f"refusing symlink reset target: {target}")
 
-run_root = local_root / "owner-experiments" / "records" / "runs"
+run_root = target / "records" / "runs"
 if run_root.is_dir():
     for entity in run_root.iterdir():
         revisions = sorted(entity.glob("*.json")) if entity.is_dir() else []
@@ -51,25 +71,11 @@ if run_root.is_dir():
         if (value.get("payload") or {}).get("status") in {"queued", "generating"}:
             raise SystemExit(f"refusing reset while local Result run {entity.name} is active")
 
-tune_root = local_root / "studio-tune" / "runs"
-if tune_root.is_dir():
-    for path in tune_root.glob("*/run.json"):
-        value = json.loads(path.read_text(encoding="utf-8"))
-        if value.get("status") in {"queued", "running"}:
-            raise SystemExit(f"refusing reset while Studio Tune run {path.parent.name} is active")
-
 local_root.mkdir(parents=True, exist_ok=True)
-for target in targets:
-    if target.parent.resolve() != local_root or target.name not in allowed_names:
-        raise SystemExit(f"refusing non-allowlisted reset target: {target}")
-    if target.is_symlink():
-        raise SystemExit(f"refusing symlink reset target: {target}")
-    if target.exists():
-        shutil.rmtree(target)
-    target.mkdir(mode=0o700)
-
-for target in targets:
-    if any(target.iterdir()):
-        raise SystemExit(f"local reset verification failed; store is not empty: {target}")
-    print(f"cleared and verified empty: {target.relative_to(repository)}")
+if target.exists():
+    shutil.rmtree(target)
+target.mkdir(mode=0o700)
+if any(target.iterdir()):
+    raise SystemExit("local owner-experiments reset verification failed")
+print("cleared and verified only .local/owner-experiments")
 PY

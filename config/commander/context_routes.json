@@ -12,13 +12,6 @@
       ],
       "optional": ["DESIGN_RULES.md", "docs/architecture/component-boundaries.md"]
     },
-    "content_result": {
-      "canonical": [
-        "docs/architecture/content-result-agent.md",
-        "skills/content-candidate-generator/SKILL.md"
-      ],
-      "optional": ["DESIGN_RULES.md"]
-    },
     "owner_ui": {
       "canonical": ["docs/operations/owner-gateway.md"],
       "optional": ["DESIGN_RULES.md"]

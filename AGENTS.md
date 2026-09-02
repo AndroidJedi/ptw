@@ -8,8 +8,7 @@ Start every session by reading, in order:
 3. Only the canonical route relevant to the current task.
 
 Do not load the entire documentation tree. Markdown is canonical; generated
-exports are derivatives. Preserve the generic learning architecture and keep
-Instagram-specific behavior behind an adapter.
+exports are derivatives. Preserve the generic Product Brief learning architecture.
 
 Before changing code, run `git status --short --branch` and synchronize the
 tracked branch without overwriting uncommitted work. After Commander changes,
@@ -51,29 +50,19 @@ token without owner authorization. Use disposable databases for migration
 tests unless the user explicitly authorizes a target database.
 
 The web Owner Gateway is the only normal instruction channel. Telegram is
-limited to notifications plus emergency `/help`, `/status`, and `/stop`; every
+limited to emergency `/help`, `/status`, and `/stop`; every
 other inbound command returns the web-console link and must not mutate state.
 
 Unified production reset uses the confirmation-gated `scripts/reset_ptw.sh`.
 It intentionally has no backup prerequisite by owner decision, so every reset
 must keep its exact target allowlist and must be treated as irreversible.
-Research must enter through
-`ResearchKnowledgeService` so every initial hypothesis retains `derived_from`
-edges to permanent research-source IDs.
-
-After each web creative, request feedback in the review queue. Never ask the owner to
-manually manage IDs: resolve the selected artifact to its Creative UUID, then
-persist HumanFeedback and WeightUpdate UUID entities connected through
-`evaluates`, `contains`, `derived_from`, and `adjusts` edges. Weight history is
-append-only; do not silently update a component row.
+Product Brief corrections persist HumanFeedback and WeightUpdate UUID entities
+connected through `evaluates`, `contains`, `derived_from`, and `adjusts` edges.
+Weight history is append-only; do not silently update a component row.
 
 The owner inspects graph state through bounded web APIs and the Docs/System UI.
 Keep output ID-explicit; PostgreSQL entities and relationship edges remain the
 complete authority.
-
-Creative research must still enter through the typed research service and
-retain sourced lineage; web actions consume hypothesis IDs without requiring
-the owner to copy them.
 
 Before claiming a Telegram capability is available, verify deployed help,
 routing, authorization, provider readiness, real end-to-end execution, graph

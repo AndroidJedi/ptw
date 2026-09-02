@@ -7,6 +7,7 @@ slots, and a deliberately small set of settings with visible creative impact.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from functools import lru_cache
 from io import BytesIO
 import hashlib
@@ -20,21 +21,35 @@ from .studio_primitives import PrimitiveTemplate
 
 
 UNIVERSAL_AD_TEMPLATE_ID = "universal_ad"
-UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v4"
+UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v5"
 UNIVERSAL_AD_CONTENT_SCHEMA = "ptw.studio.universal-ad-content.v2"
 LEGACY_UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v1"
 PREVIOUS_UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v2"
 RECENT_UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v3"
+PRIOR_UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v4"
 UNIVERSAL_AD_VERSION_SCHEMA = "ptw.studio.universal-ad-version.v2"
 UNIVERSAL_AD_WORKSPACE_SCHEMA = "ptw.studio.universal-ad-workspace.v5"
 UNIVERSAL_AD_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.universal-ad-component-settings.v2"
-UNIVERSAL_AD_TEMPLATE_VERSION = 10
+UNIVERSAL_AD_TEMPLATE_VERSION = 11
 
 FONT_FAMILIES = ("Inter", "Manrope", "Oswald", "Cormorant Garamond")
 TEXTURE_PRESETS = (
     "grain", "stone", "marble", "concrete", "granite", "slate", "travertine",
 )
 CTA_POSITIONS = ("below_text", "bottom_left", "bottom_right")
+STICKER_POSITIONS = (
+    "top_left", "top_right", "bottom_left", "bottom_right", "right_edge",
+    "bottom_edge", "bullet_list", "hero_title", "cta",
+)
+COLOR_VALUE_ALIASES: dict[str, tuple[str, ...]] = {
+    "#FFFFFF": ("white", "білий", "біла", "біле", "білим", "білою"),
+    "#000000": ("black", "чорний", "чорна", "чорне", "чорним", "чорною"),
+    "#FF0000": ("red", "червоний", "червона", "червоне", "червоним", "червоною"),
+    "#00FF00": ("green", "зелений", "зелена", "зелене", "зеленим", "зеленою"),
+    "#0000FF": ("blue", "синій", "синя", "синє", "синім", "синьою"),
+    "#FFD84D": ("yellow", "жовтий", "жовта", "жовте", "жовтим", "жовтою"),
+    "#10233F": ("navy", "dark navy", "темно-синій", "темно-синя", "темно-синім", "темно-синьою"),
+}
 
 SEMANTIC_ROLES = (
     "background", "sticker", "hero_title", "supporting_text",
@@ -157,7 +172,8 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "content.cta", "configuration.cta.style",
             "configuration.cta.position",
             "configuration.cta.background_color", "configuration.cta.text_color",
-            "configuration.cta.radius", "configuration.typography.font_family",
+            "configuration.cta.radius", "configuration.cta.font_size",
+            "configuration.typography.font_family",
             "configuration.typography.alignment", "configuration.layout.content_x",
             "configuration.layout.content_y", "configuration.layout.content_width",
             "configuration.layout.gap",
@@ -174,6 +190,242 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
         ),
     },
 )
+
+
+def _setting(
+    component_id: str, value_type: str, aliases: tuple[str, ...], *,
+    minimum: int | float | None = None, maximum: int | float | None = None,
+    step: int | float | None = None, values: tuple[Any, ...] = (),
+    value_aliases: Mapping[str, tuple[str, ...]] | None = None,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "component_id": component_id, "value_type": value_type,
+        "aliases": list(aliases),
+    }
+    if minimum is not None:
+        result["minimum"] = minimum
+    if maximum is not None:
+        result["maximum"] = maximum
+    if step is not None:
+        result["step"] = step
+    if values:
+        result["values"] = list(values)
+    if value_aliases:
+        result["value_aliases"] = {
+            key: list(items) for key, items in value_aliases.items()
+        }
+    return result
+
+
+# This is the one public source of truth for Studio controls, Tune resolution,
+# validation bounds, and strict planner schemas. Aliases intentionally contain
+# only precise owner language; fuzzy or copy-related comments remain Codex work.
+UNIVERSAL_SETTING_DEFINITIONS: dict[str, dict[str, Any]] = {
+    "configuration.background.mode": _setting(
+        "universal_ad.background", "enum", ("background mode", "режим фону"),
+        values=("solid", "texture", "image"),
+        value_aliases={
+            "solid": ("solid", "суцільний"), "texture": ("texture", "текстура"),
+            "image": ("image", "photo", "зображення", "фото"),
+        },
+    ),
+    "configuration.background.color": _setting(
+        "universal_ad.background", "color", ("background color", "колір фону"),
+        value_aliases=COLOR_VALUE_ALIASES,
+    ),
+    "configuration.background.texture": _setting(
+        "universal_ad.background", "enum", ("background texture", "текстура фону"),
+        values=TEXTURE_PRESETS,
+    ),
+    "configuration.background.texture_intensity": _setting(
+        "universal_ad.background", "number", ("texture intensity", "інтенсивність текстури"),
+        minimum=0, maximum=1, step=0.05,
+    ),
+    "configuration.background.image_layout": _setting(
+        "universal_ad.background", "enum", ("image layout", "розміщення зображення"),
+        values=("full", "left", "right", "top", "bottom"),
+        value_aliases={
+            "full": ("full", "повністю"), "left": ("left", "ліворуч"),
+            "right": ("right", "праворуч"), "top": ("top", "зверху"),
+            "bottom": ("bottom", "знизу"),
+        },
+    ),
+    "configuration.background.image_percent": _setting(
+        "universal_ad.background", "integer", ("image percent", "відсоток зображення"),
+        values=(25, 75),
+    ),
+    "configuration.background.image_fit": _setting(
+        "universal_ad.background", "enum", ("image fit", "масштабування зображення"),
+        values=("cover", "contain"),
+        value_aliases={"cover": ("cover", "заповнити"), "contain": ("contain", "вмістити")},
+    ),
+    "configuration.background.focal_x": _setting(
+        "universal_ad.background", "number", ("horizontal focal point", "фокус по горизонталі"),
+        minimum=0, maximum=1, step=0.05,
+    ),
+    "configuration.background.focal_y": _setting(
+        "universal_ad.background", "number", ("vertical focal point", "фокус по вертикалі"),
+        minimum=0, maximum=1, step=0.05,
+    ),
+    "configuration.background.overlay_color": _setting(
+        "universal_ad.background", "color", ("overlay color", "колір накладки"),
+        value_aliases=COLOR_VALUE_ALIASES,
+    ),
+    "configuration.background.overlay_opacity": _setting(
+        "universal_ad.background", "number", ("overlay opacity", "прозорість накладки"),
+        minimum=0, maximum=0.85, step=0.05,
+    ),
+    "configuration.typography.font_family": _setting(
+        "universal_ad.hero_title", "enum", ("font", "font family", "шрифт"),
+        values=FONT_FAMILIES,
+    ),
+    "configuration.typography.benefits_font_family": _setting(
+        "universal_ad.bullet_list", "enum", ("benefits font", "шрифт переваг"),
+        values=FONT_FAMILIES,
+    ),
+    "configuration.typography.hero_size": _setting(
+        "universal_ad.hero_title", "integer", (
+            "headline size", "headline font size", "hero size", "розмір заголовка",
+            "розмір шрифту заголовка",
+        ),
+        minimum=64, maximum=180, step=1,
+    ),
+    "configuration.typography.hero_weight": _setting(
+        "universal_ad.hero_title", "integer", ("headline weight", "товщина заголовка"),
+        minimum=400, maximum=900, step=100,
+    ),
+    "configuration.typography.supporting_size": _setting(
+        "universal_ad.supporting_text", "integer", (
+            "supporting text size", "supporting font size", "розмір додаткового тексту",
+            "розмір шрифту додаткового тексту",
+        ),
+        minimum=22, maximum=52, step=1,
+    ),
+    "configuration.typography.text_color": _setting(
+        "universal_ad.hero_title", "color", ("text color", "post text color", "колір тексту", "колір тексту допису"),
+        value_aliases=COLOR_VALUE_ALIASES,
+    ),
+    "configuration.typography.alignment": _setting(
+        "universal_ad.hero_title", "enum", ("text alignment", "вирівнювання тексту"),
+        values=("left", "center"),
+        value_aliases={"left": ("left", "ліворуч"), "center": ("center", "centre", "по центру", "центр")},
+    ),
+    "configuration.layout.content_x": _setting(
+        "universal_ad.hero_title", "integer", ("content x", "горизонтальна позиція контенту"),
+        minimum=48, maximum=520, step=1,
+    ),
+    "configuration.layout.content_y": _setting(
+        "universal_ad.hero_title", "integer", ("content y", "вертикальна позиція контенту"),
+        minimum=72, maximum=360, step=1,
+    ),
+    "configuration.layout.content_width": _setting(
+        "universal_ad.hero_title", "integer", ("content width", "ширина контенту"),
+        minimum=420, maximum=936, step=1,
+    ),
+    "configuration.layout.gap": _setting(
+        "universal_ad.hero_title", "integer", ("spacing", "gap", "відступ", "інтервал"),
+        minimum=8, maximum=56, step=1,
+    ),
+    "configuration.bullets.enabled": _setting(
+        "universal_ad.bullet_list", "boolean", ("bullets", "bullet list", "маркери", "список переваг"),
+    ),
+    "configuration.bullets.style": _setting(
+        "universal_ad.bullet_list", "enum", ("bullet style", "стиль маркерів"),
+        values=("check", "circle", "circle_outline"),
+        value_aliases={
+            "check": ("check", "checkmark", "галочка"),
+            "circle": ("circle", "filled circle", "коло"),
+            "circle_outline": ("circle outline", "outlined circle", "контурне коло"),
+        },
+    ),
+    "configuration.cta.style": _setting(
+        "universal_ad.cta", "enum", ("cta style", "button style", "стиль cta", "стиль кнопки"),
+        values=("filled", "gradient", "reverse", "link", "outlined"),
+        value_aliases={
+            "filled": ("filled", "залитий", "залитою"), "gradient": ("gradient", "градієнт", "градієнтною"),
+            "reverse": ("reverse", "інверсний", "інверсною"), "link": ("link", "посиланням"),
+            "outlined": ("outlined", "outline", "контурний", "контурною"),
+        },
+    ),
+    "configuration.cta.position": _setting(
+        "universal_ad.cta", "enum", ("cta position", "button position", "позиція cta", "позиція кнопки"),
+        values=CTA_POSITIONS,
+        value_aliases={
+            "below_text": ("below text", "під текстом"),
+            "bottom_left": ("bottom left", "знизу ліворуч", "внизу зліва"),
+            "bottom_right": ("bottom right", "знизу праворуч", "внизу справа"),
+        },
+    ),
+    "configuration.cta.background_color": _setting(
+        "universal_ad.cta", "color", ("cta background color", "button color", "колір кнопки", "колір фону cta"),
+        value_aliases=COLOR_VALUE_ALIASES,
+    ),
+    "configuration.cta.text_color": _setting(
+        "universal_ad.cta", "color", ("cta text color", "button text color", "колір тексту кнопки", "колір тексту cta"),
+        value_aliases=COLOR_VALUE_ALIASES,
+    ),
+    "configuration.cta.radius": _setting(
+        "universal_ad.cta", "integer", ("cta radius", "button radius", "радіус кнопки"),
+        minimum=0, maximum=40, step=1,
+    ),
+    "configuration.cta.font_size": _setting(
+        "universal_ad.cta", "integer", ("cta text size", "button text size", "розмір тексту кнопки"),
+        minimum=18, maximum=42, step=1,
+    ),
+    "configuration.sticker.enabled": _setting(
+        "universal_ad.sticker", "boolean", ("sticker", "стікер", "наліпка"),
+    ),
+    "configuration.sticker.position": _setting(
+        "universal_ad.sticker", "enum", ("sticker position", "позиція стікера", "позиція наліпки"),
+        values=STICKER_POSITIONS,
+        value_aliases={
+            "top_left": ("top left", "зверху ліворуч", "вгорі зліва"),
+            "top_right": ("top right", "зверху праворуч", "вгорі справа"),
+            "bottom_left": ("bottom left", "знизу ліворуч", "внизу зліва"),
+            "bottom_right": ("bottom right", "знизу праворуч", "внизу справа"),
+            "right_edge": ("right edge", "правий край"),
+            "bottom_edge": ("bottom edge", "нижній край"),
+            "bullet_list": ("bullet list", "список переваг"),
+            "hero_title": ("headline", "hero title", "заголовок"),
+            "cta": ("cta", "button", "кнопка"),
+        },
+    ),
+    "configuration.sticker.rotation": _setting(
+        "universal_ad.sticker", "number", ("sticker rotation", "поворот стікера", "поворот наліпки"),
+        minimum=-18, maximum=18, step=1,
+    ),
+    "configuration.sticker.width": _setting(
+        "universal_ad.sticker", "integer", ("sticker width", "sticker size", "ширина стікера", "розмір стікера", "розмір наліпки"),
+        minimum=120, maximum=720, step=1,
+    ),
+    "configuration.sticker.object_scale": _setting(
+        "universal_ad.sticker", "number", ("sticker scale", "масштаб стікера", "масштаб наліпки"),
+        minimum=0.35, maximum=1.5, step=0.05,
+    ),
+    "configuration.sticker.offset_right": _setting(
+        "universal_ad.sticker", "integer", ("sticker right offset", "відступ стікера справа"),
+        minimum=-720, maximum=720, step=1,
+    ),
+    "configuration.sticker.offset_bottom": _setting(
+        "universal_ad.sticker", "integer", ("sticker bottom offset", "відступ стікера знизу"),
+        minimum=-720, maximum=720, step=1,
+    ),
+    "configuration.logo.enabled": _setting(
+        "universal_ad.logo", "boolean", ("logo", "логотип"),
+    ),
+    "configuration.logo.position": _setting(
+        "universal_ad.logo", "enum", ("logo position", "позиція логотипа"),
+        values=("top_left", "top_right"),
+        value_aliases={
+            "top_left": ("top left", "зверху ліворуч", "вгорі зліва"),
+            "top_right": ("top right", "зверху праворуч", "вгорі справа"),
+        },
+    ),
+    "configuration.logo.width": _setting(
+        "universal_ad.logo", "integer", ("logo width", "logo size", "ширина логотипа", "розмір логотипа"),
+        minimum=80, maximum=280, step=1,
+    ),
+}
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "schema": UNIVERSAL_AD_CONFIG_SCHEMA,
@@ -215,6 +467,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "background_color": "#FFD84D",
         "text_color": "#10233F",
         "radius": 24,
+        "font_size": 27,
     },
     "sticker": {
         "enabled": False,
@@ -297,6 +550,32 @@ def _color(value: Any, label: str) -> str:
     return normalized
 
 
+def normalize_universal_setting(setting_id: str, value: Any) -> Any:
+    """Normalize one public control from the canonical Studio registry."""
+
+    definition = UNIVERSAL_SETTING_DEFINITIONS.get(setting_id)
+    if definition is None:
+        raise ValueError(f"Studio setting is not registered: {setting_id}")
+    label = setting_id.removeprefix("configuration.")
+    value_type = definition["value_type"]
+    if value_type == "boolean":
+        return _boolean(value, label)
+    if value_type == "color":
+        return _color(value, label)
+    if value_type == "enum":
+        return _enum(value, tuple(definition["values"]), label)
+    if value_type == "integer":
+        if definition.get("values"):
+            normalized = _integer(value, label, min(definition["values"]), max(definition["values"]))
+            if normalized not in definition["values"]:
+                raise ValueError(f"{label} is outside its allowed values")
+            return normalized
+        return _integer(value, label, definition["minimum"], definition["maximum"])
+    if value_type == "number":
+        return _number(value, label, definition["minimum"], definition["maximum"])
+    raise ValueError(f"Studio setting has unsupported registered type: {setting_id}")
+
+
 def _upgrade_config(value: Mapping[str, Any]) -> Mapping[str, Any]:
     """Upgrade never-deployed local configurations without losing owner state."""
 
@@ -307,7 +586,8 @@ def _upgrade_config(value: Mapping[str, Any]) -> Mapping[str, Any]:
             "overlay_color", "overlay_opacity",
         }, "legacy background")
         bullets = _object(root["bullets"], {"enabled", "marker"}, "legacy bullets")
-        cta = _object(root["cta"], {"background_color", "text_color", "radius"}, "legacy CTA")
+        legacy_cta = dict(root["cta"]); legacy_cta.pop("font_size", None)
+        cta = _object(legacy_cta, {"background_color", "text_color", "radius"}, "legacy CTA")
         sticker = _object(root["sticker"], {
             "enabled", "position", "rotation", "paper_width", "paper_color", "object_scale",
         }, "legacy sticker")
@@ -343,7 +623,8 @@ def _upgrade_config(value: Mapping[str, Any]) -> Mapping[str, Any]:
         typography = _object(root["typography"], {
             "font_family", "hero_size", "hero_weight", "supporting_size", "text_color", "alignment",
         }, "previous typography")
-        cta = _object(root["cta"], {
+        previous_cta = dict(root["cta"]); previous_cta.pop("font_size", None)
+        cta = _object(previous_cta, {
             "style", "background_color", "text_color", "radius",
         }, "previous CTA")
         font_family = "Oswald" if typography["font_family"] == "Roboto Condensed" else typography["font_family"]
@@ -362,18 +643,30 @@ def _upgrade_config(value: Mapping[str, Any]) -> Mapping[str, Any]:
             "cta": {**dict(cta), "position": "below_text"},
         }
 
-    if value.get("schema") != RECENT_UNIVERSAL_AD_CONFIG_SCHEMA:
+    if value.get("schema") == RECENT_UNIVERSAL_AD_CONFIG_SCHEMA:
+        legacy_fields = set(DEFAULT_CONFIG)
+        root = _object(value, legacy_fields, "recent Studio universal configuration")
+        logo = _object(root["logo"], {"enabled", "position", "width"}, "recent logo")
+        recent_cta = dict(root["cta"]); recent_cta.pop("font_size", None)
+        value = {
+            **dict(root),
+            "schema": PRIOR_UNIVERSAL_AD_CONFIG_SCHEMA,
+            "logo": {
+                **dict(logo),
+                "background_enabled": False,
+                "background_color": "#FFFFFF",
+            },
+            "cta": recent_cta,
+        }
+
+    if value.get("schema") != PRIOR_UNIVERSAL_AD_CONFIG_SCHEMA:
         return value
-    root = _object(value, set(DEFAULT_CONFIG), "recent Studio universal configuration")
-    logo = _object(root["logo"], {"enabled", "position", "width"}, "recent logo")
+    root = _object(value, set(DEFAULT_CONFIG), "prior Studio universal configuration")
+    cta = _object(root["cta"], set(DEFAULT_CONFIG["cta"]) - {"font_size"}, "prior CTA")
     return {
         **dict(root),
         "schema": UNIVERSAL_AD_CONFIG_SCHEMA,
-        "logo": {
-            **dict(logo),
-            "background_enabled": False,
-            "background_color": "#FFFFFF",
-        },
+        "cta": {**dict(cta), "font_size": 27},
     }
 
 
@@ -396,78 +689,33 @@ def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
     normalized = {
         "schema": UNIVERSAL_AD_CONFIG_SCHEMA,
         "background": {
-            "mode": _enum(background["mode"], ("solid", "texture", "image"), "background.mode"),
-            "color": _color(background["color"], "background.color"),
-            "texture": _enum(background["texture"], TEXTURE_PRESETS, "background.texture"),
-            "texture_intensity": _number(
-                background["texture_intensity"], "background.texture_intensity", 0, 1,
-            ),
-            "image_layout": _enum(
-                background["image_layout"], ("full", "left", "right", "top", "bottom"),
-                "background.image_layout",
-            ),
-            "image_percent": _integer(
-                background["image_percent"], "background.image_percent", 25, 75,
-            ),
-            "image_fit": _enum(background["image_fit"], ("cover", "contain"), "background.image_fit"),
-            "focal_x": _number(background["focal_x"], "background.focal_x", 0, 1),
-            "focal_y": _number(background["focal_y"], "background.focal_y", 0, 1),
-            "overlay_color": _color(background["overlay_color"], "background.overlay_color"),
-            "overlay_opacity": _number(background["overlay_opacity"], "background.overlay_opacity", 0, 0.85),
+            key: normalize_universal_setting(f"configuration.background.{key}", background[key])
+            for key in DEFAULT_CONFIG["background"]
         },
         "typography": {
-            "font_family": _enum(typography["font_family"], FONT_FAMILIES, "typography.font_family"),
-            "benefits_font_family": _enum(
-                typography["benefits_font_family"], FONT_FAMILIES,
-                "typography.benefits_font_family",
-            ),
-            "hero_size": _integer(typography["hero_size"], "typography.hero_size", 64, 180),
-            "hero_weight": _integer(typography["hero_weight"], "typography.hero_weight", 400, 900),
-            "supporting_size": _integer(typography["supporting_size"], "typography.supporting_size", 22, 52),
-            "text_color": _color(typography["text_color"], "typography.text_color"),
-            "alignment": _enum(typography["alignment"], ("left", "center"), "typography.alignment"),
+            key: normalize_universal_setting(f"configuration.typography.{key}", typography[key])
+            for key in DEFAULT_CONFIG["typography"]
         },
         "layout": {
-            "content_x": _integer(layout["content_x"], "layout.content_x", 48, 520),
-            "content_y": _integer(layout["content_y"], "layout.content_y", 72, 360),
-            "content_width": _integer(layout["content_width"], "layout.content_width", 420, 936),
-            "gap": _integer(layout["gap"], "layout.gap", 8, 56),
+            key: normalize_universal_setting(f"configuration.layout.{key}", layout[key])
+            for key in DEFAULT_CONFIG["layout"]
         },
         "bullets": {
-            "enabled": _boolean(bullets["enabled"], "bullets.enabled"),
-            "style": _enum(
-                bullets["style"], ("check", "circle", "circle_outline"), "bullets.style",
-            ),
+            key: normalize_universal_setting(f"configuration.bullets.{key}", bullets[key])
+            for key in DEFAULT_CONFIG["bullets"]
         },
         "cta": {
-            "style": _enum(
-                cta["style"], ("filled", "gradient", "reverse", "link", "outlined"),
-                "cta.style",
-            ),
-            "position": _enum(cta["position"], CTA_POSITIONS, "cta.position"),
-            "background_color": _color(cta["background_color"], "cta.background_color"),
-            "text_color": _color(cta["text_color"], "cta.text_color"),
-            "radius": _integer(cta["radius"], "cta.radius", 0, 40),
+            key: normalize_universal_setting(f"configuration.cta.{key}", cta[key])
+            for key in DEFAULT_CONFIG["cta"]
         },
         "sticker": {
-            "enabled": _boolean(sticker["enabled"], "sticker.enabled"),
-            "position": _enum(
-                sticker["position"], (
-                    "top_left", "top_right", "bottom_left", "bottom_right", "right_edge",
-                    "bottom_edge", "bullet_list", "hero_title", "cta",
-                ),
-                "sticker.position",
-            ),
-            "rotation": _number(sticker["rotation"], "sticker.rotation", -18, 18),
-            "width": _integer(sticker["width"], "sticker.width", 120, 720),
-            "object_scale": _number(sticker["object_scale"], "sticker.object_scale", 0.35, 1.5),
-            "offset_right": _integer(sticker["offset_right"], "sticker.offset_right", -720, 720),
-            "offset_bottom": _integer(sticker["offset_bottom"], "sticker.offset_bottom", -720, 720),
+            key: normalize_universal_setting(f"configuration.sticker.{key}", sticker[key])
+            for key in DEFAULT_CONFIG["sticker"]
         },
         "logo": {
-            "enabled": _boolean(logo["enabled"], "logo.enabled"),
-            "position": _enum(logo["position"], ("top_left", "top_right"), "logo.position"),
-            "width": _integer(logo["width"], "logo.width", 80, 280),
+            "enabled": normalize_universal_setting("configuration.logo.enabled", logo["enabled"]),
+            "position": normalize_universal_setting("configuration.logo.position", logo["position"]),
+            "width": normalize_universal_setting("configuration.logo.width", logo["width"]),
             # Kept in the v4 payload only for stored-version compatibility.
             # The logo component has no backing-surface node as of template v10.
             "background_enabled": False,
@@ -476,8 +724,6 @@ def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
     }
     if normalized["layout"]["content_x"] + normalized["layout"]["content_width"] > 1032:
         raise ValueError("layout.content_x plus content_width must stay inside the safe canvas")
-    if normalized["background"]["image_percent"] not in {25, 75}:
-        raise ValueError("background.image_percent must be either 25 or 75")
     return normalized
 
 
@@ -558,29 +804,9 @@ def universal_component_settings(
     return {**value, "sha256": digest}
 
 
-def universal_content_from_generation(
-    candidate: Mapping[str, Any], *, brief: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Adapt existing Candidate/Product Brief copy without another generation call."""
-    if not isinstance(candidate, Mapping):
-        raise ValueError("Studio candidate content must be an object")
-    supporting = candidate.get("primary_text") or candidate.get("supporting_text")
-    benefits = [] if brief is None else brief.get("key_benefits") or []
-    if not isinstance(benefits, list):
-        raise ValueError("Studio Product Brief key benefits must be a list")
-    return normalize_universal_content({
-        "schema": UNIVERSAL_AD_CONTENT_SCHEMA,
-        "hero_title": candidate.get("headline") or "",
-        "supporting_text": supporting or "",
-        "offer": candidate.get("offer") or "",
-        "bullets": benefits[:3],
-        "cta": candidate.get("cta") or "",
-    })
-
-
 def universal_ad_catalog() -> dict[str, Any]:
     value = {
-        "schema": "ptw.studio.universal-ad-catalog.v4",
+        "schema": "ptw.studio.universal-ad-catalog.v6",
         "template_id": UNIVERSAL_AD_TEMPLATE_ID,
         "template_version": UNIVERSAL_AD_TEMPLATE_VERSION,
         "semantic_roles": list(SEMANTIC_ROLES),
@@ -602,6 +828,10 @@ def universal_ad_catalog() -> dict[str, Any]:
             }
             for key, item in ASSET_SLOTS.items()
         },
+        "setting_definitions": [
+            {"setting_id": setting_id, **deepcopy(definition)}
+            for setting_id, definition in UNIVERSAL_SETTING_DEFINITIONS.items()
+        ],
         "variation": {
             "background_modes": ["solid", "texture", "image"],
             "image_layouts": ["full", "left", "right", "top", "bottom"],
@@ -610,10 +840,8 @@ def universal_ad_catalog() -> dict[str, Any]:
             "bullet_styles": ["check", "circle", "circle_outline"],
             "cta_styles": ["filled", "gradient", "reverse", "link", "outlined"],
             "cta_positions": list(CTA_POSITIONS),
-            "sticker_positions": [
-                "top_left", "top_right", "bottom_left", "bottom_right", "right_edge",
-                "bottom_edge", "bullet_list", "hero_title", "cta",
-            ],
+            "cta_font_size": {"minimum": 18, "maximum": 42, "default": 27},
+            "sticker_positions": list(STICKER_POSITIONS),
             "font_families": list(FONT_FAMILIES),
             "optional_elements": ["sticker", "bullet_list", "logo"],
         },
@@ -887,9 +1115,10 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
         _node("cta", "button", {
             "position": "absolute", "x": cta_x, "y": cta_y, "width": cta_width, "height": 82,
             "z_index": 6, **cta_surface,
-            "font_family": typography["font_family"], "font_size": 27, "min_font_size": 18,
+            "font_family": typography["font_family"], "font_size": cta["font_size"],
+            "min_font_size": 18,
             "font_weight": 800, "text_align": "center", "vertical_align": "center",
-            "text_fit": "shrink", "max_lines": 1,
+            "text_fit": "shrink", "max_lines": 2,
             "padding": {"top": 10, "right": 24, "bottom": 10, "left": 24},
         }, binding=("label", "content.cta", True)),
         _node("sticker_object", "image", {

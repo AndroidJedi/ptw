@@ -1,1 +1,1 @@
-"""PTW Product Brief and five-template Result runtime."""
+"""PTW Product Brief and Universal Studio runtime."""

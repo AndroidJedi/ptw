@@ -11,8 +11,8 @@
     },
     {
       "name": "validation-pipeline",
-      "description": "Product Briefs, five isolated Creatives, deterministic rendering, owner review, learning, notification, and immutable lineage",
-      "paths": ["commander/**", "validation_pipeline/**", "skills/product-brief-generator/**", "skills/content-candidate-generator/**", "tests/validation_pipeline/**", "db/**", "docker-compose*.yml", "requirements*.txt"],
+      "description": "Product Brief validation, standalone Universal Studio, and immutable lineage",
+      "paths": ["commander/**", "validation_pipeline/**", "skills/product-brief-generator/**", "skills/studio-tune-local/**", "tests/validation_pipeline/**", "db/**", "docker-compose*.yml", "requirements*.txt"],
       "validation": [
         ["python3", "-m", "unittest", "discover", "-s", "tests/validation_pipeline", "-v"],
         ["python3", "-m", "unittest", "tests.commander.test_telegram_boundary", "-v"],
@@ -30,7 +30,7 @@
     },
     {
       "name": "owner-gateway",
-      "description": "Firebase-authenticated Product Brief and Result API gateway",
+      "description": "Firebase-authenticated Product Brief and Universal Studio API gateway",
       "paths": ["owner_gateway/**", "tests/owner_gateway/**", "deploy/owner-gateway/**", "scripts/reset_ptw.sh"],
       "validation": [
         ["python3", "-m", "unittest", "discover", "-s", "tests/owner_gateway", "-v"],

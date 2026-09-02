@@ -26,8 +26,8 @@ const componentDefinitions = componentRoles.map(([role, nodeIds, assetSlotIds]) 
 const detail: StudioUniversalDetail = {
   schema: 'ptw.studio.universal-ad-workspace.v5',
   catalog: {
-    schema: 'ptw.studio.universal-ad-catalog.v4',
-    template_id: 'universal_ad', template_version: 10,
+    schema: 'ptw.studio.universal-ad-catalog.v5',
+    template_id: 'universal_ad', template_version: 11,
     semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'offer', 'bullet_list', 'cta', 'logo'],
     components: componentDefinitions,
     asset_slots: {},
@@ -38,6 +38,7 @@ const detail: StudioUniversalDetail = {
       bullet_styles: ['check', 'circle', 'circle_outline'],
       cta_styles: ['filled', 'gradient', 'reverse', 'link', 'outlined'],
       cta_positions: ['below_text', 'bottom_left', 'bottom_right'],
+      cta_font_size: { minimum: 18, maximum: 42, default: 27 },
       sticker_positions: ['top_left', 'top_right', 'bottom_left', 'bottom_right', 'right_edge', 'bottom_edge', 'bullet_list', 'hero_title', 'cta'],
       font_families: ['Inter', 'Manrope', 'Oswald', 'Cormorant Garamond'],
       optional_elements: ['sticker', 'bullet_list', 'logo'],
@@ -46,7 +47,7 @@ const detail: StudioUniversalDetail = {
   },
   state_sha256: 'a'.repeat(64), template_sha256: 'c'.repeat(64),
   configuration: {
-    schema: 'ptw.studio.universal-ad-config.v4',
+    schema: 'ptw.studio.universal-ad-config.v5',
     background: {
       mode: 'image', color: '#10233F', texture: 'stone', texture_intensity: 0.7,
       image_layout: 'full', image_percent: 75, image_fit: 'cover',
@@ -61,7 +62,7 @@ const detail: StudioUniversalDetail = {
     bullets: { enabled: true, style: 'check' },
     cta: {
       style: 'filled', position: 'below_text', background_color: '#FFD84D',
-      text_color: '#10233F', radius: 24,
+      text_color: '#10233F', radius: 24, font_size: 27,
     },
     sticker: {
       enabled: true, position: 'bottom_right', rotation: 5, width: 300,
@@ -82,8 +83,8 @@ const detail: StudioUniversalDetail = {
   },
   component_settings: {
     schema: 'ptw.studio.universal-ad-component-settings.v2',
-    template_id: 'universal_ad', template_version: 10,
-    configuration_schema: 'ptw.studio.universal-ad-config.v4',
+    template_id: 'universal_ad', template_version: 11,
+    configuration_schema: 'ptw.studio.universal-ad-config.v5',
     components: componentDefinitions.map(({ setting_ids, ...component }) => ({
       ...component,
       settings: setting_ids.map((setting_id) => ({ setting_id, value: true })),
@@ -212,7 +213,8 @@ describe('Universal Ad Studio', () => {
     const { api, post } = studioApi()
     render(<StudioView api={api} language="en" />)
 
-    expect(await screen.findByText('universal_ad · v10')).toBeInTheDocument()
+    expect(await screen.findByText('universal_ad · v11')).toBeInTheDocument()
+    expect(screen.getByLabelText('CTA font size')).toHaveValue(27)
     expect(screen.queryByText('ONE TEMPLATE · CONFIGURATION-FIRST')).not.toBeInTheDocument()
     expect(screen.queryByText('Universal Ad Studio')).not.toBeInTheDocument()
     expect(screen.getByText('8 stable semantic roles')).toBeInTheDocument()

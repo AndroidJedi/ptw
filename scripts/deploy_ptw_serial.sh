@@ -144,7 +144,7 @@ if grep -Eq '^[[:space:]]*-[[:space:]]+mode=' "$rendered_platform_compose"; then
     echo "platform Compose split a tmpfs option into an invalid mount item" >&2
     exit 1
 fi
-# Put the enforcing worker in place before the API admits Result modes.
+# Put the enforcing worker in place before the API admits Product Brief modes.
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api
 
@@ -214,4 +214,4 @@ systemctl is-active --quiet ptw-validation-24h-audit.timer || {
     echo "24-hour PTW resource audit timer was not scheduled" >&2
     exit 1
 }
-echo "PTW Result v1 APIs deployed from a clean production reset at $git_revision"
+echo "PTW Product Brief and Studio APIs deployed from a clean production reset at $git_revision"

@@ -13,7 +13,6 @@ describe('Product Brief workspace', () => {
       onProjectCreated={vi.fn()}
       onProjectBriefChanged={vi.fn()}
       onProjectsRefresh={vi.fn(async () => undefined)}
-      onOpenResult={vi.fn()}
       language="en"
     />)
 
@@ -30,7 +29,7 @@ describe('Product Brief workspace', () => {
       project: {
         project_id: 'project-1', request_id: 'request-1', owner_idea_source_id: 'source-1',
         name: 'Проєкт', name_source: 'raw_idea', requested_by: 'owner',
-        result_creation_enabled: false, brief_count: 1, result_run_count: 0,
+        brief_count: 1,
         created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z',
       },
       brief: {
@@ -49,7 +48,6 @@ describe('Product Brief workspace', () => {
       onProjectCreated={vi.fn()}
       onProjectBriefChanged={vi.fn()}
       onProjectsRefresh={vi.fn(async () => undefined)}
-      onOpenResult={vi.fn()}
       language="uk"
     />)
 

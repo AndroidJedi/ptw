@@ -1,4 +1,4 @@
-"""Bounded Pexels real-photo selection for Instagram Result generation."""
+"""Bounded Pexels real-photo search and import for Universal Studio."""
 
 from __future__ import annotations
 
@@ -35,6 +35,14 @@ def _non_photographic_terms(value: str) -> list[str]:
         term for term in _NON_PHOTOGRAPHIC_OBJECT_TERMS
         if re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", normalized)
     })
+
+
+def _matches_any_term(value: str, terms: tuple[str, ...]) -> bool:
+    normalized = " ".join(str(value).casefold().replace("-", " ").split())
+    return any(
+        re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", normalized)
+        for term in terms
+    )
 
 
 def validate_pexels_photographic_object_query(query: str) -> None:
@@ -96,6 +104,7 @@ class PexelsPhoto:
 
 def validate_pexels_photographic_object(
     photo: PexelsPhoto, data: bytes, *, query: str,
+    required_subject_terms: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Reject obvious graphic sources before a Pexels object becomes a sticker.
 
@@ -111,6 +120,16 @@ def validate_pexels_photographic_object(
         raise ValueError(
             "Pexels sticker source describes a non-photographic visual: "
             + ", ".join(rejected_terms)
+        )
+    subject_terms = tuple(sorted({
+        " ".join(str(term).casefold().split()) for term in required_subject_terms
+        if " ".join(str(term).casefold().split())
+    }))
+    if required_subject_terms and not subject_terms:
+        raise ValueError("Pexels sticker subject terms are empty")
+    if subject_terms and not _matches_any_term(photo.alt, subject_terms):
+        raise ValueError(
+            "Pexels sticker source does not describe the required physical object"
         )
     if photo.width < 1080 or photo.height < 1080:
         raise ValueError("Pexels sticker photograph is below the 1080px source minimum")
@@ -141,6 +160,8 @@ def validate_pexels_photographic_object(
         "source_height": decoded_height,
         "query_screen": "passed",
         "provider_alt_screen": "passed",
+        "provider_subject_screen": "passed" if subject_terms else "not_required",
+        "required_subject_terms": list(subject_terms),
         "synthetic_visuals_allowed": False,
     }
 
@@ -148,7 +169,7 @@ def validate_pexels_photographic_object(
 class PexelsClient:
     def __init__(self, api_key: str, *, timeout_seconds: int = 20) -> None:
         if not api_key:
-            raise RuntimeError("PEXELS_API_KEY is required for real-photo creatives")
+            raise RuntimeError("PEXELS_API_KEY is required for Studio photo search")
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
         self.ssl_context = ssl.create_default_context(cafile=certifi.where())
@@ -237,16 +258,28 @@ class PexelsClient:
             raise ValueError("Pexels photo lookup returned an invalid source")
         return photo
 
-    def select(self, query: str, category: str, *, used_ids: set[str]) -> tuple[PexelsPhoto, bytes]:
+    def select(
+        self, query: str, category: str, *, used_ids: set[str],
+        required_alt_terms: tuple[str, ...] = (),
+    ) -> tuple[PexelsPhoto, bytes]:
+        subject_terms = tuple(sorted({
+            " ".join(str(term).casefold().split()) for term in required_alt_terms
+            if " ".join(str(term).casefold().split())
+        }))
+        if required_alt_terms and not subject_terms:
+            raise ValueError("Pexels required alt terms are empty")
         for search_term in (query, category):
             for photo in self.search(search_term):
                 if photo.photo_id in used_ids or photo.width < 1080 or photo.height < 1080:
+                    continue
+                if subject_terms and not _matches_any_term(photo.alt, subject_terms):
                     continue
                 try:
                     return photo, self.download(photo)
                 except (RuntimeError, ValueError):
                     continue
-        raise RuntimeError("Pexels did not return a distinct usable square photo")
+        suffix = " matching the required subject" if subject_terms else ""
+        raise RuntimeError(f"Pexels did not return a distinct usable square photo{suffix}")
 
     def download(self, photo: PexelsPhoto) -> bytes:
         if not _is_https_host(photo.image_url, PEXELS_IMAGE_HOST):

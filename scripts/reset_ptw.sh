@@ -70,8 +70,8 @@ $commander_compose exec -T commander-db psql -X -v ON_ERROR_STOP=1 \
   -U ptw_commander -d ptw_commander \
   -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION ptw_commander;'
 
-# This volume belonged to the deleted SQLite/job/Landing gateway. It has no
-# owner in Result v1. Remove the exact stopped legacy Gateway container first,
+# This volume belonged to the deleted SQLite/job/Landing gateway. Remove the
+# exact stopped legacy Gateway container first,
 # because Docker retains its volume reference after a normal service stop.
 if docker volume inspect ptw_owner-control >/dev/null 2>&1; then
   legacy_gateway=$(docker ps -aq --filter 'name=^/ptw-owner-gateway-1$')
@@ -97,33 +97,27 @@ BEGIN
     ('sources', (SELECT count(*) FROM commander_sources)),
     ('projects', (SELECT count(*) FROM validation_projects)),
     ('briefs', (SELECT count(*) FROM product_briefs)),
-    ('assets', (SELECT count(*) FROM project_assets)),
-    ('brand_kits', (SELECT count(*) FROM project_brand_kits)),
-    ('recipes', (SELECT count(*) FROM studio_recipes)),
-    ('renders', (SELECT count(*) FROM studio_renders)),
-    ('runs', (SELECT count(*) FROM content_generation_runs)),
-    ('creatives', (SELECT count(*) FROM content_creatives)),
-    ('creative_previews', (SELECT count(*) FROM content_creative_previews)),
-    ('elements', (SELECT count(*) FROM content_elements)),
-    ('review_actions', (SELECT count(*) FROM content_review_actions)),
-    ('learning_rules', (SELECT count(*) FROM content_learning_rules)),
-    ('learning_snapshots', (SELECT count(*) FROM content_learning_snapshots)),
-    ('creative_approvals', (SELECT count(*) FROM content_creative_approvals)),
-    ('notification_receipts', (SELECT count(*) FROM telegram_delivery_receipts)),
-    ('outcomes', (SELECT count(*) FROM content_generation_outcomes)),
     ('feedback', (SELECT count(*) FROM commander_human_feedback)),
     ('weights', (SELECT count(*) FROM commander_weight_updates)),
     ('attempts', (SELECT count(*) FROM validation_generation_attempts)),
     ('provider_invocations', (SELECT count(*) FROM validation_provider_invocations))
   ) AS counts(label,value) WHERE value <> 0;
   IF failures IS NOT NULL THEN
-    RAISE EXCEPTION 'Result v1 reset postcondition failed: %', failures;
+    RAISE EXCEPTION 'Product Brief reset postcondition failed: %', failures;
   END IF;
 
   SELECT string_agg(table_name, ', ' ORDER BY table_name) INTO forbidden
   FROM information_schema.tables
   WHERE table_schema='public' AND (
     table_name IN ('ideas','research_jobs','research_sources')
+    OR table_name IN (
+      'project_assets','project_brand_kits','studio_recipes','studio_render_attempts',
+      'studio_renders','content_generation_runs','content_creatives',
+      'content_creative_previews','content_elements','content_creative_elements',
+      'content_review_actions','content_learning_rules','content_learning_snapshots',
+      'content_creative_approvals','telegram_delivery_receipts',
+      'content_generation_outcomes','content_generation_checkpoints'
+    )
     OR
     table_name LIKE 'ad\_%' ESCAPE '\'
     OR table_name LIKE 'landing\_%' ESCAPE '\'
@@ -136,13 +130,13 @@ BEGIN
     OR table_name LIKE '%campaign%'
   );
   IF forbidden IS NOT NULL THEN
-    RAISE EXCEPTION 'retired tables survived Result v1 reset: %', forbidden;
+    RAISE EXCEPTION 'retired tables survived Product Brief reset: %', forbidden;
   END IF;
   IF (SELECT count(*) FROM commander_schema_migrations) <> 1
      OR NOT EXISTS (
-       SELECT 1 FROM commander_schema_migrations WHERE name='001_ptw_result_v1.sql'
+       SELECT 1 FROM commander_schema_migrations WHERE name='001_ptw_brief_v1.sql'
      ) THEN
-    RAISE EXCEPTION 'Result v1 has anything other than its single baseline migration';
+    RAISE EXCEPTION 'Product Brief v1 has anything other than its single baseline migration';
   END IF;
 END $$;
 SQL
@@ -171,4 +165,4 @@ do
   [ -z "$container_id" ] || docker rm --force "$container_id" >/dev/null
 done
 
-echo "PTW Result v1 reset complete; all owned business data is empty and platform counts are unchanged"
+echo "PTW Product Brief v1 reset complete; all owned business data is empty and platform counts are unchanged"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send one clearly labelled Result v1 check through the existing PTW bot."""
+"""Send one clearly labelled emergency-boundary check through the existing PTW bot."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def main() -> None:
     if not token or chat_id == 0 or chat_id not in allowed:
         raise SystemExit("existing PTW bot and allowlisted owner chat are required")
     message = (
-        "PTW Result v1 deployment canary\n"
+        "PTW deployment canary\n"
         "Direct sendMessage only; no job, webhook, or polling process was created.\n"
         f"UTC: {datetime.now(timezone.utc).isoformat()}"
     )

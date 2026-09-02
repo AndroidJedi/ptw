@@ -9,8 +9,7 @@ const projects: ValidationProject[] = [{
   owner_idea_source_id: '018f07ea-7f20-7000-8000-000000000003',
   name: 'Psychologist consultations', name_source: 'product_brief',
   requested_by: 'firebase:owner', latest_brief_id: '018f07ea-7f20-7000-8000-000000000004',
-  latest_brief_status: 'completed', brief_count: 2, result_run_count: 1,
-  result_creation_enabled: true,
+  latest_brief_status: 'completed', brief_count: 2,
   created_at: '2026-08-25T08:00:00Z', updated_at: '2026-08-25T08:05:00Z',
 }, {
   project_id: '018f07ea-7f20-7000-8000-000000000011',
@@ -18,7 +17,7 @@ const projects: ValidationProject[] = [{
   owner_idea_source_id: '018f07ea-7f20-7000-8000-000000000013',
   name: 'Mentor marketplace', name_source: 'raw_idea', requested_by: 'firebase:owner',
   latest_brief_id: '018f07ea-7f20-7000-8000-000000000014', latest_brief_status: 'generating',
-  brief_count: 1, result_run_count: 0, result_creation_enabled: false,
+  brief_count: 1,
   created_at: '2026-08-25T09:00:00Z', updated_at: '2026-08-25T09:00:00Z',
 }]
 

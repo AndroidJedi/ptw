@@ -1,4 +1,4 @@
-"""Loopback-only API for the complete local Owner app."""
+"""Loopback-only API for Product Briefs and the standalone Studio."""
 
 from __future__ import annotations
 
@@ -11,11 +11,10 @@ from typing import Any
 from fastapi import Depends, FastAPI, Header, HTTPException
 
 from .images import PexelsClient
+from .local_brief_routes import local_brief_router
+from .local_brief_store import LocalBriefStore
+from .local_briefs import LocalBriefService
 from .local_codex import LocalCodexStructuredProvider
-from .local_experiment_routes import local_experiment_router
-from .local_experiment_store import LocalExperimentStore
-from .local_experiments import LocalExperimentService
-from .review_notifications import CommanderReviewNotifier
 from .studio_routes import studio_router
 from .studio_tune import StudioTuneService, studio_tune_router
 from .studio_workspace import UniversalStudioWorkspace
@@ -27,8 +26,9 @@ LOCAL_APP_CHECK_TOKEN = "e2e-app-check"
 
 def create_app(
     *, tune_service: StudioTuneService | None = None,
-    experiment_service: LocalExperimentService | None = None,
+    brief_service: LocalBriefService | None = None,
 ) -> FastAPI:
+    tune_enabled = os.environ.get("STUDIO_TUNE_MODE", "").strip() == "1"
     workspace_path = Path(os.environ.get(
         "STUDIO_WORKSPACE_PATH", ".local/studio-workspace",
     ))
@@ -37,14 +37,10 @@ def create_app(
         workspace_path,
         pexels=PexelsClient(pexels_key) if pexels_key else None,
     )
-    pexels = PexelsClient(pexels_key) if pexels_key else None
-    notification_url = os.environ.get("COMMANDER_REVIEW_NOTIFICATION_URL", "").strip()
-    notification_token = os.environ.get("OWNER_GATEWAY_BRIDGE_TOKEN", "").strip()
-    experiment_service = experiment_service or LocalExperimentService(
-        store=LocalExperimentStore(Path(os.environ.get(
-            "LOCAL_EXPERIMENT_PATH", ".local/owner-experiments",
+    brief_service = brief_service or LocalBriefService(
+        store=LocalBriefStore(Path(os.environ.get(
+            "LOCAL_BRIEF_PATH", ".local/owner-briefs",
         ))),
-        workspace=workspace,
         provider=LocalCodexStructuredProvider(
             os.environ.get("LOCAL_CODEX_BIN", "").strip() or "codex",
             model=os.environ.get("LOCAL_CODEX_MODEL", "").strip() or None,
@@ -54,29 +50,13 @@ def create_app(
             timeout_seconds=int(os.environ.get("LOCAL_CODEX_TIMEOUT_SECONDS", "420")),
         ),
         repository_root=Path(__file__).resolve().parents[1],
-        pexels=pexels,
-        notifier=(
-            CommanderReviewNotifier(notification_url, notification_token)
-            if notification_url and notification_token else None
-        ),
     )
     recovery_tasks: set[asyncio.Task[Any]] = set()
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        recovered = experiment_service.recover_interrupted()
-        for brief_id in recovered["brief_ids"]:
-            task = asyncio.create_task(asyncio.to_thread(experiment_service.generate_brief, brief_id))
-            recovery_tasks.add(task)
-            task.add_done_callback(recovery_tasks.discard)
-        for run_id in recovered["run_ids"]:
-            task = asyncio.create_task(asyncio.to_thread(experiment_service.execute_run, run_id))
-            recovery_tasks.add(task)
-            task.add_done_callback(recovery_tasks.discard)
-        for run_id in recovered["notification_run_ids"]:
-            task = asyncio.create_task(asyncio.to_thread(
-                experiment_service.resume_review_notification, run_id,
-            ))
+        for brief_id in brief_service.recover_interrupted():
+            task = asyncio.create_task(asyncio.to_thread(brief_service.generate_brief, brief_id))
             recovery_tasks.add(task)
             task.add_done_callback(recovery_tasks.discard)
         yield
@@ -106,10 +86,9 @@ def create_app(
     app.include_router(studio_router(
         workspace, prefix="/api/v1/studio", dependencies=[Depends(authorize)],
     ))
-    app.include_router(local_experiment_router(
-        experiment_service, dependencies=[Depends(authorize)],
+    app.include_router(local_brief_router(
+        brief_service, dependencies=[Depends(authorize)],
     ))
-    tune_enabled = os.environ.get("STUDIO_TUNE_MODE", "").strip() == "1"
     if tune_service is not None or tune_enabled:
         service = tune_service or StudioTuneService(
             Path(os.environ.get(

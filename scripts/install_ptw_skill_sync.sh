@@ -6,7 +6,7 @@ codex_root=${CODEX_HOME:-$(python3 -c 'from pathlib import Path; print(Path.home
 desktop_skills="$codex_root/skills"
 mkdir -p "$desktop_skills"
 
-for retired_name in marketing-positioning ad-creative-generator ad-creative-validator ad-studio-composer natal-landing-builder content-result-critic; do
+for retired_name in marketing-positioning ad-creative-generator ad-creative-validator ad-studio-composer natal-landing-builder content-result-critic content-candidate-generator; do
   retired_skill="$desktop_skills/$retired_name"
   if [ -L "$retired_skill" ]; then
     retired_target=$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve())' "$retired_skill")

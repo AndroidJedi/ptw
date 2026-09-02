@@ -1,4 +1,4 @@
-"""Product Brief generation feeding the Result-only content pipeline."""
+"""Product Brief generation service."""
 
 from __future__ import annotations
 

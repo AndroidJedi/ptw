@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -30,10 +31,10 @@ class LocalCodexError(RuntimeError):
 
 
 class LocalCodexCancelled(RuntimeError):
-    """A structured call stopped by its owning local Result run."""
+    """A structured local call stopped by its owner."""
 
     def __init__(self, attempts: Sequence[Mapping[str, Any]]) -> None:
-        super().__init__("local Codex structured call was terminated by the owner")
+        super().__init__("local Codex structured call was cancelled by the owner")
         self.attempts = [dict(item) for item in attempts]
 
 
@@ -110,11 +111,12 @@ class LocalCodexStructuredProvider:
 
     def _command(
         self, *, workdir: Path, schema_path: Path, output_path: Path,
+        reasoning_effort: str,
     ) -> list[str]:
         command = [
             self.codex_binary, "exec", "--ephemeral", "--ignore-rules",
             "--sandbox", "read-only", "--skip-git-repo-check", "--color", "never",
-            "--config", f'model_reasoning_effort="{self.reasoning_effort}"',
+            "--config", f'model_reasoning_effort="{reasoning_effort}"',
             "--output-schema", str(schema_path), "--output-last-message", str(output_path),
             "-C", str(workdir),
         ]
@@ -130,6 +132,14 @@ class LocalCodexStructuredProvider:
             "Return only the JSON object required by the supplied output schema. "
             "Do not include chain-of-thought, hidden reasoning, markdown, or credentials.\n\n"
             f"INPUT_JSON:\n{canonical_json(input_payload)}\n"
+        )
+
+    @staticmethod
+    def _sanitized_error_message(error: Exception) -> str:
+        message = " ".join(str(error).split())[:1000] or type(error).__name__
+        return re.sub(
+            r"(?i)(token|secret|credential|password)\s*[:=]\s*\S+",
+            r"\1=[redacted]", message,
         )
 
     @staticmethod
@@ -219,10 +229,14 @@ class LocalCodexStructuredProvider:
         prompt_version: str,
         response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
         cancel_event: threading.Event | None = None,
+        reasoning_effort: str | None = None,
     ) -> dict[str, Any]:
         attempts: list[dict[str, Any]] = []
         input_digest = sha256_json(sanitized(input_payload))
         last_error: Exception | None = None
+        selected_effort = reasoning_effort or self.reasoning_effort
+        if selected_effort not in self.supported_reasoning_efforts:
+            raise ValueError("local structured reasoning effort must be low, medium, high, or xhigh")
         for attempt in range(1, self.maximum_attempts + 1):
             with tempfile.TemporaryDirectory(prefix="ptw-local-codex-") as temporary:
                 root = Path(temporary)
@@ -231,6 +245,7 @@ class LocalCodexStructuredProvider:
                 schema_path.write_text(canonical_json(output_schema), encoding="utf-8")
                 command = self._command(
                     workdir=root, schema_path=schema_path, output_path=output_path,
+                    reasoning_effort=selected_effort,
                 )
                 record: dict[str, Any] = {
                     "attempt": attempt,
@@ -239,7 +254,7 @@ class LocalCodexStructuredProvider:
                     "prompt_version": prompt_version,
                     "input_sha256": input_digest,
                     "model": self.model or "codex-cli-default",
-                    "reasoning_effort": self.reasoning_effort,
+                    "reasoning_effort": selected_effort,
                     "timeout_seconds": self.timeout_seconds,
                     "sandbox": "read-only",
                     "ephemeral": True,
@@ -249,7 +264,15 @@ class LocalCodexStructuredProvider:
                         raise _CancellationRequested()
                     completed = self._execute(
                         command,
-                        prompt=self._prompt(system_prompt, input_payload),
+                        prompt=self._prompt(
+                            system_prompt + (
+                                "\n\nCORRECTION_REQUIRED: The previous structured response was rejected by "
+                                f"PTW validation: {self._sanitized_error_message(last_error)}. "
+                                "Return a corrected object that obeys that exact constraint."
+                                if last_error is not None else ""
+                            ),
+                            input_payload,
+                        ),
                         cwd=root,
                         cancel_event=cancel_event,
                     )
@@ -275,7 +298,7 @@ class LocalCodexStructuredProvider:
                         "invocation": {
                             "provider": "codex-cli",
                             "model": self.model or "codex-cli-default",
-                            "reasoning_effort": self.reasoning_effort,
+                            "reasoning_effort": selected_effort,
                             "mode": mode,
                             "prompt_version": prompt_version,
                             "input_sha256": input_digest,
@@ -291,10 +314,14 @@ class LocalCodexStructuredProvider:
                     raise LocalCodexCancelled(attempts) from error
                 except Exception as error:
                     last_error = error
-                    record.update({"status": "failed", "error_type": type(error).__name__})
+                    record.update({
+                        "status": "failed", "error_type": type(error).__name__,
+                        "error_message": self._sanitized_error_message(error),
+                    })
                     attempts.append(record)
         raise LocalCodexError(
-            f"local Codex structured call failed after two attempts: {type(last_error).__name__}",
+            "local Codex structured call failed after two attempts: "
+            f"{type(last_error).__name__}: {self._sanitized_error_message(last_error or RuntimeError('unknown error'))}",
             attempts,
         ) from last_error
 

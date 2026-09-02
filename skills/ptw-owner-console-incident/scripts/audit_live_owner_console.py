@@ -82,11 +82,7 @@ def main() -> None:
         "reCAPTCHA Enterprise site key": args.site_key,
         "Safari-safe Auth persistence": "ptw-auth-local-storage-v1",
         "Product Brief workspace": "Product Briefs",
-        "five-Creative review": "Five verified creative directions",
-        "owner approval": "OWNER ACTION",
-        "single-Creative tune": "Tune selected",
-        "set regeneration": "Regenerate all",
-        "notification retry": "Retry notification",
+        "Universal Studio": "Universal Ad Studio",
     }.items():
         require(marker in app_bundle, f"Live App bundle is missing {label}")
     for retired_label in (
@@ -94,6 +90,8 @@ def main() -> None:
         "Docs / System / Terminal", "PROJECT BRAND KIT", "Result type",
         "Describe the one result you need",
         "Improving the strongest direction", "WHY THIS DIRECTION",
+        "Five verified creative directions", "Tune selected", "Regenerate all",
+        "Retry notification", "Social posts",
     ):
         require(retired_label not in app_bundle, f"Live App bundle still exposes {retired_label!r}")
 
@@ -116,7 +114,8 @@ def main() -> None:
 
     for retired_path in (
         "/api/v1/ideas", "/api/v1/branding", "/api/v1/posts",
-        "/api/v1/project-assets", "/api/v1/project-brand-kits",
+        "/api/v1/content-runs", "/api/v1/project-assets",
+        "/api/v1/project-brand-kits",
         "/api/v1/positionings", "/api/v1/ads", "/api/v1/ad-batches",
         "/api/v1/ad-studio", "/api/v1/landings", "/api/v1/jobs",
         "/api/v1/public/landings/00000000-0000-0000-0000-000000000000/leads",

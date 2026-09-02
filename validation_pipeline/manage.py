@@ -15,16 +15,19 @@ def main() -> None:
         print(repository.recover_interrupted())
         return
     required = {
+        "commander_entities", "commander_relationships", "commander_sources",
+        "commander_human_feedback", "commander_weight_updates",
+        "commander_audit_events", "commander_operation_guard", "commander_control",
         "validation_projects", "product_briefs", "product_brief_approvals",
         "validation_generation_attempts", "validation_provider_invocations",
+    }
+    forbidden = {
         "project_assets", "project_brand_kits", "studio_recipes", "studio_renders",
         "content_generation_runs", "content_creatives", "content_creative_previews",
         "content_elements", "content_creative_elements", "content_review_actions",
         "content_learning_rules", "content_learning_snapshots", "content_creative_approvals",
-        "telegram_delivery_receipts",
-        "content_generation_outcomes", "content_generation_checkpoints",
-    }
-    forbidden = {
+        "telegram_delivery_receipts", "content_generation_outcomes",
+        "content_generation_checkpoints",
         "creative_batches", "ad_creatives", "ad_creative_assets", "ad_studio_templates",
         "ad_studio_sample_sets", "ad_studio_wizard_proposals", "ad_studio_publications",
         "landing_builds", "landing_draft_sets", "commander_ad_batches",
@@ -37,11 +40,11 @@ def main() -> None:
         ).fetchall()
     missing = required - {row[0] for row in rows}
     if missing:
-        raise SystemExit(f"Result schema is incomplete: {sorted(missing)}")
+        raise SystemExit(f"Product Brief schema is incomplete: {sorted(missing)}")
     present_forbidden = forbidden & {row[0] for row in rows}
     if present_forbidden:
         raise SystemExit(f"legacy tables are forbidden: {sorted(present_forbidden)}")
-    print("PTW Result schema: OK")
+    print("PTW Product Brief schema: OK")
 
 
 if __name__ == "__main__":

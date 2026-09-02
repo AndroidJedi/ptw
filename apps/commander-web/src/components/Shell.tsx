@@ -1,11 +1,10 @@
-import { Layers3, Sparkles, Target } from 'lucide-react'
+import { Layers3, Target } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { translate, type Language } from '../i18n'
 import type { Page } from '../types'
 
 const items: Array<{ id: Page; en: string; uk: string; icon: typeof Target }> = [
   { id: 'briefs', en: 'Product Briefs', uk: 'Продуктові брифи', icon: Target },
-  { id: 'result', en: 'Social posts', uk: 'Дописи для соцмереж', icon: Sparkles },
   { id: 'studio', en: 'Studio', uk: 'Студія', icon: Layers3 },
 ]
 

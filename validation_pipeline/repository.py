@@ -1,4 +1,4 @@
-"""PostgreSQL authority for Projects, Product Briefs, approved media, and Result renders."""
+"""PostgreSQL authority for Projects and Product Briefs."""
 
 from __future__ import annotations
 
@@ -39,13 +39,12 @@ class ValidationRepository:
     def _project_select() -> str:
         return """SELECT project.entity_id,project.request_id,project.owner_idea_source_id,
                          project.name,project.name_source,project.requested_by,
-                         project.result_creation_enabled,project.created_at,project.updated_at,
+                         project.created_at,project.updated_at,
                          (SELECT brief.entity_id FROM product_briefs brief
                            WHERE brief.project_id=project.entity_id ORDER BY brief.created_at DESC LIMIT 1),
                          (SELECT brief.status FROM product_briefs brief
                            WHERE brief.project_id=project.entity_id ORDER BY brief.created_at DESC LIMIT 1),
-                         (SELECT count(*) FROM product_briefs brief WHERE brief.project_id=project.entity_id),
-                         (SELECT count(*) FROM content_generation_runs run WHERE run.project_id=project.entity_id)
+                         (SELECT count(*) FROM product_briefs brief WHERE brief.project_id=project.entity_id)
                     FROM validation_projects project"""
 
     @staticmethod
@@ -53,11 +52,10 @@ class ValidationRepository:
         return {
             "project_id": str(row[0]), "request_id": str(row[1]),
             "owner_idea_source_id": str(row[2]), "name": row[3], "name_source": row[4],
-            "requested_by": row[5], "result_creation_enabled": bool(row[6]),
-            "created_at": row[7].isoformat(), "updated_at": row[8].isoformat(),
-            "latest_brief_id": None if row[9] is None else str(row[9]),
-            "latest_brief_status": row[10], "brief_count": int(row[11]),
-            "result_run_count": int(row[12]),
+            "requested_by": row[5], "created_at": row[6].isoformat(),
+            "updated_at": row[7].isoformat(),
+            "latest_brief_id": None if row[8] is None else str(row[8]),
+            "latest_brief_status": row[9], "brief_count": int(row[10]),
         }
 
     def get_project(self, project_id: str) -> dict[str, Any]:
@@ -343,16 +341,11 @@ class ValidationRepository:
                 "INSERT INTO product_brief_approvals(id,brief_id,approved_by) VALUES(%s,%s,%s)",
                 (UUID(new_uuid7()), UUID(brief_id), approved_by),
             )
-            connection.execute(
-                """UPDATE validation_projects SET result_creation_enabled=true,
-                          updated_at=clock_timestamp() WHERE entity_id=%s""",
-                (UUID(brief["project_id"]),),
-            )
         return self.get_brief(brief_id), True
 
     @staticmethod
     def _acquire_operation(connection: Any, kind: str, operation_id: str) -> None:
-        if kind not in {"product_brief", "content_run"}:
+        if kind != "product_brief":
             raise ValueError("unsupported operation kind")
         changed = connection.execute(
             """UPDATE commander_operation_guard
@@ -501,473 +494,6 @@ class ValidationRepository:
             raise ValueError("only a failed Product Brief can be retried")
         return self.get_brief(target_id)
 
-    @staticmethod
-    def _asset_row(row: Sequence[Any], *, include_bytes: bool = False) -> dict[str, Any]:
-        value = {
-            "source_asset_id": str(row[0]), "project_id": str(row[1]), "origin": row[2],
-            "approval_status": row[3], "title": row[4], "mime_type": row[5],
-            "width": int(row[6]), "height": int(row[7]), "bytes_sha256": row[8],
-            "source_uri": row[9], "provider": row[10], "external_id": row[11],
-            "license": row[12], "attribution": row[13], "metadata": dict(row[14]),
-            "created_by": row[15], "created_at": row[16].isoformat(),
-            "asset_url": f"/api/v1/project-assets/{row[0]}/asset",
-        }
-        if include_bytes:
-            value["bytes"] = bytes(row[17])
-        return value
-
-    def create_project_asset(
-        self, project_id: str, *, title: str, data: bytes, mime_type: str, origin: str,
-        provider: str, external_id: str | None, source_uri: str | None,
-        license_name: str | None, attribution: str | None, metadata: Mapping[str, Any],
-        requested_by: str, approval_status: str = "approved",
-    ) -> dict[str, Any]:
-        from psycopg.types.json import Jsonb
-        from .studio import inspect_media
-
-        if approval_status not in {"approved", "pending_review", "rejected"}:
-            raise ValueError("unknown Project asset approval status")
-        if origin not in {"owner_upload", "pexels", "canonical_brand", "ai_generated"}:
-            raise ValueError("unknown Project asset origin")
-        inspected = inspect_media(data, mime_type)
-        if inspected["mime_type"] not in {"image/jpeg", "image/png", "image/webp"}:
-            raise ValueError("Project assets are static images only")
-        digest = hashlib.sha256(data).hexdigest()
-        stable_external_id = external_id or digest
-        normalized_title = " ".join(title.split())[:200]
-        if not normalized_title:
-            raise ValueError("Project asset title is required")
-        with self.connection() as connection:
-            existing = connection.execute(
-                "SELECT entity_id FROM project_assets WHERE project_id=%s AND provider=%s AND external_id=%s",
-                (UUID(project_id), provider, stable_external_id),
-            ).fetchone()
-            if existing is not None:
-                return self.get_project_asset(str(existing[0]))
-            if connection.execute(
-                "SELECT 1 FROM validation_projects WHERE entity_id=%s", (UUID(project_id),)
-            ).fetchone() is None:
-                raise KeyError(project_id)
-            entity_id = UUID(new_uuid7())
-            connection.execute(
-                "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'project_asset',%s)",
-                (entity_id, Jsonb({"origin": origin, "mime_type": mime_type})),
-            )
-            connection.execute(
-                """INSERT INTO project_assets(
-                       entity_id,project_id,origin,approval_status,title,mime_type,width,height,
-                       bytes,bytes_sha256,source_uri,provider,external_id,license,attribution,
-                       metadata,created_by
-                   ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                (
-                    entity_id, UUID(project_id), origin, approval_status, normalized_title,
-                    inspected["mime_type"], inspected["width"], inspected["height"], data, digest,
-                    source_uri, provider, stable_external_id, license_name, attribution,
-                    Jsonb(dict(metadata)), requested_by,
-                ),
-            )
-            connection.execute(
-                """INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes)
-                   VALUES(%s,%s,'contains',%s,%s)""",
-                (UUID(new_uuid7()), UUID(project_id), entity_id, Jsonb({"member": "project_asset"})),
-            )
-        return self.get_project_asset(str(entity_id))
-
-    def get_project_asset(self, asset_id: str, *, include_bytes: bool = False) -> dict[str, Any]:
-        extra = ",bytes" if include_bytes else ""
-        with self.connection() as connection:
-            row = connection.execute(
-                f"""SELECT entity_id,project_id,origin,approval_status,title,mime_type,width,height,
-                            bytes_sha256,source_uri,provider,external_id,license,attribution,metadata,
-                            created_by,created_at{extra} FROM project_assets WHERE entity_id=%s""",
-                (UUID(asset_id),),
-            ).fetchone()
-        if row is None:
-            raise KeyError(asset_id)
-        return self._asset_row(row, include_bytes=include_bytes)
-
-    def list_project_assets(self, project_id: str, *, approved_only: bool = False) -> list[dict[str, Any]]:
-        where = " AND approval_status='approved'" if approved_only else ""
-        with self.connection() as connection:
-            rows = connection.execute(
-                """SELECT entity_id,project_id,origin,approval_status,title,mime_type,width,height,
-                          bytes_sha256,source_uri,provider,external_id,license,attribution,metadata,
-                          created_by,created_at FROM project_assets
-                   WHERE project_id=%s""" + where + " ORDER BY created_at DESC LIMIT 100",
-                (UUID(project_id),),
-            ).fetchall()
-        return [self._asset_row(row) for row in rows]
-
-    def get_creative_media_asset(self, creative_id: str) -> dict[str, Any] | None:
-        with self.connection() as connection:
-            row = connection.execute(
-                "SELECT entity_id FROM project_assets WHERE metadata->>'content_creative_id'=%s",
-                (str(UUID(creative_id)),),
-            ).fetchone()
-        return None if row is None else self.get_project_asset(str(row[0]))
-
-    def project_asset_bytes(self, asset_id: str) -> dict[str, Any]:
-        item = self.get_project_asset(asset_id, include_bytes=True)
-        return {"bytes": item["bytes"], "sha256": item["bytes_sha256"], "mime_type": item["mime_type"]}
-
-    @staticmethod
-    def _brand_row(row: Sequence[Any]) -> dict[str, Any]:
-        return {
-            "brand_kit_id": str(row[0]), "project_id": str(row[1]),
-            "parent_brand_kit_id": None if row[2] is None else str(row[2]),
-            "document": dict(row[3]), "document_sha256": row[4],
-            "created_by": row[5], "created_at": row[6].isoformat(),
-        }
-
-    def create_project_brand_kit(
-        self, project_id: str, *, document: Mapping[str, Any],
-        parent_brand_kit_id: str | None, requested_by: str,
-    ) -> dict[str, Any]:
-        from psycopg.types.json import Jsonb
-        from .studio import validate_brand_kit
-
-        normalized = validate_brand_kit(document)
-        parent = None if parent_brand_kit_id is None else UUID(parent_brand_kit_id)
-        logo = None if normalized["logo_source_asset_id"] is None else UUID(normalized["logo_source_asset_id"])
-        entity_id = UUID(new_uuid7())
-        with self.connection() as connection:
-            if connection.execute(
-                "SELECT 1 FROM validation_projects WHERE entity_id=%s", (UUID(project_id),)
-            ).fetchone() is None:
-                raise KeyError(project_id)
-            if parent is not None and connection.execute(
-                "SELECT 1 FROM project_brand_kits WHERE entity_id=%s AND project_id=%s",
-                (parent, UUID(project_id)),
-            ).fetchone() is None:
-                raise ValueError("parent brand kit must belong to the Project")
-            if logo is not None and connection.execute(
-                """SELECT 1 FROM project_assets WHERE entity_id=%s AND project_id=%s
-                     AND approval_status='approved'""",
-                (logo, UUID(project_id)),
-            ).fetchone() is None:
-                raise ValueError("brand logo must be an approved Project asset")
-            connection.execute(
-                "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'project_brand_kit',%s)",
-                (entity_id, Jsonb({"schema_version": 1})),
-            )
-            connection.execute(
-                """INSERT INTO project_brand_kits(
-                       entity_id,project_id,parent_brand_kit_id,logo_asset_id,document,
-                       document_sha256,created_by
-                   ) VALUES(%s,%s,%s,%s,%s,%s,%s)""",
-                (
-                    entity_id, UUID(project_id), parent, logo, Jsonb(normalized),
-                    _sha(normalized), requested_by,
-                ),
-            )
-            for source, relation, target, attrs in (
-                (UUID(project_id), "contains", entity_id, {"member": "project_brand_kit"}),
-                *((entity_id, "derived_from", logo, {"input": "logo_asset"}) for _ in [0] if logo),
-                *((entity_id, "supersedes", parent, {}) for _ in [0] if parent),
-            ):
-                connection.execute(
-                    """INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes)
-                       VALUES(%s,%s,%s,%s,%s)""",
-                    (UUID(new_uuid7()), source, relation, target, Jsonb(attrs)),
-                )
-        return self.get_project_brand_kit(str(entity_id))
-
-    def get_project_brand_kit(self, brand_kit_id: str) -> dict[str, Any]:
-        with self.connection() as connection:
-            row = connection.execute(
-                """SELECT entity_id,project_id,parent_brand_kit_id,document,document_sha256,
-                          created_by,created_at FROM project_brand_kits WHERE entity_id=%s""",
-                (UUID(brand_kit_id),),
-            ).fetchone()
-        if row is None:
-            raise KeyError(brand_kit_id)
-        return self._brand_row(row)
-
-    def list_project_brand_kits(self, project_id: str) -> list[dict[str, Any]]:
-        with self.connection() as connection:
-            rows = connection.execute(
-                """SELECT entity_id,project_id,parent_brand_kit_id,document,document_sha256,
-                          created_by,created_at FROM project_brand_kits
-                   WHERE project_id=%s ORDER BY created_at DESC""",
-                (UUID(project_id),),
-            ).fetchall()
-        return [self._brand_row(row) for row in rows]
-
-    def ensure_natal_brand_kit(
-        self, project_id: str, *, logo_data: bytes, requested_by: str,
-    ) -> dict[str, Any]:
-        """Provision the immutable Natal identity without owner setup fields."""
-        from .natal_brand import natal_brand_document
-
-        logo = self.create_project_asset(
-            project_id, title="Natal canonical logo", data=logo_data, mime_type="image/png",
-            origin="canonical_brand", provider="natal", external_id="logo-natal-v1",
-            source_uri="natal/assets/logo-natal.png", license_name="PTW canonical brand asset",
-            attribution="Natal canonical logo", metadata={
-                "canonical_path": "natal/assets/logo-natal.png",
-                "immutable_identity": True,
-            }, requested_by=requested_by,
-        )
-        document = natal_brand_document(logo["source_asset_id"])
-        kits = self.list_project_brand_kits(project_id)
-        if kits and kits[0]["document"] == document:
-            return kits[0]
-        return self.create_project_brand_kit(
-            project_id,
-            parent_brand_kit_id=kits[0]["brand_kit_id"] if kits else None,
-            requested_by=requested_by,
-            document=document,
-        )
-
-    def create_recipe(
-        self, project_id: str, *, creative_id: str, brief_id: str, brand_kit_id: str,
-        document: Mapping[str, Any], requested_by: str,
-    ) -> dict[str, Any]:
-        from psycopg.types.json import Jsonb
-        from .studio import validate_recipe
-
-        project_uuid, creative_uuid = UUID(project_id), UUID(creative_id)
-        brief_uuid, kit_uuid = UUID(brief_id), UUID(brand_kit_id)
-        with self.connection() as connection:
-            existing = connection.execute(
-                "SELECT entity_id FROM studio_recipes WHERE creative_id=%s", (creative_uuid,),
-            ).fetchone()
-            if existing is not None:
-                recipe = self.get_recipe(str(existing[0]))
-                if (
-                    recipe["project_id"] != project_id
-                    or recipe["brief_id"] != brief_id
-                    or recipe["brand_kit_id"] != brand_kit_id
-                ):
-                    raise ValueError("creative recipe ownership cannot change")
-                return recipe
-            if connection.execute(
-                "SELECT 1 FROM commander_entities WHERE id=%s AND kind='content_creative'",
-                (creative_uuid,),
-            ).fetchone() is None:
-                raise ValueError("recipe creative UUID was not reserved by the server")
-            row = connection.execute(
-                """SELECT brief.document FROM product_briefs brief
-                   JOIN product_brief_approvals approval ON approval.brief_id=brief.entity_id
-                   WHERE brief.entity_id=%s AND brief.project_id=%s AND brief.status='completed'""",
-                (brief_uuid, project_uuid),
-            ).fetchone()
-            if row is None:
-                raise ValueError("recipes require an approved completed Brief in the Project")
-            kit_row = connection.execute(
-                "SELECT document FROM project_brand_kits WHERE entity_id=%s AND project_id=%s",
-                (kit_uuid, project_uuid),
-            ).fetchone()
-            if kit_row is None:
-                raise ValueError("brand kit must belong to the Project")
-            contract = validate_recipe(
-                document, project_id=project_id, brief_id=brief_id,
-                brand_kit_id=brand_kit_id, brief=dict(row[0]), brand_document=dict(kit_row[0]),
-            )
-            if contract.value["schema_version"] != 2 or contract.value["duration_seconds"] is not None:
-                raise ValueError("Result rendering accepts static StudioRecipeV2 only")
-            parent = None if contract.value["parent_recipe_id"] is None else UUID(contract.value["parent_recipe_id"])
-            creative_parent = connection.execute(
-                "SELECT parent_creative_id FROM content_creatives WHERE entity_id=%s",
-                (creative_uuid,),
-            ).fetchone()
-            expected_parent_creative = None if creative_parent is None else creative_parent[0]
-            if parent is None:
-                if expected_parent_creative is not None:
-                    raise ValueError("an improved creative recipe must reference its base recipe")
-            else:
-                parent_row = connection.execute(
-                    "SELECT creative_id FROM studio_recipes WHERE entity_id=%s AND project_id=%s",
-                    (parent, project_uuid),
-                ).fetchone()
-                if parent_row is None:
-                    raise ValueError("parent recipe must belong to the Project")
-                if expected_parent_creative is None or parent_row[0] != expected_parent_creative:
-                    raise ValueError("parent recipe must belong to the creative's direct base")
-            for asset_id in contract.value["source_asset_ids"]:
-                if connection.execute(
-                    """SELECT 1 FROM project_assets WHERE entity_id=%s AND project_id=%s AND (
-                           approval_status='approved' OR (
-                             origin='ai_generated' AND approval_status='pending_review'
-                             AND metadata->>'content_creative_id'=%s
-                           )
-                       )""",
-                    (UUID(asset_id), project_uuid, str(creative_uuid)),
-                ).fetchone() is None:
-                    raise ValueError("every recipe asset must be approved or scoped to this Creative")
-            entity_id = UUID(new_uuid7())
-            connection.execute(
-                "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'studio_recipe',%s)",
-                (entity_id, Jsonb({"schema_version": 2})),
-            )
-            connection.execute(
-                """INSERT INTO studio_recipes(
-                       entity_id,creative_id,project_id,brief_id,brand_kit_id,parent_recipe_id,
-                       placement_tool_id,document,document_sha256,renderer_version,created_by
-                   ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                (
-                    entity_id, creative_uuid, project_uuid, brief_uuid, kit_uuid, parent,
-                    contract.value["placement_tool_id"], Jsonb(dict(contract.value)),
-                    contract.digest, contract.value["renderer_version"], requested_by,
-                ),
-            )
-            edges = [
-                (project_uuid, "contains", entity_id, {"member": "studio_recipe"}),
-                (entity_id, "derived_from", brief_uuid, {"input": "product_brief"}),
-                (entity_id, "derived_from", kit_uuid, {"input": "brand_kit"}),
-                *([] if parent is None else [
-                    (entity_id, "derived_from", parent, {"input": "parent_recipe"}),
-                ]),
-                *[(entity_id, "derived_from", UUID(asset_id), {"input": "project_asset"})
-                  for asset_id in contract.value["source_asset_ids"]],
-            ]
-            for source, relation, target, attrs in edges:
-                connection.execute(
-                    """INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes)
-                       VALUES(%s,%s,%s,%s,%s)""",
-                    (UUID(new_uuid7()), source, relation, target, Jsonb(attrs)),
-                )
-        return self.get_recipe(str(entity_id))
-
-    def get_recipe(self, recipe_id: str) -> dict[str, Any]:
-        with self.connection() as connection:
-            row = connection.execute(
-                """SELECT entity_id,creative_id,project_id,brief_id,brand_kit_id,parent_recipe_id,
-                          placement_tool_id,document,document_sha256,renderer_version,created_by,created_at
-                   FROM studio_recipes WHERE entity_id=%s""",
-                (UUID(recipe_id),),
-            ).fetchone()
-        if row is None:
-            raise KeyError(recipe_id)
-        return {
-            "recipe_id": str(row[0]), "creative_id": str(row[1]), "project_id": str(row[2]),
-            "brief_id": str(row[3]), "brand_kit_id": str(row[4]),
-            "parent_recipe_id": None if row[5] is None else str(row[5]),
-            "placement_tool_id": row[6], "document": dict(row[7]), "document_sha256": row[8],
-            "renderer_version": row[9], "created_by": row[10], "created_at": row[11].isoformat(),
-        }
-
-    def get_creative_recipe(self, creative_id: str) -> dict[str, Any] | None:
-        with self.connection() as connection:
-            row = connection.execute(
-                "SELECT entity_id FROM studio_recipes WHERE creative_id=%s", (UUID(creative_id),),
-            ).fetchone()
-        return None if row is None else self.get_recipe(str(row[0]))
-
-    def get_recipe_render(self, recipe_id: str) -> dict[str, Any] | None:
-        with self.connection() as connection:
-            row = connection.execute(
-                "SELECT entity_id FROM studio_renders WHERE recipe_id=%s ORDER BY created_at LIMIT 1",
-                (UUID(recipe_id),),
-            ).fetchone()
-        return None if row is None else self.get_render(str(row[0]))
-
-    def render_recipe(self, recipe_id: str, renderer: Any) -> dict[str, Any]:
-        from psycopg.types.json import Jsonb
-        from .studio import build_manifest
-
-        existing = self.get_recipe_render(recipe_id)
-        if existing is not None:
-            return existing
-        recipe = self.get_recipe(recipe_id)
-        brand = self.get_project_brand_kit(recipe["brand_kit_id"])
-        assets = {
-            asset_id: self.get_project_asset(asset_id, include_bytes=True)
-            for asset_id in recipe["document"]["source_asset_ids"]
-        }
-        attempt_id, render_id = UUID(new_uuid7()), UUID(new_uuid7())
-        with self.connection() as connection:
-            number = int(connection.execute(
-                "SELECT COALESCE(max(attempt_number),0)+1 FROM studio_render_attempts WHERE recipe_id=%s",
-                (UUID(recipe_id),),
-            ).fetchone()[0])
-            connection.execute(
-                """INSERT INTO studio_render_attempts(id,recipe_id,attempt_number,status)
-                   VALUES(%s,%s,%s,'started')""",
-                (attempt_id, UUID(recipe_id), number),
-            )
-        try:
-            rendered = renderer.render(
-                recipe_id=recipe_id, recipe_digest=recipe["document_sha256"],
-                recipe=recipe["document"], brand_kit=brand, assets=assets,
-            )
-            if rendered["mime_type"] != "image/jpeg":
-                raise ValueError("Result renderer must return one JPEG")
-            manifest = build_manifest(
-                render_id=str(render_id), recipe_id=recipe_id,
-                recipe_digest=recipe["document_sha256"], recipe=recipe["document"],
-                brand_kit=brand, assets=assets, rendered=rendered,
-            )
-            with self.connection() as connection:
-                connection.execute(
-                    "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'studio_render',%s)",
-                    (render_id, Jsonb({"mime_type": "image/jpeg"})),
-                )
-                connection.execute(
-                    """INSERT INTO studio_renders(
-                           entity_id,recipe_id,attempt_id,mime_type,width,height,bytes,bytes_sha256,
-                           manifest,manifest_sha256,embedded_manifest,renderer_version
-                       ) VALUES(%s,%s,%s,'image/jpeg',%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    (
-                        render_id, UUID(recipe_id), attempt_id,
-                        int(recipe["document"]["width"]), int(recipe["document"]["height"]),
-                        rendered["bytes"],
-                        manifest["output"]["bytes_sha256"], Jsonb(manifest), _sha(manifest),
-                        rendered["embedded_manifest"], recipe["renderer_version"],
-                    ),
-                )
-                connection.execute(
-                    """INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes)
-                       VALUES(%s,%s,'contains',%s,%s)""",
-                    (UUID(new_uuid7()), UUID(recipe_id), render_id, Jsonb({"artifact": "render"})),
-                )
-                connection.execute(
-                    """UPDATE studio_render_attempts SET status='completed',completed_at=clock_timestamp()
-                       WHERE id=%s""",
-                    (attempt_id,),
-                )
-            return self.get_render(str(render_id))
-        except Exception as error:
-            with self.connection() as connection:
-                connection.execute(
-                    """UPDATE studio_render_attempts SET status='failed',error_code=%s,error_message=%s,
-                              completed_at=clock_timestamp() WHERE id=%s AND status='started'""",
-                    (type(error).__name__, str(error)[:1000], attempt_id),
-                )
-            raise
-
-    def get_render(self, render_id: str) -> dict[str, Any]:
-        with self.connection() as connection:
-            row = connection.execute(
-                """SELECT entity_id,recipe_id,mime_type,width,height,bytes_sha256,manifest,
-                          manifest_sha256,renderer_version,created_at
-                   FROM studio_renders WHERE entity_id=%s""",
-                (UUID(render_id),),
-            ).fetchone()
-        if row is None:
-            raise KeyError(render_id)
-        return {
-            "render_id": str(row[0]), "recipe_id": str(row[1]), "mime_type": row[2],
-            "width": int(row[3]), "height": int(row[4]), "bytes_sha256": row[5],
-            "manifest": dict(row[6]), "manifest_sha256": row[7], "renderer_version": row[8],
-            "created_at": row[9].isoformat(),
-        }
-
-    def render_asset(self, render_id: str) -> dict[str, Any]:
-        with self.connection() as connection:
-            row = connection.execute(
-                "SELECT bytes,bytes_sha256,mime_type,width,height FROM studio_renders WHERE entity_id=%s",
-                (UUID(render_id),),
-            ).fetchone()
-        if row is None:
-            raise KeyError(render_id)
-        return {
-            "bytes": bytes(row[0]), "sha256": row[1], "mime_type": row[2],
-            "width": int(row[3]), "height": int(row[4]),
-        }
-
-    # Temporary method aliases are intentionally absent. The only vocabulary is Project/Result.
-
     def recover_interrupted(self) -> dict[str, int]:
         with self.connection() as connection:
             briefs = connection.execute(
@@ -986,25 +512,11 @@ class ValidationRepository:
                           invocation='{"error_code":"Interrupted"}'::jsonb,completed_at=clock_timestamp()
                    WHERE status='submitted'"""
             )
-            content_attempts = connection.execute(
-                """UPDATE validation_generation_attempts SET status='failed',error_code='Interrupted',
-                          error_message='service restarted during Result generation',
-                          completed_at=clock_timestamp()
-                   WHERE status='started' AND stage IN (
-                     'content_candidate_generation',
-                     'content_non_human_graphic_generation'
-                   )"""
-            ).rowcount
-            renders = connection.execute(
-                """UPDATE studio_render_attempts SET status='failed',error_code='Interrupted',
-                          error_message='service restarted during rendering',completed_at=clock_timestamp()
-                   WHERE status='started'"""
-            ).rowcount
             connection.execute(
                 """UPDATE commander_operation_guard SET operation_kind=NULL,operation_id=NULL,acquired_at=NULL
                    WHERE singleton"""
             )
-        return {"briefs": briefs, "renders": renders, "content_attempts": content_attempts}
+        return {"briefs": briefs}
 
     def activity(self) -> dict[str, Any]:
         with self.connection() as connection:
@@ -1014,16 +526,12 @@ class ValidationRepository:
             counts = connection.execute(
                 """SELECT (SELECT count(*) FROM validation_projects),
                           (SELECT count(*) FROM product_briefs),
-                          (SELECT count(*) FROM product_brief_approvals),
-                          (SELECT count(*) FROM project_assets),
-                          (SELECT count(*) FROM content_generation_runs),
-                          (SELECT count(*) FROM content_generation_runs WHERE status='approved')"""
+                          (SELECT count(*) FROM product_brief_approvals)"""
             ).fetchone()
         return {
             "operation": None if guard is None or guard[1] is None else {
                 "kind": guard[0], "id": str(guard[1]), "acquired_at": guard[2].isoformat(),
             },
             "projects": int(counts[0]), "briefs": int(counts[1]),
-            "approved_briefs": int(counts[2]), "project_assets": int(counts[3]),
-            "result_runs": int(counts[4]), "results": int(counts[5]),
+            "approved_briefs": int(counts[2]),
         }

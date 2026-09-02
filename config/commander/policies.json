@@ -3,13 +3,12 @@
   "emergencyStop": false,
   "approvals": {
     "productBriefPromiseAndOffer": true,
-    "skillLessonPromotion": true,
     "deployment": true,
     "productionResetPhrase": "RESET PTW PRODUCTION"
   },
   "heavyOperations": {
     "globalConcurrentMaximum": 1,
-    "kinds": ["product_brief", "content_result"]
+    "kinds": ["product_brief"]
   },
   "telegram": {
     "reuseExistingBotOnly": true,

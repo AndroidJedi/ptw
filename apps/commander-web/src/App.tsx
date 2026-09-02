@@ -8,7 +8,6 @@ import { ProjectSwitcher } from './components/ProjectSwitcher'
 import type { Language } from './i18n'
 import type { Page, ValidationProject } from './types'
 import { ProductBriefView } from './views/ProductBriefView'
-import { ResultView } from './views/ResultView'
 import { StudioView } from './views/StudioView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
@@ -31,10 +30,10 @@ function persistLanguage(language: Language) {
   }
 }
 
-function initialConsoleLocation(): { page: Page; projectId: string | null; runId: string | null } {
+function initialConsoleLocation(): { page: Page; projectId: string | null } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const known = ['briefs', 'result', 'studio'].includes(requestedPage || '')
+  const known = ['briefs', 'studio'].includes(requestedPage || '')
   const page: Page = known
     ? requestedPage as Page
     : 'briefs'
@@ -43,19 +42,23 @@ function initialConsoleLocation(): { page: Page; projectId: string | null; runId
     const search = params.toString()
     window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
   }
-  return { page, projectId: params.get('project'), runId: page === 'result' ? params.get('run') : null }
+  if (params.has('run')) {
+    params.delete('run')
+    const search = params.toString()
+    window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
+  }
+  return { page, projectId: params.get('project') }
 }
 
 function writeConsoleLocation(
-  page: Page, projectId: string | null, runId: string | null = null, push = false,
+  page: Page, projectId: string | null, push = false,
 ) {
   const params = new URLSearchParams(window.location.search)
   if (page === 'briefs') params.delete('page')
   else params.set('page', page)
   if (projectId) params.set('project', projectId)
   else params.delete('project')
-  if (page === 'result' && runId) params.set('run', runId)
-  else params.delete('run')
+  params.delete('run')
   const search = params.toString()
   window.history[push ? 'pushState' : 'replaceState']({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
 }
@@ -116,7 +119,6 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
   const [page, setPage] = useState<Page>(initialLocation.page)
   const [projects, setProjects] = useState<ValidationProject[] | null>(null)
   const [projectId, setProjectId] = useState<string | null>(initialLocation.projectId)
-  const [runId, setRunId] = useState<string | null>(initialLocation.runId)
   const [projectError, setProjectError] = useState('')
   const [language, setLanguage] = useState<Language>(initialLanguage)
   const api = useMemo(() => new ApiClient(user), [user])
@@ -131,10 +133,8 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
     const nextId = value.items.some((item) => item.project_id === requested)
       ? requested
       : value.items[0]?.project_id || null
-    const selectionChanged = requested !== nextId
     setProjectId(nextId)
-    if (selectionChanged) setRunId(null)
-    writeConsoleLocation(page, nextId, page === 'result' && !selectionChanged ? runId : null)
+    writeConsoleLocation(page, nextId)
     setProjectError('')
   }
 
@@ -151,26 +151,18 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
       const location = initialConsoleLocation()
       setPage(location.page)
       setProjectId(location.projectId)
-      setRunId(location.runId)
     }
     window.addEventListener('popstate', restore)
     return () => window.removeEventListener('popstate', restore)
   }, [])
 
   const navigate = (nextPage: Page) => {
-    const nextRunId = nextPage === 'result' ? runId : null
-    writeConsoleLocation(nextPage, projectId, nextRunId, true)
+    writeConsoleLocation(nextPage, projectId, true)
     setPage(nextPage)
-    if (nextPage !== 'result') setRunId(null)
   }
   const selectProject = (nextProjectId: string) => {
     setProjectId(nextProjectId)
-    setRunId(null)
-    writeConsoleLocation(page, nextProjectId, null, true)
-  }
-  const selectRun = (nextRunId: string | null) => {
-    setRunId(nextRunId)
-    writeConsoleLocation('result', projectId, nextRunId, true)
+    writeConsoleLocation(page, nextProjectId, true)
   }
   const projectCreated = (project: ValidationProject) => {
     setProjects((items) => [project, ...(items || []).filter((item) => item.project_id !== project.project_id)])
@@ -188,8 +180,7 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
   const newProject = () => {
     setPage('briefs')
     setProjectId(null)
-    setRunId(null)
-    writeConsoleLocation('briefs', null, null, true)
+    writeConsoleLocation('briefs', null, true)
     window.setTimeout(() => document.getElementById('new-project-idea')?.focus(), 0)
   }
   const changeLanguage = () => setLanguage((current) => {
@@ -198,17 +189,11 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
     return next
   })
   return <Shell page={page} onPage={navigate} language={language} onLanguage={changeLanguage}>
-    {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Створення та ревізії запускають реальних провайдерів.' : 'Create and Improve actions invoke real providers.'}</span></div>}
+    {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Створення та виправлення брифів запускають реальних провайдерів.' : 'Brief creation and correction invoke real providers.'}</span></div>}
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label={language === 'uk' ? 'Вийти' : 'Sign out'}><LogOut /></button></div>
     {page === 'briefs' && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
     {page !== 'studio' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
-    {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onOpenResult={() => navigate('result')} language={language} />}
-    {page === 'result' && <ResultView
-      api={api} projectId={validatedProjectId} projects={projects} runId={runId}
-      onProjectSelect={selectProject} onRunSelect={selectRun}
-      onOpenBriefs={() => navigate('briefs')} language={language}
-      localDemo={localDemo} liveProduction={liveProduction}
-    />}
+    {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} language={language} />}
     {page === 'studio' && <StudioView api={api} language={language} tuneMode={localDemo} />}
   </Shell>
 }

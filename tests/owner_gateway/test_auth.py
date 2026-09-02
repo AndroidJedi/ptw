@@ -10,9 +10,7 @@ HAS_FASTAPI = importlib.util.find_spec("fastapi") is not None
 if HAS_FASTAPI:
     from fastapi import HTTPException
     from fastapi.middleware.cors import CORSMiddleware
-    from owner_gateway.api import (
-        INSTAGRAM_TASK, TIKTOK_TASK, create_app, instagram_run_request, social_run_request,
-    )
+    from owner_gateway.api import create_app
     from owner_gateway.auth import validate_owner_claims
 
 
@@ -56,21 +54,14 @@ class OwnerClaimsTests(unittest.TestCase):
         )
         self.assertEqual(list(configured.owner_public_origins), middleware.kwargs["allow_origins"])
 
-    def test_route_table_is_result_plus_owner_universal_studio(self) -> None:
+    def test_route_table_is_briefs_plus_owner_universal_studio(self) -> None:
         class Verifier:
             def verify(self, _token: str, _app_check: str):  # pragma: no cover
                 raise AssertionError
 
         paths = {route.path for route in create_app(self.settings, verifier=Verifier()).routes}
         required = {
-            "/api/v1/projects", "/api/v1/briefs", "/api/v1/content-runs",
-            "/api/v1/content-runs/{run_id}/review",
-            "/api/v1/content-runs/{run_id}/creatives/{creative_id}/asset",
-            "/api/v1/content-runs/{run_id}/creatives/{creative_id}/export",
-            "/api/v1/content-runs/{run_id}/review/approve",
-            "/api/v1/content-runs/{run_id}/review/regenerate-all",
-            "/api/v1/content-runs/{run_id}/review/tune",
-            "/api/v1/content-runs/{run_id}/review-notification/retry",
+            "/api/v1/projects", "/api/v1/briefs",
             "/api/v1/studio",
             "/api/v1/studio/configuration",
             "/api/v1/studio/assets/{slot}",
@@ -82,52 +73,12 @@ class OwnerClaimsTests(unittest.TestCase):
         self.assertTrue(required <= paths)
         self.assertNotIn("/api/v1/project-assets", paths)
         self.assertNotIn("/api/v1/project-brand-kits", paths)
-        for retired in (
-            "/api/v1/content-runs/{run_id}/result",
-            "/api/v1/content-runs/{run_id}/feedback",
-            "/api/v1/content-runs/{run_id}/revisions",
-        ):
-            self.assertNotIn(retired, paths)
+        self.assertFalse([path for path in paths if "/content-runs" in path])
         self.assertFalse([path for path in paths if "/studio/templates" in path])
         forbidden_fragments = ("ad-batches", "ad-creatives", "ad-studio", "landing", "publish", "campaign")
         self.assertFalse([
             path for path in paths if any(fragment in path for fragment in forbidden_fragments)
         ])
-
-    def test_public_social_input_maps_platform_to_server_owned_contract(self) -> None:
-        value = instagram_run_request({"request_id": "request", "brief_id": "brief"})
-        self.assertEqual({
-            "request_id": "request", "brief_id": "brief",
-            "task": INSTAGRAM_TASK, "output_profile": "instagram_static_ad_v1",
-        }, value)
-        with self.assertRaisesRegex(ValueError, "only request_id and brief_id"):
-            instagram_run_request({
-                "request_id": "request", "brief_id": "brief",
-                "task": "owner supplied", "output_profile": "marketing_copy_v1",
-            })
-        self.assertEqual({
-            "request_id": "request", "brief_id": "brief",
-            "task": INSTAGRAM_TASK, "output_profile": "instagram_static_ad_v1",
-        }, social_run_request({"request_id": "request", "brief_id": "brief"}))
-        self.assertEqual({
-            "request_id": "request", "brief_id": "brief",
-            "task": TIKTOK_TASK, "output_profile": "tiktok_photo_post_v1",
-        }, social_run_request({
-            "request_id": "request", "brief_id": "brief", "platform": "tiktok",
-        }))
-        with self.assertRaisesRegex(ValueError, "optional platform"):
-            social_run_request({
-                "request_id": "request", "brief_id": "brief", "platform": "instagram",
-                "task": "client injection",
-            })
-        with self.assertRaisesRegex(ValueError, "instagram or tiktok"):
-            social_run_request({
-                "request_id": "request", "brief_id": "brief", "platform": "youtube",
-            })
-        with self.assertRaisesRegex(ValueError, "instagram or tiktok"):
-            social_run_request({
-                "request_id": "request", "brief_id": "brief", "platform": None,
-            })
 
     def test_wrong_owner_or_app_is_denied(self) -> None:
         with self.assertRaises(HTTPException):

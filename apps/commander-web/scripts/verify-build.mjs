@@ -20,13 +20,7 @@ const requiredMarkers = {
   'PTW reCAPTCHA Enterprise site key': '6LfFjYstAAAAAJaFuUPZYS9U17vROLcN7Fx6iOQL',
   'Safari-safe Auth persistence': 'ptw-auth-local-storage-v1',
   'Validation Project workspace': 'PROJECT WORKSPACE',
-  'Social Posts workspace': 'Social posts',
-  'five-Creative owner review': 'Five verified creative directions',
-  'owner approval action': 'OWNER ACTION',
-  'single-Creative tune action': 'Tune selected',
-  'complete-set regeneration action': 'Regenerate all',
-  'append-only owner learning': 'Owner learning',
-  'Telegram failure retry': 'Retry notification',
+  'Product Brief workspace': 'BRIEF HISTORY',
   'single universal Studio': 'universal_ad · v',
 }
 
@@ -50,6 +44,8 @@ const forbiddenMarkers = {
   'manual brand-kit setup': 'PROJECT BRAND KIT',
   'text-profile chooser': 'Result type',
   'owner task field': 'Describe the one result you need',
+  'retired Social Posts navigation': 'Social posts',
+  'retired Result review': 'Five verified creative directions',
   'automatic decision trace': 'ResultDecisionTrace',
   'automatic final selection': 'Final selection',
 }
@@ -63,8 +59,8 @@ if (exposed.length) {
 if (!worker.includes("url.pathname.startsWith('/__/auth/')")) {
   throw new Error('Unsafe Commander service worker; Firebase Auth helper traffic is not bypassed')
 }
-if (!worker.includes("ptw-shell-owner-review-v1")) {
-  throw new Error('Unsafe Result service worker; cache version is stale')
+if (!worker.includes("ptw-shell-brief-studio-v1")) {
+  throw new Error('Unsafe Owner Console service worker; cache version is stale')
 }
 
 const expandHex = (value) => {
@@ -87,4 +83,4 @@ if (chromatic.length) {
   throw new Error(`Commander chrome must remain monochrome; found: ${chromatic.join(', ')}`)
 }
 
-process.stdout.write('Verified Social Posts flow, App Check, Safari Auth, monochrome chrome, and service-worker markers in production build.\n')
+process.stdout.write('Verified Product Brief + Studio flow, App Check, Safari Auth, monochrome chrome, and service-worker markers in production build.\n')

@@ -30,8 +30,6 @@ curl --fail --silent --show-error http://127.0.0.1:8092/healthz >/dev/null
 curl --fail --silent --show-error http://127.0.0.1:8093/readyz >/dev/null
 docker exec "$validation_container" python -m validation_pipeline.manage verify
 
-docker exec "$validation_container" python -m validation_pipeline.verify_bridge_contract
-
 if docker inspect "$validation_container" --format '{{range .Config.Env}}{{println .}}{{end}}' \
   | grep -Eq '^(DATAFORSEO_|POSITIONING_|LANDING_|YOUTUBE_)'; then
   echo "Validation still exposes a retired research or Landing setting" >&2
@@ -51,7 +49,7 @@ import sys
 import owner_gateway.api
 for name in ("idea_generation", "marketing_positioning", "owner_gateway.landing", "commander.ad_generation", "commander.worker"):
     assert name not in sys.modules, name
-print("Result-only Owner Gateway dependency boundary ready")
+print("Product Brief and Studio Owner Gateway dependency boundary ready")
 '
 
 python3 scripts/verify_ptw_skills.py

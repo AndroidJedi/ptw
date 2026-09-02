@@ -1,4 +1,4 @@
-const CACHE = 'ptw-shell-owner-review-v1'
+const CACHE = 'ptw-shell-brief-studio-v1'
 const CACHE_PREFIX = 'ptw-shell-'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/ptw.svg']
 

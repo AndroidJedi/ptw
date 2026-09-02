@@ -1,6 +1,6 @@
 ---
 name: studio-tune-local
-description: Implement and iterate owner-requested Universal Ad Studio component, renderer, style, test, or Tune-wizard changes. Use for Studio tuning requests such as changing how the background looks or behaves. Apply updates to the local checkout by default; do not use for production incidents, deployment, publishing, or remote operations.
+description: Implement and iterate owner-requested Universal Ad Studio component, renderer, style, test, or Tune-wizard changes. Use for Studio tuning requests. Apply updates to the local checkout by default; do not use for production incidents, deployment, publishing, or remote operations.
 ---
 
 # Studio Tune Local
@@ -41,7 +41,7 @@ feedback remains scoped to its iteration.
 
 Tune only the Universal Studio renderer/configuration surface, focused tests,
 styles, and Studio UI components needed by the request. The Tune runner,
-launcher, authentication, production routes, Result adapter, database,
+launcher, authentication, production routes, database,
 deployment, and publication boundaries remain fixed unless the owner separately
 and explicitly expands the task.
 

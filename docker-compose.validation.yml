@@ -15,8 +15,6 @@ services:
       LLM_BRIDGE_TOKEN: ${LLM_BRIDGE_TOKEN:-${TELEGRAM_BOT_TOKEN:?set the existing platform bridge credential}}
       VALIDATION_LLM_MODEL: ${VALIDATION_LLM_MODEL:-codex-cli-default}
       PRODUCT_BRIEF_SKILL_PATH: /run/ptw-auth/skills/product-brief-generator/SKILL.md
-      CONTENT_CANDIDATE_GENERATOR_SKILL_PATH: /run/ptw-auth/skills/content-candidate-generator/SKILL.md
-      COMMANDER_REVIEW_NOTIFICATION_URL: http://ptw-commander-api:8080/internal/review-notifications
       PEXELS_API_KEY: ${PEXELS_API_KEY:?set PEXELS_API_KEY in the root-owned runtime environment}
     volumes:
       - ./skills:/run/ptw-auth/skills:ro

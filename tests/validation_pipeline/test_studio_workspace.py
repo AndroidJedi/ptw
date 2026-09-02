@@ -20,7 +20,6 @@ from validation_pipeline.studio_universal import (
     build_universal_template, isolate_object, normalize_universal_config, semantic_data, texture_asset,
     universal_ad_catalog,
     universal_alignment_rectangle, universal_component_settings,
-    universal_content_from_generation,
 )
 from validation_pipeline.studio_workspace import UniversalStudioWorkspace
 
@@ -82,8 +81,18 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         detail = self.workspace.detail()
         self.assertEqual("universal_ad", detail["catalog"]["template_id"])
         self.assertEqual("ptw.studio.universal-ad-workspace.v5", detail["schema"])
-        self.assertEqual("ptw.studio.universal-ad-catalog.v4", detail["catalog"]["schema"])
-        self.assertEqual(10, detail["catalog"]["template_version"])
+        self.assertEqual("ptw.studio.universal-ad-catalog.v6", detail["catalog"]["schema"])
+        self.assertTrue(detail["catalog"]["setting_definitions"])
+        setting_definitions = {
+            item["setting_id"]: item for item in detail["catalog"]["setting_definitions"]
+        }
+        sticker_width = setting_definitions["configuration.sticker.width"]
+        self.assertEqual("universal_ad.sticker", sticker_width["component_id"])
+        self.assertEqual((120, 720, 1), (
+            sticker_width["minimum"], sticker_width["maximum"], sticker_width["step"],
+        ))
+        self.assertIn("розмір стікера", sticker_width["aliases"])
+        self.assertEqual(11, detail["catalog"]["template_version"])
         self.assertEqual(list(SEMANTIC_ROLES), detail["catalog"]["semantic_roles"])
         self.assertEqual(
             [f"universal_ad.{role}" for role in SEMANTIC_ROLES],
@@ -228,10 +237,57 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         )
         cta = rendered["resolved"]["nodes"]["cta"]
         self.assertIsNotNone(cta["text_layout"])
-        self.assertEqual(1, cta["text_layout"]["source_line_count"])
-        self.assertEqual(1, cta["text_layout"]["line_count"])
+        self.assertLessEqual(cta["text_layout"]["source_line_count"], 2)
+        self.assertLessEqual(cta["text_layout"]["line_count"], 2)
+        self.assertGreaterEqual(cta["text_layout"]["font_size"], 18)
         self.assertFalse(cta["text_layout"]["overflow"])
         self.assertFalse(cta["text_layout"]["truncated"])
+
+    def test_long_ukrainian_cta_fits_completely_in_two_lines(self) -> None:
+        detail = self.workspace.detail()
+        content = copy.deepcopy(detail["content"])
+        content["cta"] = "Записатися на безкоштовну 15-хвилинну розмову"
+        configuration = copy.deepcopy(detail["configuration"])
+        configuration["layout"].update({"content_x": 500, "content_width": 500})
+        configuration["bullets"]["enabled"] = False
+
+        rendered = self.workspace.render_preview(
+            state_sha256=detail["state_sha256"],
+            configuration=configuration, content=content,
+        )
+        layout = rendered["resolved"]["nodes"]["cta"]["text_layout"]
+
+        self.assertLessEqual(layout["line_count"], 2)
+        self.assertGreaterEqual(layout["font_size"], 18)
+        self.assertFalse(layout["overflow"])
+        self.assertFalse(layout["truncated"])
+
+    def test_cta_font_size_is_bounded_and_changes_authoritative_pixels(self) -> None:
+        detail = self.workspace.detail()
+        base = self.workspace.render_preview(
+            state_sha256=detail["state_sha256"],
+            configuration=detail["configuration"], content=detail["content"],
+        )
+        configuration = copy.deepcopy(detail["configuration"])
+        configuration["cta"]["font_size"] = 38
+        changed = self.workspace.render_preview(
+            state_sha256=detail["state_sha256"],
+            configuration=configuration, content=detail["content"],
+        )
+        self.assertEqual(38, changed["resolved"]["nodes"]["cta"]["props"]["font_size"])
+        self.assertNotEqual(base["bytes_sha256"], changed["bytes_sha256"])
+        configuration["cta"]["font_size"] = 42
+        long_content = copy.deepcopy(detail["content"])
+        long_content["cta"] = "Get your first opportunity for free."
+        maximum = self.workspace.render_preview(
+            state_sha256=detail["state_sha256"],
+            configuration=configuration, content=long_content,
+        )
+        self.assertFalse(maximum["resolved"]["nodes"]["cta"]["text_layout"]["overflow"])
+        self.assertFalse(maximum["resolved"]["nodes"]["cta"]["text_layout"]["truncated"])
+        configuration["cta"]["font_size"] = 43
+        with self.assertRaisesRegex(ValueError, "cta.font_size"):
+            normalize_universal_config(configuration)
 
     def test_draft_preview_changes_pixels_without_persisting_editor_state(self) -> None:
         detail = self.workspace.detail()
@@ -559,7 +615,7 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             rendered_digests.add(rendered["bytes_sha256"])
         self.assertEqual(len(FONT_FAMILIES), len(rendered_digests))
 
-    def test_legacy_local_configurations_upgrade_to_v4(self) -> None:
+    def test_legacy_local_configurations_upgrade_to_v5(self) -> None:
         legacy = copy.deepcopy(DEFAULT_CONFIG)
         legacy["schema"] = "ptw.studio.universal-ad-config.v1"
         legacy["background"].pop("texture_intensity")
@@ -575,7 +631,8 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             "paper_width": 300, "paper_color": "#FFF5D1", "object_scale": 0.9,
         }
         upgraded = normalize_universal_config(legacy)
-        self.assertEqual("ptw.studio.universal-ad-config.v4", upgraded["schema"])
+        self.assertEqual("ptw.studio.universal-ad-config.v5", upgraded["schema"])
+        self.assertEqual(27, upgraded["cta"]["font_size"])
         self.assertEqual("circle_outline", upgraded["bullets"]["style"])
         self.assertEqual(300, upgraded["sticker"]["width"])
         self.assertEqual(75, upgraded["background"]["image_percent"])
@@ -602,8 +659,15 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         recent["logo"].pop("background_enabled")
         recent["logo"].pop("background_color")
         upgraded_recent = normalize_universal_config(recent)
-        self.assertEqual("ptw.studio.universal-ad-config.v4", upgraded_recent["schema"])
+        self.assertEqual("ptw.studio.universal-ad-config.v5", upgraded_recent["schema"])
         self.assertFalse(upgraded_recent["logo"]["background_enabled"])
+
+        prior = copy.deepcopy(DEFAULT_CONFIG)
+        prior["schema"] = "ptw.studio.universal-ad-config.v4"
+        prior["cta"].pop("font_size")
+        upgraded_prior = normalize_universal_config(prior)
+        self.assertEqual("ptw.studio.universal-ad-config.v5", upgraded_prior["schema"])
+        self.assertEqual(27, upgraded_prior["cta"]["font_size"])
 
     def test_owner_background_upload_selects_image_mode(self) -> None:
         detail = self.workspace.detail()
@@ -805,23 +869,6 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         self.assertEqual(0.06, sticker["props"]["alpha_outline_width_ratio"])
         self.assertEqual(10, logo["props"]["z_index"])
 
-    def test_existing_generation_copy_maps_to_universal_semantic_content(self) -> None:
-        content = universal_content_from_generation({
-            "headline": "A calmer first step",
-            "primary_text": "Meet a real psychologist and see whether it feels right.",
-            "supporting_text": "This remains a fallback only.",
-            "offer": "First consultation free",
-            "cta": "Book the first conversation",
-        }, brief={
-            "offer": "First consultation free",
-            "key_benefits": ["Real profiles", "Simple booking", "No card"],
-        })
-        self.assertEqual("A calmer first step", content["hero_title"])
-        self.assertEqual("Meet a real psychologist and see whether it feels right.", content["supporting_text"])
-        self.assertEqual("First consultation free", content["offer"])
-        self.assertEqual(["Real profiles", "Simple booking", "No card"], content["bullets"])
-
-
 @unittest.skipUnless(HAS_PILLOW and HAS_FASTAPI, "FastAPI and Pillow are required")
 class UniversalStudioApiTests(unittest.TestCase):
     def test_loopback_app_serves_every_visible_owner_destination(self) -> None:
@@ -834,7 +881,7 @@ class UniversalStudioApiTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {
             "STUDIO_WORKSPACE_PATH": temporary,
-            "LOCAL_EXPERIMENT_PATH": str(Path(temporary) / "experiments"),
+            "LOCAL_BRIEF_PATH": str(Path(temporary) / "briefs"),
             "PEXELS_API_KEY": "",
         }, clear=False):
             with TestClient(create_app()) as client:
@@ -843,7 +890,7 @@ class UniversalStudioApiTests(unittest.TestCase):
                 self.assertEqual(200, projects.status_code, projects.text)
                 self.assertEqual([], projects.json()["items"])
                 self.assertEqual([], client.get("/api/v1/briefs?limit=100", headers=headers).json()["items"])
-                self.assertEqual(False, client.get("/api/v1/learning-summary", headers=headers).json()["market_performance"])
+                self.assertEqual(404, client.get("/api/v1/learning-summary", headers=headers).status_code)
                 self.assertEqual(200, client.get("/api/v1/studio", headers=headers).status_code)
                 self.assertEqual(404, client.get("/api/v1/studio/templates", headers=headers).status_code)
                 self.assertEqual(404, client.get("/api/v1/studio/tune", headers=headers).status_code)

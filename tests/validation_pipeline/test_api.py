@@ -25,8 +25,6 @@ class ValidationApiRouteTests(unittest.TestCase):
             bridge_token="bridge-token",
             pexels_api_key="pexels-key",
             product_brief_skill_path=Path("unused-product-brief-skill"),
-            content_candidate_generator_skill_path=Path("unused-candidate-skill"),
-            commander_review_notification_url="http://commander/review-notifications",
         )
 
     def test_background_starting_routes_execute_on_the_event_loop(self) -> None:
@@ -34,16 +32,11 @@ class ValidationApiRouteTests(unittest.TestCase):
             self.settings(),
             repository=object(),
             runner=object(),
-            content_runner=object(),
         )
         background_routes = {
             ("POST", "/internal/v1/briefs"),
             ("POST", "/internal/v1/briefs/{brief_id}/correct"),
             ("POST", "/internal/v1/briefs/{brief_id}/retry"),
-            ("POST", "/internal/v1/content-runs"),
-            ("POST", "/internal/v1/content-runs/{run_id}/retry"),
-            ("POST", "/internal/v1/content-runs/{run_id}/review/regenerate-all"),
-            ("POST", "/internal/v1/content-runs/{run_id}/review/tune"),
         }
         handlers = {
             (method, route.path): route.endpoint
@@ -64,7 +57,7 @@ class ValidationApiRouteTests(unittest.TestCase):
                 self.create_input = None
 
             def recover_interrupted(self) -> dict[str, int]:
-                return {"briefs": 0, "renders": 0, "content_attempts": 0}
+                return {"briefs": 0}
 
             def create_brief(self, **_value):
                 self.create_input = _value
@@ -84,14 +77,10 @@ class ValidationApiRouteTests(unittest.TestCase):
                 if identifier == brief_id and operation_reserved:
                     self.called.set()
 
-        class ContentRunner:
-            def resume_incomplete(self) -> None:
-                return None
-
         repository = Repository()
         runner = Runner()
         app = create_app(
-            self.settings(), repository=repository, runner=runner, content_runner=ContentRunner()
+            self.settings(), repository=repository, runner=runner,
         )
 
         with TestClient(app) as client:
@@ -111,18 +100,13 @@ class ValidationApiRouteTests(unittest.TestCase):
     def test_busy_brief_admission_returns_conflict_instead_of_500(self) -> None:
         class Repository:
             def recover_interrupted(self) -> dict[str, int]:
-                return {"briefs": 0, "renders": 0, "content_attempts": 0}
+                return {"briefs": 0}
 
             def create_brief(self, **_value):
                 raise RuntimeError("another generation operation is active")
 
-        class ContentRunner:
-            def resume_incomplete(self) -> None:
-                return None
-
         app = create_app(
             self.settings(), repository=Repository(), runner=object(),
-            content_runner=ContentRunner(),
         )
 
         with TestClient(app) as client:
@@ -138,42 +122,6 @@ class ValidationApiRouteTests(unittest.TestCase):
 
         self.assertEqual(409, response.status_code, response.text)
         self.assertEqual("another generation operation is active", response.json()["detail"])
-
-    def test_creative_asset_is_review_run_scoped_and_never_cached(self) -> None:
-        run_id = "01900000-0000-7000-8000-000000000010"
-        creative_id = "01900000-0000-7000-8000-000000000011"
-
-        class Repository:
-            def recover_interrupted(self) -> dict[str, int]:
-                return {"briefs": 0, "renders": 0, "content_attempts": 0}
-
-        class ContentRepository:
-            def creative_preview(self, identifier: str, *, expected_run_id: str) -> dict:
-                if identifier != creative_id or expected_run_id != run_id:
-                    raise KeyError(identifier)
-                return {
-                    "bytes": b"\xff\xd8candidate\xff\xd9", "sha256": "a" * 64,
-                    "mime_type": "image/jpeg", "width": 1080, "height": 1080,
-                }
-
-        class ContentRunner:
-            def resume_incomplete(self) -> None:
-                return None
-
-        app = create_app(
-            self.settings(), repository=Repository(), runner=object(),
-            content_repository=ContentRepository(), content_runner=ContentRunner(),
-        )
-        with TestClient(app) as client:
-            response = client.get(
-                f"/internal/v1/content-runs/{run_id}/creatives/{creative_id}/asset",
-                headers={"X-PTW-Owner-Gateway-Token": "owner-token"},
-            )
-
-        self.assertEqual(200, response.status_code, response.text)
-        self.assertEqual("private, no-store", response.headers["cache-control"])
-        self.assertEqual('"' + "a" * 64 + '"', response.headers["etag"])
-        self.assertEqual("image/jpeg", response.headers["content-type"])
 
 
 if __name__ == "__main__":

@@ -1,2 +1,0 @@
-"""SKYNET autonomous competitor workspace."""
-

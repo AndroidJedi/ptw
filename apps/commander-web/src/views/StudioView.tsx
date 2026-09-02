@@ -635,6 +635,7 @@ export function StudioView({ api, language, tuneMode = false }: {
             </select></label>
             <ColorField label={tr('CTA background color', 'Колір фону CTA')} value={configuration.cta.background_color} onChange={(value) => patchConfig('cta', { background_color: value })} />
             <ColorField label={tr('CTA text color', 'Колір тексту CTA')} value={configuration.cta.text_color} onChange={(value) => patchConfig('cta', { text_color: value })} />
+            <NumberField label={tr('CTA font size', 'Розмір шрифту CTA')} value={configuration.cta.font_size} min={18} max={42} onChange={(value) => patchConfig('cta', { font_size: value })} />
             <NumberField label="CTA radius" value={configuration.cta.radius} min={0} max={40} onChange={(value) => patchConfig('cta', { radius: value })} />
           </div></div>
         </details>

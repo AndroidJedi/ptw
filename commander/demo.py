@@ -1,4 +1,4 @@
-"""Emit deterministic Product Brief → five Creatives → owner approval lineage."""
+"""Emit deterministic Product Brief correction and owner-learning lineage."""
 
 from __future__ import annotations
 
@@ -12,47 +12,42 @@ from .ids import new_uuid7
 def run_demo(output_dir: Path, *, reset: bool = True) -> dict[str, object]:
     output_dir.mkdir(parents=True, exist_ok=True)
     if reset:
-        for name in ("projection.json", "events.jsonl", "demo-result.json"):
+        for name in ("projection.json", "events.jsonl", "demo-result.json", "demo-brief.json"):
             target = output_dir / name
             if target.is_file() or target.is_symlink():
                 target.unlink()
-    identifiers = [new_uuid7(timestamp_ms=1_700_000_000_000 + index) for index in range(20)]
-    owner_source, project, brief, task_source, brand_kit, run = identifiers[:6]
-    creatives = identifiers[6:11]
-    (
-        review_action, feedback, weight, outcome, render, learning_rule,
-        learning_snapshot, approval, receipt,
-    ) = identifiers[11:]
-    relationships = [
-        [project, "derived_from", owner_source], [project, "contains", brief],
-        [brief, "derived_from", owner_source], [run, "derived_from", brief],
-        [run, "derived_from", task_source], [run, "derived_from", brand_kit],
-        [project, "contains", run], [run, "contains", review_action],
-        [creatives[0], "contains", render],
-        [feedback, "evaluates", creatives[0]], [feedback, "contains", weight],
-        [weight, "adjusts", creatives[0]], [run, "contains", outcome],
-        [learning_rule, "derived_from", feedback], [run, "derived_from", learning_snapshot],
-        [approval, "derived_from", feedback], [run, "contains", receipt],
-        *[[run, "contains", creative] for creative in creatives],
+    identifiers = [
+        new_uuid7(timestamp_ms=1_700_000_000_000 + index)
+        for index in range(6)
     ]
-    result_document = {
-        "schema": "ptw-result-v1",
+    owner_source, project, base_brief, feedback, weight, replacement_brief = identifiers
+    relationships = [
+        [project, "derived_from", owner_source],
+        [project, "contains", base_brief],
+        [base_brief, "derived_from", owner_source],
+        [feedback, "evaluates", base_brief],
+        [feedback, "contains", weight],
+        [weight, "adjusts", feedback],
+        [replacement_brief, "supersedes", base_brief],
+        [replacement_brief, "derived_from", feedback],
+        [project, "contains", replacement_brief],
+    ]
+    document = {
+        "schema": "ptw-brief-v1",
         "entities": {
-            "owner_idea_source": owner_source, "validation_project": project,
-            "product_brief": brief, "owner_task_source": task_source,
-            "project_brand_kit": brand_kit, "content_run": run,
-            "review_creatives": creatives, "owner_review_action": review_action,
-            "approved_creative": creatives[0], "render": render,
-            "feedback": feedback, "weight_update": weight, "outcome": outcome,
-            "learning_rule": learning_rule, "learning_snapshot": learning_snapshot,
-            "creative_approval": approval, "notification_receipt": receipt,
+            "owner_idea_source": owner_source,
+            "validation_project": project,
+            "base_product_brief": base_brief,
+            "owner_feedback": feedback,
+            "weight_update": weight,
+            "replacement_product_brief": replacement_brief,
         },
         "relationships": relationships,
     }
-    (output_dir / "demo-result.json").write_text(
-        json.dumps(result_document, indent=2) + "\n", encoding="utf-8"
+    (output_dir / "demo-brief.json").write_text(
+        json.dumps(document, indent=2) + "\n", encoding="utf-8",
     )
-    return result_document
+    return document
 
 
 def main() -> None:

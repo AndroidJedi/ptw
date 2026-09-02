@@ -276,7 +276,7 @@ class StudioTuneServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as workspace, patch.dict(
             "os.environ", {
                 "STUDIO_WORKSPACE_PATH": workspace,
-                "LOCAL_EXPERIMENT_PATH": str(Path(workspace) / "owner-experiments"),
+                "LOCAL_BRIEF_PATH": str(Path(workspace) / "owner-briefs"),
                 "STUDIO_TUNE_MODE": "0",
             },
             clear=False,

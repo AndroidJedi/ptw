@@ -135,6 +135,35 @@ class PexelsClientDownloadTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "decoded JPEG format"):
                 client.download(self._photo())
 
+    def test_select_filters_off_subject_alt_text_before_download(self) -> None:
+        client = PexelsClient("test-key")
+        texture = PexelsPhoto(
+            photo_id="124", width=1200, height=1200,
+            image_url="https://images.pexels.com/photos/124/texture.jpeg",
+            page_url="https://www.pexels.com/photo/texture-124/",
+            photographer="Texture",
+            photographer_url="https://www.pexels.com/@texture/",
+            alt="High-resolution seamless beige paper texture",
+        )
+        camera = self._photo()
+        camera = PexelsPhoto(
+            photo_id=camera.photo_id, width=camera.width, height=camera.height,
+            image_url=camera.image_url, page_url=camera.page_url,
+            photographer=camera.photographer, photographer_url=camera.photographer_url,
+            alt="A real photographed vintage camera on a plain background",
+        )
+        with patch.object(client, "search", return_value=[texture, camera]), patch.object(
+            client, "download", return_value=b"jpeg-bytes",
+        ) as download:
+            selected, data = client.select(
+                "vintage camera white background", "camera product photography",
+                used_ids=set(), required_alt_terms=("camera",),
+            )
+
+        self.assertEqual("123", selected.photo_id)
+        self.assertEqual(b"jpeg-bytes", data)
+        download.assert_called_once_with(camera)
+
 
 class PexelsPhotographicObjectTests(unittest.TestCase):
     @staticmethod
@@ -159,9 +188,12 @@ class PexelsPhotographicObjectTests(unittest.TestCase):
             self._photo(alt="Close-up photograph of a brass compass on a wooden table"),
             self._image(),
             query="real brass compass on wood close-up photograph",
+            required_subject_terms=("compass",),
         )
         self.assertEqual("photograph", evidence["provider_media_type"])
         self.assertEqual("image/jpeg", evidence["source_mime_type"])
+        self.assertEqual("passed", evidence["provider_subject_screen"])
+        self.assertEqual(["compass"], evidence["required_subject_terms"])
         self.assertFalse(evidence["synthetic_visuals_allowed"])
 
     def test_rejects_explicit_render_or_non_jpeg_source(self) -> None:
@@ -174,6 +206,12 @@ class PexelsPhotographicObjectTests(unittest.TestCase):
             validate_pexels_photographic_object(
                 self._photo(alt="Photograph of a real brass compass"),
                 self._image("PNG"), query="brass compass photograph",
+            )
+        with self.assertRaisesRegex(ValueError, "required physical object"):
+            validate_pexels_photographic_object(
+                self._photo(alt="High-resolution seamless beige paper texture"),
+                self._image(), query="vintage camera white background",
+                required_subject_terms=("camera",),
             )
 
 

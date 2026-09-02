@@ -1,4 +1,4 @@
-export type Page = 'briefs' | 'result' | 'studio'
+export type Page = 'briefs' | 'studio'
 export type I18n<T = string> = { en: T; uk: T }
 
 export type BriefStatus = 'queued' | 'generating' | 'completed' | 'failed'
@@ -10,11 +10,9 @@ export interface ValidationProject {
   name: string
   name_source: 'raw_idea' | 'product_brief' | 'owner'
   requested_by: string
-  result_creation_enabled: boolean
   latest_brief_id?: string | null
   latest_brief_status?: BriefStatus | null
   brief_count: number
-  result_run_count: number
   created_at: string
   updated_at: string
 }
@@ -51,174 +49,10 @@ export interface ProductBrief extends Partial<ProductBriefDocument> {
   created_at: string
 }
 
-export type SocialPlatform = 'instagram' | 'tiktok'
-export type OutputProfile = 'marketing_copy_v1' | 'instagram_static_ad_v1' | 'tiktok_photo_post_v1'
-export type ResultRunStatus =
-  | 'queued'
-  | 'generating'
-  | 'awaiting_review'
-  | 'approved'
-  | 'superseded'
-  | 'failed'
-  | 'terminated'
-export type ResultRunStage =
-  | 'queued'
-  | 'generating_creatives'
-  | 'awaiting_review'
-  | 'approved'
-  | 'superseded'
-  | 'failed'
-  | 'terminated'
-
-export interface ContentRun {
-  run_id: string
-  request_id: string
-  parent_run_id?: string | null
-  project_id: string
-  brief_id: string
-  output_profile: OutputProfile
-  platform?: SocialPlatform
-  task: string
-  status: ResultRunStatus
-  current_stage: ResultRunStage
-  progress_percent: number
-  maximum_minutes: 45
-  generation_kind: 'initial' | 'regenerate_all' | 'tune'
-  generated_creative_ids: string[]
-  review_creative_ids: string[]
-  approved_creative_id?: string | null
-  notification_state?: 'not_configured' | 'not_scheduled' | 'pending' | 'delivered' | 'definite_failure' | 'ambiguous'
-  notification_receipt_id?: string | null
-  tuned_creative_id?: string | null
-  carried_review_creative_ids?: string[]
-  learning_snapshot_id?: string
-  learning_snapshot_sha256?: string
-  error_code?: string | null
-  error_message?: string | null
-  revision_number?: number
-  created_at: string
-  updated_at: string
-}
-
-export interface CreativeContent {
-  hook: string
-  headline: string
-  primary_text: string
-  supporting_text: string
-  offer: string
-  cta: string
-  caption: string
-  alt_text: string
-  desired_emotion: string
-  visual_concept: string
-}
-
-export type CreativeParameterName =
-  | 'hook_pressure'
-  | 'emotional_intensity'
-  | 'conceptual_novelty'
-  | 'information_density'
-  | 'visual_complexity'
-
-export interface CreativePreview {
-  asset_url: string
-  sha256: string
-  mime_type: 'image/jpeg' | 'image/png'
-  width: number
-  height: number
-}
-
-export interface ContentCreative {
-  creative_id: string
-  run_id: string
-  slot: string
-  round: number
-  generation_kind: 'initial' | 'regenerate_all' | 'tune'
-  parent_creative_id?: string | null
-  template_id: string
-  template_version: number
-  parameters: Record<CreativeParameterName, number>
-  document: CreativeContent
-  document_sha256: string
-  recipe_id?: string | null
-  render_id?: string | null
-  preview: CreativePreview
-  created_at: string
-}
-
-export interface OwnerReviewAction {
-  action_id: string
-  request_id: string
-  action_type: 'approve' | 'regenerate_all' | 'tune'
-  status: 'processing' | 'completed' | 'failed'
-  creative_id?: string | null
-  comment?: string | null
-  child_run_id?: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface LearningRule {
-  rule_id: string
-  rule_type: 'preferred_direction' | 'preferred_layout' | 'tune_instruction' | 'exploration_exclusions'
-  strategy_id?: string | null
-  output_profile?: OutputProfile | null
-  instruction?: string | null
-  layout_patch?: Array<Record<string, unknown>>
-  exclusions?: Record<string, unknown>
-  sha256: string
-  created_at?: string
-}
-
-export interface NotificationReceipt {
-  receipt_id: string
-  status: 'pending' | 'delivered' | 'definite_failure' | 'ambiguous'
-  attempt_count: number
-  provider_message_id?: string | null
-  error_code?: string | null
-  error_message?: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface ContentReview {
-  schema: 'ptw.owner-creative-review.v1'
-  run: ContentRun
-  creatives: ContentCreative[]
-  owner_actions: OwnerReviewAction[]
-  notification?: NotificationReceipt | null
-  applied_project_rules: LearningRule[]
-}
-
-export interface ProjectAsset {
-  source_asset_id: string
-  project_id: string
-  approval_status: 'approved' | 'pending_review' | 'rejected'
-  title: string
-  mime_type: 'image/jpeg' | 'image/png' | 'image/webp'
-  width: number
-  height: number
-  bytes_sha256: string
-}
-
-export interface ProjectBrandKit {
-  brand_kit_id: string
-  project_id: string
-  document: {
-    name: string
-    colors: string[]
-    fonts: string[]
-    tone_notes: string
-    logo_source_asset_id?: string | null
-  }
-  document_sha256: string
-  created_at: string
-}
-
 export type StudioUniversalFontFamily = 'Inter' | 'Manrope' | 'Oswald' | 'Cormorant Garamond'
 
 export interface StudioUniversalConfiguration {
-  schema: 'ptw.studio.universal-ad-config.v4'
+  schema: 'ptw.studio.universal-ad-config.v5'
   background: {
     mode: 'solid' | 'texture' | 'image'
     color: string
@@ -254,6 +88,7 @@ export interface StudioUniversalConfiguration {
     background_color: string
     text_color: string
     radius: number
+    font_size: number
   }
   sticker: {
     enabled: boolean
@@ -316,11 +151,23 @@ export interface StudioUniversalComponentSettings {
   schema: 'ptw.studio.universal-ad-component-settings.v2'
   template_id: 'universal_ad'
   template_version: number
-  configuration_schema: 'ptw.studio.universal-ad-config.v4'
+  configuration_schema: 'ptw.studio.universal-ad-config.v5'
   components: Array<Omit<StudioUniversalComponentDefinition, 'setting_ids'> & {
     settings: Array<{ setting_id: string; value: unknown }>
   }>
   sha256: string
+}
+
+export interface StudioUniversalSettingDefinition {
+  setting_id: string
+  component_id: string
+  value_type: 'boolean' | 'color' | 'enum' | 'integer' | 'number'
+  aliases: string[]
+  minimum?: number
+  maximum?: number
+  step?: number
+  values?: Array<string | number>
+  value_aliases?: Record<string, string[]>
 }
 
 export interface StudioUniversalAgentContext {
@@ -335,7 +182,7 @@ export interface StudioUniversalAgentContext {
 }
 
 export interface StudioUniversalCatalog {
-  schema: 'ptw.studio.universal-ad-catalog.v4'
+  schema: 'ptw.studio.universal-ad-catalog.v5' | 'ptw.studio.universal-ad-catalog.v6'
   template_id: 'universal_ad'
   template_version: number
   semantic_roles: Array<'background' | 'sticker' | 'hero_title' | 'supporting_text' | 'offer' | 'bullet_list' | 'cta' | 'logo'>
@@ -345,6 +192,7 @@ export interface StudioUniversalCatalog {
     allowed_mime_types: string[]
     description: string
   }>
+  setting_definitions?: StudioUniversalSettingDefinition[]
   variation: {
     background_modes: string[]
     image_layouts: string[]
@@ -353,6 +201,7 @@ export interface StudioUniversalCatalog {
     bullet_styles: string[]
     cta_styles: string[]
     cta_positions: string[]
+    cta_font_size: { minimum: number; maximum: number; default: number }
     sticker_positions: string[]
     font_families: string[]
     optional_elements: string[]

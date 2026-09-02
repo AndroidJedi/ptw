@@ -257,7 +257,7 @@ class UniversalStudioWorkspace:
         return {**value, "sha256": digest}
 
     def capture_saved_export(self, state_sha256: str) -> dict[str, Any]:
-        """Capture the saved—not draft—Universal state for a local Result run."""
+        """Capture the saved—not draft—Universal Studio state."""
 
         self._assert_state(state_sha256)
         config, content = self._configuration(), self._content()
@@ -282,14 +282,14 @@ class UniversalStudioWorkspace:
         background_asset: Mapping[str, Any] | None = None,
         sticker_asset: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Render one isolated local candidate without bundled creative fallbacks."""
+        """Render one isolated local Studio preview."""
 
         config = normalize_universal_config(configuration)
         normalized_content = normalize_universal_content(content)
         assets: dict[str, Mapping[str, Any]] = {}
         if config["background"]["mode"] == "image":
             if background_asset is None:
-                raise ValueError("photo strategy requires one explicit approved Project asset")
+                raise ValueError("photo background requires one explicit Studio image")
             assets["background_image"] = {
                 "bytes": bytes(background_asset["bytes"]),
                 "mime_type": str(background_asset["mime_type"]),

@@ -14,10 +14,6 @@ class Settings:
     pexels_api_key: str
     model: str = "codex-cli-default"
     product_brief_skill_path: Path = Path("/run/ptw-auth/skills/product-brief-generator/SKILL.md")
-    content_candidate_generator_skill_path: Path = Path(
-        "/run/ptw-auth/skills/content-candidate-generator/SKILL.md"
-    )
-    commander_review_notification_url: str = "http://commander-api:8080/internal/review-notifications"
     studio_workspace_path: Path = Path("/tmp/ptw-studio-workspace")
 
     @classmethod
@@ -42,14 +38,6 @@ class Settings:
             product_brief_skill_path=Path(os.environ.get(
                 "PRODUCT_BRIEF_SKILL_PATH", "/run/ptw-auth/skills/product-brief-generator/SKILL.md"
             )),
-            content_candidate_generator_skill_path=Path(os.environ.get(
-                "CONTENT_CANDIDATE_GENERATOR_SKILL_PATH",
-                "/run/ptw-auth/skills/content-candidate-generator/SKILL.md",
-            )),
-            commander_review_notification_url=os.environ.get(
-                "COMMANDER_REVIEW_NOTIFICATION_URL",
-                "http://commander-api:8080/internal/review-notifications",
-            ).strip(),
             studio_workspace_path=Path(os.environ.get(
                 "STUDIO_WORKSPACE_PATH", "/tmp/ptw-studio-workspace",
             )),

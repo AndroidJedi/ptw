@@ -1,4 +1,4 @@
-"""Strict contract for the approved Product Brief input to Result generation."""
+"""Strict Product Brief validation contract."""
 
 from __future__ import annotations
 

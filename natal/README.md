@@ -1,9 +1,6 @@
 # Natal canonical identity
 
-This directory contains the immutable Natal identity used by the Instagram
-Result adapter. It is not a standalone landing, Studio, or publishing product.
+This directory contains the immutable Natal identity available as the default
+Universal Studio brand. It is not a standalone landing or publishing product.
 
-Validation verifies the canonical logo digest before provisioning the logo as
-an approved Project source. Every owner-created Instagram post uses the Natal
-brand document and Inter font automatically; the Owner Console exposes no
-brand-kit setup.
+Studio verifies the canonical logo and font digests before using these assets.

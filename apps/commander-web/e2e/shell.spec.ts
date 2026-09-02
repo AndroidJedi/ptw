@@ -4,12 +4,6 @@ import { createHash } from 'node:crypto'
 const projectId = '018f07ea-7f20-7000-8000-000000000001'
 const sourceId = '018f07ea-7f20-7000-8000-000000000002'
 const briefId = '018f07ea-7f20-7000-8000-000000000003'
-const runId = '018f07ea-7f20-7000-8000-000000000005'
-const creativeIds = Array.from({ length: 5 }, (_value, index) =>
-  `018f07ea-7f20-7000-8000-${String(index + 10).padStart(12, '0')}`,
-)
-const creativeBytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9])
-const creativeSha256 = createHash('sha256').update(creativeBytes).digest('hex')
 const studioPreviewBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
 const studioPreviewSha256 = createHash('sha256').update(studioPreviewBytes).digest('hex')
 const studioComponents = [
@@ -29,7 +23,7 @@ const studioComponents = [
 const studioDetail = {
   schema: 'ptw.studio.universal-ad-workspace.v5',
   catalog: {
-    schema: 'ptw.studio.universal-ad-catalog.v4', template_id: 'universal_ad', template_version: 10,
+    schema: 'ptw.studio.universal-ad-catalog.v5', template_id: 'universal_ad', template_version: 11,
     semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'offer', 'bullet_list', 'cta', 'logo'],
     components: studioComponents,
     asset_slots: {},
@@ -40,6 +34,7 @@ const studioDetail = {
       bullet_styles: ['check', 'circle', 'circle_outline'],
       cta_styles: ['filled', 'gradient', 'reverse', 'link', 'outlined'],
       cta_positions: ['below_text', 'bottom_left', 'bottom_right'],
+      cta_font_size: { minimum: 18, maximum: 42, default: 27 },
       sticker_positions: ['top_left', 'top_right', 'bottom_left', 'bottom_right', 'right_edge', 'bottom_edge', 'bullet_list', 'hero_title', 'cta'],
       font_families: ['Inter', 'Manrope', 'Oswald', 'Cormorant Garamond'],
       optional_elements: ['sticker', 'bullet_list', 'logo'],
@@ -48,12 +43,12 @@ const studioDetail = {
   },
   state_sha256: 'f'.repeat(64), template_sha256: 'a'.repeat(64),
   configuration: {
-    schema: 'ptw.studio.universal-ad-config.v4',
+    schema: 'ptw.studio.universal-ad-config.v5',
     background: { mode: 'solid', color: '#F0E653', texture: 'stone', texture_intensity: 0.7, image_layout: 'full', image_percent: 75, image_fit: 'cover', focal_x: 0.5, focal_y: 0.5, overlay_color: '#000000', overlay_opacity: 0 },
     typography: { font_family: 'Inter', benefits_font_family: 'Manrope', hero_size: 112, hero_weight: 800, supporting_size: 34, text_color: '#111111', alignment: 'left' },
     layout: { content_x: 76, content_y: 180, content_width: 720, gap: 24 },
     bullets: { enabled: false, style: 'circle' },
-    cta: { style: 'filled', position: 'below_text', background_color: '#111111', text_color: '#FFFFFF', radius: 24 },
+    cta: { style: 'filled', position: 'below_text', background_color: '#111111', text_color: '#FFFFFF', radius: 24, font_size: 27 },
     sticker: { enabled: false, position: 'top_right', rotation: -6, width: 320, object_scale: 0.82, offset_right: 0, offset_bottom: 0 },
     logo: { enabled: true, position: 'top_right', width: 180, background_enabled: false, background_color: '#FFFFFF' },
   },
@@ -64,7 +59,7 @@ const studioDetail = {
   },
   component_settings: {
     schema: 'ptw.studio.universal-ad-component-settings.v2', template_id: 'universal_ad',
-    template_version: 10, configuration_schema: 'ptw.studio.universal-ad-config.v4',
+    template_version: 11, configuration_schema: 'ptw.studio.universal-ad-config.v5',
     components: studioComponents.map(({ setting_ids: _settingIds, ...component }) => ({
       ...component, settings: [],
     })),
@@ -91,8 +86,7 @@ const briefDocument = {
 const project = {
   project_id: projectId, request_id: projectId, owner_idea_source_id: sourceId,
   name: briefDocument.product, name_source: 'product_brief', requested_by: 'firebase:owner',
-  result_creation_enabled: true, latest_brief_id: briefId, latest_brief_status: 'completed',
-  brief_count: 1, result_run_count: 1,
+  latest_brief_id: briefId, latest_brief_status: 'completed', brief_count: 1,
   created_at: '2026-08-26T08:00:00Z', updated_at: '2026-08-26T08:05:00Z',
 }
 
@@ -105,51 +99,6 @@ const brief = {
   ...briefDocument,
 }
 
-const run = {
-  run_id: runId, request_id: runId, parent_run_id: null, project_id: projectId,
-  brief_id: briefId, output_profile: 'instagram_static_ad_v1', platform: 'instagram',
-  task: 'Create one ready-to-publish Instagram feed post using Natal.',
-  status: 'awaiting_review', current_stage: 'awaiting_review', progress_percent: 100,
-  maximum_minutes: 45, generation_kind: 'initial',
-  generated_creative_ids: creativeIds, review_creative_ids: creativeIds,
-  approved_creative_id: null, notification_state: 'delivered', revision_number: 0,
-  created_at: '2026-08-26T08:10:00Z', updated_at: '2026-08-26T08:14:00Z',
-}
-
-const creatives = creativeIds.map((creativeId, index) => ({
-  creative_id: creativeId, run_id: runId, slot: `C${index + 1}`, round: 0,
-  generation_kind: 'initial', parent_creative_id: null,
-  template_id: ['moment_tension', 'contrast_reframe', 'mechanism_proof', 'human_story', 'direct_offer'][index],
-  template_version: 1,
-  parameters: {
-    hook_pressure: 50 + index, emotional_intensity: 40 + index,
-    conceptual_novelty: 60 + index, information_density: 30 + index,
-    visual_complexity: 20 + index,
-  },
-  document: {
-    hook: `Creative hook ${index + 1}`, headline: `Creative headline ${index + 1}`,
-    primary_text: 'One clear message.', supporting_text: 'One supporting point.',
-    offer: briefDocument.offer, cta: briefDocument.cta, caption: 'Caption',
-    alt_text: `Creative preview ${index + 1}`, desired_emotion: 'calm confidence',
-    visual_concept: 'One coherent layout.',
-  },
-  document_sha256: String(index + 1).repeat(64),
-  preview: {
-    asset_url: `/api/v1/content-runs/${runId}/creatives/${creativeId}/asset`,
-    sha256: creativeSha256, mime_type: 'image/jpeg', width: 1080, height: 1080,
-  },
-  created_at: '2026-08-26T08:14:00Z',
-}))
-
-const review = {
-  schema: 'ptw.owner-creative-review.v1', run, creatives, owner_actions: [],
-  notification: {
-    receipt_id: '018f07ea-7f20-7000-8000-000000000090', status: 'delivered',
-    attempt_count: 1, created_at: '2026-08-26T08:14:00Z', updated_at: '2026-08-26T08:14:00Z',
-  },
-  applied_project_rules: [],
-}
-
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url())
@@ -158,11 +107,6 @@ test.beforeEach(async ({ page }) => {
       status, contentType: 'application/json', body: JSON.stringify(value),
     })
     if (url.pathname === '/api/v1/projects') return json({ items: [project], next_cursor: null })
-    if (url.pathname === `/api/v1/projects/${projectId}/assets`) return json({ items: [] })
-    if (url.pathname === '/api/v1/learning-summary') return json({
-      schema: 'ptw.local-learning-summary.v1', market_performance: false,
-      runs: [], project_rules: [],
-    })
     if (url.pathname === '/api/v1/studio' && method === 'GET') return json(studioDetail)
     if (url.pathname === '/api/v1/studio/tune' && method === 'GET') return json({
       schema: 'ptw.studio.tune-service.v1', mode: 'local_only', available: true,
@@ -212,47 +156,27 @@ test.beforeEach(async ({ page }) => {
     }
     if (url.pathname === '/api/v1/briefs') return json({ items: [brief], next_cursor: null })
     if (url.pathname === `/api/v1/briefs/${briefId}`) return json(brief)
-    if (url.pathname === '/api/v1/content-runs' && method === 'GET') return json({ items: [run], next_cursor: null })
-    if (url.pathname === `/api/v1/content-runs/${runId}`) return json(run)
-    if (url.pathname === `/api/v1/content-runs/${runId}/review`) return json(review)
-    if (url.pathname.includes(`/api/v1/content-runs/${runId}/creatives/`) && url.pathname.endsWith('/asset')) {
-      return route.fulfill({
-        status: 200,
-        contentType: 'image/jpeg',
-        headers: { ETag: `"${creativeSha256}"`, 'X-PTW-Content-SHA256': creativeSha256, 'Cache-Control': 'private, no-store' },
-        body: creativeBytes,
-      })
-    }
     return json({ detail: `Unhandled ${method} ${url.pathname}` }, 404)
   })
 })
 
-test('discards stale deep-link IDs before loading Project-scoped resources', async ({ page }) => {
+test('discards the retired Social posts deep link', async ({ page }) => {
   const staleProjectId = '018f07ea-7f20-7000-8000-000000000099'
   const staleRunId = '018f07ea-7f20-7000-8000-000000000098'
-  const requestedUrls: string[] = []
-  page.on('request', (request) => requestedUrls.push(request.url()))
 
   await page.goto(`/?e2e=1&page=result&project=${staleProjectId}&run=${staleRunId}`)
-  await expect(page.locator('.creative-review-card')).toHaveCount(5)
+  await expect(page.getByRole('button', { name: 'Продуктові брифи' }).first()).toBeVisible()
   await expect.poll(() => page.evaluate(() => Object.fromEntries(
     new URLSearchParams(window.location.search),
-  ))).toMatchObject({ page: 'result', project: projectId, run: runId })
-
-  const apiUrls = requestedUrls
-    .filter((value) => value.includes('/api/v1/'))
-    .map((value) => new URL(value))
-  expect(apiUrls.some((url) => url.searchParams.get('project_id') === staleProjectId)).toBe(false)
-  expect(apiUrls.some((url) => url.pathname.includes(staleProjectId))).toBe(false)
-  expect(apiUrls.some((url) => url.pathname.includes(staleRunId))).toBe(false)
+  ))).not.toMatchObject({ page: 'result', run: staleRunId })
 })
 
-test('shows Product Brief, Social Posts, and Universal Ad Studio workspaces', async ({ page }) => {
+test('shows only Product Brief and Universal Ad Studio workspaces', async ({ page }) => {
   await page.goto('/?e2e=1')
   await expect(page.getByRole('button', { name: 'Продуктові брифи' }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Змінити мову' }).click()
   await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Social posts' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Social posts' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Studio' }).first()).toBeVisible()
   await page.reload()
   await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
@@ -260,26 +184,6 @@ test('shows Product Brief, Social Posts, and Universal Ad Studio workspaces', as
   await expect(page.getByText('Ads', { exact: true })).toHaveCount(0)
   await expect(page.getByText('Landing', { exact: true })).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'Social posts' }).first().click()
-  await expect(page.getByRole('heading', { name: 'Social posts' })).toHaveCount(0)
-  await expect.poll(() => page.evaluate(() => Object.fromEntries(
-    new URLSearchParams(window.location.search),
-  ))).toMatchObject({ page: 'result', project: projectId, run: runId })
-  await expect(page.getByLabel('Task')).toHaveCount(0)
-  await expect(page.getByRole('radio', { name: 'Text' })).toHaveCount(0)
-  await expect(page.getByText('PROJECT BRAND KIT')).toHaveCount(0)
-  await expect(page.locator('.creative-review-card')).toHaveCount(5)
-  await expect(page.getByRole('heading', { name: 'Five verified creative directions' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Approve' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Tune selected' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Regenerate all' })).toBeVisible()
-  await expect(page.getByText('SOURCE', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: 'Owner learning' })).toBeVisible()
-  await expect(page.getByText('LOCAL QUALITY EVIDENCE')).toHaveCount(0)
-  await expect(page.getByLabel('Project')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'New set' })).toHaveCount(1)
-  await expect(page.getByRole('button', { name: 'Rename' })).toHaveCount(0)
-  await expect(page.getByLabel('Filter by platform')).toHaveCount(0)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
@@ -515,17 +419,4 @@ test('separates new Project creation from the selected Project workspace', async
   await page.getByLabel('Existing Project').selectOption(projectId)
   await expect(page.getByText('BRIEF HISTORY', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'What do you want to validate?' })).toHaveCount(0)
-})
-
-test('shows five owner-review cards on desktop and mobile without overflow', async ({ page }) => {
-  await page.goto('/?e2e=1')
-  await page.getByRole('button', { name: 'Змінити мову' }).click()
-  await page.getByRole('button', { name: 'Social posts' }).first().click()
-  await expect(page.locator('.creative-review-card')).toHaveCount(5)
-  await expect(page.locator('.creative-review-image img')).toHaveCount(5)
-  await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
-
-  await page.setViewportSize({ width: 360, height: 800 })
-  await expect(page.locator('.creative-review-card')).toHaveCount(5)
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

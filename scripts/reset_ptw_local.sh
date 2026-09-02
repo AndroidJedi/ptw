@@ -10,22 +10,22 @@ while [[ "$#" -gt 0 ]]; do
     --scope=*) scope="${1#*=}"; shift ;;
     --confirm) confirmation="${2:-}"; shift 2 ;;
     --confirm=*) confirmation="${1#*=}"; shift ;;
-    *) echo "usage: scripts/reset_ptw_local.sh --scope owner-experiments --confirm='RESET PTW LOCAL RESULT DATA'" >&2; exit 2 ;;
+    *) echo "usage: scripts/reset_ptw_local.sh --scope owner-briefs --confirm='RESET PTW LOCAL BRIEF DATA'" >&2; exit 2 ;;
   esac
 done
 
-[[ "$scope" == "owner-experiments" ]] || {
-  echo "only the owner-experiments scope is allowed" >&2
+[[ "$scope" == "owner-briefs" ]] || {
+  echo "only the owner-briefs scope is allowed" >&2
   exit 2
 }
-[[ "$confirmation" == "RESET PTW LOCAL RESULT DATA" ]] || {
-  echo "exact local Result reset confirmation is required" >&2
+[[ "$confirmation" == "RESET PTW LOCAL BRIEF DATA" ]] || {
+  echo "exact local Product Brief reset confirmation is required" >&2
   exit 2
 }
 
-target="$repository/.local/owner-experiments"
+target="$repository/.local/owner-briefs"
 local_root="$repository/.local"
-[[ "$target" == "$local_root/owner-experiments" ]] || {
+[[ "$target" == "$local_root/owner-briefs" ]] || {
   echo "refusing unexpected reset target: $target" >&2
   exit 1
 }
@@ -56,26 +56,26 @@ import sys
 
 target = Path(sys.argv[1])
 local_root = Path(sys.argv[2]).resolve()
-if target.resolve() != local_root / "owner-experiments" or target.parent.resolve() != local_root:
+if target.resolve() != local_root / "owner-briefs" or target.parent.resolve() != local_root:
     raise SystemExit(f"refusing non-allowlisted reset target: {target}")
 if target.is_symlink():
     raise SystemExit(f"refusing symlink reset target: {target}")
 
-run_root = target / "records" / "runs"
-if run_root.is_dir():
-    for entity in run_root.iterdir():
+brief_root = target / "records" / "briefs"
+if brief_root.is_dir():
+    for entity in brief_root.iterdir():
         revisions = sorted(entity.glob("*.json")) if entity.is_dir() else []
         if not revisions:
             continue
         value = json.loads(revisions[-1].read_text(encoding="utf-8"))
-        if (value.get("payload") or {}).get("status") in {"queued", "generating"}:
-            raise SystemExit(f"refusing reset while local Result run {entity.name} is active")
+        if (value.get("payload") or {}).get("status") == "generating":
+            raise SystemExit(f"refusing reset while Product Brief {entity.name} is generating")
 
 local_root.mkdir(parents=True, exist_ok=True)
 if target.exists():
     shutil.rmtree(target)
 target.mkdir(mode=0o700)
 if any(target.iterdir()):
-    raise SystemExit("local owner-experiments reset verification failed")
-print("cleared and verified only .local/owner-experiments")
+    raise SystemExit("local owner-briefs reset verification failed")
+print("cleared and verified only .local/owner-briefs")
 PY

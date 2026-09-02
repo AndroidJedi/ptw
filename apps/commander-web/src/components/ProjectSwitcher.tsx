@@ -45,7 +45,7 @@ export function ProjectSwitcher({ projects, projectId, onSelect, onNew, onRename
       <button className="secondary" onClick={onNew}><Plus />{tr('New Project', 'Новий проєкт')}</button>
     </div>
     {selected && editing && <div className="project-rename"><label>{tr('Project name', 'Назва проєкту')}<input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} /></label><button className="primary" disabled={busy || !name.trim()} onClick={() => void save()}><Save />{tr('Save name', 'Зберегти назву')}</button><button className="ghost" disabled={busy} onClick={() => setEditing(false)}><X />{tr('Cancel', 'Скасувати')}</button></div>}
-    {selected && <p className="uuid-line">{language === 'uk' ? `${selected.brief_count} брифів · ${selected.result_run_count} соціальних артефактів` : `${selected.brief_count} Brief${selected.brief_count === 1 ? '' : 's'} · ${selected.result_run_count} social artifact${selected.result_run_count === 1 ? '' : 's'}`}</p>}
+    {selected && <p className="uuid-line">{language === 'uk' ? `${selected.brief_count} брифів` : `${selected.brief_count} Brief${selected.brief_count === 1 ? '' : 's'}`}</p>}
     {error && <p className="project-switcher-error" role="alert">{error}</p>}
   </section>
 }

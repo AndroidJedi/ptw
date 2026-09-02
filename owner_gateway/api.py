@@ -1,4 +1,4 @@
-"""Firebase-authenticated owner API for Briefs, Results, and Universal Ad Studio."""
+"""Firebase-authenticated owner API for Product Briefs and Universal Ad Studio."""
 
 from __future__ import annotations
 
@@ -13,55 +13,9 @@ from .auth import FirebaseVerifier, OwnerDependency, OwnerIdentity
 from .settings import Settings
 
 
-INSTAGRAM_TASK = (
-    "Create one ready-to-publish Instagram feed post for the approved Product Brief "
-    "using Natal's canonical visual identity."
-)
-TIKTOK_TASK = (
-    "Create one ready-to-export TikTok vertical photo post for the approved Product Brief "
-    "using Natal's canonical visual identity."
-)
-SOCIAL_PLATFORMS = {
-    "instagram": (INSTAGRAM_TASK, "instagram_static_ad_v1"),
-    "tiktok": (TIKTOK_TASK, "tiktok_photo_post_v1"),
-}
-
-
-def instagram_run_request(request: Mapping[str, Any]) -> dict[str, Any]:
-    """Map the no-form owner action to the sole public Result profile."""
-    if set(request) != {"request_id", "brief_id"}:
-        raise ValueError("Instagram post creation requires only request_id and brief_id")
-    return {
-        "request_id": request["request_id"],
-        "brief_id": request["brief_id"],
-        "task": INSTAGRAM_TASK,
-        "output_profile": "instagram_static_ad_v1",
-    }
-
-
-def social_run_request(request: Mapping[str, Any]) -> dict[str, Any]:
-    """Map one bounded social action to a fixed server-owned task and profile."""
-    if set(request) not in ({"request_id", "brief_id"}, {"request_id", "brief_id", "platform"}):
-        raise ValueError("Social post creation requires request_id, brief_id, and optional platform")
-    platform = (
-        "instagram" if "platform" not in request
-        else str(request["platform"]).strip().lower()
-    )
-    mapped = SOCIAL_PLATFORMS.get(platform)
-    if mapped is None:
-        raise ValueError("Social post platform must be instagram or tiktok")
-    task, profile = mapped
-    return {
-        "request_id": request["request_id"],
-        "brief_id": request["brief_id"],
-        "task": task,
-        "output_profile": profile,
-    }
-
-
 def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> FastAPI:
     owner = OwnerDependency(verifier or FirebaseVerifier(settings))
-    app = FastAPI(title="PTW Result Gateway", version="1.0.0", docs_url=None, redoc_url=None)
+    app = FastAPI(title="PTW Owner Gateway", version="1.0.0", docs_url=None, redoc_url=None)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(dict.fromkeys([settings.public_origin, *settings.owner_public_origins])),
@@ -93,7 +47,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
                     params=dict(params or {}),
                 )
         except httpx.HTTPError as error:
-            raise HTTPException(status_code=503, detail="Result service is unavailable") from error
+            raise HTTPException(status_code=503, detail="Validation service is unavailable") from error
         if response.status_code >= 400:
             try:
                 detail = response.json().get("detail")
@@ -101,7 +55,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
                 detail = None
             raise HTTPException(
                 status_code=response.status_code,
-                detail=detail or "Result service request failed",
+                detail=detail or "Validation service request failed",
             )
         return response
 
@@ -118,7 +72,6 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         return {
             "projects": len(projects),
             "briefs": sum(int(item["brief_count"]) for item in projects),
-            "result_runs": sum(int(item["result_run_count"]) for item in projects),
         }
 
     @app.get("/api/v1/projects")
@@ -181,118 +134,6 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     ) -> dict[str, Any]:
         return (await validation_bridge(
             "POST", f"/internal/v1/briefs/{brief_id}/approve", body=request, actor=actor(identity)
-        )).json()
-
-    @app.post("/api/v1/content-runs", status_code=202)
-    async def create_content_run(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
-    ) -> dict[str, Any]:
-        try:
-            body = social_run_request(request)
-        except ValueError as error:
-            raise HTTPException(status_code=400, detail=str(error)) from error
-        return (await validation_bridge(
-            "POST", "/internal/v1/content-runs", body=body,
-            actor=actor(identity), timeout=60,
-        )).json()
-
-    @app.get("/api/v1/content-runs")
-    async def content_runs(
-        project_id: str, limit: int = Query(default=50, ge=1, le=100),
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "GET", "/internal/v1/content-runs", params={"project_id": project_id, "limit": limit}
-        )).json()
-
-    @app.get("/api/v1/content-runs/{run_id}")
-    async def content_run(run_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("GET", f"/internal/v1/content-runs/{run_id}")).json()
-
-    @app.get("/api/v1/content-runs/{run_id}/review")
-    async def content_review(run_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge(
-            "GET", f"/internal/v1/content-runs/{run_id}/review",
-        )).json()
-
-    @app.get("/api/v1/content-runs/{run_id}/creatives/{creative_id}/asset")
-    async def content_creative_asset(
-        run_id: str, creative_id: str, _identity: OwnerIdentity = Depends(owner),
-    ) -> Response:
-        response = await validation_bridge(
-            "GET", f"/internal/v1/content-runs/{run_id}/creatives/{creative_id}/asset",
-            timeout=60,
-        )
-        headers = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
-        for name in ("etag", "x-ptw-content-sha256"):
-            if response.headers.get(name):
-                headers[name] = response.headers[name]
-        return Response(
-            content=response.content,
-            media_type=response.headers.get("content-type", "application/octet-stream"),
-            headers=headers,
-        )
-
-    @app.get("/api/v1/content-runs/{run_id}/creatives/{creative_id}/export")
-    async def content_creative_export(
-        run_id: str, creative_id: str, _identity: OwnerIdentity = Depends(owner),
-    ) -> Response:
-        response = await validation_bridge(
-            "GET", f"/internal/v1/content-runs/{run_id}/creatives/{creative_id}/export",
-            timeout=60,
-        )
-        headers = {
-            "Cache-Control": "private, no-store",
-            "X-Content-Type-Options": "nosniff",
-        }
-        for name in ("x-ptw-content-sha256", "content-disposition"):
-            if response.headers.get(name):
-                headers[name] = response.headers[name]
-        return Response(content=response.content, media_type="application/zip", headers=headers)
-
-    @app.post("/api/v1/content-runs/{run_id}/review/approve")
-    async def approve_content_review(
-        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/content-runs/{run_id}/review/approve",
-            body=request, actor=actor(identity),
-        )).json()
-
-    @app.post("/api/v1/content-runs/{run_id}/review/regenerate-all", status_code=202)
-    async def regenerate_content_review(
-        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/content-runs/{run_id}/review/regenerate-all",
-            body=request, actor=actor(identity), timeout=60,
-        )).json()
-
-    @app.post("/api/v1/content-runs/{run_id}/review/tune", status_code=202)
-    async def tune_content_review(
-        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/content-runs/{run_id}/review/tune",
-            body=request, actor=actor(identity), timeout=60,
-        )).json()
-
-    @app.post("/api/v1/content-runs/{run_id}/review-notification/retry")
-    async def retry_content_review_notification(
-        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/content-runs/{run_id}/review-notification/retry",
-            body=request, actor=actor(identity),
-        )).json()
-
-    @app.post("/api/v1/content-runs/{run_id}/retry", status_code=202)
-    async def retry_content_run(
-        run_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/content-runs/{run_id}/retry", body=request,
-            actor=actor(identity), timeout=60,
         )).json()
 
     @app.get("/api/v1/studio")
@@ -384,9 +225,9 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def system_health(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         try:
             response = await validation_bridge("GET", "/readyz", timeout=5)
-            return {"gateway": "ok", "result_service": response.json()}
+            return {"gateway": "ok", "validation_service": response.json()}
         except HTTPException as error:
-            return {"gateway": "ok", "result_service": {"status": "unavailable", "detail": error.detail}}
+            return {"gateway": "ok", "validation_service": {"status": "unavailable", "detail": error.detail}}
 
     @app.post("/api/v1/system/emergency-stop")
     async def emergency_stop(

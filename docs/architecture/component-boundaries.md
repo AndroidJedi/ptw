@@ -1,16 +1,13 @@
 # PTW component boundaries
 
-- `validation-pipeline`: Product Brief and channel-neutral Result contracts,
-  orchestration, policy, persistence, adapters, rendering, and recovery.
-- `commander`: health/readiness, graph vocabulary, demo, and the three-command
-  Telegram emergency adapter.
-- `owner-gateway`: Firebase-authenticated Project, Product Brief, and Result
-  proxy. It owns no domain rows and runs no job system.
-- `commander-web`: Product Brief and Result PWA. It is not an authority.
-- `platform-bridge`: unrelated repository/database; authenticated ephemeral
-  structured execution and reviewed graphic bytes only.
+- `validation_pipeline`: Product Brief generation/persistence plus the separate
+  Universal Studio workspace and renderer.
+- `owner_gateway`: Firebase-authenticated Project, Brief, and Studio proxy.
+- `commander`: readiness and established Telegram emergency controls.
+- `apps/commander-web`: Product Brief and Studio UI; never data authority.
+- `/opt/ptw/platform`: unrelated bridge runtime; exactly two Product Brief JSON
+  modes and no media mode.
 
-PostgreSQL relationships and immutable entities cross application boundaries.
-No component may bypass Brief approval, Project/source ownership, protected
-copy, authenticated artifact delivery, or Owner Gateway for normal owner
-instructions. Channel behavior belongs in an adapter.
+The web Owner Gateway is the only normal instruction channel. PostgreSQL owns
+the complete Brief graph; Studio state is independently file-backed. Telegram
+remains emergency-only.

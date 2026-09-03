@@ -40,9 +40,11 @@ def _screen_bytes(background: str = "#F5F6F3") -> bytes:
 class FakePhoneScreenImageProvider:
     def __init__(self) -> None:
         self.prompts: list[str] = []
+        self.references: list[bytes | None] = []
 
-    def generate(self, prompt: str) -> dict:
+    def generate(self, prompt: str, *, reference_image: bytes | None = None) -> dict:
         self.prompts.append(prompt)
+        self.references.append(reference_image)
         return {
             "bytes": _screen_bytes("#6AAFC8"), "mime_type": "image/png",
             "source": {
@@ -102,7 +104,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         )
         self.assertEqual(IPHONE_FRAME_SHA256, composite["source"]["frame_sha256"])
         self.assertEqual(
-            "front_natal_app_shell_v11", composite["source"]["screen_composition"],
+            "front_natal_app_shell_v13", composite["source"]["screen_composition"],
         )
         self.assertEqual(
             "deterministic_material_grain_v1", composite["source"]["hero_texture"],
@@ -179,6 +181,22 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
                 ]
                 self.assertLessEqual(max(channel_steps), 12)
 
+            # The image and its selected finish must ease into the lower white
+            # content area together; an unfaded texture used to leave a crisp
+            # horizontal cutoff immediately above the title.
+            shell = _fixed_screen_shell(
+                Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#6AAFC8"),
+                "ІНВЕСТУЙТЕ В МАЙБУТНЄ", "ДІЗНАТИСЯ БІЛЬШЕ", "grain",
+            ).convert("RGB")
+            fade_pixels = [shell.getpixel((20, y)) for y in range(720, 1080)]
+            fade_luminance = [sum(pixel) / 3 for pixel in fade_pixels]
+            self.assertGreater(fade_luminance[-1], fade_luminance[0] + 75)
+            boundary_steps = [
+                max(abs(first - second) for first, second in zip(before, after))
+                for before, after in zip(fade_pixels, fade_pixels[1:])
+            ]
+            self.assertLessEqual(max(boundary_steps[-45:]), 3)
+
             # A solid-color fixture still gains visible, deterministic material
             # variation in the hero region after the app shell is composed.
             grain_colours = {
@@ -190,6 +208,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
     def test_phone_hero_subject_is_lowered_but_artwork_still_reaches_the_top(self) -> None:
         from PIL import Image, ImageDraw
 
+        self.assertEqual(220, PHONE_HERO_ART_OFFSET_Y)
         source = Image.new("RGBA", (832, 832), "#6AAFC8")
         ImageDraw.Draw(source).rectangle((300, 180, 532, 360), fill="#E12D8C")
         positioned = _position_phone_hero_art(
@@ -705,12 +724,21 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         self.assertTrue(phone["phone_screen_generation_available"])
         before = self.workspace.render_preview(state_sha256=phone["state_sha256"])
 
+        with self.assertRaisesRegex(ValueError, "requires an existing"):
+            self.workspace.generate_phone_screen(
+                base_sha256=phone["state_sha256"],
+                visual_direction="Polish the current sculptural direction.",
+                enhance_current=True,
+            )
+        self.assertEqual([], provider.prompts)
+
         generated = self.workspace.generate_phone_screen(
             base_sha256=phone["state_sha256"],
             visual_direction="  Translucent glass steps in soft blue light with one lime accent.  ",
         )
 
         self.assertEqual(1, len(provider.prompts))
+        self.assertEqual([None], provider.references)
         self.assertIn("Translucent glass steps", provider.prompts[0])
         screen = next(item for item in generated["assets"] if item["slot"] == "phone_screen")
         self.assertTrue(screen["available"])
@@ -723,22 +751,43 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             "owner_directed_text_free_phone_hero_v1",
             screen["source"]["prompt_contract"],
         )
+        self.assertEqual("generate_new", screen["source"]["generation_mode"])
         after = self.workspace.render_preview(state_sha256=generated["state_sha256"])
         self.assertNotEqual(before["bytes_sha256"], after["bytes_sha256"])
 
+        enhanced = self.workspace.generate_phone_screen(
+            base_sha256=generated["state_sha256"],
+            visual_direction="Keep the unicorn composition and improve its material polish.",
+            enhance_current=True,
+        )
+        self.assertEqual(2, len(provider.prompts))
+        self.assertIn("Edit the supplied current hero image", provider.prompts[1])
+        self.assertEqual(_screen_bytes("#6AAFC8"), provider.references[1])
+        enhanced_screen = next(
+            item for item in enhanced["assets"] if item["slot"] == "phone_screen"
+        )
+        self.assertEqual("enhance_current", enhanced_screen["source"]["generation_mode"])
+        self.assertEqual(
+            "owner_directed_text_free_phone_hero_enhancement_v1",
+            enhanced_screen["source"]["prompt_contract"],
+        )
+        self.assertEqual(screen["sha256"], enhanced_screen["source"]["reference_asset_sha256"])
+
         class FailingProvider:
             @staticmethod
-            def generate(_prompt: str) -> dict:
+            def generate(_prompt: str, *, reference_image: bytes | None = None) -> dict:
+                self.assertIsNotNone(reference_image)
                 raise RuntimeError("provider unavailable")
 
         self.workspace.image_provider = FailingProvider()
         with self.assertRaisesRegex(RuntimeError, "previous visual was preserved"):
             self.workspace.generate_phone_screen(
-                base_sha256=generated["state_sha256"],
+                base_sha256=enhanced["state_sha256"],
                 visual_direction="A different premium sculptural direction.",
+                enhance_current=True,
             )
         current_screen = next(
             item for item in self.workspace.detail()["assets"]
             if item["slot"] == "phone_screen"
         )
-        self.assertEqual(screen["sha256"], current_screen["sha256"])
+        self.assertEqual(enhanced_screen["sha256"], current_screen["sha256"])

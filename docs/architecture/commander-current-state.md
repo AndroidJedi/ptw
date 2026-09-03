@@ -7,7 +7,7 @@ Deployment: not authorized; local checkout only
 ## Current milestone
 
 Universal Studio now has two bounded server-owned templates: existing
-`universal_ad` at 1080×1080 and `phone_metrics` v15 at 1080×1350. Applying either
+`universal_ad` at 1080×1080 and `phone_metrics` v17 at 1080×1350. Applying either
 template replaces all mutable configuration, owner copy, and mutable assets;
 immutable versions remain byte-for-byte historical records. Missing selection
 metadata retains the legacy Universal Studio behavior.
@@ -33,18 +33,28 @@ composited. Device, UI, copy, and artwork remain one downstream layer and cannot
 drift apart, while the screen text and CTA stay crisp and horizontal. Standalone
 Studio now exposes a bounded visual-direction field and local-only “Generate &
 apply” action; it saves current draft copy/configuration first and replaces only
-the mutable in-phone artwork. Generation defaults to the built-in image tool of
+the mutable in-phone artwork. An “Enhance current image” checkbox is enabled and
+checked by default whenever a generated raw hero exists. Enhance supplies that
+exact raw artwork—not the phone screenshot or renderer-owned UI—as the provider
+image input and applies the new direction as an edit; turning it off generates
+from scratch. A first generation with no current asset keeps Enhance disabled,
+then enables it for the next iteration. Generation defaults to the built-in image tool of
 the existing ChatGPT-authenticated Codex CLI and therefore needs no separately
 configured Platform API key; PTW never reads or copies Codex authentication. An
 explicit direct Images API mode remains available for separately keyed runtimes.
+The Codex path confines the temporary reference PNG to its read-only worker
+directory; the direct API path uses the GPT Image edits endpoint. Saved
+provenance records generate-versus-enhance mode and, for enhancement, the exact
+reference asset SHA-256. Neither path persists a temporary reference copy.
 The prior polished sculptural fixture remains the zero-cost fallback, and a
 failed generation preserves the current visual. The local Post flow continues
 to derive its direction from the approved Brief.
 Hero artwork spans the full screen width without inset white gutters. Its sharp
-subject is lowered beneath the fixed status/logo header, while a feathered,
+subject is lowered slightly farther beneath the fixed status/logo header, while a feathered,
 image-derived continuation still reaches the top edge without a blank band or
-hard seam. It then fades vertically into the lower content area. A deterministic
-material grain textures the hero while remaining beneath the crisp
+hard seam. The artwork and its selected texture now dissolve together through
+a longer eased transition into the lower white content area, without a straight
+cutoff above the headline. A deterministic material grain textures the hero while remaining beneath the crisp
 renderer-owned UI. Generated pixels remain text-, logo-, UI-, number-, chart-,
 and device-free; the browser never
 receives provider authentication, and non-secret direction/provider provenance
@@ -104,8 +114,8 @@ fails closed on a digest mismatch.
 
 ## Verification status
 
-- Validation pipeline: 94 tests passed in the repository virtual environment.
-- Focused Post/Studio/phone regressions: 55 tests passed, including authenticated
+- Validation pipeline: 96 tests passed in the repository virtual environment.
+- Focused Post/Studio/phone regressions: 57 tests passed, including authenticated
   Codex built-in image generation, generated-path confinement and cleanup, static
   frame digest/no-runtime-fetch, front-facing app-shell composition,
   renderer-owned phone copy/actions/CTA, Natal-only identity, template replacement,
@@ -114,7 +124,9 @@ fails closed on a digest mismatch.
   configuration migration, supporting-copy markup/size/colour rendering, all
   texture selections and both real `Off` states, 1080×1350 rendering, bounded
   owner-directed phone-screen generation, authenticated local routing, saved
-  provider/direction provenance, and preservation of the deterministic fallback.
+  provider/direction provenance, current-image enhancement through both Codex
+  and direct API provider boundaries, reference digest lineage, and preservation
+  of the deterministic fallback.
 - Extended Studio visual audit passed six universal variants plus six exact
   full-resolution `phone_metrics` 1080×1350 states. It checks every
   texture option, all three actual `Off` states, a left-copy-only isolation
@@ -125,7 +137,8 @@ fails closed on a digest mismatch.
   hero-subject
   placement, full-width artwork with an
   image-derived continuation to the top, seamless header blending, sealed upper
-  screen corners, text-free phone hero artwork, compact smooth metric cards,
+  screen corners, an eased image-and-texture transition into the white content
+  area, text-free phone hero artwork, compact smooth metric cards,
   eyebrow removal with headline reflow, supporting-copy bold and colour markup,
   default/maximum supporting font size, and independent metric-button text,
   foreground/background colours, and shape. The in-phone controls were checked
@@ -135,7 +148,7 @@ fails closed on a digest mismatch.
   inspected at 1440 and 360 CSS pixels with reduced motion, keyboard controls,
   all per-button fields, the original default and a mixed styled preview,
   refreshed authoritative preview pixels, and no horizontal overflow.
-- Owner Console: 42 Vitest tests and the production TypeScript/Vite build
+- Owner Console: 43 Vitest tests and the production TypeScript/Vite build
   passed.
 - Commander: host suite passed 6 tests with 2 FastAPI-dependent skips; the
   built runtime image passed all 8 tests. The deterministic Commander demo

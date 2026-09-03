@@ -15,7 +15,7 @@ immutable version. A workspace without a selection remains the legacy
 
 `universal_ad` retains its fixed semantic structure: background, optional
 sticker, hero title, supporting text, optional benefits, CTA, and Natal.
-`phone_metrics` v15 is a fixed 4:5 composition: off-white mineral texture,
+`phone_metrics` v17 is a fixed 4:5 composition: off-white mineral texture,
 canonical Natal lock-up in the upper-left, dark left-safe-area copy, a
 front-facing black phone at upper-right, three compact equal metric buttons,
 and a full-width cobalt CTA band. Each metric button independently exposes its
@@ -73,10 +73,11 @@ screen is composited into the transparent rounded aperture before the hardware
 is added. Device, UI, copy, and artwork therefore remain one image layer and
 cannot drift apart, while readable screen elements receive no perspective
 distortion. Hero artwork spans the complete app-screen width. Its sharp subject
-is lowered away from the fixed status and Natal header, while an image-derived
+is lowered slightly farther away from the fixed status and Natal header, while an image-derived
 continuation still reaches the screen's top edge and feathers into the sharp
-layer at the same source row. It fades smoothly through that header and into
-the lower white content area; no inset card mask, white side gutters, blank top
+layer at the same source row. The artwork and its selected finish dissolve
+together through a long eased fade into the lower white content area; no inset
+card mask, white side gutters, blank top
 band, duplicated hard edge, or horizontal seam beneath the logo remain. The
 selected deterministic screen finish is composited beneath the fixed interface
 without softening renderer-owned UI. The screen matte extends beneath the upper bezel so the
@@ -91,6 +92,17 @@ generation tool through the same ChatGPT-authenticated Codex CLI already used
 for structured generation; PTW never reads or copies Codex authentication.
 `STUDIO_PHONE_IMAGE_PROVIDER=openai_api` remains an explicit fallback for a
 server-side `OPENAI_API_KEY`, rather than a prerequisite for local Studio.
+When a mutable raw hero already exists, “Enhance current image” is enabled and
+checked by default. It passes that raw source image with the direction as an
+edit, never the composited phone, fixed Natal identity, title, actions, or
+hardware. Turning the checkbox off preserves the existing generate-from-scratch
+behavior. With no current raw image the control is disabled until the first
+successful generation, then becomes the default for the next iteration. The
+Codex provider exposes a temporary read-only reference path only to its bounded
+image worker; the direct API provider sends a multipart request to the GPT Image
+edits endpoint. Persisted non-secret provenance distinguishes `generate_new`
+from `enhance_current` and links enhancements to the exact previous asset
+SHA-256. Temporary reference images are removed after the provider call.
 The local-only action saves any current copy/configuration first, preserves the
 previous visual on provider failure, validates the result as PNG, and records
 the non-secret direction and provider provenance. The local Post flow separately
@@ -144,7 +156,9 @@ independent labels and colours, elevation shadow, and horizontal final-frame
 resampling. A passed
 audit is followed by a full-resolution visual inspection of the creative area
 only; social-app chrome and reference brand wording are not part of the Studio
-output.
+output. Browser checks also cover the enhancement checkbox at desktop and 360px:
+disabled without a raw current hero, checked by default with one, keyboard
+operable, and mapped to the bounded boolean API field.
 
 `STUDIO_TUNE_MODE=1` enables the loopback Tune wizard. It captures one requested
 Studio implementation, runs Codex in an isolated worktree, enforces a

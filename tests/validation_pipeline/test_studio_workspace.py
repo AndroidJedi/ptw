@@ -918,9 +918,11 @@ class UniversalStudioApiTests(unittest.TestCase):
         class ImageProvider:
             def __init__(self) -> None:
                 self.prompts: list[str] = []
+                self.references: list[bytes | None] = []
 
-            def generate(self, prompt: str) -> dict:
+            def generate(self, prompt: str, *, reference_image: bytes | None = None) -> dict:
                 self.prompts.append(prompt)
+                self.references.append(reference_image)
                 return {
                     "bytes": _image_bytes(), "mime_type": "image/png",
                     "source": {
@@ -951,6 +953,7 @@ class UniversalStudioApiTests(unittest.TestCase):
                 request = {
                     "base_sha256": phone["state_sha256"],
                     "visual_direction": "Folded cobalt glass with a warm lime focal sphere.",
+                    "enhance_current": False,
                 }
                 self.assertEqual(
                     401,
@@ -967,6 +970,32 @@ class UniversalStudioApiTests(unittest.TestCase):
                 )
                 self.assertTrue(screen["available"])
                 self.assertEqual(1, len(provider.prompts))
+                self.assertEqual([None], provider.references)
+                enhanced = client.post(
+                    "/api/v1/studio/phone-screen/generate", headers=headers, json={
+                        "base_sha256": generated.json()["state_sha256"],
+                        "visual_direction": "Preserve the form and improve material detail.",
+                        "enhance_current": True,
+                    },
+                )
+                self.assertEqual(200, enhanced.status_code, enhanced.text)
+                self.assertEqual(_image_bytes(), provider.references[1])
+                enhanced_screen = next(
+                    item for item in enhanced.json()["assets"]
+                    if item["slot"] == "phone_screen"
+                )
+                self.assertEqual(
+                    screen["sha256"],
+                    enhanced_screen["source"]["reference_asset_sha256"],
+                )
+                invalid = client.post(
+                    "/api/v1/studio/phone-screen/generate", headers=headers, json={
+                        "base_sha256": enhanced.json()["state_sha256"],
+                        "visual_direction": "Preserve the form and improve material detail.",
+                        "enhance_current": "yes",
+                    },
+                )
+                self.assertEqual(400, invalid.status_code)
 
     def test_loopback_contract_has_no_template_library_or_reference_routes(self) -> None:
         from fastapi.testclient import TestClient

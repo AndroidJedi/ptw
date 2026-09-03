@@ -21,14 +21,19 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
   const [previewUrl, setPreviewUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
+  const initialScreenAsset = initialDetail.assets.find((asset) => asset.slot === 'phone_screen')
   const [screenDirection, setScreenDirection] = useState(() => {
-    const source = initialDetail.assets.find((asset) => asset.slot === 'phone_screen')?.source
+    const source = initialScreenAsset?.source
     return typeof source?.visual_direction === 'string' ? source.visual_direction : ''
   })
+  const [enhanceCurrent, setEnhanceCurrent] = useState(Boolean(initialScreenAsset?.available))
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const previewGeneration = useRef(0)
   const supportingTextRef = useRef<HTMLTextAreaElement>(null)
+  const hasCurrentPhoneScreen = detail.assets.some((asset) => (
+    asset.slot === 'phone_screen' && asset.available && Boolean(asset.sha256)
+  ))
   const tr = (en: string, uk: string) => translate(language, en, uk)
   const textureLabel = (texture: string) => ({
     none: tr('Off', 'Без текстури'),
@@ -97,6 +102,7 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
   const generatePhoneScreen = async () => {
     setBusy(true); setError(''); setNotice('')
     try {
+      const useCurrentAsReference = enhanceCurrent && hasCurrentPhoneScreen
       let saved = detail
       if (
         JSON.stringify(configuration) !== JSON.stringify(detail.configuration)
@@ -109,9 +115,12 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
       }
       const next = await api.post<StudioPhoneMetricsDetail>('/api/v1/studio/phone-screen/generate', {
         base_sha256: saved.state_sha256, visual_direction: screenDirection.trim(),
+        enhance_current: useCurrentAsReference,
       }, { deadlineMs: 360_000 })
-      applyDetail(next); await render(next)
-      setNotice(tr('New iPhone hero visual generated and applied.', 'Новий герой-візуал для iPhone згенеровано й застосовано.'))
+      applyDetail(next); setEnhanceCurrent(true); await render(next)
+      setNotice(useCurrentAsReference
+        ? tr('Current iPhone hero visual enhanced and applied.', 'Поточний герой-візуал iPhone покращено й застосовано.')
+        : tr('New iPhone hero visual generated and applied.', 'Новий герой-візуал для iPhone згенеровано й застосовано.'))
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const selectTemplate = async (templateId: string) => {
@@ -288,18 +297,29 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
           })}
           <p className="universal-section-note">{tr('Each button is independent. The default is the reference cobalt fill, white text, and rounded shape.', 'Кожна кнопка налаштовується окремо. Типово використано еталонну синю заливку, білий текст і заокруглену форму.')}</p>
         </section>
-        <section className="panel universal-section phone-screen-rule"><small>{tr('IPHONE HERO VISUAL', 'ГЕРОЙ-ВІЗУАЛ IPHONE')}</small><h2>{tr('Generate a new background', 'Згенерувати новий фон')}</h2>
+        <section className="panel universal-section phone-screen-rule"><small>{tr('IPHONE HERO VISUAL', 'ГЕРОЙ-ВІЗУАЛ IPHONE')}</small><h2>{tr('Generate or enhance the background', 'Згенерувати або покращити фон')}</h2>
           <label><span>{tr('Visual direction', 'Опис візуалу')}</span><textarea
             aria-label={tr('iPhone visual direction', 'Опис візуалу iPhone')}
             rows={4} maxLength={600} value={screenDirection}
             placeholder={tr('Example: translucent glass steps rising through soft blue light with one lime accent', 'Наприклад: прозорі скляні сходи в м’якому блакитному світлі з одним лаймовим акцентом')}
             onChange={(event) => setScreenDirection(event.target.value)}
           /></label>
+          <label className={`universal-toggle phone-screen-enhance ${hasCurrentPhoneScreen ? '' : 'is-disabled'}`}>
+            <input
+              aria-label={tr('Enhance current image', 'Покращити поточне зображення')}
+              type="checkbox" checked={enhanceCurrent && hasCurrentPhoneScreen}
+              disabled={busy || !detail.phone_screen_generation_available || !hasCurrentPhoneScreen}
+              onChange={(event) => setEnhanceCurrent(event.target.checked)}
+            />
+            <span><strong>{tr('Enhance current image', 'Покращити поточне зображення')}</strong><small>{hasCurrentPhoneScreen
+              ? tr('Use the current raw hero as the image reference and apply your direction as an edit.', 'Використати поточний вихідний герой-візуал як референс і застосувати опис як редагування.')
+              : tr('Available after the first hero image is generated.', 'Стане доступним після першої генерації герой-візуалу.')}</small></span>
+          </label>
           <button className="primary phone-screen-generate" type="button"
             disabled={busy || !detail.phone_screen_generation_available || screenDirection.trim().length < 8}
             onClick={() => void generatePhoneScreen()}><Sparkles />{tr('Generate & apply', 'Згенерувати й застосувати')}</button>
           <p>{detail.phone_screen_generation_available
-            ? tr('This replaces only the mutable artwork inside the iPhone. The Natal logo, UI, title, action buttons, and device stay crisp; the current visual is preserved if generation fails.', 'Це замінює лише змінний арт усередині iPhone. Логотип Natal, інтерфейс, заголовок, кнопки дій і пристрій залишаються чіткими; у разі помилки поточний візуал зберігається.')
+            ? tr('Enhance sends the current raw hero image with your direction; turning it off generates from scratch. The Natal logo, UI, title, action buttons, and device stay crisp, and the current visual is preserved if generation fails.', 'Режим покращення надсилає поточний вихідний герой-візуал разом з описом; якщо вимкнути його, зображення генерується з нуля. Логотип Natal, інтерфейс, заголовок, кнопки дій і пристрій залишаються чіткими, а в разі помилки поточний візуал зберігається.')
             : tr('Codex image generation is unavailable in this local Studio runtime. Sign in to Codex and restart Studio; the circles remain as the deterministic fallback.', 'Генерація зображень Codex недоступна в цьому локальному середовищі Студії. Увійдіть у Codex і перезапустіть Студію; кола залишаються детермінованим резервним варіантом.')}
           </p>
         </section>

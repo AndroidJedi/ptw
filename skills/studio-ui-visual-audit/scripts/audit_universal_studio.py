@@ -442,6 +442,25 @@ def audit_phone_metrics(
         detail["content"]["phone_hero_title"], detail["content"]["cta"], "none",
         list(phone_button_text), copy.deepcopy(phone_button_config),
     ).convert("RGB")
+    fade_shell = _fixed_screen_shell(
+        Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#6AAFC8"),
+        detail["content"]["phone_hero_title"], detail["content"]["cta"], "grain",
+        list(phone_button_text), copy.deepcopy(phone_button_config),
+    ).convert("RGB")
+    fade_pixels = [fade_shell.getpixel((20, y)) for y in range(720, 1080)]
+    fade_luminance = [sum(pixel) / 3 for pixel in fade_pixels]
+    require(
+        fade_luminance[-1] > fade_luminance[0] + 75,
+        "phone: hero artwork does not dissolve into the lower content background",
+    )
+    boundary_steps = [
+        max(abs(first - second) for first, second in zip(before, after))
+        for before, after in zip(fade_pixels, fade_pixels[1:])
+    ]
+    require(
+        max(boundary_steps[-45:]) <= 3,
+        "phone: hero-to-background transition has a hard horizontal edge",
+    )
     for index, (button, box) in enumerate(zip(
         phone_button_config,
         ((70, 1284, 762, 1388), (70, 1410, 762, 1514), (70, 1532, 762, 1606)),
@@ -564,6 +583,7 @@ def audit_phone_metrics(
             "three_tunable_in_phone_actions",
             "full_bleed_phone_hero", "continuous_header_phone_hero",
             "lowered_phone_hero_subject", "image_derived_top_continuation",
+            "eased_hero_to_content_transition",
             "optional_phone_hero_texture", "optional_eyebrow_node", "no_generated_screen_text",
             "supporting_markup", "supporting_font_size", "supporting_word_colour",
         ],

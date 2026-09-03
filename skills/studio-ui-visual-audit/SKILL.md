@@ -50,7 +50,9 @@ text, style, text colour, background/border colour, and shape controls. Confirm
 their labels stay horizontal and unclipped, the hero artwork reaches both screen
 edges without white gutters, extends continuously behind the fixed
 header without a seam below the logo, and the screen does not leak past the
-rounded hardware corners. Preserve the crisp status-bar network treatment with
+rounded hardware corners. Confirm the artwork and selected texture dissolve
+together through a long eased transition into the lower white content area,
+without a straight cutoff above the headline. Preserve the crisp status-bar network treatment with
 four ascending cellular bars and a complete Wi-Fi glyph containing three
 separated arcs and its dot. When supporting-copy markup is present, verify that
 delimiter characters are removed, bold and configured accent spans reach the
@@ -67,3 +69,11 @@ tests, the Studio web unit tests when applicable, the Owner Console production
 build when applicable, and `git diff --check`. Report the exact variants and
 viewports inspected. Do not deploy, publish, or mutate production as part of
 this audit.
+
+For in-phone visual generation controls, verify that “Enhance current image” is
+disabled without a mutable raw hero, enabled and checked by default when one
+exists, keyboard-operable at desktop and 360 CSS pixels, and sends only the
+bounded boolean mode to the authenticated route. Provider coverage must prove
+that enhancement receives the exact raw current asset, never the composited
+phone preview, and persists its reference SHA-256 while failure preserves the
+previous asset.

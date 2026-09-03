@@ -15,7 +15,7 @@ const detail = {
   ],
   catalog: {
     schema: 'ptw.studio.phone-metrics-catalog.v1', template_id: 'phone_metrics',
-    template_version: 15, canvas: { width: 1080, height: 1350 },
+    template_version: 17, canvas: { width: 1080, height: 1350 },
     semantic_roles: [], components: [], asset_slots: {},
     variation: {
       optional_elements: ['offer'], brand: 'Natal',
@@ -66,8 +66,8 @@ const detail = {
   pexels_available: false, phone_screen_generation_available: true, versions: [],
 } as unknown as StudioPhoneMetricsDetail
 
-function studioApi() {
-  let savedDetail = structuredClone(detail)
+function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
+  let savedDetail = structuredClone(initialDetail)
   const post = vi.fn(async (path: string, body: unknown) => {
     if (path === '/api/v1/studio/phone-screen/generate') {
       savedDetail = {
@@ -77,7 +77,10 @@ function studioApi() {
           description: 'Generated phone hero', allowed_mime_types: ['image/png'],
           editable: false, available: true, mime_type: 'image/png',
           sha256: '1'.repeat(64), byte_count: 128,
-          source: { visual_direction: (body as { visual_direction: string }).visual_direction },
+          source: {
+            visual_direction: (body as { visual_direction: string }).visual_direction,
+            generation_mode: (body as { enhance_current: boolean }).enhance_current ? 'enhance_current' : 'generate_new',
+          },
         }],
       }
       return structuredClone(savedDetail)
@@ -375,9 +378,42 @@ describe('Phone & metrics Studio', () => {
       2, '/api/v1/studio/phone-screen/generate', {
         base_sha256: 'e'.repeat(64),
         visual_direction: 'Translucent glass steps in soft blue light with one lime accent.',
+        enhance_current: false,
       }, { deadlineMs: 360_000 },
     ))
     expect(await screen.findByText('New iPhone hero visual generated and applied.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Enhance current image')).toBeChecked()
+  })
+
+  it('enhances the current raw iPhone hero by default when one is available', async () => {
+    const current = structuredClone(detail)
+    current.assets = [{
+      slot: 'phone_screen', role: 'device_screen', description: 'Current phone hero',
+      allowed_mime_types: ['image/png'], editable: false, available: true,
+      mime_type: 'image/png', sha256: '9'.repeat(64), byte_count: 128,
+      source: { visual_direction: 'A colorful unicorn balloon on a soft field.' },
+    }]
+    const { api, post } = studioApi(current)
+    render(<PhoneMetricsStudio
+      api={api} language="en" detail={current} onDetail={vi.fn()}
+    />)
+
+    const enhance = screen.getByLabelText('Enhance current image')
+    expect(enhance).toBeEnabled()
+    expect(enhance).toBeChecked()
+    fireEvent.change(screen.getByLabelText('iPhone visual direction'), {
+      target: { value: 'Keep the unicorn and improve the balloon material and lighting.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate & apply' }))
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith(
+      '/api/v1/studio/phone-screen/generate', {
+        base_sha256: 'a'.repeat(64),
+        visual_direction: 'Keep the unicorn and improve the balloon material and lighting.',
+        enhance_current: true,
+      }, { deadlineMs: 360_000 },
+    ))
+    expect(await screen.findByText('Current iPhone hero visual enhanced and applied.')).toBeInTheDocument()
   })
 
   it('keeps generation disabled and explains the deterministic fallback without a provider', () => {
@@ -391,6 +427,7 @@ describe('Phone & metrics Studio', () => {
     fireEvent.change(screen.getByLabelText('iPhone visual direction'), {
       target: { value: 'Translucent glass steps in soft blue light with one lime accent.' },
     })
+    expect(screen.getByLabelText('Enhance current image')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeDisabled()
     expect(screen.getByText(/Sign in to Codex and restart Studio/)).toBeInTheDocument()
   })

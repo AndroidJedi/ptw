@@ -287,6 +287,12 @@ button svg { width: 17px; height: 17px; }
 .phone-screen-rule { border-color: var(--white); background: #151515; }
 .phone-screen-rule p { margin: 0; color: var(--soft); font-size: 10px; line-height: 1.5; }
 .phone-screen-rule textarea { resize: vertical; }
+.phone-screen-enhance { align-items: flex-start; cursor: pointer; }
+.phone-screen-enhance > input { margin-top: 2px; }
+.phone-screen-enhance > span { min-width: 0; display: grid; gap: 3px; }
+.phone-screen-enhance strong { color: var(--white); font-size: 10px; }
+.phone-screen-enhance small { color: var(--muted); font-size: 8px; line-height: 1.4; }
+.phone-screen-enhance.is-disabled { cursor: default; opacity: .58; }
 .phone-screen-generate { width: 100%; }
 .studio-tune-trigger { border-color: var(--white); }
 .studio-tune-backdrop {

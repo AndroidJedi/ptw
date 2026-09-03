@@ -136,15 +136,25 @@ def create_app(
         dependencies=[Depends(authorize)],
     )
     def generate_phone_screen(request: Mapping[str, Any]) -> dict[str, Any]:
-        if set(request) != {"base_sha256", "visual_direction"}:
+        if set(request) not in (
+            {"base_sha256", "visual_direction"},
+            {"base_sha256", "visual_direction", "enhance_current"},
+        ):
             raise HTTPException(
                 status_code=400,
                 detail="Studio phone-screen generation fields are invalid",
+            )
+        enhance_current = request.get("enhance_current", False)
+        if not isinstance(enhance_current, bool):
+            raise HTTPException(
+                status_code=400,
+                detail="Studio phone-screen enhancement setting must be boolean",
             )
         try:
             return workspace.generate_phone_screen(
                 base_sha256=str(request["base_sha256"]),
                 visual_direction=str(request["visual_direction"]),
+                enhance_current=enhance_current,
             )
         except RuntimeError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error

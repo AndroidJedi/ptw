@@ -37,7 +37,7 @@ _LEGACY_PHONE_METRICS_CONTENT_SCHEMAS = frozenset({
     "ptw.studio.phone-metrics-content.v1",
 })
 PHONE_METRICS_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.phone-metrics-component-settings.v1"
-PHONE_METRICS_TEMPLATE_VERSION = 15
+PHONE_METRICS_TEMPLATE_VERSION = 17
 PHONE_METRICS_CANVAS = (1080, 1350)
 PHONE_BACKGROUND_TEXTURES = ("none", "grain", "concrete", "travertine")
 PHONE_COPY_BACKGROUND_TEXTURES = PHONE_BACKGROUND_TEXTURES
@@ -59,8 +59,9 @@ IPHONE_RENDER_ASPECT = 2656 / 1293
 IPHONE_SCREEN_BOX = (58, 50, 1236, 2606)
 IPHONE_SCREEN_RADIUS = 160
 PHONE_SCREEN_ART_SIZE = (832, 1792)
-PHONE_HERO_ART_OFFSET_Y = 180
+PHONE_HERO_ART_OFFSET_Y = 220
 PHONE_HERO_ART_FEATHER_Y = 130
+PHONE_HERO_BOTTOM_FADE_Y = 300
 IPHONE_FRAME_SOURCE = {
     "origin": "withframe_static_front_mockup_v1",
     "source": "WithFrame iPhone 15 Pro black front mockup downloaded once on 2026-09-03.",
@@ -530,7 +531,7 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
             *[{"id": f"role_{role}", "scope": "template", "type": "required_role", "params": {"role": role}} for role in ("background", "brand", "hero_title", "supporting_text", "device_mockup", "metrics", "cta")],
             {"id": "fixed_tree", "scope": "template", "type": "max_nodes", "params": {"maximum": 18}},
         ],
-        "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": ["owner-reference-phone-metrics-v1"], "change_note": "Natal phone-and-metrics v15 adds three independently tunable in-phone action buttons with the owner-reference filled blue, elevated white, and blue text-only defaults; the complete status signal, lowered artwork, and metric controls remain unchanged."},
+        "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": ["owner-reference-phone-metrics-v1"], "change_note": "Natal phone-and-metrics v17 lowers the sharp hero subject slightly farther beneath the fixed Natal header while preserving the image-derived continuation to the top and the eased image-to-background transition; the tunable actions, complete status signal, and metric controls remain unchanged."},
     }
     if not config["offer"]["enabled"]:
         document["semantic_roles"].pop("offer")
@@ -934,26 +935,31 @@ def _fixed_screen_shell(
     )
     canvas.alpha_composite(hero, hero_box[:2])
 
-    # Feather the generated artwork into the screen so even a visually dense
-    # result reads as one polished hero area rather than a pasted rectangle.
+    # Apply the selected deterministic texture before the readability fade so
+    # both the image and its finish dissolve together instead of leaving a
+    # straight texture edge immediately above the headline.
+    texture = _phone_hero_texture((canvas.width, hero_box[3]), screen_texture)
+    canvas.alpha_composite(texture, hero_box[:2])
+
+    # Feather the complete hero surface into white with an eased, zero-slope
+    # finish. The longer overlap keeps detail visible while avoiding a visible
+    # horizontal boundary where the image layer ends.
     fade = Image.new("RGBA", canvas.size, (255, 255, 255, 0))
     fade_alpha = Image.new("L", (1, canvas.height), 0)
     fade_pixels = fade_alpha.load()
     for y in range(canvas.height):
         top = max(0.0, min(1.0, (310 - y) / 130))
-        bottom_start = hero_box[3] - 180
-        bottom = max(0.0, min(1.0, (y - bottom_start) / 180))
+        bottom_start = hero_box[3] - PHONE_HERO_BOTTOM_FADE_Y
+        bottom_progress = max(
+            0.0, min(1.0, (y - bottom_start) / PHONE_HERO_BOTTOM_FADE_Y),
+        )
+        bottom = bottom_progress * bottom_progress * (3 - 2 * bottom_progress)
         alpha = round(255 * max(top, bottom))
         if alpha:
             fade_pixels[0, y] = alpha
     fade_alpha = fade_alpha.resize(canvas.size)
     fade.putalpha(fade_alpha.filter(ImageFilter.GaussianBlur(12)))
     canvas.alpha_composite(fade)
-
-    # Apply only the selected deterministic texture before drawing fixed UI,
-    # preserving crisp renderer-owned text, logo, status chrome, and CTA.
-    texture = _phone_hero_texture((canvas.width, hero_box[3]), screen_texture)
-    canvas.alpha_composite(texture, hero_box[:2])
 
     draw = ImageDraw.Draw(canvas, "RGBA")
     status_font = _screen_font(27, 700)
@@ -1052,4 +1058,4 @@ def compose_phone_device_asset(
         "paper": "deterministic_soft_paper_v1",
         "frosted": "deterministic_frosted_glass_v1",
     }[screen_texture]
-    return {"bytes": data, "mime_type": "image/png", "source": {"origin": "server_composited_fixed_phone", "frame_sha256": IPHONE_FRAME_SHA256, "screen_sha256": hashlib.sha256(resolved_screen).hexdigest(), "screen_composition": "front_natal_app_shell_v11", "hero_texture": texture_provenance}}
+    return {"bytes": data, "mime_type": "image/png", "source": {"origin": "server_composited_fixed_phone", "frame_sha256": IPHONE_FRAME_SHA256, "screen_sha256": hashlib.sha256(resolved_screen).hexdigest(), "screen_composition": "front_natal_app_shell_v13", "hero_texture": texture_provenance}}

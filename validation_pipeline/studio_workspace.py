@@ -570,18 +570,34 @@ class UniversalStudioWorkspace:
 
     def generate_phone_screen(
         self, *, base_sha256: str, visual_direction: str,
+        enhance_current: bool = False,
     ) -> dict[str, Any]:
-        """Generate and persist one mutable, text-free phone hero artwork."""
+        """Generate or reference-edit one mutable, text-free phone hero artwork."""
 
         self._assert_state(base_sha256)
         if self._selected_template_id() != PHONE_METRICS_TEMPLATE_ID:
             raise ValueError("phone-screen generation requires the phone-and-metrics template")
         if self.image_provider is None:
             raise RuntimeError("Codex image generation is unavailable in this local Studio runtime")
+        if not isinstance(enhance_current, bool):
+            raise ValueError("enhance current phone-screen setting must be boolean")
+        current_screen = self._asset_record("phone_screen")
+        if enhance_current and current_screen is None:
+            raise ValueError(
+                "Enhance current image requires an existing generated phone visual"
+            )
         normalized_direction = " ".join(str(visual_direction or "").split())
-        prompt = phone_screen_art_prompt(normalized_direction)
+        prompt = phone_screen_art_prompt(
+            normalized_direction, enhance_current=enhance_current,
+        )
         try:
-            generated = self.image_provider.generate(prompt)
+            generated = (
+                self.image_provider.generate(
+                    prompt, reference_image=bytes(current_screen["bytes"]),
+                )
+                if enhance_current and current_screen is not None
+                else self.image_provider.generate(prompt)
+            )
         except ValueError:
             raise
         except Exception as error:
@@ -596,8 +612,19 @@ class UniversalStudioWorkspace:
             "visual_direction_sha256": hashlib.sha256(
                 normalized_direction.encode()
             ).hexdigest(),
-            "prompt_contract": "owner_directed_text_free_phone_hero_v1",
+            "generation_mode": (
+                "enhance_current" if enhance_current else "generate_new"
+            ),
+            "prompt_contract": (
+                "owner_directed_text_free_phone_hero_enhancement_v1"
+                if enhance_current else "owner_directed_text_free_phone_hero_v1"
+            ),
         })
+        if enhance_current and current_screen is not None:
+            source.update({
+                "reference_asset_sha256": current_screen["sha256"],
+                "reference_image_sha256": current_screen["sha256"],
+            })
         return self.store_generated_phone_screen(
             base_sha256=base_sha256, data=bytes(generated.get("bytes") or b""),
             source=source,

@@ -125,7 +125,7 @@ export function StudioView({ api, language, tuneMode = false }: {
   const [previewUrl, setPreviewUrl] = useState('')
   const [backgroundQuery, setBackgroundQuery] = useState('')
   const [stickerQuery, setStickerQuery] = useState(
-    'real physical object on a plain warm background close-up photograph',
+    'single light bulb photographed on a plain white background isolated object',
   )
   const [changeNote, setChangeNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -495,9 +495,15 @@ export function StudioView({ api, language, tuneMode = false }: {
           <input aria-label="Enable bullets" type="checkbox" checked={configuration.bullets.enabled} onChange={(event) => patchConfig('bullets', { enabled: event.target.checked })} />
           <span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Benefits', 'Переваги')}</strong><small>{configuration.bullets.enabled ? tr('Visible', 'Видимі') : tr('Hidden', 'Приховані')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b>
         </label>
-        <label className={`universal-component-card is-toggle ${configuration.sticker.enabled ? 'is-active' : ''} ${!stickerAvailable ? 'is-unavailable' : ''}`}>
-          <input aria-label="Enable sticker" type="checkbox" checked={configuration.sticker.enabled} disabled={!stickerAvailable && !configuration.sticker.enabled} onChange={(event) => patchConfig('sticker', { enabled: event.target.checked })} />
-          <span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Sticker', 'Стікер')}</strong><small>{!stickerAvailable ? tr('Upload asset first', 'Спочатку додайте ресурс') : configuration.sticker.enabled ? tr('Visible', 'Видимий') : tr('Hidden', 'Прихований')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b>
+        <label className={`universal-component-card is-toggle ${configuration.sticker.enabled ? 'is-active' : ''} ${!stickerAvailable && !detail.pexels_available ? 'is-unavailable' : ''}`}>
+          <input aria-label="Enable sticker" type="checkbox" checked={configuration.sticker.enabled} disabled={busy || (!stickerAvailable && !detail.pexels_available)} onChange={(event) => {
+            if (event.target.checked && !stickerAvailable) {
+              void sourcePexels('sticker_object', stickerQuery)
+            } else {
+              patchConfig('sticker', { enabled: event.target.checked })
+            }
+          }} />
+          <span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Sticker', 'Стікер')}</strong><small>{!stickerAvailable ? detail.pexels_available ? tr('Click to source object', 'Натисніть, щоб знайти об’єкт') : tr('Pexels unavailable', 'Pexels недоступний') : configuration.sticker.enabled ? tr('Visible', 'Видимий') : tr('Hidden', 'Прихований')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b>
         </label>
         <label className={`universal-component-card is-toggle ${configuration.logo.enabled ? 'is-active' : ''} ${!logoAvailable ? 'is-unavailable' : ''}`}>
           <input aria-label="Enable logo" type="checkbox" checked={configuration.logo.enabled} disabled={!logoAvailable && !configuration.logo.enabled} onChange={(event) => patchConfig('logo', { enabled: event.target.checked })} />

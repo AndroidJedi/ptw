@@ -118,8 +118,8 @@ const detail: StudioUniversalDetail = {
   versions: [],
 }
 
-function studioApi(tuneRuns: StudioTuneRun[] = []) {
-  let current = structuredClone(detail)
+function studioApi(tuneRuns: StudioTuneRun[] = [], initialDetail: StudioUniversalDetail = detail) {
+  let current = structuredClone(initialDetail)
   const post = vi.fn(async (path: string, body: unknown) => {
     if (path.endsWith('/rules')) return {
       schema: 'ptw.studio.tune-rule-approval.v1',
@@ -168,6 +168,22 @@ function studioApi(tuneRuns: StudioTuneRun[] = []) {
         assets: current.assets.map((asset) => asset.slot === 'logo' ? {
           ...asset, available: true, mime_type: 'image/png', sha256: '2'.repeat(64),
           byte_count: 12, source: { origin: 'owner_upload' },
+        } : asset),
+      }
+      return structuredClone(current)
+    }
+    if (path === '/api/v1/studio/pexels') {
+      const request = body as { slot: string }
+      current = {
+        ...current,
+        state_sha256: 'p'.repeat(64),
+        configuration: request.slot === 'sticker_object' ? {
+          ...current.configuration,
+          sticker: { ...current.configuration.sticker, enabled: true },
+        } : current.configuration,
+        assets: current.assets.map((asset) => asset.slot === request.slot ? {
+          ...asset, available: true, mime_type: 'image/png', sha256: 'q'.repeat(64),
+          byte_count: 12, source: { origin: 'pexels', provider: 'pexels' },
         } : asset),
       }
       return structuredClone(current)
@@ -270,6 +286,34 @@ describe('Universal Ad Studio', () => {
     expect(post).not.toHaveBeenCalledWith(
       '/api/v1/studio/configuration', expect.anything(), expect.anything(),
     )
+  })
+
+  it('sources a Sticker when the Pexels-backed component starts without an asset', async () => {
+    const initial = structuredClone(detail)
+    initial.pexels_available = true
+    initial.configuration.sticker.enabled = false
+    initial.assets = initial.assets.map((asset) => asset.slot === 'sticker_object' ? {
+      ...asset, available: false, mime_type: null, sha256: null, byte_count: null, source: null,
+    } : asset)
+    const { api, post } = studioApi([], initial)
+    render(<StudioView api={api} language="en" />)
+
+    const toggle = await screen.findByLabelText('Enable sticker')
+    expect(toggle).toBeEnabled()
+    expect(screen.getByText('Click to source object')).toBeInTheDocument()
+    fireEvent.click(toggle)
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith(
+      '/api/v1/studio/pexels',
+      expect.objectContaining({
+        slot: 'sticker_object',
+        query: 'single light bulb photographed on a plain white background isolated object',
+        isolate: true,
+      }),
+      { deadlineMs: 90_000 },
+    ))
+    await waitFor(() => expect(screen.getByLabelText('Enable sticker')).toBeChecked())
+    expect(await screen.findByRole('status')).toHaveTextContent('Pexels asset sourced with provenance and rendered.')
   })
 
   it('replaces the default Natal logo and reenables the logo slot on upload', async () => {

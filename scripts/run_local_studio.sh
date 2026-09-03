@@ -63,6 +63,7 @@ STUDIO_TUNE_MODE=1 \
 STUDIO_TUNE_REPOSITORY_ROOT="$repository" \
 STUDIO_TUNE_STATE_PATH="$repository/.local/studio-tune" \
 LOCAL_BRIEF_PATH="$repository/.local/owner-briefs" \
+POST_WORKSPACE_PATH="$repository/.local/post-workspace" \
 "$python" -m uvicorn \
   validation_pipeline.studio_local_api:create_app --factory \
   --host 127.0.0.1 --port 8088 &

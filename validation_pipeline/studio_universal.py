@@ -1387,6 +1387,11 @@ def isolate_object(data: bytes) -> bytes:
         raise ValueError(
             "Pexels sticker isolation retained a rectangular scene; choose a simpler object source"
         )
+    if bounds[0] <= 0 or bounds[1] <= 0 or bounds[2] >= width or bounds[3] >= height:
+        raise ValueError(
+            "Pexels sticker isolation retained an edge-cropped subject; "
+            "choose a fully visible object source"
+        )
     output = BytesIO()
     image.save(output, format="PNG", optimize=False)
     return output.getvalue()

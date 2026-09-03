@@ -77,6 +77,16 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "rectangular scene"):
             isolate_object(output.getvalue())
 
+    def test_sticker_isolation_rejects_an_edge_cropped_subject(self) -> None:
+        from PIL import Image, ImageDraw
+
+        image = Image.new("RGB", (1080, 1080), "#F5F2EA")
+        ImageDraw.Draw(image).ellipse((240, 180, 1120, 900), fill="#D54232")
+        output = BytesIO()
+        image.save(output, format="JPEG", quality=94)
+        with self.assertRaisesRegex(ValueError, "edge-cropped subject"):
+            isolate_object(output.getvalue())
+
     def test_one_fixed_template_opens_with_requested_investment_post(self) -> None:
         detail = self.workspace.detail()
         self.assertEqual("universal_ad", detail["catalog"]["template_id"])
@@ -882,6 +892,7 @@ class UniversalStudioApiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {
             "STUDIO_WORKSPACE_PATH": temporary,
             "LOCAL_BRIEF_PATH": str(Path(temporary) / "briefs"),
+            "POST_WORKSPACE_PATH": str(Path(temporary) / "posts"),
             "PEXELS_API_KEY": "",
         }, clear=False):
             with TestClient(create_app()) as client:
@@ -890,6 +901,8 @@ class UniversalStudioApiTests(unittest.TestCase):
                 self.assertEqual(200, projects.status_code, projects.text)
                 self.assertEqual([], projects.json()["items"])
                 self.assertEqual([], client.get("/api/v1/briefs?limit=100", headers=headers).json()["items"])
+                self.assertEqual(401, client.get("/api/v1/posts").status_code)
+                self.assertEqual([], client.get("/api/v1/posts?limit=100", headers=headers).json()["items"])
                 self.assertEqual(404, client.get("/api/v1/learning-summary", headers=headers).status_code)
                 self.assertEqual(200, client.get("/api/v1/studio", headers=headers).status_code)
                 self.assertEqual(404, client.get("/api/v1/studio/templates", headers=headers).status_code)

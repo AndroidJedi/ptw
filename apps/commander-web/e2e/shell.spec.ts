@@ -99,7 +99,20 @@ const brief = {
   ...briefDocument,
 }
 
+const simplePostDraft = {
+  schema: 'ptw.simple-post.v1', post_id: '018f07ea-7f20-7000-8000-000000000004',
+  request_id: '018f07ea-7f20-7000-8000-000000000005', project_id: projectId,
+  brief_id: briefId, brief_document_sha256: 'b'.repeat(64), status: 'draft',
+  failure_count: 0, state_sha256: '6'.repeat(64), template_sha256: 'a'.repeat(64),
+  last_commands: [{ setting_id: 'configuration.typography.hero_size', value: 112 }],
+  last_image_request: { slot: 'background_image', query: 'calm therapy conversation portrait' },
+  last_comment: null, last_error: null, approved_asset_id: null, approved_asset: null,
+  preview: { mime_type: 'image/png', sha256: studioPreviewSha256, width: 1080, height: 1080 },
+  studio: studioDetail, created_at: '2026-09-02T08:00:00Z', updated_at: '2026-09-02T08:01:00Z',
+}
+
 test.beforeEach(async ({ page }) => {
+  let currentPost = structuredClone(simplePostDraft)
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url())
     const method = route.request().method()
@@ -107,6 +120,46 @@ test.beforeEach(async ({ page }) => {
       status, contentType: 'application/json', body: JSON.stringify(value),
     })
     if (url.pathname === '/api/v1/projects') return json({ items: [project], next_cursor: null })
+    if (url.pathname === '/api/v1/posts' && method === 'GET') return json({ items: [currentPost], next_cursor: null })
+    if (url.pathname === `/api/v1/posts/${currentPost.post_id}` && method === 'GET') return json(currentPost)
+    if (url.pathname === `/api/v1/posts/${currentPost.post_id}/tune` && method === 'POST') {
+      const body = route.request().postDataJSON()
+      currentPost = {
+        ...currentPost, status: 'draft', last_comment: body.comment,
+        last_commands: [
+          { setting_id: 'configuration.typography.hero_size', value: 88 },
+          { setting_id: 'content.hero_title', value: 'START WITH ONE CONVERSATION' },
+        ],
+        last_image_request: {
+          slot: 'background_image', query: 'thoughtful person close up portrait visible face',
+        },
+      }
+      return json({ post: currentPost, created: true }, 202)
+    }
+    if (url.pathname === `/api/v1/posts/${currentPost.post_id}/approve` && method === 'POST') {
+      currentPost = {
+        ...currentPost, status: 'approved',
+        approved_asset_id: '018f07ea-7f20-7000-8000-000000000006',
+        approved_asset: {
+          schema: 'ptw.simple-post-asset.v1', asset_id: '018f07ea-7f20-7000-8000-000000000006',
+          post_id: currentPost.post_id, project_id: projectId, brief_id: briefId,
+          mime_type: 'image/png', sha256: studioPreviewSha256, width: 1080, height: 1080,
+          state_sha256: currentPost.state_sha256, template_sha256: currentPost.template_sha256,
+          approved_by: 'owner', created_at: '2026-09-02T08:02:00Z',
+        },
+      }
+      return json({ post: currentPost, asset_created: true })
+    }
+    if (url.pathname === `/api/v1/posts/${currentPost.post_id}/preview` && method === 'POST') return route.fulfill({
+      status: 200, contentType: 'image/png',
+      headers: { ETag: `"${studioPreviewSha256}"`, 'X-PTW-Content-SHA256': studioPreviewSha256, 'Cache-Control': 'private, no-store' },
+      body: studioPreviewBytes,
+    })
+    if (url.pathname === '/api/v1/posts/assets/018f07ea-7f20-7000-8000-000000000006/render' && method === 'GET') return route.fulfill({
+      status: 200, contentType: 'image/png',
+      headers: { ETag: `"${studioPreviewSha256}"`, 'X-PTW-Content-SHA256': studioPreviewSha256, 'Cache-Control': 'private, no-store' },
+      body: studioPreviewBytes,
+    })
     if (url.pathname === '/api/v1/studio' && method === 'GET') return json(studioDetail)
     if (url.pathname === '/api/v1/studio/tune' && method === 'GET') return json({
       schema: 'ptw.studio.tune-service.v1', mode: 'local_only', available: true,
@@ -171,12 +224,13 @@ test('discards the retired Social posts deep link', async ({ page }) => {
   ))).not.toMatchObject({ page: 'result', run: staleRunId })
 })
 
-test('shows only Product Brief and Universal Ad Studio workspaces', async ({ page }) => {
+test('shows the streamlined Brief, Post, and Studio workspaces', async ({ page }) => {
   await page.goto('/?e2e=1')
   await expect(page.getByRole('button', { name: 'Продуктові брифи' }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Змінити мову' }).click()
   await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Social posts' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Post', exact: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Studio' }).first()).toBeVisible()
   await page.reload()
   await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
@@ -185,6 +239,42 @@ test('shows only Product Brief and Universal Ad Studio workspaces', async ({ pag
   await expect(page.getByText('Landing', { exact: true })).toHaveCount(0)
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('tunes one Studio-rendered post from a semantic comment before creating an asset', async ({ page }) => {
+  await page.goto('/?e2e=1&page=posts')
+  await page.getByRole('button', { name: 'Змінити мову' }).click()
+
+  const preview = page.getByAltText('Single generated post preview')
+  const comment = page.getByLabel('Comment below the preview')
+  await expect(preview).toBeVisible()
+  await expect(comment).toBeVisible()
+  const previewBox = await preview.boundingBox()
+  const commentBox = await comment.boundingBox()
+  expect(previewBox).not.toBeNull()
+  expect(commentBox).not.toBeNull()
+  expect(commentBox!.y).toBeGreaterThan(previewBox!.y + previewBox!.height)
+
+  const tuneRequest = page.waitForRequest((request) =>
+    request.url().endsWith(`/api/v1/posts/${simplePostDraft.post_id}/tune`),
+  )
+  await comment.fill('Pick image with thinking human face and make the title smaller.')
+  await page.getByRole('button', { name: 'Apply comment' }).click()
+  expect((await tuneRequest).postDataJSON()).toMatchObject({
+    comment: 'Pick image with thinking human face and make the title smaller.',
+  })
+  await page.getByText('Applied Studio commands').click()
+  await expect(page.getByText('thoughtful person close up portrait visible face')).toBeVisible()
+  await expect(page.getByText('configuration.typography.hero_size')).toBeVisible()
+
+  const approvalRequest = page.waitForRequest((request) =>
+    request.url().endsWith(`/api/v1/posts/${simplePostDraft.post_id}/approve`),
+  )
+  await page.getByRole('button', { name: 'Approve as asset' }).click()
+  expect((await approvalRequest).postDataJSON()).toEqual({ state_sha256: simplePostDraft.state_sha256 })
+  await expect(page.getByText('Immutable asset created')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Apply comment' })).toHaveCount(0)
+  await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })
 
 test('opens the Universal Ad Studio and persists its bounded configuration', async ({ page }) => {

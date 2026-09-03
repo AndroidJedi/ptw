@@ -379,6 +379,7 @@ class UniversalStudioWorkspace:
 
     def source_pexels(
         self, slot: str, *, base_sha256: str, query: str, isolate: bool,
+        required_subject_terms: tuple[str, ...] = (),
     ) -> dict[str, Any]:
         self._assert_state(base_sha256)
         if slot not in {"background_image", "sticker_object"}:
@@ -392,6 +393,15 @@ class UniversalStudioWorkspace:
         query = " ".join(query.split())
         if not 2 <= len(query) <= 160:
             raise ValueError("Pexels query must contain 2 to 160 characters")
+        subject_terms = tuple(sorted({
+            " ".join(str(term).casefold().split())
+            for term in required_subject_terms
+            if " ".join(str(term).casefold().split())
+        }))
+        if required_subject_terms and not subject_terms:
+            raise ValueError("Pexels required sticker subject terms are empty")
+        if slot != "sticker_object" and subject_terms:
+            raise ValueError("Pexels background requests cannot require sticker subjects")
         if slot == "sticker_object":
             validate_pexels_photographic_object_query(query)
         used_ids = {
@@ -407,18 +417,21 @@ class UniversalStudioWorkspace:
         attempts = 6 if slot == "sticker_object" else 1
         for _attempt in range(attempts):
             try:
+                select_kwargs: dict[str, Any] = {"used_ids": used_ids}
+                if subject_terms:
+                    select_kwargs["required_alt_terms"] = subject_terms
                 photo, data = self.pexels.select(
                     query,
                     (
                         "real physical object on a plain warm background close-up photograph"
                         if slot == "sticker_object" else query
                     ),
-                    used_ids=used_ids,
+                    **select_kwargs,
                 )
                 used_ids.add(photo.photo_id)
                 if slot == "sticker_object":
                     photographic_object_evidence = validate_pexels_photographic_object(
-                        photo, data, query=query,
+                        photo, data, query=query, required_subject_terms=subject_terms,
                     )
                     data = isolate_object(data)
                 break

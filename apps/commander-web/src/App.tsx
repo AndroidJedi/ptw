@@ -8,6 +8,7 @@ import { ProjectSwitcher } from './components/ProjectSwitcher'
 import type { Language } from './i18n'
 import type { Page, ValidationProject } from './types'
 import { ProductBriefView } from './views/ProductBriefView'
+import { PostView } from './views/PostView'
 import { StudioView } from './views/StudioView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
@@ -30,10 +31,10 @@ function persistLanguage(language: Language) {
   }
 }
 
-function initialConsoleLocation(): { page: Page; projectId: string | null } {
+function initialConsoleLocation(postsAvailable = false): { page: Page; projectId: string | null } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const known = ['briefs', 'studio'].includes(requestedPage || '')
+  const known = ['briefs', 'studio', ...(postsAvailable ? ['posts'] : [])].includes(requestedPage || '')
   const page: Page = known
     ? requestedPage as Page
     : 'briefs'
@@ -115,7 +116,7 @@ function Login({ startupError = '' }: { startupError?: string }) {
 }
 
 function Console({ user, localDemo = false, liveProduction = false }: { user: User; localDemo?: boolean; liveProduction?: boolean }) {
-  const initialLocation = useMemo(initialConsoleLocation, [])
+  const initialLocation = useMemo(() => initialConsoleLocation(localDemo), [localDemo])
   const [page, setPage] = useState<Page>(initialLocation.page)
   const [projects, setProjects] = useState<ValidationProject[] | null>(null)
   const [projectId, setProjectId] = useState<string | null>(initialLocation.projectId)
@@ -148,13 +149,13 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
 
   useEffect(() => {
     const restore = () => {
-      const location = initialConsoleLocation()
+      const location = initialConsoleLocation(localDemo)
       setPage(location.page)
       setProjectId(location.projectId)
     }
     window.addEventListener('popstate', restore)
     return () => window.removeEventListener('popstate', restore)
-  }, [])
+  }, [localDemo])
 
   const navigate = (nextPage: Page) => {
     writeConsoleLocation(nextPage, projectId, true)
@@ -188,12 +189,13 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
     persistLanguage(next)
     return next
   })
-  return <Shell page={page} onPage={navigate} language={language} onLanguage={changeLanguage}>
+  return <Shell page={page} onPage={navigate} language={language} onLanguage={changeLanguage} postsAvailable={localDemo}>
     {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Створення та виправлення брифів запускають реальних провайдерів.' : 'Brief creation and correction invoke real providers.'}</span></div>}
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label={language === 'uk' ? 'Вийти' : 'Sign out'}><LogOut /></button></div>
-    {page === 'briefs' && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
+    {(page === 'briefs' || page === 'posts') && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
     {page !== 'studio' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
-    {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} language={language} />}
+    {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onPost={localDemo ? () => navigate('posts') : undefined} language={language} />}
+    {page === 'posts' && localDemo && <PostView api={api} projectId={validatedProjectId} language={language} />}
     {page === 'studio' && <StudioView api={api} language={language} tuneMode={localDemo} />}
   </Shell>
 }

@@ -17,12 +17,13 @@ function BriefDocument({ value, language }: { value: ProductBriefDocument; langu
   </div>
 }
 
-export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBriefChanged, onProjectsRefresh, language }: {
+export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBriefChanged, onProjectsRefresh, onPost, language }: {
   api: ApiClient
   projectId: string | null
   onProjectCreated: (project: ValidationProject) => void
   onProjectBriefChanged: (projectId: string, name: string, briefId: string, status: ProductBrief['status']) => void
   onProjectsRefresh: (preferredId?: string) => Promise<void>
+  onPost?: () => void
   language: Language
 }) {
   const [items, setItems] = useState<ProductBrief[] | null>(null)
@@ -108,7 +109,7 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
         {activeStatuses.has(selected.status) && <p className="generation-state"><RefreshCcw className="spin" /> {tr('Generating one testable hypothesis…', 'Генерується одна перевірювана гіпотеза…')}</p>}
         {selected.status === 'failed' && <div className="state error"><p>{selected.error_message || selected.error_code || tr('Generation failed', 'Генерація не вдалася')}</p><button className="secondary" disabled={busy} onClick={retry}>{tr('Retry', 'Повторити')}</button></div>}
         {selected.document && <><BriefDocument value={selected.document} language={language} />
-          <div className="approval-row">{selected.approved ? <p><Check /> {tr('Product Brief approved', 'Продуктовий бриф схвалено')}</p> : <button className="primary" disabled={busy} onClick={approve}><Check />{tr('I can honor this promise and offer — approve', 'Я можу виконати цю обіцянку та пропозицію — схвалити')}</button>}</div>
+          <div className="approval-row">{selected.approved ? <><p><Check /> {tr('Product Brief approved', 'Продуктовий бриф схвалено')}</p>{onPost && <button className="primary" onClick={onPost}><Sparkles />{tr('Create one post', 'Створити один допис')}</button>}</> : <button className="primary" disabled={busy} onClick={approve}><Check />{tr('I can honor this promise and offer — approve', 'Я можу виконати цю обіцянку та пропозицію — схвалити')}</button>}</div>
           <section className="brief-correction"><h2>{tr('Correct this hypothesis', 'Виправити цю гіпотезу')}</h2><p>{tr('Creates a new immutable Brief that must be approved again.', 'Створює новий незмінний бриф, який потрібно схвалити повторно.')}</p><textarea rows={4} maxLength={2000} value={correction} onChange={(event) => setCorrection(event.target.value)} placeholder={tr('One correction for the complete Brief…', 'Одне виправлення для всього брифу…')} /><button className="secondary" disabled={busy || !correction.trim()} onClick={correct}>{tr('Create replacement', 'Створити заміну')} <Send /></button></section>
         </>}
       </div>}

@@ -1,9 +1,11 @@
 # PTW validation workspace
 
-PTW is an owner-operated validation app with two focused destinations:
+PTW is an owner-operated validation app with two production destinations and
+one local-only post milestone:
 
 ```text
 one idea → one Product Brief → owner correction or approval
+approved Product Brief → one local post draft → comment tuning → approved asset
 standalone Universal Studio → saved configuration → immutable approved version
 ```
 
@@ -24,9 +26,10 @@ scripts/run_local_studio.sh
 
 Open `http://127.0.0.1:5173/?e2e=1`. Product Brief records are append-only under
 `.local/owner-briefs`; Universal Studio state remains under
-`.local/studio-workspace`. An authenticated Codex CLI is required for Brief
-generation. Pexels is used only by Studio asset search. The launcher binds to
-`127.0.0.1` and does not deploy or publish.
+`.local/studio-workspace`; the local Post authority is
+`.local/post-workspace`. An authenticated Codex CLI is required for Brief and
+Post generation/tuning. Pexels supplies provenance-retained Studio and Post
+photographs. The launcher binds to `127.0.0.1` and does not deploy or publish.
 
 To irreversibly clear only local Brief data after stopping the app:
 

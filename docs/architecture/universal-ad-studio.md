@@ -4,6 +4,10 @@ Universal Studio is an owner-only, standalone workspace. It does not depend on
 Product Brief approval and does not create posts, content runs, review sets, or
 publication records.
 
+The local-only simple Post workflow reuses Studio's public configuration,
+component IDs, primitive template, and renderer in separate per-post
+workspaces. It does not read or mutate the standalone Studio workspace.
+
 ## Contract
 
 The server owns one fixed semantic structure: background, optional sticker,
@@ -29,7 +33,12 @@ render responses are private/no-store.
 
 The canonical Natal logo/font are deterministic defaults. A sticker may be
 isolated from an approved photographic object while retaining source and
-transformation provenance. Studio never receives provider credentials in the
+transformation provenance. Query and provider metadata do not approve the
+visual: isolation rejects retained scenes and edge-cropped subjects before the
+asset can enter the Sticker slot. When Pexels is configured and the Sticker
+slot is empty, the component toggle sources the bounded starter object query
+and enables the component in one owner action; it remains disabled only when
+Pexels is unavailable. Studio never receives provider credentials in the
 browser.
 
 ## Local Tune

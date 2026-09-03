@@ -1,4 +1,4 @@
-export type Page = 'briefs' | 'studio'
+export type Page = 'briefs' | 'posts' | 'studio'
 export type I18n<T = string> = { en: T; uk: T }
 
 export type BriefStatus = 'queued' | 'generating' | 'completed' | 'failed'
@@ -220,6 +220,57 @@ export interface StudioUniversalDetail {
   assets: StudioUniversalAssetSummary[]
   pexels_available: boolean
   versions: StudioUniversalVersionSummary[]
+}
+
+export type SimplePostStatus = 'queued' | 'generating' | 'draft' | 'tuning' | 'failed' | 'approved'
+
+export interface SimplePostCommand {
+  setting_id: string
+  value: string | number | boolean | string[]
+}
+
+export type SimplePostImageRequest =
+  | { slot: 'background_image'; query: string }
+  | { slot: 'sticker_object'; query: string; required_subject_terms: string[] }
+
+export interface SimplePostAsset {
+  schema: 'ptw.simple-post-asset.v1'
+  asset_id: string
+  post_id: string
+  project_id: string
+  brief_id: string
+  mime_type: 'image/png'
+  sha256: string
+  width: number
+  height: number
+  state_sha256: string
+  template_sha256: string
+  approved_by: string
+  created_at: string
+}
+
+export interface SimplePost {
+  schema: 'ptw.simple-post.v1'
+  post_id: string
+  request_id: string
+  project_id: string
+  brief_id: string
+  brief_document_sha256: string
+  status: SimplePostStatus
+  failure_count: number
+  state_sha256?: string | null
+  template_sha256?: string | null
+  last_commands: SimplePostCommand[]
+  last_image_request?: SimplePostImageRequest | null
+  last_comment?: string | null
+  last_error?: string | null
+  active_tune_id?: string | null
+  approved_asset_id?: string | null
+  approved_asset?: SimplePostAsset | null
+  preview?: { mime_type: 'image/png'; sha256: string; width: number; height: number } | null
+  studio?: StudioUniversalDetail | null
+  created_at: string
+  updated_at: string
 }
 
 export type StudioTuneRunStatus = 'queued' | 'running' | 'completed' | 'failed'

@@ -57,6 +57,15 @@ temperature, palette, material, surface texture, perspective, grain, and scale.
 If no compatible photograph can be isolated cleanly, fail the iteration rather
 than fabricating or compositing an unrelated sticker.
 
+Provider metadata, query relevance, and subject-term matching are prefilters,
+not visual approval. Inspect both the isolated PNG and its exact full-resolution
+Studio render. Reject a close crop or partial detail of a larger object, alpha
+that still touches the source frame, retained photographic background, detached
+rectangular slabs or flecks, multiple unrelated fragments, and any silhouette
+that is not immediately recognizable as one complete object. Leave the Sticker
+disabled or preserve the previous valid asset when no candidate passes; never
+show the least-bad failed candidate.
+
 When the owner asks for an Apple/iOS-style sticker, derive the white die-cut
 background from the isolated subject's final alpha silhouette. Size the solid
 white contour at roughly 5–8% of the actual fitted visible subject width, not

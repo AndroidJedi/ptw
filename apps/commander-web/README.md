@@ -1,23 +1,20 @@
 # PTW Owner Console
 
-The authenticated PWA has two Project-scoped workspaces:
+Production exposes Product Briefs and the standalone Universal Studio. The
+loopback local app adds one deliberately small Post step:
 
 1. Product Briefs — create one Project and immutable Brief from one raw idea,
    correct/retry it, and approve only after confirming its promise and offer.
-2. Instagram post — select an approved Brief and press one create button. The
-   server applies the immutable Natal identity and the fixed Instagram task;
-   there is no brand-kit form, output-type choice, or task field.
+2. Post (local only) — generate one Studio-rendered draft from the approved
+   Brief, tune it through one natural-language comment below the preview, and
+   create an immutable asset only through explicit approval.
+3. Studio — edit the bounded universal-ad configuration and approve immutable
+   reusable versions independently from Product Briefs and Post.
 
-Internal candidates, templates, parameters, UUID entry, recipes, layers,
-provider prompts, and model controls stay hidden from the normal journey. A
-collapsed owner-only explanation lays out the five initial candidate previews,
-their exact five parameter values, and the persisted three-pass decision path.
-Bounded debug data remains available without exposing chain-of-thought,
-credentials, raw attachment bytes, or unrestricted source data.
-
-The browser does not perform research, publishing, traffic, campaigns, UTMs,
-analytics, optimization, or direct image generation. PostgreSQL behind Owner
-Gateway remains authoritative.
+Post comments resolve to exact Studio setting/content commands and optionally
+one semantic Pexels background query. Internal primitives, provider prompts,
+model controls, and chain-of-thought remain hidden. The browser does not
+publish, schedule, create campaigns, add UTMs, run analytics, or optimize.
 
 Run:
 

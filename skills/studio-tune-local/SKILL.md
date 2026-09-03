@@ -45,6 +45,22 @@ launcher, authentication, production routes, database,
 deployment, and publication boundaries remain fixed unless the owner separately
 and explicitly expands the task.
 
+## Local runtime refresh
+
+- Vite hot-module reload updates the browser bundle only. After changing a
+  Python renderer, template builder, workspace/API module, font, or bundled
+  renderer asset, restart the active local Studio API before asking the owner
+  to inspect the result. Use `scripts/run_local_studio.sh` so the existing
+  workspace and bounded local environment are preserved.
+- Stop only the exact PTW loopback processes verified on ports 8088 and 5173;
+  do not disturb unrelated development servers. After restart, verify `/healthz`,
+  make an authenticated Studio detail request, and fetch a fresh authoritative
+  preview PNG from the running API. Confirm the response uses the expected
+  template version or changed pixels before claiming the update is visible.
+- If the API process predates the renderer files and was launched without
+  reload mode, treat an unchanged browser preview as a stale-runtime failure,
+  not as evidence that the renderer change had no effect.
+
 ## Apple-style sticker treatment
 
 The sticker source must be an ultra-realistic photograph of a physical object

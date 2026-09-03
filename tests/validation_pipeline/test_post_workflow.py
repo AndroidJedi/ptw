@@ -240,16 +240,49 @@ class SimplePostServiceTests(unittest.TestCase):
             ],
             "phone_hero_title": "",
         }
+        legacy_input = self.service._template_input(  # pylint: disable=protected-access
+            "phone_metrics", {"content": content},
+        )
+        self.assertEqual(
+            {
+                "background": "concrete", "copy_background": "none",
+                "phone_screen": "grain",
+            },
+            legacy_input["textures"],
+        )
+        with self.assertRaisesRegex(ValueError, "not an approved option"):
+            self.service._template_input(  # pylint: disable=protected-access
+                "phone_metrics", {
+                    "content": content,
+                    "textures": {"background": "fabric", "phone_screen": "grain"},
+                },
+            )
         post, created = self.service.create_post(
             request_id="01900000-0000-7000-8000-000000000091",
             brief_id=self.brief["brief_id"], requested_by="owner",
-            template_id="phone_metrics", template_input={"content": content},
+            template_id="phone_metrics", template_input={
+                "content": content,
+                "textures": {
+                    "background": "travertine", "copy_background": "concrete",
+                    "phone_screen": "frosted",
+                },
+            },
         )
         self.assertTrue(created)
         self.assertEqual("phone_metrics", post["template_id"])
         completed = self.service.generate_post(post["post_id"])
         self.assertEqual("draft", completed["status"])
         self.assertEqual("phone_metrics", completed["studio"]["template_id"])
+        self.assertEqual(
+            "travertine", completed["studio"]["configuration"]["background"]["texture"],
+        )
+        self.assertEqual(
+            "concrete",
+            completed["studio"]["configuration"]["copy_background"]["texture"],
+        )
+        self.assertEqual(
+            "frosted", completed["studio"]["configuration"]["phone_screen"]["texture"],
+        )
         self.assertEqual((1080, 1350), (
             completed["preview"]["width"], completed["preview"]["height"],
         ))

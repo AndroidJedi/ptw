@@ -20,10 +20,10 @@ from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
 
 PRIMITIVE_TEMPLATE_SCHEMA = "ptw.studio.primitive-template.v1"
-PRIMITIVE_CATALOG_VERSION = "ptw-studio-primitive-catalog-v1"
+PRIMITIVE_CATALOG_VERSION = "ptw-studio-primitive-catalog-v2"
 PRIMITIVE_TYPES = (
-    "frame", "container", "stack", "text", "image", "button", "icon",
-    "shape", "spacer", "list", "card",
+    "frame", "container", "stack", "text", "rich_text", "image", "button",
+    "icon", "shape", "spacer", "list", "card",
 )
 CONTAINER_TYPES = frozenset({"frame", "container", "stack", "list", "card"})
 SEMANTIC_ROLE_NAMES = frozenset({
@@ -109,6 +109,12 @@ TEXT_PROPERTIES: dict[str, dict[str, Any]] = {
     "casing": _spec("enum", "none", values=("none", "upper", "lower", "title")),
 }
 
+RICH_TEXT_PROPERTIES: dict[str, dict[str, Any]] = {
+    **TEXT_PROPERTIES,
+    "bold_weight": _spec("integer", 800, minimum=100, maximum=900),
+    "highlight_color": _spec("color", "#1675F8"),
+}
+
 IMAGE_PROPERTIES: dict[str, dict[str, Any]] = {
     "asset": _spec("nullable_asset", None),
     "fit": _spec("enum", "cover", values=("cover", "contain", "stretch")),
@@ -133,6 +139,7 @@ TYPE_PROPERTIES: dict[str, dict[str, dict[str, Any]]] = {
     "container": LAYOUT_PROPERTIES,
     "stack": LAYOUT_PROPERTIES,
     "text": TEXT_PROPERTIES,
+    "rich_text": RICH_TEXT_PROPERTIES,
     "image": IMAGE_PROPERTIES,
     "button": {
         **TEXT_PROPERTIES,
@@ -1422,6 +1429,205 @@ class PrimitivePreviewRenderer:
                 lines.append(current)
         return lines
 
+    @staticmethod
+    def _parse_inline_markup(text: str) -> list[tuple[str, bool, bool]]:
+        """Parse bounded ``**bold**`` and ``==highlight==`` inline markup.
+
+        A delimiter without a matching partner remains literal so an owner can
+        type incrementally without making the live preview fail or lose text.
+        """
+
+        output: list[tuple[str, bool, bool]] = []
+        bold = highlighted = False
+        index = 0
+        while index < len(text):
+            marker = text[index:index + 2]
+            if marker == "**" and (bold or text.find(marker, index + 2) >= 0):
+                bold = not bold
+                index += 2
+                continue
+            if marker == "==" and (highlighted or text.find(marker, index + 2) >= 0):
+                highlighted = not highlighted
+                index += 2
+                continue
+            output.append((text[index], bold, highlighted))
+            index += 1
+        return output
+
+    @staticmethod
+    def _marked_text_width(
+        draw: Any, characters: Sequence[tuple[str, bool, bool]],
+        fonts: Mapping[bool, Any], spacing: float,
+    ) -> float:
+        if not characters:
+            return 0.0
+        return sum(
+            draw.textlength(character, font=fonts[bold])
+            for character, bold, _highlighted in characters
+        ) + spacing * (len(characters) - 1)
+
+    def _wrap_marked_text(
+        self, draw: Any, characters: Sequence[tuple[str, bool, bool]],
+        fonts: Mapping[bool, Any], width: int, spacing: float,
+    ) -> list[list[tuple[str, bool, bool]]]:
+        paragraphs: list[list[tuple[str, bool, bool]]] = [[]]
+        for item in characters:
+            if item[0] == "\n":
+                paragraphs.append([])
+            else:
+                paragraphs[-1].append(item)
+        lines: list[list[tuple[str, bool, bool]]] = []
+        for paragraph in paragraphs:
+            words: list[list[tuple[str, bool, bool]]] = []
+            current_word: list[tuple[str, bool, bool]] = []
+            for item in paragraph:
+                if item[0].isspace():
+                    if current_word:
+                        words.append(current_word)
+                        current_word = []
+                else:
+                    current_word.append(item)
+            if current_word:
+                words.append(current_word)
+            if not words:
+                lines.append([])
+                continue
+            current_line: list[tuple[str, bool, bool]] = []
+            for word in words:
+                separator = [(" ", False, False)] if current_line else []
+                candidate = [*current_line, *separator, *word]
+                if (
+                    not current_line
+                    or self._marked_text_width(draw, candidate, fonts, spacing) <= width
+                ):
+                    current_line = candidate
+                else:
+                    lines.append(current_line)
+                    current_line = list(word)
+            lines.append(current_line)
+        return lines
+
+    def _rich_text_layer(
+        self, command: _Command, text: str, *, color_property: str = "color",
+    ):
+        from PIL import Image, ImageDraw
+
+        props, box = command.props, command.box
+        width, height = max(1, round(box.width)), max(1, round(box.height))
+        requested = max(2, round(props["font_size"]))
+        minimum = max(2, min(requested, round(props["min_font_size"])))
+        characters = self._parse_inline_markup(text)
+        chosen: tuple[
+            Mapping[bool, Any], list[list[tuple[str, bool, bool]]], float,
+            float, float, float, dict[str, Any],
+        ] | None = None
+        for size in range(requested, minimum - 1, -1):
+            regular_weight = int(props["font_weight"])
+            bold_weight = max(regular_weight, int(props["bold_weight"]))
+            fonts = {
+                False: self.font_resolver(size, str(props["font_family"]), regular_weight),
+                True: self.font_resolver(size, str(props["font_family"]), bold_weight),
+            }
+            probe = Image.new("RGBA", (max(width, 1), max(height, 1)), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(probe)
+            letter_spacing = float(props["letter_spacing"])
+            source_lines = (
+                [characters]
+                if props["wrap_text"] == "none"
+                else self._wrap_marked_text(
+                    draw, characters, fonts, width, letter_spacing,
+                )
+            )
+            lines = source_lines[: int(props["max_lines"])]
+            line_height = size * float(props["line_height"])
+            widest = max((
+                self._marked_text_width(draw, line, fonts, letter_spacing)
+                for line in lines
+            ), default=0)
+            ink_extents: list[tuple[float, float]] = []
+            for line_index, line in enumerate(lines):
+                bounds = [
+                    draw.textbbox((0, 0), character, font=fonts[bold])
+                    for character, bold, _highlighted in line if not character.isspace()
+                ]
+                if bounds:
+                    ink_extents.append((
+                        line_index * line_height + min(item[1] for item in bounds),
+                        line_index * line_height + max(item[3] for item in bounds),
+                    ))
+            ink_top = min((item[0] for item in ink_extents), default=0.0)
+            ink_bottom = max((item[1] for item in ink_extents), default=0.0)
+            ink_height = max(0.0, ink_bottom - ink_top)
+            line_box_height = line_height * len(lines)
+            fit_height = max(ink_height, line_box_height)
+            layout = {
+                "font_size": size,
+                "line_count": len(lines),
+                "source_line_count": len(source_lines),
+                "ink_height": round(ink_height, 3),
+                "line_box_height": round(line_box_height, 3),
+                "truncated": len(source_lines) > len(lines),
+                "overflow": (
+                    widest > width
+                    or fit_height > height
+                    or len(source_lines) > len(lines)
+                ),
+                "markup": "simple_v1",
+                "source_character_count": len(text),
+                "rendered_character_count": len(characters),
+                "delimiter_character_count": len(text) - len(characters),
+                "bold_character_count": sum(1 for _char, bold, _accent in characters if bold),
+                "highlight_character_count": sum(
+                    1 for _char, _bold, accent in characters if accent
+                ),
+            }
+            chosen = (fonts, lines, line_height, widest, ink_top, ink_height, layout)
+            if props["text_fit"] != "shrink" or not layout["overflow"]:
+                break
+        if chosen is None:
+            return Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        fonts, lines, line_height, widest, ink_top, ink_height, layout = chosen
+        render_width = max(width, math.ceil(widest) + 4) if props["text_fit"] == "fixed" else width
+        fit_height = max(ink_height, line_height * len(lines))
+        render_height = max(height, math.ceil(fit_height) + 4) if props["text_fit"] == "fixed" else height
+        layer = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(layer)
+        if props["vertical_align"] == "center":
+            y = (height - ink_height) / 2 - ink_top
+        elif props["vertical_align"] == "bottom":
+            y = height - ink_height - ink_top
+        else:
+            y = -ink_top
+        base_fill = self._rgba(str(props[color_property]))
+        highlight_fill = self._rgba(str(props["highlight_color"]))
+        for line in lines:
+            line_width = self._marked_text_width(
+                draw, line, fonts, float(props["letter_spacing"]),
+            )
+            if props["text_align"] == "center":
+                x = (width - line_width) / 2
+            elif props["text_align"] == "right":
+                x = width - line_width
+            else:
+                x = 0.0
+            for character, bold, highlighted in line:
+                font = fonts[bold]
+                draw.text(
+                    (round(x), round(y)), character, font=font,
+                    fill=highlight_fill if highlighted else base_fill,
+                )
+                x += draw.textlength(character, font=font) + float(props["letter_spacing"])
+            y += line_height
+        if props["font_style"] == "italic":
+            skew = min(0.35, max(0.0, height / max(1, render_width) * 0.25))
+            layer = layer.transform(
+                (render_width + round(height * skew), render_height),
+                Image.Transform.AFFINE, (1, -skew, 0, 0, 1, 0),
+                resample=Image.Resampling.BICUBIC,
+            )
+        layer.info["ptw_text_layout"] = layout
+        return layer
+
     def _text_layer(self, command: _Command, text: str, *, color_property: str = "color"):
         from PIL import Image, ImageDraw
         props, box = command.props, command.box
@@ -1523,6 +1729,16 @@ class PrimitivePreviewRenderer:
         size = (max(1, round(box.width)), max(1, round(box.height)))
         if primitive_type == "text":
             return self._text_layer(command, str(props["text"]))
+        if primitive_type == "rich_text":
+            text = str(props["text"])
+            casing = props["casing"]
+            if casing == "upper":
+                text = text.upper()
+            elif casing == "lower":
+                text = text.lower()
+            elif casing == "title":
+                text = text.title()
+            return self._rich_text_layer(command, text)
         if primitive_type == "button":
             surface = self._surface(command, declarations, assets)
             text_props = dict(props)
@@ -1788,6 +2004,7 @@ class PrimitivePreviewRenderer:
                     for name in (
                         "font_family", "font_size", "font_weight", "line_height",
                         "letter_spacing", "text_align", "scale_x", "scale_y",
+                        "bold_weight", "highlight_color",
                         "fit", "focal_x", "focal_y", "alpha_outline_color",
                         "alpha_outline_width", "alpha_outline_width_ratio",
                         "alpha_outline_shadow_color",

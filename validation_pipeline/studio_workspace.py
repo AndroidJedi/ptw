@@ -224,15 +224,25 @@ class UniversalStudioWorkspace:
             screen = self._asset_record("phone_screen")
             device = compose_phone_device_asset(
                 None if screen is None else screen["bytes"], normalized_content["phone_hero_title"],
+                normalized_content["cta"],
+                str(config["phone_screen"]["texture"]),
             )
             logo = self._asset_record("logo")
             if logo is None:
                 raise RuntimeError("Canonical Natal logo is unavailable")
-            return {
+            records = {
                 "logo": {"bytes": logo["bytes"], "mime_type": logo["mime_type"]},
-                "paper_texture": texture_asset("concrete"),
                 "phone_device": {"bytes": device["bytes"], "mime_type": device["mime_type"]},
             }
+            if config["background"]["texture"] != "none":
+                records["background_texture"] = texture_asset(
+                    str(config["background"]["texture"]),
+                )
+            if config["copy_background"]["texture"] != "none":
+                records["copy_background_texture"] = texture_asset(
+                    str(config["copy_background"]["texture"]),
+                )
+            return records
         records: dict[str, Mapping[str, Any]] = {}
         for slot in ASSET_SLOTS:
             record = self._asset_record(slot)

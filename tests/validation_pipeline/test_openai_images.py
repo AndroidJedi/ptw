@@ -40,6 +40,7 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
 
         self.assertEqual(OPENAI_IMAGES_ENDPOINT, seen["url"])
         self.assertEqual(PHONE_SCREEN_IMAGE_MODEL, seen["payload"]["model"])
+        self.assertEqual("1024x1024", PHONE_SCREEN_IMAGE_SIZE)
         self.assertEqual(PHONE_SCREEN_IMAGE_SIZE, seen["payload"]["size"])
         self.assertIn("no readable text", seen["payload"]["prompt"])
         self.assertEqual("openai_image_api", result["source"]["origin"])

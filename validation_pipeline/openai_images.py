@@ -1,4 +1,4 @@
-"""Small, server-side boundary for text-free Studio phone-screen artwork.
+"""Small, server-side boundary for text-free Studio phone hero artwork.
 
 The browser never receives the API credential.  Callers persist only the
 returned image bytes and non-secret provenance, never the response body or a
@@ -17,12 +17,14 @@ from .studio import inspect_media
 
 OPENAI_IMAGES_ENDPOINT = "https://api.openai.com/v1/images/generations"
 PHONE_SCREEN_IMAGE_MODEL = "gpt-image-2"
-PHONE_SCREEN_IMAGE_SIZE = "832x1792"
+# Generated pixels supply the hero artwork, not the complete phone UI. A square
+# source gives the compositor a stable focal crop inside its fixed app shell.
+PHONE_SCREEN_IMAGE_SIZE = "1024x1024"
 PHONE_SCREEN_IMAGE_QUALITY = "medium"
 
 
 class OpenAIPhoneScreenImageProvider:
-    """Generate one validated PNG phone screen through the server-side API."""
+    """Generate one validated PNG phone hero artwork through the server-side API."""
 
     def __init__(self, api_key: str, *, client: httpx.Client | None = None) -> None:
         if not api_key:

@@ -99,11 +99,23 @@ describe('simple post step', () => {
 
     await screen.findByRole('button', { name: 'Generate one post' })
     fireEvent.click(screen.getByLabelText('Phone & metrics'))
+    fireEvent.change(screen.getByLabelText('Full post background texture'), {
+      target: { value: 'travertine' },
+    })
+    fireEvent.change(screen.getByLabelText('Left copy area texture'), {
+      target: { value: 'concrete' },
+    })
+    fireEvent.change(screen.getByLabelText('iPhone screen texture'), {
+      target: { value: 'frosted' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Generate phone post' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/v1/posts', expect.objectContaining({
       request_id: expect.any(String), brief_id: briefId, template_id: 'phone_metrics',
       template_input: expect.objectContaining({
         content: expect.objectContaining({ stats: expect.any(Array) }),
+        textures: {
+          background: 'travertine', copy_background: 'concrete', phone_screen: 'frosted',
+        },
       }),
     }), { deadlineMs: 60_000 }))
     expect(screen.queryByLabelText('Phone & metrics')).not.toBeInTheDocument()

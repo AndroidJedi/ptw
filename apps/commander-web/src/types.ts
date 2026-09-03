@@ -222,9 +222,20 @@ export interface StudioUniversalDetail {
   versions: StudioUniversalVersionSummary[]
 }
 
+export type StudioPhoneBackgroundTexture = 'none' | 'grain' | 'concrete' | 'travertine'
+export type StudioPhoneScreenTexture = 'none' | 'grain' | 'paper' | 'frosted'
+
 export interface StudioPhoneMetricsConfiguration {
-  schema: 'ptw.studio.phone-metrics-config.v1'
-  background: { color: string; texture_intensity: number }
+  schema: 'ptw.studio.phone-metrics-config.v5'
+  background: {
+    color: string
+    texture: StudioPhoneBackgroundTexture
+    texture_intensity: number
+  }
+  copy_background: { texture: StudioPhoneBackgroundTexture }
+  offer: { enabled: boolean }
+  supporting_text: { font_size: number; highlight_color: string }
+  phone_screen: { texture: StudioPhoneScreenTexture }
   device: { x: number; y: number; width: number; rotation: number }
 }
 
@@ -270,7 +281,16 @@ export interface StudioPhoneMetricsDetail {
     semantic_roles: string[]
     components: StudioUniversalComponentDefinition[]
     asset_slots: Record<string, { role: string; allowed_mime_types: string[]; description: string }>
-    variation: { optional_elements: string[]; brand: 'Natal'; device_rotation_degrees: number }
+    variation: {
+      optional_elements: string[]
+      brand: 'Natal'
+      device_pose: 'front_facing_upright'
+      device_rotation_degrees: number
+      background_textures: StudioPhoneBackgroundTexture[]
+      copy_background_textures: StudioPhoneBackgroundTexture[]
+      phone_screen_textures: StudioPhoneScreenTexture[]
+      supporting_text_font_size: { minimum: number; maximum: number; default: number }
+    }
     sha256: string
   }
   state_sha256: string
@@ -319,7 +339,14 @@ export interface SimplePost {
   brief_id: string
   brief_document_sha256: string
   template_id?: 'universal_ad' | 'phone_metrics'
-  template_input?: { content: StudioPhoneMetricsContent } | null
+  template_input?: {
+    content: StudioPhoneMetricsContent
+    textures: {
+      background: StudioPhoneBackgroundTexture
+      copy_background: StudioPhoneBackgroundTexture
+      phone_screen: StudioPhoneScreenTexture
+    }
+  } | null
   status: SimplePostStatus
   failure_count: number
   state_sha256?: string | null

@@ -21,8 +21,9 @@ from commander.ids import new_uuid7
 from .local_brief_store import LocalBriefStore, sha256_json, utc_now
 from .local_codex import LocalCodexStructuredProvider, sanitized
 from .studio_phone_metrics import (
-    DEFAULT_PHONE_CONFIG, PHONE_METRICS_TEMPLATE_ID,
-    normalize_phone_metrics_content,
+    DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_TEXTURE_CHOICES,
+    PHONE_METRICS_TEMPLATE_ID, normalize_phone_metrics_content,
+    normalize_phone_metrics_texture_choices,
 )
 from .studio_universal import (
     DEFAULT_CONFIG, DEFAULT_CONTENT, UNIVERSAL_AD_TEMPLATE_ID, UNIVERSAL_SETTING_DEFINITIONS,
@@ -218,15 +219,19 @@ def phone_screen_output_schema() -> dict[str, Any]:
 
 
 def _phone_screen_prompt(language: str) -> str:
-    return f"""Create one concise visual-art direction for a vertical phone-screen image.
-The approved Product Brief is strategic context only; it can guide mood, palette, materials,
-and abstract subject matter, but never provides visible words. Return the direction in English
-so an image model can use it. The final phone screen must contain no letters, numbers, logos,
-brand names, UI labels, buttons, charts, metrics, or readable interface. Ask for an elegant,
-text-free abstract editorial composition with generous clean space. Do not describe a device
-frame because Studio supplies the fixed black iPhone frame. The post copy itself is in
-{language}; do not repeat or paraphrase it in the image direction. Return only the JSON object
-required by the supplied schema."""
+    return f"""Create one concise visual-art direction for the hero artwork inside a vertical
+    phone app screen. The approved Product Brief is strategic context: use its audience, promise,
+    mood, and product domain to choose one clear metaphorical subject or sculptural editorial
+    composition, but never turn its copy into visible words. Keep the subject concentrated in the
+    upper-middle of a bright off-white field, with dimensional materials, soft studio light,
+    confident depth, dark graphite forms, and at most one vivid accent colour. The result must feel
+    premium and specific to the Brief rather than like random wallpaper.
+
+    Return the direction in English so an image model can use it. The generated hero artwork must
+    contain no letters, numbers, logos, brand names, UI labels, buttons, charts, metrics, devices,
+    or readable interface. Studio adds the fixed Natal app shell, owner title, CTA, and black iPhone
+    frame after generation. The post copy itself is in {language}; do not repeat or paraphrase it
+    in the image direction. Return only the JSON object required by the supplied schema."""
 
 
 def _post_tune_prompt() -> str:
@@ -345,9 +350,15 @@ class SimplePostService:
             return None
         if template_id != PHONE_METRICS_TEMPLATE_ID:
             raise ValueError("post template is not registered")
-        if not isinstance(template_input, Mapping) or set(template_input) != {"content"}:
-            raise ValueError("phone_metrics requires exactly one content template input")
-        return {"content": normalize_phone_metrics_content(template_input["content"])}
+        if not isinstance(template_input, Mapping) or set(template_input) not in (
+            {"content"}, {"content", "textures"},
+        ):
+            raise ValueError("phone_metrics requires content and optional texture choices")
+        textures = template_input.get("textures", DEFAULT_PHONE_TEXTURE_CHOICES)
+        return {
+            "content": normalize_phone_metrics_content(template_input["content"]),
+            "textures": normalize_phone_metrics_texture_choices(textures),
+        }
 
     @staticmethod
     def _validate_phone_screen_plan(value: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -600,8 +611,12 @@ class SimplePostService:
                     detail = workspace.apply_template(
                         base_sha256=detail["state_sha256"], template_id=PHONE_METRICS_TEMPLATE_ID,
                     )
+                phone_configuration = deepcopy(DEFAULT_PHONE_CONFIG)
+                phone_configuration["background"]["texture"] = template_input["textures"]["background"]
+                phone_configuration["copy_background"]["texture"] = template_input["textures"]["copy_background"]
+                phone_configuration["phone_screen"]["texture"] = template_input["textures"]["phone_screen"]
                 saved = workspace.save_configuration(
-                    base_sha256=detail["state_sha256"], configuration=DEFAULT_PHONE_CONFIG,
+                    base_sha256=detail["state_sha256"], configuration=phone_configuration,
                     content=template_input["content"],
                 )
                 prompt_result = self._provider_call(
@@ -611,7 +626,7 @@ class SimplePostService:
                         "post_id": post_id,
                         "product_brief": document,
                         "template": PHONE_METRICS_TEMPLATE_ID,
-                        "screen_contract": "visual-only; no visible text, logo, UI, buttons, metrics, or charts",
+                        "screen_contract": "brief-derived hero art only; fixed renderer supplies logo, owner copy, CTA, and device UI",
                     },
                     output_schema=phone_screen_output_schema(),
                     response_validator=self._validate_phone_screen_plan,

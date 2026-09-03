@@ -18,8 +18,12 @@ testimonials, urgency, scarcity, or product capabilities.
 Pexels provenance, primitive template, and 1080×1080 `StudioRenderer` output
 as Universal Studio. `phone_metrics` uses its strict 4:5 contracts: the owner
 enters eyebrow, headline, supporting copy, CTA, exactly three statistics, and
-an optional in-phone title at draft start. It always uses the canonical Natal
-lock-up, owner-selected static angled phone frame, and server-generated
+an optional in-phone title at draft start. The same start step independently
+selects `Off` or one of three deterministic finishes for the full background,
+the rounded left-copy background, and the in-phone hero; all three choices are
+validated and locked into the new per-post Studio configuration. It always uses
+the canonical Natal
+lock-up, licensed static front-facing phone frame, and server-generated
 text-free visual-only screen art. No logo, brand-name, phone-art, or raw device
 control is owner-editable. The workflow owns a separate per-post workspace; it
 does not read or mutate `.local/studio-workspace`.
@@ -58,8 +62,9 @@ inserting an emoji, glyph, or label into visible copy.
 
 Logo commands remain unavailable: Natal is always the visible identity in new
 Studio/Post drafts, with no project-specific substitution. `phone_metrics`
-does not offer comment tuning after its draft begins; its bounded copy and
-statistics are fixed at selection time and it proceeds to owner approval.
+does not offer comment tuning after its draft begins; its bounded copy,
+statistics, and texture choices are fixed at selection time and it proceeds to
+owner approval.
 
 ## Approval boundary
 

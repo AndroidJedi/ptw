@@ -275,6 +275,12 @@ button svg { width: 17px; height: 17px; }
 .phone-metrics-canvas-panel figure > img { width: min(100%, 630px); max-height: 78vh; display: block; object-fit: contain; border: 1px solid #303030; border-radius: 9px; background: #181818; box-shadow: 0 16px 50px rgba(0, 0, 0, .4); }
 .phone-metrics-canvas-panel .studio-preview-empty { width: min(100%, 520px); min-height: 500px; }
 .phone-metrics-controls { min-width: 0; display: grid; gap: 10px; }
+.phone-rich-copy { min-width: 0; display: grid; gap: 8px; }
+.phone-markup-toolbar { display: grid; grid-template-columns: 38px 38px minmax(0, 1fr); align-items: center; gap: 6px; }
+.phone-markup-toolbar button { min-height: 38px; padding: 7px; }
+.phone-markup-toolbar button svg { width: 15px; height: 15px; }
+.phone-markup-toolbar small { color: var(--muted); font-size: 8px; line-height: 1.35; }
+.phone-rich-settings { padding: 9px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(112px, .6fr); gap: 9px; border: 1px solid var(--line); border-radius: 9px; background: #0d0d0d; }
 .phone-metrics-stat-input { display: grid; grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: end; }
 .phone-metrics-stat-input > strong { min-height: 40px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: var(--soft); font: 11px ui-monospace, monospace; }
 .phone-screen-rule { border-color: var(--white); background: #151515; }
@@ -402,6 +408,7 @@ button svg { width: 17px; height: 17px; }
   .universal-inline-upload { align-items: stretch; flex-direction: column; }
   .universal-inline-upload label { width: 100%; }
   .studio-template-grid { grid-template-columns: 1fr; }
+  .phone-rich-settings { grid-template-columns: 1fr; }
   .phone-metrics-canvas-panel { position: static; }
   .studio-preview-grid img { max-height: none; }
   .studio-preview-empty { min-height: 260px; }

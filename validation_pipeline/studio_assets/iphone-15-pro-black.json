@@ -1,0 +1,16 @@
+{
+  "schema": "ptw.studio.static-asset.v1",
+  "filename": "iphone-15-pro-black.png",
+  "mime_type": "image/png",
+  "sha256": "04164c10370930494f2688acc6fcf65a222cd7da077c5c65c4d189ab3e083dc0",
+  "source": "WithFrame iPhone 15 Pro black front mockup downloaded once on 2026-09-03.",
+  "source_url": "https://withfra.me/shot/iphone-15-pro",
+  "download_url": "https://shot.withfra.me/frames/iphone.15.pro/black",
+  "license_url": "https://withfra.me/shot/iphone-15-pro",
+  "license": "Personal and commercial use permitted; owner-authorized for bundled Studio use; do not redistribute or sell the frame standalone.",
+  "transformation": "None to the hardware frame; the renderer composites the app screen behind its transparent aperture.",
+  "prepared_once_on": "2026-09-03",
+  "downloaded_once_on": "2026-09-03",
+  "runtime_fetch": "prohibited",
+  "use": "Fixed local Studio asset. It is never downloaded by runtime code."
+}

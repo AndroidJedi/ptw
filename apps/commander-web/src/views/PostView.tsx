@@ -3,7 +3,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
 import { translate, type Language } from '../i18n'
-import type { ProductBrief, SimplePost, StudioPhoneMetricsContent } from '../types'
+import type {
+  ProductBrief, SimplePost, StudioPhoneBackgroundTexture,
+  StudioPhoneMetricsContent, StudioPhoneScreenTexture,
+} from '../types'
 
 const activeStatuses = new Set<SimplePost['status']>(['queued', 'generating', 'tuning'])
 
@@ -36,6 +39,11 @@ export function PostView({ api, projectId, language }: {
   const [comment, setComment] = useState('')
   const [templateId, setTemplateId] = useState<'universal_ad' | 'phone_metrics'>('universal_ad')
   const [phoneContent, setPhoneContent] = useState<StudioPhoneMetricsContent>(structuredClone(defaultPhoneContent))
+  const [phoneTextures, setPhoneTextures] = useState<{
+    background: StudioPhoneBackgroundTexture
+    copy_background: StudioPhoneBackgroundTexture
+    phone_screen: StudioPhoneScreenTexture
+  }>({ background: 'concrete', copy_background: 'none', phone_screen: 'grain' })
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -124,7 +132,9 @@ export function PostView({ api, projectId, language }: {
       const value = await api.post<{ post: SimplePost }>('/api/v1/posts', {
         request_id: crypto.randomUUID(), brief_id: brief.brief_id,
         template_id: templateId,
-        template_input: templateId === 'phone_metrics' ? { content: phoneContent } : null,
+        template_input: templateId === 'phone_metrics'
+          ? { content: phoneContent, textures: phoneTextures }
+          : null,
       }, { deadlineMs: 60_000 })
       setPost(value.post)
       setNotice(templateId === 'phone_metrics' ? tr(
@@ -209,12 +219,21 @@ export function PostView({ api, projectId, language }: {
           <label className={`studio-template-card ${templateId === 'phone_metrics' ? 'is-active' : ''}`}>
             <input aria-label={tr('Phone & metrics', 'Телефон і метрики')} type="radio" name="post-template" value="phone_metrics" checked={templateId === 'phone_metrics'} onChange={() => setTemplateId('phone_metrics')} />
             <strong>{tr('Phone & metrics', 'Телефон і метрики')}</strong><small>1080×1350</small>
-            <span>{tr('Fixed Natal lockup, right-railed iPhone, three metrics, and generated text-free screen art.', 'Фіксований знак Natal, iPhone з правою гранню, три метрики та згенерований арт екрана без тексту.')}</span>
+            <span>{tr('Fixed crisp Natal app screen and front-facing iPhone, three metrics, and Brief-generated text-free hero art.', 'Фіксований чіткий екран застосунку Natal і фронтальний iPhone, три метрики й згенерований із Брифу герой-арт без тексту.')}</span>
           </label>
         </div>
       </fieldset>
       {templateId === 'phone_metrics' && <section className="post-phone-inputs" aria-label={tr('Phone and metrics post content', 'Вміст допису телефону й метрик')}>
         <p>{tr('These owner-entered values lock when the Post draft begins. Natal stays visible and fixed.', 'Ці введені власником значення фіксуються з початком чернетки допису. Natal завжди видимий і фіксований.')}</p>
+        <label><span>{tr('Full post background texture', 'Текстура повного фону допису')}</span><select aria-label={tr('Full post background texture', 'Текстура повного фону допису')} value={phoneTextures.background} onChange={(event) => setPhoneTextures({ ...phoneTextures, background: event.target.value as StudioPhoneBackgroundTexture })}>
+          <option value="none">{tr('Off', 'Без текстури')}</option><option value="grain">{tr('Fine grain', 'Дрібне зерно')}</option><option value="concrete">{tr('Concrete', 'Бетон')}</option><option value="travertine">{tr('Travertine', 'Травертин')}</option>
+        </select></label>
+        <label><span>{tr('Left copy area texture', 'Текстура лівої текстової зони')}</span><select aria-label={tr('Left copy area texture', 'Текстура лівої текстової зони')} value={phoneTextures.copy_background} onChange={(event) => setPhoneTextures({ ...phoneTextures, copy_background: event.target.value as StudioPhoneBackgroundTexture })}>
+          <option value="none">{tr('Off', 'Без текстури')}</option><option value="grain">{tr('Fine grain', 'Дрібне зерно')}</option><option value="concrete">{tr('Concrete', 'Бетон')}</option><option value="travertine">{tr('Travertine', 'Травертин')}</option>
+        </select></label>
+        <label><span>{tr('iPhone screen texture', 'Текстура екрана iPhone')}</span><select aria-label={tr('iPhone screen texture', 'Текстура екрана iPhone')} value={phoneTextures.phone_screen} onChange={(event) => setPhoneTextures({ ...phoneTextures, phone_screen: event.target.value as StudioPhoneScreenTexture })}>
+          <option value="none">{tr('Off', 'Без текстури')}</option><option value="grain">{tr('Fine grain', 'Дрібне зерно')}</option><option value="paper">{tr('Soft paper', 'М’який папір')}</option><option value="frosted">{tr('Frosted glass', 'Матове скло')}</option>
+        </select></label>
         <label><span>{tr('Eyebrow', 'Надзаголовок')}</span><input maxLength={32} value={phoneContent.offer} onChange={(event) => setPhoneContent({ ...phoneContent, offer: event.target.value })} /></label>
         <label><span>{tr('Headline', 'Заголовок')}</span><textarea rows={3} maxLength={140} value={phoneContent.hero_title} onChange={(event) => setPhoneContent({ ...phoneContent, hero_title: event.target.value })} /></label>
         <label><span>{tr('Supporting text', 'Пояснювальний текст')}</span><textarea rows={3} maxLength={220} value={phoneContent.supporting_text} onChange={(event) => setPhoneContent({ ...phoneContent, supporting_text: event.target.value })} /></label>

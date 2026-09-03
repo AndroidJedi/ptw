@@ -59,7 +59,7 @@ class PrimitiveStudioContractTests(unittest.TestCase):
     def test_catalog_and_benchmark_templates_use_one_finite_vocabulary(self) -> None:
         catalog = primitive_catalog()
         self.assertEqual(list(PRIMITIVE_TYPES), catalog["primitive_types"])
-        self.assertEqual(11, len(catalog["items"]))
+        self.assertEqual(12, len(catalog["items"]))
         self.assertEqual(64, len(catalog["sha256"]))
         for item in catalog["items"]:
             self.assertIn("position", item["properties"])
@@ -151,6 +151,7 @@ class PrimitiveStudioContractTests(unittest.TestCase):
             {"id": "child-container", "type": "container", "props": {**common, "x": 10, "y": 0}},
             {"id": "child-stack", "type": "stack", "props": {**common, "x": 20, "y": 0}},
             {"id": "child-text", "type": "text", "props": {**common, "x": 30, "y": 0, "text": "T"}},
+            {"id": "child-rich-text", "type": "rich_text", "props": {**common, "x": 30, "y": 10, "text": "**R**"}},
             {"id": "child-image", "type": "image", "props": {**common, "x": 40, "y": 0, "asset": "alpha_asset"}},
             {"id": "child-button", "type": "button", "props": {**common, "x": 50, "y": 0, "label": "B"}},
             {"id": "child-icon", "type": "icon", "props": {**common, "x": 60, "y": 0, "glyph": "→"}},
@@ -175,6 +176,40 @@ class PrimitiveStudioContractTests(unittest.TestCase):
                 assets={"alpha_asset": {"bytes": output.getvalue(), "mime_type": "image/png"}},
             )
             self.assertEqual((100, 100), (preview["width"], preview["height"]))
+
+    @unittest.skipUnless(PIL_AVAILABLE, "Pillow is required")
+    def test_rich_text_markup_changes_weight_and_colour_without_rendering_delimiters(self) -> None:
+        from PIL import Image
+
+        template = _template(children=[{
+            "id": "supporting-copy", "type": "rich_text", "props": {
+                "position": "absolute", "x": 8, "y": 8, "width": 84, "height": 80,
+                "font_size": 20, "min_font_size": 10, "font_weight": 400,
+                "bold_weight": 800, "highlight_color": "#1675F8",
+                "line_height": 1.05, "max_lines": 4, "text_fit": "shrink",
+                "text": "Base **bold** ==blue==",
+            },
+        }], semantic_roles={"description": ["supporting-copy"]})
+
+        preview = StudioRenderer().render_preview(template, semantic_data={}, assets={})
+        node = preview["resolved"]["nodes"]["supporting-copy"]
+        self.assertEqual("simple_v1", node["text_layout"]["markup"])
+        self.assertEqual(8, node["text_layout"]["delimiter_character_count"])
+        self.assertEqual(
+            node["text_layout"]["source_character_count"] - 8,
+            node["text_layout"]["rendered_character_count"],
+        )
+        self.assertEqual(4, node["text_layout"]["bold_character_count"])
+        self.assertEqual(4, node["text_layout"]["highlight_character_count"])
+        self.assertFalse(node["text_layout"]["overflow"])
+        self.assertEqual("#1675F8", node["props"]["highlight_color"])
+
+        rendered = Image.open(BytesIO(preview["bytes"])).convert("RGB")
+        accent_pixels = sum(
+            1 for red, green, blue in rendered.crop((8, 8, 92, 88)).getdata()
+            if blue > 180 and green > 70 and red < 80
+        )
+        self.assertGreater(accent_pixels, 10)
 
     @unittest.skipUnless(PIL_AVAILABLE, "Pillow is required")
     def test_top_aligned_text_uses_visible_ink_and_reports_overflow(self) -> None:

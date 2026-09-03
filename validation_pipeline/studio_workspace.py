@@ -228,6 +228,8 @@ class UniversalStudioWorkspace:
                 None if screen is None else screen["bytes"], normalized_content["phone_hero_title"],
                 normalized_content["cta"],
                 str(config["phone_screen"]["texture"]),
+                list(normalized_content["phone_buttons"]),
+                list(config["phone_buttons"]),
             )
             logo = self._asset_record("logo")
             if logo is None:

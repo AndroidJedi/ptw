@@ -20,8 +20,12 @@ from validation_pipeline.studio_universal import (
     DEFAULT_CONFIG, DEFAULT_CONTENT, universal_alignment_rectangle,
 )
 from validation_pipeline.studio_phone_metrics import (
-    DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT, PHONE_METRICS_TEMPLATE_ID,
-    PHONE_SCREEN_ART_SIZE, compose_phone_device_asset,
+    DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT, PHONE_ACTION_BUTTON_RADII,
+    PHONE_ACTION_BUTTON_SHAPES, PHONE_ACTION_BUTTON_STYLES,
+    PHONE_HERO_ART_OFFSET_Y, PHONE_METRIC_CARD_RADII,
+    PHONE_METRICS_TEMPLATE_ID, PHONE_SCREEN_ART_SIZE, _fixed_screen_shell,
+    _position_phone_hero_art,
+    build_phone_metrics_template, compose_phone_device_asset,
 )
 from validation_pipeline.studio_workspace import UniversalStudioWorkspace
 
@@ -190,6 +194,12 @@ def audit_phone_metrics(
     require((preview["width"], preview["height"]) == (1080, 1350), "phone: canvas is not 1080x1350")
     require(detail["template_id"] == PHONE_METRICS_TEMPLATE_ID, "phone: wrong template selected")
     nodes = preview["resolved"]["nodes"]
+    template_nodes = {
+        node["id"]: node
+        for node in build_phone_metrics_template(
+            detail["configuration"], detail["content"],
+        ).document["root"]["children"]
+    }
     required = {
         "logo", "hero_title", "supporting_text", "phone_device",
         "metric_card_1", "metric_card_2", "metric_card_3", "metric_value_1", "metric_value_2",
@@ -258,10 +268,50 @@ def audit_phone_metrics(
     require(cards[0]["y"] >= .73 and cards[-1]["x"] + cards[-1]["width"] <= .95, "phone: metric row drift")
     require(all(card["width"] <= 280 / 1080 for card in cards), "phone: metric cards are not compact")
     require(all(card["height"] <= 140 / 1350 for card in cards), "phone: metric cards are too tall")
+    metric_card_config = detail["configuration"]["metric_cards"]
+    require(len(metric_card_config) == 3, "phone: metric button configuration is incomplete")
     for index in range(1, 4):
+        card_config = metric_card_config[index - 1]
+        card_props = template_nodes[f"metric_card_{index}"]["props"]
+        require(
+            card_props["radius"] == PHONE_METRIC_CARD_RADII[card_config["shape"]],
+            f"phone: metric_card_{index} shape did not reach the renderer",
+        )
+        if card_config["style"] == "filled":
+            require(
+                card_props["background_color"] == card_config["background_color"]
+                and card_props["border_color"] is None
+                and card_props["border_width"] == 0,
+                f"phone: metric_card_{index} filled style did not reach the renderer",
+            )
+        else:
+            require(
+                card_props["background_color"] is None
+                and card_props["border_color"] == card_config["background_color"]
+                and card_props["border_width"] == 4,
+                f"phone: metric_card_{index} outlined style did not reach the renderer",
+            )
         for kind in ("metric_value", "metric_label"):
-            layout = nodes[f"{kind}_{index}"]["text_layout"]
+            text_node = nodes[f"{kind}_{index}"]
+            text_props = template_nodes[f"{kind}_{index}"]["props"]
+            layout = text_node["text_layout"]
             require(layout is not None and not layout["overflow"] and not layout["truncated"], f"phone: {kind}_{index} clips")
+            require(
+                text_props["color"] == card_config["text_color"],
+                f"phone: {kind}_{index} text colour did not reach the renderer",
+            )
+    phone_button_config = detail["configuration"]["phone_buttons"]
+    phone_button_text = detail["content"]["phone_buttons"]
+    require(len(phone_button_config) == 3, "phone: in-phone button configuration is incomplete")
+    require(len(phone_button_text) == 3, "phone: in-phone button text is incomplete")
+    require(
+        all(button["style"] in PHONE_ACTION_BUTTON_STYLES for button in phone_button_config),
+        "phone: in-phone button style left the bounded catalog",
+    )
+    require(
+        all(button["shape"] in PHONE_ACTION_BUTTON_SHAPES for button in phone_button_config),
+        "phone: in-phone button shape left the bounded catalog",
+    )
     cta = nodes["cta"]["box"]
     require(cta["x"] == 0 and cta["width"] == 1 and cta["y"] >= .89 and cta["y"] + cta["height"] == 1, "phone: CTA is not a bottom band")
     require(not nodes["cta"]["text_layout"]["overflow"], "phone: CTA clips")
@@ -269,7 +319,29 @@ def audit_phone_metrics(
     # Full-resolution colour checks intentionally read the render rather than
     # trusting template declarations.
     from io import BytesIO
-    from PIL import Image
+    from PIL import Image, ImageDraw
+
+    marker_source = Image.new("RGBA", (832, 832), "#6AAFC8")
+    ImageDraw.Draw(marker_source).rectangle((300, 180, 532, 360), fill="#E12D8C")
+    positioned_hero = _position_phone_hero_art(
+        marker_source, (PHONE_SCREEN_ART_SIZE[0], 1050),
+    )
+    require(
+        positioned_hero.getpixel((20, 0)) == (106, 175, 200, 255)
+        and all(positioned_hero.getpixel((20, y))[3] == 255 for y in range(1050)),
+        "phone: lowered hero artwork no longer reaches the top continuously",
+    )
+    marker_pixels = [
+        (x, y)
+        for y in range(1050) for x in range(positioned_hero.width)
+        if positioned_hero.getpixel((x, y))[:3] == (225, 45, 140)
+    ]
+    require(marker_pixels, "phone: hero subject marker disappeared")
+    require(
+        min(y for _x, y in marker_pixels) >= 400
+        and min(y for _x, y in marker_pixels) >= PHONE_HERO_ART_OFFSET_Y + 200,
+        "phone: sharp hero subject was not moved below the fixed header",
+    )
 
     with Image.open(BytesIO(preview["bytes"])) as image:
         pixels_rgba = image.convert("RGB")
@@ -305,33 +377,117 @@ def audit_phone_metrics(
         require(accent_pixels > 50, "phone: highlighted word colour is absent from rendered pixels")
         for index, card in enumerate(cards, 1):
             left, top = round(card["x"] * 1080), round(card["y"] * 1350)
-            require(pixels_rgba.getpixel((left + 18, top + 78)) == (36, 87, 200),
-                    f"phone: metric_card_{index} is not cobalt")
-            require(pixels_rgba.getpixel((left + 8, top + 5)) != (36, 87, 200),
-                    f"phone: metric_card_{index} corner is too square")
-            require(pixels_rgba.getpixel((left + 28, top + 8)) == (36, 87, 200),
-                    f"phone: metric_card_{index} rounded top edge is malformed")
-        require(pixels_rgba.getpixel((16, 1300)) == (49, 108, 255), "phone: CTA band is not cobalt")
-        screen_button = [
-            (x, y) for y in range(700, 880) for x in range(620, 1010)
-            if (lambda pixel: pixel[2] > 180 and 70 < pixel[1] < 170 and pixel[0] < 70)(
+            card_config = metric_card_config[index - 1]
+            surface = card_config["background_color"]
+            surface_rgb = tuple(int(surface[offset:offset + 2], 16) for offset in (1, 3, 5))
+            text_color = card_config["text_color"]
+            text_rgb = tuple(int(text_color[offset:offset + 2], 16) for offset in (1, 3, 5))
+            card_pixels = [
                 pixels_rgba.getpixel((x, y))
+                for y in range(top, top + 140) for x in range(left, left + 280)
+            ]
+            surface_pixels = sum(pixel == surface_rgb for pixel in card_pixels)
+            require(
+                surface_pixels > (20_000 if card_config["style"] == "filled" else 500),
+                f"phone: metric_card_{index} background or border colour is absent from pixels",
             )
+            require(
+                sum(pixel == text_rgb for pixel in card_pixels) > 50,
+                f"phone: metric_card_{index} text colour is absent from pixels",
+            )
+            if card_config["style"] == "filled":
+                if card_config["shape"] == "square":
+                    require(
+                        pixels_rgba.getpixel((left + 2, top + 2)) == surface_rgb,
+                        f"phone: metric_card_{index} square shape is not visible",
+                    )
+                elif card_config["shape"] == "rounded":
+                    require(
+                        pixels_rgba.getpixel((left + 8, top + 5)) != surface_rgb
+                        and pixels_rgba.getpixel((left + 28, top + 8)) == surface_rgb,
+                        f"phone: metric_card_{index} rounded shape is malformed",
+                    )
+                else:
+                    require(
+                        pixels_rgba.getpixel((left + 28, top + 8)) != surface_rgb
+                        and pixels_rgba.getpixel((left + 140, top + 8)) == surface_rgb,
+                        f"phone: metric_card_{index} pill shape is malformed",
+                    )
+        require(pixels_rgba.getpixel((16, 1300)) == (49, 108, 255), "phone: CTA band is not cobalt")
+        first_action = phone_button_config[0]
+        if first_action["style"] in {"filled", "elevated"}:
+            surface = first_action["background_color"]
+            surface_rgb = tuple(int(surface[offset:offset + 2], 16) for offset in (1, 3, 5))
+            screen_button = [
+                (x, y) for y in range(665, 755) for x in range(620, 1010)
+                if all(
+                    abs(channel - expected) <= 4
+                    for channel, expected in zip(pixels_rgba.getpixel((x, y)), surface_rgb)
+                )
+            ]
+            require(len(screen_button) > 5_000, "phone: primary in-screen action is missing")
+            screen_button_box = (
+                min(point[0] for point in screen_button), min(point[1] for point in screen_button),
+                max(point[0] for point in screen_button), max(point[1] for point in screen_button),
+            )
+            require(screen_button_box[2] - screen_button_box[0] > 260, "phone: primary in-screen action is too narrow")
+            button_tops = {
+                x: min(y for point_x, y in screen_button if point_x == x)
+                for x in range(screen_button_box[0] + 45, screen_button_box[2] - 44)
+            }
+            require(max(button_tops.values()) - min(button_tops.values()) <= 2, "phone: primary in-screen action is perspective-warped")
+
+    action_shell = _fixed_screen_shell(
+        Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#F9FAFA"),
+        detail["content"]["phone_hero_title"], detail["content"]["cta"], "none",
+        list(phone_button_text), copy.deepcopy(phone_button_config),
+    ).convert("RGB")
+    for index, (button, box) in enumerate(zip(
+        phone_button_config,
+        ((70, 1284, 762, 1388), (70, 1410, 762, 1514), (70, 1532, 762, 1606)),
+        strict=True,
+    ), 1):
+        text_rgb = tuple(int(button["text_color"][offset:offset + 2], 16) for offset in (1, 3, 5))
+        surface_rgb = tuple(int(button["background_color"][offset:offset + 2], 16) for offset in (1, 3, 5))
+        region = [
+            action_shell.getpixel((x, y))
+            for y in range(box[1], box[3] + 1) for x in range(box[0], box[2] + 1)
         ]
-        require(len(screen_button) > 5_000, "phone: crisp in-screen CTA is missing")
-        screen_button_box = (
-            min(point[0] for point in screen_button), min(point[1] for point in screen_button),
-            max(point[0] for point in screen_button), max(point[1] for point in screen_button),
+        require(sum(pixel == text_rgb for pixel in region) > 20,
+                f"phone: in-phone action {index} text colour is absent")
+        if button["style"] in {"filled", "elevated"}:
+            require(sum(pixel == surface_rgb for pixel in region) > 20_000,
+                    f"phone: in-phone action {index} surface is absent")
+        elif button["style"] == "outlined":
+            require(sum(pixel == surface_rgb for pixel in region) > 500,
+                    f"phone: in-phone action {index} outline is absent")
+        if (
+            button["style"] in {"filled", "elevated"}
+            and surface_rgb != (255, 255, 255)
+        ):
+            corner = action_shell.getpixel((box[0], box[1]))
+            top_center = action_shell.getpixel(((box[0] + box[2]) // 2, box[1]))
+            if button["shape"] == "square":
+                require(corner == surface_rgb, f"phone: in-phone action {index} is not square")
+            else:
+                require(corner != surface_rgb and top_center == surface_rgb,
+                        f"phone: in-phone action {index} rounded shape is malformed")
+        require(
+            PHONE_ACTION_BUTTON_RADII[button["shape"]] >= 0,
+            f"phone: in-phone action {index} radius is unavailable",
         )
-        require(screen_button_box[2] - screen_button_box[0] > 260, "phone: in-screen CTA is too narrow")
-        button_tops = {
-            x: min(y for point_x, y in screen_button if point_x == x)
-            for x in range(screen_button_box[0] + 45, screen_button_box[2] - 44)
-        }
-        require(max(button_tops.values()) - min(button_tops.values()) <= 2, "phone: in-screen CTA is perspective-warped")
+        if button["style"] == "elevated":
+            shadow_strip = [
+                action_shell.getpixel((x, y))
+                for y in range(box[3] + 1, min(1630, box[3] + 18))
+                for x in range(box[0] + 80, box[2] - 80)
+            ]
+            require(any(pixel != (255, 255, 255) for pixel in shadow_strip),
+                    f"phone: in-phone action {index} elevation shadow is absent")
     composed_device = compose_phone_device_asset(
         None, detail["content"]["phone_hero_title"], detail["content"]["cta"],
         detail["configuration"]["phone_screen"]["texture"],
+        list(phone_button_text), copy.deepcopy(phone_button_config),
     )
     with Image.open(BytesIO(composed_device["bytes"])) as image:
         device_pixels = image.convert("RGBA")
@@ -340,12 +496,25 @@ def audit_phone_metrics(
             require(pixel[3] == 255, "phone: outer background leaks into an upper screen corner")
             require(min(pixel[:3]) >= 245 and max(pixel[:3]) - min(pixel[:3]) <= 2,
                     "phone: upper screen corner is not covered by the app background")
+        wifi_center = [
+            max(device_pixels.getpixel((1078, y))[:3]) < 80
+            for y in range(70, 180)
+        ]
+        wifi_runs = sum(
+            current and not previous
+            for previous, current in zip([False, *wifi_center], wifi_center)
+        )
+        require(
+            wifi_runs == 4,
+            "phone: status-bar Wi-Fi signal does not have three arcs and a dot",
+        )
     full_bleed_source = BytesIO()
     Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#6AAFC8").save(full_bleed_source, format="PNG")
     full_bleed_device = compose_phone_device_asset(
         full_bleed_source.getvalue(), detail["content"]["phone_hero_title"],
         detail["content"]["cta"],
         detail["configuration"]["phone_screen"]["texture"],
+        list(phone_button_text), copy.deepcopy(phone_button_config),
     )
     with Image.open(BytesIO(full_bleed_device["bytes"])) as image:
         device_pixels = image.convert("RGB")
@@ -384,12 +553,17 @@ def audit_phone_metrics(
         "supporting_rendered_font_size": support["text_layout"]["font_size"],
         "supporting_highlight_color": support["props"]["highlight_color"],
         "device_visible_bounds": visible_device, "metric_row_y": cards[0]["y"],
+        "metric_buttons": copy.deepcopy(metric_card_config),
+        "phone_buttons": copy.deepcopy(phone_button_config),
         "cta_y": cta["y"], "checks": [
             "optional_background_texture", "optional_left_copy_texture",
             "natal_upper_left", "left_safe_copy", "front_facing_phone",
-            "three_equal_cobalt_cards", "cobalt_cta_band", "no_clipping_or_overlap",
+            "three_equal_tunable_metric_buttons", "cobalt_cta_band", "no_clipping_or_overlap",
             "crisp_upright_natal_app_shell", "sealed_upper_screen_corners",
+            "complete_status_network_signal",
+            "three_tunable_in_phone_actions",
             "full_bleed_phone_hero", "continuous_header_phone_hero",
+            "lowered_phone_hero_subject", "image_derived_top_continuation",
             "optional_phone_hero_texture", "optional_eyebrow_node", "no_generated_screen_text",
             "supporting_markup", "supporting_font_size", "supporting_word_colour",
         ],
@@ -528,6 +702,67 @@ def main() -> None:
             hidden_phone_path.write_bytes(hidden_phone_preview["bytes"])
             hidden_phone_report["preview_path"] = str(hidden_phone_path.resolve())
         reports.append(hidden_phone_report)
+        tuned_metric_config = copy.deepcopy(DEFAULT_PHONE_CONFIG)
+        tuned_metric_config["background"]["texture"] = "none"
+        tuned_metric_config["metric_cards"] = [
+            {
+                "style": "outlined", "text_color": "#101B31",
+                "background_color": "#D12F7A", "shape": "square",
+            },
+            {
+                "style": "filled", "text_color": "#101B31",
+                "background_color": "#CEDD3C", "shape": "pill",
+            },
+            {
+                "style": "filled", "text_color": "#FFFFFF",
+                "background_color": "#2457C8", "shape": "rounded",
+            },
+        ]
+        tuned_metric_config["phone_buttons"] = [
+            {
+                "style": "outlined", "text_color": "#101B31",
+                "background_color": "#D12F7A", "shape": "square",
+            },
+            {
+                "style": "filled", "text_color": "#101B31",
+                "background_color": "#CEDD3C", "shape": "square",
+            },
+            {
+                "style": "elevated", "text_color": "#FFFFFF",
+                "background_color": "#2457C8", "shape": "rounded",
+            },
+        ]
+        tuned_metric_content = copy.deepcopy(phone_content)
+        tuned_metric_content["stats"] = [
+            {"value": "42%", "label": "conversion"},
+            {"value": "24h", "label": "review"},
+            {"value": "95", "label": "startups"},
+        ]
+        tuned_metric_content["phone_buttons"] = [
+            "Почати", "Увійти зараз", "Продовжити",
+        ]
+        tuned_metric_preview = phone_workspace.render_preview(
+            state_sha256=phone["state_sha256"], configuration=tuned_metric_config,
+            content=tuned_metric_content,
+        )
+        tuned_metric_detail = copy.deepcopy(phone)
+        tuned_metric_detail["configuration"] = tuned_metric_config
+        tuned_metric_detail["content"] = tuned_metric_content
+        tuned_metric_report = audit_phone_metrics(
+            tuned_metric_preview, tuned_metric_detail,
+            name="phone_metrics_tunable_buttons",
+        )
+        tuned_metric_report["checks"].append(
+            "independent_metric_text_style_background_and_shape",
+        )
+        tuned_metric_report["checks"].append(
+            "independent_in_phone_action_text_style_background_and_shape",
+        )
+        if output_dir is not None:
+            tuned_metric_path = output_dir / "phone_metrics_tunable_buttons.png"
+            tuned_metric_path.write_bytes(tuned_metric_preview["bytes"])
+            tuned_metric_report["preview_path"] = str(tuned_metric_path.resolve())
+        reports.append(tuned_metric_report)
         for texture_name, outer_texture, copy_texture, screen_texture in (
             ("phone_metrics_travertine_frosted", "travertine", "travertine", "frosted"),
             ("phone_metrics_left_copy_concrete", "none", "concrete", "none"),

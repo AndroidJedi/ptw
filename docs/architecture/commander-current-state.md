@@ -7,22 +7,27 @@ Deployment: not authorized; local checkout only
 ## Current milestone
 
 Universal Studio now has two bounded server-owned templates: existing
-`universal_ad` at 1080×1080 and `phone_metrics` v11 at 1080×1350. Applying either
+`universal_ad` at 1080×1080 and `phone_metrics` v15 at 1080×1350. Applying either
 template replaces all mutable configuration, owner copy, and mutable assets;
 immutable versions remain byte-for-byte historical records. Missing selection
 metadata retains the legacy Universal Studio behavior.
 
 `phone_metrics` is the owner-approved 4:5 Natal composition: off-white texture,
 canonical Natal lock-up upper-left, dark left-safe copy, a licensed black
-front-facing iPhone, three compact equal cobalt statistic cards with smoother
-corners, and a cobalt bottom CTA band. Its sole static frame is checked in with
-a source/license/SHA-256 manifest and is never fetched at runtime; the angled
-frame was removed.
+front-facing iPhone, three compact equal statistic buttons, and a cobalt bottom
+CTA band. Each statistic button now has independent saved value/label copy,
+Filled or Outlined style, text colour, background/border colour, and Square,
+Rounded, or Pill shape. The owner-approved default remains exactly the prior
+cobalt fill, white text, and smooth rounded corners. Its sole static frame is
+checked in with a source/license/SHA-256 manifest and is never fetched at
+runtime; the angled frame was removed.
 
 The phone screen is a real fixed app composition rather than generated
 wallpaper clipped behind a device aperture. One server-generated square hero
-artwork is placed in a deterministic screen with status details, the canonical
-Natal lock-up, optional owner title, owner CTA, and home indicator; the complete
+artwork is placed in a deterministic screen with crisp time, four ascending
+cellular bars, a complete three-arc Wi-Fi glyph and dot, battery status, the
+canonical Natal lock-up, optional owner title, three app actions, and home indicator;
+the complete
 upright screen is fitted into the fixed front aperture before its hardware is
 composited. Device, UI, copy, and artwork remain one downstream layer and cannot
 drift apart, while the screen text and CTA stay crisp and horizontal. Standalone
@@ -35,13 +40,23 @@ explicit direct Images API mode remains available for separately keyed runtimes.
 The prior polished sculptural fixture remains the zero-cost fallback, and a
 failed generation preserves the current visual. The local Post flow continues
 to derive its direction from the approved Brief.
-Hero artwork spans the full screen width without inset white gutters, continues
-behind the fixed status/logo header without a hard horizontal edge, and fades
-vertically into the lower content area. A deterministic material grain textures
-the hero while remaining beneath the crisp renderer-owned UI. Generated pixels
-remain text-, logo-, UI-, number-, chart-, and device-free; the browser never
+Hero artwork spans the full screen width without inset white gutters. Its sharp
+subject is lowered beneath the fixed status/logo header, while a feathered,
+image-derived continuation still reaches the top edge without a blank band or
+hard seam. It then fades vertically into the lower content area. A deterministic
+material grain textures the hero while remaining beneath the crisp
+renderer-owned UI. Generated pixels remain text-, logo-, UI-, number-, chart-,
+and device-free; the browser never
 receives provider authentication, and non-secret direction/provider provenance
 is retained with the asset.
+
+The bottom of the app screen now matches the owner reference with three actions:
+a blue filled “Створити новий акаунт”, elevated white “Увійти”, and blue
+text-only “Можливо пізніше”. Each independently saves and previews its text,
+Filled/Elevated/Outlined/Text-only style, text colour, background/border colour,
+and Square/Rounded/Pill shape. These actions remain separate from the outer
+post CTA. Mutable v1–v6 phone configuration and v1 content upgrade in memory to
+the reference buttons without rewriting immutable versions.
 
 The phone Studio now exposes a saved eyebrow visibility toggle. Turning it off
 removes the `offer` primitive, semantic role, and binding rather than rendering
@@ -58,9 +73,10 @@ It also exposes three saved texture selectors. The full post background offers
 the upper-left Natal and copy area offers the same choices; and the in-phone
 hero independently offers `Off`, Fine grain, Soft paper, and Frosted glass.
 The effects are deterministic and stay below copy and fixed phone UI. Each
-`Off` state removes its renderer-owned texture layer. Mutable v1 through v4
-configuration upgrades to Concrete, no left-copy texture, and Fine grain so
-existing mutable previews retain their previous appearance.
+`Off` state removes its renderer-owned texture layer. Mutable v1 through v5
+configuration upgrades to Concrete, no left-copy texture, Fine grain, and the
+reference metric-button treatment so existing mutable previews retain their
+previous appearance.
 
 The screen matte deliberately overbleeds beneath the upper bezel. Pixel-level
 coverage of both antialiased aperture curves prevents the off-white outer
@@ -88,32 +104,38 @@ fails closed on a digest mismatch.
 
 ## Verification status
 
-- Validation pipeline: 90 tests passed in the repository virtual environment.
-- Focused Post/Studio/phone regressions: 51 tests passed, including authenticated
+- Validation pipeline: 94 tests passed in the repository virtual environment.
+- Focused Post/Studio/phone regressions: 55 tests passed, including authenticated
   Codex built-in image generation, generated-path confinement and cleanup, static
   frame digest/no-runtime-fetch, front-facing app-shell composition,
-  renderer-owned phone copy/CTA, Natal-only identity, template replacement,
+  renderer-owned phone copy/actions/CTA, Natal-only identity, template replacement,
   legacy-version preservation and recovery, three-metric validation, compact
-  smooth cards, textured phone art, real eyebrow removal/reflow, v1 phone
+  tunable buttons, textured phone art, real eyebrow removal/reflow, v1–v5 phone
   configuration migration, supporting-copy markup/size/colour rendering, all
   texture selections and both real `Off` states, 1080×1350 rendering, bounded
   owner-directed phone-screen generation, authenticated local routing, saved
   provider/direction provenance, and preservation of the deterministic fallback.
-- Extended Studio visual audit passed six universal variants plus five exact
-  full-resolution `phone_metrics` 1080×1350 texture states. It checks every
-  texture option, all three actual `Off` states, and a left-copy-only isolation
-  render,
+- Extended Studio visual audit passed six universal variants plus six exact
+  full-resolution `phone_metrics` 1080×1350 states. It checks every
+  texture option, all three actual `Off` states, a left-copy-only isolation
+  render, and one mixed button render covering both styles and all three shapes,
   Natal placement, left-safe copy, upper-right front-facing phone, metric
-  cards, CTA, bounds/collisions, the crisp upright Natal app shell, horizontal
-  in-phone CTA, full-width and continuous header hero artwork, sealed upper
+  cards, CTA, bounds/collisions, the crisp upright Natal app shell, complete
+  status-bar network signal, three horizontal tunable in-phone actions, lowered
+  hero-subject
+  placement, full-width artwork with an
+  image-derived continuation to the top, seamless header blending, sealed upper
   screen corners, text-free phone hero artwork, compact smooth metric cards,
   eyebrow removal with headline reflow, supporting-copy bold and colour markup,
-  and default/maximum supporting font size. The creative render was
+  default/maximum supporting font size, and independent metric-button text,
+  foreground/background colours, and shape. The in-phone controls were checked
+  across Filled, Elevated, Outlined, and Text-only styles, all three shapes,
+  independent labels/colours, and the reference elevation shadow. The creative render was
   visually inspected without social-app chrome. The live Studio editor was
   inspected at 1440 and 360 CSS pixels with reduced motion, keyboard controls,
-  texture selection, the new generation field and unavailable-provider state,
-  refreshed preview pixels, and no horizontal overflow.
-- Owner Console: 40 Vitest tests and the production TypeScript/Vite build
+  all per-button fields, the original default and a mixed styled preview,
+  refreshed authoritative preview pixels, and no horizontal overflow.
+- Owner Console: 42 Vitest tests and the production TypeScript/Vite build
   passed.
 - Commander: host suite passed 6 tests with 2 FastAPI-dependent skips; the
   built runtime image passed all 8 tests. The deterministic Commander demo

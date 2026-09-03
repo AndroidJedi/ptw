@@ -224,9 +224,27 @@ export interface StudioUniversalDetail {
 
 export type StudioPhoneBackgroundTexture = 'none' | 'grain' | 'concrete' | 'travertine'
 export type StudioPhoneScreenTexture = 'none' | 'grain' | 'paper' | 'frosted'
+export type StudioPhoneMetricCardStyle = 'filled' | 'outlined'
+export type StudioPhoneMetricCardShape = 'square' | 'rounded' | 'pill'
+export type StudioPhoneActionButtonStyle = 'filled' | 'elevated' | 'outlined' | 'text'
+export type StudioPhoneActionButtonShape = 'square' | 'rounded' | 'pill'
+
+export interface StudioPhoneMetricCardConfiguration {
+  style: StudioPhoneMetricCardStyle
+  text_color: string
+  background_color: string
+  shape: StudioPhoneMetricCardShape
+}
+
+export interface StudioPhoneActionButtonConfiguration {
+  style: StudioPhoneActionButtonStyle
+  text_color: string
+  background_color: string
+  shape: StudioPhoneActionButtonShape
+}
 
 export interface StudioPhoneMetricsConfiguration {
-  schema: 'ptw.studio.phone-metrics-config.v5'
+  schema: 'ptw.studio.phone-metrics-config.v7'
   background: {
     color: string
     texture: StudioPhoneBackgroundTexture
@@ -236,17 +254,20 @@ export interface StudioPhoneMetricsConfiguration {
   offer: { enabled: boolean }
   supporting_text: { font_size: number; highlight_color: string }
   phone_screen: { texture: StudioPhoneScreenTexture }
+  metric_cards: StudioPhoneMetricCardConfiguration[]
+  phone_buttons: StudioPhoneActionButtonConfiguration[]
   device: { x: number; y: number; width: number; rotation: number }
 }
 
 export interface StudioPhoneMetricsContent {
-  schema: 'ptw.studio.phone-metrics-content.v1'
+  schema: 'ptw.studio.phone-metrics-content.v2'
   offer: string
   hero_title: string
   supporting_text: string
   cta: string
   stats: Array<{ value: string; label: string }>
   phone_hero_title: string
+  phone_buttons: string[]
 }
 
 export interface StudioPhoneMetricsAssetSummary {
@@ -289,6 +310,10 @@ export interface StudioPhoneMetricsDetail {
       background_textures: StudioPhoneBackgroundTexture[]
       copy_background_textures: StudioPhoneBackgroundTexture[]
       phone_screen_textures: StudioPhoneScreenTexture[]
+      metric_card_styles: StudioPhoneMetricCardStyle[]
+      metric_card_shapes: StudioPhoneMetricCardShape[]
+      phone_button_styles: StudioPhoneActionButtonStyle[]
+      phone_button_shapes: StudioPhoneActionButtonShape[]
       supporting_text_font_size: { minimum: number; maximum: number; default: number }
     }
     sha256: string

@@ -11,7 +11,7 @@ import type {
 const activeStatuses = new Set<SimplePost['status']>(['queued', 'generating', 'tuning'])
 
 const defaultPhoneContent: StudioPhoneMetricsContent = {
-  schema: 'ptw.studio.phone-metrics-content.v1',
+  schema: 'ptw.studio.phone-metrics-content.v2',
   offer: 'NATAL',
   hero_title: 'Ваш головний меседж тут',
   supporting_text: 'Додайте коротке пояснення, яке допоможе зробити наступний крок.',
@@ -22,6 +22,7 @@ const defaultPhoneContent: StudioPhoneMetricsContent = {
     { value: 'ВАШЕ', label: 'значення' },
   ],
   phone_hero_title: '',
+  phone_buttons: ['Створити новий акаунт', 'Увійти', 'Можливо пізніше'],
 }
 
 function commandValue(value: string | number | boolean | string[]) {

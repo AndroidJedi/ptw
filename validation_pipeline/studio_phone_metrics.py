@@ -3,8 +3,8 @@
 The template is intentionally a fixed composition rather than a generic device
 mock-up editor. Its only mutable visual is text-free hero artwork inside a
 fixed app shell; the Natal lock-up, device frame, pose, copy geometry,
-statistic cards, and CTA remain server-owned so a saved render is deterministic
-and reviewable.
+statistic-button geometry, and CTA remain server-owned. Button appearance is a
+bounded saved configuration, so every render stays deterministic and reviewable.
 """
 
 from __future__ import annotations
@@ -23,20 +23,31 @@ from .studio_primitives import PrimitiveTemplate
 
 
 PHONE_METRICS_TEMPLATE_ID = "phone_metrics"
-PHONE_METRICS_CONFIG_SCHEMA = "ptw.studio.phone-metrics-config.v5"
+PHONE_METRICS_CONFIG_SCHEMA = "ptw.studio.phone-metrics-config.v7"
 _LEGACY_PHONE_METRICS_CONFIG_SCHEMAS = frozenset({
     "ptw.studio.phone-metrics-config.v1",
     "ptw.studio.phone-metrics-config.v2",
     "ptw.studio.phone-metrics-config.v3",
     "ptw.studio.phone-metrics-config.v4",
+    "ptw.studio.phone-metrics-config.v5",
+    "ptw.studio.phone-metrics-config.v6",
 })
-PHONE_METRICS_CONTENT_SCHEMA = "ptw.studio.phone-metrics-content.v1"
+PHONE_METRICS_CONTENT_SCHEMA = "ptw.studio.phone-metrics-content.v2"
+_LEGACY_PHONE_METRICS_CONTENT_SCHEMAS = frozenset({
+    "ptw.studio.phone-metrics-content.v1",
+})
 PHONE_METRICS_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.phone-metrics-component-settings.v1"
-PHONE_METRICS_TEMPLATE_VERSION = 11
+PHONE_METRICS_TEMPLATE_VERSION = 15
 PHONE_METRICS_CANVAS = (1080, 1350)
 PHONE_BACKGROUND_TEXTURES = ("none", "grain", "concrete", "travertine")
 PHONE_COPY_BACKGROUND_TEXTURES = PHONE_BACKGROUND_TEXTURES
 PHONE_SCREEN_TEXTURES = ("none", "grain", "paper", "frosted")
+PHONE_METRIC_CARD_STYLES = ("filled", "outlined")
+PHONE_METRIC_CARD_SHAPES = ("square", "rounded", "pill")
+PHONE_METRIC_CARD_RADII = {"square": 0, "rounded": 28, "pill": 70}
+PHONE_ACTION_BUTTON_STYLES = ("filled", "elevated", "outlined", "text")
+PHONE_ACTION_BUTTON_SHAPES = ("square", "rounded", "pill")
+PHONE_ACTION_BUTTON_RADII = {"square": 0, "rounded": 24, "pill": 52}
 IPHONE_FRAME_PATH = Path(__file__).with_name("studio_assets") / "iphone-15-pro-black.png"
 IPHONE_FRAME_SHA256 = "04164c10370930494f2688acc6fcf65a222cd7da077c5c65c4d189ab3e083dc0"
 # The earlier WithFrame asset is a true front pose. Its native aspect ratio is
@@ -48,6 +59,8 @@ IPHONE_RENDER_ASPECT = 2656 / 1293
 IPHONE_SCREEN_BOX = (58, 50, 1236, 2606)
 IPHONE_SCREEN_RADIUS = 160
 PHONE_SCREEN_ART_SIZE = (832, 1792)
+PHONE_HERO_ART_OFFSET_Y = 180
+PHONE_HERO_ART_FEATHER_Y = 130
 IPHONE_FRAME_SOURCE = {
     "origin": "withframe_static_front_mockup_v1",
     "source": "WithFrame iPhone 15 Pro black front mockup downloaded once on 2026-09-03.",
@@ -74,8 +87,8 @@ PHONE_COMPONENTS: tuple[dict[str, Any], ...] = (
     {"component_id": "phone_metrics.offer", "role": "offer", "node_ids": ("offer",), "asset_slot_ids": (), "setting_ids": ("configuration.offer.enabled", "content.offer")},
     {"component_id": "phone_metrics.hero_title", "role": "hero_title", "node_ids": ("hero_title",), "asset_slot_ids": (), "setting_ids": ("content.hero_title",)},
     {"component_id": "phone_metrics.supporting_text", "role": "supporting_text", "node_ids": ("supporting_text",), "asset_slot_ids": (), "setting_ids": ("configuration.supporting_text.font_size", "configuration.supporting_text.highlight_color", "content.supporting_text")},
-    {"component_id": "phone_metrics.device", "role": "device_mockup", "node_ids": ("phone_device",), "asset_slot_ids": ("phone_screen",), "setting_ids": ("configuration.phone_screen.texture", "content.phone_hero_title")},
-    {"component_id": "phone_metrics.metrics", "role": "metrics", "node_ids": ("metric_card_1", "metric_card_2", "metric_card_3", "metric_value_1", "metric_value_2", "metric_value_3", "metric_label_1", "metric_label_2", "metric_label_3"), "asset_slot_ids": (), "setting_ids": ("content.stats",)},
+    {"component_id": "phone_metrics.device", "role": "device_mockup", "node_ids": ("phone_device",), "asset_slot_ids": ("phone_screen",), "setting_ids": ("configuration.phone_screen.texture", "configuration.phone_buttons", "content.phone_hero_title", "content.phone_buttons")},
+    {"component_id": "phone_metrics.metrics", "role": "metrics", "node_ids": ("metric_card_1", "metric_card_2", "metric_card_3", "metric_value_1", "metric_value_2", "metric_value_3", "metric_label_1", "metric_label_2", "metric_label_3"), "asset_slot_ids": (), "setting_ids": ("configuration.metric_cards", "content.stats")},
     {"component_id": "phone_metrics.cta", "role": "cta", "node_ids": ("cta",), "asset_slot_ids": (), "setting_ids": ("content.cta",)},
 )
 
@@ -88,6 +101,27 @@ DEFAULT_PHONE_CONFIG: dict[str, Any] = {
     "offer": {"enabled": True},
     "supporting_text": {"font_size": 29, "highlight_color": "#1675F8"},
     "phone_screen": {"texture": "grain"},
+    "metric_cards": [
+        {
+            "style": "filled", "text_color": "#FFFFFF",
+            "background_color": "#2457C8", "shape": "rounded",
+        }
+        for _index in range(3)
+    ],
+    "phone_buttons": [
+        {
+            "style": "filled", "text_color": "#FFFFFF",
+            "background_color": "#1675F8", "shape": "pill",
+        },
+        {
+            "style": "elevated", "text_color": "#1675F8",
+            "background_color": "#FFFFFF", "shape": "pill",
+        },
+        {
+            "style": "text", "text_color": "#1675F8",
+            "background_color": "#FFFFFF", "shape": "pill",
+        },
+    ],
     # The fixed front frame and app screen are rendered as one layer. The pose
     # keeps readable UI in the upper-right without colliding with left copy.
     "device": {"x": 610, "y": 90, "width": 410, "rotation": 0.0},
@@ -110,6 +144,11 @@ DEFAULT_PHONE_CONTENT: dict[str, Any] = {
         {"value": "ВАШЕ", "label": "значення"},
     ],
     "phone_hero_title": "",
+    "phone_buttons": [
+        "Створити новий акаунт",
+        "Увійти",
+        "Можливо пізніше",
+    ],
 }
 
 _COLOR = re.compile(r"#[0-9A-F]{6}")
@@ -153,7 +192,7 @@ def _text(value: Any, label: str, minimum: int, maximum: int, *, allow_empty: bo
 
 def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(value, Mapping) and value.get("schema") in _LEGACY_PHONE_METRICS_CONFIG_SCHEMAS:
-        # Existing mutable v1-v4 drafts predate one or more optional controls.
+        # Existing mutable v1-v6 drafts predate one or more optional controls.
         # Upgrade them in memory with the previously implicit values;
         # immutable version JSON remains untouched.
         value = dict(value)
@@ -164,6 +203,8 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
         value["background"] = background
         value.setdefault("copy_background", deepcopy(DEFAULT_PHONE_CONFIG["copy_background"]))
         value.setdefault("phone_screen", deepcopy(DEFAULT_PHONE_CONFIG["phone_screen"]))
+        value.setdefault("metric_cards", deepcopy(DEFAULT_PHONE_CONFIG["metric_cards"]))
+        value.setdefault("phone_buttons", deepcopy(DEFAULT_PHONE_CONFIG["phone_buttons"]))
         value["schema"] = PHONE_METRICS_CONFIG_SCHEMA
     root = _object(value, set(DEFAULT_PHONE_CONFIG), "Studio phone metrics configuration")
     if root["schema"] != PHONE_METRICS_CONFIG_SCHEMA:
@@ -182,6 +223,68 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
         root["phone_screen"], set(DEFAULT_PHONE_CONFIG["phone_screen"]),
         "phone metrics phone screen",
     )
+    raw_metric_cards = root["metric_cards"]
+    if not isinstance(raw_metric_cards, list) or len(raw_metric_cards) != 3:
+        raise ValueError("phone metrics configuration requires exactly three metric cards")
+    metric_cards = []
+    for index, item in enumerate(raw_metric_cards, 1):
+        card = _object(
+            item, {"style", "text_color", "background_color", "shape"},
+            f"phone metrics metric_cards[{index}]",
+        )
+        text_color = str(card["text_color"]).upper()
+        background_color = str(card["background_color"]).upper()
+        if not _COLOR.fullmatch(text_color):
+            raise ValueError(
+                f"phone metrics metric_cards[{index}].text_color must be a six-digit hex color"
+            )
+        if not _COLOR.fullmatch(background_color):
+            raise ValueError(
+                f"phone metrics metric_cards[{index}].background_color must be a six-digit hex color"
+            )
+        metric_cards.append({
+            "style": _enum(
+                card["style"], PHONE_METRIC_CARD_STYLES,
+                f"phone metrics metric_cards[{index}].style",
+            ),
+            "text_color": text_color,
+            "background_color": background_color,
+            "shape": _enum(
+                card["shape"], PHONE_METRIC_CARD_SHAPES,
+                f"phone metrics metric_cards[{index}].shape",
+            ),
+        })
+    raw_phone_buttons = root["phone_buttons"]
+    if not isinstance(raw_phone_buttons, list) or len(raw_phone_buttons) != 3:
+        raise ValueError("phone metrics configuration requires exactly three phone buttons")
+    phone_buttons = []
+    for index, item in enumerate(raw_phone_buttons, 1):
+        button = _object(
+            item, {"style", "text_color", "background_color", "shape"},
+            f"phone metrics phone_buttons[{index}]",
+        )
+        text_color = str(button["text_color"]).upper()
+        background_color = str(button["background_color"]).upper()
+        if not _COLOR.fullmatch(text_color):
+            raise ValueError(
+                f"phone metrics phone_buttons[{index}].text_color must be a six-digit hex color"
+            )
+        if not _COLOR.fullmatch(background_color):
+            raise ValueError(
+                f"phone metrics phone_buttons[{index}].background_color must be a six-digit hex color"
+            )
+        phone_buttons.append({
+            "style": _enum(
+                button["style"], PHONE_ACTION_BUTTON_STYLES,
+                f"phone metrics phone_buttons[{index}].style",
+            ),
+            "text_color": text_color,
+            "background_color": background_color,
+            "shape": _enum(
+                button["shape"], PHONE_ACTION_BUTTON_SHAPES,
+                f"phone metrics phone_buttons[{index}].shape",
+            ),
+        })
     device = _object(root["device"], set(DEFAULT_PHONE_CONFIG["device"]), "phone metrics device")
     color = str(background["color"]).upper()
     if not _COLOR.fullmatch(color):
@@ -224,6 +327,8 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
                 "phone metrics phone_screen.texture",
             ),
         },
+        "metric_cards": metric_cards,
+        "phone_buttons": phone_buttons,
         "device": {
             "x": _number(device["x"], "phone metrics device.x", 580, 640),
             "y": _number(device["y"], "phone metrics device.y", 70, 130),
@@ -234,8 +339,13 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def normalize_phone_metrics_content(value: Mapping[str, Any]) -> dict[str, Any]:
-    if isinstance(value, Mapping) and "schema" not in value:
-        value = {"schema": PHONE_METRICS_CONTENT_SCHEMA, **dict(value)}
+    if isinstance(value, Mapping) and (
+        "schema" not in value
+        or value.get("schema") in _LEGACY_PHONE_METRICS_CONTENT_SCHEMAS
+    ):
+        value = dict(value)
+        value.setdefault("phone_buttons", deepcopy(DEFAULT_PHONE_CONTENT["phone_buttons"]))
+        value["schema"] = PHONE_METRICS_CONTENT_SCHEMA
     root = _object(value, set(DEFAULT_PHONE_CONTENT), "Studio phone metrics content")
     if root["schema"] != PHONE_METRICS_CONTENT_SCHEMA:
         raise ValueError("Studio phone metrics content schema is invalid")
@@ -249,6 +359,13 @@ def normalize_phone_metrics_content(value: Mapping[str, Any]) -> dict[str, Any]:
             "value": _text(stat["value"], f"phone metrics stats[{index}].value", 1, 24),
             "label": _text(stat["label"], f"phone metrics stats[{index}].label", 1, 38),
         })
+    raw_phone_buttons = root["phone_buttons"]
+    if not isinstance(raw_phone_buttons, list) or len(raw_phone_buttons) != 3:
+        raise ValueError("phone metrics content requires exactly three phone buttons")
+    phone_buttons = [
+        _text(text, f"phone metrics phone_buttons[{index}]", 1, 48)
+        for index, text in enumerate(raw_phone_buttons, 1)
+    ]
     return {
         "schema": PHONE_METRICS_CONTENT_SCHEMA,
         "offer": _text(root["offer"], "phone metrics offer", 1, 32),
@@ -257,6 +374,7 @@ def normalize_phone_metrics_content(value: Mapping[str, Any]) -> dict[str, Any]:
         "cta": _text(root["cta"], "phone metrics cta", 1, 60),
         "stats": stats,
         "phone_hero_title": _text(root["phone_hero_title"], "phone metrics phone_hero_title", 0, 72, allow_empty=True),
+        "phone_buttons": phone_buttons,
     }
 
 
@@ -348,20 +466,25 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
         }, binding=("text", "content.offer", True)))
     for index in range(3):
         x = card_x + index * (card_width + card_gap)
+        metric_card = config["metric_cards"][index]
+        filled = metric_card["style"] == "filled"
         children.extend([
             _node(f"metric_card_{index + 1}", "card", {
                 "position": "absolute", "x": x, "y": cards_y, "width": card_width, "height": card_height,
-                "background_color": "#2457C8", "radius": 28, "z_index": 8,
+                "background_color": metric_card["background_color"] if filled else None,
+                "border_color": None if filled else metric_card["background_color"],
+                "border_width": 0 if filled else 4,
+                "radius": PHONE_METRIC_CARD_RADII[metric_card["shape"]], "z_index": 8,
             }),
             _node(f"metric_value_{index + 1}", "text", {
                 "position": "absolute", "x": x + 14, "y": cards_y + 18, "width": card_width - 28, "height": 50,
                 "font_family": "Manrope", "font_size": 43, "min_font_size": 20, "font_weight": 800,
-                "color": "#FFFFFF", "text_align": "center", "text_fit": "shrink", "max_lines": 1, "z_index": 9,
+                "color": metric_card["text_color"], "text_align": "center", "text_fit": "shrink", "max_lines": 1, "z_index": 9,
             }, binding=("text", f"content.stats_{index + 1}_value", True)),
             _node(f"metric_label_{index + 1}", "text", {
                 "position": "absolute", "x": x + 18, "y": cards_y + 75, "width": card_width - 36, "height": 48,
                 "font_family": "Manrope", "font_size": 22, "min_font_size": 14, "font_weight": 500,
-                "line_height": 0.98, "color": "#FFFFFF", "text_align": "center", "text_fit": "shrink", "max_lines": 2, "z_index": 9,
+                "line_height": 0.98, "color": metric_card["text_color"], "text_align": "center", "text_fit": "shrink", "max_lines": 2, "z_index": 9,
             }, binding=("text", f"content.stats_{index + 1}_label", True)),
         ])
     children.append(_node("cta", "button", {
@@ -407,7 +530,7 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
             *[{"id": f"role_{role}", "scope": "template", "type": "required_role", "params": {"role": role}} for role in ("background", "brand", "hero_title", "supporting_text", "device_mockup", "metrics", "cta")],
             {"id": "fixed_tree", "scope": "template", "type": "max_nodes", "params": {"maximum": 18}},
         ],
-        "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": ["owner-reference-phone-metrics-v1"], "change_note": "Natal phone-and-metrics v11 with owner-directed, server-generated text-free phone hero artwork and a deterministic fallback, plus the existing bounded texture and copy controls."},
+        "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": ["owner-reference-phone-metrics-v1"], "change_note": "Natal phone-and-metrics v15 adds three independently tunable in-phone action buttons with the owner-reference filled blue, elevated white, and blue text-only defaults; the complete status signal, lowered artwork, and metric controls remain unchanged."},
     }
     if not config["offer"]["enabled"]:
         document["semantic_roles"].pop("offer")
@@ -426,6 +549,8 @@ def phone_metrics_semantic_data(config: Mapping[str, Any], content: Mapping[str,
     for index, stat in enumerate(normalized["stats"], 1):
         result[f"content.stats_{index}_value"] = stat["value"]
         result[f"content.stats_{index}_label"] = stat["label"]
+    for index, label in enumerate(normalized["phone_buttons"], 1):
+        result[f"content.phone_buttons_{index}"] = label
     return result
 
 
@@ -439,9 +564,12 @@ def phone_metrics_component_settings(config: Mapping[str, Any], content: Mapping
         "configuration.supporting_text.font_size": config["supporting_text"]["font_size"],
         "configuration.supporting_text.highlight_color": config["supporting_text"]["highlight_color"],
         "configuration.phone_screen.texture": config["phone_screen"]["texture"],
+        "configuration.metric_cards": deepcopy(config["metric_cards"]),
+        "configuration.phone_buttons": deepcopy(config["phone_buttons"]),
         "content.offer": content["offer"], "content.hero_title": content["hero_title"],
         "content.supporting_text": content["supporting_text"], "content.cta": content["cta"],
         "content.stats": deepcopy(content["stats"]), "content.phone_hero_title": content["phone_hero_title"],
+        "content.phone_buttons": deepcopy(content["phone_buttons"]),
     }
     value = {
         "schema": PHONE_METRICS_COMPONENT_SETTINGS_SCHEMA, "template_id": PHONE_METRICS_TEMPLATE_ID,
@@ -473,6 +601,10 @@ def phone_metrics_catalog() -> dict[str, Any]:
             "background_textures": list(PHONE_BACKGROUND_TEXTURES),
             "copy_background_textures": list(PHONE_COPY_BACKGROUND_TEXTURES),
             "phone_screen_textures": list(PHONE_SCREEN_TEXTURES),
+            "metric_card_styles": list(PHONE_METRIC_CARD_STYLES),
+            "metric_card_shapes": list(PHONE_METRIC_CARD_SHAPES),
+            "phone_button_styles": list(PHONE_ACTION_BUTTON_STYLES),
+            "phone_button_shapes": list(PHONE_ACTION_BUTTON_SHAPES),
             "supporting_text_font_size": {"minimum": 20, "maximum": 38, "default": 29},
         },
     }
@@ -673,8 +805,120 @@ def _phone_hero_texture(size: tuple[int, int], preset: str):
     return texture.resize(size, Image.Resampling.BICUBIC)
 
 
+def _position_phone_hero_art(screen: Any, size: tuple[int, int]) -> Any:
+    """Lower the sharp subject while extending its own background to the top."""
+
+    from PIL import Image, ImageChops, ImageOps
+
+    hero = ImageOps.fit(
+        screen, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.44),
+    )
+    # Stretch only the artwork's first, usually background-only strip through
+    # the header. At the end of the feather it reaches the same source row as
+    # the lowered sharp layer, which avoids a blank band or a repeated seam.
+    continuation_height = PHONE_HERO_ART_OFFSET_Y + PHONE_HERO_ART_FEATHER_Y
+    continuation = hero.crop((0, 0, hero.width, PHONE_HERO_ART_FEATHER_Y + 1))
+    continuation = continuation.resize(
+        (hero.width, continuation_height), Image.Resampling.BICUBIC,
+    )
+    positioned = Image.new("RGBA", size, (0, 0, 0, 0))
+    positioned.alpha_composite(continuation, (0, 0))
+
+    lowered = Image.new("RGBA", size, (0, 0, 0, 0))
+    lowered.alpha_composite(hero, (0, PHONE_HERO_ART_OFFSET_Y))
+    feather = Image.new("L", (1, size[1]), 255)
+    feather_pixels = feather.load()
+    for y in range(continuation_height):
+        feather_pixels[0, y] = (
+            0 if y < PHONE_HERO_ART_OFFSET_Y
+            else round(
+                255 * (y - PHONE_HERO_ART_OFFSET_Y)
+                / PHONE_HERO_ART_FEATHER_Y
+            )
+        )
+    feather = feather.resize(size)
+    lowered.putalpha(ImageChops.multiply(lowered.getchannel("A"), feather))
+    positioned.alpha_composite(lowered)
+    return positioned
+
+
+def _draw_status_network_icons(draw: Any) -> None:
+    """Draw crisp cellular and complete Wi-Fi indicators at app-screen scale."""
+
+    color = "#101B31"
+    for index, height in enumerate((12, 20, 29, 38)):
+        x = 632 + index * 14
+        draw.rounded_rectangle(
+            (x, 66 - height, x + 9, 66), radius=4, fill=color,
+        )
+
+    # Three separated arcs and a dot preserve the familiar Wi-Fi silhouette
+    # after the app screen is resampled into the high-resolution phone frame.
+    for box, width in (
+        ((690, 30, 746, 78), 7),
+        ((700, 42, 736, 73), 6),
+        ((709, 53, 727, 69), 5),
+    ):
+        start, end = 205, 335
+        draw.arc(box, start, end, fill=color, width=width)
+        left, top, right, bottom = box
+        center_x, center_y = (left + right) / 2, (top + bottom) / 2
+        radius_x, radius_y = (right - left) / 2, (bottom - top) / 2
+        cap_radius = width / 2
+        for angle in (start, end):
+            radians = math.radians(angle)
+            x = center_x + radius_x * math.cos(radians)
+            y = center_y + radius_y * math.sin(radians)
+            draw.ellipse(
+                (x - cap_radius, y - cap_radius, x + cap_radius, y + cap_radius),
+                fill=color,
+            )
+    draw.ellipse((714, 66, 722, 74), fill=color)
+
+
+def _draw_phone_action_button(
+    canvas: Any, text: str, appearance: Mapping[str, Any],
+    box: tuple[int, int, int, int],
+) -> None:
+    """Draw one bounded in-phone action without softening its label."""
+
+    from PIL import Image, ImageDraw, ImageFilter
+
+    style = str(appearance["style"])
+    radius = min(
+        PHONE_ACTION_BUTTON_RADII[str(appearance["shape"])],
+        (box[3] - box[1]) // 2,
+    )
+    if style == "elevated":
+        shadow = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+        shadow_draw = ImageDraw.Draw(shadow, "RGBA")
+        shadow_draw.rounded_rectangle(
+            (box[0], box[1] + 7, box[2], box[3] + 7),
+            radius=radius, fill=(16, 27, 49, 38),
+        )
+        canvas.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(11)))
+
+    draw = ImageDraw.Draw(canvas, "RGBA")
+    if style in {"filled", "elevated"}:
+        draw.rounded_rectangle(
+            box, radius=radius, fill=str(appearance["background_color"]),
+        )
+    elif style == "outlined":
+        draw.rounded_rectangle(
+            box, radius=radius, outline=str(appearance["background_color"]),
+            width=4,
+        )
+    _draw_fitted_screen_text(
+        draw, text, (box[0] + 36, box[1] + 12, box[2] - 36, box[3] - 12),
+        maximum_size=28, minimum_size=18, weight=600,
+        fill=str(appearance["text_color"]), max_lines=1, spacing=4,
+    )
+
+
 def _fixed_screen_shell(
     screen: Any, phone_title: str, cta: str, screen_texture: str,
+    phone_button_texts: list[str] | None = None,
+    phone_button_appearances: list[Mapping[str, Any]] | None = None,
 ) -> Any:
     """Place visual-only art inside the deterministic Natal app screen."""
 
@@ -682,14 +926,11 @@ def _fixed_screen_shell(
     from .natal_brand import natal_logo_bytes
 
     canvas = Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#F9FAFA")
-    # Cover the complete upper screen. The white readability fade below keeps
-    # the status bar and Natal lock-up crisp, while starting the artwork at
-    # y=0 prevents generated shapes or colour from being clipped into a hard
-    # horizontal seam beneath the logo.
+    # Cover the complete upper screen with an image-derived continuation while
+    # lowering the sharp subject away from the status and Natal header.
     hero_box = (0, 0, canvas.width, 1195 if not phone_title else 1050)
-    hero = ImageOps.fit(
+    hero = _position_phone_hero_art(
         screen, (hero_box[2] - hero_box[0], hero_box[3] - hero_box[1]),
-        method=Image.Resampling.LANCZOS, centering=(0.5, 0.44),
     )
     canvas.alpha_composite(hero, hero_box[:2])
 
@@ -717,11 +958,7 @@ def _fixed_screen_shell(
     draw = ImageDraw.Draw(canvas, "RGBA")
     status_font = _screen_font(27, 700)
     draw.text((52, 42), "9:41", font=status_font, fill="#101B31", anchor="lm")
-    for index, height in enumerate((12, 20, 29, 38)):
-        x = 632 + index * 14
-        draw.rounded_rectangle((x, 66 - height, x + 9, 66), radius=4, fill="#101B31")
-    draw.arc((692, 31, 744, 75), 205, 335, fill="#101B31", width=7)
-    draw.ellipse((714, 61, 722, 69), fill="#101B31")
+    _draw_status_network_icons(draw)
     draw.rounded_rectangle((756, 38, 794, 65), radius=7, outline="#101B31", width=4)
     draw.rounded_rectangle((762, 44, 787, 59), radius=4, fill="#101B31")
     draw.rounded_rectangle((794, 46, 800, 57), radius=2, fill="#101B31")
@@ -732,16 +969,29 @@ def _fixed_screen_shell(
 
     if phone_title:
         _draw_fitted_screen_text(
-            draw, phone_title.upper(), (78, 1070, 754, 1385), maximum_size=68,
-            minimum_size=28, weight=800, fill="#101B31", max_lines=3, spacing=10,
+            draw, phone_title.upper(), (78, 1055, 754, 1255), maximum_size=55,
+            minimum_size=26, weight=800, fill="#101B31", max_lines=3, spacing=8,
         )
 
-    button_box = (70, 1450, 762, 1582)
-    draw.rounded_rectangle(button_box, radius=66, fill="#1675F8")
-    _draw_fitted_screen_text(
-        draw, cta, (112, 1470, 720, 1562), maximum_size=38,
-        minimum_size=22, weight=700, fill="#FFFFFF", max_lines=2, spacing=4,
+    # The post-level CTA is rendered outside the device. These three actions
+    # belong to the app screen and default to the owner reference screenshot.
+    _ = cta  # Retained in the public composition signature for old callers.
+    resolved_texts = phone_button_texts or list(DEFAULT_PHONE_CONTENT["phone_buttons"])
+    resolved_appearances = phone_button_appearances or deepcopy(
+        DEFAULT_PHONE_CONFIG["phone_buttons"],
     )
+    for text, appearance, box in zip(
+        resolved_texts,
+        resolved_appearances,
+        (
+            (70, 1284, 762, 1388),
+            (70, 1410, 762, 1514),
+            (70, 1532, 762, 1606),
+        ),
+        strict=True,
+    ):
+        _draw_phone_action_button(canvas, text, appearance, box)
+    draw = ImageDraw.Draw(canvas, "RGBA")
     draw.rounded_rectangle((218, 1642, 614, 1655), radius=7, fill="#101B31")
     return canvas
 
@@ -749,6 +999,8 @@ def _fixed_screen_shell(
 def compose_phone_device_asset(
     screen_data: bytes | None, phone_title: str, cta: str = "ДІЗНАТИСЯ БІЛЬШЕ",
     screen_texture: str = "grain",
+    phone_button_texts: list[str] | None = None,
+    phone_button_appearances: list[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Fuse the fixed front frame and its deterministic upright app screen.
 
@@ -770,7 +1022,10 @@ def compose_phone_device_asset(
     screen_texture = _enum(
         screen_texture, PHONE_SCREEN_TEXTURES, "phone screen texture",
     )
-    screen = _fixed_screen_shell(screen, phone_title, cta, screen_texture)
+    screen = _fixed_screen_shell(
+        screen, phone_title, cta, screen_texture,
+        phone_button_texts, phone_button_appearances,
+    )
     screen_size = (
         IPHONE_SCREEN_BOX[2] - IPHONE_SCREEN_BOX[0],
         IPHONE_SCREEN_BOX[3] - IPHONE_SCREEN_BOX[1],
@@ -797,4 +1052,4 @@ def compose_phone_device_asset(
         "paper": "deterministic_soft_paper_v1",
         "frosted": "deterministic_frosted_glass_v1",
     }[screen_texture]
-    return {"bytes": data, "mime_type": "image/png", "source": {"origin": "server_composited_fixed_phone", "frame_sha256": IPHONE_FRAME_SHA256, "screen_sha256": hashlib.sha256(resolved_screen).hexdigest(), "screen_composition": "front_natal_app_shell_v8", "hero_texture": texture_provenance}}
+    return {"bytes": data, "mime_type": "image/png", "source": {"origin": "server_composited_fixed_phone", "frame_sha256": IPHONE_FRAME_SHA256, "screen_sha256": hashlib.sha256(resolved_screen).hexdigest(), "screen_composition": "front_natal_app_shell_v11", "hero_texture": texture_provenance}}

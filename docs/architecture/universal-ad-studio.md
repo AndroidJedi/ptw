@@ -15,10 +15,19 @@ immutable version. A workspace without a selection remains the legacy
 
 `universal_ad` retains its fixed semantic structure: background, optional
 sticker, hero title, supporting text, optional benefits, CTA, and Natal.
-`phone_metrics` v11 is a fixed 4:5 composition: off-white mineral texture,
+`phone_metrics` v15 is a fixed 4:5 composition: off-white mineral texture,
 canonical Natal lock-up in the upper-left, dark left-safe-area copy, a
-front-facing black phone at upper-right, three compact equal cobalt metric cards
-with smooth corners, and a full-width cobalt CTA band. It accepts an optional
+front-facing black phone at upper-right, three compact equal metric buttons,
+and a full-width cobalt CTA band. Each metric button independently exposes its
+value, label, Filled or Outlined style, text colour, background/border colour,
+and Square, Rounded, or Pill shape. The reference default remains the approved
+cobalt fill, white text, and smooth rounded corners. The app screen now ends in
+three independently tunable action buttons. Each exposes text, Filled,
+Elevated, Outlined, or Text-only style, text colour, background/border colour,
+and Square, Rounded, or Pill shape. Their fixed reference defaults are a blue
+filled primary “Створити новий акаунт”, elevated white “Увійти”, and blue
+text-only “Можливо пізніше”. They remain separate from the outer post CTA. The
+template accepts an optional
 eyebrow, headline, supporting text, CTA, exactly three owner statistics, and an
 optional renderer-owned in-phone title. Disabling the eyebrow removes its
 primitive and semantic binding and reflows the headline upward while retaining
@@ -33,10 +42,11 @@ Concrete, and Travertine for the full post background; the same three choices
 for a separately clipped rounded surface behind only the upper-left Natal and
 left copy; and Fine grain, Soft paper, and Frosted glass for the in-phone hero.
 `Off` removes the corresponding renderer layer rather than substituting an
-empty or transparent effect. Mutable v1 through v4 phone configuration upgrades
+empty or transparent effect. Mutable v1 through v6 phone configuration upgrades
 to the previously implicit eyebrow, font-size, accent-colour, Concrete full
-background, no left-copy texture, and Fine-grain screen defaults; immutable
-versions are not rewritten.
+background, no left-copy texture, Fine-grain screen, and reference metric-button
+defaults and the three reference in-phone buttons; mutable v1 content gains the
+three reference labels. Immutable versions are not rewritten.
 
 The internal primitive tree is built server-side. API callers cannot import
 templates or mutate arbitrary nodes. The shared `StudioRenderer` produces the
@@ -56,17 +66,20 @@ The active `phone_metrics` frame is the previously sourced WithFrame iPhone 15
 Pro black front mockup. Its adjacent manifest records source, license,
 download date, and SHA-256. Runtime code reads only this local digest-checked
 asset and never fetches a device frame. The generated hero art is placed inside
-a deterministic Natal app shell with status details, canonical lock-up,
-optional owner title, owner CTA, and home indicator. The complete upright
+a deterministic Natal app shell with crisp time, cellular, complete multi-arc
+Wi-Fi, and battery status details, canonical lock-up, optional owner title,
+three owner-tunable app actions, and home indicator. The complete upright
 screen is composited into the transparent rounded aperture before the hardware
 is added. Device, UI, copy, and artwork therefore remain one image layer and
 cannot drift apart, while readable screen elements receive no perspective
-distortion. Hero artwork spans the complete app-screen width, begins behind the
-fixed status and Natal header, and fades smoothly through that header and into
-the lower white content area; no inset card mask, white side gutters, or hard
-horizontal edge beneath the logo remain. The selected deterministic screen
-finish is composited beneath the fixed interface without softening
-renderer-owned UI. The screen matte extends beneath the upper bezel so the
+distortion. Hero artwork spans the complete app-screen width. Its sharp subject
+is lowered away from the fixed status and Natal header, while an image-derived
+continuation still reaches the screen's top edge and feathers into the sharp
+layer at the same source row. It fades smoothly through that header and into
+the lower white content area; no inset card mask, white side gutters, blank top
+band, duplicated hard edge, or horizontal seam beneath the logo remain. The
+selected deterministic screen finish is composited beneath the fixed interface
+without softening renderer-owned UI. The screen matte extends beneath the upper bezel so the
 outer creative background cannot show through the antialiased aperture curves.
 
 `universal_ad` retains bounded background and Pexels-screened sticker assets.
@@ -107,21 +120,28 @@ unavailable. Studio never sends provider credentials to the browser.
 
 `skills/studio-ui-visual-audit/scripts/audit_universal_studio.py` renders both
 the representative universal variants and the exact 1080×1350 phone template
-in five representative texture states, including every finish, all three `Off`
-states, and a left-copy-only isolation render.
+in six representative states, including every texture finish, all three `Off`
+states, a left-copy-only isolation render, and one mixed metric-button render
+covering both styles and all three shapes.
 The phone checks read full-resolution pixels and resolved bounds for the
 off-white texture, upper-left Natal, dark left copy, upper-right front-facing
-device, equal cobalt metric cards, CTA band, no clipping/overlap/unsafe bounds,
-the crisp upright app shell, horizontal in-phone CTA, and the text-free
-hero-art fixture. Pixel checks cover both hero-art side edges, the former
+device, equal tunable metric buttons, CTA band, no clipping/overlap/unsafe bounds,
+the crisp upright app shell, complete status-bar network signal, three
+horizontal in-phone actions, and the text-free hero-art fixture. Pixel checks cover both
+hero-art side edges, the former
 below-logo boundary, and both upper aperture curves to prevent white gutters or
-a horizontal or outer-background seam. They also verify compact equal card
-geometry, visibly smooth corners, all nine optional texture finishes, the
+a horizontal or outer-background seam. They also verify compact equal button
+geometry, the reference rounded corners, all nine optional texture finishes, the
 rounded bounds of the left-copy surface, real texture-layer removal in all
 three `Off` states, complete eyebrow-node removal, and headline reflow.
 Supporting-copy checks exercise both markup modes, the
 default and maximum font size, two accent colours, resolved layout diagnostics,
-and actual accent pixels in the PNG. A passed
+and actual accent pixels in the PNG. Metric-button checks verify independent
+copy, filled/outlined rendering, text and surface colours, shape pixels, equal
+geometry, and unclipped labels. In-phone action checks cover the reference
+filled/elevated/text-only stack plus the Outlined style, all three shapes,
+independent labels and colours, elevation shadow, and horizontal final-frame
+resampling. A passed
 audit is followed by a full-resolution visual inspection of the creative area
 only; social-app chrome and reference brand wording are not part of the Studio
 output.

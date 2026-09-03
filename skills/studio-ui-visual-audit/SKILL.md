@@ -39,12 +39,20 @@ Add focused regression coverage for the actual failed invariant. Prefer
 resolved visible geometry or pixel-level assertions over snapshot hashes alone;
 a changed hash proves difference, not correctness. For the Phone & metrics
 template, preserve the off-white texture, upper-left Natal lock-up, left copy
-safe area, fused front-facing device, equal cobalt metric row, full cobalt CTA
-band, a crisp upright Natal app shell, and a text-free generated hero-art
-contract. Confirm the in-phone CTA stays horizontal, the hero artwork reaches
-both screen edges without white gutters, extends continuously behind the fixed
+safe area, fused front-facing device, equal metric-button row with the cobalt
+filled/white-text/rounded reference default, full cobalt CTA band, a crisp
+upright Natal app shell, and a text-free generated hero-art contract. When
+metric-button controls change, verify Filled and Outlined styles, text and
+background/border colours, and Square, Rounded, and Pill shapes in actual pixels
+while all three labels remain unclipped. Preserve the three in-phone action
+defaults—filled blue, elevated white, and blue text-only—and verify independent
+text, style, text colour, background/border colour, and shape controls. Confirm
+their labels stay horizontal and unclipped, the hero artwork reaches both screen
+edges without white gutters, extends continuously behind the fixed
 header without a seam below the logo, and the screen does not leak past the
-rounded hardware corners. When supporting-copy markup is present, verify that
+rounded hardware corners. Preserve the crisp status-bar network treatment with
+four ascending cellular bars and a complete Wi-Fi glyph containing three
+separated arcs and its dot. When supporting-copy markup is present, verify that
 delimiter characters are removed, bold and configured accent spans reach the
 resolved layout, the requested font-size extremes remain unclipped, and the
 accent colour exists in the authoritative PNG pixels. For optional texture

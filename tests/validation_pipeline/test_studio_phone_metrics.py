@@ -13,8 +13,13 @@ from unittest.mock import patch
 from validation_pipeline.studio_phone_metrics import (
     DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT, IPHONE_FRAME_PATH,
     IPHONE_FRAME_SHA256, IPHONE_FRAME_SOURCE, PHONE_BACKGROUND_TEXTURES,
-    PHONE_COPY_BACKGROUND_TEXTURES, PHONE_METRICS_TEMPLATE_ID,
-    PHONE_SCREEN_TEXTURES,
+    PHONE_ACTION_BUTTON_RADII, PHONE_ACTION_BUTTON_SHAPES,
+    PHONE_ACTION_BUTTON_STYLES, PHONE_COPY_BACKGROUND_TEXTURES,
+    PHONE_METRIC_CARD_RADII,
+    PHONE_METRIC_CARD_SHAPES, PHONE_METRIC_CARD_STYLES,
+    PHONE_HERO_ART_OFFSET_Y, PHONE_METRICS_TEMPLATE_ID,
+    PHONE_SCREEN_ART_SIZE, PHONE_SCREEN_TEXTURES, _draw_status_network_icons,
+    _fixed_screen_shell, _position_phone_hero_art,
     build_phone_metrics_template, compose_phone_device_asset,
     normalize_phone_metrics_config, normalize_phone_metrics_content,
     phone_metrics_catalog, phone_metrics_component_settings,
@@ -97,7 +102,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         )
         self.assertEqual(IPHONE_FRAME_SHA256, composite["source"]["frame_sha256"])
         self.assertEqual(
-            "front_natal_app_shell_v8", composite["source"]["screen_composition"],
+            "front_natal_app_shell_v11", composite["source"]["screen_composition"],
         )
         self.assertEqual(
             "deterministic_material_grain_v1", composite["source"]["hero_texture"],
@@ -126,7 +131,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             # as an unstructured rectangle. The broad, horizontal blue button
             # also guards against reintroducing perspective distortion.
             blue_button = [
-                (x, y) for y in range(2000, 2350) for x in range(100, 1190)
+                (x, y) for y in range(1700, 2400) for x in range(100, 1190)
                 if (lambda pixel: pixel[3] and pixel[2] > 180
                     and 70 < pixel[1] < 170 and pixel[0] < 70)(device_image.getpixel((x, y)))
             ]
@@ -182,6 +187,52 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             }
             self.assertGreaterEqual(len(grain_colours), 6)
 
+    def test_phone_hero_subject_is_lowered_but_artwork_still_reaches_the_top(self) -> None:
+        from PIL import Image, ImageDraw
+
+        source = Image.new("RGBA", (832, 832), "#6AAFC8")
+        ImageDraw.Draw(source).rectangle((300, 180, 532, 360), fill="#E12D8C")
+        positioned = _position_phone_hero_art(
+            source, (PHONE_SCREEN_ART_SIZE[0], 1050),
+        )
+
+        self.assertEqual((106, 175, 200, 255), positioned.getpixel((20, 0)))
+        self.assertTrue(all(positioned.getpixel((20, y))[3] == 255 for y in range(1050)))
+        marker = [
+            (x, y)
+            for y in range(1050) for x in range(positioned.width)
+            if positioned.getpixel((x, y))[:3] == (225, 45, 140)
+        ]
+        self.assertTrue(marker)
+        self.assertGreaterEqual(min(y for _x, y in marker), 400)
+        self.assertGreaterEqual(
+            min(y for _x, y in marker),
+            PHONE_HERO_ART_OFFSET_Y + 200,
+        )
+
+    def test_status_bar_network_signal_has_four_bars_and_complete_wifi(self) -> None:
+        from PIL import Image, ImageDraw
+
+        status = Image.new("RGBA", (832, 100), (0, 0, 0, 0))
+        _draw_status_network_icons(ImageDraw.Draw(status, "RGBA"))
+        alpha = status.getchannel("A")
+
+        bar_tops = []
+        for x in (636, 650, 664, 678):
+            ink = [y for y in range(100) if alpha.getpixel((x, y))]
+            self.assertTrue(ink)
+            bar_tops.append(min(ink))
+        self.assertEqual(sorted(bar_tops, reverse=True), bar_tops)
+        self.assertEqual(4, len(set(bar_tops)))
+
+        wifi_center = [bool(alpha.getpixel((718, y))) for y in range(20, 85)]
+        wifi_runs = sum(
+            current and not previous
+            for previous, current in zip([False, *wifi_center], wifi_center)
+        )
+        self.assertEqual(4, wifi_runs)
+        self.assertFalse(any(alpha.getpixel((x, y)) for x in range(750, 756) for y in range(20, 85)))
+
     def test_metric_cards_are_compact_equal_and_smoothly_rounded(self) -> None:
         template = build_phone_metrics_template(DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT)
         nodes = {item["id"]: item for item in template.document["root"]["children"]}
@@ -190,6 +241,185 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         self.assertEqual([140, 140, 140], [card["height"] for card in cards])
         self.assertEqual([28, 28, 28], [card["radius"] for card in cards])
         self.assertEqual([92, 400, 708], [card["x"] for card in cards])
+        self.assertEqual(["#2457C8"] * 3, [card["background_color"] for card in cards])
+        self.assertEqual([None] * 3, [card["border_color"] for card in cards])
+        self.assertEqual(
+            ["#FFFFFF"] * 6,
+            [
+                nodes[f"metric_{kind}_{index}"]["props"]["color"]
+                for index in range(1, 4) for kind in ("value", "label")
+            ],
+        )
+
+    def test_metric_buttons_independently_tune_style_text_background_and_shape(self) -> None:
+        config = deepcopy(DEFAULT_PHONE_CONFIG)
+        config["metric_cards"] = [
+            {
+                "style": "outlined", "text_color": "#101B31",
+                "background_color": "#CEDD3C", "shape": "square",
+            },
+            {
+                "style": "filled", "text_color": "#101B31",
+                "background_color": "#CEDD3C", "shape": "pill",
+            },
+            {
+                "style": "filled", "text_color": "#FFFFFF",
+                "background_color": "#D12F7A", "shape": "rounded",
+            },
+        ]
+        content = deepcopy(DEFAULT_PHONE_CONTENT)
+        content["stats"] = [
+            {"value": "42%", "label": "conversion"},
+            {"value": "24h", "label": "review"},
+            {"value": "95", "label": "startups"},
+        ]
+        template = build_phone_metrics_template(config, content)
+        nodes = {item["id"]: item for item in template.document["root"]["children"]}
+
+        first = nodes["metric_card_1"]["props"]
+        self.assertIsNone(first["background_color"])
+        self.assertEqual("#CEDD3C", first["border_color"])
+        self.assertEqual(4.0, first["border_width"])
+        self.assertEqual(PHONE_METRIC_CARD_RADII["square"], first["radius"])
+        second = nodes["metric_card_2"]["props"]
+        self.assertEqual("#CEDD3C", second["background_color"])
+        self.assertIsNone(second["border_color"])
+        self.assertEqual(PHONE_METRIC_CARD_RADII["pill"], second["radius"])
+        self.assertEqual("#D12F7A", nodes["metric_card_3"]["props"]["background_color"])
+        self.assertEqual("#101B31", nodes["metric_value_1"]["props"]["color"])
+        self.assertEqual("#FFFFFF", nodes["metric_label_3"]["props"]["color"])
+
+        catalog = phone_metrics_catalog()["variation"]
+        self.assertEqual(list(PHONE_METRIC_CARD_STYLES), catalog["metric_card_styles"])
+        self.assertEqual(list(PHONE_METRIC_CARD_SHAPES), catalog["metric_card_shapes"])
+        settings = {
+            setting["setting_id"]: setting["value"]
+            for component in phone_metrics_component_settings(config, content)["components"]
+            for setting in component["settings"]
+        }
+        self.assertEqual(config["metric_cards"], settings["configuration.metric_cards"])
+        self.assertEqual(content["stats"], settings["content.stats"])
+
+        phone = self._phone()
+        default_preview = self.workspace.render_preview(state_sha256=phone["state_sha256"])
+        tuned_preview = self.workspace.render_preview(
+            state_sha256=phone["state_sha256"], configuration=config, content=content,
+        )
+        self.assertNotEqual(
+            default_preview["bytes_sha256"], tuned_preview["bytes_sha256"],
+        )
+        for index in range(1, 4):
+            self.assertFalse(
+                tuned_preview["resolved"]["nodes"][f"metric_value_{index}"]["text_layout"]["overflow"]
+            )
+            self.assertFalse(
+                tuned_preview["resolved"]["nodes"][f"metric_label_{index}"]["text_layout"]["overflow"]
+            )
+
+        for field, invalid_value in (
+            ("style", "glass"), ("shape", "circle"),
+            ("text_color", "white"), ("background_color", "blue"),
+        ):
+            invalid = deepcopy(DEFAULT_PHONE_CONFIG)
+            invalid["metric_cards"][0][field] = invalid_value
+            with self.assertRaises(ValueError):
+                normalize_phone_metrics_config(invalid)
+        invalid = deepcopy(DEFAULT_PHONE_CONFIG)
+        invalid["metric_cards"].pop()
+        with self.assertRaisesRegex(ValueError, "exactly three metric cards"):
+            normalize_phone_metrics_config(invalid)
+
+    def test_in_phone_bottom_buttons_match_reference_and_are_independently_tunable(self) -> None:
+        from PIL import Image
+
+        self.assertEqual(
+            ["filled", "elevated", "text"],
+            [button["style"] for button in DEFAULT_PHONE_CONFIG["phone_buttons"]],
+        )
+        self.assertEqual(
+            ["Створити новий акаунт", "Увійти", "Можливо пізніше"],
+            DEFAULT_PHONE_CONTENT["phone_buttons"],
+        )
+        catalog = phone_metrics_catalog()["variation"]
+        self.assertEqual(
+            list(PHONE_ACTION_BUTTON_STYLES), catalog["phone_button_styles"],
+        )
+        self.assertEqual(
+            list(PHONE_ACTION_BUTTON_SHAPES), catalog["phone_button_shapes"],
+        )
+
+        shell = _fixed_screen_shell(
+            Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#F9FAFA"),
+            "ІНВЕСТУЙТЕ В МАЙБУТНЄ", "ЗОВНІШНІЙ CTA", "none",
+            list(DEFAULT_PHONE_CONTENT["phone_buttons"]),
+            deepcopy(DEFAULT_PHONE_CONFIG["phone_buttons"]),
+        ).convert("RGB")
+        self.assertEqual((22, 117, 248), shell.getpixel((120, 1320)))
+        self.assertEqual((255, 255, 255), shell.getpixel((120, 1440)))
+        self.assertEqual((255, 255, 255), shell.getpixel((120, 1560)))
+        tertiary_blue = sum(
+            shell.getpixel((x, y)) == (22, 117, 248)
+            for y in range(1532, 1607) for x in range(70, 763)
+        )
+        self.assertGreater(tertiary_blue, 50)
+        self.assertNotEqual((249, 250, 250), shell.getpixel((416, 1521)))
+        self.assertNotEqual((22, 117, 248), shell.getpixel((70, 1284)))
+
+        config = deepcopy(DEFAULT_PHONE_CONFIG)
+        config["phone_buttons"] = [
+            {
+                "style": "outlined", "text_color": "#101B31",
+                "background_color": "#D12F7A", "shape": "square",
+            },
+            {
+                "style": "filled", "text_color": "#101B31",
+                "background_color": "#CEDD3C", "shape": "square",
+            },
+            {
+                "style": "elevated", "text_color": "#FFFFFF",
+                "background_color": "#2457C8", "shape": "rounded",
+            },
+        ]
+        content = deepcopy(DEFAULT_PHONE_CONTENT)
+        content["phone_buttons"] = ["Почати", "Увійти зараз", "Продовжити"]
+        normalized_config = normalize_phone_metrics_config(config)
+        normalized_content = normalize_phone_metrics_content(content)
+        settings = {
+            setting["setting_id"]: setting["value"]
+            for component in phone_metrics_component_settings(config, content)["components"]
+            for setting in component["settings"]
+        }
+        self.assertEqual(config["phone_buttons"], settings["configuration.phone_buttons"])
+        self.assertEqual(content["phone_buttons"], settings["content.phone_buttons"])
+        tuned = _fixed_screen_shell(
+            Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#F9FAFA"),
+            "ІНВЕСТУЙТЕ", "ЗОВНІШНІЙ CTA", "none",
+            normalized_content["phone_buttons"], normalized_config["phone_buttons"],
+        ).convert("RGB")
+        self.assertEqual((209, 47, 122), tuned.getpixel((70, 1284)))
+        self.assertEqual((255, 255, 255), tuned.getpixel((416, 1336)))
+        self.assertEqual((206, 221, 60), tuned.getpixel((70, 1410)))
+        self.assertEqual(
+            PHONE_ACTION_BUTTON_RADII["rounded"],
+            PHONE_ACTION_BUTTON_RADII[config["phone_buttons"][2]["shape"]],
+        )
+
+        for field, invalid_value in (
+            ("style", "glass"), ("shape", "circle"),
+            ("text_color", "white"), ("background_color", "blue"),
+        ):
+            invalid = deepcopy(DEFAULT_PHONE_CONFIG)
+            invalid["phone_buttons"][0][field] = invalid_value
+            with self.assertRaises(ValueError):
+                normalize_phone_metrics_config(invalid)
+        invalid = deepcopy(DEFAULT_PHONE_CONFIG)
+        invalid["phone_buttons"].pop()
+        with self.assertRaisesRegex(ValueError, "exactly three phone buttons"):
+            normalize_phone_metrics_config(invalid)
+        invalid_content = deepcopy(DEFAULT_PHONE_CONTENT)
+        invalid_content["phone_buttons"].pop()
+        with self.assertRaisesRegex(ValueError, "exactly three phone buttons"):
+            normalize_phone_metrics_content(invalid_content)
 
     def test_eyebrow_toggle_removes_node_and_reflows_headline(self) -> None:
         visible = build_phone_metrics_template(DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT)
@@ -251,6 +481,23 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         legacy_v4["schema"] = "ptw.studio.phone-metrics-config.v4"
         legacy_v4.pop("copy_background")
         self.assertEqual(DEFAULT_PHONE_CONFIG, normalize_phone_metrics_config(legacy_v4))
+
+        legacy_v5 = deepcopy(DEFAULT_PHONE_CONFIG)
+        legacy_v5["schema"] = "ptw.studio.phone-metrics-config.v5"
+        legacy_v5.pop("metric_cards")
+        self.assertEqual(DEFAULT_PHONE_CONFIG, normalize_phone_metrics_config(legacy_v5))
+
+        legacy_v6 = deepcopy(DEFAULT_PHONE_CONFIG)
+        legacy_v6["schema"] = "ptw.studio.phone-metrics-config.v6"
+        legacy_v6.pop("phone_buttons")
+        self.assertEqual(DEFAULT_PHONE_CONFIG, normalize_phone_metrics_config(legacy_v6))
+
+        legacy_content = deepcopy(DEFAULT_PHONE_CONTENT)
+        legacy_content["schema"] = "ptw.studio.phone-metrics-content.v1"
+        legacy_content.pop("phone_buttons")
+        self.assertEqual(
+            DEFAULT_PHONE_CONTENT, normalize_phone_metrics_content(legacy_content),
+        )
 
     def test_three_optional_textures_change_each_bounded_surface(self) -> None:
         from PIL import Image

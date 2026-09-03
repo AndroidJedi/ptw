@@ -73,7 +73,7 @@ ASSET_SLOTS: dict[str, dict[str, Any]] = {
         "role": "logo",
         "allowed_mime_types": ("image/png", "image/webp"),
         "description": (
-            "Canonical Natal transparent brand mark by default; an owner PNG/WebP replaces it."
+            "Canonical Natal transparent brand mark. This identity is fixed in all new Studio drafts."
         ),
     },
 }
@@ -184,10 +184,9 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "role": "logo",
         "node_ids": ("logo",),
         "asset_slot_ids": ("logo",),
-        "setting_ids": (
-            "configuration.logo.enabled", "configuration.logo.position",
-            "configuration.logo.width",
-        ),
+        # Natal is a fixed brand lock-up. The retained configuration members
+        # exist only to read older saved drafts and immutable versions.
+        "setting_ids": (),
     },
 )
 
@@ -713,7 +712,10 @@ def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
             for key in DEFAULT_CONFIG["sticker"]
         },
         "logo": {
-            "enabled": normalize_universal_setting("configuration.logo.enabled", logo["enabled"]),
+            # New drafts must always render the canonical Natal identity. Keep
+            # legacy payload fields readable but never let an editable request
+            # hide or replace the brand.
+            "enabled": True,
             "position": normalize_universal_setting("configuration.logo.position", logo["position"]),
             "width": normalize_universal_setting("configuration.logo.width", logo["width"]),
             # Kept in the v4 payload only for stored-version compatibility.
@@ -831,6 +833,9 @@ def universal_ad_catalog() -> dict[str, Any]:
         "setting_definitions": [
             {"setting_id": setting_id, **deepcopy(definition)}
             for setting_id, definition in UNIVERSAL_SETTING_DEFINITIONS.items()
+            # These retained normalizers read historical configurations but
+            # intentionally never re-enter a new Studio control catalog.
+            if not setting_id.startswith("configuration.logo.")
         ],
         "variation": {
             "background_modes": ["solid", "texture", "image"],
@@ -843,7 +848,7 @@ def universal_ad_catalog() -> dict[str, Any]:
             "cta_font_size": {"minimum": 18, "maximum": 42, "default": 27},
             "sticker_positions": list(STICKER_POSITIONS),
             "font_families": list(FONT_FAMILIES),
-            "optional_elements": ["sticker", "bullet_list", "logo"],
+            "optional_elements": ["sticker", "bullet_list"],
         },
     }
     _, digest = _canonical(value)

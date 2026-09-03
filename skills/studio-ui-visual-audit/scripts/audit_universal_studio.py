@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail when representative Universal Studio layouts clip or collide."""
+"""Fail when representative Universal Studio layouts clip, collide, or drift."""
 
 from __future__ import annotations
 
@@ -18,6 +18,9 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 from validation_pipeline.studio_universal import (
     DEFAULT_CONFIG, DEFAULT_CONTENT, universal_alignment_rectangle,
+)
+from validation_pipeline.studio_phone_metrics import (
+    DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT, PHONE_METRICS_TEMPLATE_ID,
 )
 from validation_pipeline.studio_workspace import UniversalStudioWorkspace
 
@@ -169,6 +172,90 @@ def audit_variant(
     return {"name": name, "text": inspected}
 
 
+def _overlaps(first: Mapping[str, float], second: Mapping[str, float]) -> bool:
+    return bool(
+        first["x"] < second["x"] + second["width"]
+        and first["x"] + first["width"] > second["x"]
+        and first["y"] < second["y"] + second["height"]
+        and first["y"] + first["height"] > second["y"]
+    )
+
+
+def audit_phone_metrics(preview: Mapping[str, Any], detail: Mapping[str, Any]) -> dict[str, Any]:
+    """Check the owner-approved 4:5 phone reference characteristics exactly."""
+
+    require((preview["width"], preview["height"]) == (1080, 1350), "phone: canvas is not 1080x1350")
+    require(detail["template_id"] == PHONE_METRICS_TEMPLATE_ID, "phone: wrong template selected")
+    nodes = preview["resolved"]["nodes"]
+    required = {
+        "paper_texture", "logo", "offer", "hero_title", "supporting_text", "phone_device",
+        "metric_card_1", "metric_card_2", "metric_card_3", "metric_value_1", "metric_value_2",
+        "metric_value_3", "metric_label_1", "metric_label_2", "metric_label_3", "cta",
+    }
+    require(required <= set(nodes), "phone: required reference nodes are missing")
+    # The static black device and its screen are one image layer: they cannot
+    # drift apart through an editor transform.
+    require([node_id for node_id in nodes if node_id == "phone_device"] == ["phone_device"], "phone: device is not one grouped layer")
+
+    logo = nodes["logo"]["visible_bounds"]
+    hero = nodes["hero_title"]
+    support = nodes["supporting_text"]
+    device = nodes["phone_device"]
+    require(logo is not None and logo["x"] < .1 and logo["y"] < .12, "phone: Natal lock-up left safe area drift")
+    require(hero["visible_bounds"] is not None and support["visible_bounds"] is not None, "phone: dark copy is not visible")
+    require(hero["box"]["x"] < .1 and hero["box"]["x"] + hero["box"]["width"] <= .5, "phone: headline leaves the left safe area")
+    require(support["box"]["x"] < .1 and support["box"]["x"] + support["box"]["width"] <= .5, "phone: supporting text leaves the left safe area")
+    require(not hero["text_layout"]["overflow"] and not support["text_layout"]["overflow"], "phone: left copy overflows")
+    visible_device = device["visible_bounds"]
+    require(visible_device is not None, "phone: device has no visible pixels")
+    require(visible_device["x"] >= .48 and visible_device["y"] <= .1, "phone: device is not upper-right")
+    require(visible_device["x"] + visible_device["width"] <= .99 and visible_device["y"] + visible_device["height"] <= .74, "phone: device leaves safe bounds")
+    require(not _overlaps(hero["visible_bounds"], visible_device), "phone: headline overlaps device")
+    require(not _overlaps(support["visible_bounds"], visible_device), "phone: supporting text overlaps device")
+
+    cards = [nodes[f"metric_card_{index}"]["box"] for index in range(1, 4)]
+    require(len({round(card["y"], 5) for card in cards}) == 1, "phone: metric cards do not share one row")
+    require(len({round(card["width"], 5) for card in cards}) == 1, "phone: metric cards are not equal")
+    require(cards[0]["y"] >= .73 and cards[-1]["x"] + cards[-1]["width"] <= .95, "phone: metric row drift")
+    for index in range(1, 4):
+        for kind in ("metric_value", "metric_label"):
+            layout = nodes[f"{kind}_{index}"]["text_layout"]
+            require(layout is not None and not layout["overflow"] and not layout["truncated"], f"phone: {kind}_{index} clips")
+    cta = nodes["cta"]["box"]
+    require(cta["x"] == 0 and cta["width"] == 1 and cta["y"] >= .89 and cta["y"] + cta["height"] == 1, "phone: CTA is not a bottom band")
+    require(not nodes["cta"]["text_layout"]["overflow"], "phone: CTA clips")
+
+    # Full-resolution colour checks intentionally read the render rather than
+    # trusting template declarations.
+    from io import BytesIO
+    from PIL import Image
+
+    with Image.open(BytesIO(preview["bytes"])) as image:
+        pixels_rgba = image.convert("RGB")
+        top = pixels_rgba.getpixel((420, 30))
+        require(min(top) >= 224 and max(top) - min(top) <= 16, "phone: background is not off-white")
+        texture_colours = {
+            pixels_rgba.getpixel((x, y))
+            for x in range(340, 520, 31) for y in range(18, 122, 19)
+        }
+        require(len(texture_colours) >= 3, "phone: off-white background lost its texture")
+        require(pixels_rgba.getpixel((110, 1100)) == (36, 87, 200), "phone: first metric card is not cobalt")
+        require(pixels_rgba.getpixel((540, 1100)) == (36, 87, 200), "phone: second metric card is not cobalt")
+        require(pixels_rgba.getpixel((930, 1100)) == (36, 87, 200), "phone: third metric card is not cobalt")
+        require(pixels_rgba.getpixel((16, 1300)) == (49, 108, 255), "phone: CTA band is not cobalt")
+    require(detail["content"]["phone_hero_title"] == "", "phone: audit fixture unexpectedly adds owner phone text")
+    phone_asset = next(item for item in detail["assets"] if item["slot"] == "phone_screen")
+    require(not phone_asset["available"], "phone: audit fixture unexpectedly supplied generated art")
+    return {
+        "name": "phone_metrics_reference", "canvas": [preview["width"], preview["height"]],
+        "device_visible_bounds": visible_device, "metric_row_y": cards[0]["y"],
+        "cta_y": cta["y"], "checks": [
+            "off_white_texture", "natal_upper_left", "left_safe_copy", "angled_right_rail_phone",
+            "three_equal_cobalt_cards", "cobalt_cta_band", "no_clipping_or_overlap", "no_generated_screen_text",
+        ],
+    }
+
+
 def variants() -> list[tuple[str, dict[str, Any], dict[str, Any]]]:
     default = ("default", copy.deepcopy(DEFAULT_CONFIG), copy.deepcopy(DEFAULT_CONTENT))
 
@@ -246,6 +333,18 @@ def main() -> None:
                 preview_path.write_bytes(preview["bytes"])
                 report["preview_path"] = str(preview_path.resolve())
             reports.append(report)
+        phone_workspace = UniversalStudioWorkspace(Path(temporary) / "phone")
+        initial = phone_workspace.detail()
+        phone = phone_workspace.apply_template(
+            base_sha256=initial["state_sha256"], template_id=PHONE_METRICS_TEMPLATE_ID,
+        )
+        phone_preview = phone_workspace.render_preview(state_sha256=phone["state_sha256"])
+        phone_report = audit_phone_metrics(phone_preview, phone)
+        if output_dir is not None:
+            phone_path = output_dir / "phone_metrics_reference.png"
+            phone_path.write_bytes(phone_preview["bytes"])
+            phone_report["preview_path"] = str(phone_path.resolve())
+        reports.append(phone_report)
     print(json.dumps({"status": "passed", "variants": reports}, indent=2, sort_keys=True))
 
 

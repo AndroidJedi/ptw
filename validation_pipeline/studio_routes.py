@@ -1,4 +1,4 @@
-"""Shared FastAPI routes for the one-template universal advertising Studio."""
+"""Shared FastAPI routes for the bounded Universal Studio templates."""
 
 from __future__ import annotations
 
@@ -42,6 +42,17 @@ def studio_router(
                 base_sha256=str(request["base_sha256"]),
                 configuration=request["configuration"],
                 content=request["content"],
+            )
+        except (ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.post("/templates/apply")
+    def apply_template(request: Mapping[str, Any]) -> dict[str, Any]:
+        if set(request) != {"base_sha256", "template_id"}:
+            raise HTTPException(status_code=400, detail="Studio template apply fields are invalid")
+        try:
+            return workspace.apply_template(
+                base_sha256=str(request["base_sha256"]), template_id=str(request["template_id"]),
             )
         except (ValueError, RuntimeError) as error:
             raise fail(error) from error

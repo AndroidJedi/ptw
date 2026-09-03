@@ -3,9 +3,23 @@ import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
 import { translate, type Language } from '../i18n'
-import type { ProductBrief, SimplePost } from '../types'
+import type { ProductBrief, SimplePost, StudioPhoneMetricsContent } from '../types'
 
 const activeStatuses = new Set<SimplePost['status']>(['queued', 'generating', 'tuning'])
+
+const defaultPhoneContent: StudioPhoneMetricsContent = {
+  schema: 'ptw.studio.phone-metrics-content.v1',
+  offer: 'NATAL',
+  hero_title: 'Ваш головний меседж тут',
+  supporting_text: 'Додайте коротке пояснення, яке допоможе зробити наступний крок.',
+  cta: 'ДІЗНАТИСЯ БІЛЬШЕ',
+  stats: [
+    { value: 'ВАШЕ', label: 'значення' },
+    { value: 'ВАШЕ', label: 'значення' },
+    { value: 'ВАШЕ', label: 'значення' },
+  ],
+  phone_hero_title: '',
+}
 
 function commandValue(value: string | number | boolean | string[]) {
   return Array.isArray(value) ? value.join(' · ') : String(value)
@@ -20,6 +34,8 @@ export function PostView({ api, projectId, language }: {
   const [post, setPost] = useState<SimplePost | null>(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [comment, setComment] = useState('')
+  const [templateId, setTemplateId] = useState<'universal_ad' | 'phone_metrics'>('universal_ad')
+  const [phoneContent, setPhoneContent] = useState<StudioPhoneMetricsContent>(structuredClone(defaultPhoneContent))
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -107,9 +123,14 @@ export function PostView({ api, projectId, language }: {
     try {
       const value = await api.post<{ post: SimplePost }>('/api/v1/posts', {
         request_id: crypto.randomUUID(), brief_id: brief.brief_id,
+        template_id: templateId,
+        template_input: templateId === 'phone_metrics' ? { content: phoneContent } : null,
       }, { deadlineMs: 60_000 })
       setPost(value.post)
-      setNotice(tr(
+      setNotice(templateId === 'phone_metrics' ? tr(
+        'Generating one phone-screen visual and applying the fixed Natal template.',
+        'Генерується один візуал екрана телефону та застосовується фіксований шаблон Natal.',
+      ) : tr(
         'Generating one post and choosing one relevant photograph.',
         'Генерується один допис і підбирається одна релевантна фотографія.',
       ))
@@ -177,8 +198,32 @@ export function PostView({ api, projectId, language }: {
       <small>{tr('ONE BRIEF → ONE POST', 'ОДИН БРИФ → ОДИН ДОПИС')}</small>
       <h2>{brief.document?.promise}</h2>
       <p>{brief.document?.offer}</p>
+      <fieldset className="post-template-selector" disabled={busy}>
+        <legend>{tr('Template', 'Шаблон')}</legend>
+        <div className="studio-template-grid">
+          <label className={`studio-template-card ${templateId === 'universal_ad' ? 'is-active' : ''}`}>
+            <input aria-label={tr('Universal ad', 'Універсальна реклама')} type="radio" name="post-template" value="universal_ad" checked={templateId === 'universal_ad'} onChange={() => setTemplateId('universal_ad')} />
+            <strong>{tr('Universal ad', 'Універсальна реклама')}</strong><small>1080×1080</small>
+            <span>{tr('One Pexels photograph and editable Universal Studio composition.', 'Одна фотографія Pexels та редагована композиція Universal Studio.')}</span>
+          </label>
+          <label className={`studio-template-card ${templateId === 'phone_metrics' ? 'is-active' : ''}`}>
+            <input aria-label={tr('Phone & metrics', 'Телефон і метрики')} type="radio" name="post-template" value="phone_metrics" checked={templateId === 'phone_metrics'} onChange={() => setTemplateId('phone_metrics')} />
+            <strong>{tr('Phone & metrics', 'Телефон і метрики')}</strong><small>1080×1350</small>
+            <span>{tr('Fixed Natal lockup, right-railed iPhone, three metrics, and generated text-free screen art.', 'Фіксований знак Natal, iPhone з правою гранню, три метрики та згенерований арт екрана без тексту.')}</span>
+          </label>
+        </div>
+      </fieldset>
+      {templateId === 'phone_metrics' && <section className="post-phone-inputs" aria-label={tr('Phone and metrics post content', 'Вміст допису телефону й метрик')}>
+        <p>{tr('These owner-entered values lock when the Post draft begins. Natal stays visible and fixed.', 'Ці введені власником значення фіксуються з початком чернетки допису. Natal завжди видимий і фіксований.')}</p>
+        <label><span>{tr('Eyebrow', 'Надзаголовок')}</span><input maxLength={32} value={phoneContent.offer} onChange={(event) => setPhoneContent({ ...phoneContent, offer: event.target.value })} /></label>
+        <label><span>{tr('Headline', 'Заголовок')}</span><textarea rows={3} maxLength={140} value={phoneContent.hero_title} onChange={(event) => setPhoneContent({ ...phoneContent, hero_title: event.target.value })} /></label>
+        <label><span>{tr('Supporting text', 'Пояснювальний текст')}</span><textarea rows={3} maxLength={220} value={phoneContent.supporting_text} onChange={(event) => setPhoneContent({ ...phoneContent, supporting_text: event.target.value })} /></label>
+        <label><span>CTA</span><input maxLength={60} value={phoneContent.cta} onChange={(event) => setPhoneContent({ ...phoneContent, cta: event.target.value })} /></label>
+        <label><span>{tr('Optional phone title', 'Необов’язковий заголовок у телефоні')}</span><input maxLength={72} value={phoneContent.phone_hero_title} onChange={(event) => setPhoneContent({ ...phoneContent, phone_hero_title: event.target.value })} /></label>
+        <div className="post-phone-metrics"><strong>{tr('Three owner metrics', 'Три метрики власника')}</strong>{phoneContent.stats.map((stat, index) => <div key={index}><label><span>{tr('Value', 'Значення')} {index + 1}</span><input maxLength={24} value={stat.value} onChange={(event) => setPhoneContent((current) => ({ ...current, stats: current.stats.map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item) }))} /></label><label><span>{tr('Label', 'Підпис')} {index + 1}</span><input maxLength={38} value={stat.label} onChange={(event) => setPhoneContent((current) => ({ ...current, stats: current.stats.map((item, itemIndex) => itemIndex === index ? { ...item, label: event.target.value } : item) }))} /></label></div>)}</div>
+      </section>}
       <button className="primary large" disabled={busy} onClick={generate}>
-        <Sparkles />{tr('Generate one post', 'Згенерувати один допис')}
+        <Sparkles />{templateId === 'phone_metrics' ? tr('Generate phone post', 'Згенерувати допис з телефоном') : tr('Generate one post', 'Згенерувати один допис')}
       </button>
     </section>}
     {post && <section className="post-workspace" aria-label={tr('Post preview and tuning', 'Прев’ю та налаштування допису')}>
@@ -198,7 +243,7 @@ export function PostView({ api, projectId, language }: {
           <button className="secondary" disabled={busy} onClick={retry}>{tr('Retry', 'Повторити')}</button>
         </div> : <Loading language={language} />}
       </div>
-      {post.status === 'draft' && <form className="panel post-comment" onSubmit={(event) => { event.preventDefault(); void tune() }}>
+      {post.status === 'draft' && (post.template_id || 'universal_ad') === 'universal_ad' && <form className="panel post-comment" onSubmit={(event) => { event.preventDefault(); void tune() }}>
         <label><span>{tr('Comment below the preview', 'Коментар під прев’ю')}</span>
           <textarea rows={3} maxLength={2000} value={comment} onChange={(event) => setComment(event.target.value)} placeholder={tr(
             'For example: Pick an image with a thoughtful human face and make the title smaller.',
@@ -210,6 +255,7 @@ export function PostView({ api, projectId, language }: {
           <button className="primary" type="button" disabled={busy} onClick={approve}><Check />{tr('Approve as asset', 'Схвалити як ресурс')}</button>
         </div>
       </form>}
+      {post.status === 'draft' && (post.template_id || 'universal_ad') === 'phone_metrics' && <section className="panel post-comment"><p>{tr('This fixed phone template has no after-start tuning: its owner copy, screen art, and template selection are locked for review.', 'Цей фіксований шаблон телефону не має налаштувань після старту: текст власника, арт екрана та вибір шаблону заблоковані для перевірки.')}</p><div className="post-actions"><button className="primary" type="button" disabled={busy} onClick={approve}><Check />{tr('Approve as asset', 'Схвалити як ресурс')}</button></div></section>}
       {!!post.last_commands.length && <details className="panel post-commands">
         <summary>{tr('Applied Studio commands', 'Застосовані команди Студії')}</summary>
         <ul>{post.last_commands.map((command) => <li key={command.setting_id}><code>{command.setting_id}</code><span>{commandValue(command.value)}</span></li>)}</ul>

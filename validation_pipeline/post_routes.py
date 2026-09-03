@@ -37,12 +37,18 @@ def simple_post_router(
     def create_post(
         request: Mapping[str, Any], background: BackgroundTasks,
     ) -> dict[str, Any]:
-        if set(request) != {"request_id", "brief_id"}:
-            raise HTTPException(status_code=400, detail="simple post request fields do not match v1")
+        fields = set(request)
+        legacy = fields == {"request_id", "brief_id"}
+        if not legacy and fields != {"request_id", "brief_id", "template_id", "template_input"}:
+            raise HTTPException(status_code=400, detail="simple post request fields do not match v1 or v2")
+        if not legacy and request["template_input"] is not None and not isinstance(request["template_input"], Mapping):
+            raise HTTPException(status_code=400, detail="simple post template_input must be an object or null")
         try:
             post, created = service.create_post(
                 request_id=str(request["request_id"]), brief_id=str(request["brief_id"]),
                 requested_by="loopback:owner",
+                template_id=("universal_ad" if legacy else str(request["template_id"])),
+                template_input=(None if legacy else request["template_input"]),
             )
             if created or post["status"] == "queued":
                 background.add_task(service.generate_post, post["post_id"])

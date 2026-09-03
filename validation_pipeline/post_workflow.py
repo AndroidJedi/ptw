@@ -20,15 +20,20 @@ from commander.ids import new_uuid7
 
 from .local_brief_store import LocalBriefStore, sha256_json, utc_now
 from .local_codex import LocalCodexStructuredProvider, sanitized
+from .studio_phone_metrics import (
+    DEFAULT_PHONE_CONFIG, PHONE_METRICS_TEMPLATE_ID,
+    normalize_phone_metrics_content,
+)
 from .studio_universal import (
-    DEFAULT_CONFIG, DEFAULT_CONTENT, UNIVERSAL_SETTING_DEFINITIONS,
+    DEFAULT_CONFIG, DEFAULT_CONTENT, UNIVERSAL_AD_TEMPLATE_ID, UNIVERSAL_SETTING_DEFINITIONS,
     normalize_universal_config, normalize_universal_content,
     normalize_universal_setting, universal_ad_catalog, universal_component_settings,
 )
 from .studio_workspace import UniversalStudioWorkspace
 
 
-POST_SCHEMA = "ptw.simple-post.v1"
+POST_SCHEMA = "ptw.simple-post.v2"
+LEGACY_POST_SCHEMA = "ptw.simple-post.v1"
 POST_ASSET_SCHEMA = "ptw.simple-post-asset.v1"
 POST_STATUSES = frozenset({"queued", "generating", "draft", "tuning", "failed", "approved"})
 CONTENT_SETTING_IDS = (
@@ -45,7 +50,7 @@ POST_TUNE_SETTING_IDS = tuple(
 )
 POST_DEFAULT_CONFIG = deepcopy(DEFAULT_CONFIG)
 POST_DEFAULT_CONFIG["sticker"]["enabled"] = False
-POST_DEFAULT_CONFIG["logo"]["enabled"] = False
+POST_DEFAULT_CONFIG["logo"]["enabled"] = True
 STICKER_INTENT_TERMS = ("sticker", "stiker", "стікер", "стикер", "наліп", "наклей")
 STICKER_HIDE_TERMS = (
     "hide", "remove", "disable", "turn off", "without", "delete",
@@ -196,7 +201,32 @@ or setting when that is the clearest visual. Do not request illustration or gene
 
 The commands array is the same typed setting-command vocabulary used by Universal Studio.
 Use only supplied setting IDs and allowed values. Omit settings that should retain their
-defaults. Return only the JSON object required by the supplied schema."""
+    defaults. Return only the JSON object required by the supplied schema."""
+
+
+def phone_screen_output_schema() -> dict[str, Any]:
+    """A visual direction only; visible phone-screen text is never generated."""
+
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object", "additionalProperties": False,
+        "properties": {
+            "image_prompt": {"type": "string", "minLength": 24, "maxLength": 1_200},
+        },
+        "required": ["image_prompt"],
+    }
+
+
+def _phone_screen_prompt(language: str) -> str:
+    return f"""Create one concise visual-art direction for a vertical phone-screen image.
+The approved Product Brief is strategic context only; it can guide mood, palette, materials,
+and abstract subject matter, but never provides visible words. Return the direction in English
+so an image model can use it. The final phone screen must contain no letters, numbers, logos,
+brand names, UI labels, buttons, charts, metrics, or readable interface. Ask for an elegant,
+text-free abstract editorial composition with generous clean space. Do not describe a device
+frame because Studio supplies the fixed black iPhone frame. The post copy itself is in
+{language}; do not repeat or paraphrase it in the image direction. Return only the JSON object
+required by the supplied schema."""
 
 
 def _post_tune_prompt() -> str:
@@ -234,12 +264,14 @@ class SimplePostService:
     def __init__(
         self, root: Path | str, *, provider: LocalCodexStructuredProvider,
         brief_resolver: Callable[[str], Mapping[str, Any]], pexels: Any,
+        image_provider: Any | None = None,
     ) -> None:
         self.root = Path(root)
         self.store = LocalBriefStore(self.root / "authority")
         self.provider = provider
         self.brief_resolver = brief_resolver
         self.pexels = pexels
+        self.image_provider = image_provider
         self.drafts = self.root / "drafts"
         self.assets = self.root / "assets"
         self.drafts.mkdir(parents=True, exist_ok=True)
@@ -300,6 +332,31 @@ class SimplePostService:
             response=result["response"], invocation=result.get("invocation") or {},
         )
         return {**result, "invocation_id": invocation_id}
+
+    @staticmethod
+    def _template_input(
+        template_id: str, template_input: Mapping[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        """Validate immutable owner inputs before a draft locks its template."""
+
+        if template_id == UNIVERSAL_AD_TEMPLATE_ID:
+            if template_input is not None:
+                raise ValueError("universal_ad does not accept template input")
+            return None
+        if template_id != PHONE_METRICS_TEMPLATE_ID:
+            raise ValueError("post template is not registered")
+        if not isinstance(template_input, Mapping) or set(template_input) != {"content"}:
+            raise ValueError("phone_metrics requires exactly one content template input")
+        return {"content": normalize_phone_metrics_content(template_input["content"])}
+
+    @staticmethod
+    def _validate_phone_screen_plan(value: Mapping[str, Any]) -> Mapping[str, Any]:
+        if set(value) != {"image_prompt"}:
+            raise ValueError("phone-screen image plan fields do not match v1")
+        prompt = _compact(value["image_prompt"], "phone-screen image prompt", 24, 1_200)
+        if not any(term in prompt.casefold() for term in ("abstract", "editorial", "visual")):
+            raise ValueError("phone-screen image prompt must describe a visual-only composition")
+        return {"image_prompt": prompt}
 
     @staticmethod
     def _apply_commands(
@@ -472,9 +529,13 @@ class SimplePostService:
 
     def create_post(
         self, *, request_id: str, brief_id: str, requested_by: str,
+        template_id: str = UNIVERSAL_AD_TEMPLATE_ID,
+        template_input: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], bool]:
         request_id = _uuid(request_id, "request_id")
         brief_id = _uuid(brief_id, "brief_id")
+        normalized_template_id = str(template_id)
+        normalized_template_input = self._template_input(normalized_template_id, template_input)
         brief = dict(self.brief_resolver(brief_id))
         if brief.get("status") != "completed" or not brief.get("approved") or not brief.get("document"):
             raise ValueError("a simple post requires one completed, approved Product Brief")
@@ -486,7 +547,11 @@ class SimplePostService:
             return self.get_post(existing["post_id"]), False
         post_id, created = self.store.reserve_request(
             scope="post-create", request_id=request_id,
-            fingerprint={"request_id": request_id, "brief_id": brief_id},
+            fingerprint={
+                "request_id": request_id, "brief_id": brief_id,
+                "template_id": normalized_template_id,
+                "template_input": normalized_template_input,
+            },
         )
         if not created:
             return self.get_post(post_id), False
@@ -494,6 +559,7 @@ class SimplePostService:
         post = {
             "schema": POST_SCHEMA, "post_id": post_id, "request_id": request_id,
             "project_id": str(brief["project_id"]), "brief_id": brief_id,
+            "template_id": normalized_template_id, "template_input": normalized_template_input,
             "brief_document_sha256": str(brief.get("document_sha256") or sha256_json(brief["document"])),
             "requested_by": requested_by, "status": "queued", "failure_count": 0,
             "state_sha256": None, "template_sha256": None, "preview_sha256": None,
@@ -525,6 +591,74 @@ class SimplePostService:
             brief = dict(self.brief_resolver(post["brief_id"]))
             document = dict(brief["document"])
             language = "Ukrainian" if document.get("language") == "uk" else "English"
+            template_id = str(post.get("template_id") or UNIVERSAL_AD_TEMPLATE_ID)
+            if template_id == PHONE_METRICS_TEMPLATE_ID:
+                template_input = self._template_input(template_id, post.get("template_input"))
+                workspace = self._workspace(post_id)
+                detail = workspace.detail()
+                if detail["template_id"] != PHONE_METRICS_TEMPLATE_ID:
+                    detail = workspace.apply_template(
+                        base_sha256=detail["state_sha256"], template_id=PHONE_METRICS_TEMPLATE_ID,
+                    )
+                saved = workspace.save_configuration(
+                    base_sha256=detail["state_sha256"], configuration=DEFAULT_PHONE_CONFIG,
+                    content=template_input["content"],
+                )
+                prompt_result = self._provider_call(
+                    target_id=post_id, mode="simple_post_phone_screen_prompt",
+                    system_prompt=_phone_screen_prompt(language),
+                    input_payload={
+                        "post_id": post_id,
+                        "product_brief": document,
+                        "template": PHONE_METRICS_TEMPLATE_ID,
+                        "screen_contract": "visual-only; no visible text, logo, UI, buttons, metrics, or charts",
+                    },
+                    output_schema=phone_screen_output_schema(),
+                    response_validator=self._validate_phone_screen_plan,
+                )
+                if self.image_provider is None:
+                    raise RuntimeError("OpenAI image generation is not configured for phone-screen artwork")
+                try:
+                    generated_art = self.image_provider.generate(prompt_result["response"]["image_prompt"])
+                    image_provenance = dict(generated_art["source"])
+                    image_response = {
+                        "mime_type": generated_art["mime_type"],
+                        "width": generated_art["width"], "height": generated_art["height"],
+                        "sha256": hashlib.sha256(generated_art["bytes"]).hexdigest(),
+                    }
+                    image_invocation_id = self._record_invocation(
+                        target_id=post_id, mode="simple_post_phone_screen_image",
+                        input_payload={"image_prompt": prompt_result["response"]["image_prompt"]},
+                        response=image_response, invocation=image_provenance,
+                    )
+                except Exception as error:
+                    self._record_invocation(
+                        target_id=post_id, mode="simple_post_phone_screen_image",
+                        input_payload={"image_prompt": prompt_result["response"]["image_prompt"]},
+                        response=None, invocation={}, error=error,
+                    )
+                    raise
+                rendered = workspace.store_generated_phone_screen(
+                    base_sha256=saved["state_sha256"], data=generated_art["bytes"],
+                    source=image_provenance,
+                )
+                preview = workspace.render_preview(state_sha256=rendered["state_sha256"])
+                self.store.append("posts", post_id, {
+                    **generating, "status": "draft", "state_sha256": rendered["state_sha256"],
+                    "template_sha256": rendered["template_sha256"],
+                    "preview_sha256": preview["bytes_sha256"],
+                    "preview_width": preview["width"], "preview_height": preview["height"],
+                    "last_commands": [],
+                    "last_image_request": {
+                        "slot": "phone_screen", "query": prompt_result["response"]["image_prompt"],
+                    },
+                    "provider_invocation_id": prompt_result["invocation_id"],
+                    "image_provider_invocation_id": image_invocation_id,
+                    "updated_at": utc_now(),
+                })
+                return self.get_post(post_id)
+            if template_id != UNIVERSAL_AD_TEMPLATE_ID:
+                raise ValueError("post template is not registered")
             payload = {
                 "post_id": post_id, "product_brief": document,
                 "studio_setting_definitions": [
@@ -594,6 +728,10 @@ class SimplePostService:
         post = self.store.get("posts", post_id)
         if post["status"] != "draft":
             raise ValueError("only a draft simple post can be tuned")
+        if str(post.get("template_id") or UNIVERSAL_AD_TEMPLATE_ID) == PHONE_METRICS_TEMPLATE_ID:
+            raise ValueError(
+                "phone-and-metrics post copy is fixed when its draft starts; create a new draft to change it"
+            )
         tune_id, created = self.store.reserve_request(
             scope="post-tune", request_id=request_id,
             fingerprint={"request_id": request_id, "post_id": post_id, "comment": comment},
@@ -777,6 +915,39 @@ class SimplePostService:
             if normalized_project is None or item["project_id"] == normalized_project
         ]
 
+    def _reconcile_legacy_universal_draft(
+        self, post: Mapping[str, Any], studio: Mapping[str, Any],
+    ) -> dict[str, Any] | None:
+        """Append one safe migration for a pre-template mutable draft.
+
+        Universal Studio's fixed Natal identity changes the canonical state
+        digest of historical *mutable* v1 Post workspaces.  Those drafts have
+        no selected-template metadata, so their only unambiguous migration is
+        to the retained `universal_ad` default. Immutable approvals and every
+        v2 draft remain fail-closed if their state digest differs.
+        """
+
+        if (
+            post.get("schema") != LEGACY_POST_SCHEMA
+            or post.get("template_id") is not None
+            or post.get("status") != "draft"
+        ):
+            return None
+        preview = self._workspace(str(post["post_id"])).render_preview(
+            state_sha256=str(studio["state_sha256"]),
+        )
+        migrated = {
+            **dict(post), "schema": POST_SCHEMA,
+            "template_id": UNIVERSAL_AD_TEMPLATE_ID, "template_input": None,
+            "state_sha256": studio["state_sha256"],
+            "template_sha256": studio["template_sha256"],
+            "preview_sha256": preview["bytes_sha256"],
+            "preview_width": preview["width"], "preview_height": preview["height"],
+            "last_error": None, "updated_at": utc_now(),
+        }
+        self.store.append("posts", str(post["post_id"]), migrated)
+        return migrated
+
     def get_post(self, post_id: str) -> dict[str, Any]:
         post = self.store.get("posts", _uuid(post_id, "post_id"))
         if post["status"] not in POST_STATUSES:
@@ -785,7 +956,10 @@ class SimplePostService:
         if post.get("state_sha256"):
             studio = self._workspace(post["post_id"]).detail()
             if studio["state_sha256"] != post["state_sha256"]:
-                raise ValueError("simple post state digest does not match its Studio draft")
+                migrated = self._reconcile_legacy_universal_draft(post, studio)
+                if migrated is None:
+                    raise ValueError("simple post state digest does not match its Studio draft")
+                post = migrated
         asset = None
         if post.get("approved_asset_id"):
             asset = self.store.get("post_assets", post["approved_asset_id"])
@@ -825,6 +999,16 @@ class SimplePostService:
             raise ValueError("post approval requires the current complete draft")
         workspace = self._workspace(post_id)
         detail = workspace.detail()
+        if str(post.get("template_id") or UNIVERSAL_AD_TEMPLATE_ID) == PHONE_METRICS_TEMPLATE_ID:
+            phone_screen = next(
+                (item for item in detail["assets"] if item["slot"] == "phone_screen"), None,
+            )
+            if (
+                phone_screen is None or not phone_screen["available"]
+                or phone_screen.get("source", {}).get("origin") != "openai_image_api"
+                or phone_screen.get("source", {}).get("text_in_screen") != "prohibited_by_prompt"
+            ):
+                raise ValueError("phone-and-metrics approval requires generated text-free phone-screen artwork")
         preview = workspace.render_preview(state_sha256=state_sha256)
         asset_id = new_uuid7()
         asset = {

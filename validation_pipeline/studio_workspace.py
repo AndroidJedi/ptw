@@ -1,4 +1,4 @@
-"""Local authority for the one-template universal advertising Studio."""
+"""Local authority for the bounded Universal Studio template workspace."""
 
 from __future__ import annotations
 
@@ -14,6 +14,14 @@ from .images import (
     validate_pexels_photographic_object, validate_pexels_photographic_object_query,
 )
 from .natal_brand import NATAL_LOGO_PATH, natal_logo_bytes
+from .studio_phone_metrics import (
+    DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT, IPHONE_FRAME_SOURCE,
+    PHONE_ASSET_SLOTS, PHONE_METRICS_CONFIG_SCHEMA, PHONE_METRICS_TEMPLATE_ID,
+    PHONE_METRICS_TEMPLATE_VERSION, build_phone_metrics_template,
+    compose_phone_device_asset, iphone_frame_record, normalize_phone_metrics_config,
+    normalize_phone_metrics_content, phone_metrics_catalog,
+    phone_metrics_component_settings, phone_metrics_semantic_data,
+)
 from .studio import MAX_IMAGE_BYTES, StudioRenderer, inspect_media
 from .studio_universal import (
     ASSET_SLOTS, DEFAULT_CONFIG, DEFAULT_CONTENT, UNIVERSAL_AD_TEMPLATE_ID,
@@ -30,7 +38,24 @@ _BUNDLED_ASSETS = {
         "origin": "canonical_natal_brand_asset",
     },
 }
-_AGENT_CONTEXT_SCHEMA = "ptw.studio.universal-ad-agent-context.v2"
+_WORKSPACE_SCHEMA = "ptw.studio.workspace.v6"
+_TEMPLATE_SELECTION_SCHEMA = "ptw.studio.template-selection.v1"
+_TEMPLATE_VERSION_SCHEMA = "ptw.studio.template-version.v1"
+_AGENT_CONTEXT_SCHEMA = "ptw.studio.agent-context.v3"
+_TEMPLATE_SUMMARIES = (
+    {
+        "template_id": UNIVERSAL_AD_TEMPLATE_ID,
+        "name": "Universal ad",
+        "description": "Editable square composition with a fixed Natal brand lock-up.",
+        "canvas": {"width": 1080, "height": 1080},
+    },
+    {
+        "template_id": PHONE_METRICS_TEMPLATE_ID,
+        "name": "Phone & metrics",
+        "description": "Natal 4:5 phone creative with three metrics and a full-width CTA.",
+        "canvas": {"width": 1080, "height": 1350},
+    },
+)
 
 
 def _canonical(value: Any) -> tuple[str, str]:
@@ -51,7 +76,7 @@ def _approved_sticker_photo(record: Mapping[str, Any] | None) -> bool:
 
 
 class UniversalStudioWorkspace:
-    """Persist one reusable universal-ad configuration and immutable outputs."""
+    """Persist one selected bounded Studio template and immutable outputs."""
 
     def __init__(
         self, root: Path | str, *, renderer: StudioRenderer | None = None,
@@ -80,27 +105,90 @@ class UniversalStudioWorkspace:
         temporary.write_bytes(value)
         temporary.replace(path)
 
+    def _selected_template_id(self) -> str:
+        path = self.root / "template.json"
+        if not path.is_file():
+            # A missing selector is the exact legacy universal workspace.
+            return UNIVERSAL_AD_TEMPLATE_ID
+        try:
+            value = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError("Studio template selection is unreadable") from error
+        if not isinstance(value, Mapping) or set(value) != {"schema", "template_id"}:
+            raise ValueError("Studio template selection fields are invalid")
+        if value["schema"] != _TEMPLATE_SELECTION_SCHEMA or value["template_id"] not in {
+            UNIVERSAL_AD_TEMPLATE_ID, PHONE_METRICS_TEMPLATE_ID,
+        }:
+            raise ValueError("Studio template selection is invalid")
+        return str(value["template_id"])
+
+    def _asset_slots(self) -> Mapping[str, Mapping[str, Any]]:
+        return PHONE_ASSET_SLOTS if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID else ASSET_SLOTS
+
+    def _normalize_configuration(self, value: Mapping[str, Any]) -> dict[str, Any]:
+        if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID:
+            return normalize_phone_metrics_config(value)
+        return normalize_universal_config(value)
+
+    def _normalize_content(self, value: Mapping[str, Any]) -> dict[str, Any]:
+        if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID:
+            return normalize_phone_metrics_content(value)
+        return normalize_universal_content(value)
+
+    def _build_template(self, config: Mapping[str, Any], content: Mapping[str, Any]):
+        if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID:
+            return build_phone_metrics_template(config, content)
+        return build_universal_template(config, content)
+
+    def _catalog(self) -> dict[str, Any]:
+        if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID:
+            return phone_metrics_catalog()
+        return universal_ad_catalog()
+
+    def _component_settings(self, config: Mapping[str, Any], content: Mapping[str, Any]) -> dict[str, Any]:
+        if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID:
+            return phone_metrics_component_settings(config, content)
+        return universal_component_settings(config, content)
+
     def _configuration(self) -> dict[str, Any]:
         path = self.root / "configuration.json"
         if not path.is_file():
+            if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID:
+                return normalize_phone_metrics_config(DEFAULT_PHONE_CONFIG)
             return normalize_universal_config(DEFAULT_CONFIG)
         try:
             value = json.loads(path.read_text())
         except (OSError, json.JSONDecodeError) as error:
-            raise ValueError("Studio universal configuration is unreadable") from error
-        return normalize_universal_config(value)
+            raise ValueError("Studio configuration is unreadable") from error
+        return self._normalize_configuration(value)
 
     def _content(self) -> dict[str, Any]:
         path = self.root / "content.json"
         if not path.is_file():
+            if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID:
+                return normalize_phone_metrics_content(DEFAULT_PHONE_CONTENT)
             return normalize_universal_content(DEFAULT_CONTENT)
         try:
             value = json.loads(path.read_text())
         except (OSError, json.JSONDecodeError) as error:
-            raise ValueError("Studio universal content is unreadable") from error
-        return normalize_universal_content(value)
+            raise ValueError("Studio content is unreadable") from error
+        return self._normalize_content(value)
 
     def _asset_record(self, slot: str) -> dict[str, Any] | None:
+        # Natal is never replaced by a draft upload. An old workspace may still
+        # contain logo metadata, but new renders deliberately ignore it.
+        if slot == "logo":
+            data = natal_logo_bytes()
+            inspected = inspect_media(data, "image/png")
+            return {
+                "filename": NATAL_LOGO_PATH.name, "mime_type": "image/png",
+                "sha256": hashlib.sha256(data).hexdigest(), "width": inspected["width"],
+                "height": inspected["height"], "byte_count": len(data),
+                "source": {"origin": "canonical_natal_brand_asset", "filename": NATAL_LOGO_PATH.name},
+                "bytes": data,
+            }
+        if slot == "iphone_frame":
+            return iphone_frame_record()
         metadata_path = self.assets / f"{slot}.json"
         if not metadata_path.is_file():
             bundled = _BUNDLED_ASSETS.get(slot)
@@ -130,7 +218,21 @@ class UniversalStudioWorkspace:
             raise ValueError(f"Studio asset digest mismatch: {slot}")
         return {**metadata, "bytes": data}
 
-    def _asset_records(self, config: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    def _asset_records(self, config: Mapping[str, Any], content: Mapping[str, Any] | None = None) -> dict[str, Mapping[str, Any]]:
+        if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID:
+            normalized_content = self._content() if content is None else normalize_phone_metrics_content(content)
+            screen = self._asset_record("phone_screen")
+            device = compose_phone_device_asset(
+                None if screen is None else screen["bytes"], normalized_content["phone_hero_title"],
+            )
+            logo = self._asset_record("logo")
+            if logo is None:
+                raise RuntimeError("Canonical Natal logo is unavailable")
+            return {
+                "logo": {"bytes": logo["bytes"], "mime_type": logo["mime_type"]},
+                "paper_texture": texture_asset("concrete"),
+                "phone_device": {"bytes": device["bytes"], "mime_type": device["mime_type"]},
+            }
         records: dict[str, Mapping[str, Any]] = {}
         for slot in ASSET_SLOTS:
             record = self._asset_record(slot)
@@ -143,6 +245,29 @@ class UniversalStudioWorkspace:
         return records
 
     def _asset_summaries(self) -> list[dict[str, Any]]:
+        if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID:
+            summaries = []
+            for slot, declaration in PHONE_ASSET_SLOTS.items():
+                record = self._asset_record(slot)
+                summaries.append({
+                    "slot": slot, "role": declaration["role"], "description": declaration["description"],
+                    "allowed_mime_types": list(declaration["allowed_mime_types"]), "editable": False,
+                    "available": record is not None, "mime_type": None if record is None else record["mime_type"],
+                    "sha256": None if record is None else record["sha256"], "byte_count": None if record is None else record["byte_count"],
+                    "source": None if record is None else record["source"],
+                })
+            for slot, role, description in (
+                ("iphone_frame", "device_frame", "Fixed checked-in black iPhone frame."),
+                ("logo", "brand", "Fixed canonical Natal logo and name."),
+            ):
+                record = self._asset_record(slot)
+                summaries.append({
+                    "slot": slot, "role": role, "description": description,
+                    "allowed_mime_types": ["image/png"], "editable": False, "available": True,
+                    "mime_type": record["mime_type"], "sha256": record["sha256"],
+                    "byte_count": record["byte_count"], "source": record["source"],
+                })
+            return summaries
         summaries = []
         for slot, declaration in ASSET_SLOTS.items():
             record = self._asset_record(slot)
@@ -153,6 +278,7 @@ class UniversalStudioWorkspace:
                 "role": declaration["role"],
                 "description": declaration["description"],
                 "allowed_mime_types": list(declaration["allowed_mime_types"]),
+                "editable": slot != "logo",
                 "available": record is not None,
                 "mime_type": None if record is None else record["mime_type"],
                 "sha256": None if record is None else record["sha256"],
@@ -163,6 +289,7 @@ class UniversalStudioWorkspace:
 
     def _snapshot(self) -> dict[str, Any]:
         return {
+            "template_id": self._selected_template_id(),
             "configuration": self._configuration(),
             "content": self._content(),
             "assets": [
@@ -184,36 +311,38 @@ class UniversalStudioWorkspace:
 
     def _version_records(self) -> list[dict[str, Any]]:
         versions: list[dict[str, Any]] = []
-        for path in sorted(self.versions.glob("universal_ad_v*.json")):
+        for path in sorted(self.versions.glob("*_v*.json")):
             try:
                 value = json.loads(path.read_text())
             except (OSError, json.JSONDecodeError) as error:
-                raise ValueError(f"Studio universal version is invalid: {path.name}") from error
-            if value.get("schema") != UNIVERSAL_AD_VERSION_SCHEMA:
-                raise ValueError(f"Studio universal version schema is invalid: {path.name}")
+                raise ValueError(f"Studio version is invalid: {path.name}") from error
+            if value.get("schema") not in {UNIVERSAL_AD_VERSION_SCHEMA, _TEMPLATE_VERSION_SCHEMA}:
+                raise ValueError(f"Studio version schema is invalid: {path.name}")
             stored_digest = value.get("version_sha256")
             digest_value = {key: item for key, item in value.items() if key != "version_sha256"}
             if not isinstance(stored_digest, str) or _canonical(digest_value)[1] != stored_digest:
-                raise ValueError(f"Studio universal version digest mismatch: {path.name}")
+                raise ValueError(f"Studio version digest mismatch: {path.name}")
             versions.append(value)
         versions.sort(key=lambda item: int(item["version"]))
         for index, item in enumerate(versions, 1):
             if item["version"] != index:
-                raise ValueError("Studio universal versions must be contiguous")
+                raise ValueError("Studio versions must be contiguous")
         return versions
 
     def detail(self) -> dict[str, Any]:
         config, content = self._configuration(), self._content()
-        template = build_universal_template(config, content)
+        template = self._build_template(config, content)
         versions = self._version_records()
         return {
-            "schema": UNIVERSAL_AD_WORKSPACE_SCHEMA,
-            "catalog": universal_ad_catalog(),
+            "schema": _WORKSPACE_SCHEMA,
+            "template_id": self._selected_template_id(),
+            "templates": [json.loads(json.dumps(item)) for item in _TEMPLATE_SUMMARIES],
+            "catalog": self._catalog(),
             "state_sha256": self.state_sha256(),
             "template_sha256": template.digest,
             "configuration": config,
             "content": content,
-            "component_settings": universal_component_settings(config, content),
+            "component_settings": self._component_settings(config, content),
             "assets": self._asset_summaries(),
             "pexels_available": self.pexels is not None,
             "versions": [{
@@ -235,22 +364,22 @@ class UniversalStudioWorkspace:
         self._assert_state(state_sha256)
         if (configuration is None) != (content is None):
             raise ValueError("Studio component metadata requires configuration and content together")
-        config = self._configuration() if configuration is None else normalize_universal_config(configuration)
-        normalized_content = self._content() if content is None else normalize_universal_content(content)
-        return universal_component_settings(config, normalized_content)
+        config = self._configuration() if configuration is None else self._normalize_configuration(configuration)
+        normalized_content = self._content() if content is None else self._normalize_content(content)
+        return self._component_settings(config, normalized_content)
 
     def agent_context(self) -> dict[str, Any]:
         """Return the bounded Studio state captured by a Tune agent run."""
 
         config, content = self._configuration(), self._content()
-        template = build_universal_template(config, content)
+        template = self._build_template(config, content)
         value = {
             "schema": _AGENT_CONTEXT_SCHEMA,
-            "template_id": UNIVERSAL_AD_TEMPLATE_ID,
+            "template_id": self._selected_template_id(),
             "template_version": template.document["version"],
             "state_sha256": self.state_sha256(),
             "template_sha256": template.digest,
-            "component_settings": universal_component_settings(config, content),
+            "component_settings": self._component_settings(config, content),
             "assets": self._snapshot()["assets"],
         }
         _, digest = _canonical(value)
@@ -261,16 +390,16 @@ class UniversalStudioWorkspace:
 
         self._assert_state(state_sha256)
         config, content = self._configuration(), self._content()
-        template = build_universal_template(config, content)
+        template = self._build_template(config, content)
         value = {
-            "schema": "ptw.studio.universal-ad-export.v4",
-            "template_id": UNIVERSAL_AD_TEMPLATE_ID,
+            "schema": "ptw.studio.template-export.v1",
+            "template_id": self._selected_template_id(),
             "template_version": template.document["version"],
             "state_sha256": state_sha256,
             "template_sha256": template.digest,
             "configuration": config,
             "content": content,
-            "component_settings": universal_component_settings(config, content),
+            "component_settings": self._component_settings(config, content),
             "assets": self._snapshot()["assets"],
             "primitive_template": template.document,
         }
@@ -284,6 +413,8 @@ class UniversalStudioWorkspace:
     ) -> dict[str, Any]:
         """Render one isolated local Studio preview."""
 
+        if self._selected_template_id() != UNIVERSAL_AD_TEMPLATE_ID:
+            raise ValueError("Studio Tune experiments support only the universal ad template")
         config = normalize_universal_config(configuration)
         normalized_content = normalize_universal_content(content)
         assets: dict[str, Mapping[str, Any]] = {}
@@ -323,18 +454,40 @@ class UniversalStudioWorkspace:
         self, *, base_sha256: str, configuration: Mapping[str, Any], content: Mapping[str, Any],
     ) -> dict[str, Any]:
         self._assert_state(base_sha256)
-        normalized_config = normalize_universal_config(configuration)
-        normalized_content = normalize_universal_content(content)
+        normalized_config = self._normalize_configuration(configuration)
+        normalized_content = self._normalize_content(content)
         self._atomic_json(self.root / "configuration.json", normalized_config)
         self._atomic_json(self.root / "content.json", normalized_content)
+        return self.detail()
+
+    def apply_template(self, *, base_sha256: str, template_id: str) -> dict[str, Any]:
+        """Replace the entire mutable Studio draft with one preset template."""
+
+        self._assert_state(base_sha256)
+        if template_id not in {UNIVERSAL_AD_TEMPLATE_ID, PHONE_METRICS_TEMPLATE_ID}:
+            raise ValueError("Studio template is not registered")
+        # The workspace asset directory has no immutable version material. List
+        # exact paths before removal so applying a template cannot touch any
+        # sibling authority or version history.
+        for path in list(self.assets.iterdir()):
+            if path.is_file():
+                path.unlink()
+        for name in ("configuration.json", "content.json"):
+            path = self.root / name
+            if path.exists():
+                path.unlink()
+        self._atomic_json(self.root / "template.json", {
+            "schema": _TEMPLATE_SELECTION_SCHEMA, "template_id": template_id,
+        })
         return self.detail()
 
     def _store_asset(
         self, slot: str, *, mime_type: str, data: bytes, source: Mapping[str, Any],
     ) -> None:
-        if slot not in ASSET_SLOTS:
+        asset_slots = self._asset_slots()
+        if slot not in asset_slots:
             raise KeyError(f"Studio asset slot not found: {slot}")
-        if mime_type not in ASSET_SLOTS[slot]["allowed_mime_types"]:
+        if mime_type not in asset_slots[slot]["allowed_mime_types"]:
             raise ValueError(f"Studio {slot} MIME type is outside its fixed slot")
         if not data or len(data) > MAX_IMAGE_BYTES:
             raise ValueError("Studio asset bytes are empty or exceed the 12 MB limit")
@@ -357,7 +510,13 @@ class UniversalStudioWorkspace:
         self, slot: str, *, base_sha256: str, mime_type: str, bytes_base64: str,
     ) -> dict[str, Any]:
         self._assert_state(base_sha256)
-        if slot == "sticker_object":
+        if slot == "logo":
+            raise ValueError("Natal is the fixed Studio identity and cannot be replaced")
+        if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID:
+            raise ValueError(
+                "Phone & metrics screen art is generated server-side and cannot be uploaded or replaced"
+            )
+        elif slot == "sticker_object":
             raise ValueError(
                 "Studio stickers must be isolated from a screened Pexels photograph; "
                 "direct sticker uploads are not allowed"
@@ -367,14 +526,29 @@ class UniversalStudioWorkspace:
         except (TypeError, ValueError) as error:
             raise ValueError("Studio asset bytes are not valid base64") from error
         self._store_asset(slot, mime_type=mime_type, data=data, source={"origin": "owner_upload"})
-        if slot in {"background_image", "logo"}:
+        if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID:
+            return self.detail()
+        if slot == "background_image":
             config = self._configuration()
         if slot == "background_image":
             config["background"]["mode"] = "image"
             self._atomic_json(self.root / "configuration.json", normalize_universal_config(config))
-        elif slot == "logo":
-            config["logo"]["enabled"] = True
-            self._atomic_json(self.root / "configuration.json", normalize_universal_config(config))
+        return self.detail()
+
+    def store_generated_phone_screen(
+        self, *, base_sha256: str, data: bytes, source: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Persist only validated server-generated artwork for the phone aperture."""
+
+        self._assert_state(base_sha256)
+        if self._selected_template_id() != PHONE_METRICS_TEMPLATE_ID:
+            raise ValueError("generated phone-screen artwork requires the phone-and-metrics template")
+        if source.get("origin") != "openai_image_api" or source.get("text_in_screen") != "prohibited_by_prompt":
+            raise ValueError("phone-screen artwork must carry verified text-free generation provenance")
+        self._store_asset(
+            "phone_screen", mime_type="image/png", data=data,
+            source=source,
+        )
         return self.detail()
 
     def source_pexels(
@@ -382,6 +556,8 @@ class UniversalStudioWorkspace:
         required_subject_terms: tuple[str, ...] = (),
     ) -> dict[str, Any]:
         self._assert_state(base_sha256)
+        if self._selected_template_id() != UNIVERSAL_AD_TEMPLATE_ID:
+            raise ValueError("Pexels sourcing is unavailable for the fixed phone-and-metrics template")
         if slot not in {"background_image", "sticker_object"}:
             raise ValueError("Pexels is available only for the background and sticker slots")
         if self.pexels is None:
@@ -406,7 +582,7 @@ class UniversalStudioWorkspace:
             validate_pexels_photographic_object_query(query)
         used_ids = {
             str(record["source"].get("external_id"))
-            for record in (self._asset_record(item) for item in ASSET_SLOTS)
+        for record in (self._asset_record(item) for item in ASSET_SLOTS)
             if record is not None and isinstance(record.get("source"), Mapping)
             and record["source"].get("provider") == "pexels"
         }
@@ -480,20 +656,22 @@ class UniversalStudioWorkspace:
         self._assert_state(state_sha256)
         if (configuration is None) != (content is None):
             raise ValueError("Studio draft preview requires configuration and content together")
-        config = self._configuration() if configuration is None else normalize_universal_config(configuration)
-        normalized_content = self._content() if content is None else normalize_universal_content(content)
-        template = build_universal_template(config, normalized_content)
-        assets = self._asset_records(config)
-        if config["sticker"]["enabled"] and "sticker_object" not in assets:
+        config = self._configuration() if configuration is None else self._normalize_configuration(configuration)
+        normalized_content = self._content() if content is None else self._normalize_content(content)
+        template = self._build_template(config, normalized_content)
+        assets = self._asset_records(config, normalized_content)
+        if self._selected_template_id() == UNIVERSAL_AD_TEMPLATE_ID and config["sticker"]["enabled"] and "sticker_object" not in assets:
             raise ValueError("Studio sticker requires a screened Pexels photograph")
         rendered = self.renderer.render_preview(
             template,
-            semantic_data=semantic_data(config, normalized_content),
+            semantic_data=(
+                phone_metrics_semantic_data(config, normalized_content)
+                if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID
+                else semantic_data(config, normalized_content)
+            ),
             assets=assets,
         )
-        rendered["resolved"]["component_settings"] = universal_component_settings(
-            config, normalized_content,
-        )
+        rendered["resolved"]["component_settings"] = self._component_settings(config, normalized_content)
         return rendered
 
     @staticmethod
@@ -507,12 +685,14 @@ class UniversalStudioWorkspace:
         self._assert_state(state_sha256)
         preview = self.render_preview(state_sha256=state_sha256)
         config, content = self._configuration(), self._content()
-        template = build_universal_template(config, content)
+        template = self._build_template(config, content)
         versions = self._version_records()
         version = len(versions) + 1
+        template_id = self._selected_template_id()
+        legacy_universal = template_id == UNIVERSAL_AD_TEMPLATE_ID
         record = {
-            "schema": UNIVERSAL_AD_VERSION_SCHEMA,
-            "template_id": UNIVERSAL_AD_TEMPLATE_ID,
+            "schema": UNIVERSAL_AD_VERSION_SCHEMA if legacy_universal else _TEMPLATE_VERSION_SCHEMA,
+            "template_id": template_id,
             "version": version,
             "state_sha256": state_sha256,
             "template_sha256": template.digest,
@@ -520,40 +700,44 @@ class UniversalStudioWorkspace:
             "change_note": self._change_note(change_note),
             "configuration": config,
             "content": content,
-            "component_settings": universal_component_settings(config, content),
+            "component_settings": self._component_settings(config, content),
             "assets": self._snapshot()["assets"],
             "primitive_template": template.document,
         }
+        stem = f"{template_id}_v{version}"
+        if not legacy_universal:
+            record["render_filename"] = f"{stem}.png"
         raw, digest = _canonical(record)
         record = {**json.loads(raw), "version_sha256": digest}
-        json_path = self.versions / f"universal_ad_v{version}.json"
-        png_path = self.versions / f"universal_ad_v{version}.png"
+        json_path = self.versions / f"{stem}.json"
+        png_path = self.versions / f"{stem}.png"
         if json_path.exists() or png_path.exists():
-            raise FileExistsError("Studio universal version already exists")
+            raise FileExistsError("Studio template version already exists")
         self._atomic_bytes(png_path, preview["bytes"])
         self._atomic_json(json_path, record)
         return self.detail()
 
     def version_detail(self, version: int) -> dict[str, Any]:
         if isinstance(version, bool) or version < 1:
-            raise KeyError(f"Studio universal version not found: {version}")
+            raise KeyError(f"Studio version not found: {version}")
         records = self._version_records()
         if version > len(records):
-            raise KeyError(f"Studio universal version not found: {version}")
+            raise KeyError(f"Studio version not found: {version}")
         return json.loads(json.dumps(records[version - 1], ensure_ascii=False))
 
     def version_render(self, version: int) -> dict[str, Any]:
         if isinstance(version, bool) or version < 1:
-            raise KeyError(f"Studio universal version not found: {version}")
+            raise KeyError(f"Studio version not found: {version}")
         records = self._version_records()
         if version > len(records):
-            raise KeyError(f"Studio universal version not found: {version}")
+            raise KeyError(f"Studio version not found: {version}")
         record = records[version - 1]
         try:
-            data = (self.versions / f"universal_ad_v{version}.png").read_bytes()
+            filename = record.get("render_filename") or f"{record['template_id']}_v{version}.png"
+            data = (self.versions / str(filename)).read_bytes()
         except OSError as error:
-            raise ValueError(f"Studio universal render is unavailable: {version}") from error
+            raise ValueError(f"Studio version render is unavailable: {version}") from error
         digest = hashlib.sha256(data).hexdigest()
         if digest != record["render_sha256"]:
-            raise ValueError(f"Studio universal render digest mismatch: {version}")
+            raise ValueError(f"Studio template render digest mismatch: {version}")
         return {"bytes": data, "mime_type": "image/png", "sha256": digest}

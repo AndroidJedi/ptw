@@ -88,8 +88,25 @@ describe('simple post step', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generate one post' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/v1/posts', {
       request_id: expect.any(String), brief_id: briefId,
+      template_id: 'universal_ad', template_input: null,
     }, { deadlineMs: 60_000 }))
     expect(screen.getByText('Generating one post and choosing one relevant photograph.')).toBeInTheDocument()
+  })
+
+  it('selects the locked 4:5 Natal phone template before creating its draft', async () => {
+    const api = postApi(null)
+    render(<PostView api={api} projectId={projectId} language="en" />)
+
+    await screen.findByRole('button', { name: 'Generate one post' })
+    fireEvent.click(screen.getByLabelText('Phone & metrics'))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate phone post' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/v1/posts', expect.objectContaining({
+      request_id: expect.any(String), brief_id: briefId, template_id: 'phone_metrics',
+      template_input: expect.objectContaining({
+        content: expect.objectContaining({ stats: expect.any(Array) }),
+      }),
+    }), { deadlineMs: 60_000 }))
+    expect(screen.queryByLabelText('Phone & metrics')).not.toBeInTheDocument()
   })
 
   it('places semantic feedback below the preview and sends it as one agent comment', async () => {

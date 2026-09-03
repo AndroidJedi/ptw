@@ -90,12 +90,16 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
     def test_one_fixed_template_opens_with_requested_investment_post(self) -> None:
         detail = self.workspace.detail()
         self.assertEqual("universal_ad", detail["catalog"]["template_id"])
-        self.assertEqual("ptw.studio.universal-ad-workspace.v5", detail["schema"])
+        self.assertEqual("ptw.studio.workspace.v6", detail["schema"])
+        self.assertEqual(["universal_ad", "phone_metrics"], [
+            item["template_id"] for item in detail["templates"]
+        ])
         self.assertEqual("ptw.studio.universal-ad-catalog.v6", detail["catalog"]["schema"])
         self.assertTrue(detail["catalog"]["setting_definitions"])
         setting_definitions = {
             item["setting_id"]: item for item in detail["catalog"]["setting_definitions"]
         }
+        self.assertFalse(any(key.startswith("configuration.logo.") for key in setting_definitions))
         sticker_width = setting_definitions["configuration.sticker.width"]
         self.assertEqual("universal_ad.sticker", sticker_width["component_id"])
         self.assertEqual((120, 720, 1), (
@@ -179,7 +183,7 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         self.assertEqual(detail["component_settings"], preview["resolved"]["component_settings"])
 
         agent_context = self.workspace.agent_context()
-        self.assertEqual("ptw.studio.universal-ad-agent-context.v2", agent_context["schema"])
+        self.assertEqual("ptw.studio.agent-context.v3", agent_context["schema"])
         self.assertEqual(detail["state_sha256"], agent_context["state_sha256"])
         self.assertEqual(detail["component_settings"], agent_context["component_settings"])
         self.assertRegex(agent_context["sha256"], r"^[0-9a-f]{64}$")
@@ -694,26 +698,24 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         background = next(item for item in uploaded["assets"] if item["slot"] == "background_image")
         self.assertEqual("owner_upload", background["source"]["origin"])
 
-    def test_owner_logo_upload_overrides_natal_fallback_and_enables_slot(self) -> None:
+    def test_owner_logo_upload_is_rejected_and_natal_remains_enabled(self) -> None:
         detail = self.workspace.detail()
         config = copy.deepcopy(detail["configuration"])
         config["logo"]["enabled"] = False
         detail = self.workspace.save_configuration(
             base_sha256=detail["state_sha256"], configuration=config, content=detail["content"],
         )
-        uploaded = self.workspace.upload_asset(
-            "logo", base_sha256=detail["state_sha256"], mime_type="image/png",
-            bytes_base64=base64.b64encode(_image_bytes()).decode(),
-        )
-        logo = next(item for item in uploaded["assets"] if item["slot"] == "logo")
-        self.assertEqual("owner_upload", logo["source"]["origin"])
-        self.assertNotEqual(NATAL_LOGO_SHA256, logo["sha256"])
-        self.assertTrue(uploaded["configuration"]["logo"]["enabled"])
-        rendered = self.workspace.render_preview(state_sha256=uploaded["state_sha256"])
+        self.assertTrue(detail["configuration"]["logo"]["enabled"])
+        with self.assertRaisesRegex(ValueError, "fixed Studio identity"):
+            self.workspace.upload_asset(
+                "logo", base_sha256=detail["state_sha256"], mime_type="image/png",
+                bytes_base64=base64.b64encode(_image_bytes()).decode(),
+            )
+        rendered = self.workspace.render_preview(state_sha256=detail["state_sha256"])
         self.assertNotIn("logo_surface", rendered["resolved"]["nodes"])
         self.assertIn("logo", rendered["resolved"]["nodes"])
 
-    def test_logo_position_width_and_toggle_remain_bounded(self) -> None:
+    def test_logo_position_width_remain_bounded_but_toggle_is_ignored(self) -> None:
         detail = self.workspace.detail()
         baseline = self.workspace.render_preview(state_sha256=detail["state_sha256"])
         top_left = copy.deepcopy(detail["configuration"])
@@ -760,11 +762,11 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             content=detail["content"],
         )
         self.assertNotIn("logo_surface", hidden_render["resolved"]["nodes"])
-        self.assertNotIn("logo", hidden_render["resolved"]["nodes"])
+        self.assertIn("logo", hidden_render["resolved"]["nodes"])
 
     def test_image_sticker_logo_and_immutable_version(self) -> None:
         detail = self.workspace.detail()
-        for slot in ("background_image", "logo"):
+        for slot in ("background_image",):
             data = _image_bytes()
             detail = self.workspace.upload_asset(
                 slot, base_sha256=detail["state_sha256"], mime_type="image/png",

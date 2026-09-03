@@ -15,6 +15,7 @@ from .local_brief_routes import local_brief_router
 from .local_brief_store import LocalBriefStore
 from .local_briefs import LocalBriefService
 from .local_codex import LocalCodexStructuredProvider
+from .openai_images import OpenAIPhoneScreenImageProvider
 from .post_routes import simple_post_router
 from .post_workflow import SimplePostService
 from .studio_routes import studio_router
@@ -37,6 +38,10 @@ def create_app(
     ))
     pexels_key = os.environ.get("PEXELS_API_KEY", "").strip()
     pexels = PexelsClient(pexels_key) if pexels_key else None
+    openai_api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    phone_screen_images = (
+        OpenAIPhoneScreenImageProvider(openai_api_key) if openai_api_key else None
+    )
     workspace = UniversalStudioWorkspace(workspace_path, pexels=pexels)
     brief_service = brief_service or LocalBriefService(
         store=LocalBriefStore(Path(os.environ.get(
@@ -55,7 +60,7 @@ def create_app(
     post_service = post_service or SimplePostService(
         Path(os.environ.get("POST_WORKSPACE_PATH", ".local/post-workspace")),
         provider=brief_service.provider, brief_resolver=brief_service.get_brief,
-        pexels=pexels,
+        pexels=pexels, image_provider=phone_screen_images,
     )
     recovery_tasks: set[asyncio.Task[Any]] = set()
 

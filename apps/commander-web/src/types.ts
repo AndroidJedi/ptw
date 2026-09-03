@@ -222,6 +222,67 @@ export interface StudioUniversalDetail {
   versions: StudioUniversalVersionSummary[]
 }
 
+export interface StudioPhoneMetricsConfiguration {
+  schema: 'ptw.studio.phone-metrics-config.v1'
+  background: { color: string; texture_intensity: number }
+  device: { x: number; y: number; width: number; rotation: number }
+}
+
+export interface StudioPhoneMetricsContent {
+  schema: 'ptw.studio.phone-metrics-content.v1'
+  offer: string
+  hero_title: string
+  supporting_text: string
+  cta: string
+  stats: Array<{ value: string; label: string }>
+  phone_hero_title: string
+}
+
+export interface StudioPhoneMetricsAssetSummary {
+  slot: 'phone_screen' | 'iphone_frame' | 'logo'
+  role: string
+  description: string
+  allowed_mime_types: string[]
+  editable: boolean
+  available: boolean
+  mime_type: string | null
+  sha256: string | null
+  byte_count: number | null
+  source: Record<string, unknown> | null
+}
+
+export interface StudioTemplateSummary {
+  template_id: 'universal_ad' | 'phone_metrics'
+  name: string
+  description: string
+  canvas: { width: number; height: number }
+}
+
+export interface StudioPhoneMetricsDetail {
+  schema: 'ptw.studio.workspace.v6'
+  template_id: 'phone_metrics'
+  templates: StudioTemplateSummary[]
+  catalog: {
+    schema: 'ptw.studio.phone-metrics-catalog.v1'
+    template_id: 'phone_metrics'
+    template_version: number
+    canvas: { width: 1080; height: 1350 }
+    semantic_roles: string[]
+    components: StudioUniversalComponentDefinition[]
+    asset_slots: Record<string, { role: string; allowed_mime_types: string[]; description: string }>
+    variation: { optional_elements: string[]; brand: 'Natal'; device_rotation_degrees: number }
+    sha256: string
+  }
+  state_sha256: string
+  template_sha256: string
+  configuration: StudioPhoneMetricsConfiguration
+  content: StudioPhoneMetricsContent
+  component_settings: { sha256: string }
+  assets: StudioPhoneMetricsAssetSummary[]
+  pexels_available: boolean
+  versions: StudioUniversalVersionSummary[]
+}
+
 export type SimplePostStatus = 'queued' | 'generating' | 'draft' | 'tuning' | 'failed' | 'approved'
 
 export interface SimplePostCommand {
@@ -232,6 +293,7 @@ export interface SimplePostCommand {
 export type SimplePostImageRequest =
   | { slot: 'background_image'; query: string }
   | { slot: 'sticker_object'; query: string; required_subject_terms: string[] }
+  | { slot: 'phone_screen'; query: string }
 
 export interface SimplePostAsset {
   schema: 'ptw.simple-post-asset.v1'
@@ -250,12 +312,14 @@ export interface SimplePostAsset {
 }
 
 export interface SimplePost {
-  schema: 'ptw.simple-post.v1'
+  schema: 'ptw.simple-post.v1' | 'ptw.simple-post.v2'
   post_id: string
   request_id: string
   project_id: string
   brief_id: string
   brief_document_sha256: string
+  template_id?: 'universal_ad' | 'phone_metrics'
+  template_input?: { content: StudioPhoneMetricsContent } | null
   status: SimplePostStatus
   failure_count: number
   state_sha256?: string | null
@@ -268,7 +332,7 @@ export interface SimplePost {
   approved_asset_id?: string | null
   approved_asset?: SimplePostAsset | null
   preview?: { mime_type: 'image/png'; sha256: string; width: number; height: number } | null
-  studio?: StudioUniversalDetail | null
+  studio?: StudioUniversalDetail | StudioPhoneMetricsDetail | null
   created_at: string
   updated_at: string
 }

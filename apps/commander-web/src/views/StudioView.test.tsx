@@ -142,6 +142,7 @@ function studioApi(tuneRuns: StudioTuneRun[] = [], initialDetail: StudioUniversa
     if (path === '/api/v1/studio/component-settings') {
       return structuredClone(current.component_settings)
     }
+    if (path === '/api/v1/studio/templates/apply') return structuredClone(current)
     if (path === '/api/v1/studio/assets/background_image') {
       current = {
         ...current,
@@ -243,8 +244,10 @@ describe('Universal Ad Studio', () => {
     expect(screen.getByLabelText('Enable sticker')).toBeChecked()
     expect(screen.queryByLabelText('Upload sticker_object asset')).not.toBeInTheDocument()
     expect(screen.getByText('Pexels photograph only')).toBeInTheDocument()
-    expect(screen.getByLabelText('Enable logo')).toBeChecked()
-    expect(screen.getByLabelText('Enable logo')).toBeEnabled()
+    expect(screen.getByText('Natal')).toBeInTheDocument()
+    expect(screen.getByText('Canonical brand lock-up')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Enable logo')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Upload logo')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Bullet 3')).toHaveValue('Наступний крок без зайвого шуму')
 
     fireEvent.change(screen.getByLabelText('Hero Title'), { target: { value: 'TEST A CLEAR PROMISE' } })
@@ -316,87 +319,30 @@ describe('Universal Ad Studio', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Pexels asset sourced with provenance and rendered.')
   })
 
-  it('replaces the default Natal logo and reenables the logo slot on upload', async () => {
+  it('keeps the canonical Natal lock-up fixed in every new Studio draft', async () => {
     const { api, post } = studioApi()
     render(<StudioView api={api} language="en" />)
 
-    expect(await screen.findByLabelText('Enable logo')).toBeChecked()
-    fireEvent.click(screen.getByLabelText('Enable logo'))
-    expect(screen.getByLabelText('Enable logo')).not.toBeChecked()
-
-    fireEvent.change(screen.getByLabelText('Upload logo'), {
-      target: { files: [new File(['custom-logo'], 'custom-logo.png', { type: 'image/png' })] },
-    })
-    await waitFor(() => expect(post).toHaveBeenCalledWith(
-      '/api/v1/studio/assets/logo',
-      expect.objectContaining({ mime_type: 'image/png' }),
-      { deadlineMs: 90_000 },
-    ))
-    expect(await screen.findByRole('status')).toHaveTextContent('logo saved.')
-    expect(screen.getByLabelText('Enable logo')).toBeChecked()
-    expect(screen.getAllByText(/owner_upload/).length).toBeGreaterThan(0)
+    expect(await screen.findByText('Canonical brand lock-up')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Enable logo')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Show logo')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Upload logo')).not.toBeInTheDocument()
+    expect(post).not.toHaveBeenCalledWith(
+      '/api/v1/studio/assets/logo', expect.anything(), expect.anything(),
+    )
   })
 
-  it('keeps logo visibility, position, size, and upload together without a backing control', async () => {
-    const { api } = studioApi()
+  it('offers the second template and applies it as one full draft replacement', async () => {
+    const { api, post } = studioApi()
     render(<StudioView api={api} language="en" />)
 
     await screen.findByText('Preview matches the saved setup')
-    fireEvent.click(screen.getByText('Brand mark'))
-    expect(screen.getByLabelText('Upload logo')).toBeInTheDocument()
-    expect(screen.getByLabelText('Show logo')).toBeChecked()
-    expect(screen.queryByLabelText('Show logo background')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Logo background color')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Logo position')).toHaveValue('top_right')
-    expect(screen.getByLabelText('Logo width')).toHaveValue(180)
-
-    fireEvent.click(screen.getByLabelText('Show logo'))
-    await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
-      expect.objectContaining({
-        configuration: expect.objectContaining({
-          logo: expect.objectContaining({ enabled: false }),
-        }),
-      }),
-      'image/png',
-      { deadlineMs: 90_000 },
+    fireEvent.click(screen.getByRole('button', { name: /Phone & metrics/ }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(
+      '/api/v1/studio/templates/apply',
+      { base_sha256: 'a'.repeat(64), template_id: 'phone_metrics' },
+      { deadlineMs: 60_000 },
     ))
-    expect(await screen.findByText('Live preview up to date')).toBeInTheDocument()
-    fireEvent.click(screen.getByLabelText('Enable logo'))
-    await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
-      { state_sha256: 'a'.repeat(64) },
-      'image/png',
-      { deadlineMs: 90_000 },
-    ))
-    expect(screen.getByLabelText('Enable logo')).toBeChecked()
-    expect(await screen.findByText('Preview matches the saved setup')).toBeInTheDocument()
-
-    fireEvent.change(screen.getByLabelText('Logo position'), { target: { value: 'top_left' } })
-    fireEvent.change(screen.getByLabelText('Logo width'), { target: { value: '240' } })
-    await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
-      expect.objectContaining({
-        configuration: expect.objectContaining({
-          logo: expect.objectContaining({ position: 'top_left', width: 240 }),
-        }),
-      }),
-      'image/png',
-      { deadlineMs: 90_000 },
-    ))
-
-    fireEvent.click(screen.getByLabelText('Show logo'))
-    await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
-      expect.objectContaining({
-        configuration: expect.objectContaining({
-          logo: expect.objectContaining({ enabled: false }),
-        }),
-      }),
-      'image/png',
-      { deadlineMs: 90_000 },
-    ))
-    expect(screen.getByLabelText('Enable logo')).not.toBeChecked()
   })
 
   it('names the sticker placement section and live previews every sticker control', async () => {

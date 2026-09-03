@@ -1,80 +1,70 @@
 # Commander current state
 
-Updated: 2026-09-02
+Updated: 2026-09-03
 Branch: `codex/web-only-commander`
 Deployment: not authorized; local checkout only
 
 ## Current milestone
 
-The first streamlined Post step is implemented for the loopback local app. One
-completed, owner-approved Product Brief creates at most one mutable post draft.
-The draft uses the exact Universal Studio v5 configuration, v2 semantic
-content, stable component setting IDs, Pexels provenance, primitive template,
-and 1080×1080 renderer in a separate per-post workspace below
-`.local/post-workspace`.
+Universal Studio now has two bounded server-owned templates: existing
+`universal_ad` at 1080×1080 and `phone_metrics` at 1080×1350. Applying either
+template replaces all mutable configuration, owner copy, and mutable assets;
+immutable versions remain byte-for-byte historical records. Missing selection
+metadata retains the legacy Universal Studio behavior.
 
-The comment field directly below the preview is translated by one structured
-local agent into strict Studio setting/content commands and, when requested,
-one semantic Pexels asset query. Natural visual intent such as "pick image
-with thinking human face" becomes a concrete photographic face query. Applied
-commands remain ID-explicit in the UI and append-only local history.
+`phone_metrics` is the owner-approved 4:5 Natal composition: off-white texture,
+canonical Natal lock-up upper-left, dark left-safe copy, an owner-supplied
+black perspective iPhone with visible right rail, three equal cobalt statistic
+cards, and a cobalt bottom CTA band. Its sole static frame is checked in with a
+source/license/SHA-256 manifest and is never fetched at runtime; the redundant
+upright frame was removed. The fixed frame, its aperture, and text-free screen
+art are one precomposited layer, so the supplied pose cannot drift apart.
 
-Sticker comments resolve to the real optional Studio Sticker component. Adding
-or replacing one sources a screened Pexels photograph of a physical object,
-requires provider metadata to match the requested subject, applies the bounded
-isolation transform, retains provenance, and enables the exact
-`configuration.sticker.enabled` setting. For an add/replace comment, the
-structured output contract permits only a `sticker_object` image request; an
-unrelated background request or a stale stored Sticker cannot satisfy it. A
-generic request carries two agent-selected fallback objects so an unusable
-Pexels result can fail closed without making the command silently do nothing.
-An owner-named object is never substituted. Validation also rejects the former
-emoji-in-copy regression, retained scenes, and partial objects whose isolated
-alpha still touches the source frame.
+Natal is the only visible identity in new Studio and local Post drafts. The
+canonical lock-up is always enabled. Owner logo upload/toggle/brand substitution
+is absent from the new template controls; immutable legacy versions remain
+readable.
 
-Generation and tuning never create an asset. Explicit approval captures the
-exact PNG, Brief and Project IDs, state and template digests, configuration,
-content, component settings, and source provenance as one immutable local
-asset. Approved posts cannot be tuned again.
+The local Post start screen exposes both template choices before the draft is
+created and locks the choice afterward. Phone drafts collect bounded copy and
+exactly three owner metrics, then generate a server-side OpenAI text-free
+screen visual under an explicit no-text/no-logo/no-UI contract. They have no
+after-start Tune action. Universal drafts retain the existing bounded Pexels
+and comment-tuning flow. No production Owner Gateway, Brief handoff, Telegram,
+database, Firebase, or deployment behavior changed.
 
-The retired Social posts/Result subsystem remains absent. No production
-database, Owner Gateway route, structured bridge mode, provider, Telegram
-delivery, Firebase release, or deployment was changed. Production navigation
-continues to contain Product Briefs and Universal Studio only; the Post step is
-shown only by the local app launcher.
+Mutable local Post v1 drafts created before template selection and the fixed
+Natal lock-up are recovered once, append-only, when their Studio state digest
+is stale: they become an explicit `universal_ad` v2 draft with the current
+Studio preview digest. Any v2 draft, phone draft, or immutable approval still
+fails closed on a digest mismatch.
 
 ## Verification status
 
-The local Simple Post milestone is verified:
-
-- Validation, post workflow, and standalone Studio: 70 tests passed in the
-  repository virtual environment.
-- Owner Console: 34 unit tests, the TypeScript/Vite production build, and 21
-  desktop/360px-mobile/WebKit Playwright tests passed.
-- The deterministic Universal Studio geometry audit passed all six variants.
-  The exact 1080×1080 default PNG was inspected at full resolution with no
-  clipped or overlapping visible text or unsafe bounds.
-- The semantic tuning regression proves that "Pick image with thinking human
-  face" reaches the agent and resolves to exact setting IDs plus a thoughtful
-  visible-face Pexels query.
-- The literal live comment `add sticker` replaced the rejected smartphone
-  cutout with a screened light-bulb photograph, enabled the Sticker setting,
-  preserved the original background, and produced an inspected 1080×1080
-  preview with the Sticker visible, bounded, and clear of the title and CTA.
-- Standalone Studio was also tested from an empty Sticker slot: with Pexels
-  configured, clicking the previously disabled toggle sourced the screened
-  light-bulb object and enabled the component in the live preview.
-- Commander: all 8 tests passed in the built runtime image, and the
-  deterministic Brief lineage demo passed. Skill validation and whitespace
-  validation also passed.
+- Validation pipeline: 79 tests passed in the repository virtual environment.
+- Focused Post/Studio/phone regressions: 39 tests passed, including static
+  frame digest/no-runtime-fetch, grouped device composition, Natal-only
+  identity, template replacement, legacy-version preservation and recovery,
+  three-metric validation, and 1080×1350 rendering.
+- Owner Console: 35 Vitest tests and the production TypeScript/Vite build
+  passed.
+- Extended Studio visual audit passed six universal variants plus the exact
+  full-resolution `phone_metrics` 1080×1350 composition. It checks texture,
+  Natal placement, left-safe copy, upper-right right-rail phone, metric cards,
+  CTA, bounds/collisions, and text-free phone artwork. The creative render was
+  visually inspected without social-app chrome.
+- Commander: host suite passed 6 tests with 2 FastAPI-dependent skips; the
+  built runtime image passed all 8 tests. The deterministic Commander demo
+  completed.
+- Canonical skill synchronization and skill verification passed.
 
 No production state was touched.
 
 ## Next work
 
-Keep the Post milestone local until the owner explicitly requests production
-integration. That separate milestone must define PostgreSQL entity/edge and
-PNG authority, add authenticated Owner Gateway/internal routes, extend the
-structured bridge capability contract, verify restart/idempotency behavior,
-and preserve the rule that only explicit approval creates an asset. Do not
-reuse the retired Result schema, routes, or local data.
+Keep both Studio templates and the Post milestone local until the owner
+explicitly requests production integration. That future work must define
+PostgreSQL entity/edge and PNG authority, add authenticated Owner
+Gateway/internal routes, verify restart/idempotency, and preserve the rule that
+only explicit approval creates an asset. Do not reuse the retired Result
+schema, routes, or local data.

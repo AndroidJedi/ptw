@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from validation_pipeline.images import PexelsPhoto
-from validation_pipeline.post_workflow import SimplePostService
+from validation_pipeline.post_workflow import LEGACY_POST_SCHEMA, POST_SCHEMA, SimplePostService
 
 
 HAS_PILLOW = importlib.util.find_spec("PIL") is not None
@@ -88,6 +88,10 @@ class FakeProvider:
                 ],
                 "image_query": "calm person considering therapy portrait",
             }
+        elif kwargs["mode"] == "simple_post_phone_screen_prompt":
+            response = {
+                "image_prompt": "Abstract editorial composition of soft graphite spheres and lime light on a clean warm-white field, generous quiet negative space.",
+            }
         else:
             response = deepcopy(self.tune_response) if self.tune_response is not None else {
                 "commands": [
@@ -108,12 +112,36 @@ class FakeProvider:
         }
 
 
+class FakePhoneScreenImageProvider:
+    def __init__(self) -> None:
+        self.prompts: list[str] = []
+
+    def generate(self, prompt: str) -> dict:
+        from PIL import Image, ImageDraw
+
+        self.prompts.append(prompt)
+        image = Image.new("RGBA", (832, 1792), "#F7F8F5")
+        draw = ImageDraw.Draw(image)
+        draw.ellipse((90, 250, 560, 720), fill="#1D2638")
+        draw.ellipse((350, 880, 810, 1340), fill="#D6E644")
+        output = BytesIO(); image.save(output, format="PNG")
+        data = output.getvalue()
+        return {
+            "bytes": data, "mime_type": "image/png", "width": 832, "height": 1792,
+            "source": {
+                "origin": "openai_image_api", "provider": "openai", "model": "fake-image",
+                "size": "832x1792", "quality": "medium", "text_in_screen": "prohibited_by_prompt",
+            },
+        }
+
+
 @unittest.skipUnless(HAS_PILLOW, "Pillow is required")
 class SimplePostServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.provider = FakeProvider()
         self.pexels = FakePexels()
+        self.phone_images = FakePhoneScreenImageProvider()
         self.brief = {
             "brief_id": "01900000-0000-7000-8000-000000000001",
             "project_id": "01900000-0000-7000-8000-000000000002",
@@ -134,6 +162,7 @@ class SimplePostServiceTests(unittest.TestCase):
         self.service = SimplePostService(
             Path(self.temporary.name), provider=self.provider,
             brief_resolver=lambda _brief_id: self.brief, pexels=self.pexels,
+            image_provider=self.phone_images,
         )
 
     def tearDown(self) -> None:
@@ -155,7 +184,7 @@ class SimplePostServiceTests(unittest.TestCase):
         self.assertEqual("A CALMER FIRST STEP", post["studio"]["content"]["hero_title"])
         self.assertEqual(104, post["studio"]["configuration"]["typography"]["hero_size"])
         self.assertEqual("image", post["studio"]["configuration"]["background"]["mode"])
-        self.assertFalse(post["studio"]["configuration"]["logo"]["enabled"])
+        self.assertTrue(post["studio"]["configuration"]["logo"]["enabled"])
         self.assertFalse(post["studio"]["configuration"]["sticker"]["enabled"])
         self.assertEqual(["calm person considering therapy portrait"], self.pexels.calls)
         self.assertEqual((1080, 1080), (post["preview"]["width"], post["preview"]["height"]))
@@ -173,6 +202,73 @@ class SimplePostServiceTests(unittest.TestCase):
         )
         self.assertFalse(created)
         self.assertEqual(post["post_id"], duplicate["post_id"])
+
+    def test_legacy_universal_draft_with_a_stale_state_digest_is_reconciled_once(self) -> None:
+        post = self._draft()
+        legacy = dict(self.service.store.get("posts", post["post_id"]))
+        legacy.update({
+            "schema": LEGACY_POST_SCHEMA,
+            "state_sha256": "0" * 64,
+            "template_sha256": "1" * 64,
+            "preview_sha256": "2" * 64,
+        })
+        legacy.pop("template_id")
+        legacy.pop("template_input")
+        self.service.store.append("posts", post["post_id"], legacy)
+
+        reconciled = self.service.get_post(post["post_id"])
+
+        self.assertEqual(POST_SCHEMA, reconciled["schema"])
+        self.assertEqual("universal_ad", reconciled["template_id"])
+        self.assertIsNone(reconciled["template_input"])
+        self.assertEqual(reconciled["state_sha256"], reconciled["studio"]["state_sha256"])
+        self.assertEqual(reconciled["template_sha256"], reconciled["studio"]["template_sha256"])
+        self.assertEqual(reconciled["preview"]["sha256"], reconciled["preview_sha256"])
+        history = self.service.store.history("posts", post["post_id"])
+        self.assertEqual(POST_SCHEMA, history[-1]["payload"]["schema"])
+
+    def test_phone_metrics_locks_template_copy_and_uses_text_free_server_art(self) -> None:
+        content = {
+            "schema": "ptw.studio.phone-metrics-content.v1",
+            "offer": "NATAL", "hero_title": "START WITH CLARITY",
+            "supporting_text": "A concise explanation for a confident next step.",
+            "cta": "LEARN MORE",
+            "stats": [
+                {"value": "$5K", "label": "minimum"},
+                {"value": "7,000+", "label": "members"},
+                {"value": "95", "label": "ventures"},
+            ],
+            "phone_hero_title": "",
+        }
+        post, created = self.service.create_post(
+            request_id="01900000-0000-7000-8000-000000000091",
+            brief_id=self.brief["brief_id"], requested_by="owner",
+            template_id="phone_metrics", template_input={"content": content},
+        )
+        self.assertTrue(created)
+        self.assertEqual("phone_metrics", post["template_id"])
+        completed = self.service.generate_post(post["post_id"])
+        self.assertEqual("draft", completed["status"])
+        self.assertEqual("phone_metrics", completed["studio"]["template_id"])
+        self.assertEqual((1080, 1350), (
+            completed["preview"]["width"], completed["preview"]["height"],
+        ))
+        self.assertEqual([], self.pexels.calls)
+        self.assertEqual(1, len(self.phone_images.prompts))
+        self.assertIn("abstract", self.phone_images.prompts[0].casefold())
+        screen = next(item for item in completed["studio"]["assets"] if item["slot"] == "phone_screen")
+        self.assertEqual("openai_image_api", screen["source"]["origin"])
+        self.assertEqual("prohibited_by_prompt", screen["source"]["text_in_screen"])
+        with self.assertRaisesRegex(ValueError, "fixed when its draft starts"):
+            self.service.create_tune(
+                completed["post_id"], request_id="01900000-0000-7000-8000-000000000092",
+                comment="Make the headline smaller", requested_by="owner",
+            )
+        approved, created_asset = self.service.approve_post(
+            completed["post_id"], state_sha256=completed["state_sha256"], approved_by="owner",
+        )
+        self.assertTrue(created_asset)
+        self.assertEqual("approved", approved["status"])
 
     def test_semantic_comment_becomes_exact_settings_and_a_face_photo_query(self) -> None:
         post = self._draft()

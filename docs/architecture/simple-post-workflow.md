@@ -8,20 +8,26 @@ does not add production PostgreSQL tables, and is not a publishing workflow.
 ## Contract
 
 One completed, owner-approved Product Brief may create exactly one post draft.
-The generation agent writes concise Brief-grounded semantic content, selects
-bounded Universal Studio settings, and produces one concrete English Pexels
-query for a real square photograph. It may not invent proof, metrics,
+Before that draft begins, the owner selects either `universal_ad` or
+`phone_metrics`; the selection is then locked. The generation agent writes
+concise Brief-grounded semantic content and may not invent proof, metrics,
 testimonials, urgency, scarcity, or product capabilities.
 
-The draft uses the same strict `ptw.studio.universal-ad-config.v5` and
+`universal_ad` uses the strict `ptw.studio.universal-ad-config.v5` and
 `ptw.studio.universal-ad-content.v2` contracts, stable component setting IDs,
-Pexels provenance, primitive template, and 1080×1080 `StudioRenderer` output as
-Universal Studio. The workflow owns a separate per-post workspace; it does not
-read or mutate `.local/studio-workspace`.
+Pexels provenance, primitive template, and 1080×1080 `StudioRenderer` output
+as Universal Studio. `phone_metrics` uses its strict 4:5 contracts: the owner
+enters eyebrow, headline, supporting copy, CTA, exactly three statistics, and
+an optional in-phone title at draft start. It always uses the canonical Natal
+lock-up, owner-selected static angled phone frame, and server-generated
+text-free visual-only screen art. No logo, brand-name, phone-art, or raw device
+control is owner-editable. The workflow owns a separate per-post workspace; it
+does not read or mutate `.local/studio-workspace`.
 
 ## Comment tuning
 
-The owner comment below the preview is sent to one structured local agent. The
+The owner comment below a `universal_ad` preview is sent to one structured local
+agent. The
 agent receives the exact current component settings, bounded setting catalog,
 asset summaries, and owner comment. It returns only:
 
@@ -50,15 +56,20 @@ passes every subject and isolation gate. A comment that names its desired
 object has no substitutions. A sticker request may never be imitated by
 inserting an emoji, glyph, or label into visible copy.
 
-Logo commands remain unavailable because the generic workflow has no approved
-project-specific logo and never substitutes Studio's Natal brand default into
-another Project.
+Logo commands remain unavailable: Natal is always the visible identity in new
+Studio/Post drafts, with no project-specific substitution. `phone_metrics`
+does not offer comment tuning after its draft begins; its bounded copy and
+statistics are fixed at selection time and it proceeds to owner approval.
 
 ## Approval boundary
 
-Generation and comment tuning produce only a mutable draft. Explicit owner
-approval captures the exact PNG, configuration, content, component settings,
-template digest, source asset provenance, Brief ID, Project ID, and state
-digest as one immutable asset. An approved post cannot be tuned again. There
-is no export, scheduling, publishing, campaign, traffic, analytics, or
-optimization action in this milestone.
+Generation and comment tuning produce only a mutable draft. For phone drafts,
+the server alone calls the configured OpenAI Image API with a prompt that
+prohibits visible text, numbers, logos, UI, buttons, charts, and metrics; it
+validates the PNG and records non-secret provenance before compositing it into
+the fixed phone. Explicit owner approval captures the exact PNG,
+configuration, content, component settings, template digest, source asset
+provenance, Brief ID, Project ID, and state digest as one immutable asset. An
+approved post cannot be tuned again. There is no export, scheduling,
+publishing, campaign, traffic, analytics, or optimization action in this
+milestone.

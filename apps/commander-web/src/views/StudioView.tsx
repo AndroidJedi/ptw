@@ -4,6 +4,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { StudioTuneWizard } from '../components/studio/StudioTuneWizard'
+import { PhoneMetricsStudio } from '../components/studio/PhoneMetricsStudio'
 import { ErrorState, Loading } from '../components/State'
 import { translate, type Language } from '../i18n'
 import type {
@@ -30,6 +31,7 @@ function downloadJson(filename: string, value: unknown) {
 }
 
 function normalizedPreviewContent(value: StudioUniversalContent): StudioUniversalContent {
+  if (!Array.isArray((value as unknown as { bullets?: unknown }).bullets)) return value
   return {
     ...value,
     bullets: value.bullets.map((item) => item.trim()).filter(Boolean),
@@ -282,6 +284,24 @@ export function StudioView({ api, language, tuneMode = false }: {
     }
   }
 
+  const applyTemplate = async (templateId: 'universal_ad' | 'phone_metrics') => {
+    if (!detail || templateId === (detail as unknown as { template_id?: string }).template_id) return
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      const value = await api.post<StudioUniversalDetail>('/api/v1/studio/templates/apply', {
+        base_sha256: detail.state_sha256, template_id: templateId,
+      }, { deadlineMs: 60_000 })
+      applyDetail(value)
+      setNotice(tr('Template replaced the complete editable draft.', 'Шаблон повністю замінив редаговану чернетку.'))
+    } catch (cause) {
+      setError((cause as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const uploadAsset = async (slot: string, file: File) => {
     if (!detail) return
     const draftConfiguration = configuration ? structuredClone(configuration) : null
@@ -303,9 +323,6 @@ export function StudioView({ api, language, tuneMode = false }: {
         const nextConfiguration = slot === 'background_image' ? {
           ...draftConfiguration,
           background: { ...draftConfiguration.background, mode: 'image' as const },
-        } : slot === 'logo' ? {
-          ...draftConfiguration,
-          logo: { ...draftConfiguration.logo, enabled: true },
         } : draftConfiguration
         setDetail(value)
         setConfiguration(nextConfiguration)
@@ -436,6 +453,14 @@ export function StudioView({ api, language, tuneMode = false }: {
       : <Loading language={language} />
   }
 
+  if ((detail as unknown as { template_id?: string }).template_id === 'phone_metrics') {
+    return <PhoneMetricsStudio
+      api={api} language={language}
+      detail={detail as unknown as import('../types').StudioPhoneMetricsDetail}
+      onDetail={(value) => applyDetail(value as StudioUniversalDetail)}
+    />
+  }
+
   const setBullet = (index: number, value: string) => setContent((current) => {
     if (!current) return current
     const bullets = [...current.bullets]
@@ -444,9 +469,7 @@ export function StudioView({ api, language, tuneMode = false }: {
     return { ...current, bullets }
   })
   const stickerAvailable = detail.assets.some((asset) => asset.slot === 'sticker_object' && asset.available)
-  const logoAvailable = detail.assets.some((asset) => asset.slot === 'logo' && asset.available)
   const backgroundAsset = detail.assets.find((asset) => asset.slot === 'background_image')
-  const logoAsset = detail.assets.find((asset) => asset.slot === 'logo')
   const fontOptions: Array<{ value: StudioUniversalFontFamily; label: string }> = [
     { value: 'Inter', label: tr('Inter — neutral & clear', 'Inter — нейтральний і чіткий') },
     { value: 'Manrope', label: tr('Manrope — friendly & modern', 'Manrope — дружній і сучасний') },
@@ -458,8 +481,16 @@ export function StudioView({ api, language, tuneMode = false }: {
     {error && <ErrorState message={error} language={language} />}
     {notice && <p className="notice" role="status">{notice}</p>}
 
+    <section className="panel studio-template-selector" aria-label={tr('Studio template selector', 'Вибір шаблону Студії')}>
+      <small>{tr('TEMPLATE', 'ШАБЛОН')}</small><h2>{tr('Choose a preset composition', 'Оберіть готову композицію')}</h2>
+      <p>{tr('Changing template replaces all editable copy and assets. Immutable saved versions remain intact.', 'Зміна шаблону замінює весь редагований текст і ресурси. Незмінні збережені версії залишаються цілими.')}</p>
+      <div className="studio-template-grid">
+        <button type="button" className="studio-template-card is-active" disabled={busy} onClick={() => void applyTemplate('universal_ad')}><strong>{tr('Universal ad', 'Універсальна реклама')}</strong><small>1080×1080</small><span>{tr('Square, flexible Studio composition.', 'Квадратна гнучка композиція Студії.')}</span></button>
+        <button type="button" className="studio-template-card" disabled={busy} onClick={() => void applyTemplate('phone_metrics')}><strong>{tr('Phone & metrics', 'Телефон і метрики')}</strong><small>1080×1350</small><span>{tr('Fixed Natal phone, three metrics, and a CTA band.', 'Фіксований телефон Natal, три метрики та CTA-смуга.')}</span></button>
+      </div>
+    </section>
     <section className="studio-commandbar universal-commandbar" aria-label={tr('Universal Studio controls', 'Керування універсальною Студією')}>
-      <div><small>{tr('FIXED STRUCTURE', 'ФІКСОВАНА СТРУКТУРА')}</small><strong>universal_ad · v{detail.catalog.template_version}</strong></div>
+        <div><small>{tr('FIXED STRUCTURE', 'ФІКСОВАНА СТРУКТУРА')}</small><strong>universal_ad · v{detail.catalog.template_version}</strong></div>
       {tuneMode && <button className="secondary studio-tune-trigger" disabled={busy} onClick={() => setTuneOpen(true)}><WandSparkles />{tr('Feedback & iterations', 'Відгук та ітерації')}</button>}
       <button className="secondary" disabled={busy} onClick={() => importRef.current?.click()}><Upload />{tr('Import config', 'Імпорт конфігурації')}</button>
       <input ref={importRef} className="visually-hidden" type="file" accept="application/json,.json" onChange={(event) => {
@@ -505,10 +536,7 @@ export function StudioView({ api, language, tuneMode = false }: {
           }} />
           <span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Sticker', 'Стікер')}</strong><small>{!stickerAvailable ? detail.pexels_available ? tr('Click to source object', 'Натисніть, щоб знайти об’єкт') : tr('Pexels unavailable', 'Pexels недоступний') : configuration.sticker.enabled ? tr('Visible', 'Видимий') : tr('Hidden', 'Прихований')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b>
         </label>
-        <label className={`universal-component-card is-toggle ${configuration.logo.enabled ? 'is-active' : ''} ${!logoAvailable ? 'is-unavailable' : ''}`}>
-          <input aria-label="Enable logo" type="checkbox" checked={configuration.logo.enabled} disabled={!logoAvailable && !configuration.logo.enabled} onChange={(event) => patchConfig('logo', { enabled: event.target.checked })} />
-          <span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Logo', 'Логотип')}</strong><small>{!logoAvailable ? tr('Upload asset first', 'Спочатку додайте ресурс') : configuration.logo.enabled ? tr('Visible', 'Видимий') : tr('Hidden', 'Прихований')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b>
-        </label>
+        <div className="universal-component-card is-required"><span>{tr('FIXED', 'ФІКСОВАНО')}</span><strong>Natal</strong><small>{tr('Canonical brand lock-up', 'Канонічний бренд-локап')}</small></div>
       </div>
     </section>
 
@@ -585,35 +613,6 @@ export function StudioView({ api, language, tuneMode = false }: {
         </details>
 
         <details className="panel universal-section universal-disclosure">
-          <summary><span><small>{tr('LOGO', 'ЛОГОТИП')}</small><strong>{tr('Brand mark', 'Знак бренду')}</strong></span><em>{configuration.logo.enabled ? tr('VISIBLE', 'ВИДИМИЙ') : tr('HIDDEN', 'ПРИХОВАНИЙ')}</em></summary>
-          <div className="universal-section-body">
-            <div className="universal-inline-upload">
-              <div><strong>{tr('Logo asset', 'Файл логотипа')}</strong><span>{logoAsset?.available ? `${logoAsset.mime_type} · ${String(logoAsset.source?.origin || 'stored')}` : tr('No logo supplied', 'Логотип не додано')}</span></div>
-              <label className="secondary"><Upload />{tr('Replace logo', 'Замінити логотип')}<input
-                aria-label="Upload logo" type="file"
-                accept={logoAsset?.allowed_mime_types.join(',') || 'image/png,image/webp'}
-                onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAsset('logo', file); event.currentTarget.value = '' }}
-              /></label>
-            </div>
-            <div className="universal-field-grid">
-              <label className="universal-toggle universal-field-span"><input
-                aria-label="Show logo" type="checkbox" checked={configuration.logo.enabled}
-                disabled={!logoAvailable && !configuration.logo.enabled}
-                onChange={(event) => patchConfig('logo', { enabled: event.target.checked })}
-              />{tr('Show logo in the creative', 'Показувати логотип у креативі')}</label>
-              {configuration.logo.enabled && <>
-                <label><span>{tr('Logo position', 'Позиція логотипа')}</span><select
-                  aria-label="Logo position" value={configuration.logo.position}
-                  onChange={(event) => patchConfig('logo', { position: event.target.value as StudioUniversalConfiguration['logo']['position'] })}
-                ><option value="top_left">{tr('Top left', 'Зверху ліворуч')}</option><option value="top_right">{tr('Top right', 'Зверху праворуч')}</option></select></label>
-                <NumberField label="Logo width" value={configuration.logo.width} min={80} max={280} onChange={(value) => patchConfig('logo', { width: value })} />
-              </>}
-            </div>
-            {!logoAvailable && <p className="universal-section-note">{tr('Upload a PNG or WebP logo to make this component available.', 'Завантажте логотип PNG або WebP, щоб зробити цей компонент доступним.')}</p>}
-          </div>
-        </details>
-
-        <details className="panel universal-section universal-disclosure">
           <summary><span><small>{tr('HIERARCHY & CTA', 'ІЄРАРХІЯ ТА CTA')}</small><strong>{tr('Type, layout and action', 'Типографіка, макет і дія')}</strong></span><em>{tr('EDIT', 'ЗМІНИТИ')}</em></summary>
           <div className="universal-section-body"><div className="universal-field-grid">
             <label><span>{tr('Main font mood', 'Настрій основного шрифту')}</span><select aria-label="Font family" value={configuration.typography.font_family} onChange={(event) => patchConfig('typography', { font_family: event.target.value as StudioUniversalFontFamily })}>
@@ -670,15 +669,15 @@ export function StudioView({ api, language, tuneMode = false }: {
     </section>
 
     <section className="panel universal-assets-panel">
-      <small>{tr('THREE FIXED ASSET SLOTS', 'ТРИ ФІКСОВАНІ МІСЦЯ ДЛЯ РЕСУРСІВ')}</small><h2>{tr('Background, sticker object, logo (Natal by default)', 'Фон, об’єкт стікера, логотип (Natal за замовчуванням)')}</h2>
-      <div className="studio-asset-list">{detail.assets.map((asset) => <div key={asset.slot}><div><strong>{asset.slot}</strong><span>{asset.available ? `${asset.mime_type} · ${Math.round((asset.byte_count || 0) / 1024)} KB · ${String(asset.source?.origin || 'stored')}` : tr('Optional · not supplied', 'Необов’язково · не надано')}</span></div>{asset.slot === 'sticker_object' ? <span className="studio-note">{tr('Pexels photograph only', 'Лише фотографія Pexels')}</span> : <label className="secondary"><Upload />{tr('Upload', 'Завантажити')}<input aria-label={`Upload ${asset.slot} asset`} type="file" accept={asset.allowed_mime_types.join(',')} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAsset(asset.slot, file); event.currentTarget.value = '' }} /></label>}</div>)}</div>
+      <small>{tr('FIXED ASSET SLOTS', 'ФІКСОВАНІ МІСЦЯ ДЛЯ РЕСУРСІВ')}</small><h2>{tr('Background and sticker object · Natal is fixed', 'Фон і об’єкт стікера · Natal зафіксовано')}</h2>
+      <div className="studio-asset-list">{detail.assets.filter((asset) => asset.slot !== 'logo').map((asset) => <div key={asset.slot}><div><strong>{asset.slot}</strong><span>{asset.available ? `${asset.mime_type} · ${Math.round((asset.byte_count || 0) / 1024)} KB · ${String(asset.source?.origin || 'stored')}` : tr('Optional · not supplied', 'Необов’язково · не надано')}</span></div>{asset.slot === 'sticker_object' ? <span className="studio-note">{tr('Pexels photograph only', 'Лише фотографія Pexels')}</span> : <label className="secondary"><Upload />{tr('Upload', 'Завантажити')}<input aria-label={`Upload ${asset.slot} asset`} type="file" accept={asset.allowed_mime_types.join(',')} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAsset(asset.slot, file); event.currentTarget.value = '' }} /></label>}</div>)}</div>
       <div className="universal-pexels-grid">
         <label><span>{tr('Pexels background query', 'Запит фону Pexels')}</span><input aria-label="Pexels background query" value={backgroundQuery} onChange={(event) => setBackgroundQuery(event.target.value)} /></label>
         <button className="secondary" disabled={busy || !detail.pexels_available || backgroundQuery.trim().length < 2} onClick={() => void sourcePexels('background_image', backgroundQuery)}><Search />{tr('Source background', 'Знайти фон')}</button>
         <label><span>{tr('Pexels sticker object query', 'Запит об’єкта стікера Pexels')}</span><input aria-label="Pexels sticker query" value={stickerQuery} onChange={(event) => setStickerQuery(event.target.value)} /></label>
         <button className="secondary" disabled={busy || !detail.pexels_available || stickerQuery.trim().length < 2} onClick={() => void sourcePexels('sticker_object', stickerQuery)}><Search />{tr('Source & isolate object', 'Знайти й ізолювати об’єкт')}</button>
       </div>
-      {!detail.pexels_available && <p className="studio-note">{tr('Pexels is not configured in this local runtime. The sticker stays unavailable; background and logo uploads remain available.', 'Pexels не налаштовано в цьому локальному середовищі. Стікер недоступний; завантаження фону й логотипа залишаються доступними.')}</p>}
+      {!detail.pexels_available && <p className="studio-note">{tr('Pexels is not configured in this local runtime. The sticker stays unavailable; background upload remains available.', 'Pexels не налаштовано в цьому локальному середовищі. Стікер недоступний; завантаження фону доступне.')}</p>}
     </section>
 
     <section className="panel studio-approval universal-approval">

@@ -1,7 +1,7 @@
 # PTW owner-console rules
 
 Status: canonical
-Updated: 2026-09-02
+Updated: 2026-09-03
 
 ## Navigation and trust
 
@@ -23,9 +23,14 @@ Updated: 2026-09-02
 
 ## Simple local post
 
-- One approved Product Brief creates at most one mutable post draft.
-- Render the draft through the same strict Universal Studio configuration,
-  semantic content, component IDs, Pexels provenance, and 1080×1080 renderer.
+- One approved Product Brief creates at most one mutable post draft. Before it
+  starts, select `universal_ad` or `phone_metrics`; the selected template is
+  then locked on that draft.
+- `universal_ad` renders through strict Universal Studio configuration,
+  semantic content, component IDs, Pexels provenance, and an 1080×1080
+  renderer. `phone_metrics` is a fixed 1080×1350 Natal creative with three
+  owner-entered statistics, one local static perspective-phone asset, and
+  server-generated text-free screen art.
 - Put one owner comment field directly below the preview. Translate it into
   exact bounded Studio setting/content commands and, when requested, one
   semantic Pexels background query. Keep the applied commands ID-explicit.
@@ -37,11 +42,19 @@ Updated: 2026-09-02
 
 ## Universal Studio
 
-- Studio is a separate one-template workspace with fixed background, optional
-  sticker, hero title, supporting text, optional bullets, CTA, and optional logo.
-- Expose only meaningful bounded controls and three fixed asset slots. Primitive
-  trees, arbitrary properties, references, calibration, and template libraries
-  remain internal.
+- Studio is a separate two-template workspace: editable square `universal_ad`
+  and fixed-composition 4:5 `phone_metrics`. Selecting one replaces mutable
+  configuration/content/assets but never rewrites an immutable version.
+- Natal is the sole identity in new Studio/Post drafts. Its canonical lock-up
+  is always enabled; owner logo upload/toggle/brand substitution are not
+  controls. Historical immutable versions remain readable.
+- Expose only meaningful bounded controls and fixed asset slots. Primitive
+  trees, arbitrary properties, raw template imports, and calibration remain
+  internal. The phone frame is a local SHA-256-checked file and never fetched
+  at runtime; frame and screen share one composite layer.
+- The Studio visual audit renders the phone template at full 1080×1350 and
+  fails on texture, Natal placement, left-safe copy, phone/card/CTA drift,
+  clipping, overlap, unsafe bounds, or generated screen text.
 - Preview and immutable-version renders are authenticated, digest-checked, and
   no-store. Approval stores the exact PNG, configuration, semantic content,
   asset provenance/digests, and internal template digest.

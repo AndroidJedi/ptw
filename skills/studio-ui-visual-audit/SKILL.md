@@ -13,7 +13,8 @@ a specific remote target.
 ## Evidence and diagnosis
 
 - Reproduce the reported configuration, content, assets, viewport, and language.
-- Inspect the authenticated raw 1080×1080 PNG at full resolution. If the defect
+- Inspect the authenticated raw template-native PNG at full resolution (1080×1080
+  for `universal_ad`, 1080×1350 for `phone_metrics`). If the defect
   is present there or in its resolved node manifest, fix the renderer/template;
   if it appears only in the scaled preview, fix the Studio UI/CSS.
 - For text, compare visible alpha bounds with the assigned box. Treat an ink
@@ -28,7 +29,7 @@ a specific remote target.
 
 ## Regression gate
 
-Run the deterministic Universal Studio geometry audit from the repository root:
+Run the deterministic Studio geometry and colour audit from the repository root:
 
 ```sh
 .venv/bin/python skills/studio-ui-visual-audit/scripts/audit_universal_studio.py
@@ -36,8 +37,11 @@ Run the deterministic Universal Studio geometry audit from the repository root:
 
 Add focused regression coverage for the actual failed invariant. Prefer
 resolved visible geometry or pixel-level assertions over snapshot hashes alone;
-a changed hash proves difference, not correctness. Inspect the representative
-PNG after automated checks pass.
+a changed hash proves difference, not correctness. For the Phone & metrics
+template, preserve the off-white texture, upper-left Natal lock-up, left copy
+safe area, fused angled right-rail device, equal cobalt metric row, full cobalt
+CTA band, and a text-free generated screen-art contract. Inspect the
+representative PNG after automated checks pass.
 
 For renderer or Studio component changes, also run the focused Studio Python
 tests, the Studio web unit tests when applicable, the Owner Console production

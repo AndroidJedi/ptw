@@ -270,7 +270,7 @@ export interface StudioTemplateSummary {
 }
 
 export interface StudioPhoneMetricsDetail {
-  schema: 'ptw.studio.workspace.v6'
+  schema: 'ptw.studio.workspace.v7'
   template_id: 'phone_metrics'
   templates: StudioTemplateSummary[]
   catalog: {
@@ -300,6 +300,7 @@ export interface StudioPhoneMetricsDetail {
   component_settings: { sha256: string }
   assets: StudioPhoneMetricsAssetSummary[]
   pexels_available: boolean
+  phone_screen_generation_available: boolean
   versions: StudioUniversalVersionSummary[]
 }
 

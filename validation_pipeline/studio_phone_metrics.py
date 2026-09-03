@@ -32,7 +32,7 @@ _LEGACY_PHONE_METRICS_CONFIG_SCHEMAS = frozenset({
 })
 PHONE_METRICS_CONTENT_SCHEMA = "ptw.studio.phone-metrics-content.v1"
 PHONE_METRICS_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.phone-metrics-component-settings.v1"
-PHONE_METRICS_TEMPLATE_VERSION = 10
+PHONE_METRICS_TEMPLATE_VERSION = 11
 PHONE_METRICS_CANVAS = (1080, 1350)
 PHONE_BACKGROUND_TEXTURES = ("none", "grain", "concrete", "travertine")
 PHONE_COPY_BACKGROUND_TEXTURES = PHONE_BACKGROUND_TEXTURES
@@ -64,7 +64,7 @@ PHONE_ASSET_SLOTS: dict[str, dict[str, Any]] = {
     "phone_screen": {
         "role": "device_screen",
         "allowed_mime_types": ("image/png", "image/webp", "image/jpeg"),
-        "description": "Brief-derived text-free hero artwork inside the fixed Natal app screen and phone frame.",
+        "description": "Server-generated text-free hero artwork inside the fixed Natal app screen and phone frame.",
     },
 }
 
@@ -387,7 +387,7 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
         },
         "assets": {
             "logo": {"kind": "image", "allowed_mime_types": ["image/png"], "required": True, "provenance": "Canonical Natal brand lock-up."},
-            "phone_device": {"kind": "image", "allowed_mime_types": ["image/png"], "required": True, "provenance": "Server-composited fixed front-facing black iPhone, crisp Natal app shell, and text-free hero artwork."},
+            "phone_device": {"kind": "image", "allowed_mime_types": ["image/png"], "required": True, "provenance": "Server-composited fixed front-facing black iPhone, crisp Natal app shell, and server-generated or deterministic fallback text-free hero artwork."},
             **({
                 "background_texture": {
                     "kind": "image", "allowed_mime_types": ["image/png"],
@@ -407,7 +407,7 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
             *[{"id": f"role_{role}", "scope": "template", "type": "required_role", "params": {"role": role}} for role in ("background", "brand", "hero_title", "supporting_text", "device_mockup", "metrics", "cta")],
             {"id": "fixed_tree", "scope": "template", "type": "max_nodes", "params": {"maximum": 18}},
         ],
-        "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": ["owner-reference-phone-metrics-v1"], "change_note": "Natal phone-and-metrics v10 with independent optional full-canvas, left-copy-area, and in-phone hero textures, compact rounded metric cards, an optional eyebrow, and bounded supporting-copy formatting."},
+        "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": ["owner-reference-phone-metrics-v1"], "change_note": "Natal phone-and-metrics v11 with owner-directed, server-generated text-free phone hero artwork and a deterministic fallback, plus the existing bounded texture and copy controls."},
     }
     if not config["offer"]["enabled"]:
         document["semantic_roles"].pop("offer")

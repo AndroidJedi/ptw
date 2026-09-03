@@ -5,7 +5,7 @@ import type { StudioPhoneMetricsDetail } from '../../types'
 import { PhoneMetricsStudio } from './PhoneMetricsStudio'
 
 const detail = {
-  schema: 'ptw.studio.workspace.v6',
+  schema: 'ptw.studio.workspace.v7',
   template_id: 'phone_metrics',
   templates: [
     {
@@ -15,7 +15,7 @@ const detail = {
   ],
   catalog: {
     schema: 'ptw.studio.phone-metrics-catalog.v1', template_id: 'phone_metrics',
-    template_version: 10, canvas: { width: 1080, height: 1350 },
+    template_version: 11, canvas: { width: 1080, height: 1350 },
     semantic_roles: [], components: [], asset_slots: {},
     variation: {
       optional_elements: ['offer'], brand: 'Natal',
@@ -49,20 +49,35 @@ const detail = {
     phone_hero_title: '',
   },
   component_settings: { sha256: 'd'.repeat(64) }, assets: [],
-  pexels_available: false, versions: [],
+  pexels_available: false, phone_screen_generation_available: true, versions: [],
 } as unknown as StudioPhoneMetricsDetail
 
 function studioApi() {
-  const post = vi.fn(async (_path: string, body: unknown) => {
+  let savedDetail = structuredClone(detail)
+  const post = vi.fn(async (path: string, body: unknown) => {
+    if (path === '/api/v1/studio/phone-screen/generate') {
+      savedDetail = {
+        ...savedDetail, state_sha256: 'f'.repeat(64),
+        assets: [{
+          slot: 'phone_screen', role: 'device_screen',
+          description: 'Generated phone hero', allowed_mime_types: ['image/png'],
+          editable: false, available: true, mime_type: 'image/png',
+          sha256: '1'.repeat(64), byte_count: 128,
+          source: { visual_direction: (body as { visual_direction: string }).visual_direction },
+        }],
+      }
+      return structuredClone(savedDetail)
+    }
     const request = body as {
       configuration: StudioPhoneMetricsDetail['configuration']
       content: StudioPhoneMetricsDetail['content']
     }
-    return {
-      ...structuredClone(detail), state_sha256: 'e'.repeat(64),
+    savedDetail = {
+      ...savedDetail, state_sha256: 'e'.repeat(64),
       configuration: structuredClone(request.configuration),
       content: structuredClone(request.content),
     }
+    return structuredClone(savedDetail)
   })
   return {
     api: {
@@ -194,5 +209,48 @@ describe('Phone & metrics Studio', () => {
       }),
       { deadlineMs: 60_000 },
     ))
+  })
+
+  it('saves draft copy before generating and applying a new iPhone visual', async () => {
+    const { api, post } = studioApi()
+    render(<PhoneMetricsStudio
+      api={api} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
+    />)
+
+    fireEvent.change(screen.getByLabelText('Headline'), {
+      target: { value: 'A newly edited headline' },
+    })
+    fireEvent.change(screen.getByLabelText('iPhone visual direction'), {
+      target: { value: 'Translucent glass steps in soft blue light with one lime accent.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate & apply' }))
+
+    await waitFor(() => expect(post).toHaveBeenNthCalledWith(
+      1, '/api/v1/studio/configuration',
+      expect.objectContaining({ content: expect.objectContaining({ hero_title: 'A newly edited headline' }) }),
+      { deadlineMs: 60_000 },
+    ))
+    await waitFor(() => expect(post).toHaveBeenNthCalledWith(
+      2, '/api/v1/studio/phone-screen/generate', {
+        base_sha256: 'e'.repeat(64),
+        visual_direction: 'Translucent glass steps in soft blue light with one lime accent.',
+      }, { deadlineMs: 360_000 },
+    ))
+    expect(await screen.findByText('New iPhone hero visual generated and applied.')).toBeInTheDocument()
+  })
+
+  it('keeps generation disabled and explains the deterministic fallback without a provider', () => {
+    const unavailable = structuredClone(detail)
+    unavailable.phone_screen_generation_available = false
+    const { api } = studioApi()
+    render(<PhoneMetricsStudio
+      api={api} language="en" detail={unavailable} onDetail={vi.fn()}
+    />)
+
+    fireEvent.change(screen.getByLabelText('iPhone visual direction'), {
+      target: { value: 'Translucent glass steps in soft blue light with one lime accent.' },
+    })
+    expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeDisabled()
+    expect(screen.getByText(/Sign in to Codex and restart Studio/)).toBeInTheDocument()
   })
 })

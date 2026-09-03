@@ -90,7 +90,8 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
     def test_one_fixed_template_opens_with_requested_investment_post(self) -> None:
         detail = self.workspace.detail()
         self.assertEqual("universal_ad", detail["catalog"]["template_id"])
-        self.assertEqual("ptw.studio.workspace.v6", detail["schema"])
+        self.assertEqual("ptw.studio.workspace.v7", detail["schema"])
+        self.assertFalse(detail["phone_screen_generation_available"])
         self.assertEqual(["universal_ad", "phone_metrics"], [
             item["template_id"] for item in detail["templates"]
         ])
@@ -909,6 +910,63 @@ class UniversalStudioApiTests(unittest.TestCase):
                 self.assertEqual(200, client.get("/api/v1/studio", headers=headers).status_code)
                 self.assertEqual(404, client.get("/api/v1/studio/templates", headers=headers).status_code)
                 self.assertEqual(404, client.get("/api/v1/studio/tune", headers=headers).status_code)
+
+    def test_loopback_phone_screen_generation_is_authenticated_and_bounded(self) -> None:
+        from fastapi.testclient import TestClient
+        from validation_pipeline.studio_local_api import create_app
+
+        class ImageProvider:
+            def __init__(self) -> None:
+                self.prompts: list[str] = []
+
+            def generate(self, prompt: str) -> dict:
+                self.prompts.append(prompt)
+                return {
+                    "bytes": _image_bytes(), "mime_type": "image/png",
+                    "source": {
+                        "origin": "openai_image_api", "provider": "openai",
+                        "model": "fake-image-model",
+                        "text_in_screen": "prohibited_by_prompt",
+                    },
+                }
+
+        headers = {
+            "Authorization": "Bearer e2e-owner-token",
+            "X-Firebase-AppCheck": "e2e-app-check",
+        }
+        provider = ImageProvider()
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {
+            "STUDIO_WORKSPACE_PATH": temporary,
+            "LOCAL_BRIEF_PATH": str(Path(temporary) / "briefs"),
+            "POST_WORKSPACE_PATH": str(Path(temporary) / "posts"),
+            "PEXELS_API_KEY": "",
+            "OPENAI_API_KEY": "",
+        }, clear=False):
+            with TestClient(create_app(phone_screen_image_provider=provider)) as client:
+                universal = client.get("/api/v1/studio", headers=headers).json()
+                phone = client.post("/api/v1/studio/templates/apply", headers=headers, json={
+                    "base_sha256": universal["state_sha256"],
+                    "template_id": "phone_metrics",
+                }).json()
+                request = {
+                    "base_sha256": phone["state_sha256"],
+                    "visual_direction": "Folded cobalt glass with a warm lime focal sphere.",
+                }
+                self.assertEqual(
+                    401,
+                    client.post("/api/v1/studio/phone-screen/generate", json=request).status_code,
+                )
+                generated = client.post(
+                    "/api/v1/studio/phone-screen/generate", headers=headers, json=request,
+                )
+                self.assertEqual(200, generated.status_code, generated.text)
+                self.assertTrue(generated.json()["phone_screen_generation_available"])
+                screen = next(
+                    item for item in generated.json()["assets"]
+                    if item["slot"] == "phone_screen"
+                )
+                self.assertTrue(screen["available"])
+                self.assertEqual(1, len(provider.prompts))
 
     def test_loopback_contract_has_no_template_library_or_reference_routes(self) -> None:
         from fastapi.testclient import TestClient

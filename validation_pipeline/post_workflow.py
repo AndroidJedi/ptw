@@ -632,7 +632,7 @@ class SimplePostService:
                     response_validator=self._validate_phone_screen_plan,
                 )
                 if self.image_provider is None:
-                    raise RuntimeError("OpenAI image generation is not configured for phone-screen artwork")
+                    raise RuntimeError("Codex image generation is unavailable for phone-screen artwork")
                 try:
                     generated_art = self.image_provider.generate(prompt_result["response"]["image_prompt"])
                     image_provenance = dict(generated_art["source"])

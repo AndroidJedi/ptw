@@ -1,4 +1,4 @@
-import { Bold, Check, Highlighter, ImagePlus, RefreshCcw, Save } from 'lucide-react'
+import { Bold, Check, Highlighter, ImagePlus, RefreshCcw, Save, Sparkles } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../../api'
 import { ErrorState } from '../../components/State'
@@ -19,6 +19,10 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
   const [previewUrl, setPreviewUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
+  const [screenDirection, setScreenDirection] = useState(() => {
+    const source = initialDetail.assets.find((asset) => asset.slot === 'phone_screen')?.source
+    return typeof source?.visual_direction === 'string' ? source.visual_direction : ''
+  })
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const previewGeneration = useRef(0)
@@ -86,6 +90,26 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
       }, { deadlineMs: 60_000 })
       applyDetail(next); await render(next)
       setNotice(tr('Phone & metrics setup saved.', 'Налаштування «Телефон і метрики» збережено.'))
+    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+  }
+  const generatePhoneScreen = async () => {
+    setBusy(true); setError(''); setNotice('')
+    try {
+      let saved = detail
+      if (
+        JSON.stringify(configuration) !== JSON.stringify(detail.configuration)
+        || JSON.stringify(content) !== JSON.stringify(detail.content)
+      ) {
+        saved = await api.post<StudioPhoneMetricsDetail>('/api/v1/studio/configuration', {
+          base_sha256: detail.state_sha256, configuration, content,
+        }, { deadlineMs: 60_000 })
+        applyDetail(saved)
+      }
+      const next = await api.post<StudioPhoneMetricsDetail>('/api/v1/studio/phone-screen/generate', {
+        base_sha256: saved.state_sha256, visual_direction: screenDirection.trim(),
+      }, { deadlineMs: 360_000 })
+      applyDetail(next); await render(next)
+      setNotice(tr('New iPhone hero visual generated and applied.', 'Новий герой-візуал для iPhone згенеровано й застосовано.'))
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const selectTemplate = async (templateId: string) => {
@@ -191,7 +215,21 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
         <section className="panel universal-section"><small>{tr('THREE METRICS', 'ТРИ МЕТРИКИ')}</small><h2>{tr('Owner-provided values', 'Значення від власника')}</h2>
           {content.stats.map((stat, index) => <div className="phone-metrics-stat-input" key={index}><strong>{index + 1}</strong><label><span>{tr('Value', 'Значення')}</span><input value={stat.value} maxLength={24} onChange={(event) => setStat(index, 'value', event.target.value)} /></label><label><span>{tr('Label', 'Підпис')}</span><input value={stat.label} maxLength={38} onChange={(event) => setStat(index, 'label', event.target.value)} /></label></div>)}
         </section>
-        <section className="panel universal-section phone-screen-rule"><small>{tr('PHONE SCREEN', 'ЕКРАН ТЕЛЕФОНУ')}</small><p>{tr('The front-facing black iPhone and crisp Natal app shell are fixed. Studio previews use deterministic text-free hero art; Post drafts generate one final hero visual from the approved Brief. Natal, the optional owner title, and the CTA are then added by the renderer, so generated pixels never need to spell words or imitate UI.', 'Фронтальний чорний iPhone і чітка оболонка застосунку Natal зафіксовані. Прев’ю Студії використовує детермінований герой-арт без тексту; для чернетки допису фінальний візуал генерується з затвердженого Брифу. Natal, необов’язковий заголовок власника й CTA потім додає рендерер, тому згенерованим пікселям не потрібно відтворювати слова чи інтерфейс.')}</p></section>
+        <section className="panel universal-section phone-screen-rule"><small>{tr('IPHONE HERO VISUAL', 'ГЕРОЙ-ВІЗУАЛ IPHONE')}</small><h2>{tr('Generate a new background', 'Згенерувати новий фон')}</h2>
+          <label><span>{tr('Visual direction', 'Опис візуалу')}</span><textarea
+            aria-label={tr('iPhone visual direction', 'Опис візуалу iPhone')}
+            rows={4} maxLength={600} value={screenDirection}
+            placeholder={tr('Example: translucent glass steps rising through soft blue light with one lime accent', 'Наприклад: прозорі скляні сходи в м’якому блакитному світлі з одним лаймовим акцентом')}
+            onChange={(event) => setScreenDirection(event.target.value)}
+          /></label>
+          <button className="primary phone-screen-generate" type="button"
+            disabled={busy || !detail.phone_screen_generation_available || screenDirection.trim().length < 8}
+            onClick={() => void generatePhoneScreen()}><Sparkles />{tr('Generate & apply', 'Згенерувати й застосувати')}</button>
+          <p>{detail.phone_screen_generation_available
+            ? tr('This replaces only the mutable artwork inside the iPhone. The fixed Natal logo, UI, title, CTA, and device stay crisp; the current visual is preserved if generation fails.', 'Це замінює лише змінний арт усередині iPhone. Фіксовані логотип Natal, інтерфейс, заголовок, CTA й пристрій залишаються чіткими; у разі помилки поточний візуал зберігається.')
+            : tr('Codex image generation is unavailable in this local Studio runtime. Sign in to Codex and restart Studio; the circles remain as the deterministic fallback.', 'Генерація зображень Codex недоступна в цьому локальному середовищі Студії. Увійдіть у Codex і перезапустіть Студію; кола залишаються детермінованим резервним варіантом.')}
+          </p>
+        </section>
       </aside>
     </section>
   </div>

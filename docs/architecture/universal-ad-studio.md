@@ -15,7 +15,7 @@ immutable version. A workspace without a selection remains the legacy
 
 `universal_ad` retains its fixed semantic structure: background, optional
 sticker, hero title, supporting text, optional benefits, CTA, and Natal.
-`phone_metrics` v10 is a fixed 4:5 composition: off-white mineral texture,
+`phone_metrics` v11 is a fixed 4:5 composition: off-white mineral texture,
 canonical Natal lock-up in the upper-left, dark left-safe-area copy, a
 front-facing black phone at upper-right, three compact equal cobalt metric cards
 with smooth corners, and a full-width cobalt CTA band. It accepts an optional
@@ -70,14 +70,23 @@ renderer-owned UI. The screen matte extends beneath the upper bezel so the
 outer creative background cannot show through the antialiased aperture curves.
 
 `universal_ad` retains bounded background and Pexels-screened sticker assets.
-`phone_metrics` has no owner-uploadable screen artwork: standalone Studio uses
-a deterministic text-free sculptural preview. The local Post flow obtains one
-square Brief-derived hero artwork server-side through the OpenAI Image API,
-validates it as PNG, records non-secret provenance, and places it in the fixed
-app shell. The image prompt and provider contract prohibit visible text,
+`phone_metrics` has no owner-uploadable screen artwork. Standalone Studio keeps
+the deterministic text-free sculptural fixture as its zero-cost fallback and
+accepts one bounded owner visual direction to generate and immediately apply a
+replacement hero artwork. The default local provider invokes the built-in image
+generation tool through the same ChatGPT-authenticated Codex CLI already used
+for structured generation; PTW never reads or copies Codex authentication.
+`STUDIO_PHONE_IMAGE_PROVIDER=openai_api` remains an explicit fallback for a
+server-side `OPENAI_API_KEY`, rather than a prerequisite for local Studio.
+The local-only action saves any current copy/configuration first, preserves the
+previous visual on provider failure, validates the result as PNG, and records
+the non-secret direction and provider provenance. The local Post flow separately
+obtains one square Brief-derived hero artwork server-side through the same
+provider boundary. Both prompt contracts prohibit visible text,
 numbers, logos, UI, buttons, charts, metrics, and devices in generated pixels;
 all readable screen content is rendered deterministically afterward. The
-browser never receives the image credential.
+browser never receives provider authentication. Production Studio does not expose
+the local generation route.
 
 A saved version stores exact configuration, content, asset digests, template
 digest, and PNG bytes below `.local/studio-workspace`; authenticated render

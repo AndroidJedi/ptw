@@ -285,6 +285,8 @@ button svg { width: 17px; height: 17px; }
 .phone-metrics-stat-input > strong { min-height: 40px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: var(--soft); font: 11px ui-monospace, monospace; }
 .phone-screen-rule { border-color: var(--white); background: #151515; }
 .phone-screen-rule p { margin: 0; color: var(--soft); font-size: 10px; line-height: 1.5; }
+.phone-screen-rule textarea { resize: vertical; }
+.phone-screen-generate { width: 100%; }
 .studio-tune-trigger { border-color: var(--white); }
 .studio-tune-backdrop {
   position: fixed; z-index: 80; inset: 0; padding: clamp(12px, 3vw, 36px); display: grid; place-items: center;

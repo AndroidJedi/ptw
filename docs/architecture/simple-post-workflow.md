@@ -69,11 +69,14 @@ owner approval.
 ## Approval boundary
 
 Generation and comment tuning produce only a mutable draft. For phone drafts,
-the server alone calls the configured OpenAI Image API with a prompt that
-prohibits visible text, numbers, logos, UI, buttons, charts, and metrics; it
-validates the PNG and records non-secret provenance before compositing it into
-the fixed phone. Explicit owner approval captures the exact PNG,
-configuration, content, component settings, template digest, source asset
+the server alone calls the configured image provider with a prompt that
+prohibits visible text, numbers, logos, UI, buttons, charts, and metrics. Local
+Studio defaults to the built-in image-generation tool of the existing
+ChatGPT-authenticated Codex CLI; the explicit Platform API fallback requires
+`STUDIO_PHONE_IMAGE_PROVIDER=openai_api` and a server-side `OPENAI_API_KEY`.
+The server validates the PNG and records non-secret provenance before
+compositing it into the fixed phone. Explicit owner approval captures the exact
+PNG, configuration, content, component settings, template digest, source asset
 provenance, Brief ID, Project ID, and state digest as one immutable asset. An
 approved post cannot be tuned again. There is no export, scheduling,
 publishing, campaign, traffic, analytics, or optimization action in this

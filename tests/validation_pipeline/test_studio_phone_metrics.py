@@ -32,6 +32,23 @@ def _screen_bytes(background: str = "#F5F6F3") -> bytes:
     return output.getvalue()
 
 
+class FakePhoneScreenImageProvider:
+    def __init__(self) -> None:
+        self.prompts: list[str] = []
+
+    def generate(self, prompt: str) -> dict:
+        self.prompts.append(prompt)
+        return {
+            "bytes": _screen_bytes("#6AAFC8"), "mime_type": "image/png",
+            "source": {
+                "origin": "codex_builtin_image_generation", "provider": "openai",
+                "transport": "authenticated_codex_cli",
+                "model": "codex-builtin-image-generation",
+                "text_in_screen": "prohibited_by_prompt",
+            },
+        }
+
+
 @unittest.skipUnless(__import__("importlib").util.find_spec("PIL") is not None, "Pillow is required")
 class PhoneMetricsTemplateTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -433,3 +450,48 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
                 "logo", base_sha256=phone["state_sha256"], mime_type="image/png",
                 bytes_base64=base64.b64encode(_screen_bytes()).decode(),
             )
+
+    def test_owner_direction_generates_and_persists_one_text_free_phone_visual(self) -> None:
+        provider = FakePhoneScreenImageProvider()
+        self.workspace.image_provider = provider
+        phone = self._phone()
+        self.assertTrue(phone["phone_screen_generation_available"])
+        before = self.workspace.render_preview(state_sha256=phone["state_sha256"])
+
+        generated = self.workspace.generate_phone_screen(
+            base_sha256=phone["state_sha256"],
+            visual_direction="  Translucent glass steps in soft blue light with one lime accent.  ",
+        )
+
+        self.assertEqual(1, len(provider.prompts))
+        self.assertIn("Translucent glass steps", provider.prompts[0])
+        screen = next(item for item in generated["assets"] if item["slot"] == "phone_screen")
+        self.assertTrue(screen["available"])
+        self.assertEqual("codex_builtin_image_generation", screen["source"]["origin"])
+        self.assertEqual(
+            "Translucent glass steps in soft blue light with one lime accent.",
+            screen["source"]["visual_direction"],
+        )
+        self.assertEqual(
+            "owner_directed_text_free_phone_hero_v1",
+            screen["source"]["prompt_contract"],
+        )
+        after = self.workspace.render_preview(state_sha256=generated["state_sha256"])
+        self.assertNotEqual(before["bytes_sha256"], after["bytes_sha256"])
+
+        class FailingProvider:
+            @staticmethod
+            def generate(_prompt: str) -> dict:
+                raise RuntimeError("provider unavailable")
+
+        self.workspace.image_provider = FailingProvider()
+        with self.assertRaisesRegex(RuntimeError, "previous visual was preserved"):
+            self.workspace.generate_phone_screen(
+                base_sha256=generated["state_sha256"],
+                visual_direction="A different premium sculptural direction.",
+            )
+        current_screen = next(
+            item for item in self.workspace.detail()["assets"]
+            if item["slot"] == "phone_screen"
+        )
+        self.assertEqual(screen["sha256"], current_screen["sha256"])

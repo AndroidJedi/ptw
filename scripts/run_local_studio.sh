@@ -6,16 +6,27 @@ python="$repository/.venv/bin/python"
 workspace="${STUDIO_WORKSPACE_PATH:-$repository/.local/studio-workspace}"
 local_secrets="${PTW_LOCAL_SECRETS_PATH:-$repository/.local/local-studio.env}"
 
-if [[ -z "${PEXELS_API_KEY:-}" && -f "$local_secrets" ]]; then
+if [[ -f "$local_secrets" ]]; then
   if [[ -L "$local_secrets" ]]; then
     echo "Refusing symlinked local secrets file: $local_secrets" >&2
     exit 1
   fi
+fi
+
+if [[ -z "${PEXELS_API_KEY:-}" && -f "$local_secrets" ]]; then
   pexels_line="$(grep -m 1 '^PEXELS_API_KEY=' "$local_secrets" || true)"
   if [[ -n "$pexels_line" ]]; then
     export PEXELS_API_KEY="${pexels_line#PEXELS_API_KEY=}"
   fi
   unset pexels_line
+fi
+
+if [[ -z "${OPENAI_API_KEY:-}" && -f "$local_secrets" ]]; then
+  openai_line="$(grep -m 1 '^OPENAI_API_KEY=' "$local_secrets" || true)"
+  if [[ -n "$openai_line" ]]; then
+    export OPENAI_API_KEY="${openai_line#OPENAI_API_KEY=}"
+  fi
+  unset openai_line
 fi
 
 if [[ ! -x "$python" ]]; then

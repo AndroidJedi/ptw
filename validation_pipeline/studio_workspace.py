@@ -14,6 +14,7 @@ from .images import (
     validate_pexels_photographic_object, validate_pexels_photographic_object_query,
 )
 from .natal_brand import NATAL_LOGO_PATH, natal_logo_bytes
+from .openai_images import phone_screen_art_prompt
 from .studio_phone_metrics import (
     DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT, IPHONE_FRAME_SOURCE,
     PHONE_ASSET_SLOTS, PHONE_METRICS_CONFIG_SCHEMA, PHONE_METRICS_TEMPLATE_ID,
@@ -38,7 +39,7 @@ _BUNDLED_ASSETS = {
         "origin": "canonical_natal_brand_asset",
     },
 }
-_WORKSPACE_SCHEMA = "ptw.studio.workspace.v6"
+_WORKSPACE_SCHEMA = "ptw.studio.workspace.v7"
 _TEMPLATE_SELECTION_SCHEMA = "ptw.studio.template-selection.v1"
 _TEMPLATE_VERSION_SCHEMA = "ptw.studio.template-version.v1"
 _AGENT_CONTEXT_SCHEMA = "ptw.studio.agent-context.v3"
@@ -80,11 +81,12 @@ class UniversalStudioWorkspace:
 
     def __init__(
         self, root: Path | str, *, renderer: StudioRenderer | None = None,
-        pexels: PexelsClient | None = None,
+        pexels: PexelsClient | None = None, image_provider: Any | None = None,
     ) -> None:
         self.root = Path(root)
         self.renderer = renderer or StudioRenderer()
         self.pexels = pexels
+        self.image_provider = image_provider
         self.assets = self.root / "assets"
         self.versions = self.root / "versions"
         self.root.mkdir(parents=True, exist_ok=True)
@@ -355,6 +357,7 @@ class UniversalStudioWorkspace:
             "component_settings": self._component_settings(config, content),
             "assets": self._asset_summaries(),
             "pexels_available": self.pexels is not None,
+            "phone_screen_generation_available": self.image_provider is not None,
             "versions": [{
                 "version": item["version"],
                 "state_sha256": item["state_sha256"],
@@ -553,13 +556,50 @@ class UniversalStudioWorkspace:
         self._assert_state(base_sha256)
         if self._selected_template_id() != PHONE_METRICS_TEMPLATE_ID:
             raise ValueError("generated phone-screen artwork requires the phone-and-metrics template")
-        if source.get("origin") != "openai_image_api" or source.get("text_in_screen") != "prohibited_by_prompt":
+        if source.get("origin") not in {
+            "codex_builtin_image_generation", "openai_image_api",
+        } or source.get("text_in_screen") != "prohibited_by_prompt":
             raise ValueError("phone-screen artwork must carry verified text-free generation provenance")
         self._store_asset(
             "phone_screen", mime_type="image/png", data=data,
             source=source,
         )
         return self.detail()
+
+    def generate_phone_screen(
+        self, *, base_sha256: str, visual_direction: str,
+    ) -> dict[str, Any]:
+        """Generate and persist one mutable, text-free phone hero artwork."""
+
+        self._assert_state(base_sha256)
+        if self._selected_template_id() != PHONE_METRICS_TEMPLATE_ID:
+            raise ValueError("phone-screen generation requires the phone-and-metrics template")
+        if self.image_provider is None:
+            raise RuntimeError("Codex image generation is unavailable in this local Studio runtime")
+        normalized_direction = " ".join(str(visual_direction or "").split())
+        prompt = phone_screen_art_prompt(normalized_direction)
+        try:
+            generated = self.image_provider.generate(prompt)
+        except ValueError:
+            raise
+        except Exception as error:
+            raise RuntimeError(
+                "Phone-screen image generation failed; the previous visual was preserved"
+            ) from error
+        if generated.get("mime_type") != "image/png":
+            raise RuntimeError("Phone-screen image generation did not return a PNG")
+        source = dict(generated.get("source") or {})
+        source.update({
+            "visual_direction": normalized_direction,
+            "visual_direction_sha256": hashlib.sha256(
+                normalized_direction.encode()
+            ).hexdigest(),
+            "prompt_contract": "owner_directed_text_free_phone_hero_v1",
+        })
+        return self.store_generated_phone_screen(
+            base_sha256=base_sha256, data=bytes(generated.get("bytes") or b""),
+            source=source,
+        )
 
     def source_pexels(
         self, slot: str, *, base_sha256: str, query: str, isolate: bool,

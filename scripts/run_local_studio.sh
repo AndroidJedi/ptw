@@ -74,7 +74,6 @@ STUDIO_TUNE_MODE=1 \
 STUDIO_TUNE_REPOSITORY_ROOT="$repository" \
 STUDIO_TUNE_STATE_PATH="$repository/.local/studio-tune" \
 LOCAL_BRIEF_PATH="$repository/.local/owner-briefs" \
-POST_WORKSPACE_PATH="$repository/.local/post-workspace" \
 "$python" -m uvicorn \
   validation_pipeline.studio_local_api:create_app --factory \
   --host 127.0.0.1 --port 8088 &
@@ -89,7 +88,7 @@ for _attempt in {1..50}; do
     && curl --fail --silent \
       -H 'Authorization: Bearer e2e-owner-token' \
       -H 'X-Firebase-AppCheck: e2e-app-check' \
-      http://127.0.0.1:8088/api/v1/studio >/dev/null; then
+      http://127.0.0.1:8088/api/v1/studio/templates >/dev/null; then
     break
   fi
   sleep 0.1
@@ -97,7 +96,7 @@ done
 curl --fail --silent \
   -H 'Authorization: Bearer e2e-owner-token' \
   -H 'X-Firebase-AppCheck: e2e-app-check' \
-  http://127.0.0.1:8088/api/v1/studio >/dev/null || {
+  http://127.0.0.1:8088/api/v1/studio/templates >/dev/null || {
   echo "Local Owner API did not become ready on 127.0.0.1:8088." >&2
   exit 1
 }

@@ -11,6 +11,9 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = (
     "product-brief-generator",
+    "studio-creative-composer",
+    "studio-edit-learner",
+    "studio-phone-hero-generator",
     "studio-tune-local",
     "studio-ui-visual-audit",
     "ptw-owner-console-incident",

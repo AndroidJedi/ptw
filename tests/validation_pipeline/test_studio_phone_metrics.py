@@ -473,53 +473,6 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         )
         self.assertNotIn("offer", preview["resolved"]["nodes"])
 
-    def test_legacy_configuration_defaults_new_controls(self) -> None:
-        legacy_v1 = deepcopy(DEFAULT_PHONE_CONFIG)
-        legacy_v1["schema"] = "ptw.studio.phone-metrics-config.v1"
-        legacy_v1.pop("offer")
-        legacy_v1.pop("supporting_text")
-        legacy_v1.pop("phone_screen")
-        legacy_v1.pop("copy_background")
-        legacy_v1["background"].pop("texture")
-        self.assertEqual(DEFAULT_PHONE_CONFIG, normalize_phone_metrics_config(legacy_v1))
-
-        legacy_v2 = deepcopy(DEFAULT_PHONE_CONFIG)
-        legacy_v2["schema"] = "ptw.studio.phone-metrics-config.v2"
-        legacy_v2.pop("supporting_text")
-        legacy_v2.pop("phone_screen")
-        legacy_v2.pop("copy_background")
-        legacy_v2["background"].pop("texture")
-        self.assertEqual(DEFAULT_PHONE_CONFIG, normalize_phone_metrics_config(legacy_v2))
-
-        legacy_v3 = deepcopy(DEFAULT_PHONE_CONFIG)
-        legacy_v3["schema"] = "ptw.studio.phone-metrics-config.v3"
-        legacy_v3.pop("phone_screen")
-        legacy_v3.pop("copy_background")
-        legacy_v3["background"].pop("texture")
-        self.assertEqual(DEFAULT_PHONE_CONFIG, normalize_phone_metrics_config(legacy_v3))
-
-        legacy_v4 = deepcopy(DEFAULT_PHONE_CONFIG)
-        legacy_v4["schema"] = "ptw.studio.phone-metrics-config.v4"
-        legacy_v4.pop("copy_background")
-        self.assertEqual(DEFAULT_PHONE_CONFIG, normalize_phone_metrics_config(legacy_v4))
-
-        legacy_v5 = deepcopy(DEFAULT_PHONE_CONFIG)
-        legacy_v5["schema"] = "ptw.studio.phone-metrics-config.v5"
-        legacy_v5.pop("metric_cards")
-        self.assertEqual(DEFAULT_PHONE_CONFIG, normalize_phone_metrics_config(legacy_v5))
-
-        legacy_v6 = deepcopy(DEFAULT_PHONE_CONFIG)
-        legacy_v6["schema"] = "ptw.studio.phone-metrics-config.v6"
-        legacy_v6.pop("phone_buttons")
-        self.assertEqual(DEFAULT_PHONE_CONFIG, normalize_phone_metrics_config(legacy_v6))
-
-        legacy_content = deepcopy(DEFAULT_PHONE_CONTENT)
-        legacy_content["schema"] = "ptw.studio.phone-metrics-content.v1"
-        legacy_content.pop("phone_buttons")
-        self.assertEqual(
-            DEFAULT_PHONE_CONTENT, normalize_phone_metrics_content(legacy_content),
-        )
-
     def test_three_optional_textures_change_each_bounded_surface(self) -> None:
         from PIL import Image
 
@@ -682,12 +635,12 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exactly three"):
             normalize_phone_metrics_content(invalid)
 
-    def test_template_apply_replaces_mutable_draft_and_preserves_legacy_version(self) -> None:
+    def test_template_apply_replaces_mutable_draft_and_preserves_approved_version(self) -> None:
         detail = self.workspace.detail()
         self.workspace.approve_version(
-            state_sha256=detail["state_sha256"], change_note="Legacy universal creative",
+            state_sha256=detail["state_sha256"], change_note="Approved universal creative",
         )
-        # Create one mutable legacy asset before the replacement.
+        # Create one mutable asset before replacing the draft template.
         self.workspace._store_asset(  # pylint: disable=protected-access
             "background_image", mime_type="image/png", data=_screen_bytes(),
             source={"origin": "test"},

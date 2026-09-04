@@ -183,6 +183,24 @@ class ValidationRepository:
                    ) VALUES(%s,%s,%s,%s,'raw_idea',%s)""",
                 (project_id, request_uuid, source_id, _project_name(idea), requested_by),
             )
+            from .studio_creatives import _skill_document
+            project_skill_id = UUID(new_uuid7())
+            project_skill_content = _skill_document(
+                "studio-runtime-project", "Project Studio skill", [],
+            )
+            connection.execute(
+                "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'studio_skill_snapshot',%s)",
+                (project_skill_id, Jsonb({"scope": "project", "version": 1})),
+            )
+            connection.execute(
+                """INSERT INTO studio_skill_snapshots(
+                       entity_id,scope,project_id,version,content,content_sha256
+                   ) VALUES(%s,'project',%s,1,%s,%s)""",
+                (
+                    project_skill_id, project_id, project_skill_content,
+                    hashlib.sha256(project_skill_content.encode()).hexdigest(),
+                ),
+            )
             connection.execute(
                 "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'product_brief',%s)",
                 (brief_id, Jsonb({"schema_version": 1})),
@@ -196,6 +214,7 @@ class ValidationRepository:
             for source, relation, target, attributes in (
                 (project_id, "derived_from", source_id, {"input": "owner_idea"}),
                 (project_id, "contains", brief_id, {"member": "product_brief"}),
+                (project_id, "contains", project_skill_id, {"member": "studio_skill_snapshot"}),
                 (brief_id, "derived_from", source_id, {"input": "owner_idea"}),
             ):
                 connection.execute(

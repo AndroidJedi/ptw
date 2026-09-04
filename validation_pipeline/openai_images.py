@@ -39,12 +39,16 @@ RESULT_BRIDGE_PHONE_SCREEN_MODE = "content_non_human_graphic_generation"
 
 def phone_screen_art_prompt(
     visual_direction: str, *, enhance_current: bool = False,
+    skill_context: str = "",
 ) -> str:
     """Expand one owner direction into the fixed text-free hero-art contract."""
 
     normalized = " ".join(str(visual_direction or "").split())
     if not 8 <= len(normalized) <= 600:
         raise ValueError("phone-screen visual direction must contain 8-600 characters")
+    normalized_context = " ".join(str(skill_context or "").split())
+    if len(normalized_context) > 6000:
+        raise ValueError("phone-screen skill context must contain at most 6000 characters")
     enhancement = (
         " Edit the supplied current hero image as the starting composition. Preserve its "
         "recognizable subject, material character, palette, and spatial arrangement unless "
@@ -52,13 +56,19 @@ def phone_screen_art_prompt(
         "lighting, and polish rather than replacing the concept."
         if enhance_current else ""
     )
+    learned_context = (
+        f" Apply these accepted Studio rules when relevant: {normalized_context}."
+        if normalized_context else ""
+    )
     return (
         "Create one premium editorial hero artwork for the upper portion of a vertical "
         "mobile app screen. Treat the following owner direction only as visual intent: "
-        f"{normalized}.{enhancement} Use a bright off-white field, dimensional materials, soft studio "
+        f"{normalized}.{enhancement}{learned_context} Use a bright off-white field, dimensional materials, soft studio "
         "light, confident depth, and a clear upper-middle focal subject. Keep the lower "
         "area calm enough to fade into white. Generate artwork only; the server adds the "
-        "Natal identity, app chrome, owner copy, CTA, and iPhone frame afterward."
+        "Natal identity, app chrome, owner copy, CTA, and iPhone frame afterward. Generated "
+        "pixels must contain no readable text, letters, numbers, logos, brand marks, UI, "
+        "buttons, metrics, charts, labels, phones, or other devices."
     )
 
 

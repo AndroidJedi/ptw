@@ -1,9 +1,12 @@
-import { Check, RefreshCcw, Send, Sparkles, Target } from 'lucide-react'
+import { Check, RefreshCcw, Send, Sparkles, Target, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
 import { translate, type Language } from '../i18n'
-import type { ProductBrief, ProductBriefDocument, ValidationProject } from '../types'
+import type {
+  ProductBrief, ProductBriefDocument, StudioCreativeSummary, StudioTemplateSummary,
+  ValidationProject,
+} from '../types'
 
 const activeStatuses = new Set(['queued', 'generating'])
 
@@ -17,13 +20,13 @@ function BriefDocument({ value, language }: { value: ProductBriefDocument; langu
   </div>
 }
 
-export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBriefChanged, onProjectsRefresh, onPost, language }: {
+export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBriefChanged, onProjectsRefresh, onCreative = () => {}, language }: {
   api: ApiClient
   projectId: string | null
   onProjectCreated: (project: ValidationProject) => void
   onProjectBriefChanged: (projectId: string, name: string, briefId: string, status: ProductBrief['status']) => void
   onProjectsRefresh: (preferredId?: string) => Promise<void>
-  onPost?: () => void
+  onCreative?: (projectId: string, creativeId: string) => void
   language: Language
 }) {
   const [items, setItems] = useState<ProductBrief[] | null>(null)
@@ -33,6 +36,9 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [approvalOpen, setApprovalOpen] = useState(false)
+  const [templates, setTemplates] = useState<StudioTemplateSummary[]>([])
+  const [templateId, setTemplateId] = useState<'universal_ad' | 'phone_metrics' | ''>('')
   const tr = (en: string, uk: string) => translate(language, en, uk)
   const load = async (preferredId?: string, targetProjectId = projectId) => {
     if (!targetProjectId) { setItems([]); setSelected(null); return }
@@ -76,13 +82,28 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
       await onProjectsRefresh(result.brief.project_id)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
+  const openApproval = async () => {
+    setApprovalOpen(true); setTemplateId(''); setError('')
+    if (templates.length) return
+    try {
+      const value = await api.get<{ items: StudioTemplateSummary[] }>('/api/v1/studio/templates')
+      setTemplates(value.items)
+    } catch (cause) { setError((cause as Error).message); setApprovalOpen(false) }
+  }
   const approve = async () => {
-    if (!selected) return
+    if (!selected || !templateId) return
+    const alreadyApproved = selected.approved
     setBusy(true); setError('')
     try {
-      await api.post(`/api/v1/briefs/${selected.brief_id}/approve`, { honor_confirmed: true })
-      setNotice(tr('Product Brief approved.', 'Продуктовий бриф схвалено.')); await load(selected.brief_id)
+      const result = await api.post<{ creative: StudioCreativeSummary }>(`/api/v1/briefs/${selected.brief_id}/approve`, {
+        honor_confirmed: true, template_id: templateId,
+      })
+      setApprovalOpen(false)
+      setNotice(alreadyApproved
+        ? tr('Creative reserved. Studio AI is composing it.', 'Креатив зарезервовано. Studio AI створює його.')
+        : tr('Product Brief approved. Studio AI is composing the creative.', 'Продуктовий бриф схвалено. Studio AI створює креатив.'))
       await onProjectsRefresh(selected.project_id)
+      onCreative(selected.project_id, result.creative.creative_id)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const retry = async () => {
@@ -109,10 +130,18 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
         {activeStatuses.has(selected.status) && <p className="generation-state"><RefreshCcw className="spin" /> {tr('Generating one testable hypothesis…', 'Генерується одна перевірювана гіпотеза…')}</p>}
         {selected.status === 'failed' && <div className="state error"><p>{selected.error_message || selected.error_code || tr('Generation failed', 'Генерація не вдалася')}</p><button className="secondary" disabled={busy} onClick={retry}>{tr('Retry', 'Повторити')}</button></div>}
         {selected.document && <><BriefDocument value={selected.document} language={language} />
-          <div className="approval-row">{selected.approved ? <><p><Check /> {tr('Product Brief approved', 'Продуктовий бриф схвалено')}</p>{onPost && <button className="primary" onClick={onPost}><Sparkles />{tr('Create one post', 'Створити один допис')}</button>}</> : <button className="primary" disabled={busy} onClick={approve}><Check />{tr('I can honor this promise and offer — approve', 'Я можу виконати цю обіцянку та пропозицію — схвалити')}</button>}</div>
+          <div className="approval-row">{selected.approved ? <><p><Check /> {tr('Product Brief approved', 'Продуктовий бриф схвалено')}</p><button className="secondary" disabled={busy} onClick={() => void openApproval()}><Sparkles />{tr('Open or create its creative', 'Відкрити або створити креатив')}</button></> : <button className="primary" disabled={busy} onClick={() => void openApproval()}><Check />{tr('I can honor this promise and offer — approve', 'Я можу виконати цю обіцянку та пропозицію — схвалити')}</button>}</div>
           <section className="brief-correction"><h2>{tr('Correct this hypothesis', 'Виправити цю гіпотезу')}</h2><p>{tr('Creates a new immutable Brief that must be approved again.', 'Створює новий незмінний бриф, який потрібно схвалити повторно.')}</p><textarea rows={4} maxLength={2000} value={correction} onChange={(event) => setCorrection(event.target.value)} placeholder={tr('One correction for the complete Brief…', 'Одне виправлення для всього брифу…')} /><button className="secondary" disabled={busy || !correction.trim()} onClick={correct}>{tr('Create replacement', 'Створити заміну')} <Send /></button></section>
         </>}
       </div>}
     </div>}
+    {approvalOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-labelledby="brief-template-title">
+      <header><div><small>{selected?.approved ? tr('CREATE CREATIVE', 'СТВОРИТИ КРЕАТИВ') : tr('APPROVE & CREATE', 'СХВАЛИТИ Й СТВОРИТИ')}</small><h2 id="brief-template-title">{tr('Choose the creative template', 'Оберіть шаблон креативу')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setApprovalOpen(false)}><X /></button></header>
+      <p>{tr('The selected common template will be populated from this approved Brief.', 'Обраний спільний шаблон буде заповнено на основі цього схваленого брифу.')}</p>
+      <div className="studio-template-grid">{templates.map((template) => <button key={template.template_id} type="button" className={`studio-template-card ${templateId === template.template_id ? 'is-active' : ''}`} onClick={() => setTemplateId(template.template_id)}>
+        <strong>{template.name}</strong><small>{template.canvas.width}×{template.canvas.height}</small><span>{template.description}</span>
+      </button>)}</div>
+      <button className="primary large" disabled={busy || !templateId} onClick={() => void approve()}><Check />{selected?.approved ? tr('Create creative', 'Створити креатив') : tr('Approve Brief & generate creative', 'Схвалити бриф і згенерувати креатив')}</button>
+    </section></div>}
   </>
 }

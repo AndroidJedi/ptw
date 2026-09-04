@@ -1,47 +1,54 @@
 ---
 name: ptw-owner-console-incident
-description: Diagnose, fix, deploy, and prevent PTW Owner Console incidents across Firebase Auth/App Check/Hosting/PWA caching, Product Briefs, Universal Studio, Commander, Validation, PostgreSQL, Pexels, and the existing Telegram emergency boundary.
+description: Diagnose, fix, deploy, and prevent PTW Owner Console incidents across Firebase Auth/App Check/Hosting/PWA caching, Product Briefs, project-scoped Studio, Commander, Validation, PostgreSQL, Pexels, and the existing Telegram emergency boundary.
 ---
 
 # PTW Owner Console Incident
 
 Trace a public symptom through browser → Firebase Hosting/Caddy → Owner Gateway
-→ Validation → PostgreSQL or the independent structured bridge/Pexels API. A
-healthy Gateway alone does not prove Product Brief or Studio readiness.
+→ Validation → PostgreSQL or the independent structured/media bridge/Pexels.
+A healthy Gateway alone does not prove Brief, creative, image, or learning
+readiness.
 
 ## Public boundary
 
-- Verify hashed bundles, the current service-worker cache, Firebase Auth
-  persistence, App Check, exact Owner CORS origins, and unauthenticated rejection.
-- The normal app exposes Product Briefs and the owner-only Universal Studio.
-  Social posts, content runs, Creative review, export, candidate generation,
-  notifications, and their retired APIs must stay absent.
-- Studio preview and immutable-version renders are authenticated, digest-checked,
-  and private/no-store. The browser never receives provider or database secrets.
-- Pexels imports must retain provider/license provenance and validate declared
+- Verify hashed bundles, service-worker cache, Firebase Auth persistence, App
+  Check, exact Owner CORS origins, and unauthenticated rejection.
+- The app exposes only Product Briefs and Post / Допис, with a Project selector
+  in both. Every Studio mutation is Project/creative-scoped.
+- Preview, history, and immutable-version renders are authenticated,
+  digest-checked, and private/no-store. The browser receives no provider path,
+  prompt credential, database secret, or raw token.
+- Pexels and image assets retain source/digest provenance and validate declared
   MIME against decoded bytes before persistence.
-- Telegram inbound routing remains only `/help`, `/status`, and `/stop`; every
-  other input returns the web-console link and cannot mutate application state.
-  Never add another poller/webhook or print, rotate, or replace the token.
+- Telegram remains only `/help`, `/status`, and `/stop`; all other input
+  returns the web-console link and cannot mutate state.
 
-## Product Brief and Studio checks
+## Brief, Studio, and provider checks
 
-- Product Brief remains raw idea → strict immutable hypothesis → correction →
-  explicit owner approval. Corrections append HumanFeedback and WeightUpdate
-  UUID entities with complete graph lineage.
-- Provider modes are exactly `product_brief` and `product_brief_revision`; no
-  media, candidate, evaluator, ranking, or selection mode is part of Validation.
-- Universal Studio is a separate saved workspace. Keep its fixed semantic
-  structure, strict bounded settings, deterministic primitive render, immutable
-  approved versions, and Pexels-backed asset provenance.
-- Restart recovery requeues only interrupted Product Brief generation. Studio
-  state remains file-backed and independent of PostgreSQL Product Brief records.
+- Verify raw idea → immutable Brief → correction lineage → honor confirmation
+  plus template choice → HTTP 202 creative reservation/navigation.
+- Provider JSON modes are exactly `product_brief`,
+  `product_brief_revision`, `studio_creative_generation`, and
+  `studio_edit_learning`. The only media mode is bounded non-human graphic
+  generation with at most one digest-checked PNG enhancement reference.
+- Composition must record Brief, template, global-skill, and Project-skill IDs
+  and hashes, validate output against the live selected template, and start a
+  fresh text-free phone hero for `phone_metrics`.
+- Save/Approve creates learning only when accumulated owner edits changed state.
+  Confirm immutable checkpoint, append-only attempts, automatic Project skill,
+  sanitized global proposal, explicit owner decision, and retry without rollback.
+- Restart recovery resumes queued composition/image/learning exactly once.
+  PostgreSQL remains authority; per-creative renderer files are disposable cache.
+- Bare Studio routes, `/api/v1/posts`, candidate/critic modes, singleton rows,
+  assignment UX, and historical schema adapters must remain absent.
 
 ## Release acceptance
 
-Run the clean Product Brief schema verifier, built-image Validation and Owner
-Gateway tests, Commander tests/demo, skill verification, web unit/build/
-Playwright desktop and mobile, Studio visual audit, Python compilation, and
-`git diff --check`. Before claiming Telegram works in production, verify
-authorization, deployed help/routing, provider readiness, restart behavior, and
+Run schema idempotency, provider contract/canaries, Validation and Owner Gateway
+tests, Commander tests/demo, skill validation, web unit/build/Playwright,
+Studio visual audit, Python compilation, and `git diff --check`. Exercise the
+complete browser workflow and cross-Project rejection before declaring the
+incident resolved. Before claiming Telegram works, verify authorization,
+deployed help/routing, provider readiness, persistence, restart behavior, and
 the user-facing failure path.

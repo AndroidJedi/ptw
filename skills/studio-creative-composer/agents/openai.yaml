@@ -1,0 +1,5 @@
+interface:
+  display_name: "Studio Creative Composer"
+  short_description: "Compose an approved Brief in a Studio template"
+  default_prompt: "Use $studio-creative-composer to populate the selected Studio template from this approved Product Brief."
+

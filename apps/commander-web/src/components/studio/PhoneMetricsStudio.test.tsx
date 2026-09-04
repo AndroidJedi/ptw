@@ -4,7 +4,17 @@ import type { ApiClient } from '../../api'
 import type { StudioPhoneMetricsDetail } from '../../types'
 import { PhoneMetricsStudio } from './PhoneMetricsStudio'
 
+const basePath = '/api/v1/studio/projects/11111111-1111-4111-8111-111111111111/creatives/22222222-2222-4222-8222-222222222222'
+
 const detail = {
+  creative_id: '22222222-2222-4222-8222-222222222222',
+  project_id: '11111111-1111-4111-8111-111111111111',
+  source_brief_id: '33333333-3333-4333-8333-333333333333',
+  ordinal: 1,
+  origin: 'brief_generation',
+  status: 'draft',
+  generation: { stage: 'draft' },
+  approved_version_count: 0,
   schema: 'ptw.studio.workspace.v8',
   template_id: 'phone_metrics',
   templates: [
@@ -69,7 +79,7 @@ const detail = {
 function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
   let savedDetail = structuredClone(initialDetail)
   const post = vi.fn(async (path: string, body: unknown) => {
-    if (path === '/api/v1/studio/phone-screen/generate') {
+    if (path === `${basePath}/phone-screen/generate`) {
       const generatedSha256 = '1'.repeat(64)
       const generatedSource = {
         visual_direction: (body as { visual_direction: string }).visual_direction,
@@ -92,7 +102,7 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
       }
       return structuredClone(savedDetail)
     }
-    if (path === '/api/v1/studio/phone-screen/select') {
+    if (path === `${basePath}/phone-screen/select`) {
       const sha256 = (body as { sha256: string }).sha256
       const selected = savedDetail.phone_screen_history.find((item) => item.sha256 === sha256)
       savedDetail = {
@@ -114,6 +124,10 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
       ...savedDetail, state_sha256: 'e'.repeat(64),
       configuration: structuredClone(request.configuration),
       content: structuredClone(request.content),
+    }
+    if (path === `${basePath}/save` || path === `${basePath}/approve`) return {
+      creative: structuredClone(savedDetail), checkpoint_created: true,
+      version_created: path.endsWith('/approve'), checkpoint: null, learning_proposal: null,
     }
     return structuredClone(savedDetail)
   })
@@ -140,7 +154,7 @@ describe('Phone & metrics Studio', () => {
   it('removes the eyebrow control from the draft while preserving its copy', async () => {
     const { api, post } = studioApi()
     render(<PhoneMetricsStudio
-      api={api} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
+      api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
     />)
 
     expect(screen.getByLabelText('Show eyebrow')).toBeChecked()
@@ -150,7 +164,7 @@ describe('Phone & metrics Studio', () => {
     expect(screen.getByText('Eyebrow removed')).toBeInTheDocument()
     expect(screen.queryByLabelText('Eyebrow')).not.toBeInTheDocument()
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
+      `${basePath}/preview`,
       expect.objectContaining({
         state_sha256: 'a'.repeat(64),
         configuration: expect.objectContaining({ offer: { enabled: false } }),
@@ -159,9 +173,9 @@ describe('Phone & metrics Studio', () => {
       'image/png', { deadlineMs: 90_000 },
     ))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save setup' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
     await waitFor(() => expect(post).toHaveBeenCalledWith(
-      '/api/v1/studio/configuration',
+      `${basePath}/save`,
       expect.objectContaining({
         configuration: expect.objectContaining({ offer: { enabled: false } }),
         content: expect.objectContaining({ offer: 'NATAL' }),
@@ -173,7 +187,7 @@ describe('Phone & metrics Studio', () => {
   it('formats selected supporting words and previews size and colour controls', async () => {
     const { api } = studioApi()
     render(<PhoneMetricsStudio
-      api={api} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
+      api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
     />)
 
     const supporting = screen.getByLabelText('Supporting text') as HTMLTextAreaElement
@@ -195,7 +209,7 @@ describe('Phone & metrics Studio', () => {
     })
 
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
+      `${basePath}/preview`,
       expect.objectContaining({
         configuration: expect.objectContaining({
           supporting_text: { font_size: 36, highlight_color: '#D12F7A' },
@@ -211,7 +225,7 @@ describe('Phone & metrics Studio', () => {
   it('previews and saves independent full, left-copy, and iPhone textures', async () => {
     const { api, post } = studioApi()
     render(<PhoneMetricsStudio
-      api={api} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
+      api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
     />)
 
     fireEvent.change(screen.getByLabelText('Full post background texture'), {
@@ -225,7 +239,7 @@ describe('Phone & metrics Studio', () => {
     })
 
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
+      `${basePath}/preview`,
       expect.objectContaining({
         configuration: expect.objectContaining({
           background: expect.objectContaining({ texture: 'travertine' }),
@@ -236,9 +250,9 @@ describe('Phone & metrics Studio', () => {
       'image/png', { deadlineMs: 90_000 },
     ))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save setup' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
     await waitFor(() => expect(post).toHaveBeenCalledWith(
-      '/api/v1/studio/configuration',
+      `${basePath}/save`,
       expect.objectContaining({
         configuration: expect.objectContaining({
           background: expect.objectContaining({ texture: 'travertine' }),
@@ -253,7 +267,7 @@ describe('Phone & metrics Studio', () => {
   it('previews and saves each metric button text, style, colours, and shape', async () => {
     const { api, post } = studioApi()
     render(<PhoneMetricsStudio
-      api={api} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
+      api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
     />)
 
     expect(screen.getByLabelText('Metric 1 style')).toHaveValue('filled')
@@ -285,7 +299,7 @@ describe('Phone & metrics Studio', () => {
       background_color: '#CEDD3C', shape: 'pill',
     }
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
+      `${basePath}/preview`,
       expect.objectContaining({
         configuration: expect.objectContaining({
           metric_cards: [expectedCard, expect.any(Object), expect.any(Object)],
@@ -300,9 +314,9 @@ describe('Phone & metrics Studio', () => {
       'image/png', { deadlineMs: 90_000 },
     ))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save setup' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
     await waitFor(() => expect(post).toHaveBeenCalledWith(
-      '/api/v1/studio/configuration',
+      `${basePath}/save`,
       expect.objectContaining({
         configuration: expect.objectContaining({
           metric_cards: [expectedCard, expect.any(Object), expect.any(Object)],
@@ -321,7 +335,7 @@ describe('Phone & metrics Studio', () => {
   it('previews and saves all in-phone bottom-button controls', async () => {
     const { api, post } = studioApi()
     render(<PhoneMetricsStudio
-      api={api} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
+      api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
     />)
 
     expect(screen.getByLabelText('Phone button 1 style')).toHaveValue('filled')
@@ -350,7 +364,7 @@ describe('Phone & metrics Studio', () => {
       background_color: '#CEDD3C', shape: 'rounded',
     }
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
+      `${basePath}/preview`,
       expect.objectContaining({
         configuration: expect.objectContaining({
           phone_buttons: [expect.any(Object), expectedButton, expect.any(Object)],
@@ -362,9 +376,9 @@ describe('Phone & metrics Studio', () => {
       'image/png', { deadlineMs: 90_000 },
     ))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save setup' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
     await waitFor(() => expect(post).toHaveBeenCalledWith(
-      '/api/v1/studio/configuration',
+      `${basePath}/save`,
       expect.objectContaining({
         configuration: expect.objectContaining({
           phone_buttons: [expect.any(Object), expectedButton, expect.any(Object)],
@@ -380,7 +394,7 @@ describe('Phone & metrics Studio', () => {
   it('saves draft copy before generating and applying a new iPhone visual', async () => {
     const { api, post } = studioApi()
     render(<PhoneMetricsStudio
-      api={api} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
+      api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
     />)
 
     fireEvent.change(screen.getByLabelText('Headline'), {
@@ -392,12 +406,12 @@ describe('Phone & metrics Studio', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generate & apply' }))
 
     await waitFor(() => expect(post).toHaveBeenNthCalledWith(
-      1, '/api/v1/studio/configuration',
+      1, `${basePath}/configuration`,
       expect.objectContaining({ content: expect.objectContaining({ hero_title: 'A newly edited headline' }) }),
       { deadlineMs: 60_000 },
     ))
     await waitFor(() => expect(post).toHaveBeenNthCalledWith(
-      2, '/api/v1/studio/phone-screen/generate', {
+      2, `${basePath}/phone-screen/generate`, {
         base_sha256: 'e'.repeat(64),
         visual_direction: 'Translucent glass steps in soft blue light with one lime accent.',
         enhance_current: false,
@@ -417,7 +431,7 @@ describe('Phone & metrics Studio', () => {
     }]
     const { api, post } = studioApi(current)
     render(<PhoneMetricsStudio
-      api={api} language="en" detail={current} onDetail={vi.fn()}
+      api={api} basePath={basePath} language="en" detail={current} onDetail={vi.fn()}
     />)
 
     const enhance = screen.getByLabelText('Enhance current image')
@@ -429,7 +443,7 @@ describe('Phone & metrics Studio', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generate & apply' }))
 
     await waitFor(() => expect(post).toHaveBeenCalledWith(
-      '/api/v1/studio/phone-screen/generate', {
+      `${basePath}/phone-screen/generate`, {
         base_sha256: 'a'.repeat(64),
         visual_direction: 'Keep the unicorn and improve the balloon material and lighting.',
         enhance_current: true,
@@ -453,7 +467,7 @@ describe('Phone & metrics Studio', () => {
     }))
     const { api, post } = studioApi(current)
     render(<PhoneMetricsStudio
-      api={api} language="en" detail={current} onDetail={vi.fn()}
+      api={api} basePath={basePath} language="en" detail={current} onDetail={vi.fn()}
     />)
 
     expect(screen.getByRole('radiogroup', { name: 'Recent iPhone images' })).toBeInTheDocument()
@@ -466,14 +480,14 @@ describe('Phone & metrics Studio', () => {
     })
     fireEvent.click(screen.getByRole('radio', { name: 'Select iPhone image 2' }))
     await waitFor(() => expect(post).toHaveBeenNthCalledWith(
-      1, '/api/v1/studio/configuration',
+      1, `${basePath}/configuration`,
       expect.objectContaining({
         content: expect.objectContaining({ hero_title: 'Keep this pending headline' }),
       }),
       { deadlineMs: 60_000 },
     ))
     await waitFor(() => expect(post).toHaveBeenNthCalledWith(
-      2, '/api/v1/studio/phone-screen/select',
+      2, `${basePath}/phone-screen/select`,
       { base_sha256: 'e'.repeat(64), sha256: '2'.repeat(64) },
       { deadlineMs: 60_000 },
     ))
@@ -488,7 +502,7 @@ describe('Phone & metrics Studio', () => {
     unavailable.phone_screen_generation_available = false
     const { api } = studioApi()
     render(<PhoneMetricsStudio
-      api={api} language="en" detail={unavailable} onDetail={vi.fn()}
+      api={api} basePath={basePath} language="en" detail={unavailable} onDetail={vi.fn()}
     />)
 
     fireEvent.change(screen.getByLabelText('iPhone visual direction'), {
@@ -496,6 +510,6 @@ describe('Phone & metrics Studio', () => {
     })
     expect(screen.getByLabelText('Enhance current image')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeDisabled()
-    expect(screen.getByText(/Sign in to Codex and restart Studio/)).toBeInTheDocument()
+    expect(screen.getByText(/Sign in to Codex and restart the Post editor/)).toBeInTheDocument()
   })
 })

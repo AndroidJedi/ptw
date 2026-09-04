@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 from uuid import UUID
 
 from commander.ids import new_uuid7
@@ -34,12 +34,13 @@ class LocalBriefService:
 
     def __init__(
         self, *, store: LocalBriefStore, provider: LocalCodexStructuredProvider,
-        repository_root: Path,
+        repository_root: Path, on_project_created: Callable[[str], Any] | None = None,
     ) -> None:
         self.store = store
         self.provider = provider
         skill_path = repository_root / "skills/product-brief-generator/SKILL.md"
         self.product_context = load_product_brief_skill(skill_path)
+        self.on_project_created = on_project_created
 
     def _record_invocation(
         self, *, target_id: str, mode: str, input_payload: Mapping[str, Any],
@@ -156,6 +157,8 @@ class LocalBriefService:
         self.store.edge(source_id=project_id, relation="contains", target_id=source_id)
         self.store.edge(source_id=project_id, relation="contains", target_id=brief_id)
         self.store.edge(source_id=brief_id, relation="derived_from", target_id=source_id)
+        if self.on_project_created is not None:
+            self.on_project_created(project_id)
         return self._project(project_id), brief, True
 
     def generate_brief(self, brief_id: str) -> dict[str, Any]:

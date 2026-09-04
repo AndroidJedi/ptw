@@ -1,191 +1,138 @@
-# Universal Studio
+# Project-scoped Post Studio
 
-Universal Studio is an owner-only, standalone workspace. It does not depend on
-Product Brief approval and does not create posts, content runs, review sets, or
-publication records. The local-only Post flow has a separate per-post Studio
-workspace and never mutates the standalone workspace.
+The owner sees Studio as **Post / Допис**. Every creative belongs to one Project
+and derives from one approved Product Brief. Studio has no owner-wide singleton,
+separate Studio page, Social Post workflow, publishing, campaign, traffic,
+analytics, or optimization surface.
 
-## Bounded templates
+## Brief-to-creative workflow
 
-Studio has exactly two server-owned selections: `universal_ad` at 1080×1080
-and `phone_metrics` at 1080×1350. Selecting either replaces every mutable
-configuration, content field, and mutable workspace asset; it never changes an
-immutable version. A workspace without a selection remains the legacy
-`universal_ad` workspace.
+Brief approval requires a template choice. The server transactionally records
+approval and reserves ordinal 1 for that Brief, returning HTTP 202. The browser
+opens the creative progress view while composition advances through queued,
+composing, optional iPhone-image generation, and editable draft.
 
-`universal_ad` retains its fixed semantic structure: background, optional
-sticker, hero title, supporting text, optional benefits, CTA, and Natal.
-`phone_metrics` v17 is a fixed 4:5 composition: off-white mineral texture,
-canonical Natal lock-up in the upper-left, dark left-safe-area copy, a
-front-facing black phone at upper-right, three compact equal metric buttons,
-and a full-width cobalt CTA band. Each metric button independently exposes its
-value, label, Filled or Outlined style, text colour, background/border colour,
-and Square, Rounded, or Pill shape. The reference default remains the approved
-cobalt fill, white text, and smooth rounded corners. The app screen now ends in
-three independently tunable action buttons. Each exposes text, Filled,
-Elevated, Outlined, or Text-only style, text colour, background/border colour,
-and Square, Rounded, or Pill shape. Their fixed reference defaults are a blue
-filled primary “Створити новий акаунт”, elevated white “Увійти”, and blue
-text-only “Можливо пізніше”. They remain separate from the outer post CTA. The
-template accepts an optional
-eyebrow, headline, supporting text, CTA, exactly three owner statistics, and an
-optional renderer-owned in-phone title. Disabling the eyebrow removes its
-primitive and semantic binding and reflows the headline upward while retaining
-the saved eyebrow copy. Supporting copy accepts only two bounded inline marks:
-`**bold words**` and `==accent-colour words==`. The editor wraps the current
-selection with either mark and exposes a 20–38px font-size range plus one
-accent-colour picker. These values belong to the saved configuration and the
-authoritative PNG renderer; delimiter characters are not painted. Unknown
-fields, an absent statistic, or a fourth statistic fail closed. Three saved,
-bounded texture selectors provide `Off` plus three finishes per surface: Grain,
-Concrete, and Travertine for the full post background; the same three choices
-for a separately clipped rounded surface behind only the upper-left Natal and
-left copy; and Fine grain, Soft paper, and Frosted glass for the in-phone hero.
-`Off` removes the corresponding renderer layer rather than substituting an
-empty or transparent effect. Mutable v1 through v6 phone configuration upgrades
-to the previously implicit eyebrow, font-size, accent-colour, Concrete full
-background, no left-copy texture, Fine-grain screen, and reference metric-button
-defaults and the three reference in-phone buttons; mutable v1 content gains the
-three reference labels. Immutable versions are not rewritten.
+The Studio composer receives only:
 
-The internal primitive tree is built server-side. API callers cannot import
-templates or mutate arbitrary nodes. The shared `StudioRenderer` produces the
-authoritative PNG and resolved-node diagnostics. Primitive catalog v2 adds the
-generic `rich_text` primitive with bold-weight and highlight-colour properties;
-existing plain `text` nodes and their normalized documents remain unchanged.
+- the approved Brief;
+- the selected live template catalog and defaults;
+- the canonical composer skill;
+- the latest digest-verified accepted global skill snapshot;
+- the latest digest-verified Project skill snapshot.
 
-## Natal and assets
+Its strict JSON may populate only fields already supported by the selected
+template. Invalid fields, values, counts, or schemas fail the run and leave a
+retryable creative. The common catalog is always authoritative over skills.
 
-Natal is the sole visible identity in all new Studio and local Post drafts. Its
-canonical lock-up is always enabled. Owner logo uploads, logo toggles, and
-brand-name substitution are absent from the control catalog; retained legacy
-configuration fields exist only so historical immutable versions remain
-readable.
+A corrected/replacement Brief receives a new creative. Creating another
+creative from the same Brief is allowed only after the latest sibling has at
+least one immutable approved version.
 
-The active `phone_metrics` frame is the previously sourced WithFrame iPhone 15
-Pro black front mockup. Its adjacent manifest records source, license,
-download date, and SHA-256. Runtime code reads only this local digest-checked
-asset and never fetches a device frame. The generated hero art is placed inside
-a deterministic Natal app shell with crisp time, cellular, complete multi-arc
-Wi-Fi, and battery status details, canonical lock-up, optional owner title,
-three owner-tunable app actions, and home indicator. The complete upright
-screen is composited into the transparent rounded aperture before the hardware
-is added. Device, UI, copy, and artwork therefore remain one image layer and
-cannot drift apart, while readable screen elements receive no perspective
-distortion. Hero artwork spans the complete app-screen width. Its sharp subject
-is lowered slightly farther away from the fixed status and Natal header, while an image-derived
-continuation still reaches the screen's top edge and feathers into the sharp
-layer at the same source row. The artwork and its selected finish dissolve
-together through a long eased fade into the lower white content area; no inset
-card mask, white side gutters, blank top
-band, duplicated hard edge, or horizontal seam beneath the logo remain. The
-selected deterministic screen finish is composited beneath the fixed interface
-without softening renderer-owned UI. The screen matte extends beneath the upper bezel so the
-outer creative background cannot show through the antialiased aperture curves.
+## Common bounded templates
 
-`universal_ad` retains bounded background and Pexels-screened sticker assets.
-`phone_metrics` has no owner-uploadable screen artwork. Standalone Studio keeps
-the deterministic text-free sculptural fixture as its zero-cost fallback and
-accepts one bounded owner visual direction to generate and immediately apply a
-replacement hero artwork. The default local provider invokes the built-in image
-generation tool through the same ChatGPT-authenticated Codex CLI already used
-for structured generation; PTW never reads or copies Codex authentication.
-`STUDIO_PHONE_IMAGE_PROVIDER=openai_api` remains an explicit fallback for a
-server-side `OPENAI_API_KEY`, rather than a prerequisite for local Studio.
-When a mutable raw hero already exists, “Enhance current image” is enabled and
-checked by default. It passes that raw source image with the direction as an
-edit, never the composited phone, fixed Natal identity, title, actions, or
-hardware. Turning the checkbox off preserves the existing generate-from-scratch
-behavior. With no current raw image the control is disabled until the first
-successful generation, then becomes the default for the next iteration. The
-Codex provider exposes a temporary read-only reference path only to its bounded
-image worker; the direct API provider sends a multipart request to the GPT Image
-edits endpoint. Persisted non-secret provenance distinguishes `generate_new`
-from `enhance_current` and links enhancements to the exact previous asset
-SHA-256. Temporary reference images are removed after the provider call.
-Production uses the existing authenticated Result media bridge. A new image is
-one bounded `content_non_human_graphic_generation` call; Enhance attaches exactly
-one digest-checked square PNG to that same call and records its reference digest.
-The bridge rejects path input, extra images, MIME/dimension/digest mismatches,
-and base64 leakage into the model prompt. Its authenticated asset response is
-downloaded and revalidated before Studio can persist it.
-The mutable workspace also keeps the three newest distinct raw phone heroes in
-newest-first order. Their content-addressed PNGs and manifest are SHA-256 and
-dimension checked on every read. An authenticated, private/no-store thumbnail
-route feeds a compact three-slot selector; choosing a retained hero makes it
-the active render and the input for the next enhancement without changing the
-generation order. Pending copy/configuration is saved before selection. A
-fourth successful image evicts only the oldest retained PNG, while provider or
-selection failure leaves the current visual and history intact. A legacy
-workspace with one existing raw hero exposes it as its initial history entry
-without needing a migration write.
-The action saves any current copy/configuration first, preserves the
-previous visual on provider failure, validates the result as PNG, and records
-the non-secret direction and provider provenance. The local Post flow separately
-obtains one square Brief-derived hero artwork server-side through the same
-provider boundary. Both prompt contracts prohibit visible text,
-numbers, logos, UI, buttons, charts, metrics, and devices in generated pixels;
-all readable screen content is rendered deterministically afterward. The
-browser never receives provider authentication.
+`universal_ad` is a 1080×1080 composition with background, optional screened
+photographic sticker, hero title, supporting text, benefits, CTA, and fixed
+Natal identity.
 
-A local saved version stores exact configuration, content, asset digests,
-template digest, and PNG bytes below `.local/studio-workspace`. Production keeps
-the same validated filesystem representation only as a disposable renderer
-cache: PostgreSQL owns the complete file snapshot and PNG bytes, one mutable
-workspace entity, immutable generated-asset/version UUID entities, and their
-`contains`, `derived_from`, and `supersedes` edges. Authenticated render and
-history responses are private/no-store, and the cache is rehydrated from the
-database after service replacement.
+`phone_metrics` is a 1080×1350 composition with an off-white material
+background, fixed Natal lock-up, left-safe copy, a front-facing black iPhone,
+three equal metric controls, and a full-width CTA band. Every metric exposes
+bounded value/label, Filled or Outlined style, text and surface colours, and
+Square, Rounded, or Pill shape.
 
-## Pexels sticker boundary
+The phone app screen has a fixed status bar, complete cellular and Wi-Fi
+signals, battery, Natal lock-up, optional eyebrow/title, generated hero,
+supporting copy, three owner-tunable app actions, and home indicator. The three
+actions expose bounded text, Filled/Elevated/Outlined/Text-only style, text and
+surface colours, and Square/Rounded/Pill shape. Their defaults match the
+approved screenshot: cobalt primary, elevated white secondary, and blue
+text-only tertiary.
 
-The canonical Natal logo/font are deterministic defaults. A Sticker may be
-isolated only from an approved photographic object while retaining source and
-transformation provenance. Query and provider metadata do not approve the
-visual: isolation rejects retained scenes and edge-cropped subjects before the
-asset can enter the Sticker slot. When Pexels is configured and the Sticker slot
-is empty, the component action sources the bounded starter query and enables the
-component in one owner action; it remains disabled only when Pexels is
-unavailable. Studio never sends provider credentials to the browser.
+The phone frame is a checked-in, SHA-256-verified WithFrame asset and is never
+fetched at runtime. The screen, UI, and frame are composited as one deterministic
+layer. Hero art reaches the top underneath renderer-owned chrome, keeps its
+subject lower, spans the full screen width, and uses an eased image-derived fade
+into the lower background.
 
-## Visual gate and local Tune
+Template application replaces the current mutable configuration/content/assets
+inside that creative. It never rewrites an immutable approved version. Payloads
+must use current exact schemas; no historical schema upgrader or alternate
+version format exists.
 
-`skills/studio-ui-visual-audit/scripts/audit_universal_studio.py` renders both
-the representative universal variants and the exact 1080×1350 phone template
-in six representative states, including every texture finish, all three `Off`
-states, a left-copy-only isolation render, and one mixed metric-button render
-covering both styles and all three shapes.
-The phone checks read full-resolution pixels and resolved bounds for the
-off-white texture, upper-left Natal, dark left copy, upper-right front-facing
-device, equal tunable metric buttons, CTA band, no clipping/overlap/unsafe bounds,
-the crisp upright app shell, complete status-bar network signal, three
-horizontal in-phone actions, and the text-free hero-art fixture. Pixel checks cover both
-hero-art side edges, the former
-below-logo boundary, and both upper aperture curves to prevent white gutters or
-a horizontal or outer-background seam. They also verify compact equal button
-geometry, the reference rounded corners, all nine optional texture finishes, the
-rounded bounds of the left-copy surface, real texture-layer removal in all
-three `Off` states, complete eyebrow-node removal, and headline reflow.
-Supporting-copy checks exercise both markup modes, the
-default and maximum font size, two accent colours, resolved layout diagnostics,
-and actual accent pixels in the PNG. Metric-button checks verify independent
-copy, filled/outlined rendering, text and surface colours, shape pixels, equal
-geometry, and unclipped labels. In-phone action checks cover the reference
-filled/elevated/text-only stack plus the Outlined style, all three shapes,
-independent labels and colours, elevation shadow, and horizontal final-frame
-resampling. A passed
-audit is followed by a full-resolution visual inspection of the creative area
-only; social-app chrome and reference brand wording are not part of the Studio
-output. Browser checks also cover the enhancement checkbox at desktop and 360px:
-disabled without a raw current hero, checked by default with one, keyboard
-operable, and mapped to the bounded boolean API field. The same view checks the
-raw-hero history selector at both widths: at most three small thumbnails, one
-explicit current state, authenticated digest-checked loading, keyboard
-selection, no horizontal overflow, and selected-image use by Enhance.
+## Phone hero generation
 
-`STUDIO_TUNE_MODE=1` enables the loopback Tune wizard. It captures one requested
-Studio implementation, runs Codex in an isolated worktree, enforces a
-Studio-only allowlist, verifies focused tests/build checks, and presents a
-preview before copy-back. Only explicit owner approval may persist a generalized
-rule in `skills/studio-tune-local/references/owner-approved-rules.md`.
-Production Owner Gateway does not expose Tune routes.
+After `phone_metrics` composition, Studio automatically starts one fresh hero
+generation. The canonical phone-hero skill, Brief-derived visual direction, and
+accepted global/Project visual lessons are included in both local Codex and
+production bridge prompts.
+
+Generated pixels must contain no phone, readable text, numbers, logo, UI,
+buttons, metrics, charts, or unsupported claim. Renderer-owned UI is added
+afterward. Provider credentials and temporary paths never reach the browser.
+
+Manual generation supports:
+
+- fresh generation with no reference;
+- enhancement using exactly the selected raw hero PNG and its digest;
+- selection among the newest three distinct digest-checked raw heroes;
+- separate retry after automatic image failure.
+
+A failed image request preserves the composed draft and deterministic fallback.
+The selected raw hero is the input to the next enhancement. A fourth successful
+generation evicts only the oldest raw hero file.
+
+## Save, approve, and learning
+
+Live edits never teach the agent. The initial AI composition is provenance, not
+an owner lesson. All subsequent configuration, content, template, import,
+asset, image-generation, enhancement, and image-selection changes accumulate
+until **Save creative** or **Approve creative**.
+
+A changed checkpoint stores immutable before/after snapshots and changed paths,
+then starts one append-only learning attempt. Success appends a Project skill
+snapshot and a privacy-filtered global proposal. The checkpoint dialog shows
+the edit summary, saved Project lesson, and proposed global rule, with
+**Apply globally** and **Keep project-only** decisions. Applying globally
+appends a global skill snapshot; keeping it Project-only records the decision
+without changing the global skill.
+
+A no-change checkpoint creates no event and no dialog. Approval saves pending
+changes atomically before writing the immutable creative version. Learning
+failure cannot roll back saved state or an approved version and is queued for
+retry. Project lessons may retain Project preferences; global rules reject
+Project IDs/names, exact campaign copy, asset digests, and unsupported claims.
+
+## Persistence and APIs
+
+PostgreSQL stores one row per creative plus its renderer snapshot/files, assets,
+immutable versions, generation runs, edit checkpoints, learning runs,
+proposals/decisions, and immutable skill snapshots. Explicit graph edges retain
+Project and Brief lineage. Renderer files in production are disposable cache
+rehydrated from PostgreSQL.
+
+Public routes are:
+
+- `GET /api/v1/studio/templates`;
+- project creative list/create;
+- creative-scoped detail, retry, configuration, Save, template apply, assets,
+  Pexels, preview, component metadata, phone generation/select/history/retry,
+  approval, versions, learning decision, and learning retry.
+
+Bare Studio detail/mutation routes and `/api/v1/posts` do not exist. Local
+loopback exposes the same creative-scoped contracts. Restart recovery resumes
+queued/interrupted composition, image, and learning work without duplicating
+creatives, assets, skill snapshots, or completed checkpoints.
+
+## Visual and Tune gates
+
+`skills/studio-ui-visual-audit/scripts/audit_universal_studio.py` verifies both
+templates at authoritative resolution, including copy bounds, device alignment,
+network glyphs, button variants, textures, hero top coverage/fade, and
+text-free artwork. The browser suite checks desktop, 360px, and iPhone WebKit
+flows, creative progress, enhancement/history selection, Save/Approve learning
+dialogs, and no horizontal overflow.
+
+`STUDIO_TUNE_MODE=1` remains loopback-only. It may modify Studio implementation
+files through its guarded worktree and requires explicit owner approval before
+copy-back. Runtime learning writes immutable database/local skill snapshots; it
+never rewrites Git skills or mounted read-only skill directories.

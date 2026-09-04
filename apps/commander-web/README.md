@@ -1,20 +1,17 @@
 # PTW Owner Console
 
-Production exposes Product Briefs and the standalone Universal Studio. The
-loopback local app adds one deliberately small Post step:
+The Owner Console exposes exactly two destinations:
 
-1. Product Briefs — create one Project and immutable Brief from one raw idea,
-   correct/retry it, and approve only after confirming its promise and offer.
-2. Post (local only) — generate one Studio-rendered draft from the approved
-   Brief, tune it through one natural-language comment below the preview, and
-   create an immutable asset only through explicit approval.
-3. Studio — edit the bounded universal-ad configuration and approve immutable
-   reusable versions independently from Product Briefs and Post.
+1. Product Briefs — create a Project and immutable Brief, correct/retry it, then
+   choose a common template and approve it.
+2. Post — follow the reserved creative through Studio AI composition and
+   optional phone-image generation, edit its bounded template, Save/Approve
+   checkpoints, and decide whether a proposed lesson becomes global.
 
-Post comments resolve to exact Studio setting/content commands and optionally
-one semantic Pexels background query. Internal primitives, provider prompts,
-model controls, and chain-of-thought remain hidden. The browser does not
-publish, schedule, create campaigns, add UTMs, run analytics, or optimize.
+The Project selector is present in both destinations. Every creative route
+contains Project and creative IDs. Internal primitives, prompts, model controls,
+provider secrets, and reasoning remain hidden. The browser never publishes,
+schedules, creates campaigns, adds UTMs, runs analytics, or optimizes.
 
 Run:
 

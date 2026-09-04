@@ -144,7 +144,7 @@ if grep -Eq '^[[:space:]]*-[[:space:]]+mode=' "$rendered_platform_compose"; then
     echo "platform Compose split a tmpfs option into an invalid mount item" >&2
     exit 1
 fi
-# Put the enforcing worker in place before the API admits Product Brief modes.
+# Put the enforcing worker in place before the API admits PTW structured modes.
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api
 
@@ -176,21 +176,6 @@ grep -qx "PTW_PLATFORM_IMAGE_TAG=$release_tag" "$platform/.env" || {
 
 PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/reset_ptw.sh" \
     --confirm "$confirmation" --release-tag "$release_tag"
-
-# Initialize the singleton PostgreSQL Studio authority through its authenticated
-# HTTP boundary, then prove the same IDs and state return after a real service
-# replacement. Generated media is already covered by the pre-reset bridge
-# generate/edit canary, so this restart check does not spend another image call.
-studio_before=$("${validation_compose[@]}" exec -T validation-api \
-    python -m validation_pipeline.verify_studio_production)
-"${validation_compose[@]}" up -d --no-deps --no-build --wait --force-recreate validation-api >/dev/null
-studio_after=$("${validation_compose[@]}" exec -T validation-api \
-    python -m validation_pipeline.verify_studio_production)
-[[ $studio_after == "$studio_before" ]] || {
-    echo "Studio PostgreSQL authority changed across restart" >&2
-    exit 1
-}
-printf '%s\n' "$studio_after"
 
 if grep -q '^PTW_IMAGE_TAG=' "$repository/.env.commander"; then
     sed -i "s/^PTW_IMAGE_TAG=.*/PTW_IMAGE_TAG=$release_tag/" "$repository/.env.commander"

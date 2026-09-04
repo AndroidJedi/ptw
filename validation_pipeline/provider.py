@@ -1,4 +1,4 @@
-"""Authenticated structured bridge client for Product Brief generation."""
+"""Authenticated structured bridge client for PTW Brief and Studio JSON modes."""
 
 from __future__ import annotations
 
@@ -11,8 +11,11 @@ import urllib.error
 import urllib.request
 
 
-JSON_MODES = ("product_brief", "product_brief_revision")
-BRIDGE_JSON_MODES = (*JSON_MODES, "content_candidate_generation", "content_result_critic")
+JSON_MODES = (
+    "product_brief", "product_brief_revision", "studio_creative_generation",
+    "studio_edit_learning",
+)
+BRIDGE_JSON_MODES = JSON_MODES
 BRIDGE_MEDIA_MODES = ("content_non_human_graphic_generation",)
 
 
@@ -56,7 +59,7 @@ class StructuredBridge:
         idempotency_key: str,
     ) -> dict[str, Any]:
         if mode not in JSON_MODES:
-            raise ValueError("unsupported Product Brief bridge mode")
+            raise ValueError("unsupported structured bridge mode")
         if not self._slots.acquire(timeout=max(0, self.timeout_seconds)):
             raise TimeoutError(f"{mode} could not enter its bounded execution slot")
         try:
@@ -91,7 +94,7 @@ class StructuredBridge:
         request_id = int(queued["request_id"])
         result = self._await(request_id, deadline=time.monotonic() + self.timeout_seconds)
         if result.get("image") is not None:
-            raise ValueError("Product Brief modes must not return generated media")
+            raise ValueError("structured JSON modes must not return generated media")
         response = self._response_object(result)
         invocation = {
             "bridge_request_id": request_id,

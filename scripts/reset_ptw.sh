@@ -70,15 +70,6 @@ $commander_compose exec -T commander-db psql -X -v ON_ERROR_STOP=1 \
   -U ptw_commander -d ptw_commander \
   -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION ptw_commander;'
 
-# This volume belonged to the deleted SQLite/job/Landing gateway. Remove the
-# exact stopped legacy Gateway container first,
-# because Docker retains its volume reference after a normal service stop.
-if docker volume inspect ptw_owner-control >/dev/null 2>&1; then
-  legacy_gateway=$(docker ps -aq --filter 'name=^/ptw-owner-gateway-1$')
-  [ -z "$legacy_gateway" ] || docker rm --force "$legacy_gateway" >/dev/null
-  docker volume rm ptw_owner-control >/dev/null
-fi
-
 $commander_compose run --rm --no-deps commander-migrate
 $commander_compose up -d --no-deps --wait --no-build commander-api >/dev/null
 $validation_compose up -d --no-deps --wait --no-build validation-api >/dev/null
@@ -104,7 +95,13 @@ BEGIN
     ('studio_workspaces', (SELECT count(*) FROM universal_studio_workspaces)),
     ('studio_workspace_files', (SELECT count(*) FROM universal_studio_workspace_files)),
     ('studio_assets', (SELECT count(*) FROM universal_studio_assets)),
-    ('studio_versions', (SELECT count(*) FROM universal_studio_versions))
+    ('studio_versions', (SELECT count(*) FROM universal_studio_versions)),
+    ('studio_generation_runs', (SELECT count(*) FROM studio_generation_runs)),
+    ('studio_edit_checkpoints', (SELECT count(*) FROM studio_edit_checkpoints)),
+    ('studio_learning_runs', (SELECT count(*) FROM studio_learning_runs)),
+    ('studio_skill_snapshots', (SELECT count(*) FROM studio_skill_snapshots)),
+    ('studio_learning_proposals', (SELECT count(*) FROM studio_learning_proposals)),
+    ('studio_learning_decisions', (SELECT count(*) FROM studio_learning_decisions))
   ) AS counts(label,value) WHERE value <> 0;
   IF failures IS NOT NULL THEN
     RAISE EXCEPTION 'Product Brief reset postcondition failed: %', failures;
@@ -140,7 +137,7 @@ BEGIN
      OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='001_ptw_brief_v1.sql'
      ) THEN
-    RAISE EXCEPTION 'Product Brief v1 has anything other than its single baseline migration';
+    RAISE EXCEPTION 'Product Brief and Studio baseline migration is incomplete';
   END IF;
 END $$;
 SQL

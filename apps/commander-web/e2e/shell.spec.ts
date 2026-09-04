@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto'
 const projectId = '018f07ea-7f20-7000-8000-000000000001'
 const sourceId = '018f07ea-7f20-7000-8000-000000000002'
 const briefId = '018f07ea-7f20-7000-8000-000000000003'
+const creativeId = '018f07ea-7f20-7000-8000-000000000004'
+const studioBasePath = `/api/v1/studio/projects/${projectId}/creatives/${creativeId}`
 const studioPreviewBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
 const studioPreviewSha256 = createHash('sha256').update(studioPreviewBytes).digest('hex')
 const studioComponents = [
@@ -21,9 +23,12 @@ const studioComponents = [
 }))
 
 const studioDetail = {
-  schema: 'ptw.studio.universal-ad-workspace.v5',
+  creative_id: creativeId, project_id: projectId, source_brief_id: briefId,
+  ordinal: 1, origin: 'brief_generation', status: 'draft', approved_version_count: 0,
+  template_id: 'universal_ad', generation: { stage: 'draft' },
+  schema: 'ptw.studio.workspace.v8',
   catalog: {
-    schema: 'ptw.studio.universal-ad-catalog.v5', template_id: 'universal_ad', template_version: 11,
+    schema: 'ptw.studio.universal-ad-catalog.v6', template_id: 'universal_ad', template_version: 11,
     semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'offer', 'bullet_list', 'cta', 'logo'],
     components: studioComponents,
     asset_slots: {},
@@ -99,20 +104,8 @@ const brief = {
   ...briefDocument,
 }
 
-const simplePostDraft = {
-  schema: 'ptw.simple-post.v1', post_id: '018f07ea-7f20-7000-8000-000000000004',
-  request_id: '018f07ea-7f20-7000-8000-000000000005', project_id: projectId,
-  brief_id: briefId, brief_document_sha256: 'b'.repeat(64), status: 'draft',
-  failure_count: 0, state_sha256: '6'.repeat(64), template_sha256: 'a'.repeat(64),
-  last_commands: [{ setting_id: 'configuration.typography.hero_size', value: 112 }],
-  last_image_request: { slot: 'background_image', query: 'calm therapy conversation portrait' },
-  last_comment: null, last_error: null, approved_asset_id: null, approved_asset: null,
-  preview: { mime_type: 'image/png', sha256: studioPreviewSha256, width: 1080, height: 1080 },
-  studio: studioDetail, created_at: '2026-09-02T08:00:00Z', updated_at: '2026-09-02T08:01:00Z',
-}
-
 test.beforeEach(async ({ page }) => {
-  let currentPost = structuredClone(simplePostDraft)
+  let currentStudio = structuredClone(studioDetail)
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url())
     const method = route.request().method()
@@ -120,47 +113,19 @@ test.beforeEach(async ({ page }) => {
       status, contentType: 'application/json', body: JSON.stringify(value),
     })
     if (url.pathname === '/api/v1/projects') return json({ items: [project], next_cursor: null })
-    if (url.pathname === '/api/v1/posts' && method === 'GET') return json({ items: [currentPost], next_cursor: null })
-    if (url.pathname === `/api/v1/posts/${currentPost.post_id}` && method === 'GET') return json(currentPost)
-    if (url.pathname === `/api/v1/posts/${currentPost.post_id}/tune` && method === 'POST') {
-      const body = route.request().postDataJSON()
-      currentPost = {
-        ...currentPost, status: 'draft', last_comment: body.comment,
-        last_commands: [
-          { setting_id: 'configuration.typography.hero_size', value: 88 },
-          { setting_id: 'content.hero_title', value: 'START WITH ONE CONVERSATION' },
-        ],
-        last_image_request: {
-          slot: 'background_image', query: 'thoughtful person close up portrait visible face',
-        },
-      }
-      return json({ post: currentPost, created: true }, 202)
-    }
-    if (url.pathname === `/api/v1/posts/${currentPost.post_id}/approve` && method === 'POST') {
-      currentPost = {
-        ...currentPost, status: 'approved',
-        approved_asset_id: '018f07ea-7f20-7000-8000-000000000006',
-        approved_asset: {
-          schema: 'ptw.simple-post-asset.v1', asset_id: '018f07ea-7f20-7000-8000-000000000006',
-          post_id: currentPost.post_id, project_id: projectId, brief_id: briefId,
-          mime_type: 'image/png', sha256: studioPreviewSha256, width: 1080, height: 1080,
-          state_sha256: currentPost.state_sha256, template_sha256: currentPost.template_sha256,
-          approved_by: 'owner', created_at: '2026-09-02T08:02:00Z',
-        },
-      }
-      return json({ post: currentPost, asset_created: true })
-    }
-    if (url.pathname === `/api/v1/posts/${currentPost.post_id}/preview` && method === 'POST') return route.fulfill({
-      status: 200, contentType: 'image/png',
-      headers: { ETag: `"${studioPreviewSha256}"`, 'X-PTW-Content-SHA256': studioPreviewSha256, 'Cache-Control': 'private, no-store' },
-      body: studioPreviewBytes,
-    })
-    if (url.pathname === '/api/v1/posts/assets/018f07ea-7f20-7000-8000-000000000006/render' && method === 'GET') return route.fulfill({
-      status: 200, contentType: 'image/png',
-      headers: { ETag: `"${studioPreviewSha256}"`, 'X-PTW-Content-SHA256': studioPreviewSha256, 'Cache-Control': 'private, no-store' },
-      body: studioPreviewBytes,
-    })
-    if (url.pathname === '/api/v1/studio' && method === 'GET') return json(studioDetail)
+    if (url.pathname === '/api/v1/studio/templates' && method === 'GET') return json({ items: [
+      { template_id: 'universal_ad', name: 'Universal ad', description: 'Square composition', canvas: { width: 1080, height: 1080 }, template_version: 11, template_sha256: 'a'.repeat(64) },
+      { template_id: 'phone_metrics', name: 'Phone & metrics', description: 'Phone composition', canvas: { width: 1080, height: 1350 }, template_version: 17, template_sha256: 'b'.repeat(64) },
+    ] })
+    if (url.pathname === `/api/v1/studio/projects/${projectId}/creatives` && method === 'GET') return json({ items: [{
+      creative_id: creativeId, project_id: projectId, source_brief_id: briefId,
+      ordinal: 1, origin: 'brief_generation', template_id: 'universal_ad',
+      template_version: 11, template_sha256: currentStudio.template_sha256,
+      status: 'draft', state_sha256: currentStudio.state_sha256,
+      approved_version_count: currentStudio.versions.length, generation: { stage: 'draft' },
+      created_at: '2026-08-26T08:06:00Z', updated_at: '2026-08-26T08:06:00Z',
+    }], next_cursor: null })
+    if (url.pathname === studioBasePath && method === 'GET') return json(currentStudio)
     if (url.pathname === '/api/v1/studio/tune' && method === 'GET') return json({
       schema: 'ptw.studio.tune-service.v1', mode: 'local_only', available: true,
       unavailable_reason: null, active_run_id: null, allowed_paths: [], runs: [],
@@ -195,45 +160,121 @@ test.beforeEach(async ({ page }) => {
         created: true,
       })
     }
-    if (url.pathname === '/api/v1/studio/preview' && method === 'POST') return route.fulfill({
+    if (url.pathname === `${studioBasePath}/preview` && method === 'POST') return route.fulfill({
       status: 200, contentType: 'image/png',
       headers: { ETag: `"${studioPreviewSha256}"`, 'X-PTW-Content-SHA256': studioPreviewSha256, 'Cache-Control': 'private, no-store' },
       body: studioPreviewBytes,
     })
-    if (url.pathname === '/api/v1/studio/component-settings' && method === 'POST') {
-      return json(studioDetail.component_settings)
+    if (url.pathname === `${studioBasePath}/component-settings` && method === 'POST') {
+      return json(currentStudio.component_settings)
     }
-    if (url.pathname === '/api/v1/studio/configuration' && method === 'POST') {
+    if (url.pathname === `${studioBasePath}/configuration` && method === 'POST') {
       const body = route.request().postDataJSON()
-      return json({ ...studioDetail, state_sha256: '9'.repeat(64), configuration: body.configuration, content: body.content })
+      currentStudio = { ...currentStudio, state_sha256: '9'.repeat(64), configuration: body.configuration, content: body.content }
+      return json(currentStudio)
     }
+    if (url.pathname === `${studioBasePath}/save` && method === 'POST') {
+      const body = route.request().postDataJSON()
+      currentStudio = { ...currentStudio, state_sha256: '9'.repeat(64), configuration: body.configuration, content: body.content }
+      return json({
+        creative: currentStudio, checkpoint_created: true, version_created: false,
+        checkpoint: {
+          checkpoint_id: '018f07ea-7f20-7000-8000-000000000005',
+          creative_id: creativeId, project_id: projectId, kind: 'save',
+          before_state_sha256: '1'.repeat(64), after_state_sha256: '2'.repeat(64),
+          changed_paths: ['content.hero_title'], status: 'completed',
+          edit_summary: 'Shortened the headline and strengthened contrast.',
+          project_lesson: 'Use a concise promise for this Project.',
+        },
+        learning_proposal: {
+          proposal_id: '018f07ea-7f20-7000-8000-000000000006',
+          checkpoint_id: '018f07ea-7f20-7000-8000-000000000005',
+          project_skill_snapshot_id: '018f07ea-7f20-7000-8000-000000000007',
+          global_rule: 'Prefer concise promises when the template has limited space.',
+          global_rule_sha256: '3'.repeat(64), decision: 'pending',
+        },
+      })
+    }
+    if (url.pathname === `${studioBasePath}/approve` && method === 'POST') {
+      const body = route.request().postDataJSON()
+      return json({
+        creative: {
+          ...currentStudio, state_sha256: '8'.repeat(64),
+          configuration: body.configuration, content: body.content,
+          versions: [{
+            version: 1, state_sha256: '8'.repeat(64),
+            template_sha256: currentStudio.template_sha256,
+            render_sha256: studioPreviewSha256, change_note: body.change_note,
+          }],
+        },
+        checkpoint_created: true, version_created: true,
+        checkpoint: {
+          checkpoint_id: '018f07ea-7f20-7000-8000-000000000008',
+          creative_id: creativeId, project_id: projectId, kind: 'approve',
+          before_state_sha256: '2'.repeat(64), after_state_sha256: '4'.repeat(64),
+          changed_paths: ['content.hero_title'], status: 'completed',
+          edit_summary: 'Approved a more specific final headline.',
+          project_lesson: 'Prefer a specific final headline for this Project.',
+        },
+        learning_proposal: {
+          proposal_id: '018f07ea-7f20-7000-8000-000000000009',
+          checkpoint_id: '018f07ea-7f20-7000-8000-000000000008',
+          project_skill_snapshot_id: '018f07ea-7f20-7000-8000-000000000010',
+          global_rule: 'Prefer specific final headlines before approval.',
+          global_rule_sha256: '5'.repeat(64), decision: 'pending',
+        },
+      })
+    }
+    if (url.pathname.includes('/learning/') && method === 'POST') return json({ decision: route.request().postDataJSON().decision })
+    if (url.pathname === `/api/v1/briefs/${briefId}/approve` && method === 'POST') return json({
+      brief: { ...brief, approved: true }, approved_now: true,
+      creative: { creative_id: creativeId, project_id: projectId, source_brief_id: briefId, ordinal: 1, origin: 'brief_generation', template_id: 'universal_ad', template_version: 11, template_sha256: 'a'.repeat(64), status: 'queued', state_sha256: 'f'.repeat(64), approved_version_count: 0, generation: { stage: 'queued' }, created_at: '2026-08-26T08:06:00Z', updated_at: '2026-08-26T08:06:00Z' }, creative_created: true,
+    }, 202)
     if (url.pathname === '/api/v1/briefs') return json({ items: [brief], next_cursor: null })
     if (url.pathname === `/api/v1/briefs/${briefId}`) return json(brief)
     return json({ detail: `Unhandled ${method} ${url.pathname}` }, 404)
   })
 })
 
-test('discards the retired Social posts deep link', async ({ page }) => {
-  const staleProjectId = '018f07ea-7f20-7000-8000-000000000099'
-  const staleRunId = '018f07ea-7f20-7000-8000-000000000098'
-
-  await page.goto(`/?e2e=1&page=result&project=${staleProjectId}&run=${staleRunId}`)
-  await expect(page.getByRole('button', { name: 'Продуктові брифи' }).first()).toBeVisible()
-  await expect.poll(() => page.evaluate(() => Object.fromEntries(
-    new URLSearchParams(window.location.search),
-  ))).not.toMatchObject({ page: 'result', run: staleRunId })
+test('approves a Brief through the required template picker and opens its creative', async ({ page }) => {
+  await page.route(`**/api/v1/briefs/${briefId}`, async (route) => {
+    if (route.request().method() === 'GET') return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ...brief, approved: false }),
+    })
+    return route.fallback()
+  })
+  await page.goto(`/?e2e=1&project=${projectId}`)
+  await page.getByRole('button', { name: 'Змінити мову' }).click()
+  await page.getByRole('button', { name: 'I can honor this promise and offer — approve' }).click()
+  const picker = page.getByRole('dialog', { name: 'Choose the creative template' })
+  await expect(picker).toBeVisible()
+  await expect(picker.getByRole('button', { name: 'Approve Brief & generate creative' })).toBeDisabled()
+  await picker.getByRole('button', { name: /Phone & metrics/ }).click()
+  const approvalRequest = page.waitForRequest((request) => (
+    request.url().endsWith(`/briefs/${briefId}/approve`) && request.method() === 'POST'
+  ))
+  await picker.getByRole('button', { name: 'Approve Brief & generate creative' }).click()
+  expect((await approvalRequest).postDataJSON()).toEqual({
+    honor_confirmed: true, template_id: 'phone_metrics',
+  })
+  await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('posts')
+  await expect.poll(() => new URL(page.url()).searchParams.get('creative')).toBe(creativeId)
 })
 
-test('shows the streamlined Brief, Post, and Studio workspaces', async ({ page }) => {
+test('shows Product Briefs and the project-scoped Post editor', async ({ page }) => {
   await page.goto('/?e2e=1')
   await expect(page.getByRole('button', { name: 'Продуктові брифи' }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Змінити мову' }).click()
   await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Social posts' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Post', exact: true }).first()).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Studio' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Studio' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Post', exact: true }).first().click()
+  await expect(page.locator('.universal-canvas-panel')).toBeVisible()
+  await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('posts')
   await page.reload()
-  await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Post', exact: true }).first()).toBeVisible()
   await expect(page.getByText('Ad Studio')).toHaveCount(0)
   await expect(page.getByText('Ads', { exact: true })).toHaveCount(0)
   await expect(page.getByText('Landing', { exact: true })).toHaveCount(0)
@@ -241,44 +282,8 @@ test('shows the streamlined Brief, Post, and Studio workspaces', async ({ page }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('tunes one Studio-rendered post from a semantic comment before creating an asset', async ({ page }) => {
+test('opens the Post editor and persists its bounded configuration', async ({ page }) => {
   await page.goto('/?e2e=1&page=posts')
-  await page.getByRole('button', { name: 'Змінити мову' }).click()
-
-  const preview = page.getByAltText('Single generated post preview')
-  const comment = page.getByLabel('Comment below the preview')
-  await expect(preview).toBeVisible()
-  await expect(comment).toBeVisible()
-  const previewBox = await preview.boundingBox()
-  const commentBox = await comment.boundingBox()
-  expect(previewBox).not.toBeNull()
-  expect(commentBox).not.toBeNull()
-  expect(commentBox!.y).toBeGreaterThan(previewBox!.y + previewBox!.height)
-
-  const tuneRequest = page.waitForRequest((request) =>
-    request.url().endsWith(`/api/v1/posts/${simplePostDraft.post_id}/tune`),
-  )
-  await comment.fill('Pick image with thinking human face and make the title smaller.')
-  await page.getByRole('button', { name: 'Apply comment' }).click()
-  expect((await tuneRequest).postDataJSON()).toMatchObject({
-    comment: 'Pick image with thinking human face and make the title smaller.',
-  })
-  await page.getByText('Applied Studio commands').click()
-  await expect(page.getByText('thoughtful person close up portrait visible face')).toBeVisible()
-  await expect(page.getByText('configuration.typography.hero_size')).toBeVisible()
-
-  const approvalRequest = page.waitForRequest((request) =>
-    request.url().endsWith(`/api/v1/posts/${simplePostDraft.post_id}/approve`),
-  )
-  await page.getByRole('button', { name: 'Approve as asset' }).click()
-  expect((await approvalRequest).postDataJSON()).toEqual({ state_sha256: simplePostDraft.state_sha256 })
-  await expect(page.getByText('Immutable asset created')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Apply comment' })).toHaveCount(0)
-  await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
-})
-
-test('opens the Universal Ad Studio and persists its bounded configuration', async ({ page }) => {
-  await page.goto('/?e2e=1&page=studio')
   await page.getByRole('button', { name: 'Змінити мову' }).click()
 
   await expect(page.getByText('ONE TEMPLATE · CONFIGURATION-FIRST')).toHaveCount(0)
@@ -287,39 +292,17 @@ test('opens the Universal Ad Studio and persists its bounded configuration', asy
   await expect(page.locator('.universal-controls')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Build the composition at a glance' })).toBeVisible()
   await expect(page.getByText('ALWAYS ON')).toHaveCount(5)
-  await expect(page.getByLabel('Enable logo')).toBeChecked()
-  await expect(page.getByLabel('Upload logo', { exact: true })).toBeEnabled()
+  await expect(page.getByLabel('Enable logo')).toHaveCount(0)
+  await expect(page.getByLabel('Upload logo', { exact: true })).toHaveCount(0)
   await expect(page.getByLabel('Upload sticker_object asset')).toHaveCount(0)
   await expect(page.getByText('Pexels photograph only')).toBeVisible()
-  const logoOffPreviewRequest = page.waitForRequest((candidate) => {
-    if (!candidate.url().endsWith('/api/v1/studio/preview')) return false
-    return candidate.postDataJSON()?.configuration?.logo?.enabled === false
-  })
-  await page.getByLabel('Enable logo').uncheck()
-  await logoOffPreviewRequest
-  await expect(page.getByText('Live preview up to date')).toBeVisible()
-  const logoOnPreviewRequest = page.waitForRequest((candidate) => {
-    if (!candidate.url().endsWith('/api/v1/studio/preview')) return false
-    const body = candidate.postDataJSON()
-    return body?.state_sha256 === 'f'.repeat(64) && body?.configuration === undefined
-  })
-  await page.getByLabel('Enable logo').check()
-  await logoOnPreviewRequest
-  await expect(page.getByLabel('Enable logo')).toBeChecked()
   await expect(page.getByText('Preview matches the saved setup')).toBeVisible()
-  await page.getByText('Brand mark').click()
-  await expect(page.getByText('image/png · canonical_natal_brand_asset', { exact: true })).toBeVisible()
-  await expect(page.getByLabel('Show logo', { exact: true })).toBeChecked()
+  await expect(page.getByText('Natal', { exact: true })).toBeVisible()
+  await expect(page.getByText('Canonical brand lock-up')).toBeVisible()
+  await expect(page.getByLabel('Show logo', { exact: true })).toHaveCount(0)
   await expect(page.getByLabel('Show logo background')).toHaveCount(0)
-  await expect(page.getByLabel('Logo position')).toHaveValue('top_right')
-  await expect(page.getByLabel('Logo width')).toHaveValue('180')
-  const logoPreviewRequest = page.waitForRequest((candidate) => {
-    if (!candidate.url().endsWith('/api/v1/studio/preview')) return false
-    const body = candidate.postDataJSON()
-    return body?.configuration?.logo?.position === 'top_left'
-  })
-  await page.getByLabel('Logo position').selectOption('top_left')
-  expect((await logoPreviewRequest).postDataJSON().configuration.logo.enabled).toBe(true)
+  await expect(page.getByLabel('Logo position')).toHaveCount(0)
+  await expect(page.getByLabel('Logo width')).toHaveCount(0)
   await expect(page.getByAltText('Current universal advertising creative')).toBeVisible()
   await expect(page.getByText('Reference image')).toHaveCount(0)
   await expect(page.getByText('Primitive tree')).toHaveCount(0)
@@ -329,7 +312,7 @@ test('opens the Universal Ad Studio and persists its bounded configuration', asy
   await expect(page.getByLabel('Background color', { exact: true })).toHaveValue('#f0e653')
 
   const draftPreviewRequest = page.waitForRequest((request) => {
-    if (!request.url().endsWith('/api/v1/studio/preview')) return false
+    if (!request.url().endsWith('/preview')) return false
     const body = request.postDataJSON()
     return body?.configuration?.bullets?.enabled === true
   })
@@ -339,10 +322,10 @@ test('opens the Universal Ad Studio and persists its bounded configuration', asy
   await expect(page.getByText('Live preview up to date')).toBeVisible()
 
   const configurationRequest = page.waitForRequest((request) =>
-    request.url().endsWith('/api/v1/studio/configuration'),
+    request.url().endsWith('/save'),
   )
   const editedPreviewRequest = page.waitForRequest((request) => {
-    if (!request.url().endsWith('/api/v1/studio/preview')) return false
+    if (!request.url().endsWith('/preview')) return false
     const body = request.postDataJSON()
     return body?.configuration?.background?.mode === 'texture'
       && body?.configuration?.background?.texture === 'stone'
@@ -369,7 +352,7 @@ test('opens the Universal Ad Studio and persists its bounded configuration', asy
   const editedPreview = await editedPreviewRequest
   expect(editedPreview.postDataJSON().content.hero_title).toBe('TEST A CLEAR PROMISE')
   await expect(page.getByText('Preview matches your unsaved changes')).toBeVisible()
-  await page.getByRole('button', { name: 'Save setup' }).click()
+  await page.getByRole('button', { name: 'Save creative' }).click()
   const request = await configurationRequest
   expect(request.postDataJSON().configuration.background.mode).toBe('texture')
   expect(request.postDataJSON().configuration.background.texture).toBe('stone')
@@ -378,22 +361,42 @@ test('opens the Universal Ad Studio and persists its bounded configuration', asy
   expect(request.postDataJSON().configuration.typography.font_family).toBe('Oswald')
   expect(request.postDataJSON().configuration.typography.benefits_font_family).toBe('Cormorant Garamond')
   expect(request.postDataJSON().content.hero_title).toBe('TEST A CLEAR PROMISE')
-  await expect(page.getByRole('status')).toContainText('Studio setup saved.')
+  const learning = page.getByRole('alertdialog', { name: 'Project skill updated' })
+  await expect(learning).toBeVisible()
+  await expect(learning).toContainText('Shortened the headline and strengthened contrast.')
+  await expect(learning).toContainText('Use a concise promise for this Project.')
+  await expect(learning).toContainText('Prefer concise promises when the template has limited space.')
+  await learning.getByRole('button', { name: 'Keep project-only' }).click()
+  await expect(page.getByRole('status')).toContainText('lesson remains Project-only')
   const metadataRequest = page.waitForRequest((candidate) =>
-    candidate.url().endsWith('/api/v1/studio/component-settings'),
+    candidate.url().endsWith('/component-settings'),
   )
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export config + IDs' }).click()
   expect((await metadataRequest).postDataJSON().configuration.cta.style).toBe('gradient')
   expect((await download).suggestedFilename()).toBe('universal_ad_configuration.json')
   await expect(page.getByRole('status')).toContainText('component ID metadata exported')
+
+  await page.getByLabel('Hero Title').fill('A SPECIFIC FINAL PROMISE')
+  await page.getByLabel('Version note').fill('Owner-approved first creative')
+  const approvalRequest = page.waitForRequest((candidate) => candidate.url().endsWith('/approve'))
+  await page.getByRole('button', { name: 'Approve creative' }).click()
+  const approval = await approvalRequest
+  expect(approval.postDataJSON()).toMatchObject({
+    content: { hero_title: 'A SPECIFIC FINAL PROMISE' },
+    change_note: 'Owner-approved first creative',
+  })
+  const approvalLearning = page.getByRole('alertdialog', { name: 'Project skill updated' })
+  await expect(approvalLearning).toContainText('Approved a more specific final headline.')
+  await approvalLearning.getByRole('button', { name: 'Apply globally' }).click()
+  await expect(page.getByRole('status')).toContainText('global Studio skill')
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })
 
 test('live previews every bounded sticker placement control', async ({ page }) => {
-  await page.route('**/api/v1/studio', async (route) => {
+  await page.route(`**${studioBasePath}`, async (route) => {
     const request = route.request()
-    if (new URL(request.url()).pathname !== '/api/v1/studio' || request.method() !== 'GET') {
+    if (new URL(request.url()).pathname !== studioBasePath || request.method() !== 'GET') {
       return route.fallback()
     }
     return route.fulfill({
@@ -419,7 +422,7 @@ test('live previews every bounded sticker placement control', async ({ page }) =
       }),
     })
   })
-  await page.goto('/?e2e=1&page=studio')
+  await page.goto('/?e2e=1&page=posts')
 
   await expect(page.getByText('Розміщення стікера', { exact: true })).toBeVisible()
   await expect(page.getByText('Розміщення стікера й логотипа', { exact: true })).toHaveCount(0)
@@ -434,7 +437,7 @@ test('live previews every bounded sticker placement control', async ({ page }) =
   ] as const
   for (const [label, inputValue, setting, expected] of changes) {
     const previewResponse = page.waitForResponse((response) => {
-      if (!response.url().endsWith('/api/v1/studio/preview') || response.status() !== 200) return false
+      if (!response.url().endsWith('/preview') || response.status() !== 200) return false
       const body = response.request().postDataJSON()
       return body?.configuration?.sticker?.[setting] === expected
     })
@@ -447,7 +450,7 @@ test('live previews every bounded sticker placement control', async ({ page }) =
 })
 
 test('opens the local Tune wizard and submits all three generation inputs', async ({ page }) => {
-  await page.goto('/?e2e=1&page=studio')
+  await page.goto('/?e2e=1&page=posts')
   await page.getByRole('button', { name: 'Змінити мову' }).click()
   await page.getByRole('button', { name: 'Feedback & iterations' }).click()
 

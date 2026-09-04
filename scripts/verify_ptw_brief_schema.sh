@@ -54,6 +54,12 @@ commander_sources
 commander_weight_updates
 product_brief_approvals
 product_briefs
+studio_edit_checkpoints
+studio_generation_runs
+studio_learning_decisions
+studio_learning_proposals
+studio_learning_runs
+studio_skill_snapshots
 universal_studio_assets
 universal_studio_versions
 universal_studio_workspace_files
@@ -77,13 +83,13 @@ BEGIN
      OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='001_ptw_brief_v1.sql'
      ) THEN
-    RAISE EXCEPTION 'the database must contain one Product Brief v1 baseline migration';
+    RAISE EXCEPTION 'the database must contain one Product Brief and Studio baseline migration';
   END IF;
   IF (SELECT count(*) FROM commander_control) <> 1
      OR (SELECT count(*) FROM commander_operation_guard) <> 1 THEN
-    RAISE EXCEPTION 'bounded singleton control rows are missing';
+    RAISE EXCEPTION 'bounded global control rows are missing';
   END IF;
 END $$;
 SQL
 
-echo "Verified the single clean Product Brief v1 schema and idempotent migration journey."
+echo "Verified the single Product Brief plus project-scoped Studio baseline and idempotent migration journey."

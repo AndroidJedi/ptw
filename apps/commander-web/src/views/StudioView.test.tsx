@@ -4,6 +4,10 @@ import type { ApiClient } from '../api'
 import type { StudioTuneRun, StudioUniversalDetail } from '../types'
 import { StudioView } from './StudioView'
 
+const projectId = '11111111-1111-4111-8111-111111111111'
+const creativeId = '22222222-2222-4222-8222-222222222222'
+const basePath = `/api/v1/studio/projects/${projectId}/creatives/${creativeId}`
+
 const componentRoles = [
   ['background', ['canvas', 'background_media', 'readability_overlay'], ['background_image']],
   ['sticker', ['sticker_object'], ['sticker_object']],
@@ -24,9 +28,23 @@ const componentDefinitions = componentRoles.map(([role, nodeIds, assetSlotIds]) 
 }))
 
 const detail: StudioUniversalDetail = {
-  schema: 'ptw.studio.universal-ad-workspace.v5',
+  creative_id: creativeId, project_id: projectId,
+  source_brief_id: '33333333-3333-4333-8333-333333333333',
+  ordinal: 1, origin: 'brief_generation', status: 'draft',
+  approved_version_count: 0, template_id: 'universal_ad', generation: { stage: 'draft' },
+  templates: [
+    {
+      template_id: 'universal_ad', name: 'Universal ad',
+      description: 'Square composition', canvas: { width: 1080, height: 1080 },
+    },
+    {
+      template_id: 'phone_metrics', name: 'Phone & metrics',
+      description: 'Phone composition', canvas: { width: 1080, height: 1350 },
+    },
+  ],
+  schema: 'ptw.studio.workspace.v8',
   catalog: {
-    schema: 'ptw.studio.universal-ad-catalog.v5',
+    schema: 'ptw.studio.universal-ad-catalog.v6',
     template_id: 'universal_ad', template_version: 11,
     semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'offer', 'bullet_list', 'cta', 'logo'],
     components: componentDefinitions,
@@ -121,6 +139,7 @@ const detail: StudioUniversalDetail = {
 function studioApi(tuneRuns: StudioTuneRun[] = [], initialDetail: StudioUniversalDetail = detail) {
   let current = structuredClone(initialDetail)
   const post = vi.fn(async (path: string, body: unknown) => {
+    const scopedPath = path.startsWith(basePath) ? path.slice(basePath.length) : path
     if (path.endsWith('/rules')) return {
       schema: 'ptw.studio.tune-rule-approval.v1',
       run_id: path.split('/').at(-2),
@@ -129,7 +148,7 @@ function studioApi(tuneRuns: StudioTuneRun[] = [], initialDetail: StudioUniversa
       skill_path: 'skills/studio-tune-local/references/owner-approved-rules.md',
       created: true,
     }
-    if (path === '/api/v1/studio/configuration') {
+    if (scopedPath === '/configuration' || scopedPath === '/save') {
       const request = body as { configuration: StudioUniversalDetail['configuration']; content: StudioUniversalDetail['content'] }
       current = {
         ...current,
@@ -137,13 +156,17 @@ function studioApi(tuneRuns: StudioTuneRun[] = [], initialDetail: StudioUniversa
         configuration: structuredClone(request.configuration),
         content: structuredClone(request.content),
       }
+      if (scopedPath === '/save') return {
+        creative: structuredClone(current), checkpoint_created: true,
+        version_created: false, checkpoint: null, learning_proposal: null,
+      }
       return structuredClone(current)
     }
-    if (path === '/api/v1/studio/component-settings') {
+    if (scopedPath === '/component-settings') {
       return structuredClone(current.component_settings)
     }
-    if (path === '/api/v1/studio/templates/apply') return structuredClone(current)
-    if (path === '/api/v1/studio/assets/background_image') {
+    if (scopedPath === '/templates/apply') return structuredClone(current)
+    if (scopedPath === '/assets/background_image') {
       current = {
         ...current,
         state_sha256: '6'.repeat(64),
@@ -158,7 +181,7 @@ function studioApi(tuneRuns: StudioTuneRun[] = [], initialDetail: StudioUniversa
       }
       return structuredClone(current)
     }
-    if (path === '/api/v1/studio/assets/logo') {
+    if (scopedPath === '/assets/logo') {
       current = {
         ...current,
         state_sha256: '3'.repeat(64),
@@ -173,7 +196,7 @@ function studioApi(tuneRuns: StudioTuneRun[] = [], initialDetail: StudioUniversa
       }
       return structuredClone(current)
     }
-    if (path === '/api/v1/studio/pexels') {
+    if (scopedPath === '/pexels') {
       const request = body as { slot: string }
       current = {
         ...current,
@@ -203,7 +226,16 @@ function studioApi(tuneRuns: StudioTuneRun[] = [], initialDetail: StudioUniversa
   })
   const api = {
     get: vi.fn(async (path: string) => {
-      if (path === '/api/v1/studio') return structuredClone(current)
+      if (path === `/api/v1/studio/projects/${projectId}/creatives`) return { items: [{
+        creative_id: creativeId, project_id: projectId,
+        source_brief_id: current.source_brief_id, ordinal: 1,
+        origin: 'brief_generation', template_id: 'universal_ad', template_version: 11,
+        template_sha256: current.template_sha256, status: current.status,
+        state_sha256: current.state_sha256, approved_version_count: current.versions.length,
+        generation: current.generation, created_at: '2026-09-04T00:00:00Z',
+        updated_at: '2026-09-04T00:00:00Z',
+      }] }
+      if (path === basePath) return structuredClone(current)
       if (path === '/api/v1/studio/tune') return {
         schema: 'ptw.studio.tune-service.v1', mode: 'local_only', available: true,
         unavailable_reason: null, active_run_id: null, allowed_paths: [], runs: tuneRuns,
@@ -226,9 +258,67 @@ describe('Universal Ad Studio', () => {
     })
   })
 
+  it('shows the project creative composition progress', async () => {
+    const composing = structuredClone(detail)
+    composing.status = 'composing'
+    composing.generation = { stage: 'composing' }
+    const { api } = studioApi([], composing)
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
+
+    expect(await screen.findByRole('heading', { name: 'Building the creative' })).toBeInTheDocument()
+    expect(screen.getByText('Queued')).toBeInTheDocument()
+    expect(screen.getByText('Composing template')).toBeInTheDocument()
+    expect(screen.getByText('Generating iPhone image')).toBeInTheDocument()
+    expect(screen.getByText('Editable draft')).toBeInTheDocument()
+    expect(screen.queryByText('Universal Ad Studio')).not.toBeInTheDocument()
+  })
+
+  it('shows template presets and creates from an already-approved Brief when a Project has no creative', async () => {
+    const { api } = studioApi()
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === `/api/v1/studio/projects/${projectId}/creatives`) return { items: [] }
+      if (path === `/api/v1/briefs?project_id=${projectId}&limit=100`) return { items: [{
+        brief_id: '33333333-3333-4333-8333-333333333333', project_id: projectId,
+        project_name: 'Project One', request_id: 'request-1', owner_idea_source_id: 'source-1',
+        raw_idea: 'A useful product', status: 'completed', failure_count: 0, approved: true,
+        created_at: '2026-09-04T00:00:00Z', document: {
+          schema_version: 1, language: 'en', product: 'Useful product', target_audience: 'Operators',
+          main_pain: 'Lost time', promise: 'Move faster', key_benefits: ['Clear decisions', 'Less work', 'Visible progress'],
+          cta: 'Start now', trust_strategy: 'Show the workflow', offer: 'Guided setup',
+        },
+      }] }
+      if (path === '/api/v1/studio/templates') return { items: [{
+        template_id: 'phone_metrics', name: 'Phone Metrics', description: 'Phone creative',
+        canvas: { width: 1080, height: 1350 }, template_version: 1, template_sha256: 'a'.repeat(64),
+      }] }
+      throw new Error(`Unexpected GET ${path}`)
+    })
+    vi.mocked(api.post).mockResolvedValue({ creative: { creative_id: creativeId } })
+    const onCreative = vi.fn()
+    render(<StudioView api={api} language="en" projectId={projectId} onCreative={onCreative} />)
+
+    expect(await screen.findByRole('heading', { name: 'Choose a template for your first creative' })).toBeInTheDocument()
+    expect(screen.getByText('Your Brief is already approved. Selecting a template only reserves and starts its first creative.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Phone Metrics/ }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/v1/briefs/33333333-3333-4333-8333-333333333333/approve', {
+      honor_confirmed: true, template_id: 'phone_metrics',
+    }))
+    expect(onCreative).toHaveBeenCalledWith(creativeId)
+  })
+
+  it('shows a retryable error instead of an endless loader when the creative list fails', async () => {
+    const { api } = studioApi()
+    vi.mocked(api.get).mockRejectedValue(new Error('Studio service is unavailable'))
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Studio service is unavailable')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('renders one fixed semantic workflow and persists bounded configuration', async () => {
     const { api, post } = studioApi()
-    render(<StudioView api={api} language="en" />)
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
     expect(await screen.findByText('universal_ad · v11')).toBeInTheDocument()
     expect(screen.getByLabelText('CTA font size')).toHaveValue(27)
@@ -252,10 +342,10 @@ describe('Universal Ad Studio', () => {
 
     fireEvent.change(screen.getByLabelText('Hero Title'), { target: { value: 'TEST A CLEAR PROMISE' } })
     fireEvent.change(screen.getByLabelText('Background mode'), { target: { value: 'texture' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save setup' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
 
     await waitFor(() => expect(post).toHaveBeenCalledWith(
-      '/api/v1/studio/configuration',
+      `${basePath}/save`,
       expect.objectContaining({
         base_sha256: 'a'.repeat(64),
         configuration: expect.objectContaining({ background: expect.objectContaining({ mode: 'texture' }) }),
@@ -263,19 +353,19 @@ describe('Universal Ad Studio', () => {
       }),
       { deadlineMs: 60_000 },
     ))
-    expect(await screen.findByRole('status')).toHaveTextContent('Studio setup saved.')
+    expect(await screen.findByRole('status')).toHaveTextContent('Creative saved and the Project skill was updated.')
   })
 
   it('renders unsaved component toggles through the live draft preview', async () => {
     const { api, post } = studioApi()
-    render(<StudioView api={api} language="en" />)
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
     expect(await screen.findByText('LIVE PREVIEW')).toBeInTheDocument()
     expect(screen.getByLabelText('Enable sticker')).toBeChecked()
     fireEvent.click(screen.getByLabelText('Enable sticker'))
 
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
+      `${basePath}/preview`,
       expect.objectContaining({
         state_sha256: 'a'.repeat(64),
         configuration: expect.objectContaining({
@@ -287,7 +377,7 @@ describe('Universal Ad Studio', () => {
     ))
     expect(await screen.findByText('Live preview up to date')).toBeInTheDocument()
     expect(post).not.toHaveBeenCalledWith(
-      '/api/v1/studio/configuration', expect.anything(), expect.anything(),
+      `${basePath}/configuration`, expect.anything(), expect.anything(),
     )
   })
 
@@ -299,7 +389,7 @@ describe('Universal Ad Studio', () => {
       ...asset, available: false, mime_type: null, sha256: null, byte_count: null, source: null,
     } : asset)
     const { api, post } = studioApi([], initial)
-    render(<StudioView api={api} language="en" />)
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
     const toggle = await screen.findByLabelText('Enable sticker')
     expect(toggle).toBeEnabled()
@@ -307,7 +397,7 @@ describe('Universal Ad Studio', () => {
     fireEvent.click(toggle)
 
     await waitFor(() => expect(post).toHaveBeenCalledWith(
-      '/api/v1/studio/pexels',
+      `${basePath}/pexels`,
       expect.objectContaining({
         slot: 'sticker_object',
         query: 'single light bulb photographed on a plain white background isolated object',
@@ -321,25 +411,25 @@ describe('Universal Ad Studio', () => {
 
   it('keeps the canonical Natal lock-up fixed in every new Studio draft', async () => {
     const { api, post } = studioApi()
-    render(<StudioView api={api} language="en" />)
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
     expect(await screen.findByText('Canonical brand lock-up')).toBeInTheDocument()
     expect(screen.queryByLabelText('Enable logo')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Show logo')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Upload logo')).not.toBeInTheDocument()
     expect(post).not.toHaveBeenCalledWith(
-      '/api/v1/studio/assets/logo', expect.anything(), expect.anything(),
+      `${basePath}/assets/logo`, expect.anything(), expect.anything(),
     )
   })
 
   it('offers the second template and applies it as one full draft replacement', async () => {
     const { api, post } = studioApi()
-    render(<StudioView api={api} language="en" />)
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
     await screen.findByText('Preview matches the saved setup')
     fireEvent.click(screen.getByRole('button', { name: /Phone & metrics/ }))
     await waitFor(() => expect(post).toHaveBeenCalledWith(
-      '/api/v1/studio/templates/apply',
+      `${basePath}/templates/apply`,
       { base_sha256: 'a'.repeat(64), template_id: 'phone_metrics' },
       { deadlineMs: 60_000 },
     ))
@@ -347,7 +437,7 @@ describe('Universal Ad Studio', () => {
 
   it('names the sticker placement section and live previews every sticker control', async () => {
     const { api } = studioApi()
-    render(<StudioView api={api} language="uk" />)
+    render(<StudioView api={api} language="uk" projectId={projectId} creativeId={creativeId} />)
 
     await screen.findByText('Прев’ю відповідає збереженим налаштуванням')
     expect(screen.getByText('Розміщення стікера', { exact: true })).toBeInTheDocument()
@@ -363,7 +453,7 @@ describe('Universal Ad Studio', () => {
     for (const [label, inputValue, setting, expected] of changes) {
       fireEvent.change(screen.getByLabelText(label), { target: { value: inputValue } })
       await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-        '/api/v1/studio/preview',
+        `${basePath}/preview`,
         expect.objectContaining({
           configuration: expect.objectContaining({
             sticker: expect.objectContaining({ [setting]: expected }),
@@ -378,7 +468,7 @@ describe('Universal Ad Studio', () => {
 
   it('exposes the requested visual controls and uploads a sample image from Image mode', async () => {
     const { api, post } = studioApi()
-    render(<StudioView api={api} language="en" />)
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
     await screen.findByText('Preview matches the saved setup')
     expect(screen.getByLabelText('Background color')).toHaveValue('#10233f')
@@ -406,7 +496,7 @@ describe('Universal Ad Studio', () => {
     fireEvent.change(screen.getByLabelText('Adjust from bottom'), { target: { value: '20' } })
 
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
+      `${basePath}/preview`,
       expect.objectContaining({
         configuration: expect.objectContaining({
           background: expect.objectContaining({
@@ -430,13 +520,13 @@ describe('Universal Ad Studio', () => {
     const upload = screen.getByLabelText('Upload sample background image')
     fireEvent.change(upload, { target: { files: [new File(['sample'], 'sample.png', { type: 'image/png' })] } })
     await waitFor(() => expect(post).toHaveBeenCalledWith(
-      '/api/v1/studio/assets/background_image',
+      `${basePath}/assets/background_image`,
       expect.objectContaining({ mime_type: 'image/png' }),
       { deadlineMs: 90_000 },
     ))
     expect(await screen.findByRole('status')).toHaveTextContent('background_image saved.')
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
+      `${basePath}/preview`,
       expect.objectContaining({
         state_sha256: '6'.repeat(64),
         configuration: expect.objectContaining({
@@ -455,14 +545,14 @@ describe('Universal Ad Studio', () => {
 
   it('exports canonical component IDs and exact draft settings metadata', async () => {
     const { api, post } = studioApi()
-    render(<StudioView api={api} language="en" />)
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
     await screen.findByText('Preview matches the saved setup')
     fireEvent.change(screen.getByLabelText('CTA style'), { target: { value: 'outlined' } })
     fireEvent.click(screen.getByRole('button', { name: 'Export config + IDs' }))
 
     await waitFor(() => expect(post).toHaveBeenCalledWith(
-      '/api/v1/studio/component-settings',
+      `${basePath}/component-settings`,
       expect.objectContaining({
         state_sha256: 'a'.repeat(64),
         configuration: expect.objectContaining({
@@ -495,14 +585,14 @@ describe('Universal Ad Studio', () => {
 
   it('renders unsaved text and background edits through the live draft preview', async () => {
     const { api, post } = studioApi()
-    render(<StudioView api={api} language="en" />)
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
     await screen.findByText('Preview matches the saved setup')
     fireEvent.change(screen.getByLabelText('Hero Title'), { target: { value: 'A NEW LIVE PROMISE' } })
     fireEvent.change(screen.getByLabelText('Background mode'), { target: { value: 'texture' } })
 
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
-      '/api/v1/studio/preview',
+      `${basePath}/preview`,
       expect.objectContaining({
         state_sha256: 'a'.repeat(64),
         configuration: expect.objectContaining({
@@ -515,13 +605,13 @@ describe('Universal Ad Studio', () => {
     ))
     expect(await screen.findByText('Preview matches your unsaved changes')).toBeInTheDocument()
     expect(post).not.toHaveBeenCalledWith(
-      '/api/v1/studio/configuration', expect.anything(), expect.anything(),
+      `${basePath}/configuration`, expect.anything(), expect.anything(),
     )
   })
 
   it('opens the local-only Tune wizard and submits idea, implementation, and feedback', async () => {
     const { api, post } = studioApi()
-    render(<StudioView api={api} language="en" tuneMode />)
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} tuneMode />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Feedback & iterations' }))
     const wizard = await screen.findByRole('dialog', { name: 'Test generation' })
@@ -562,7 +652,7 @@ describe('Universal Ad Studio', () => {
       started_at: '2026-08-29T10:00:00+00:00', completed_at: '2026-08-29T10:01:00+00:00',
     }
     const { api, post } = studioApi([completed])
-    render(<StudioView api={api} language="en" tuneMode />)
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} tuneMode />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Feedback & iterations' }))
     const image = await screen.findByAltText('Generated creative for iteration 1')
@@ -610,7 +700,7 @@ describe('Universal Ad Studio', () => {
       started_at: '2026-08-29T10:02:00+00:00', completed_at: '2026-08-29T10:03:00+00:00',
     }
     const { api } = studioApi([failed])
-    render(<StudioView api={api} language="en" tuneMode />)
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} tuneMode />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Feedback & iterations' }))
     expect(await screen.findByAltText('Current Studio creative for feedback')).toHaveAttribute('src', 'blob:studio-preview')

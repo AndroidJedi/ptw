@@ -1,0 +1,5 @@
+interface:
+  display_name: "Studio Edit Learner"
+  short_description: "Learn from explicit creative checkpoints"
+  default_prompt: "Use $studio-edit-learner to derive Project learning and a safe global proposal from this saved Studio edit."
+

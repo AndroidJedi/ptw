@@ -128,7 +128,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             "POST", f"/internal/v1/briefs/{brief_id}/retry", body={}, actor=actor(identity)
         )).json()
 
-    @app.post("/api/v1/briefs/{brief_id}/approve")
+    @app.post("/api/v1/briefs/{brief_id}/approve", status_code=202)
     async def approve_brief(
         brief_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
     ) -> dict[str, Any]:
@@ -136,70 +136,91 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             "POST", f"/internal/v1/briefs/{brief_id}/approve", body=request, actor=actor(identity)
         )).json()
 
-    @app.get("/api/v1/studio")
-    async def studio(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("GET", "/internal/v1/studio", timeout=60)).json()
+    @app.get("/api/v1/studio/templates")
+    async def studio_templates(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", "/internal/v1/studio/templates", timeout=60)).json()
 
-    @app.post("/api/v1/studio/configuration")
-    async def studio_configuration(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    @app.get("/api/v1/studio/projects/{project_id}/creatives")
+    async def studio_creatives(
+        project_id: str, _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         return (await validation_bridge(
-            "POST", "/internal/v1/studio/configuration", body=request,
-            actor=actor(identity), timeout=60,
+            "GET", f"/internal/v1/studio/projects/{project_id}/creatives", timeout=60,
         )).json()
 
-    @app.post("/api/v1/studio/templates/apply")
-    async def studio_template_apply(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    @app.post("/api/v1/studio/projects/{project_id}/creatives", status_code=202)
+    async def studio_create_variant(
+        project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         return (await validation_bridge(
-            "POST", "/internal/v1/studio/templates/apply", body=request,
-            actor=actor(identity), timeout=60,
+            "POST", f"/internal/v1/studio/projects/{project_id}/creatives",
+            body=request, actor=actor(identity), timeout=60,
         )).json()
 
-    @app.post("/api/v1/studio/assets/{slot}")
-    async def studio_asset(
-        slot: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    @app.get("/api/v1/studio/projects/{project_id}/creatives/{creative_id}")
+    async def studio_creative(
+        project_id: str, creative_id: str, _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         return (await validation_bridge(
-            "POST", f"/internal/v1/studio/assets/{slot}", body=request,
-            actor=actor(identity), timeout=90,
+            "GET", f"/internal/v1/studio/projects/{project_id}/creatives/{creative_id}",
+            timeout=60,
         )).json()
 
-    @app.post("/api/v1/studio/pexels")
-    async def studio_pexels(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    def creative_path(project_id: str, creative_id: str, suffix: str = "") -> str:
+        return f"/internal/v1/studio/projects/{project_id}/creatives/{creative_id}{suffix}"
+
+    async def creative_post(
+        project_id: str, creative_id: str, suffix: str, request: Mapping[str, Any],
+        identity: OwnerIdentity, *, timeout: float,
     ) -> dict[str, Any]:
         return (await validation_bridge(
-            "POST", "/internal/v1/studio/pexels", body=request,
-            actor=actor(identity), timeout=90,
+            "POST", creative_path(project_id, creative_id, suffix), body=request,
+            actor=actor(identity), timeout=timeout,
         )).json()
 
-    @app.post("/api/v1/studio/phone-screen/generate")
-    async def studio_phone_screen_generate(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", "/internal/v1/studio/phone-screen/generate", body=request,
-            actor=actor(identity), timeout=480,
-        )).json()
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/retry", status_code=202)
+    async def studio_retry(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await creative_post(project_id, creative_id, "/retry", request, identity, timeout=60)
 
-    @app.post("/api/v1/studio/phone-screen/select")
-    async def studio_phone_screen_select(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", "/internal/v1/studio/phone-screen/select", body=request,
-            actor=actor(identity), timeout=60,
-        )).json()
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/phone-screen/retry", status_code=202)
+    async def studio_phone_retry(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await creative_post(project_id, creative_id, "/phone-screen/retry", request, identity, timeout=60)
 
-    @app.get("/api/v1/studio/phone-screen/history/{sha256}")
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/configuration")
+    async def studio_configuration(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await creative_post(project_id, creative_id, "/configuration", request, identity, timeout=60)
+
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/save")
+    async def studio_save(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await creative_post(project_id, creative_id, "/save", request, identity, timeout=480)
+
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/templates/apply")
+    async def studio_template_apply(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await creative_post(project_id, creative_id, "/templates/apply", request, identity, timeout=60)
+
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/assets/{slot}")
+    async def studio_asset(project_id: str, creative_id: str, slot: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await creative_post(project_id, creative_id, f"/assets/{slot}", request, identity, timeout=90)
+
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/pexels")
+    async def studio_pexels(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await creative_post(project_id, creative_id, "/pexels", request, identity, timeout=90)
+
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/phone-screen/generate")
+    async def studio_phone_screen_generate(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await creative_post(project_id, creative_id, "/phone-screen/generate", request, identity, timeout=480)
+
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/phone-screen/select")
+    async def studio_phone_screen_select(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await creative_post(project_id, creative_id, "/phone-screen/select", request, identity, timeout=60)
+
+    @app.get("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/phone-screen/history/{sha256}")
     async def studio_phone_screen_history(
-        sha256: str, _identity: OwnerIdentity = Depends(owner),
+        project_id: str, creative_id: str, sha256: str,
+        _identity: OwnerIdentity = Depends(owner),
     ) -> Response:
         response = await validation_bridge(
-            "GET", f"/internal/v1/studio/phone-screen/history/{sha256}", timeout=60,
+            "GET", creative_path(project_id, creative_id, f"/phone-screen/history/{sha256}"), timeout=60,
         )
         digest = response.headers.get("x-ptw-content-sha256", "")
         headers = {
@@ -216,12 +237,13 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             headers=headers,
         )
 
-    @app.post("/api/v1/studio/preview")
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/preview")
     async def studio_preview(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+        project_id: str, creative_id: str, request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
     ) -> Response:
         response = await validation_bridge(
-            "POST", "/internal/v1/studio/preview",
+            "POST", creative_path(project_id, creative_id, "/preview"),
             body=request, actor=actor(identity), timeout=90,
         )
         digest = response.headers.get("x-ptw-content-sha256", "")
@@ -239,21 +261,20 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             headers=headers,
         )
 
-    @app.post("/api/v1/studio/component-settings")
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/component-settings")
     async def studio_component_settings(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+        project_id: str, creative_id: str, request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", "/internal/v1/studio/component-settings", body=request,
-            actor=actor(identity), timeout=60,
-        )).json()
+        return await creative_post(project_id, creative_id, "/component-settings", request, identity, timeout=60)
 
-    @app.get("/api/v1/studio/versions/{version}/render")
+    @app.get("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/versions/{version}/render")
     async def studio_version_render(
-        version: int, _identity: OwnerIdentity = Depends(owner),
+        project_id: str, creative_id: str, version: int,
+        _identity: OwnerIdentity = Depends(owner),
     ) -> Response:
         response = await validation_bridge(
-            "GET", f"/internal/v1/studio/versions/{version}/render", timeout=90,
+            "GET", creative_path(project_id, creative_id, f"/versions/{version}/render"), timeout=90,
         )
         digest = response.headers.get("x-ptw-content-sha256", "")
         headers = {
@@ -270,22 +291,40 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             headers=headers,
         )
 
-    @app.get("/api/v1/studio/versions/{version}")
+    @app.get("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/versions/{version}")
     async def studio_version(
-        version: int, _identity: OwnerIdentity = Depends(owner),
+        project_id: str, creative_id: str, version: int,
+        _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         return (await validation_bridge(
-            "GET", f"/internal/v1/studio/versions/{version}", timeout=60,
+            "GET", creative_path(project_id, creative_id, f"/versions/{version}"), timeout=60,
         )).json()
 
-    @app.post("/api/v1/studio/approve")
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/approve")
     async def approve_studio_template(
+        project_id: str, creative_id: str, request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return await creative_post(project_id, creative_id, "/approve", request, identity, timeout=480)
+
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/learning/{proposal_id}")
+    async def studio_learning(
+        project_id: str, creative_id: str, proposal_id: str,
         request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", "/internal/v1/studio/approve", body=request,
-            actor=actor(identity), timeout=60,
-        )).json()
+        return await creative_post(
+            project_id, creative_id, f"/learning/{proposal_id}", request, identity, timeout=60,
+        )
+
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/checkpoints/{checkpoint_id}/retry")
+    async def studio_learning_retry(
+        project_id: str, creative_id: str, checkpoint_id: str,
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return await creative_post(
+            project_id, creative_id, f"/checkpoints/{checkpoint_id}/retry",
+            request, identity, timeout=480,
+        )
 
     @app.get("/api/v1/system/health")
     async def system_health(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:

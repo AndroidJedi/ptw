@@ -54,29 +54,30 @@ class OwnerClaimsTests(unittest.TestCase):
         )
         self.assertEqual(list(configured.owner_public_origins), middleware.kwargs["allow_origins"])
 
-    def test_route_table_is_briefs_plus_owner_universal_studio(self) -> None:
+    def test_route_table_is_briefs_plus_project_scoped_post_studio(self) -> None:
         class Verifier:
             def verify(self, _token: str, _app_check: str):  # pragma: no cover
                 raise AssertionError
 
         paths = {route.path for route in create_app(self.settings, verifier=Verifier()).routes}
+        creative = "/api/v1/studio/projects/{project_id}/creatives/{creative_id}"
         required = {
             "/api/v1/projects", "/api/v1/briefs",
-            "/api/v1/studio",
-            "/api/v1/studio/configuration",
-            "/api/v1/studio/templates/apply",
-            "/api/v1/studio/assets/{slot}",
-            "/api/v1/studio/pexels",
-            "/api/v1/studio/phone-screen/generate",
-            "/api/v1/studio/phone-screen/select",
-            "/api/v1/studio/phone-screen/history/{sha256}",
-            "/api/v1/studio/preview",
-            "/api/v1/studio/component-settings",
-            "/api/v1/studio/versions/{version}/render",
-            "/api/v1/studio/versions/{version}",
-            "/api/v1/studio/approve",
+            "/api/v1/studio/templates",
+            "/api/v1/studio/projects/{project_id}/creatives", creative,
+            f"{creative}/retry", f"{creative}/configuration", f"{creative}/save",
+            f"{creative}/templates/apply", f"{creative}/assets/{{slot}}",
+            f"{creative}/pexels", f"{creative}/phone-screen/generate",
+            f"{creative}/phone-screen/retry", f"{creative}/phone-screen/select",
+            f"{creative}/phone-screen/history/{{sha256}}", f"{creative}/preview",
+            f"{creative}/component-settings", f"{creative}/versions/{{version}}/render",
+            f"{creative}/versions/{{version}}", f"{creative}/approve",
+            f"{creative}/learning/{{proposal_id}}",
+            f"{creative}/checkpoints/{{checkpoint_id}}/retry",
         }
         self.assertTrue(required <= paths)
+        self.assertNotIn("/api/v1/studio", paths)
+        self.assertNotIn("/api/v1/studio/configuration", paths)
         self.assertNotIn("/api/v1/project-assets", paths)
         self.assertNotIn("/api/v1/project-brand-kits", paths)
         self.assertFalse([path for path in paths if "/content-runs" in path])

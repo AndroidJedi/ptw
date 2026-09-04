@@ -1,18 +1,17 @@
 # PTW validation workspace
 
-PTW is an owner-operated validation app with two production destinations and
-one local-only post milestone:
+PTW is an owner-operated validation app with two destinations:
 
 ```text
-one idea → one Product Brief → owner correction or approval
-approved Product Brief → one local post draft → comment tuning → approved asset
-standalone Universal Studio → saved configuration → immutable approved version
+one idea → one Product Brief → owner template choice and approval
+approved Brief → project creative → Studio AI draft → Save/Approve learning
 ```
 
-The former Social posts/Result subsystem, candidate generator, review workflow,
-exports, notifications, learning records, static-social recipes, and SKYNET
-experiment tree are removed. There is no publishing, campaign, traffic, UTM,
-analytics, or automatic optimization surface.
+The common Studio catalog provides `universal_ad` and `phone_metrics`.
+Creatives, edit checkpoints, skills, assets, and immutable versions are
+Project-scoped. The former Social Post automation, review/export/publication
+workflow, candidate/critic modes, singleton Studio, and compatibility migrations
+are absent.
 
 ## Run locally
 
@@ -24,14 +23,14 @@ npm --prefix apps/commander-web ci
 scripts/run_local_studio.sh
 ```
 
-Open `http://127.0.0.1:5173/?e2e=1`. Product Brief records are append-only under
-`.local/owner-briefs`; Universal Studio state remains under
-`.local/studio-workspace`; the local Post authority is
-`.local/post-workspace`. An authenticated Codex CLI is required for Brief and
-Post generation/tuning. Pexels supplies provenance-retained Studio and Post
-photographs. The launcher binds to `127.0.0.1` and does not deploy or publish.
+Open `http://127.0.0.1:5173/?e2e=1`. Append-only Brief/creative metadata is
+stored below `.local/owner-briefs`; per-creative renderer files are below
+`.local/studio-workspace/creatives`. An authenticated Codex CLI provides local
+Brief, Studio composition/learning, phone-image, and Tune work. Pexels provides
+provenance-retained photographs. The launcher binds to `127.0.0.1` and never
+deploys or publishes.
 
-To irreversibly clear only local Brief data after stopping the app:
+To irreversibly clear only local Brief/creative metadata after stopping the app:
 
 ```sh
 scripts/reset_ptw_local.sh --scope owner-briefs \

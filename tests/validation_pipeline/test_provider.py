@@ -15,7 +15,7 @@ class FakeBridge(StructuredBridge):
             return {
                 "json_modes": [
                     "product_brief", "product_brief_revision",
-                    "content_candidate_generation", "content_result_critic",
+                    "studio_creative_generation", "studio_edit_learning",
                 ],
                 "media_modes": ["content_non_human_graphic_generation"],
                 "max_request_bytes": 1000,
@@ -51,13 +51,13 @@ class StructuredBridgeTests(unittest.TestCase):
     def test_capabilities_match_the_deployed_provider_contract(self) -> None:
         value = FakeBridge().capabilities()
         self.assertEqual([
-            "content_candidate_generation", "content_result_critic",
             "product_brief", "product_brief_revision",
+            "studio_creative_generation", "studio_edit_learning",
         ], value["json_modes"])
         self.assertEqual(["content_non_human_graphic_generation"], value["media_modes"])
 
     def test_other_modes_are_rejected(self) -> None:
-        with self.assertRaisesRegex(ValueError, "unsupported Product Brief"):
+        with self.assertRaisesRegex(ValueError, "unsupported structured bridge"):
             FakeBridge().generate(
                 mode="content_candidate_generation", system_prompt="x",
                 input_payload={}, output_schema={}, idempotency_key="x",

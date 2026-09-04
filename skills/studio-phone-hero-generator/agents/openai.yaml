@@ -1,0 +1,5 @@
+interface:
+  display_name: "Studio Phone Hero Generator"
+  short_description: "Create text-free artwork for the iPhone hero"
+  default_prompt: "Use $studio-phone-hero-generator to create the raw text-free hero artwork for this phone_metrics creative."
+

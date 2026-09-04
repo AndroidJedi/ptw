@@ -1,4 +1,4 @@
-export type Page = 'briefs' | 'posts' | 'studio'
+export type Page = 'briefs' | 'posts'
 export type I18n<T = string> = { en: T; uk: T }
 
 export type BriefStatus = 'queued' | 'generating' | 'completed' | 'failed'
@@ -184,7 +184,7 @@ export interface StudioUniversalAgentContext {
 }
 
 export interface StudioUniversalCatalog {
-  schema: 'ptw.studio.universal-ad-catalog.v5' | 'ptw.studio.universal-ad-catalog.v6'
+  schema: 'ptw.studio.universal-ad-catalog.v6'
   template_id: 'universal_ad'
   template_version: number
   semantic_roles: Array<'background' | 'sticker' | 'hero_title' | 'supporting_text' | 'offer' | 'bullet_list' | 'cta' | 'logo'>
@@ -213,7 +213,17 @@ export interface StudioUniversalCatalog {
 
 export interface StudioUniversalDetail {
   workspace_id?: string
-  schema: 'ptw.studio.universal-ad-workspace.v5'
+  creative_id: string
+  project_id: string
+  source_brief_id: string
+  ordinal: number
+  origin: 'brief_generation' | 'approved_variant'
+  status: StudioCreativeStatus
+  generation: StudioCreativeSummary['generation']
+  approved_version_count: number
+  template_id: 'universal_ad'
+  templates: StudioTemplateSummary[]
+  schema: 'ptw.studio.workspace.v8'
   catalog: StudioUniversalCatalog
   state_sha256: string
   template_sha256: string
@@ -303,9 +313,74 @@ export interface StudioTemplateSummary {
   name: string
   description: string
   canvas: { width: number; height: number }
+  template_version?: number
+  template_sha256?: string
+}
+
+export type StudioCreativeStatus = 'queued' | 'composing' | 'generating_image' | 'draft' | 'failed'
+
+export interface StudioCreativeSummary {
+  creative_id: string
+  project_id: string
+  source_brief_id: string
+  ordinal: number
+  origin: 'brief_generation' | 'approved_variant'
+  template_id: 'universal_ad' | 'phone_metrics'
+  template_version: number | null
+  template_sha256: string | null
+  status: StudioCreativeStatus
+  state_sha256: string | null
+  approved_version_count: number
+  generation: {
+    stage?: StudioCreativeStatus
+    error_type?: string
+    error_message?: string
+    phone_image?: { status?: 'generating' | 'completed' | 'failed'; visual_direction?: string; error_message?: string }
+  }
+  created_at: string
+  updated_at: string
+}
+
+export interface StudioLearningProposal {
+  proposal_id: string
+  checkpoint_id: string
+  project_skill_snapshot_id: string
+  global_rule: string
+  global_rule_sha256: string
+  decision: 'pending'
+}
+
+export interface StudioEditCheckpoint {
+  checkpoint_id: string
+  creative_id: string
+  project_id: string
+  kind: 'save' | 'approve'
+  before_state_sha256: string
+  after_state_sha256: string
+  changed_paths: string[]
+  status: 'completed' | 'queued'
+  edit_summary: string
+  project_lesson?: string
+  error_message?: string
+}
+
+export interface StudioCheckpointResponse<T> {
+  creative: T
+  checkpoint_created: boolean
+  version_created: boolean
+  checkpoint: StudioEditCheckpoint | null
+  learning_proposal: StudioLearningProposal | null
 }
 
 export interface StudioPhoneMetricsDetail {
+  creative_id: string
+  project_id: string
+  source_brief_id: string
+  ordinal: number
+  origin: 'brief_generation' | 'approved_variant'
+  status: StudioCreativeStatus
+  generation: StudioCreativeSummary['generation']
+  approved_version_count: number
   workspace_id?: string
   schema: 'ptw.studio.workspace.v8'
   template_id: 'phone_metrics'
@@ -346,66 +421,7 @@ export interface StudioPhoneMetricsDetail {
   versions: StudioUniversalVersionSummary[]
 }
 
-export type SimplePostStatus = 'queued' | 'generating' | 'draft' | 'tuning' | 'failed' | 'approved'
-
-export interface SimplePostCommand {
-  setting_id: string
-  value: string | number | boolean | string[]
-}
-
-export type SimplePostImageRequest =
-  | { slot: 'background_image'; query: string }
-  | { slot: 'sticker_object'; query: string; required_subject_terms: string[] }
-  | { slot: 'phone_screen'; query: string }
-
-export interface SimplePostAsset {
-  schema: 'ptw.simple-post-asset.v1'
-  asset_id: string
-  post_id: string
-  project_id: string
-  brief_id: string
-  mime_type: 'image/png'
-  sha256: string
-  width: number
-  height: number
-  state_sha256: string
-  template_sha256: string
-  approved_by: string
-  created_at: string
-}
-
-export interface SimplePost {
-  schema: 'ptw.simple-post.v1' | 'ptw.simple-post.v2'
-  post_id: string
-  request_id: string
-  project_id: string
-  brief_id: string
-  brief_document_sha256: string
-  template_id?: 'universal_ad' | 'phone_metrics'
-  template_input?: {
-    content: StudioPhoneMetricsContent
-    textures: {
-      background: StudioPhoneBackgroundTexture
-      copy_background: StudioPhoneBackgroundTexture
-      phone_screen: StudioPhoneScreenTexture
-    }
-  } | null
-  status: SimplePostStatus
-  failure_count: number
-  state_sha256?: string | null
-  template_sha256?: string | null
-  last_commands: SimplePostCommand[]
-  last_image_request?: SimplePostImageRequest | null
-  last_comment?: string | null
-  last_error?: string | null
-  active_tune_id?: string | null
-  approved_asset_id?: string | null
-  approved_asset?: SimplePostAsset | null
-  preview?: { mime_type: 'image/png'; sha256: string; width: number; height: number } | null
-  studio?: StudioUniversalDetail | StudioPhoneMetricsDetail | null
-  created_at: string
-  updated_at: string
-}
+export type StudioCreativeDetail = (StudioUniversalDetail | StudioPhoneMetricsDetail) & StudioCreativeSummary
 
 export type StudioTuneRunStatus = 'queued' | 'running' | 'completed' | 'failed'
 export type StudioTuneRunStage =

@@ -277,7 +277,6 @@ class StudioTuneServiceTests(unittest.TestCase):
             "os.environ", {
                 "STUDIO_WORKSPACE_PATH": workspace,
                 "LOCAL_BRIEF_PATH": str(Path(workspace) / "owner-briefs"),
-                "POST_WORKSPACE_PATH": str(Path(workspace) / "posts"),
                 "STUDIO_TUNE_MODE": "0",
             },
             clear=False,

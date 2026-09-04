@@ -2,28 +2,36 @@
 
 ## Boundary
 
-PTW starts with one owner idea and creates one Product Brief validation
-hypothesis. It does not perform research, post generation, publishing,
-campaigns, traffic, analytics, or optimization.
-
-The initial request atomically creates a Project and permanent owner-idea
-Source. It includes `uk` or `en`; the stored choice controls every Brief field
-and participates in idempotency. The model receives only the idea, required
-language, and canonical Product Brief skill snapshot. Server validation rejects
-unsupported proof and requires one coherent hypothesis and honest offer.
+PTW begins with one owner idea and creates one strict Product Brief validation
+hypothesis. The initial request atomically creates a Project, permanent Source,
+and queued Brief. Language is part of the immutable request and idempotency
+contract. The model receives only the idea, language, and canonical Product
+Brief skill; validation rejects unsupported proof.
 
 A correction creates a complete immutable replacement with `supersedes`,
-`derived_from`, `evaluates`, and `adjusts` lineage through HumanFeedback and
-WeightUpdate UUID entities. Approval is append-only and requires the owner to
-confirm that the promise and offer can be honored. It has no automatic handoff.
+`derived_from`, `evaluates`, and `adjusts` lineage through HumanFeedback
+and WeightUpdate UUID entities. Weight history is append-only.
+
+## Approval handoff
+
+Approval requires the owner to confirm that the promise and offer are
+honorable and to select one live common Studio template. The approval and first
+creative reservation are transactional and idempotent. The API returns HTTP 202
+with the creative, the browser opens its project-scoped Post progress screen,
+and Studio composition starts in the background.
+
+The Brief remains immutable. Studio records an explicit `derived_from` edge
+from creative to approved Brief. A corrected Brief starts a separate creative;
+an additional creative from one Brief requires the current creative to have an
+immutable approved version.
 
 ## Authority
 
-PostgreSQL is complete production authority. Owner Gateway exposes authenticated
-Project and Brief create/list/detail/correct/retry/approve operations. The only
-schema baseline is `db/migrations/001_ptw_brief_v1.sql`.
+PostgreSQL is the complete production authority for Projects, Sources, Briefs,
+corrections, approvals, Studio creatives, skills, and graph lineage. The only
+schema baseline is `db/migrations/001_ptw_brief_v1.sql`; no earlier Studio or
+Post state is migrated.
 
-Loopback uses the digest-verified append-only authority under
-`.local/owner-briefs`. These records never become production evidence
-automatically. Universal Studio is separate and persists below
-`.local/studio-workspace`.
+Loopback uses append-only metadata below `.local/owner-briefs` and
+per-creative renderer state below `.local/studio-workspace/creatives` with the
+same public workflow contract.

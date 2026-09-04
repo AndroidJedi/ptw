@@ -23,12 +23,6 @@ from .studio_primitives import PrimitiveTemplate
 UNIVERSAL_AD_TEMPLATE_ID = "universal_ad"
 UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v5"
 UNIVERSAL_AD_CONTENT_SCHEMA = "ptw.studio.universal-ad-content.v2"
-LEGACY_UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v1"
-PREVIOUS_UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v2"
-RECENT_UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v3"
-PRIOR_UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v4"
-UNIVERSAL_AD_VERSION_SCHEMA = "ptw.studio.universal-ad-version.v2"
-UNIVERSAL_AD_WORKSPACE_SCHEMA = "ptw.studio.universal-ad-workspace.v5"
 UNIVERSAL_AD_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.universal-ad-component-settings.v2"
 UNIVERSAL_AD_TEMPLATE_VERSION = 11
 
@@ -575,102 +569,7 @@ def normalize_universal_setting(setting_id: str, value: Any) -> Any:
     raise ValueError(f"Studio setting has unsupported registered type: {setting_id}")
 
 
-def _upgrade_config(value: Mapping[str, Any]) -> Mapping[str, Any]:
-    """Upgrade never-deployed local configurations without losing owner state."""
-
-    if value.get("schema") == LEGACY_UNIVERSAL_AD_CONFIG_SCHEMA:
-        root = _object(value, set(DEFAULT_CONFIG), "legacy Studio universal configuration")
-        background = _object(root["background"], {
-            "mode", "color", "texture", "image_layout", "image_fit", "focal_x", "focal_y",
-            "overlay_color", "overlay_opacity",
-        }, "legacy background")
-        bullets = _object(root["bullets"], {"enabled", "marker"}, "legacy bullets")
-        legacy_cta = dict(root["cta"]); legacy_cta.pop("font_size", None)
-        cta = _object(legacy_cta, {"background_color", "text_color", "radius"}, "legacy CTA")
-        sticker = _object(root["sticker"], {
-            "enabled", "position", "rotation", "paper_width", "paper_color", "object_scale",
-        }, "legacy sticker")
-        marker = str(bullets["marker"])
-        if not 1 <= len(marker) <= 3 or "\n" in marker:
-            raise ValueError("legacy bullets.marker must contain one compact marker")
-        _color(sticker["paper_color"], "legacy sticker.paper_color")
-        if marker in {"●", "•"}:
-            bullet_style = "circle"
-        elif marker in {"○", "◯"}:
-            bullet_style = "circle_outline"
-        else:
-            bullet_style = "check"
-        value = {
-            **dict(root),
-            "schema": PREVIOUS_UNIVERSAL_AD_CONFIG_SCHEMA,
-            "background": {
-                **dict(background), "texture_intensity": 0.7, "image_percent": 75,
-            },
-            "bullets": {"enabled": bullets["enabled"], "style": bullet_style},
-            "cta": {**dict(cta), "style": "filled"},
-            "sticker": {
-                "enabled": sticker["enabled"], "position": sticker["position"],
-                "rotation": sticker["rotation"], "width": sticker["paper_width"],
-                "object_scale": sticker["object_scale"], "offset_right": 0,
-                "offset_bottom": 0,
-            },
-        }
-
-    if value.get("schema") == PREVIOUS_UNIVERSAL_AD_CONFIG_SCHEMA:
-        root = _object(value, set(DEFAULT_CONFIG), "previous Studio universal configuration")
-        background = _object(root["background"], set(DEFAULT_CONFIG["background"]), "previous background")
-        typography = _object(root["typography"], {
-            "font_family", "hero_size", "hero_weight", "supporting_size", "text_color", "alignment",
-        }, "previous typography")
-        previous_cta = dict(root["cta"]); previous_cta.pop("font_size", None)
-        cta = _object(previous_cta, {
-            "style", "background_color", "text_color", "radius",
-        }, "previous CTA")
-        font_family = "Oswald" if typography["font_family"] == "Roboto Condensed" else typography["font_family"]
-        value = {
-            **dict(root),
-            "schema": RECENT_UNIVERSAL_AD_CONFIG_SCHEMA,
-            "background": {
-                **dict(background),
-                "texture": "stone" if background["texture"] == "paper" else background["texture"],
-            },
-            "typography": {
-                **dict(typography),
-                "font_family": font_family,
-                "benefits_font_family": font_family,
-            },
-            "cta": {**dict(cta), "position": "below_text"},
-        }
-
-    if value.get("schema") == RECENT_UNIVERSAL_AD_CONFIG_SCHEMA:
-        legacy_fields = set(DEFAULT_CONFIG)
-        root = _object(value, legacy_fields, "recent Studio universal configuration")
-        logo = _object(root["logo"], {"enabled", "position", "width"}, "recent logo")
-        recent_cta = dict(root["cta"]); recent_cta.pop("font_size", None)
-        value = {
-            **dict(root),
-            "schema": PRIOR_UNIVERSAL_AD_CONFIG_SCHEMA,
-            "logo": {
-                **dict(logo),
-                "background_enabled": False,
-                "background_color": "#FFFFFF",
-            },
-            "cta": recent_cta,
-        }
-
-    if value.get("schema") != PRIOR_UNIVERSAL_AD_CONFIG_SCHEMA:
-        return value
-    root = _object(value, set(DEFAULT_CONFIG), "prior Studio universal configuration")
-    cta = _object(root["cta"], set(DEFAULT_CONFIG["cta"]) - {"font_size"}, "prior CTA")
-    return {
-        **dict(root),
-        "schema": UNIVERSAL_AD_CONFIG_SCHEMA,
-        "cta": {**dict(cta), "font_size": 27},
-    }
-
-
 def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
-    value = _upgrade_config(value)
     root = _object(value, set(DEFAULT_CONFIG), "Studio universal configuration")
     if root["schema"] != UNIVERSAL_AD_CONFIG_SCHEMA:
         raise ValueError("Studio universal configuration schema is invalid")
@@ -712,14 +611,12 @@ def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
             for key in DEFAULT_CONFIG["sticker"]
         },
         "logo": {
-            # New drafts must always render the canonical Natal identity. Keep
-            # legacy payload fields readable but never let an editable request
-            # hide or replace the brand.
+            # Every draft renders the canonical Natal identity. The explicit
+            # values keep deterministic version and render digests.
             "enabled": True,
             "position": normalize_universal_setting("configuration.logo.position", logo["position"]),
             "width": normalize_universal_setting("configuration.logo.width", logo["width"]),
-            # Kept in the v4 payload only for stored-version compatibility.
-            # The logo component has no backing-surface node as of template v10.
+            # The logo component has no backing-surface node.
             "background_enabled": False,
             "background_color": logo_background_color,
         },
@@ -730,8 +627,6 @@ def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def normalize_universal_content(value: Mapping[str, Any]) -> dict[str, Any]:
-    if isinstance(value, Mapping) and "schema" not in value:
-        value = {"schema": UNIVERSAL_AD_CONTENT_SCHEMA, **dict(value)}
     expected = set(DEFAULT_CONTENT)
     source = _object(value, expected, "Studio universal content")
     if source["schema"] != UNIVERSAL_AD_CONTENT_SCHEMA:
@@ -833,8 +728,8 @@ def universal_ad_catalog() -> dict[str, Any]:
         "setting_definitions": [
             {"setting_id": setting_id, **deepcopy(definition)}
             for setting_id, definition in UNIVERSAL_SETTING_DEFINITIONS.items()
-            # These retained normalizers read historical configurations but
-            # intentionally never re-enter a new Studio control catalog.
+            # Fixed identity values remain renderer-owned and do not become
+            # editable controls.
             if not setting_id.startswith("configuration.logo.")
         ],
         "variation": {

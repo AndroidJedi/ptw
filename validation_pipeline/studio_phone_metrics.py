@@ -24,18 +24,7 @@ from .studio_primitives import PrimitiveTemplate
 
 PHONE_METRICS_TEMPLATE_ID = "phone_metrics"
 PHONE_METRICS_CONFIG_SCHEMA = "ptw.studio.phone-metrics-config.v7"
-_LEGACY_PHONE_METRICS_CONFIG_SCHEMAS = frozenset({
-    "ptw.studio.phone-metrics-config.v1",
-    "ptw.studio.phone-metrics-config.v2",
-    "ptw.studio.phone-metrics-config.v3",
-    "ptw.studio.phone-metrics-config.v4",
-    "ptw.studio.phone-metrics-config.v5",
-    "ptw.studio.phone-metrics-config.v6",
-})
 PHONE_METRICS_CONTENT_SCHEMA = "ptw.studio.phone-metrics-content.v2"
-_LEGACY_PHONE_METRICS_CONTENT_SCHEMAS = frozenset({
-    "ptw.studio.phone-metrics-content.v1",
-})
 PHONE_METRICS_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.phone-metrics-component-settings.v1"
 PHONE_METRICS_TEMPLATE_VERSION = 17
 PHONE_METRICS_CANVAS = (1080, 1350)
@@ -192,21 +181,6 @@ def _text(value: Any, label: str, minimum: int, maximum: int, *, allow_empty: bo
 
 
 def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
-    if isinstance(value, Mapping) and value.get("schema") in _LEGACY_PHONE_METRICS_CONFIG_SCHEMAS:
-        # Existing mutable v1-v6 drafts predate one or more optional controls.
-        # Upgrade them in memory with the previously implicit values;
-        # immutable version JSON remains untouched.
-        value = dict(value)
-        value.setdefault("offer", {"enabled": True})
-        value.setdefault("supporting_text", deepcopy(DEFAULT_PHONE_CONFIG["supporting_text"]))
-        background = dict(value.get("background") or {})
-        background.setdefault("texture", DEFAULT_PHONE_CONFIG["background"]["texture"])
-        value["background"] = background
-        value.setdefault("copy_background", deepcopy(DEFAULT_PHONE_CONFIG["copy_background"]))
-        value.setdefault("phone_screen", deepcopy(DEFAULT_PHONE_CONFIG["phone_screen"]))
-        value.setdefault("metric_cards", deepcopy(DEFAULT_PHONE_CONFIG["metric_cards"]))
-        value.setdefault("phone_buttons", deepcopy(DEFAULT_PHONE_CONFIG["phone_buttons"]))
-        value["schema"] = PHONE_METRICS_CONFIG_SCHEMA
     root = _object(value, set(DEFAULT_PHONE_CONFIG), "Studio phone metrics configuration")
     if root["schema"] != PHONE_METRICS_CONFIG_SCHEMA:
         raise ValueError("Studio phone metrics configuration schema is invalid")
@@ -340,13 +314,6 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def normalize_phone_metrics_content(value: Mapping[str, Any]) -> dict[str, Any]:
-    if isinstance(value, Mapping) and (
-        "schema" not in value
-        or value.get("schema") in _LEGACY_PHONE_METRICS_CONTENT_SCHEMAS
-    ):
-        value = dict(value)
-        value.setdefault("phone_buttons", deepcopy(DEFAULT_PHONE_CONTENT["phone_buttons"]))
-        value["schema"] = PHONE_METRICS_CONTENT_SCHEMA
     root = _object(value, set(DEFAULT_PHONE_CONTENT), "Studio phone metrics content")
     if root["schema"] != PHONE_METRICS_CONTENT_SCHEMA:
         raise ValueError("Studio phone metrics content schema is invalid")
@@ -380,8 +347,6 @@ def normalize_phone_metrics_content(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def normalize_phone_metrics_texture_choices(value: Mapping[str, Any]) -> dict[str, str]:
-    if isinstance(value, Mapping) and set(value) == {"background", "phone_screen"}:
-        value = {**dict(value), "copy_background": "none"}
     root = _object(
         value, set(DEFAULT_PHONE_TEXTURE_CHOICES), "phone metrics texture choices",
     )
@@ -632,7 +597,7 @@ def iphone_frame_record() -> dict[str, Any]:
 
 
 def _fallback_screen() -> bytes:
-    """Polished non-text hero art used only in standalone Studio previews."""
+    """Polished non-text hero art used before a generated hero is available."""
     from PIL import Image, ImageDraw, ImageFilter
 
     image = Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#F8FAF9")
@@ -670,8 +635,7 @@ def _fallback_screen() -> bytes:
         body.alpha_composite(highlight.filter(ImageFilter.GaussianBlur(max(18, radius // 5))))
         image.alpha_composite(body)
 
-    # A deliberate sculptural cluster mirrors the reference's material depth
-    # while remaining generic enough for a standalone Studio preview.
+    # A deliberate sculptural cluster provides a neutral deterministic fallback.
     sphere((580, 480), 172, (32, 39, 51))
     sphere((640, 700), 150, (49, 57, 71))
     sphere((430, 770), 132, (24, 31, 43))

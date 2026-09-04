@@ -1,4 +1,4 @@
-"""Internal API for Product Briefs and the standalone Universal Ad Studio."""
+"""Internal API for Product Briefs and Project-scoped Studio creatives."""
 
 from __future__ import annotations
 
@@ -16,8 +16,9 @@ from .provider import StructuredBridge
 from .repository import ValidationRepository
 from .service import ValidationRunner, validate_create_input, validate_revision_input
 from .studio import StudioRenderer
-from .studio_repository import DatabaseStudioWorkspace, StudioRepository
-from .studio_routes import studio_router
+from .studio_creatives import StudioCreativeService
+from .studio_repository import DatabaseCreativeWorkspace, DatabaseStudioAuthority
+from .studio_routes import studio_creative_router
 from .studio_workspace import UniversalStudioWorkspace
 
 
@@ -28,21 +29,36 @@ def create_app(
     runner: ValidationRunner | None = None,
     studio_renderer: StudioRenderer | None = None,
     studio_workspace: UniversalStudioWorkspace | None = None,
+    studio_creative_service: StudioCreativeService | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_environment()
     repository = repository or ValidationRepository(settings.database_url)
     bridge = StructuredBridge(settings.bridge_url, settings.bridge_token, settings.model)
     pexels = PexelsClient(settings.pexels_api_key)
     studio_renderer = studio_renderer or StudioRenderer()
-    if studio_workspace is None:
-        studio_workspace = DatabaseStudioWorkspace(
-            UniversalStudioWorkspace(
-                settings.studio_workspace_path, renderer=studio_renderer, pexels=pexels,
-                image_provider=ResultBridgePhoneScreenImageProvider(
-                    settings.bridge_url, settings.bridge_token, settings.model,
+    if studio_creative_service is not None:
+        studio_creatives = studio_creative_service
+    else:
+        studio_authority = DatabaseStudioAuthority(settings.database_url)
+        image_provider = ResultBridgePhoneScreenImageProvider(
+            settings.bridge_url, settings.bridge_token, settings.model,
+        )
+        if studio_workspace is not None:
+            workspace_factory = lambda _path: studio_workspace
+        else:
+            workspace_factory = lambda path: DatabaseCreativeWorkspace(
+                UniversalStudioWorkspace(
+                    path, renderer=studio_renderer, pexels=pexels,
+                    image_provider=image_provider,
                 ),
-            ),
-            StudioRepository(settings.database_url),
+                studio_authority.repository, path.name,
+            )
+        studio_creatives = StudioCreativeService(
+            root=settings.studio_workspace_path, authority=studio_authority,
+            workspace_factory=workspace_factory, structured_provider=bridge,
+            composer_skill_path=settings.studio_composer_skill_path,
+            learner_skill_path=settings.studio_learner_skill_path,
+            phone_skill_path=settings.studio_phone_skill_path,
         )
     runner_error: Exception | None = None
     if runner is None:
@@ -59,6 +75,17 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         await asyncio.to_thread(repository.recover_interrupted)
+        for creative_id in await asyncio.to_thread(studio_creatives.recover_interrupted):
+            task = asyncio.create_task(asyncio.to_thread(studio_creatives.generate, creative_id))
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
+        for item in await asyncio.to_thread(studio_creatives.recover_learning):
+            task = asyncio.create_task(asyncio.to_thread(
+                studio_creatives.retry_learning, item["project_id"],
+                item["creative_id"], item["checkpoint_id"],
+            ))
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
         yield
         for task in tasks:
             task.cancel()
@@ -72,8 +99,8 @@ def create_app(
         if not settings.owner_gateway_token or x_ptw_owner_gateway_token != settings.owner_gateway_token:
             raise HTTPException(status_code=401, detail="owner gateway authentication required")
 
-    app.include_router(studio_router(
-        studio_workspace, prefix="/internal/v1/studio", dependencies=[Depends(authorize)],
+    app.include_router(studio_creative_router(
+        studio_creatives, prefix="/internal/v1/studio", dependencies=[Depends(authorize)],
     ))
 
     def require_brief_runner() -> ValidationRunner:
@@ -215,21 +242,33 @@ def create_app(
         except (RuntimeError, ValueError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
-    @app.post("/internal/v1/briefs/{brief_id}/approve", dependencies=[Depends(authorize)])
-    def approve_brief(
+    @app.post("/internal/v1/briefs/{brief_id}/approve", dependencies=[Depends(authorize)], status_code=202)
+    async def approve_brief(
         brief_id: str, request: Mapping[str, Any], x_ptw_actor: str = Header(default="owner-web")
     ) -> dict[str, Any]:
-        if set(request) != {"honor_confirmed"} or request.get("honor_confirmed") is not True:
+        if set(request) != {"honor_confirmed", "template_id"} or request.get("honor_confirmed") is not True:
             raise HTTPException(
                 status_code=400,
                 detail="Brief approval requires explicit confirmation that the promise and offer can be honored",
             )
         try:
-            value, created = repository.approve_brief(str(UUID(brief_id)), x_ptw_actor[:200])
-            return {"brief": value, "approved_now": created}
+            normalized = str(UUID(brief_id))
+            value, created, creative, creative_created = (
+                studio_creatives.approve_brief_and_reserve(
+                    brief_id=normalized, template_id=str(request["template_id"]),
+                    requested_by=x_ptw_actor[:200],
+                    brief_approver=repository.approve_brief,
+                )
+            )
+            if creative_created:
+                run_background(studio_creatives.generate, creative["creative_id"])
+            return {
+                "brief": value, "approved_now": created,
+                "creative": creative, "creative_created": creative_created,
+            }
         except KeyError as error:
             raise HTTPException(status_code=404, detail="Product Brief not found") from error
-        except ValueError as error:
+        except (RuntimeError, ValueError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
     return app

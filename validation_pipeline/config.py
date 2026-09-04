@@ -14,6 +14,9 @@ class Settings:
     pexels_api_key: str
     model: str = "codex-cli-default"
     product_brief_skill_path: Path = Path("/run/ptw-auth/skills/product-brief-generator/SKILL.md")
+    studio_composer_skill_path: Path = Path("/run/ptw-auth/skills/studio-creative-composer/SKILL.md")
+    studio_learner_skill_path: Path = Path("/run/ptw-auth/skills/studio-edit-learner/SKILL.md")
+    studio_phone_skill_path: Path = Path("/run/ptw-auth/skills/studio-phone-hero-generator/SKILL.md")
     studio_workspace_path: Path = Path("/tmp/ptw-studio-workspace")
 
     @classmethod
@@ -37,6 +40,15 @@ class Settings:
             model=os.environ.get("VALIDATION_LLM_MODEL", "codex-cli-default").strip(),
             product_brief_skill_path=Path(os.environ.get(
                 "PRODUCT_BRIEF_SKILL_PATH", "/run/ptw-auth/skills/product-brief-generator/SKILL.md"
+            )),
+            studio_composer_skill_path=Path(os.environ.get(
+                "STUDIO_COMPOSER_SKILL_PATH", "/run/ptw-auth/skills/studio-creative-composer/SKILL.md"
+            )),
+            studio_learner_skill_path=Path(os.environ.get(
+                "STUDIO_LEARNER_SKILL_PATH", "/run/ptw-auth/skills/studio-edit-learner/SKILL.md"
+            )),
+            studio_phone_skill_path=Path(os.environ.get(
+                "STUDIO_PHONE_SKILL_PATH", "/run/ptw-auth/skills/studio-phone-hero-generator/SKILL.md"
             )),
             studio_workspace_path=Path(os.environ.get(
                 "STUDIO_WORKSPACE_PATH", "/tmp/ptw-studio-workspace",

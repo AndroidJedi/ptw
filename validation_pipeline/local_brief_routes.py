@@ -12,6 +12,7 @@ from .local_briefs import LocalBriefService
 
 def local_brief_router(
     service: LocalBriefService, *,
+    studio_creatives: Any,
     dependencies: Sequence[DependsParameter] = (),
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1", dependencies=list(dependencies))
@@ -98,14 +99,27 @@ def local_brief_router(
         except (KeyError, RuntimeError, ValueError) as error:
             raise fail(error) from error
 
-    @router.post("/briefs/{brief_id}/approve")
-    def approve_brief(brief_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
-        if set(request) != {"honor_confirmed"} or request.get("honor_confirmed") is not True:
+    @router.post("/briefs/{brief_id}/approve", status_code=202)
+    def approve_brief(
+        brief_id: str, request: Mapping[str, Any], background: BackgroundTasks,
+    ) -> dict[str, Any]:
+        if set(request) != {"honor_confirmed", "template_id"} or request.get("honor_confirmed") is not True:
             raise HTTPException(status_code=400, detail="Brief approval requires explicit honor confirmation")
         try:
-            value, created = service.approve_brief(brief_id, "loopback:owner")
-            return {"brief": value, "approved_now": created}
-        except (KeyError, ValueError) as error:
+            value, created, creative, creative_created = (
+                studio_creatives.approve_brief_and_reserve(
+                    brief_id=brief_id, template_id=str(request["template_id"]),
+                    requested_by="loopback:owner",
+                    brief_approver=service.approve_brief,
+                )
+            )
+            if creative_created:
+                background.add_task(studio_creatives.generate, creative["creative_id"])
+            return {
+                "brief": value, "approved_now": created,
+                "creative": creative, "creative_created": creative_created,
+            }
+        except (KeyError, RuntimeError, ValueError) as error:
             raise fail(error) from error
 
     return router

@@ -26,7 +26,6 @@ from .studio_phone_metrics import (
 from .studio import MAX_IMAGE_BYTES, StudioRenderer, inspect_media
 from .studio_universal import (
     ASSET_SLOTS, DEFAULT_CONFIG, DEFAULT_CONTENT, UNIVERSAL_AD_TEMPLATE_ID,
-    UNIVERSAL_AD_VERSION_SCHEMA, UNIVERSAL_AD_WORKSPACE_SCHEMA,
     build_universal_template, isolate_object, normalize_universal_config,
     normalize_universal_content, semantic_data, texture_asset,
     universal_ad_catalog, universal_component_settings,
@@ -112,7 +111,7 @@ class UniversalStudioWorkspace:
     def _selected_template_id(self) -> str:
         path = self.root / "template.json"
         if not path.is_file():
-            # A missing selector is the exact legacy universal workspace.
+            # Universal Ad is the default for a newly initialized workspace.
             return UNIVERSAL_AD_TEMPLATE_ID
         try:
             value = json.loads(path.read_text())
@@ -179,8 +178,7 @@ class UniversalStudioWorkspace:
         return self._normalize_content(value)
 
     def _asset_record(self, slot: str) -> dict[str, Any] | None:
-        # Natal is never replaced by a draft upload. An old workspace may still
-        # contain logo metadata, but new renders deliberately ignore it.
+        # Natal is fixed and cannot be replaced by creative asset input.
         if slot == "logo":
             data = natal_logo_bytes()
             inspected = inspect_media(data, "image/png")
@@ -223,7 +221,7 @@ class UniversalStudioWorkspace:
         return {**metadata, "bytes": data}
 
     def _phone_screen_history_records(self) -> list[dict[str, Any]]:
-        """Return the newest three raw phone heroes, including legacy current art."""
+        """Return the newest three raw phone heroes, including current art."""
 
         current = self._asset_record("phone_screen")
         path = self.assets / "phone_screen_history.json"
@@ -430,7 +428,7 @@ class UniversalStudioWorkspace:
                 value = json.loads(path.read_text())
             except (OSError, json.JSONDecodeError) as error:
                 raise ValueError(f"Studio version is invalid: {path.name}") from error
-            if value.get("schema") not in {UNIVERSAL_AD_VERSION_SCHEMA, _TEMPLATE_VERSION_SCHEMA}:
+            if value.get("schema") != _TEMPLATE_VERSION_SCHEMA:
                 raise ValueError(f"Studio version schema is invalid: {path.name}")
             stored_digest = value.get("version_sha256")
             digest_value = {key: item for key, item in value.items() if key != "version_sha256"}
@@ -721,7 +719,7 @@ class UniversalStudioWorkspace:
 
     def generate_phone_screen(
         self, *, base_sha256: str, visual_direction: str,
-        enhance_current: bool = False,
+        enhance_current: bool = False, skill_context: str = "",
     ) -> dict[str, Any]:
         """Generate or reference-edit one mutable, text-free phone hero artwork."""
 
@@ -740,6 +738,7 @@ class UniversalStudioWorkspace:
         normalized_direction = " ".join(str(visual_direction or "").split())
         prompt = phone_screen_art_prompt(
             normalized_direction, enhance_current=enhance_current,
+            skill_context=skill_context,
         )
         try:
             generated = (
@@ -919,9 +918,8 @@ class UniversalStudioWorkspace:
         versions = self._version_records()
         version = len(versions) + 1
         template_id = self._selected_template_id()
-        legacy_universal = template_id == UNIVERSAL_AD_TEMPLATE_ID
         record = {
-            "schema": UNIVERSAL_AD_VERSION_SCHEMA if legacy_universal else _TEMPLATE_VERSION_SCHEMA,
+            "schema": _TEMPLATE_VERSION_SCHEMA,
             "template_id": template_id,
             "version": version,
             "state_sha256": state_sha256,
@@ -935,8 +933,7 @@ class UniversalStudioWorkspace:
             "primitive_template": template.document,
         }
         stem = f"{template_id}_v{version}"
-        if not legacy_universal:
-            record["render_filename"] = f"{stem}.png"
+        record["render_filename"] = f"{stem}.png"
         raw, digest = _canonical(record)
         record = {**json.loads(raw), "version_sha256": digest}
         json_path = self.versions / f"{stem}.json"
@@ -946,6 +943,40 @@ class UniversalStudioWorkspace:
         self._atomic_bytes(png_path, preview["bytes"])
         self._atomic_json(json_path, record)
         return self.detail()
+
+    def approve_configuration(
+        self, *, base_sha256: str, configuration: Mapping[str, Any],
+        content: Mapping[str, Any], change_note: str,
+    ) -> dict[str, Any]:
+        """Save pending fields and one version as a single workspace mutation."""
+
+        self._assert_state(base_sha256)
+        configuration_path = self.root / "configuration.json"
+        content_path = self.root / "content.json"
+        previous_configuration = configuration_path.read_bytes() if configuration_path.is_file() else None
+        previous_content = content_path.read_bytes() if content_path.is_file() else None
+        template_id = self._selected_template_id()
+        next_version = len(self._version_records()) + 1
+        version_stem = f"{template_id}_v{next_version}"
+        try:
+            saved = self.save_configuration(
+                base_sha256=base_sha256, configuration=configuration, content=content,
+            )
+            return self.approve_version(
+                state_sha256=saved["state_sha256"], change_note=change_note,
+            )
+        except Exception:
+            for path, previous in (
+                (configuration_path, previous_configuration),
+                (content_path, previous_content),
+            ):
+                if previous is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    self._atomic_bytes(path, previous)
+            (self.versions / f"{version_stem}.json").unlink(missing_ok=True)
+            (self.versions / f"{version_stem}.png").unlink(missing_ok=True)
+            raise
 
     def version_detail(self, version: int) -> dict[str, Any]:
         if isinstance(version, bool) or version < 1:
@@ -963,7 +994,7 @@ class UniversalStudioWorkspace:
             raise KeyError(f"Studio version not found: {version}")
         record = records[version - 1]
         try:
-            filename = record.get("render_filename") or f"{record['template_id']}_v{version}.png"
+            filename = record["render_filename"]
             data = (self.versions / str(filename)).read_bytes()
         except OSError as error:
             raise ValueError(f"Studio version render is unavailable: {version}") from error

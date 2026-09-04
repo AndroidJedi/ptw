@@ -9,7 +9,7 @@ import unittest
 
 from PIL import Image
 
-from validation_pipeline.studio_repository import DatabaseStudioWorkspace
+from validation_pipeline.studio_repository import DatabaseCreativeWorkspace
 from validation_pipeline.studio_workspace import UniversalStudioWorkspace
 
 
@@ -21,14 +21,19 @@ class MemoryStudioRepository:
         self.assets: dict[str, str] = {}
         self.versions: dict[int, str] = {}
 
-    def load(self):
+    def load_creative(self, workspace_id: str):
+        assert workspace_id == self.workspace_id
         return (
             None if self.files is None
-            else (self.workspace_id, self.state_sha256, dict(self.files))
+            else (self.state_sha256, dict(self.files))
         )
 
-    def persist(self, root: Path, *, state_sha256: str, template_id: str) -> str:
-        del template_id
+    def persist_creative(
+        self, root: Path, *, workspace_id: str, state_sha256: str,
+        template_id: str, template_version: int, template_sha256: str,
+    ) -> str:
+        assert workspace_id == self.workspace_id
+        del template_id, template_version, template_sha256
         self.state_sha256 = state_sha256
         self.files = {
             path.relative_to(root).as_posix(): path.read_bytes()
@@ -70,12 +75,13 @@ class Provider:
         }
 
 
-class DatabaseStudioWorkspaceTests(unittest.TestCase):
+class DatabaseCreativeWorkspaceTests(unittest.TestCase):
     def test_restores_the_same_workspace_asset_and_version_ids_after_restart(self) -> None:
         repository = MemoryStudioRepository()
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
-            studio = DatabaseStudioWorkspace(
+            studio = DatabaseCreativeWorkspace(
                 UniversalStudioWorkspace(first, image_provider=Provider()), repository,
+                repository.workspace_id,
             )
             initial = studio.detail()
             phone = studio.apply_template(
@@ -89,8 +95,9 @@ class DatabaseStudioWorkspaceTests(unittest.TestCase):
                 state_sha256=generated["state_sha256"], change_note="Restart authority",
             )
 
-            restored = DatabaseStudioWorkspace(
+            restored = DatabaseCreativeWorkspace(
                 UniversalStudioWorkspace(second, image_provider=Provider()), repository,
+                repository.workspace_id,
             ).detail()
 
         self.assertEqual(initial["workspace_id"], restored["workspace_id"])

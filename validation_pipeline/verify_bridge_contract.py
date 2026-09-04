@@ -1,9 +1,10 @@
-"""Deployment canaries for Product Brief plus phone generate/edit media calls."""
+"""Deployment canaries for every retained Brief, Studio, and media mode."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
 from uuid import uuid4
 
 from .config import Settings
@@ -11,6 +12,8 @@ from .domain import ProductBriefV1, product_brief_schema
 from .openai_images import ResultBridgePhoneScreenImageProvider
 from .provider import StructuredBridge
 from .service import load_product_brief_skill, product_brief_system_prompt
+from .studio_creatives import creative_generation_schema, studio_edit_learning_schema
+from .studio_workspace import UniversalStudioWorkspace
 
 
 def main() -> None:
@@ -48,6 +51,46 @@ def main() -> None:
             "mode": mode,
             "request_id": value["invocation"].get("bridge_request_id"),
         })
+    with tempfile.TemporaryDirectory(prefix="ptw-studio-canary-") as temporary:
+        detail = UniversalStudioWorkspace(temporary).detail()
+    studio_skill = settings.studio_composer_skill_path.read_text(encoding="utf-8")
+    composed = provider.generate(
+        mode="studio_creative_generation", system_prompt=studio_skill,
+        input_payload={
+            "creative_id": marker, "approved_product_brief": base_document,
+            "selected_template_id": "universal_ad",
+            "live_template_catalog": detail["catalog"],
+            "template_defaults": {
+                "configuration": detail["configuration"], "content": detail["content"],
+            },
+            "global_skill": "No accepted global Studio lessons yet.",
+            "project_skill": "No accepted Project Studio lessons yet.",
+        },
+        output_schema=creative_generation_schema(detail),
+        prompt_version="studio-creative-composer-v1",
+        idempotency_key=f"canary:{marker}:studio_creative_generation",
+    )
+    invocations.append({
+        "mode": "studio_creative_generation",
+        "request_id": composed["invocation"].get("bridge_request_id"),
+    })
+    learned = provider.generate(
+        mode="studio_edit_learning",
+        system_prompt=settings.studio_learner_skill_path.read_text(encoding="utf-8"),
+        input_payload={
+            "checkpoint_kind": "save", "changed_paths": ["content.hero_title"],
+            "before": {"content": {"hero_title": "A useful product"}},
+            "after": {"content": {"hero_title": "A clearer useful product"}},
+            "project_name": "Provider canary",
+        },
+        output_schema=studio_edit_learning_schema(),
+        prompt_version="studio-edit-learner-v1",
+        idempotency_key=f"canary:{marker}:studio_edit_learning",
+    )
+    invocations.append({
+        "mode": "studio_edit_learning",
+        "request_id": learned["invocation"].get("bridge_request_id"),
+    })
     media = ResultBridgePhoneScreenImageProvider(
         settings.bridge_url, settings.bridge_token, settings.model,
     )

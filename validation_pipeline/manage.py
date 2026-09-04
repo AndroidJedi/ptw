@@ -22,6 +22,8 @@ def main() -> None:
         "validation_generation_attempts", "validation_provider_invocations",
         "universal_studio_workspaces", "universal_studio_workspace_files",
         "universal_studio_assets", "universal_studio_versions",
+        "studio_generation_runs", "studio_edit_checkpoints", "studio_learning_runs",
+        "studio_skill_snapshots", "studio_learning_proposals", "studio_learning_decisions",
     }
     forbidden = {
         "project_assets", "project_brand_kits", "studio_recipes", "studio_renders",
@@ -45,7 +47,7 @@ def main() -> None:
         raise SystemExit(f"Product Brief schema is incomplete: {sorted(missing)}")
     present_forbidden = forbidden & {row[0] for row in rows}
     if present_forbidden:
-        raise SystemExit(f"legacy tables are forbidden: {sorted(present_forbidden)}")
+        raise SystemExit(f"retired tables are forbidden: {sorted(present_forbidden)}")
     print("PTW Product Brief schema: OK")
 
 

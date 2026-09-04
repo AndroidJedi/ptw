@@ -16,6 +16,15 @@ if HAS_FASTAPI:
 
 @unittest.skipUnless(HAS_FASTAPI, "fastapi is required")
 class ValidationApiRouteTests(unittest.TestCase):
+    class Studio:
+        @staticmethod
+        def recover_interrupted():
+            return []
+
+        @staticmethod
+        def recover_learning():
+            return []
+
     @staticmethod
     def settings() -> Settings:
         return Settings(
@@ -32,6 +41,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             self.settings(),
             repository=object(),
             runner=object(),
+            studio_creative_service=self.Studio(),
         )
         background_routes = {
             ("POST", "/internal/v1/briefs"),
@@ -81,6 +91,7 @@ class ValidationApiRouteTests(unittest.TestCase):
         runner = Runner()
         app = create_app(
             self.settings(), repository=repository, runner=runner,
+            studio_creative_service=self.Studio(),
         )
 
         with TestClient(app) as client:
@@ -107,6 +118,7 @@ class ValidationApiRouteTests(unittest.TestCase):
 
         app = create_app(
             self.settings(), repository=Repository(), runner=object(),
+            studio_creative_service=self.Studio(),
         )
 
         with TestClient(app) as client:
@@ -122,6 +134,57 @@ class ValidationApiRouteTests(unittest.TestCase):
 
         self.assertEqual(409, response.status_code, response.text)
         self.assertEqual("another generation operation is active", response.json()["detail"])
+
+    def test_brief_approval_requires_template_and_starts_reserved_creative(self) -> None:
+        brief_id = "01900000-0000-7000-8000-000000000011"
+        creative_id = "01900000-0000-7000-8000-000000000012"
+
+        class Repository:
+            @staticmethod
+            def recover_interrupted() -> dict[str, int]:
+                return {"briefs": 0}
+
+            @staticmethod
+            def approve_brief(*_args):
+                raise AssertionError("Studio must own the approval transaction")
+
+        class Studio(self.Studio):
+            def __init__(self) -> None:
+                self.generated = threading.Event()
+                self.approval = None
+
+            def approve_brief_and_reserve(self, **value):
+                self.approval = value
+                return (
+                    {"brief_id": brief_id, "approved": True}, True,
+                    {"creative_id": creative_id, "status": "queued"}, True,
+                )
+
+            def generate(self, identifier: str) -> None:
+                if identifier == creative_id:
+                    self.generated.set()
+
+        studio = Studio()
+        app = create_app(
+            self.settings(), repository=Repository(), runner=object(),
+            studio_creative_service=studio,
+        )
+        headers = {"X-PTW-Owner-Gateway-Token": "owner-token"}
+        with TestClient(app) as client:
+            invalid = client.post(
+                f"/internal/v1/briefs/{brief_id}/approve", headers=headers,
+                json={"honor_confirmed": True},
+            )
+            response = client.post(
+                f"/internal/v1/briefs/{brief_id}/approve", headers=headers,
+                json={"honor_confirmed": True, "template_id": "phone_metrics"},
+            )
+
+        self.assertEqual(400, invalid.status_code, invalid.text)
+        self.assertEqual(202, response.status_code, response.text)
+        self.assertEqual(creative_id, response.json()["creative"]["creative_id"])
+        self.assertEqual("phone_metrics", studio.approval["template_id"])
+        self.assertTrue(studio.generated.wait(timeout=1))
 
 
 if __name__ == "__main__":

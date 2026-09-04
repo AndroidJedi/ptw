@@ -630,60 +630,6 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             rendered_digests.add(rendered["bytes_sha256"])
         self.assertEqual(len(FONT_FAMILIES), len(rendered_digests))
 
-    def test_legacy_local_configurations_upgrade_to_v5(self) -> None:
-        legacy = copy.deepcopy(DEFAULT_CONFIG)
-        legacy["schema"] = "ptw.studio.universal-ad-config.v1"
-        legacy["background"].pop("texture_intensity")
-        legacy["background"].pop("image_percent")
-        legacy["typography"].pop("benefits_font_family")
-        legacy["bullets"] = {"enabled": True, "marker": "○"}
-        legacy["cta"].pop("style")
-        legacy["cta"].pop("position")
-        legacy["logo"].pop("background_enabled")
-        legacy["logo"].pop("background_color")
-        legacy["sticker"] = {
-            "enabled": True, "position": "bottom_right", "rotation": 5,
-            "paper_width": 300, "paper_color": "#FFF5D1", "object_scale": 0.9,
-        }
-        upgraded = normalize_universal_config(legacy)
-        self.assertEqual("ptw.studio.universal-ad-config.v5", upgraded["schema"])
-        self.assertEqual(27, upgraded["cta"]["font_size"])
-        self.assertEqual("circle_outline", upgraded["bullets"]["style"])
-        self.assertEqual(300, upgraded["sticker"]["width"])
-        self.assertEqual(75, upgraded["background"]["image_percent"])
-        self.assertEqual("stone", upgraded["background"]["texture"])
-        self.assertEqual("below_text", upgraded["cta"]["position"])
-        self.assertFalse(upgraded["logo"]["background_enabled"])
-        self.assertEqual("#FFFFFF", upgraded["logo"]["background_color"])
-
-        previous = copy.deepcopy(DEFAULT_CONFIG)
-        previous["schema"] = "ptw.studio.universal-ad-config.v2"
-        previous["background"]["texture"] = "paper"
-        previous["typography"].pop("benefits_font_family")
-        previous["typography"]["font_family"] = "Roboto Condensed"
-        previous["cta"].pop("position")
-        previous["logo"].pop("background_enabled")
-        previous["logo"].pop("background_color")
-        upgraded_previous = normalize_universal_config(previous)
-        self.assertEqual("stone", upgraded_previous["background"]["texture"])
-        self.assertEqual("Oswald", upgraded_previous["typography"]["font_family"])
-        self.assertEqual("Oswald", upgraded_previous["typography"]["benefits_font_family"])
-
-        recent = copy.deepcopy(DEFAULT_CONFIG)
-        recent["schema"] = "ptw.studio.universal-ad-config.v3"
-        recent["logo"].pop("background_enabled")
-        recent["logo"].pop("background_color")
-        upgraded_recent = normalize_universal_config(recent)
-        self.assertEqual("ptw.studio.universal-ad-config.v5", upgraded_recent["schema"])
-        self.assertFalse(upgraded_recent["logo"]["background_enabled"])
-
-        prior = copy.deepcopy(DEFAULT_CONFIG)
-        prior["schema"] = "ptw.studio.universal-ad-config.v4"
-        prior["cta"].pop("font_size")
-        upgraded_prior = normalize_universal_config(prior)
-        self.assertEqual("ptw.studio.universal-ad-config.v5", upgraded_prior["schema"])
-        self.assertEqual(27, upgraded_prior["cta"]["font_size"])
-
     def test_owner_background_upload_selects_image_mode(self) -> None:
         detail = self.workspace.detail()
         config = copy.deepcopy(detail["configuration"])
@@ -807,6 +753,21 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "version digest mismatch"):
             self.workspace.version_detail(1)
 
+    def test_failed_atomic_approval_restores_pending_configuration(self) -> None:
+        detail = self.workspace.detail()
+        changed = copy.deepcopy(detail["configuration"])
+        changed["background"]["color"] = "#123456"
+
+        with self.assertRaisesRegex(ValueError, "change note"):
+            self.workspace.approve_configuration(
+                base_sha256=detail["state_sha256"], configuration=changed,
+                content=detail["content"], change_note="",
+            )
+
+        restored = self.workspace.detail()
+        self.assertEqual(detail["state_sha256"], restored["state_sha256"])
+        self.assertEqual([], restored["versions"])
+
     def test_pexels_reuse_sources_background_and_isolated_sticker(self) -> None:
         detail = self.workspace.detail()
         detail = self.workspace.source_pexels(
@@ -895,7 +856,6 @@ class UniversalStudioApiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {
             "STUDIO_WORKSPACE_PATH": temporary,
             "LOCAL_BRIEF_PATH": str(Path(temporary) / "briefs"),
-            "POST_WORKSPACE_PATH": str(Path(temporary) / "posts"),
             "PEXELS_API_KEY": "",
         }, clear=False):
             with TestClient(create_app()) as client:
@@ -904,11 +864,15 @@ class UniversalStudioApiTests(unittest.TestCase):
                 self.assertEqual(200, projects.status_code, projects.text)
                 self.assertEqual([], projects.json()["items"])
                 self.assertEqual([], client.get("/api/v1/briefs?limit=100", headers=headers).json()["items"])
-                self.assertEqual(401, client.get("/api/v1/posts").status_code)
-                self.assertEqual([], client.get("/api/v1/posts?limit=100", headers=headers).json()["items"])
+                self.assertEqual(404, client.get("/api/v1/posts", headers=headers).status_code)
                 self.assertEqual(404, client.get("/api/v1/learning-summary", headers=headers).status_code)
-                self.assertEqual(200, client.get("/api/v1/studio", headers=headers).status_code)
-                self.assertEqual(404, client.get("/api/v1/studio/templates", headers=headers).status_code)
+                self.assertEqual(404, client.get("/api/v1/studio", headers=headers).status_code)
+                templates = client.get("/api/v1/studio/templates", headers=headers)
+                self.assertEqual(200, templates.status_code, templates.text)
+                self.assertEqual(
+                    {"universal_ad", "phone_metrics"},
+                    {item["template_id"] for item in templates.json()["items"]},
+                )
                 self.assertEqual(404, client.get("/api/v1/studio/tune", headers=headers).status_code)
 
     def test_loopback_phone_screen_generation_is_authenticated_and_bounded(self) -> None:
@@ -941,46 +905,100 @@ class UniversalStudioApiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {
             "STUDIO_WORKSPACE_PATH": temporary,
             "LOCAL_BRIEF_PATH": str(Path(temporary) / "briefs"),
-            "POST_WORKSPACE_PATH": str(Path(temporary) / "posts"),
             "PEXELS_API_KEY": "",
             "OPENAI_API_KEY": "",
         }, clear=False):
-            with TestClient(create_app(phone_screen_image_provider=provider)) as client:
-                universal = client.get("/api/v1/studio", headers=headers).json()
-                phone = client.post("/api/v1/studio/templates/apply", headers=headers, json={
-                    "base_sha256": universal["state_sha256"],
-                    "template_id": "phone_metrics",
-                }).json()
+            from validation_pipeline.local_brief_store import LocalBriefStore
+            from validation_pipeline.local_briefs import LocalBriefService
+
+            class StructuredProvider:
+                def call(self, **request):
+                    self.request = request
+                    defaults = request["input_payload"]["template_defaults"]
+                    return {
+                        "response": {
+                            "configuration": defaults["configuration"],
+                            "content": defaults["content"],
+                            "visual_direction": "Folded cobalt glass with one warm lime sphere",
+                        },
+                        "invocation": {"provider": "test", "model": "test-studio"},
+                    }
+
+            store = LocalBriefStore(Path(temporary) / "briefs")
+            structured = StructuredProvider()
+            brief_service = LocalBriefService(
+                store=store, provider=structured,
+                repository_root=Path(__file__).resolve().parents[2],
+            )
+            project, brief, _created = brief_service.create_brief(
+                request_id="01900000-0000-7000-8000-000000000031",
+                raw_idea="A focused owner idea", required_language="en",
+                requested_by="test",
+            )
+            document = {
+                "schema_version": 1, "language": "en", "product": "Focused product",
+                "target_audience": "Independent founders", "main_pain": "Lost time",
+                "promise": "Make the next decision clearer", "key_benefits": [
+                    "One next step", "Less busywork", "Clear boundaries",
+                ], "cta": "Start", "trust_strategy": "Show the process",
+                "offer": "A guided first setup",
+            }
+            store.append("briefs", brief["brief_id"], {
+                **brief, "status": "completed", "document": document,
+                "document_sha256": "a" * 64, "approved": False,
+            })
+            with TestClient(create_app(
+                brief_service=brief_service, phone_screen_image_provider=provider,
+            )) as client:
+                approval = client.post(
+                    f'/api/v1/briefs/{brief["brief_id"]}/approve', headers=headers,
+                    json={"honor_confirmed": True, "template_id": "phone_metrics"},
+                )
+                self.assertEqual(202, approval.status_code, approval.text)
+                creative_id = approval.json()["creative"]["creative_id"]
+                creative_path = (
+                    f'/api/v1/studio/projects/{project["project_id"]}/creatives/{creative_id}'
+                )
+                phone = client.get(creative_path, headers=headers).json()
+                self.assertEqual("draft", phone["status"])
+                self.assertEqual("completed", phone["generation"]["phone_image"]["status"])
+                self.assertEqual(1, len(provider.prompts))
+                self.assertEqual([None], provider.references)
+                wrong_project_path = (
+                    f"/api/v1/studio/projects/01900000-0000-7000-8000-000000000099/"
+                    f"creatives/{creative_id}"
+                )
+                self.assertEqual(404, client.get(wrong_project_path, headers=headers).status_code)
+                self.assertEqual(404, client.post(
+                    f"{wrong_project_path}/configuration", headers=headers, json={
+                        "base_sha256": phone["state_sha256"],
+                        "configuration": phone["configuration"], "content": phone["content"],
+                    },
+                ).status_code)
+                self.assertEqual(404, client.post(
+                    f"{wrong_project_path}/component-settings", headers=headers,
+                    json={"state_sha256": phone["state_sha256"]},
+                ).status_code)
                 request = {
                     "base_sha256": phone["state_sha256"],
-                    "visual_direction": "Folded cobalt glass with a warm lime focal sphere.",
-                    "enhance_current": False,
+                    "visual_direction": "Preserve the form and improve material detail.",
+                    "enhance_current": True,
                 }
                 self.assertEqual(
                     401,
-                    client.post("/api/v1/studio/phone-screen/generate", json=request).status_code,
+                    client.post(f"{creative_path}/phone-screen/generate", json=request).status_code,
                 )
-                generated = client.post(
-                    "/api/v1/studio/phone-screen/generate", headers=headers, json=request,
+                enhanced = client.post(
+                    f"{creative_path}/phone-screen/generate", headers=headers, json=request,
                 )
-                self.assertEqual(200, generated.status_code, generated.text)
-                self.assertTrue(generated.json()["phone_screen_generation_available"])
+                self.assertEqual(200, enhanced.status_code, enhanced.text)
+                self.assertTrue(enhanced.json()["phone_screen_generation_available"])
+                self.assertEqual(_image_bytes(), provider.references[1])
                 screen = next(
-                    item for item in generated.json()["assets"]
+                    item for item in phone["assets"]
                     if item["slot"] == "phone_screen"
                 )
                 self.assertTrue(screen["available"])
-                self.assertEqual(1, len(provider.prompts))
-                self.assertEqual([None], provider.references)
-                enhanced = client.post(
-                    "/api/v1/studio/phone-screen/generate", headers=headers, json={
-                        "base_sha256": generated.json()["state_sha256"],
-                        "visual_direction": "Preserve the form and improve material detail.",
-                        "enhance_current": True,
-                    },
-                )
-                self.assertEqual(200, enhanced.status_code, enhanced.text)
-                self.assertEqual(_image_bytes(), provider.references[1])
                 enhanced_screen = next(
                     item for item in enhanced.json()["assets"]
                     if item["slot"] == "phone_screen"
@@ -991,7 +1009,7 @@ class UniversalStudioApiTests(unittest.TestCase):
                 )
                 self.assertEqual(2, len(enhanced.json()["phone_screen_history"]))
                 history_image_path = (
-                    f'/api/v1/studio/phone-screen/history/{screen["sha256"]}'
+                    f'{creative_path}/phone-screen/history/{screen["sha256"]}'
                 )
                 self.assertEqual(401, client.get(history_image_path).status_code)
                 history_image = client.get(history_image_path, headers=headers)
@@ -1000,7 +1018,7 @@ class UniversalStudioApiTests(unittest.TestCase):
                 self.assertEqual("private, no-store", history_image.headers["cache-control"])
                 self.assertEqual(f'"{screen["sha256"]}"', history_image.headers["etag"])
                 selected = client.post(
-                    "/api/v1/studio/phone-screen/select", headers=headers, json={
+                    f"{creative_path}/phone-screen/select", headers=headers, json={
                         "base_sha256": enhanced.json()["state_sha256"],
                         "sha256": screen["sha256"],
                     },
@@ -1018,7 +1036,7 @@ class UniversalStudioApiTests(unittest.TestCase):
                     )["sha256"],
                 )
                 invalid_selection = client.post(
-                    "/api/v1/studio/phone-screen/select", headers=headers, json={
+                    f"{creative_path}/phone-screen/select", headers=headers, json={
                         "base_sha256": selected.json()["state_sha256"],
                         "sha256": screen["sha256"],
                         "unexpected": True,
@@ -1026,83 +1044,10 @@ class UniversalStudioApiTests(unittest.TestCase):
                 )
                 self.assertEqual(400, invalid_selection.status_code)
                 invalid = client.post(
-                    "/api/v1/studio/phone-screen/generate", headers=headers, json={
+                    f"{creative_path}/phone-screen/generate", headers=headers, json={
                         "base_sha256": enhanced.json()["state_sha256"],
                         "visual_direction": "Preserve the form and improve material detail.",
                         "enhance_current": "yes",
                     },
                 )
                 self.assertEqual(400, invalid.status_code)
-
-    def test_loopback_contract_has_no_template_library_or_reference_routes(self) -> None:
-        from fastapi.testclient import TestClient
-        from validation_pipeline.studio_local_api import LOCAL_APP_CHECK_TOKEN, LOCAL_OWNER_TOKEN
-        from validation_pipeline.studio_routes import studio_router
-        from fastapi import FastAPI
-
-        with tempfile.TemporaryDirectory() as temporary:
-            app = FastAPI()
-            workspace = UniversalStudioWorkspace(temporary)
-            app.include_router(studio_router(
-                workspace, prefix="/api/v1/studio",
-            ))
-            with TestClient(app) as client:
-                detail = client.get("/api/v1/studio")
-                self.assertEqual(200, detail.status_code, detail.text)
-                rejected_sticker_upload = client.post(
-                    "/api/v1/studio/assets/sticker_object",
-                    json={
-                        "base_sha256": detail.json()["state_sha256"],
-                        "mime_type": "image/png",
-                        "bytes_base64": base64.b64encode(_image_bytes()).decode(),
-                    },
-                )
-                self.assertEqual(400, rejected_sticker_upload.status_code)
-                self.assertIn("Pexels photograph", rejected_sticker_upload.text)
-                preview = client.post("/api/v1/studio/preview", json={
-                    "state_sha256": detail.json()["state_sha256"],
-                })
-                self.assertEqual(200, preview.status_code, preview.text)
-                self.assertEqual("private, no-store", preview.headers["cache-control"])
-                draft_configuration = detail.json()["configuration"]
-                draft_configuration["background"]["texture_intensity"] = 0.1
-                draft_preview = client.post("/api/v1/studio/preview", json={
-                    "state_sha256": detail.json()["state_sha256"],
-                    "configuration": draft_configuration,
-                    "content": detail.json()["content"],
-                })
-                self.assertEqual(200, draft_preview.status_code, draft_preview.text)
-                self.assertNotEqual(preview.content, draft_preview.content)
-                component_settings = client.post("/api/v1/studio/component-settings", json={
-                    "state_sha256": detail.json()["state_sha256"],
-                    "configuration": draft_configuration,
-                    "content": detail.json()["content"],
-                })
-                self.assertEqual(200, component_settings.status_code, component_settings.text)
-                sticker = next(
-                    item for item in component_settings.json()["components"]
-                    if item["component_id"] == "universal_ad.sticker"
-                )
-                self.assertIn(
-                    {"setting_id": "configuration.sticker.enabled", "value": False},
-                    sticker["settings"],
-                )
-                self.assertEqual(
-                    detail.json()["state_sha256"],
-                    client.get("/api/v1/studio").json()["state_sha256"],
-                )
-                approved = client.post("/api/v1/studio/approve", json={
-                    "state_sha256": detail.json()["state_sha256"],
-                    "change_note": "Agent metadata contract",
-                })
-                self.assertEqual(200, approved.status_code, approved.text)
-                version = client.get("/api/v1/studio/versions/1")
-                self.assertEqual(200, version.status_code, version.text)
-                self.assertEqual(
-                    detail.json()["component_settings"], version.json()["component_settings"],
-                )
-                self.assertEqual(404, client.get("/api/v1/studio/templates").status_code)
-                self.assertEqual(404, client.get("/api/v1/studio/reference").status_code)
-                self.assertEqual(404, client.post("/api/v1/studio/calibrate", json={}).status_code)
-        self.assertEqual("e2e-owner-token", LOCAL_OWNER_TOKEN)
-        self.assertEqual("e2e-app-check", LOCAL_APP_CHECK_TOKEN)

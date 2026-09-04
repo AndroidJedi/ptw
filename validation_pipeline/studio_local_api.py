@@ -1,4 +1,4 @@
-"""Loopback-only API for Product Briefs and the standalone Studio."""
+"""Loopback-only API for Product Briefs and Project-scoped Studio creatives."""
 
 from __future__ import annotations
 
@@ -19,9 +19,8 @@ from .local_codex import LocalCodexStructuredProvider
 from .openai_images import (
     LocalCodexPhoneScreenImageProvider, OpenAIPhoneScreenImageProvider,
 )
-from .post_routes import simple_post_router
-from .post_workflow import SimplePostService
-from .studio_routes import studio_router
+from .studio_creatives import LocalStudioAuthority, StudioCreativeService
+from .studio_routes import studio_creative_router
 from .studio_tune import StudioTuneService, studio_tune_router
 from .studio_workspace import UniversalStudioWorkspace
 
@@ -33,7 +32,6 @@ LOCAL_APP_CHECK_TOKEN = "e2e-app-check"
 def create_app(
     *, tune_service: StudioTuneService | None = None,
     brief_service: LocalBriefService | None = None,
-    post_service: SimplePostService | None = None,
     phone_screen_image_provider: Any | None = None,
 ) -> FastAPI:
     tune_enabled = os.environ.get("STUDIO_TUNE_MODE", "").strip() == "1"
@@ -68,27 +66,32 @@ def create_app(
             raise RuntimeError(
                 "STUDIO_PHONE_IMAGE_PROVIDER must be codex, openai_api, or disabled"
             )
-    workspace = UniversalStudioWorkspace(
-        workspace_path, pexels=pexels, image_provider=phone_screen_images,
-    )
-    brief_service = brief_service or LocalBriefService(
-        store=LocalBriefStore(Path(os.environ.get(
-            "LOCAL_BRIEF_PATH", ".local/owner-briefs",
-        ))),
-        provider=LocalCodexStructuredProvider(
+    local_store = brief_service.store if brief_service is not None else LocalBriefStore(Path(os.environ.get(
+        "LOCAL_BRIEF_PATH", ".local/owner-briefs",
+    )))
+    authority = LocalStudioAuthority(local_store)
+    structured_provider = brief_service.provider if brief_service is not None else LocalCodexStructuredProvider(
             codex_binary,
             model=os.environ.get("LOCAL_CODEX_MODEL", "").strip() or None,
             reasoning_effort=os.environ.get(
                 "LOCAL_CODEX_REASONING_EFFORT", "xhigh",
             ).strip().casefold(),
             timeout_seconds=int(os.environ.get("LOCAL_CODEX_TIMEOUT_SECONDS", "420")),
-        ),
-        repository_root=Path(__file__).resolve().parents[1],
+        )
+    repository_root = Path(__file__).resolve().parents[1]
+    brief_service = brief_service or LocalBriefService(
+        store=local_store, provider=structured_provider,
+        repository_root=repository_root, on_project_created=authority.ensure_project_skill,
     )
-    post_service = post_service or SimplePostService(
-        Path(os.environ.get("POST_WORKSPACE_PATH", ".local/post-workspace")),
-        provider=brief_service.provider, brief_resolver=brief_service.get_brief,
-        pexels=pexels, image_provider=phone_screen_images,
+    studio_creatives = StudioCreativeService(
+        root=workspace_path, authority=authority,
+        workspace_factory=lambda path: UniversalStudioWorkspace(
+            path, pexels=pexels, image_provider=phone_screen_images,
+        ),
+        structured_provider=structured_provider,
+        composer_skill_path=repository_root / "skills/studio-creative-composer/SKILL.md",
+        learner_skill_path=repository_root / "skills/studio-edit-learner/SKILL.md",
+        phone_skill_path=repository_root / "skills/studio-phone-hero-generator/SKILL.md",
     )
     recovery_tasks: set[asyncio.Task[Any]] = set()
 
@@ -98,13 +101,15 @@ def create_app(
             task = asyncio.create_task(asyncio.to_thread(brief_service.generate_brief, brief_id))
             recovery_tasks.add(task)
             task.add_done_callback(recovery_tasks.discard)
-        post_recovery = post_service.recover_interrupted()
-        for post_id in post_recovery["posts"]:
-            task = asyncio.create_task(asyncio.to_thread(post_service.generate_post, post_id))
+        for creative_id in studio_creatives.recover_interrupted():
+            task = asyncio.create_task(asyncio.to_thread(studio_creatives.generate, creative_id))
             recovery_tasks.add(task)
             task.add_done_callback(recovery_tasks.discard)
-        for tune_id in post_recovery["tunes"]:
-            task = asyncio.create_task(asyncio.to_thread(post_service.apply_tune, tune_id))
+        for item in studio_creatives.recover_learning():
+            task = asyncio.create_task(asyncio.to_thread(
+                studio_creatives.retry_learning, item["project_id"],
+                item["creative_id"], item["checkpoint_id"],
+            ))
             recovery_tasks.add(task)
             task.add_done_callback(recovery_tasks.discard)
         yield
@@ -131,14 +136,11 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok", "scope": "loopback-local-owner-app"}
 
-    app.include_router(studio_router(
-        workspace, prefix="/api/v1/studio", dependencies=[Depends(authorize)],
+    app.include_router(studio_creative_router(
+        studio_creatives, prefix="/api/v1/studio", dependencies=[Depends(authorize)],
     ))
     app.include_router(local_brief_router(
-        brief_service, dependencies=[Depends(authorize)],
-    ))
-    app.include_router(simple_post_router(
-        post_service, dependencies=[Depends(authorize)],
+        brief_service, studio_creatives=studio_creatives, dependencies=[Depends(authorize)],
     ))
     if tune_service is not None or tune_enabled:
         service = tune_service or StudioTuneService(
@@ -149,7 +151,6 @@ def create_app(
                 "STUDIO_TUNE_STATE_PATH", ".local/studio-tune",
             )),
             codex_binary=os.environ.get("STUDIO_TUNE_CODEX_BIN", "").strip() or None,
-            studio_context_provider=workspace.agent_context,
         )
         app.include_router(studio_tune_router(
             service, prefix="/api/v1/studio", dependencies=[Depends(authorize)],

@@ -6,13 +6,14 @@ import { translate, type Language } from '../../i18n'
 import type {
   StudioPhoneActionButtonConfiguration, StudioPhoneMetricCardConfiguration,
   StudioPhoneMetricsConfiguration, StudioPhoneMetricsContent,
-  StudioPhoneMetricsDetail, StudioPhoneScreenHistoryItem,
+  StudioCheckpointResponse, StudioPhoneMetricsDetail, StudioPhoneScreenHistoryItem,
 } from '../../types'
 
 function PhoneScreenHistoryOption({
-  api, item, index, busy, label, currentLabel, onSelect,
+  api, basePath, item, index, busy, label, currentLabel, onSelect,
 }: {
   api: ApiClient
+  basePath: string
   item: StudioPhoneScreenHistoryItem
   index: number
   busy: boolean
@@ -25,7 +26,7 @@ function PhoneScreenHistoryOption({
     let disposed = false
     let objectUrl = ''
     void api.media(
-      `/api/v1/studio/phone-screen/history/${item.sha256}`,
+      `${basePath}/phone-screen/history/${item.sha256}`,
       item.mime_type, item.sha256,
     ).then((blob) => {
       objectUrl = URL.createObjectURL(blob)
@@ -38,7 +39,7 @@ function PhoneScreenHistoryOption({
       disposed = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [api, item.mime_type, item.sha256])
+  }, [api, basePath, item.mime_type, item.sha256])
 
   return <button
     className={`phone-screen-history-option ${item.selected ? 'is-selected' : ''}`}
@@ -52,11 +53,13 @@ function PhoneScreenHistoryOption({
   </button>
 }
 
-export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDetail }: {
+export function PhoneMetricsStudio({ api, language, basePath, detail: initialDetail, onDetail, onCheckpoint = () => {} }: {
   api: ApiClient
   language: Language
+  basePath: string
   detail: StudioPhoneMetricsDetail
   onDetail: (detail: StudioPhoneMetricsDetail | unknown) => void
+  onCheckpoint?: (result: StudioCheckpointResponse<StudioPhoneMetricsDetail>) => void
 }) {
   const [detail, setDetail] = useState(initialDetail)
   const [configuration, setConfiguration] = useState<StudioPhoneMetricsConfiguration>(structuredClone(initialDetail.configuration))
@@ -105,7 +108,7 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
     const generation = ++previewGeneration.current
     setPreviewBusy(true)
     try {
-      const blob = await api.postMedia('/api/v1/studio/preview', draft ? {
+      const blob = await api.postMedia(`${basePath}/preview`, draft ? {
         state_sha256: saved.state_sha256, configuration: nextConfiguration, content: nextContent,
       } : { state_sha256: saved.state_sha256 }, 'image/png', { deadlineMs: 90_000 })
       if (generation === previewGeneration.current) replacePreview(blob)
@@ -135,11 +138,17 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
   const save = async () => {
     setBusy(true); setError(''); setNotice('')
     try {
-      const next = await api.post<StudioPhoneMetricsDetail>('/api/v1/studio/configuration', {
+      const result = await api.post<StudioCheckpointResponse<StudioPhoneMetricsDetail>>(`${basePath}/save`, {
         base_sha256: detail.state_sha256, configuration, content,
       }, { deadlineMs: 60_000 })
+      const next = result.creative
       applyDetail(next); await render(next)
-      setNotice(tr('Phone & metrics setup saved.', 'Налаштування «Телефон і метрики» збережено.'))
+      onCheckpoint(result)
+      setNotice(!result.checkpoint_created
+        ? tr('Creative is already saved; no new learning was created.', 'Креатив уже збережено; нового навчання не створено.')
+        : result.checkpoint?.status === 'queued'
+          ? tr('Creative saved. Learning is queued for retry.', 'Креатив збережено. Навчання поставлено в чергу на повтор.')
+          : tr('Creative saved and Project learning updated.', 'Креатив збережено, навчання проєкту оновлено.'))
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const generatePhoneScreen = async () => {
@@ -151,12 +160,12 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
         JSON.stringify(configuration) !== JSON.stringify(detail.configuration)
         || JSON.stringify(content) !== JSON.stringify(detail.content)
       ) {
-        saved = await api.post<StudioPhoneMetricsDetail>('/api/v1/studio/configuration', {
+        saved = await api.post<StudioPhoneMetricsDetail>(`${basePath}/configuration`, {
           base_sha256: detail.state_sha256, configuration, content,
         }, { deadlineMs: 60_000 })
         applyDetail(saved)
       }
-      const next = await api.post<StudioPhoneMetricsDetail>('/api/v1/studio/phone-screen/generate', {
+      const next = await api.post<StudioPhoneMetricsDetail>(`${basePath}/phone-screen/generate`, {
         base_sha256: saved.state_sha256, visual_direction: screenDirection.trim(),
         enhance_current: useCurrentAsReference,
       }, { deadlineMs: 360_000 })
@@ -175,12 +184,12 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
         JSON.stringify(configuration) !== JSON.stringify(detail.configuration)
         || JSON.stringify(content) !== JSON.stringify(detail.content)
       ) {
-        saved = await api.post<StudioPhoneMetricsDetail>('/api/v1/studio/configuration', {
+        saved = await api.post<StudioPhoneMetricsDetail>(`${basePath}/configuration`, {
           base_sha256: detail.state_sha256, configuration, content,
         }, { deadlineMs: 60_000 })
         applyDetail(saved)
       }
-      const next = await api.post<StudioPhoneMetricsDetail>('/api/v1/studio/phone-screen/select', {
+      const next = await api.post<StudioPhoneMetricsDetail>(`${basePath}/phone-screen/select`, {
         base_sha256: saved.state_sha256, sha256,
       }, { deadlineMs: 60_000 })
       applyDetail(next); setEnhanceCurrent(true); await render(next)
@@ -194,7 +203,7 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
     if (templateId === detail.template_id) return
     setBusy(true); setError(''); setNotice('')
     try {
-      const next = await api.post<StudioPhoneMetricsDetail>('/api/v1/studio/templates/apply', {
+      const next = await api.post<StudioPhoneMetricsDetail>(`${basePath}/templates/apply`, {
         base_sha256: detail.state_sha256, template_id: templateId,
       }, { deadlineMs: 60_000 })
       onDetail(next)
@@ -204,10 +213,18 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
   const approve = async () => {
     setBusy(true); setError('')
     try {
-      const next = await api.post<StudioPhoneMetricsDetail>('/api/v1/studio/approve', {
-        state_sha256: detail.state_sha256, change_note: 'Phone & metrics creative',
+      const result = await api.post<StudioCheckpointResponse<StudioPhoneMetricsDetail>>(`${basePath}/approve`, {
+        base_sha256: detail.state_sha256, configuration, content,
+        change_note: 'Phone & metrics creative',
       }, { deadlineMs: 90_000 })
-      applyDetail(next); setNotice(tr('Immutable phone creative saved.', 'Незмінний креатив з телефоном збережено.'))
+      const next = result.creative
+      onCheckpoint(result)
+      applyDetail(next); setNotice(result.checkpoint?.status === 'queued'
+        ? tr(
+          'Immutable phone creative saved. Learning is queued for retry.',
+          'Незмінний креатив з телефоном збережено. Навчання поставлено в чергу на повтор.',
+        )
+        : tr('Immutable phone creative saved.', 'Незмінний креатив з телефоном збережено.'))
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const setStat = (index: number, key: 'value' | 'label', value: string) => setContent((current) => ({
@@ -254,7 +271,7 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
   return <div className="studio-page phone-metrics-studio-page">
     {error && <ErrorState message={error} language={language} />}
     {notice && <p className="notice" role="status">{notice}</p>}
-    <section className="panel studio-template-selector" aria-label={tr('Studio template selector', 'Вибір шаблону Студії')}>
+    <section className="panel studio-template-selector" aria-label={tr('Post template selector', 'Вибір шаблону допису')}>
       <small>{tr('TEMPLATE', 'ШАБЛОН')}</small><h2>{tr('Start from a fixed composition', 'Почніть із фіксованої композиції')}</h2>
       <p>{tr('Changing template replaces all editable copy and assets. Saved immutable versions are preserved.', 'Зміна шаблону замінює весь редагований текст і ресурси. Збережені незмінні версії не змінюються.')}</p>
       <div className="studio-template-grid">{detail.templates.map((template) => <button key={template.template_id} type="button" className={`studio-template-card ${template.template_id === detail.template_id ? 'is-active' : ''}`} disabled={busy} onClick={() => void selectTemplate(template.template_id)}>
@@ -263,8 +280,8 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
     </section>
     <section className="studio-commandbar phone-metrics-commandbar">
       <div><small>{tr('FIXED NATAL TEMPLATE', 'ФІКСОВАНИЙ ШАБЛОН NATAL')}</small><strong>phone_metrics · v{detail.catalog.template_version}</strong></div>
-      <button className="secondary" disabled={busy} onClick={() => void approve()}><Check />{tr('Save immutable', 'Зберегти незмінно')}</button>
-      <button className="primary" disabled={busy} onClick={() => void save()}><Save />{tr('Save setup', 'Зберегти налаштування')}</button>
+      <button className="secondary" disabled={busy} onClick={() => void approve()}><Check />{tr('Approve creative', 'Схвалити креатив')}</button>
+      <button className="primary" disabled={busy} onClick={() => void save()}><Save />{tr('Save creative', 'Зберегти креатив')}</button>
     </section>
     <section className="phone-metrics-workspace">
       <main className="studio-canvas-panel phone-metrics-canvas-panel">
@@ -375,7 +392,7 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
             <div><strong>{tr('Last 3 images', 'Останні 3 зображення')}</strong><small>{tr('Choose one to apply or enhance', 'Виберіть для застосування або покращення')}</small></div>
             <div className="phone-screen-history-options" role="radiogroup" aria-label={tr('Recent iPhone images', 'Останні зображення iPhone')}>
               {detail.phone_screen_history.map((item, index) => <PhoneScreenHistoryOption
-                key={item.sha256} api={api} item={item} index={index} busy={busy}
+                key={item.sha256} api={api} basePath={basePath} item={item} index={index} busy={busy}
                 currentLabel={tr('CURRENT', 'ПОТОЧНЕ')}
                 label={item.selected
                   ? tr(`iPhone image ${index + 1}, current`, `Зображення iPhone ${index + 1}, поточне`)
@@ -400,7 +417,7 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
             onClick={() => void generatePhoneScreen()}><Sparkles />{tr('Generate & apply', 'Згенерувати й застосувати')}</button>
           <p>{detail.phone_screen_generation_available
             ? tr('Enhance sends the current raw hero image with your direction; turning it off generates from scratch. The Natal logo, UI, title, action buttons, and device stay crisp, and the current visual is preserved if generation fails.', 'Режим покращення надсилає поточний вихідний герой-візуал разом з описом; якщо вимкнути його, зображення генерується з нуля. Логотип Natal, інтерфейс, заголовок, кнопки дій і пристрій залишаються чіткими, а в разі помилки поточний візуал зберігається.')
-            : tr('Codex image generation is unavailable in this local Studio runtime. Sign in to Codex and restart Studio; the circles remain as the deterministic fallback.', 'Генерація зображень Codex недоступна в цьому локальному середовищі Студії. Увійдіть у Codex і перезапустіть Студію; кола залишаються детермінованим резервним варіантом.')}
+            : tr('Codex image generation is unavailable in this local Post editor. Sign in to Codex and restart the Post editor; the circles remain as the deterministic fallback.', 'Генерація зображень Codex недоступна в цьому локальному редакторі допису. Увійдіть у Codex і перезапустіть редактор; кола залишаються детермінованим резервним варіантом.')}
           </p>
         </section>
       </aside>

@@ -4,7 +4,9 @@ CREATE TABLE commander_entities (
     id uuid PRIMARY KEY,
     kind text NOT NULL CHECK (kind IN (
         'source','validation_project','product_brief','human_feedback','weight_update',
-        'studio_workspace','studio_asset','studio_version'
+        'studio_workspace','studio_asset','studio_version','studio_generation_run',
+        'studio_edit_checkpoint','studio_learning_run','studio_skill_snapshot',
+        'studio_learning_proposal','studio_learning_decision'
     )),
     attributes jsonb NOT NULL DEFAULT '{}'::jsonb,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp()
@@ -148,7 +150,10 @@ CREATE TABLE validation_provider_invocations (
     target_id uuid NOT NULL REFERENCES commander_entities(id) ON DELETE RESTRICT,
     attempt_id uuid NOT NULL REFERENCES validation_generation_attempts(id) ON DELETE RESTRICT,
     provider text NOT NULL,
-    mode text NOT NULL CHECK (mode IN ('product_brief','product_brief_revision')),
+    mode text NOT NULL CHECK (mode IN (
+        'product_brief','product_brief_revision','studio_creative_generation',
+        'studio_edit_learning'
+    )),
     idempotency_key text NOT NULL,
     request_sha256 char(64) NOT NULL,
     response_sha256 char(64),
@@ -162,13 +167,31 @@ CREATE INDEX validation_provider_invocations_call_idx
 
 CREATE TABLE universal_studio_workspaces (
     entity_id uuid PRIMARY KEY REFERENCES commander_entities(id) ON DELETE RESTRICT,
-    singleton boolean NOT NULL UNIQUE DEFAULT true CHECK (singleton),
+    project_id uuid NOT NULL REFERENCES validation_projects(entity_id) ON DELETE RESTRICT,
+    source_brief_id uuid NOT NULL REFERENCES product_briefs(entity_id) ON DELETE RESTRICT,
+    ordinal integer NOT NULL CHECK (ordinal > 0),
+    origin text NOT NULL CHECK (origin IN ('brief_generation','approved_variant')),
     template_id text NOT NULL CHECK (template_id IN ('universal_ad','phone_metrics')),
-    state_sha256 char(64) NOT NULL,
+    template_version integer,
+    template_sha256 char(64),
+    status text NOT NULL CHECK (status IN ('queued','composing','generating_image','draft','failed')),
+    state_sha256 char(64),
+    generation jsonb NOT NULL DEFAULT '{}'::jsonb,
+    learning_baseline jsonb,
+    learning_baseline_sha256 char(64),
+    latest_checkpoint_id uuid,
     requested_by text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-    updated_at timestamptz NOT NULL DEFAULT clock_timestamp()
+    updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE(source_brief_id,ordinal),
+    UNIQUE(entity_id,project_id),
+    CHECK ((learning_baseline IS NULL)=(learning_baseline_sha256 IS NULL))
 );
+ALTER TABLE universal_studio_workspaces ADD CONSTRAINT studio_workspace_brief_same_project_fkey
+    FOREIGN KEY(source_brief_id,project_id)
+    REFERENCES product_briefs(entity_id,project_id) ON DELETE RESTRICT;
+CREATE INDEX universal_studio_workspaces_project_created_idx
+    ON universal_studio_workspaces(project_id,created_at DESC);
 
 CREATE TABLE universal_studio_workspace_files (
     workspace_id uuid NOT NULL REFERENCES universal_studio_workspaces(entity_id) ON DELETE RESTRICT,
@@ -210,6 +233,98 @@ CREATE TABLE universal_studio_versions (
     UNIQUE(workspace_id,version_sha256)
 );
 
+CREATE TABLE studio_generation_runs (
+    entity_id uuid PRIMARY KEY REFERENCES commander_entities(id) ON DELETE RESTRICT,
+    workspace_id uuid NOT NULL REFERENCES universal_studio_workspaces(entity_id) ON DELETE RESTRICT,
+    attempt integer NOT NULL CHECK (attempt > 0),
+    stage text NOT NULL CHECK (stage IN ('composition','phone_image')),
+    status text NOT NULL CHECK (status IN ('completed','failed')),
+    provenance jsonb NOT NULL DEFAULT '{}'::jsonb,
+    error_type text,
+    error_message text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE(workspace_id,attempt)
+);
+
+CREATE TABLE studio_edit_checkpoints (
+    entity_id uuid PRIMARY KEY REFERENCES commander_entities(id) ON DELETE RESTRICT,
+    workspace_id uuid NOT NULL,
+    project_id uuid NOT NULL REFERENCES validation_projects(entity_id) ON DELETE RESTRICT,
+    checkpoint_kind text NOT NULL CHECK (checkpoint_kind IN ('save','approve')),
+    before_state_sha256 char(64) NOT NULL,
+    after_state_sha256 char(64) NOT NULL,
+    changed_paths jsonb NOT NULL,
+    before_snapshot jsonb NOT NULL,
+    after_snapshot jsonb NOT NULL,
+    version integer,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE(entity_id,workspace_id),
+    UNIQUE(workspace_id,before_state_sha256,after_state_sha256,checkpoint_kind),
+    FOREIGN KEY(workspace_id,project_id)
+        REFERENCES universal_studio_workspaces(entity_id,project_id) ON DELETE RESTRICT
+);
+
+ALTER TABLE universal_studio_workspaces ADD CONSTRAINT studio_workspace_latest_checkpoint_fkey
+    FOREIGN KEY(latest_checkpoint_id,entity_id)
+    REFERENCES studio_edit_checkpoints(entity_id,workspace_id) ON DELETE RESTRICT;
+
+CREATE TABLE studio_skill_snapshots (
+    entity_id uuid PRIMARY KEY REFERENCES commander_entities(id) ON DELETE RESTRICT,
+    scope text NOT NULL CHECK (scope IN ('global','project')),
+    project_id uuid REFERENCES validation_projects(entity_id) ON DELETE RESTRICT,
+    version integer NOT NULL CHECK (version > 0),
+    content text NOT NULL,
+    content_sha256 char(64) NOT NULL,
+    source_checkpoint_id uuid REFERENCES studio_edit_checkpoints(entity_id) ON DELETE RESTRICT,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    CHECK ((scope='global' AND project_id IS NULL) OR (scope='project' AND project_id IS NOT NULL))
+);
+CREATE UNIQUE INDEX studio_global_skill_version_idx
+    ON studio_skill_snapshots(version) WHERE scope='global';
+CREATE UNIQUE INDEX studio_project_skill_version_idx
+    ON studio_skill_snapshots(project_id,version) WHERE scope='project';
+CREATE UNIQUE INDEX studio_global_skill_checkpoint_idx
+    ON studio_skill_snapshots(source_checkpoint_id)
+    WHERE scope='global' AND source_checkpoint_id IS NOT NULL;
+CREATE UNIQUE INDEX studio_project_skill_checkpoint_idx
+    ON studio_skill_snapshots(project_id,source_checkpoint_id)
+    WHERE scope='project' AND source_checkpoint_id IS NOT NULL;
+
+CREATE TABLE studio_learning_runs (
+    entity_id uuid PRIMARY KEY REFERENCES commander_entities(id) ON DELETE RESTRICT,
+    checkpoint_id uuid NOT NULL REFERENCES studio_edit_checkpoints(entity_id) ON DELETE RESTRICT,
+    attempt integer NOT NULL CHECK (attempt > 0),
+    status text NOT NULL CHECK (status IN ('completed','failed')),
+    edit_summary text,
+    project_lesson text,
+    project_skill_snapshot_id uuid REFERENCES studio_skill_snapshots(entity_id) ON DELETE RESTRICT,
+    provider jsonb NOT NULL DEFAULT '{}'::jsonb,
+    error_type text,
+    error_message text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE(checkpoint_id,attempt)
+);
+CREATE UNIQUE INDEX studio_learning_runs_completed_idx
+    ON studio_learning_runs(checkpoint_id) WHERE status='completed';
+
+CREATE TABLE studio_learning_proposals (
+    entity_id uuid PRIMARY KEY REFERENCES commander_entities(id) ON DELETE RESTRICT,
+    checkpoint_id uuid NOT NULL UNIQUE REFERENCES studio_edit_checkpoints(entity_id) ON DELETE RESTRICT,
+    project_skill_snapshot_id uuid NOT NULL REFERENCES studio_skill_snapshots(entity_id) ON DELETE RESTRICT,
+    global_rule text NOT NULL,
+    global_rule_sha256 char(64) NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+
+CREATE TABLE studio_learning_decisions (
+    entity_id uuid PRIMARY KEY REFERENCES commander_entities(id) ON DELETE RESTRICT,
+    proposal_id uuid NOT NULL UNIQUE REFERENCES studio_learning_proposals(entity_id) ON DELETE RESTRICT,
+    decision text NOT NULL CHECK (decision IN ('global','project_only')),
+    global_skill_snapshot_id uuid REFERENCES studio_skill_snapshots(entity_id) ON DELETE RESTRICT,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    CHECK ((decision='global')=(global_skill_snapshot_id IS NOT NULL))
+);
+
 CREATE FUNCTION ptw_reject_immutable_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN RAISE EXCEPTION '% is append-only',TG_TABLE_NAME; END $$;
 
@@ -219,7 +334,9 @@ BEGIN
     FOREACH table_name IN ARRAY ARRAY[
         'commander_entities','commander_relationships','commander_sources',
         'commander_human_feedback','commander_weight_updates','commander_audit_events',
-        'product_brief_approvals','universal_studio_assets','universal_studio_versions'
+        'product_brief_approvals','universal_studio_assets','universal_studio_versions',
+        'studio_generation_runs','studio_edit_checkpoints','studio_learning_runs',
+        'studio_skill_snapshots','studio_learning_proposals','studio_learning_decisions'
     ] LOOP
         EXECUTE format(
             'CREATE TRIGGER %I_immutable BEFORE UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION ptw_reject_immutable_mutation()',
@@ -258,5 +375,21 @@ BEGIN
 END $$;
 CREATE TRIGGER product_briefs_protected BEFORE UPDATE ON product_briefs
 FOR EACH ROW EXECUTE FUNCTION ptw_protect_product_brief();
+
+CREATE FUNCTION ptw_protect_studio_workspace() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.entity_id IS DISTINCT FROM OLD.entity_id
+       OR NEW.project_id IS DISTINCT FROM OLD.project_id
+       OR NEW.source_brief_id IS DISTINCT FROM OLD.source_brief_id
+       OR NEW.ordinal IS DISTINCT FROM OLD.ordinal
+       OR NEW.origin IS DISTINCT FROM OLD.origin
+       OR NEW.requested_by IS DISTINCT FROM OLD.requested_by
+       OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+        RAISE EXCEPTION 'immutable Studio creative fields cannot change';
+    END IF;
+    RETURN NEW;
+END $$;
+CREATE TRIGGER universal_studio_workspaces_protected BEFORE UPDATE ON universal_studio_workspaces
+FOR EACH ROW EXECUTE FUNCTION ptw_protect_studio_workspace();
 
 COMMIT;

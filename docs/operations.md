@@ -18,3 +18,10 @@ The worker needs the root-owned Codex package and authentication mounts. It has
 no Git credentials, repository workspace, owner attachments, or Telegram send
 path. Generated graphic bytes live in the external private assets volume and
 are returned only through the authenticated digest-checked endpoint.
+
+`content_non_human_graphic_generation` accepts either no attachment or exactly
+one 512–2048px square PNG reference up to 8 MiB. API and worker both verify MIME,
+header dimensions, SHA-256, and request size. The worker writes it only to its
+ephemeral directory, attaches it to the fresh Codex call, omits its base64 from
+the prompt, records the reference digest/transport, and removes the temporary
+file when the call ends.

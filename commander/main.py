@@ -43,6 +43,7 @@ STRUCTURED_LLM_MODES = frozenset(JSON_MODES | MEDIA_MODES)
 MAX_STRUCTURED_LLM_REQUEST_BYTES = 12_000_000
 MAX_CRITIC_IMAGE_BYTES = 1_500_000
 MAX_CRITIC_TOTAL_IMAGE_BYTES = 8 * 1024 * 1024
+MAX_MEDIA_REFERENCE_BYTES = 8 * 1024 * 1024
 
 
 def validate_structured_llm_request(request: dict) -> None:
@@ -97,8 +98,35 @@ def validate_structured_llm_request(request: dict) -> None:
             total += len(content)
         if total > MAX_CRITIC_TOTAL_IMAGE_BYTES:
             raise ValueError("Result critic attachments exceed the aggregate limit")
+    elif request["mode"] == "content_non_human_graphic_generation":
+        if images is not None:
+            if not isinstance(images, list) or len(images) != 1:
+                raise ValueError("non-human graphic generation accepts at most one PNG reference")
+            image = images[0]
+            if not isinstance(image, dict) or set(image) != {
+                "mime_type", "digest", "width", "height", "bytes_base64",
+            }:
+                raise ValueError("invalid non-human graphic reference mapping")
+            try:
+                content = base64.b64decode(image["bytes_base64"], validate=True)
+            except (TypeError, ValueError, binascii.Error) as error:
+                raise ValueError("non-human graphic reference base64 is invalid") from error
+            digest = hashlib.sha256(content).hexdigest()
+            if (
+                image["mime_type"] != "image/png"
+                or not content.startswith(b"\x89PNG\r\n\x1a\n")
+                or not 33 <= len(content) <= MAX_MEDIA_REFERENCE_BYTES
+                or image["digest"] != digest
+                or not isinstance(image["width"], int)
+                or not isinstance(image["height"], int)
+                or image["width"] != image["height"]
+                or not 512 <= image["width"] <= 2048
+                or int.from_bytes(content[16:20], "big") != image["width"]
+                or int.from_bytes(content[20:24], "big") != image["height"]
+            ):
+                raise ValueError("non-human graphic reference bytes or dimensions are invalid")
     elif images is not None:
-        raise ValueError("only Result critic mode accepts input images")
+        raise ValueError("only critic and media modes accept input images")
     if len(json.dumps(request, ensure_ascii=False).encode("utf-8")) > MAX_STRUCTURED_LLM_REQUEST_BYTES:
         raise ValueError("structured LLM request is too large")
 

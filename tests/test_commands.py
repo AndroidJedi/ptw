@@ -67,6 +67,47 @@ def test_structured_bridge_accepts_exact_result_modes_and_full_contract() -> Non
             "bytes_base64": base64.b64encode(content).decode(),
         }],
     })
+    reference = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR"
+        + (1024).to_bytes(4, "big") + (1024).to_bytes(4, "big")
+        + b"\x08\x06\x00\x00\x00reference-payload"
+    )
+    validate_structured_llm_request({
+        "mode": "content_non_human_graphic_generation",
+        "system_prompt": "Edit the supplied non-human hero image.",
+        "input_payload": {"operation": "image_edit"},
+        "output_schema": {"type": "object"},
+        "idempotency_key": "test:graphic-edit:attempt:1",
+        "input_images": [{
+            "mime_type": "image/png",
+            "digest": hashlib.sha256(reference).hexdigest(),
+            "width": 1024,
+            "height": 1024,
+            "bytes_base64": base64.b64encode(reference).decode(),
+        }],
+    })
+
+
+def test_media_reference_rejects_digest_or_dimension_mismatch() -> None:
+    reference = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR"
+        + (1024).to_bytes(4, "big") + (1024).to_bytes(4, "big")
+        + b"\x08\x06\x00\x00\x00reference-payload"
+    )
+    request = {
+        "mode": "content_non_human_graphic_generation",
+        "system_prompt": "Edit the supplied non-human hero image.",
+        "input_payload": {},
+        "output_schema": {"type": "object"},
+        "idempotency_key": "test:bad-graphic-edit:attempt:1",
+        "input_images": [{
+            "mime_type": "image/png", "digest": "0" * 64,
+            "width": 1024, "height": 1024,
+            "bytes_base64": base64.b64encode(reference).decode(),
+        }],
+    }
+    with pytest.raises(ValueError, match="bytes or dimensions"):
+        validate_structured_llm_request(request)
 
 
 @pytest.mark.parametrize("mode", ["marketing_positioning_document", "natal_landing_revision", "branding_logo_generation"])

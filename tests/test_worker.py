@@ -31,12 +31,18 @@ def request(mode: str, **extra) -> dict:
     }
 
 
-def thread_output(session_id: str, *, image_call: bool = False) -> str:
+def thread_output(
+    session_id: str, *, image_call: bool = False, attached_image: bool = False,
+) -> str:
     lines = [{"type": "thread.started", "thread_id": session_id}]
     if image_call:
         lines.append({
             "type": "item.completed",
-            "item": {"type": "mcp_tool_call", "server": "image_gen", "tool": "imagegen"},
+            "item": {
+                "type": "mcp_tool_call", "server": "image_gen", "tool": "imagegen",
+                **({"arguments": {"num_last_images_to_include": 1}}
+                   if attached_image else {}),
+            },
         })
     lines.append({
         "type": "turn.completed",
@@ -165,6 +171,92 @@ def test_non_human_graphic_is_single_square_png_with_review_policy(monkeypatch, 
     assert image["generation_policy"]["non_human_graphics_only"] is True
     assert image["generation_policy"]["synthetic_people"] == "prohibited"
     assert not (codex_home / "generated_images" / "graphic-session-1").exists()
+
+
+def test_non_human_graphic_reference_is_digest_checked_attached_and_provenanced(
+    monkeypatch, tmp_path: Path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    asset_root = tmp_path / "assets" / "content-graphics"
+    reference = png_header(1024, 1024)
+    digest = hashlib.sha256(reference).hexdigest()
+    observed = {}
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("CONTENT_GRAPHIC_ASSET_DIR", str(asset_root))
+
+    def fake_run(command, **kwargs):
+        attachments = [
+            Path(command[index + 1])
+            for index, value in enumerate(command) if value == "--image"
+        ]
+        observed["bytes"] = [path.read_bytes() for path in attachments]
+        observed["paths"] = attachments
+        observed["prompt"] = kwargs["input"]
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"generated":true}', encoding="utf-8"
+        )
+        generated = codex_home / "generated_images" / "graphic-edit-session"
+        generated.mkdir(parents=True)
+        (generated / "graphic.png").write_bytes(png_header())
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout=thread_output(
+                "graphic-edit-session", image_call=True, attached_image=True,
+            ), stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    value = execute_structured_llm(request(
+        "content_non_human_graphic_generation",
+        input_images=[{
+            "mime_type": "image/png", "digest": digest,
+            "width": 1024, "height": 1024,
+            "bytes_base64": base64.b64encode(reference).decode(),
+        }],
+    ))
+
+    assert observed["bytes"] == [reference]
+    assert digest in observed["prompt"]
+    assert base64.b64encode(reference).decode() not in observed["prompt"]
+    assert all(not path.exists() for path in observed["paths"])
+    assert value["image"]["reference"] == {
+        "sha256": digest, "used": True,
+        "transport": "codex_cli_image_attachment",
+    }
+
+
+def test_non_human_graphic_reference_fails_without_tool_attachment_proof(
+    monkeypatch, tmp_path: Path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    reference = png_header(1024, 1024)
+    digest = hashlib.sha256(reference).hexdigest()
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("CONTENT_GRAPHIC_ASSET_DIR", str(tmp_path / "assets"))
+
+    def fake_run(command, **_kwargs):
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"generated":true}', encoding="utf-8"
+        )
+        generated = codex_home / "generated_images" / "unproved-edit-session"
+        generated.mkdir(parents=True)
+        (generated / "graphic.png").write_bytes(png_header())
+        return subprocess.CompletedProcess(
+            command, 0,
+            stdout=thread_output("unproved-edit-session", image_call=True), stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    with pytest.raises(RuntimeError, match="prove use"):
+        execute_structured_llm(request(
+            "content_non_human_graphic_generation",
+            input_images=[{
+                "mime_type": "image/png", "digest": digest,
+                "width": 1024, "height": 1024,
+                "bytes_base64": base64.b64encode(reference).decode(),
+            }],
+        ))
+    assert not (codex_home / "generated_images" / "unproved-edit-session").exists()
 
 
 def test_non_human_graphic_rejects_multiple_generated_images(monkeypatch, tmp_path: Path) -> None:

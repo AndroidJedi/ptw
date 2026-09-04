@@ -84,7 +84,7 @@ def _persist_non_human_graphic(codex_home: Path, session_id: str) -> dict:
         if len(images) != 1:
             raise RuntimeError("non-human graphic generation must return exactly one PNG")
         content = images[0].read_bytes()
-        if len(content) < 33 or len(content) > 10_000_000 or not content.startswith(b"\x89PNG\r\n\x1a\n"):
+        if len(content) < 33 or len(content) > 8 * 1024 * 1024 or not content.startswith(b"\x89PNG\r\n\x1a\n"):
             raise RuntimeError("non-human graphic generation returned an invalid PNG")
         width = struct.unpack(">I", content[16:20])[0]
         height = struct.unpack(">I", content[20:24])[0]
@@ -132,6 +132,15 @@ def _persist_non_human_graphic(codex_home: Path, session_id: str) -> dict:
             shutil.rmtree(session_directory)
 
 
+def _remove_generated_session(codex_home: Path, session_id: str) -> None:
+    if not re.fullmatch(r"[A-Za-z0-9-]{1,100}", session_id):
+        return
+    generated_root = (codex_home / "generated_images").resolve()
+    session_directory = (generated_root / session_id).resolve()
+    if generated_root in session_directory.parents and session_directory.is_dir():
+        shutil.rmtree(session_directory)
+
+
 def _used_image_generation(stdout: str) -> bool:
     for line in stdout.splitlines():
         try:
@@ -156,11 +165,73 @@ def _used_image_generation(stdout: str) -> bool:
     return False
 
 
-def _materialize_critic_images(parameters: dict, directory: Path) -> tuple[list[Path], list[dict]]:
+def _proved_attached_image_use(stdout: str) -> bool:
+    """Require the image call to consume the one CLI-attached reference."""
+
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        item = event.get("item") if isinstance(event, dict) else None
+        if not isinstance(item, dict):
+            continue
+        tool_marker = " ".join(
+            str(item.get(key) or "") for key in ("type", "server", "tool", "name")
+        ).lower()
+        if "tool" not in tool_marker or "image" not in tool_marker:
+            continue
+        arguments = item.get("arguments") or item.get("input") or {}
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                continue
+        if not isinstance(arguments, dict):
+            continue
+        if (
+            arguments.get("num_last_images_to_include") == 1
+            and arguments.get("referenced_image_paths") in (None, [])
+        ):
+            return True
+    return False
+
+
+def _materialize_input_images(parameters: dict, directory: Path) -> tuple[list[Path], list[dict]]:
     images = parameters.get("input_images")
-    if parameters.get("mode") != "content_result_critic":
+    mode = parameters.get("mode")
+    if mode == "content_non_human_graphic_generation":
+        if images is None:
+            return [], []
+        if not isinstance(images, list) or len(images) != 1:
+            raise RuntimeError("non-human graphic generation accepts at most one PNG reference")
+        image = images[0]
+        try:
+            content = base64.b64decode(image["bytes_base64"], validate=True)
+        except (KeyError, TypeError, ValueError, binascii.Error) as exc:
+            raise RuntimeError("non-human graphic reference base64 is invalid") from exc
+        digest = hashlib.sha256(content).hexdigest()
+        width = int.from_bytes(content[16:20], "big") if len(content) >= 24 else 0
+        height = int.from_bytes(content[20:24], "big") if len(content) >= 24 else 0
+        if (
+            set(image) != {"mime_type", "digest", "width", "height", "bytes_base64"}
+            or image.get("mime_type") != "image/png"
+            or image.get("digest") != digest
+            or not content.startswith(b"\x89PNG\r\n\x1a\n")
+            or not 33 <= len(content) <= 8 * 1024 * 1024
+            or image.get("width") != width
+            or image.get("height") != height
+            or width != height
+            or not 512 <= width <= 2048
+        ):
+            raise RuntimeError("non-human graphic reference failed exact PNG validation")
+        path = directory / f"media-reference-{digest[:12]}.png"
+        path.write_bytes(content)
+        path.chmod(0o600)
+        return [path], [{"sha256": digest, "attachment_index": 1}]
+    if mode != "content_result_critic":
         if images is not None:
-            raise RuntimeError("only Result critic mode accepts input images")
+            raise RuntimeError("only critic and media modes accept input images")
         return [], []
     if not isinstance(images, list) or not 1 <= len(images) <= 5:
         raise RuntimeError("Result critic requires one to five mapped JPEG attachments")
@@ -224,17 +295,25 @@ def execute_structured_llm(parameters: dict) -> dict:
         temporary_root = Path(directory)
         output = temporary_root / "result.json"
         schema = temporary_root / "output-schema.json"
-        attachments, attachment_mapping = _materialize_critic_images(parameters, temporary_root)
-        if attachment_mapping:
+        attachments, attachment_mapping = _materialize_input_images(parameters, temporary_root)
+        if attachment_mapping and mode == "content_result_critic":
             prompt += (
                 "\nRENDER_ATTACHMENTS: Each digest-checked JPEG is attached separately and maps "
                 "to the candidate exactly as follows. Inspect pixels; do not generate images.\n"
                 + json.dumps(attachment_mapping, ensure_ascii=False, sort_keys=True)
             )
+        elif attachment_mapping:
+            prompt += (
+                "\nREFERENCE_ATTACHMENT: Edit the one attached digest-checked PNG as the starting "
+                "composition. Preserve its recognizable subject, palette, material character, and "
+                "spatial arrangement unless the requested direction explicitly changes them. In "
+                "the image-generation call use num_last_images_to_include=1 and do not use a path.\n"
+                + json.dumps(attachment_mapping, ensure_ascii=False, sort_keys=True)
+            )
         if mode == "content_non_human_graphic_generation":
             prompt += (
                 "\nUse image generation exactly once to create one square PNG containing no people, "
-                "faces, text, logos, or watermarks. The generated graphic remains review-gated."
+                "human faces, text, logos, or watermarks. The generated graphic remains review-gated."
             )
         schema.write_text(
             json.dumps(parameters["output_schema"], ensure_ascii=False, sort_keys=True),
@@ -280,6 +359,13 @@ def execute_structured_llm(parameters: dict) -> dict:
         used_image_generation = _used_image_generation(completed.stdout)
         if mode != "content_non_human_graphic_generation" and used_image_generation:
             raise RuntimeError("image generation is prohibited in Result JSON modes")
+        if (
+            mode == "content_non_human_graphic_generation"
+            and attachment_mapping
+            and not _proved_attached_image_use(completed.stdout)
+        ):
+            _remove_generated_session(codex_home, session_id)
+            raise RuntimeError("non-human graphic edit did not prove use of its attached reference")
         invocation = {
             "session_id": session_id,
             "session_mode": "fresh",
@@ -294,6 +380,12 @@ def execute_structured_llm(parameters: dict) -> dict:
         }
         if mode == "content_non_human_graphic_generation":
             result["image"] = _persist_non_human_graphic(codex_home, session_id)
+            if attachment_mapping:
+                result["image"]["reference"] = {
+                    "sha256": attachment_mapping[0]["sha256"],
+                    "used": True,
+                    "transport": "codex_cli_image_attachment",
+                }
         return result
 
 

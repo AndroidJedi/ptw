@@ -1,9 +1,10 @@
 # PTW Result bridge
 
-This independent platform is the bounded provider bridge for PTW Result v1.
-It exposes exactly four authenticated JSON modes and one reviewed non-human
-graphic mode. PostgreSQL `jobs` are the durable provider queue; they are not an
-owner task system.
+This independent platform is the bounded provider bridge for PTW Result v1 and
+the standalone Studio. It exposes exactly four authenticated JSON modes and one
+reviewed non-human graphic mode. That media mode optionally accepts one
+digest-checked square PNG reference for a bounded image edit. PostgreSQL `jobs`
+are the durable provider queue; they are not an owner task system.
 
 Services:
 

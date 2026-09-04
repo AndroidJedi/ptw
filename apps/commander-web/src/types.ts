@@ -49,10 +49,13 @@ export interface ProductBrief extends Partial<ProductBriefDocument> {
   created_at: string
 }
 
-export type StudioUniversalFontFamily = 'Inter' | 'Manrope' | 'Oswald' | 'Cormorant Garamond'
+export type StudioUniversalFontFamily =
+  | 'Inter' | 'Roboto Condensed' | 'Manrope' | 'Montserrat' | 'Source Sans 3'
+  | 'Oswald' | 'Cormorant Garamond' | 'Cormorant Garamond Italic'
+  | 'Lora' | 'Lora Italic'
 
 export interface StudioUniversalConfiguration {
-  schema: 'ptw.studio.universal-ad-config.v5'
+  schema: 'ptw.studio.universal-ad-config.v6'
   background: {
     mode: 'solid' | 'texture' | 'image'
     color: string
@@ -68,10 +71,14 @@ export interface StudioUniversalConfiguration {
   }
   typography: {
     font_family: StudioUniversalFontFamily
+    supporting_font_family: StudioUniversalFontFamily
+    offer_font_family: StudioUniversalFontFamily
     benefits_font_family: StudioUniversalFontFamily
     hero_size: number
     hero_weight: number
     supporting_size: number
+    offer_size: number
+    benefits_size: number
     text_color: string
     alignment: 'left' | 'center'
   }
@@ -88,6 +95,7 @@ export interface StudioUniversalConfiguration {
     background_color: string
     text_color: string
     radius: number
+    font_family: StudioUniversalFontFamily
     font_size: number
   }
   sticker: {
@@ -150,10 +158,10 @@ export interface StudioUniversalComponentDefinition {
 }
 
 export interface StudioUniversalComponentSettings {
-  schema: 'ptw.studio.universal-ad-component-settings.v2'
+  schema: 'ptw.studio.universal-ad-component-settings.v3'
   template_id: 'universal_ad'
   template_version: number
-  configuration_schema: 'ptw.studio.universal-ad-config.v5'
+  configuration_schema: 'ptw.studio.universal-ad-config.v6'
   components: Array<Omit<StudioUniversalComponentDefinition, 'setting_ids'> & {
     settings: Array<{ setting_id: string; value: unknown }>
   }>
@@ -184,7 +192,7 @@ export interface StudioUniversalAgentContext {
 }
 
 export interface StudioUniversalCatalog {
-  schema: 'ptw.studio.universal-ad-catalog.v6'
+  schema: 'ptw.studio.universal-ad-catalog.v7'
   template_id: 'universal_ad'
   template_version: number
   semantic_roles: Array<'background' | 'sticker' | 'hero_title' | 'supporting_text' | 'offer' | 'bullet_list' | 'cta' | 'logo'>
@@ -241,6 +249,14 @@ export type StudioPhoneMetricCardStyle = 'filled' | 'outlined'
 export type StudioPhoneMetricCardShape = 'square' | 'rounded' | 'pill'
 export type StudioPhoneActionButtonStyle = 'filled' | 'elevated' | 'outlined' | 'text'
 export type StudioPhoneActionButtonShape = 'square' | 'rounded' | 'pill'
+export type StudioFontFamily = StudioUniversalFontFamily
+export type StudioPhoneTypographyRole =
+  | 'offer' | 'hero_title' | 'supporting_text' | 'cta'
+  | 'metric_value' | 'metric_label' | 'phone_title' | 'phone_buttons'
+export interface StudioPhoneTypographyConfiguration {
+  font_family: StudioFontFamily
+  font_size: number
+}
 
 export interface StudioPhoneMetricCardConfiguration {
   style: StudioPhoneMetricCardStyle
@@ -257,7 +273,7 @@ export interface StudioPhoneActionButtonConfiguration {
 }
 
 export interface StudioPhoneMetricsConfiguration {
-  schema: 'ptw.studio.phone-metrics-config.v7'
+  schema: 'ptw.studio.phone-metrics-config.v8'
   background: {
     color: string
     texture: StudioPhoneBackgroundTexture
@@ -265,7 +281,8 @@ export interface StudioPhoneMetricsConfiguration {
   }
   copy_background: { texture: StudioPhoneBackgroundTexture }
   offer: { enabled: boolean }
-  supporting_text: { font_size: number; highlight_color: string }
+  supporting_text: { highlight_color: string }
+  typography: Record<StudioPhoneTypographyRole, StudioPhoneTypographyConfiguration>
   phone_screen: { texture: StudioPhoneScreenTexture }
   metric_cards: StudioPhoneMetricCardConfiguration[]
   phone_buttons: StudioPhoneActionButtonConfiguration[]
@@ -386,7 +403,7 @@ export interface StudioPhoneMetricsDetail {
   template_id: 'phone_metrics'
   templates: StudioTemplateSummary[]
   catalog: {
-    schema: 'ptw.studio.phone-metrics-catalog.v1'
+    schema: 'ptw.studio.phone-metrics-catalog.v2'
     template_id: 'phone_metrics'
     template_version: number
     canvas: { width: 1080; height: 1350 }
@@ -405,7 +422,10 @@ export interface StudioPhoneMetricsDetail {
       metric_card_shapes: StudioPhoneMetricCardShape[]
       phone_button_styles: StudioPhoneActionButtonStyle[]
       phone_button_shapes: StudioPhoneActionButtonShape[]
-      supporting_text_font_size: { minimum: number; maximum: number; default: number }
+      font_families: StudioFontFamily[]
+      typography: Record<StudioPhoneTypographyRole, {
+        minimum: number; maximum: number; default: number
+      }>
     }
     sha256: string
   }

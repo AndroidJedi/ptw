@@ -645,9 +645,15 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
   const backgroundAsset = detail.assets.find((asset) => asset.slot === 'background_image')
   const fontOptions: Array<{ value: StudioUniversalFontFamily; label: string }> = [
     { value: 'Inter', label: tr('Inter — neutral & clear', 'Inter — нейтральний і чіткий') },
+    { value: 'Roboto Condensed', label: tr('Roboto Condensed — compact & direct', 'Roboto Condensed — компактний і прямий') },
     { value: 'Manrope', label: tr('Manrope — friendly & modern', 'Manrope — дружній і сучасний') },
+    { value: 'Montserrat', label: tr('Montserrat — geometric & bold', 'Montserrat — геометричний і сміливий') },
+    { value: 'Source Sans 3', label: tr('Source Sans 3 — clean & readable', 'Source Sans 3 — чистий і читабельний') },
     { value: 'Oswald', label: tr('Oswald — bold & urgent', 'Oswald — сміливий і динамічний') },
     { value: 'Cormorant Garamond', label: tr('Cormorant Garamond — editorial & premium', 'Cormorant Garamond — редакційний і преміальний') },
+    { value: 'Cormorant Garamond Italic', label: tr('Cormorant Garamond Italic — expressive editorial', 'Cormorant Garamond Italic — виразний редакційний') },
+    { value: 'Lora', label: tr('Lora — warm editorial', 'Lora — теплий редакційний') },
+    { value: 'Lora Italic', label: tr('Lora Italic — elegant & human', 'Lora Italic — елегантний і людяний') },
   ]
 
   return <div className="studio-page universal-studio-page">
@@ -789,7 +795,13 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
         <details className="panel universal-section universal-disclosure">
           <summary><span><small>{tr('HIERARCHY & CTA', 'ІЄРАРХІЯ ТА CTA')}</small><strong>{tr('Type, layout and action', 'Типографіка, макет і дія')}</strong></span><em>{tr('EDIT', 'ЗМІНИТИ')}</em></summary>
           <div className="universal-section-body"><div className="universal-field-grid">
-            <label><span>{tr('Main font mood', 'Настрій основного шрифту')}</span><select aria-label="Font family" value={configuration.typography.font_family} onChange={(event) => patchConfig('typography', { font_family: event.target.value as StudioUniversalFontFamily })}>
+            <label><span>{tr('Headline font', 'Шрифт заголовка')}</span><select aria-label="Headline font family" value={configuration.typography.font_family} onChange={(event) => patchConfig('typography', { font_family: event.target.value as StudioUniversalFontFamily })}>
+              {fontOptions.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
+            </select></label>
+            <label><span>{tr('Supporting font', 'Шрифт пояснення')}</span><select aria-label="Supporting font family" value={configuration.typography.supporting_font_family} onChange={(event) => patchConfig('typography', { supporting_font_family: event.target.value as StudioUniversalFontFamily })}>
+              {fontOptions.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
+            </select></label>
+            <label><span>{tr('Offer font', 'Шрифт пропозиції')}</span><select aria-label="Offer font family" value={configuration.typography.offer_font_family} onChange={(event) => patchConfig('typography', { offer_font_family: event.target.value as StudioUniversalFontFamily })}>
               {fontOptions.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
             </select></label>
             <label><span>{tr('Benefits font mood', 'Настрій шрифту переваг')}</span><select aria-label="Benefits font family" value={configuration.typography.benefits_font_family} onChange={(event) => patchConfig('typography', { benefits_font_family: event.target.value as StudioUniversalFontFamily })}>
@@ -799,6 +811,8 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
             <NumberField label="Hero size" value={configuration.typography.hero_size} min={64} max={180} onChange={(value) => patchConfig('typography', { hero_size: value })} />
             <NumberField label="Hero weight" value={configuration.typography.hero_weight} min={400} max={900} step={100} onChange={(value) => patchConfig('typography', { hero_weight: value })} />
             <NumberField label="Supporting size" value={configuration.typography.supporting_size} min={22} max={52} onChange={(value) => patchConfig('typography', { supporting_size: value })} />
+            <NumberField label="Offer size" value={configuration.typography.offer_size} min={18} max={52} onChange={(value) => patchConfig('typography', { offer_size: value })} />
+            <NumberField label="Benefits size" value={configuration.typography.benefits_size} min={16} max={48} onChange={(value) => patchConfig('typography', { benefits_size: value })} />
             <ColorField label={tr('Text color', 'Колір тексту')} value={configuration.typography.text_color} onChange={(value) => patchConfig('typography', { text_color: value })} />
             <NumberField label="Content X" value={configuration.layout.content_x} min={48} max={520} onChange={(value) => patchConfig('layout', { content_x: value })} />
             <NumberField label="Content Y" value={configuration.layout.content_y} min={72} max={360} onChange={(value) => patchConfig('layout', { content_y: value })} />
@@ -814,6 +828,9 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
             </select></label>
             <ColorField label={tr('CTA background color', 'Колір фону CTA')} value={configuration.cta.background_color} onChange={(value) => patchConfig('cta', { background_color: value })} />
             <ColorField label={tr('CTA text color', 'Колір тексту CTA')} value={configuration.cta.text_color} onChange={(value) => patchConfig('cta', { text_color: value })} />
+            <label><span>{tr('CTA font', 'Шрифт CTA')}</span><select aria-label="CTA font family" value={configuration.cta.font_family} onChange={(event) => patchConfig('cta', { font_family: event.target.value as StudioUniversalFontFamily })}>
+              {fontOptions.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
+            </select></label>
             <NumberField label={tr('CTA font size', 'Розмір шрифту CTA')} value={configuration.cta.font_size} min={18} max={42} onChange={(value) => patchConfig('cta', { font_size: value })} />
             <NumberField label="CTA radius" value={configuration.cta.radius} min={0} max={40} onChange={(value) => patchConfig('cta', { radius: value })} />
           </div></div>

@@ -24,8 +24,8 @@ const detail = {
     },
   ],
   catalog: {
-    schema: 'ptw.studio.phone-metrics-catalog.v1', template_id: 'phone_metrics',
-    template_version: 17, canvas: { width: 1080, height: 1350 },
+    schema: 'ptw.studio.phone-metrics-catalog.v2', template_id: 'phone_metrics',
+    template_version: 22, canvas: { width: 1080, height: 1350 },
     semantic_roles: [], components: [], asset_slots: {},
     variation: {
       optional_elements: ['offer'], brand: 'Natal',
@@ -37,17 +37,37 @@ const detail = {
       metric_card_shapes: ['square', 'rounded', 'pill'],
       phone_button_styles: ['filled', 'elevated', 'outlined', 'text'],
       phone_button_shapes: ['square', 'rounded', 'pill'],
-      supporting_text_font_size: { minimum: 20, maximum: 38, default: 29 },
+      font_families: ['Inter', 'Roboto Condensed', 'Manrope', 'Montserrat', 'Source Sans 3', 'Oswald', 'Cormorant Garamond', 'Cormorant Garamond Italic', 'Lora', 'Lora Italic'],
+      typography: {
+        offer: { minimum: 16, maximum: 42, default: 23 },
+        hero_title: { minimum: 42, maximum: 110, default: 76 },
+        supporting_text: { minimum: 20, maximum: 46, default: 29 },
+        cta: { minimum: 20, maximum: 52, default: 34 },
+        metric_value: { minimum: 20, maximum: 56, default: 43 },
+        metric_label: { minimum: 14, maximum: 36, default: 22 },
+        phone_title: { minimum: 24, maximum: 72, default: 55 },
+        phone_buttons: { minimum: 16, maximum: 36, default: 28 },
+      },
     },
     sha256: 'b'.repeat(64),
   },
   state_sha256: 'a'.repeat(64), template_sha256: 'c'.repeat(64),
   configuration: {
-    schema: 'ptw.studio.phone-metrics-config.v7',
+    schema: 'ptw.studio.phone-metrics-config.v8',
     background: { color: '#F4F5F2', texture: 'concrete', texture_intensity: 0.13 },
     copy_background: { texture: 'none' },
     offer: { enabled: true },
-    supporting_text: { font_size: 29, highlight_color: '#1675F8' },
+    supporting_text: { highlight_color: '#1675F8' },
+    typography: {
+      offer: { font_family: 'Manrope', font_size: 23 },
+      hero_title: { font_family: 'Manrope', font_size: 76 },
+      supporting_text: { font_family: 'Manrope', font_size: 29 },
+      cta: { font_family: 'Manrope', font_size: 34 },
+      metric_value: { font_family: 'Manrope', font_size: 43 },
+      metric_label: { font_family: 'Manrope', font_size: 22 },
+      phone_title: { font_family: 'Manrope', font_size: 55 },
+      phone_buttons: { font_family: 'Manrope', font_size: 28 },
+    },
     phone_screen: { texture: 'grain' },
     metric_cards: [1, 2, 3].map(() => ({
       style: 'filled' as const, text_color: '#FFFFFF',
@@ -190,6 +210,14 @@ describe('Phone & metrics Studio', () => {
       api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
     />)
 
+    for (const role of [
+      'Eyebrow', 'Headline', 'Supporting text', 'CTA', 'Metric values',
+      'Metric labels', 'In-phone title', 'In-phone buttons',
+    ]) {
+      expect(screen.getByLabelText(`${role} font family`)).toBeInTheDocument()
+      expect(screen.getByLabelText(`${role} font size`)).toBeInTheDocument()
+    }
+
     const supporting = screen.getByLabelText('Supporting text') as HTMLTextAreaElement
     supporting.focus()
     supporting.setSelectionRange(0, 'Коротке'.length)
@@ -204,6 +232,9 @@ describe('Phone & metrics Studio', () => {
     fireEvent.change(screen.getByLabelText('Supporting text font size'), {
       target: { value: '36' },
     })
+    fireEvent.change(screen.getByLabelText('Supporting text font family'), {
+      target: { value: 'Source Sans 3' },
+    })
     fireEvent.change(screen.getByLabelText('Highlight color'), {
       target: { value: '#d12f7a' },
     })
@@ -212,7 +243,10 @@ describe('Phone & metrics Studio', () => {
       `${basePath}/preview`,
       expect.objectContaining({
         configuration: expect.objectContaining({
-          supporting_text: { font_size: 36, highlight_color: '#D12F7A' },
+          supporting_text: { highlight_color: '#D12F7A' },
+          typography: expect.objectContaining({
+            supporting_text: { font_family: 'Source Sans 3', font_size: 36 },
+          }),
         }),
         content: expect.objectContaining({
           supporting_text: '**Коротке** ==пояснення==.',

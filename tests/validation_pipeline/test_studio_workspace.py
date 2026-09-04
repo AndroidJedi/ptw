@@ -95,7 +95,7 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         self.assertEqual(["universal_ad", "phone_metrics"], [
             item["template_id"] for item in detail["templates"]
         ])
-        self.assertEqual("ptw.studio.universal-ad-catalog.v6", detail["catalog"]["schema"])
+        self.assertEqual("ptw.studio.universal-ad-catalog.v7", detail["catalog"]["schema"])
         self.assertTrue(detail["catalog"]["setting_definitions"])
         setting_definitions = {
             item["setting_id"]: item for item in detail["catalog"]["setting_definitions"]
@@ -107,7 +107,7 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             sticker_width["minimum"], sticker_width["maximum"], sticker_width["step"],
         ))
         self.assertIn("розмір стікера", sticker_width["aliases"])
-        self.assertEqual(11, detail["catalog"]["template_version"])
+        self.assertEqual(12, detail["catalog"]["template_version"])
         self.assertEqual(list(SEMANTIC_ROLES), detail["catalog"]["semantic_roles"])
         self.assertEqual(
             [f"universal_ad.{role}" for role in SEMANTIC_ROLES],
@@ -303,6 +303,45 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         configuration["cta"]["font_size"] = 43
         with self.assertRaisesRegex(ValueError, "cta.font_size"):
             normalize_universal_config(configuration)
+
+    def test_every_universal_text_role_has_independent_font_and_size(self) -> None:
+        detail = self.workspace.detail()
+        configuration = copy.deepcopy(detail["configuration"])
+        configuration["typography"].update({
+            "font_family": "Montserrat", "hero_size": 108,
+            "supporting_font_family": "Source Sans 3", "supporting_size": 39,
+            "offer_font_family": "Lora Italic", "offer_size": 34,
+            "benefits_font_family": "Cormorant Garamond", "benefits_size": 31,
+        })
+        configuration["cta"].update({
+            "font_family": "Roboto Condensed", "font_size": 36,
+        })
+        rendered = self.workspace.render_preview(
+            state_sha256=detail["state_sha256"], configuration=configuration,
+            content=detail["content"],
+        )
+        nodes = rendered["resolved"]["nodes"]
+        expectations = {
+            "hero_title": ("Montserrat", 108),
+            "supporting_text": ("Source Sans 3", 39),
+            "offer": ("Lora Italic", 34),
+            "bullet_1": ("Cormorant Garamond", 31),
+            "cta": ("Roboto Condensed", 36),
+        }
+        for node_id, (family, size) in expectations.items():
+            self.assertEqual(family, nodes[node_id]["props"]["font_family"])
+            self.assertEqual(size, nodes[node_id]["props"]["font_size"])
+            self.assertFalse(nodes[node_id]["text_layout"]["overflow"])
+
+        bounds = {
+            "offer_size": (18, 52), "benefits_size": (16, 48),
+        }
+        for key, (minimum, maximum) in bounds.items():
+            for invalid_size in (minimum - 1, maximum + 1):
+                invalid = copy.deepcopy(DEFAULT_CONFIG)
+                invalid["typography"][key] = invalid_size
+                with self.assertRaisesRegex(ValueError, key):
+                    normalize_universal_config(invalid)
 
     def test_draft_preview_changes_pixels_without_persisting_editor_state(self) -> None:
         detail = self.workspace.detail()
@@ -615,7 +654,10 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
                 )
             config = copy.deepcopy(detail["configuration"])
             config["typography"]["font_family"] = family
+            config["typography"]["supporting_font_family"] = family
+            config["typography"]["offer_font_family"] = family
             config["typography"]["benefits_font_family"] = family
+            config["cta"]["font_family"] = family
             rendered = self.workspace.render_preview(
                 state_sha256=detail["state_sha256"],
                 configuration=config,
@@ -623,7 +665,10 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             )
             nodes = rendered["resolved"]["nodes"]
             self.assertEqual(family, nodes["hero_title"]["props"]["font_family"])
+            self.assertEqual(family, nodes["supporting_text"]["props"]["font_family"])
+            self.assertEqual(family, nodes["offer"]["props"]["font_family"])
             self.assertEqual(family, nodes["bullet_1"]["props"]["font_family"])
+            self.assertEqual(family, nodes["cta"]["props"]["font_family"])
             self.assertEqual("Inter", nodes["bullet_marker_1"]["props"]["font_family"])
             self.assertIsNotNone(nodes["bullet_marker_1"]["visible_bounds"])
             self.assertFalse(nodes["bullet_1"]["text_layout"]["overflow"])

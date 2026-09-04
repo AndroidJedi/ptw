@@ -28,7 +28,7 @@ const studioDetail = {
   template_id: 'universal_ad', generation: { stage: 'draft' },
   schema: 'ptw.studio.workspace.v8',
   catalog: {
-    schema: 'ptw.studio.universal-ad-catalog.v6', template_id: 'universal_ad', template_version: 11,
+    schema: 'ptw.studio.universal-ad-catalog.v7', template_id: 'universal_ad', template_version: 12,
     semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'offer', 'bullet_list', 'cta', 'logo'],
     components: studioComponents,
     asset_slots: {},
@@ -41,19 +41,19 @@ const studioDetail = {
       cta_positions: ['below_text', 'bottom_left', 'bottom_right'],
       cta_font_size: { minimum: 18, maximum: 42, default: 27 },
       sticker_positions: ['top_left', 'top_right', 'bottom_left', 'bottom_right', 'right_edge', 'bottom_edge', 'bullet_list', 'hero_title', 'cta'],
-      font_families: ['Inter', 'Manrope', 'Oswald', 'Cormorant Garamond'],
+      font_families: ['Inter', 'Roboto Condensed', 'Manrope', 'Montserrat', 'Source Sans 3', 'Oswald', 'Cormorant Garamond', 'Cormorant Garamond Italic', 'Lora', 'Lora Italic'],
       optional_elements: ['sticker', 'bullet_list', 'logo'],
     },
     sha256: 'e'.repeat(64),
   },
   state_sha256: 'f'.repeat(64), template_sha256: 'a'.repeat(64),
   configuration: {
-    schema: 'ptw.studio.universal-ad-config.v5',
+    schema: 'ptw.studio.universal-ad-config.v6',
     background: { mode: 'solid', color: '#F0E653', texture: 'stone', texture_intensity: 0.7, image_layout: 'full', image_percent: 75, image_fit: 'cover', focal_x: 0.5, focal_y: 0.5, overlay_color: '#000000', overlay_opacity: 0 },
-    typography: { font_family: 'Inter', benefits_font_family: 'Manrope', hero_size: 112, hero_weight: 800, supporting_size: 34, text_color: '#111111', alignment: 'left' },
+    typography: { font_family: 'Inter', supporting_font_family: 'Inter', offer_font_family: 'Inter', benefits_font_family: 'Manrope', hero_size: 112, hero_weight: 800, supporting_size: 34, offer_size: 28, benefits_size: 26, text_color: '#111111', alignment: 'left' },
     layout: { content_x: 76, content_y: 180, content_width: 720, gap: 24 },
     bullets: { enabled: false, style: 'circle' },
-    cta: { style: 'filled', position: 'below_text', background_color: '#111111', text_color: '#FFFFFF', radius: 24, font_size: 27 },
+    cta: { style: 'filled', position: 'below_text', background_color: '#111111', text_color: '#FFFFFF', radius: 24, font_family: 'Inter', font_size: 27 },
     sticker: { enabled: false, position: 'top_right', rotation: -6, width: 320, object_scale: 0.82, offset_right: 0, offset_bottom: 0 },
     logo: { enabled: true, position: 'top_right', width: 180, background_enabled: false, background_color: '#FFFFFF' },
   },
@@ -63,8 +63,8 @@ const studioDetail = {
     bullets: [], cta: 'TEST DEMAND',
   },
   component_settings: {
-    schema: 'ptw.studio.universal-ad-component-settings.v2', template_id: 'universal_ad',
-    template_version: 11, configuration_schema: 'ptw.studio.universal-ad-config.v5',
+    schema: 'ptw.studio.universal-ad-component-settings.v3', template_id: 'universal_ad',
+    template_version: 12, configuration_schema: 'ptw.studio.universal-ad-config.v6',
     components: studioComponents.map(({ setting_ids: _settingIds, ...component }) => ({
       ...component, settings: [],
     })),
@@ -343,7 +343,7 @@ test('opens the Post editor and persists its bounded configuration', async ({ pa
   for (let index = 0; index < 4; index += 1) await page.getByLabel('Texture intensity', { exact: true }).press('ArrowRight')
   for (let index = 0; index < 4; index += 1) await page.getByLabel('Overlay opacity').press('ArrowRight')
   await page.getByText('Type, layout and action').click()
-  await page.getByLabel('Font family', { exact: true }).selectOption('Oswald')
+  await page.getByLabel('Headline font family', { exact: true }).selectOption('Oswald')
   await page.getByLabel('Benefits font family').selectOption('Cormorant Garamond')
   await page.getByLabel('CTA style').selectOption('gradient')
   await page.getByLabel('CTA placement').selectOption('bottom_right')

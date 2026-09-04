@@ -17,16 +17,17 @@ import random
 import re
 from typing import Any, Mapping
 
+from .studio import STUDIO_FONT_FAMILIES
 from .studio_primitives import PrimitiveTemplate
 
 
 UNIVERSAL_AD_TEMPLATE_ID = "universal_ad"
-UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v5"
+UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v6"
 UNIVERSAL_AD_CONTENT_SCHEMA = "ptw.studio.universal-ad-content.v2"
-UNIVERSAL_AD_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.universal-ad-component-settings.v2"
-UNIVERSAL_AD_TEMPLATE_VERSION = 11
+UNIVERSAL_AD_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.universal-ad-component-settings.v3"
+UNIVERSAL_AD_TEMPLATE_VERSION = 12
 
-FONT_FAMILIES = ("Inter", "Manrope", "Oswald", "Cormorant Garamond")
+FONT_FAMILIES = STUDIO_FONT_FAMILIES
 TEXTURE_PRESETS = (
     "grain", "stone", "marble", "concrete", "granite", "slate", "travertine",
 )
@@ -120,7 +121,7 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "node_ids": ("supporting_text",),
         "asset_slot_ids": (),
         "setting_ids": (
-            "content.supporting_text", "configuration.typography.font_family",
+            "content.supporting_text", "configuration.typography.supporting_font_family",
             "configuration.typography.supporting_size", "configuration.typography.text_color",
             "configuration.typography.alignment", "configuration.layout.content_x",
             "configuration.layout.content_y", "configuration.layout.content_width",
@@ -133,8 +134,8 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "node_ids": ("offer",),
         "asset_slot_ids": (),
         "setting_ids": (
-            "content.offer", "configuration.typography.font_family",
-            "configuration.typography.supporting_size", "configuration.typography.text_color",
+            "content.offer", "configuration.typography.offer_font_family",
+            "configuration.typography.offer_size", "configuration.typography.text_color",
             "configuration.typography.alignment", "configuration.layout.content_x",
             "configuration.layout.content_y", "configuration.layout.content_width",
             "configuration.layout.gap",
@@ -151,7 +152,7 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "setting_ids": (
             "content.bullets", "configuration.bullets.enabled",
             "configuration.bullets.style", "configuration.typography.benefits_font_family",
-            "configuration.typography.supporting_size", "configuration.typography.text_color",
+            "configuration.typography.benefits_size", "configuration.typography.text_color",
             "configuration.layout.content_x", "configuration.layout.content_y",
             "configuration.layout.content_width",
             "configuration.layout.gap",
@@ -167,7 +168,7 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "configuration.cta.position",
             "configuration.cta.background_color", "configuration.cta.text_color",
             "configuration.cta.radius", "configuration.cta.font_size",
-            "configuration.typography.font_family",
+            "configuration.cta.font_family",
             "configuration.typography.alignment", "configuration.layout.content_x",
             "configuration.layout.content_y", "configuration.layout.content_width",
             "configuration.layout.gap",
@@ -269,7 +270,17 @@ UNIVERSAL_SETTING_DEFINITIONS: dict[str, dict[str, Any]] = {
         minimum=0, maximum=0.85, step=0.05,
     ),
     "configuration.typography.font_family": _setting(
-        "universal_ad.hero_title", "enum", ("font", "font family", "шрифт"),
+        "universal_ad.hero_title", "enum", ("headline font", "hero font", "шрифт заголовка"),
+        values=FONT_FAMILIES,
+    ),
+    "configuration.typography.supporting_font_family": _setting(
+        "universal_ad.supporting_text", "enum", (
+            "supporting font", "supporting font family", "шрифт пояснення",
+        ),
+        values=FONT_FAMILIES,
+    ),
+    "configuration.typography.offer_font_family": _setting(
+        "universal_ad.offer", "enum", ("offer font", "шрифт пропозиції"),
         values=FONT_FAMILIES,
     ),
     "configuration.typography.benefits_font_family": _setting(
@@ -293,6 +304,18 @@ UNIVERSAL_SETTING_DEFINITIONS: dict[str, dict[str, Any]] = {
             "розмір шрифту додаткового тексту",
         ),
         minimum=22, maximum=52, step=1,
+    ),
+    "configuration.typography.offer_size": _setting(
+        "universal_ad.offer", "integer", (
+            "offer size", "offer font size", "розмір шрифту пропозиції",
+        ),
+        minimum=18, maximum=52, step=1,
+    ),
+    "configuration.typography.benefits_size": _setting(
+        "universal_ad.bullet_list", "integer", (
+            "benefits size", "benefits font size", "розмір шрифту переваг",
+        ),
+        minimum=16, maximum=48, step=1,
     ),
     "configuration.typography.text_color": _setting(
         "universal_ad.hero_title", "color", ("text color", "post text color", "колір тексту", "колір тексту допису"),
@@ -364,6 +387,10 @@ UNIVERSAL_SETTING_DEFINITIONS: dict[str, dict[str, Any]] = {
     "configuration.cta.font_size": _setting(
         "universal_ad.cta", "integer", ("cta text size", "button text size", "розмір тексту кнопки"),
         minimum=18, maximum=42, step=1,
+    ),
+    "configuration.cta.font_family": _setting(
+        "universal_ad.cta", "enum", ("cta font", "button font", "шрифт кнопки"),
+        values=FONT_FAMILIES,
     ),
     "configuration.sticker.enabled": _setting(
         "universal_ad.sticker", "boolean", ("sticker", "стікер", "наліпка"),
@@ -437,10 +464,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "typography": {
         "font_family": "Inter",
+        "supporting_font_family": "Inter",
+        "offer_font_family": "Inter",
         "benefits_font_family": "Manrope",
         "hero_size": 94,
         "hero_weight": 800,
         "supporting_size": 30,
+        "offer_size": 28,
+        "benefits_size": 26,
         "text_color": "#FFFFFF",
         "alignment": "left",
     },
@@ -460,6 +491,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "background_color": "#FFD84D",
         "text_color": "#10233F",
         "radius": 24,
+        "font_family": "Inter",
         "font_size": 27,
     },
     "sticker": {
@@ -703,7 +735,7 @@ def universal_component_settings(
 
 def universal_ad_catalog() -> dict[str, Any]:
     value = {
-        "schema": "ptw.studio.universal-ad-catalog.v6",
+        "schema": "ptw.studio.universal-ad-catalog.v7",
         "template_id": UNIVERSAL_AD_TEMPLATE_ID,
         "template_version": UNIVERSAL_AD_TEMPLATE_VERSION,
         "semantic_roles": list(SEMANTIC_ROLES),
@@ -888,8 +920,8 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
     hero_height = max(170, round(typography["hero_size"] * 2.25))
     supporting_height = max(96, round(typography["supporting_size"] * 3.2))
     bullet_count = len(content["bullets"]) if bullets_enabled else 0
-    bullet_step = max(42, round(typography["supporting_size"] * 1.45))
-    offer_height = max(62, round(typography["supporting_size"] * 2.0))
+    bullet_step = max(44, round(typography["benefits_size"] * 1.55))
+    offer_height = max(62, round(typography["offer_size"] * 2.0))
     gap_count = 4 if bullet_count else 3
     ideal_before_cta = (
         hero_height + supporting_height + offer_height + bullet_step * bullet_count
@@ -938,12 +970,14 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
         }, binding=("text", "content.hero_title", True)),
         _node("supporting_text", "text", {
             **common_text, "y": supporting_y, "height": supporting_height,
+            "font_family": typography["supporting_font_family"],
             "font_size": typography["supporting_size"], "min_font_size": 18,
             "font_weight": 500, "line_height": 1.18, "max_lines": 4,
         }, binding=("text", "content.supporting_text", True)),
         _node("offer", "text", {
             **common_text, "y": offer_y, "height": offer_height,
-            "font_size": max(22, typography["supporting_size"] - 2), "min_font_size": 18,
+            "font_family": typography["offer_font_family"],
+            "font_size": typography["offer_size"], "min_font_size": 18,
             "font_weight": 800, "line_height": 1.1, "max_lines": 2,
         }, binding=("text", "content.offer", True)),
     ]
@@ -957,7 +991,7 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
         children.append(_node(f"bullet_marker_{index + 1}", "text", {
             **common_text, "x": bullet_x, "y": bullet_y + index * bullet_step,
             "width": marker_width, "height": bullet_step, "font_family": "Inter",
-            "font_size": max(20, typography["supporting_size"] - 4), "min_font_size": 16,
+            "font_size": typography["benefits_size"], "min_font_size": 16,
             "font_weight": 700, "line_height": 1.1, "max_lines": 1,
             "text_align": "left", "visible": visible,
         }, binding=("text", f"content.bullet_marker_{index + 1}", False)))
@@ -966,7 +1000,7 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
             "y": bullet_y + index * bullet_step,
             "width": bullet_width - marker_width - marker_gap, "height": bullet_step,
             "font_family": typography["benefits_font_family"], "text_align": "left",
-            "font_size": max(20, typography["supporting_size"] - 4), "min_font_size": 16,
+            "font_size": typography["benefits_size"], "min_font_size": 16,
             "font_weight": 600, "line_height": 1.1, "max_lines": 2,
             "visible": visible,
         }, binding=("text", f"content.bullet_{index + 1}", False)))
@@ -1015,7 +1049,7 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
         _node("cta", "button", {
             "position": "absolute", "x": cta_x, "y": cta_y, "width": cta_width, "height": 82,
             "z_index": 6, **cta_surface,
-            "font_family": typography["font_family"], "font_size": cta["font_size"],
+            "font_family": cta["font_family"], "font_size": cta["font_size"],
             "min_font_size": 18,
             "font_weight": 800, "text_align": "center", "vertical_align": "center",
             "text_fit": "shrink", "max_lines": 2,

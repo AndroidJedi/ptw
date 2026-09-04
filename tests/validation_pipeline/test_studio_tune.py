@@ -115,7 +115,7 @@ class StudioTuneServiceTests(unittest.TestCase):
             "template_id": "universal_ad",
             "state_sha256": "a" * 64,
             "component_settings": {
-                "schema": "ptw.studio.universal-ad-component-settings.v2",
+                "schema": "ptw.studio.universal-ad-component-settings.v3",
                 "components": [{
                     "component_id": "universal_ad.cta",
                     "node_ids": ["cta"],

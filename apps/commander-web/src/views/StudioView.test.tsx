@@ -44,8 +44,8 @@ const detail: StudioUniversalDetail = {
   ],
   schema: 'ptw.studio.workspace.v8',
   catalog: {
-    schema: 'ptw.studio.universal-ad-catalog.v6',
-    template_id: 'universal_ad', template_version: 11,
+    schema: 'ptw.studio.universal-ad-catalog.v7',
+    template_id: 'universal_ad', template_version: 12,
     semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'offer', 'bullet_list', 'cta', 'logo'],
     components: componentDefinitions,
     asset_slots: {},
@@ -58,29 +58,31 @@ const detail: StudioUniversalDetail = {
       cta_positions: ['below_text', 'bottom_left', 'bottom_right'],
       cta_font_size: { minimum: 18, maximum: 42, default: 27 },
       sticker_positions: ['top_left', 'top_right', 'bottom_left', 'bottom_right', 'right_edge', 'bottom_edge', 'bullet_list', 'hero_title', 'cta'],
-      font_families: ['Inter', 'Manrope', 'Oswald', 'Cormorant Garamond'],
+      font_families: ['Inter', 'Roboto Condensed', 'Manrope', 'Montserrat', 'Source Sans 3', 'Oswald', 'Cormorant Garamond', 'Cormorant Garamond Italic', 'Lora', 'Lora Italic'],
       optional_elements: ['sticker', 'bullet_list', 'logo'],
     },
     sha256: 'b'.repeat(64),
   },
   state_sha256: 'a'.repeat(64), template_sha256: 'c'.repeat(64),
   configuration: {
-    schema: 'ptw.studio.universal-ad-config.v5',
+    schema: 'ptw.studio.universal-ad-config.v6',
     background: {
       mode: 'image', color: '#10233F', texture: 'stone', texture_intensity: 0.7,
       image_layout: 'full', image_percent: 75, image_fit: 'cover',
       focal_x: 0.5, focal_y: 0.5, overlay_color: '#07182E', overlay_opacity: 0.56,
     },
     typography: {
-      font_family: 'Inter', benefits_font_family: 'Manrope',
+      font_family: 'Inter', supporting_font_family: 'Inter', offer_font_family: 'Inter',
+      benefits_font_family: 'Manrope',
       hero_size: 94, hero_weight: 800, supporting_size: 30,
+      offer_size: 28, benefits_size: 26,
       text_color: '#FFFFFF', alignment: 'left',
     },
     layout: { content_x: 76, content_y: 128, content_width: 650, gap: 20 },
     bullets: { enabled: true, style: 'check' },
     cta: {
       style: 'filled', position: 'below_text', background_color: '#FFD84D',
-      text_color: '#10233F', radius: 24, font_size: 27,
+      text_color: '#10233F', radius: 24, font_family: 'Inter', font_size: 27,
     },
     sticker: {
       enabled: true, position: 'bottom_right', rotation: 5, width: 300,
@@ -100,9 +102,9 @@ const detail: StudioUniversalDetail = {
     cta: 'ЗНАЙТИ СВОЄ',
   },
   component_settings: {
-    schema: 'ptw.studio.universal-ad-component-settings.v2',
-    template_id: 'universal_ad', template_version: 11,
-    configuration_schema: 'ptw.studio.universal-ad-config.v5',
+    schema: 'ptw.studio.universal-ad-component-settings.v3',
+    template_id: 'universal_ad', template_version: 12,
+    configuration_schema: 'ptw.studio.universal-ad-config.v6',
     components: componentDefinitions.map(({ setting_ids, ...component }) => ({
       ...component,
       settings: setting_ids.map((setting_id) => ({ setting_id, value: true })),
@@ -320,7 +322,7 @@ describe('Universal Ad Studio', () => {
     const { api, post } = studioApi()
     render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
-    expect(await screen.findByText('universal_ad · v11')).toBeInTheDocument()
+    expect(await screen.findByText('universal_ad · v12')).toBeInTheDocument()
     expect(screen.getByLabelText('CTA font size')).toHaveValue(27)
     expect(screen.queryByText('ONE TEMPLATE · CONFIGURATION-FIRST')).not.toBeInTheDocument()
     expect(screen.queryByText('Universal Ad Studio')).not.toBeInTheDocument()
@@ -475,7 +477,9 @@ describe('Universal Ad Studio', () => {
     expect(screen.getByLabelText('Overlay color')).toHaveValue('#07182e')
     expect(screen.getByLabelText('CTA background color')).toHaveValue('#ffd84d')
     expect(screen.getByLabelText('CTA text color')).toHaveValue('#10233f')
-    expect(screen.getByLabelText('Font family')).toHaveValue('Inter')
+    expect(screen.getByLabelText('Headline font family')).toHaveValue('Inter')
+    expect(screen.getByLabelText('Supporting font family')).toHaveValue('Inter')
+    expect(screen.getByLabelText('Offer font family')).toHaveValue('Inter')
     expect(screen.getByLabelText('Benefits font family')).toHaveValue('Manrope')
     expect(screen.getByLabelText('CTA placement')).toHaveValue('below_text')
 
@@ -486,8 +490,13 @@ describe('Universal Ad Studio', () => {
     fireEvent.change(screen.getByLabelText('Texture intensity'), { target: { value: '0.9' } })
     fireEvent.change(screen.getByLabelText('Overlay opacity'), { target: { value: '0.2' } })
     fireEvent.change(screen.getByLabelText('Bullet style'), { target: { value: 'circle_outline' } })
-    fireEvent.change(screen.getByLabelText('Font family'), { target: { value: 'Oswald' } })
+    fireEvent.change(screen.getByLabelText('Headline font family'), { target: { value: 'Oswald' } })
+    fireEvent.change(screen.getByLabelText('Supporting font family'), { target: { value: 'Source Sans 3' } })
+    fireEvent.change(screen.getByLabelText('Offer font family'), { target: { value: 'Lora Italic' } })
     fireEvent.change(screen.getByLabelText('Benefits font family'), { target: { value: 'Cormorant Garamond' } })
+    fireEvent.change(screen.getByLabelText('Offer size'), { target: { value: '34' } })
+    fireEvent.change(screen.getByLabelText('Benefits size'), { target: { value: '31' } })
+    fireEvent.change(screen.getByLabelText('CTA font family'), { target: { value: 'Roboto Condensed' } })
     fireEvent.change(screen.getByLabelText('CTA style'), { target: { value: 'gradient' } })
     fireEvent.change(screen.getByLabelText('CTA placement'), { target: { value: 'bottom_right' } })
     fireEvent.change(screen.getByLabelText('Sticker position'), { target: { value: 'cta' } })
@@ -504,9 +513,13 @@ describe('Universal Ad Studio', () => {
           }),
           bullets: expect.objectContaining({ style: 'circle_outline' }),
           typography: expect.objectContaining({
-            font_family: 'Oswald', benefits_font_family: 'Cormorant Garamond',
+            font_family: 'Oswald', supporting_font_family: 'Source Sans 3',
+            offer_font_family: 'Lora Italic', offer_size: 34,
+            benefits_font_family: 'Cormorant Garamond', benefits_size: 31,
           }),
-          cta: expect.objectContaining({ style: 'gradient', position: 'bottom_right' }),
+          cta: expect.objectContaining({
+            style: 'gradient', position: 'bottom_right', font_family: 'Roboto Condensed',
+          }),
           sticker: expect.objectContaining({
             position: 'cta', width: 650, offset_right: 35, offset_bottom: 20,
           }),
@@ -532,9 +545,13 @@ describe('Universal Ad Studio', () => {
         configuration: expect.objectContaining({
           background: expect.objectContaining({ mode: 'image', texture: 'stone' }),
           typography: expect.objectContaining({
-            font_family: 'Oswald', benefits_font_family: 'Cormorant Garamond',
+            font_family: 'Oswald', supporting_font_family: 'Source Sans 3',
+            offer_font_family: 'Lora Italic', offer_size: 34,
+            benefits_font_family: 'Cormorant Garamond', benefits_size: 31,
           }),
-          cta: expect.objectContaining({ style: 'gradient', position: 'bottom_right' }),
+          cta: expect.objectContaining({
+            style: 'gradient', position: 'bottom_right', font_family: 'Roboto Condensed',
+          }),
           sticker: expect.objectContaining({ position: 'cta', width: 650 }),
         }),
       }),
@@ -576,7 +593,7 @@ describe('Universal Ad Studio', () => {
       schema: 'ptw.studio.universal-ad-export.v4',
       template_id: 'universal_ad',
       component_settings: {
-        schema: 'ptw.studio.universal-ad-component-settings.v2',
+        schema: 'ptw.studio.universal-ad-component-settings.v3',
         sha256: '9'.repeat(64),
       },
       configuration: { cta: { style: 'outlined' } },

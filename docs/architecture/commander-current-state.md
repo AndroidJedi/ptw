@@ -29,6 +29,12 @@ The common versioned template catalog contains:
 - `universal_ad` at 1080×1080;
 - `phone_metrics` at 1080×1350.
 
+Both templates expose an independent bounded font-family and font-size control
+for every editable semantic text role. The catalog provides Inter, Roboto
+Condensed, Manrope, Montserrat, Source Sans 3, Oswald, Cormorant Garamond,
+Cormorant Garamond Italic, Lora, and Lora Italic. Renderer-owned phone chrome,
+the Natal identity, and system UI text remain fixed.
+
 Each creative stores Project and approved-Brief lineage, ordinal, selected
 template version/digest, current bounded state, generation provenance, assets,
 checkpoints, and immutable versions. Templates remain common code; creatives do
@@ -81,8 +87,8 @@ are absent.
 ## Verification status
 
 The clean baseline schema and idempotent application passed against disposable
-PostgreSQL. The final local matrix passes 102 validation tests, four Owner
-Gateway tests, 41 web unit tests, the production web build, 18 browser tests,
+PostgreSQL. The final local matrix passes 108 validation tests, four Owner
+Gateway tests, 44 web unit tests, the production web build, 18 browser tests,
 the complete Studio visual audit, canonical skill verification, Commander host
 tests/demo, whitespace checks, and 28 independent platform-bridge tests. The
 Commander host run skips its two FastAPI-only Telegram checks; both passed in

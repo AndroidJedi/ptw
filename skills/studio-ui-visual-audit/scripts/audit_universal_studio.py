@@ -247,8 +247,10 @@ def audit_phone_metrics(
     require(support["text_layout"]["bold_character_count"] > 0, "phone: supporting text has no bold words")
     require(support["text_layout"]["highlight_character_count"] > 0, "phone: supporting text has no highlighted words")
     supporting_config = detail["configuration"]["supporting_text"]
+    typography_config = detail["configuration"]["typography"]
     require(
-        support["props"]["font_size"] == supporting_config["font_size"],
+        support["props"]["font_size"] == typography_config["supporting_text"]["font_size"]
+        and support["props"]["font_family"] == typography_config["supporting_text"]["font_family"],
         "phone: supporting text font-size control did not reach the renderer",
     )
     require(
@@ -300,6 +302,11 @@ def audit_phone_metrics(
                 text_props["color"] == card_config["text_color"],
                 f"phone: {kind}_{index} text colour did not reach the renderer",
             )
+            require(
+                text_props["font_family"] == typography_config[kind]["font_family"]
+                and text_props["font_size"] == typography_config[kind]["font_size"],
+                f"phone: {kind} typography did not reach the renderer",
+            )
     phone_button_config = detail["configuration"]["phone_buttons"]
     phone_button_text = detail["content"]["phone_buttons"]
     require(len(phone_button_config) == 3, "phone: in-phone button configuration is incomplete")
@@ -315,6 +322,18 @@ def audit_phone_metrics(
     cta = nodes["cta"]["box"]
     require(cta["x"] == 0 and cta["width"] == 1 and cta["y"] >= .89 and cta["y"] + cta["height"] == 1, "phone: CTA is not a bottom band")
     require(not nodes["cta"]["text_layout"]["overflow"], "phone: CTA clips")
+    for node_id, role in (
+        ("offer", "offer"), ("hero_title", "hero_title"),
+        ("supporting_text", "supporting_text"), ("cta", "cta"),
+    ):
+        if node_id not in template_nodes:
+            continue
+        props = template_nodes[node_id]["props"]
+        require(
+            props["font_family"] == typography_config[role]["font_family"]
+            and props["font_size"] == typography_config[role]["font_size"],
+            f"phone: {role} typography did not reach the renderer",
+        )
 
     # Full-resolution colour checks intentionally read the render rather than
     # trusting template declarations.
@@ -441,11 +460,13 @@ def audit_phone_metrics(
         Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#F9FAFA"),
         detail["content"]["phone_hero_title"], detail["content"]["cta"], "none",
         list(phone_button_text), copy.deepcopy(phone_button_config),
+        typography_config,
     ).convert("RGB")
     fade_shell = _fixed_screen_shell(
         Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#6AAFC8"),
         detail["content"]["phone_hero_title"], detail["content"]["cta"], "grain",
         list(phone_button_text), copy.deepcopy(phone_button_config),
+        typography_config,
     ).convert("RGB")
     fade_pixels = [fade_shell.getpixel((20, y)) for y in range(720, 1080)]
     fade_luminance = [sum(pixel) / 3 for pixel in fade_pixels]
@@ -507,6 +528,7 @@ def audit_phone_metrics(
         None, detail["content"]["phone_hero_title"], detail["content"]["cta"],
         detail["configuration"]["phone_screen"]["texture"],
         list(phone_button_text), copy.deepcopy(phone_button_config),
+        typography_config,
     )
     with Image.open(BytesIO(composed_device["bytes"])) as image:
         device_pixels = image.convert("RGBA")
@@ -534,6 +556,7 @@ def audit_phone_metrics(
         detail["content"]["cta"],
         detail["configuration"]["phone_screen"]["texture"],
         list(phone_button_text), copy.deepcopy(phone_button_config),
+        typography_config,
     )
     with Image.open(BytesIO(full_bleed_device["bytes"])) as image:
         device_pixels = image.convert("RGB")
@@ -697,10 +720,8 @@ def main() -> None:
         hidden_phone_config["background"]["texture"] = "grain"
         hidden_phone_config["copy_background"]["texture"] = "concrete"
         hidden_phone_config["phone_screen"]["texture"] = "paper"
-        hidden_phone_config["supporting_text"] = {
-            "font_size": 38,
-            "highlight_color": "#C43A7A",
-        }
+        hidden_phone_config["supporting_text"] = {"highlight_color": "#C43A7A"}
+        hidden_phone_config["typography"]["supporting_text"]["font_size"] = 38
         hidden_phone_preview = phone_workspace.render_preview(
             state_sha256=phone["state_sha256"], configuration=hidden_phone_config,
             content=phone_content,
@@ -724,6 +745,16 @@ def main() -> None:
         reports.append(hidden_phone_report)
         tuned_metric_config = copy.deepcopy(DEFAULT_PHONE_CONFIG)
         tuned_metric_config["background"]["texture"] = "none"
+        tuned_metric_config["typography"] = {
+            "offer": {"font_family": "Lora Italic", "font_size": 25},
+            "hero_title": {"font_family": "Montserrat", "font_size": 72},
+            "supporting_text": {"font_family": "Source Sans 3", "font_size": 30},
+            "cta": {"font_family": "Roboto Condensed", "font_size": 32},
+            "metric_value": {"font_family": "Oswald", "font_size": 40},
+            "metric_label": {"font_family": "Lora", "font_size": 20},
+            "phone_title": {"font_family": "Cormorant Garamond Italic", "font_size": 48},
+            "phone_buttons": {"font_family": "Source Sans 3", "font_size": 26},
+        }
         tuned_metric_config["metric_cards"] = [
             {
                 "style": "outlined", "text_color": "#101B31",
@@ -777,6 +808,9 @@ def main() -> None:
         )
         tuned_metric_report["checks"].append(
             "independent_in_phone_action_text_style_background_and_shape",
+        )
+        tuned_metric_report["checks"].append(
+            "independent_typography_for_every_editable_text_role",
         )
         if output_dir is not None:
             tuned_metric_path = output_dir / "phone_metrics_tunable_buttons.png"

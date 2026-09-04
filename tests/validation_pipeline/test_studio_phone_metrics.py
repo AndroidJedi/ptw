@@ -18,7 +18,9 @@ from validation_pipeline.studio_phone_metrics import (
     PHONE_METRIC_CARD_RADII,
     PHONE_METRIC_CARD_SHAPES, PHONE_METRIC_CARD_STYLES,
     PHONE_HERO_ART_OFFSET_Y, PHONE_METRICS_TEMPLATE_ID,
-    PHONE_SCREEN_ART_SIZE, PHONE_SCREEN_TEXTURES, _draw_status_network_icons,
+    PHONE_SCREEN_ART_SIZE, PHONE_SCREEN_TEXTURES, PHONE_TYPOGRAPHY_BOUNDS,
+    _clear_phone_hero_edge_matte,
+    _draw_status_network_icons,
     _fixed_screen_shell, _position_phone_hero_art,
     build_phone_metrics_template, compose_phone_device_asset,
     normalize_phone_metrics_config, normalize_phone_metrics_content,
@@ -106,7 +108,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         )
         self.assertEqual(IPHONE_FRAME_SHA256, composite["source"]["frame_sha256"])
         self.assertEqual(
-            "front_natal_app_shell_v13", composite["source"]["screen_composition"],
+            "front_natal_app_shell_v18", composite["source"]["screen_composition"],
         )
         self.assertEqual(
             "deterministic_material_grain_v1", composite["source"]["hero_texture"],
@@ -229,6 +231,74 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         self.assertGreaterEqual(
             min(y for _x, y in marker),
             PHONE_HERO_ART_OFFSET_Y + 200,
+        )
+
+    def test_phone_screen_texture_shows_through_transparent_hero_background(self) -> None:
+        from PIL import Image
+
+        transparent_hero = Image.new("RGBA", PHONE_SCREEN_ART_SIZE, (0, 0, 0, 0))
+        without_texture = _fixed_screen_shell(
+            transparent_hero, "", "ДІЗНАТИСЯ БІЛЬШЕ", "none",
+        ).convert("RGB")
+        with_texture = _fixed_screen_shell(
+            transparent_hero, "", "ДІЗНАТИСЯ БІЛЬШЕ", "grain",
+        ).convert("RGB")
+
+        # This crop is inside the hero and below all renderer-owned chrome.
+        # Every source pixel is transparent, so its visible material must be
+        # the selected screen texture, not the flat off-white shell base.
+        transparent_region = (30, 360, 802, 700)
+        self.assertEqual(
+            1,
+            len(set(without_texture.crop(transparent_region).getdata())),
+        )
+        self.assertGreater(
+            len(set(with_texture.crop(transparent_region).getdata())),
+            5,
+        )
+
+    def test_pale_generated_hero_matte_becomes_texture_revealing_alpha(self) -> None:
+        from PIL import Image, ImageDraw
+
+        generated = Image.new("RGB", (500, 500), "#FBF4F1")
+        draw = ImageDraw.Draw(generated)
+        draw.ellipse((115, 80, 385, 360), fill="#C92124")
+        draw.ellipse((170, 135, 330, 295), fill="#FFFFFF")
+        draw.ellipse((205, 170, 295, 260), fill="#B5141B")
+
+        cleared = _clear_phone_hero_edge_matte(generated)
+        alpha = cleared.getchannel("A")
+        self.assertEqual(0, alpha.getpixel((0, 0)))
+        self.assertEqual(255, alpha.getpixel((250, 220)))
+        # The enclosed white target ring is subject detail, not edge matte.
+        self.assertEqual(255, alpha.getpixel((250, 145)))
+
+        positioned = _position_phone_hero_art(generated, (500, 500))
+        # The isolated subject starts at its lowered position. Its top pixels
+        # must never be stretched upward into a triangular background plume.
+        self.assertIsNone(
+            positioned.getchannel("A").crop(
+                (0, 0, positioned.width, PHONE_HERO_ART_OFFSET_Y),
+            ).getbbox(),
+        )
+        self.assertIsNotNone(positioned.getchannel("A").getbbox())
+
+        without_texture = _fixed_screen_shell(
+            generated, "", "ДІЗНАТИСЯ БІЛЬШЕ", "none",
+        ).convert("RGB")
+        with_texture = _fixed_screen_shell(
+            generated, "", "ДІЗНАТИСЯ БІЛЬШЕ", "grain",
+        ).convert("RGB")
+        background_region = (30, 360, 150, 700)
+        self.assertGreater(
+            sum(
+                first != second
+                for first, second in zip(
+                    without_texture.crop(background_region).getdata(),
+                    with_texture.crop(background_region).getdata(),
+                )
+            ),
+            5,
         )
 
     def test_status_bar_network_signal_has_four_bars_and_complete_wifi(self) -> None:
@@ -442,6 +512,38 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exactly three phone buttons"):
             normalize_phone_metrics_content(invalid_content)
 
+    def test_optional_in_phone_title_reserves_a_hero_stack_slot(self) -> None:
+        from PIL import Image, ImageDraw
+
+        # A vertically distinct fixture makes any title-driven hero rescale or
+        # vertical movement observable in the image-derived portion of the app
+        # screen, rather than merely comparing whole-image hashes.
+        source = Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#6AAFC8")
+        source_draw = ImageDraw.Draw(source)
+        for y in range(0, source.height, 64):
+            source_draw.rectangle(
+                (0, y, source.width, min(source.height, y + 63)),
+                fill=(y // 7 % 256, 80, 220, 255),
+            )
+        without_title = _fixed_screen_shell(
+            source, "", "ДІЗНАТИСЯ БІЛЬШЕ", "none",
+        ).convert("RGB")
+        with_title = _fixed_screen_shell(
+            source, "D", "ДІЗНАТИСЯ БІЛЬШЕ", "none",
+        ).convert("RGB")
+
+        # The optional title starts below this crop. Its presence must not
+        # alter the owner artwork's fitted size, position, or fade.
+        self.assertEqual(
+            without_title.crop((0, 310, PHONE_SCREEN_ART_SIZE[0], 1050)).tobytes(),
+            with_title.crop((0, 310, PHONE_SCREEN_ART_SIZE[0], 1050)).tobytes(),
+        )
+        title_ink = sum(
+            with_title.getpixel((x, y)) == (16, 27, 49)
+            for y in range(1055, 1255) for x in range(78, 754)
+        )
+        self.assertGreater(title_ink, 20)
+
     def test_eyebrow_toggle_removes_node_and_reflows_headline(self) -> None:
         visible = build_phone_metrics_template(DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT)
         visible_nodes = {
@@ -563,10 +665,10 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         self.assertEqual(4, len(screen_digests))
 
     def test_supporting_copy_markup_size_and_colour_reach_the_saved_renderer(self) -> None:
-        for invalid_size in (19, 39):
+        for invalid_size in (19, 47):
             invalid = deepcopy(DEFAULT_PHONE_CONFIG)
-            invalid["supporting_text"]["font_size"] = invalid_size
-            with self.assertRaisesRegex(ValueError, "must be between 20 and 38"):
+            invalid["typography"]["supporting_text"]["font_size"] = invalid_size
+            with self.assertRaisesRegex(ValueError, "must be between 20 and 46"):
                 normalize_phone_metrics_config(invalid)
         invalid = deepcopy(DEFAULT_PHONE_CONFIG)
         invalid["supporting_text"]["highlight_color"] = "blue"
@@ -574,9 +676,9 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             normalize_phone_metrics_config(invalid)
 
         config = deepcopy(DEFAULT_PHONE_CONFIG)
-        config["supporting_text"] = {
-            "font_size": 36,
-            "highlight_color": "#D12F7A",
+        config["supporting_text"] = {"highlight_color": "#D12F7A"}
+        config["typography"]["supporting_text"] = {
+            "font_family": "Source Sans 3", "font_size": 36,
         }
         content = deepcopy(DEFAULT_PHONE_CONTENT)
         content["supporting_text"] = (
@@ -589,6 +691,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         )
         self.assertEqual("rich_text", node["type"])
         self.assertEqual(36.0, node["props"]["font_size"])
+        self.assertEqual("Source Sans 3", node["props"]["font_family"])
         self.assertEqual("#D12F7A", node["props"]["highlight_color"])
 
         component_settings = phone_metrics_component_settings(config, content)
@@ -597,7 +700,10 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             for component in component_settings["components"]
             for setting in component["settings"]
         }
-        self.assertEqual(36.0, settings["configuration.supporting_text.font_size"])
+        self.assertEqual(
+            {"font_family": "Source Sans 3", "font_size": 36.0},
+            settings["configuration.typography.supporting_text"],
+        )
         self.assertEqual(
             "#D12F7A", settings["configuration.supporting_text.highlight_color"],
         )
@@ -624,6 +730,76 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
                 if red > 150 and green < 100 and blue > 80
             )
         self.assertGreater(accent_pixels, 100)
+
+    def test_every_editable_text_role_has_independent_font_and_size(self) -> None:
+        choices = {
+            "offer": ("Cormorant Garamond Italic", 31),
+            "hero_title": ("Montserrat", 88),
+            "supporting_text": ("Source Sans 3", 35),
+            "cta": ("Oswald", 41),
+            "metric_value": ("Roboto Condensed", 52),
+            "metric_label": ("Lora", 30),
+            "phone_title": ("Lora Italic", 61),
+            "phone_buttons": ("Cormorant Garamond", 32),
+        }
+        config = deepcopy(DEFAULT_PHONE_CONFIG)
+        for role, (family, size) in choices.items():
+            config["typography"][role] = {
+                "font_family": family, "font_size": size,
+            }
+        normalized = normalize_phone_metrics_config(config)
+        template = build_phone_metrics_template(normalized, DEFAULT_PHONE_CONTENT)
+        nodes = {
+            item["id"]: item for item in template.document["root"]["children"]
+        }
+        role_nodes = {
+            "offer": "offer", "hero_title": "hero_title",
+            "supporting_text": "supporting_text", "cta": "cta",
+            "metric_value": "metric_value_1", "metric_label": "metric_label_1",
+        }
+        for role, node_id in role_nodes.items():
+            family, size = choices[role]
+            self.assertEqual(family, nodes[node_id]["props"]["font_family"])
+            self.assertEqual(float(size), nodes[node_id]["props"]["font_size"])
+
+        settings = {
+            setting["setting_id"]: setting["value"]
+            for component in phone_metrics_component_settings(
+                normalized, DEFAULT_PHONE_CONTENT,
+            )["components"]
+            for setting in component["settings"]
+        }
+        for role, (family, size) in choices.items():
+            self.assertEqual(
+                {"font_family": family, "font_size": float(size)},
+                settings[f"configuration.typography.{role}"],
+            )
+
+        baseline = compose_phone_device_asset(
+            _screen_bytes(), "Редакційний заголовок", phone_button_texts=[
+                "Створити", "Увійти", "Пізніше",
+            ], typography=DEFAULT_PHONE_CONFIG["typography"],
+        )
+        restyled = compose_phone_device_asset(
+            _screen_bytes(), "Редакційний заголовок", phone_button_texts=[
+                "Створити", "Увійти", "Пізніше",
+            ], typography=normalized["typography"],
+        )
+        self.assertNotEqual(
+            sha256(baseline["bytes"]).hexdigest(),
+            sha256(restyled["bytes"]).hexdigest(),
+        )
+
+        for role, bounds in PHONE_TYPOGRAPHY_BOUNDS.items():
+            for invalid_size in (bounds[0] - 1, bounds[1] + 1):
+                invalid = deepcopy(DEFAULT_PHONE_CONFIG)
+                invalid["typography"][role]["font_size"] = invalid_size
+                with self.assertRaisesRegex(ValueError, f"typography.{role}.font_size"):
+                    normalize_phone_metrics_config(invalid)
+        invalid = deepcopy(DEFAULT_PHONE_CONFIG)
+        invalid["typography"]["hero_title"]["font_family"] = "Comic Sans"
+        with self.assertRaisesRegex(ValueError, "font_family"):
+            normalize_phone_metrics_config(invalid)
 
     def test_phone_content_requires_exactly_three_owner_statistics(self) -> None:
         invalid = deepcopy(DEFAULT_PHONE_CONTENT)

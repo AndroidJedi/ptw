@@ -328,6 +328,7 @@ class UniversalStudioWorkspace:
                 str(config["phone_screen"]["texture"]),
                 list(normalized_content["phone_buttons"]),
                 list(config["phone_buttons"]),
+                config["typography"],
             )
             logo = self._asset_record("logo")
             if logo is None:

@@ -7,6 +7,7 @@ import type {
   StudioPhoneActionButtonConfiguration, StudioPhoneMetricCardConfiguration,
   StudioPhoneMetricsConfiguration, StudioPhoneMetricsContent,
   StudioCheckpointResponse, StudioPhoneMetricsDetail, StudioPhoneScreenHistoryItem,
+  StudioFontFamily, StudioPhoneTypographyRole,
 } from '../../types'
 
 function PhoneScreenHistoryOption({
@@ -89,6 +90,30 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     paper: tr('Soft paper', 'М’який папір'),
     frosted: tr('Frosted glass', 'Матове скло'),
   }[texture] || texture)
+  const fontLabels: Record<StudioFontFamily, string> = {
+    Inter: tr('Inter — neutral & clear', 'Inter — нейтральний і чіткий'),
+    'Roboto Condensed': tr('Roboto Condensed — compact & direct', 'Roboto Condensed — компактний і прямий'),
+    Manrope: tr('Manrope — friendly & modern', 'Manrope — дружній і сучасний'),
+    Montserrat: tr('Montserrat — geometric & bold', 'Montserrat — геометричний і сміливий'),
+    'Source Sans 3': tr('Source Sans 3 — clean & readable', 'Source Sans 3 — чистий і читабельний'),
+    Oswald: tr('Oswald — bold & urgent', 'Oswald — сміливий і динамічний'),
+    'Cormorant Garamond': tr('Cormorant Garamond — editorial & premium', 'Cormorant Garamond — редакційний і преміальний'),
+    'Cormorant Garamond Italic': tr('Cormorant Garamond Italic — expressive editorial', 'Cormorant Garamond Italic — виразний редакційний'),
+    Lora: tr('Lora — warm editorial', 'Lora — теплий редакційний'),
+    'Lora Italic': tr('Lora Italic — elegant & human', 'Lora Italic — елегантний і людяний'),
+  }
+  const typographyRoles: Array<{
+    role: StudioPhoneTypographyRole; en: string; uk: string
+  }> = [
+    { role: 'offer', en: 'Eyebrow', uk: 'Надзаголовок' },
+    { role: 'hero_title', en: 'Headline', uk: 'Заголовок' },
+    { role: 'supporting_text', en: 'Supporting text', uk: 'Пояснювальний текст' },
+    { role: 'cta', en: 'CTA', uk: 'CTA' },
+    { role: 'metric_value', en: 'Metric values', uk: 'Значення метрик' },
+    { role: 'metric_label', en: 'Metric labels', uk: 'Підписи метрик' },
+    { role: 'phone_title', en: 'In-phone title', uk: 'Заголовок у телефоні' },
+    { role: 'phone_buttons', en: 'In-phone buttons', uk: 'Кнопки у телефоні' },
+  ]
 
   useEffect(() => {
     setDetail(initialDetail)
@@ -252,6 +277,16 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       buttonIndex === index ? { ...button, [key]: value } : button
     )),
   }))
+  const setTypography = <Key extends 'font_family' | 'font_size'>(
+    role: StudioPhoneTypographyRole, key: Key,
+    value: StudioPhoneMetricsConfiguration['typography'][StudioPhoneTypographyRole][Key],
+  ) => setConfiguration((current) => ({
+    ...current,
+    typography: {
+      ...current.typography,
+      [role]: { ...current.typography[role], [key]: value },
+    },
+  }))
   const markSupportingSelection = (marker: '**' | '==') => {
     const field = supportingTextRef.current
     if (!field) return
@@ -310,12 +345,37 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               <small>{tr('Select words, then use bold or colour.', 'Виберіть слова, потім застосуйте жирний шрифт або колір.')}</small>
             </div>
             <div className="phone-rich-settings">
-              <label className="universal-range-field"><span>{tr('Font size', 'Розмір шрифту')}<code>{configuration.supporting_text.font_size}px</code></span><input aria-label={tr('Supporting text font size', 'Розмір пояснювального тексту')} type="range" min="20" max="38" step="1" value={configuration.supporting_text.font_size} onChange={(event) => setConfiguration({ ...configuration, supporting_text: { ...configuration.supporting_text, font_size: Number(event.target.value) } })} /></label>
               <label className="universal-color-field"><span>{tr('Word colour', 'Колір слів')}<code>{configuration.supporting_text.highlight_color}</code></span><input aria-label={tr('Highlight color', 'Колір підсвічування')} type="color" value={configuration.supporting_text.highlight_color} onChange={(event) => setConfiguration({ ...configuration, supporting_text: { ...configuration.supporting_text, highlight_color: event.target.value.toUpperCase() } })} /></label>
             </div>
           </div>
           <label><span>CTA</span><input value={content.cta} maxLength={60} onChange={(event) => setContent({ ...content, cta: event.target.value })} /></label>
           <label><span>{tr('Optional in-phone title', 'Необов’язковий заголовок у телефоні')}</span><input value={content.phone_hero_title} maxLength={72} onChange={(event) => setContent({ ...content, phone_hero_title: event.target.value })} /></label>
+        </section>
+        <section className="panel universal-section"><small>{tr('TYPOGRAPHY', 'ТИПОГРАФІКА')}</small><h2>{tr('Font and size for every text role', 'Шрифт і розмір для кожної ролі')}</h2>
+          <div className="phone-typography-list">
+            {typographyRoles.map(({ role, en, uk }) => {
+              const appearance = configuration.typography[role]
+              const bounds = detail.catalog.variation.typography[role]
+              const label = tr(en, uk)
+              return <div className="phone-metrics-stat-input phone-typography-role" key={role}>
+                <strong>{label}</strong>
+                <div className="phone-metric-fields"><div className="universal-field-grid">
+                  <label><span>{tr('Font family', 'Сімейство шрифту')}</span><select
+                    aria-label={`${label} ${tr('font family', 'сімейство шрифту')}`}
+                    value={appearance.font_family}
+                    onChange={(event) => setTypography(role, 'font_family', event.target.value as StudioFontFamily)}
+                  >{detail.catalog.variation.font_families.map((font) => <option key={font} value={font}>{fontLabels[font]}</option>)}</select></label>
+                  <label className="universal-range-field"><span>{tr('Font size', 'Розмір шрифту')}<code>{appearance.font_size}px</code></span><input
+                    aria-label={`${label} ${tr('font size', 'розмір шрифту')}`}
+                    type="range" min={bounds.minimum} max={bounds.maximum} step="1"
+                    value={appearance.font_size}
+                    onChange={(event) => setTypography(role, 'font_size', Number(event.target.value))}
+                  /></label>
+                </div></div>
+              </div>
+            })}
+          </div>
+          <p className="universal-section-note">{tr('Typography changes only editable creative copy. Natal identity and iPhone system chrome remain fixed.', 'Типографіка змінює лише редагований текст креативу. Айдентика Natal і системні елементи iPhone залишаються фіксованими.')}</p>
         </section>
         <section className="panel universal-section"><small>{tr('OPTIONAL TEXTURES', 'НЕОБОВ’ЯЗКОВІ ТЕКСТУРИ')}</small><h2>{tr('Material finish', 'Фактура поверхні')}</h2>
           <label><span>{tr('Full post background', 'Повний фон допису')}</span><select aria-label={tr('Full post background texture', 'Текстура повного фону допису')} value={configuration.background.texture} onChange={(event) => setConfiguration({ ...configuration, background: { ...configuration.background, texture: event.target.value as StudioPhoneMetricsConfiguration['background']['texture'] } })}>

@@ -34,6 +34,14 @@ least one immutable approved version.
 photographic sticker, hero title, supporting text, benefits, CTA, and fixed
 Natal identity.
 
+Both templates expose a separate bounded font family and size for every
+editable text role. The common ten-family catalog includes neutral, condensed,
+geometric, display, serif, and true editorial-italic choices; all font files
+and their OFL licenses are checked in so host and container renders use the
+same pixels. Repeated phone metrics and app actions share role-level typography,
+while their copy and visual surfaces remain independently editable. Natal
+identity and iPhone system chrome keep their fixed renderer-owned typography.
+
 `phone_metrics` is a 1080×1350 composition with an off-white material
 background, fixed Natal lock-up, left-safe copy, a front-facing black iPhone,
 three equal metric controls, and a full-width CTA band. Every metric exposes
@@ -50,9 +58,11 @@ text-only tertiary.
 
 The phone frame is a checked-in, SHA-256-verified WithFrame asset and is never
 fetched at runtime. The screen, UI, and frame are composited as one deterministic
-layer. Hero art reaches the top underneath renderer-owned chrome, keeps its
-subject lower, spans the full screen width, and uses an eased image-derived fade
-into the lower background.
+layer. Full-bleed hero art reaches the top underneath renderer-owned chrome,
+keeps its subject lower, spans the full screen width, and uses an eased
+image-derived fade into the lower background. Alpha cutouts keep their
+transparent screen surface and never stretch subject pixels upward into the
+fixed header.
 
 Template application replaces the current mutable configuration/content/assets
 inside that creative. It never rewrites an immutable approved version. Payloads

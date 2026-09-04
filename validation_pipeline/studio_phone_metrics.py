@@ -19,14 +19,15 @@ import random
 import re
 from typing import Any, Mapping
 
+from .studio import STUDIO_FONT_FAMILIES, STUDIO_PREVIEW_FONTS, SUPPORTED_FONTS
 from .studio_primitives import PrimitiveTemplate
 
 
 PHONE_METRICS_TEMPLATE_ID = "phone_metrics"
-PHONE_METRICS_CONFIG_SCHEMA = "ptw.studio.phone-metrics-config.v7"
+PHONE_METRICS_CONFIG_SCHEMA = "ptw.studio.phone-metrics-config.v8"
 PHONE_METRICS_CONTENT_SCHEMA = "ptw.studio.phone-metrics-content.v2"
-PHONE_METRICS_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.phone-metrics-component-settings.v1"
-PHONE_METRICS_TEMPLATE_VERSION = 17
+PHONE_METRICS_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.phone-metrics-component-settings.v2"
+PHONE_METRICS_TEMPLATE_VERSION = 22
 PHONE_METRICS_CANVAS = (1080, 1350)
 PHONE_BACKGROUND_TEXTURES = ("none", "grain", "concrete", "travertine")
 PHONE_COPY_BACKGROUND_TEXTURES = PHONE_BACKGROUND_TEXTURES
@@ -37,6 +38,16 @@ PHONE_METRIC_CARD_RADII = {"square": 0, "rounded": 28, "pill": 70}
 PHONE_ACTION_BUTTON_STYLES = ("filled", "elevated", "outlined", "text")
 PHONE_ACTION_BUTTON_SHAPES = ("square", "rounded", "pill")
 PHONE_ACTION_BUTTON_RADII = {"square": 0, "rounded": 24, "pill": 52}
+PHONE_TYPOGRAPHY_BOUNDS = {
+    "offer": (16, 42),
+    "hero_title": (42, 110),
+    "supporting_text": (20, 46),
+    "cta": (20, 52),
+    "metric_value": (20, 56),
+    "metric_label": (14, 36),
+    "phone_title": (24, 72),
+    "phone_buttons": (16, 36),
+}
 IPHONE_FRAME_PATH = Path(__file__).with_name("studio_assets") / "iphone-15-pro-black.png"
 IPHONE_FRAME_SHA256 = "04164c10370930494f2688acc6fcf65a222cd7da077c5c65c4d189ab3e083dc0"
 # The earlier WithFrame asset is a true front pose. Its native aspect ratio is
@@ -74,12 +85,12 @@ PHONE_ASSET_SLOTS: dict[str, dict[str, Any]] = {
 PHONE_COMPONENTS: tuple[dict[str, Any], ...] = (
     {"component_id": "phone_metrics.background", "role": "background", "node_ids": ("canvas", "background_texture", "copy_background_texture"), "asset_slot_ids": (), "setting_ids": ("configuration.background.texture", "configuration.copy_background.texture")},
     {"component_id": "phone_metrics.brand", "role": "brand", "node_ids": ("logo",), "asset_slot_ids": (), "setting_ids": ()},
-    {"component_id": "phone_metrics.offer", "role": "offer", "node_ids": ("offer",), "asset_slot_ids": (), "setting_ids": ("configuration.offer.enabled", "content.offer")},
-    {"component_id": "phone_metrics.hero_title", "role": "hero_title", "node_ids": ("hero_title",), "asset_slot_ids": (), "setting_ids": ("content.hero_title",)},
-    {"component_id": "phone_metrics.supporting_text", "role": "supporting_text", "node_ids": ("supporting_text",), "asset_slot_ids": (), "setting_ids": ("configuration.supporting_text.font_size", "configuration.supporting_text.highlight_color", "content.supporting_text")},
-    {"component_id": "phone_metrics.device", "role": "device_mockup", "node_ids": ("phone_device",), "asset_slot_ids": ("phone_screen",), "setting_ids": ("configuration.phone_screen.texture", "configuration.phone_buttons", "content.phone_hero_title", "content.phone_buttons")},
-    {"component_id": "phone_metrics.metrics", "role": "metrics", "node_ids": ("metric_card_1", "metric_card_2", "metric_card_3", "metric_value_1", "metric_value_2", "metric_value_3", "metric_label_1", "metric_label_2", "metric_label_3"), "asset_slot_ids": (), "setting_ids": ("configuration.metric_cards", "content.stats")},
-    {"component_id": "phone_metrics.cta", "role": "cta", "node_ids": ("cta",), "asset_slot_ids": (), "setting_ids": ("content.cta",)},
+    {"component_id": "phone_metrics.offer", "role": "offer", "node_ids": ("offer",), "asset_slot_ids": (), "setting_ids": ("configuration.offer.enabled", "configuration.typography.offer", "content.offer")},
+    {"component_id": "phone_metrics.hero_title", "role": "hero_title", "node_ids": ("hero_title",), "asset_slot_ids": (), "setting_ids": ("configuration.typography.hero_title", "content.hero_title")},
+    {"component_id": "phone_metrics.supporting_text", "role": "supporting_text", "node_ids": ("supporting_text",), "asset_slot_ids": (), "setting_ids": ("configuration.typography.supporting_text", "configuration.supporting_text.highlight_color", "content.supporting_text")},
+    {"component_id": "phone_metrics.device", "role": "device_mockup", "node_ids": ("phone_device",), "asset_slot_ids": ("phone_screen",), "setting_ids": ("configuration.phone_screen.texture", "configuration.typography.phone_title", "configuration.typography.phone_buttons", "configuration.phone_buttons", "content.phone_hero_title", "content.phone_buttons")},
+    {"component_id": "phone_metrics.metrics", "role": "metrics", "node_ids": ("metric_card_1", "metric_card_2", "metric_card_3", "metric_value_1", "metric_value_2", "metric_value_3", "metric_label_1", "metric_label_2", "metric_label_3"), "asset_slot_ids": (), "setting_ids": ("configuration.typography.metric_value", "configuration.typography.metric_label", "configuration.metric_cards", "content.stats")},
+    {"component_id": "phone_metrics.cta", "role": "cta", "node_ids": ("cta",), "asset_slot_ids": (), "setting_ids": ("configuration.typography.cta", "content.cta")},
 )
 
 DEFAULT_PHONE_CONFIG: dict[str, Any] = {
@@ -89,7 +100,17 @@ DEFAULT_PHONE_CONFIG: dict[str, Any] = {
     },
     "copy_background": {"texture": "none"},
     "offer": {"enabled": True},
-    "supporting_text": {"font_size": 29, "highlight_color": "#1675F8"},
+    "supporting_text": {"highlight_color": "#1675F8"},
+    "typography": {
+        "offer": {"font_family": "Manrope", "font_size": 23},
+        "hero_title": {"font_family": "Manrope", "font_size": 76},
+        "supporting_text": {"font_family": "Manrope", "font_size": 29},
+        "cta": {"font_family": "Manrope", "font_size": 34},
+        "metric_value": {"font_family": "Manrope", "font_size": 43},
+        "metric_label": {"font_family": "Manrope", "font_size": 22},
+        "phone_title": {"font_family": "Manrope", "font_size": 55},
+        "phone_buttons": {"font_family": "Manrope", "font_size": 28},
+    },
     "phone_screen": {"texture": "grain"},
     "metric_cards": [
         {
@@ -194,6 +215,26 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
         root["supporting_text"], set(DEFAULT_PHONE_CONFIG["supporting_text"]),
         "phone metrics supporting text",
     )
+    typography = _object(
+        root["typography"], set(DEFAULT_PHONE_CONFIG["typography"]),
+        "phone metrics typography",
+    )
+    normalized_typography = {}
+    for role, bounds in PHONE_TYPOGRAPHY_BOUNDS.items():
+        appearance = _object(
+            typography[role], {"font_family", "font_size"},
+            f"phone metrics typography.{role}",
+        )
+        normalized_typography[role] = {
+            "font_family": _enum(
+                appearance["font_family"], STUDIO_FONT_FAMILIES,
+                f"phone metrics typography.{role}.font_family",
+            ),
+            "font_size": _number(
+                appearance["font_size"],
+                f"phone metrics typography.{role}.font_size", *bounds,
+            ),
+        }
     phone_screen = _object(
         root["phone_screen"], set(DEFAULT_PHONE_CONFIG["phone_screen"]),
         "phone metrics phone screen",
@@ -290,12 +331,9 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
         },
         "offer": {"enabled": offer["enabled"]},
         "supporting_text": {
-            "font_size": _number(
-                supporting_text["font_size"],
-                "phone metrics supporting_text.font_size", 20, 38,
-            ),
             "highlight_color": highlight_color,
         },
+        "typography": normalized_typography,
         "phone_screen": {
             "texture": _enum(
                 phone_screen["texture"], PHONE_SCREEN_TEXTURES,
@@ -379,6 +417,7 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
     content = normalize_phone_metrics_content(content)
     width, height = PHONE_METRICS_CANVAS
     device = config["device"]
+    typography = config["typography"]
     device_height = round(float(device["width"]) * IPHONE_RENDER_ASPECT)
     # The cards deliberately occupy less of the canvas than the prior row and
     # use a larger radius for a softer, smoother silhouette.
@@ -391,12 +430,14 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
         _node("hero_title", "text", {
             "position": "absolute", "x": 68, "y": 274 if config["offer"]["enabled"] else 212,
             "width": 448, "height": 365 if config["offer"]["enabled"] else 427,
-            "font_family": "Manrope", "font_size": 76, "min_font_size": 42, "font_weight": 800,
+            "font_family": typography["hero_title"]["font_family"],
+            "font_size": typography["hero_title"]["font_size"], "min_font_size": 42, "font_weight": 800,
             "line_height": 0.94, "letter_spacing": -2.5, "color": "#101B31", "text_fit": "shrink", "max_lines": 5, "z_index": 6,
         }, binding=("text", "content.hero_title", True)),
         _node("supporting_text", "rich_text", {
             "position": "absolute", "x": 70, "y": 675, "width": 418, "height": 218,
-            "font_family": "Manrope", "font_size": config["supporting_text"]["font_size"],
+            "font_family": typography["supporting_text"]["font_family"],
+            "font_size": typography["supporting_text"]["font_size"],
             "min_font_size": 20, "font_weight": 500, "bold_weight": 800,
             "highlight_color": config["supporting_text"]["highlight_color"],
             "line_height": 1.04, "letter_spacing": -0.8, "color": "#101B31", "text_fit": "shrink", "max_lines": 5, "z_index": 6,
@@ -427,7 +468,8 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
     if config["offer"]["enabled"]:
         children.insert(2, _node("offer", "text", {
             "position": "absolute", "x": 70, "y": 212, "width": 430, "height": 40,
-            "font_family": "Manrope", "font_size": 23, "min_font_size": 16, "font_weight": 800,
+            "font_family": typography["offer"]["font_family"],
+            "font_size": typography["offer"]["font_size"], "min_font_size": 16, "font_weight": 800,
             "letter_spacing": 1.5, "color": "#101B31", "text_fit": "shrink", "max_lines": 1, "z_index": 6,
         }, binding=("text", "content.offer", True)))
     for index in range(3):
@@ -444,19 +486,22 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
             }),
             _node(f"metric_value_{index + 1}", "text", {
                 "position": "absolute", "x": x + 14, "y": cards_y + 18, "width": card_width - 28, "height": 50,
-                "font_family": "Manrope", "font_size": 43, "min_font_size": 20, "font_weight": 800,
+                "font_family": typography["metric_value"]["font_family"],
+                "font_size": typography["metric_value"]["font_size"], "min_font_size": 20, "font_weight": 800,
                 "color": metric_card["text_color"], "text_align": "center", "text_fit": "shrink", "max_lines": 1, "z_index": 9,
             }, binding=("text", f"content.stats_{index + 1}_value", True)),
             _node(f"metric_label_{index + 1}", "text", {
                 "position": "absolute", "x": x + 18, "y": cards_y + 75, "width": card_width - 36, "height": 48,
-                "font_family": "Manrope", "font_size": 22, "min_font_size": 14, "font_weight": 500,
+                "font_family": typography["metric_label"]["font_family"],
+                "font_size": typography["metric_label"]["font_size"], "min_font_size": 14, "font_weight": 500,
                 "line_height": 0.98, "color": metric_card["text_color"], "text_align": "center", "text_fit": "shrink", "max_lines": 2, "z_index": 9,
             }, binding=("text", f"content.stats_{index + 1}_label", True)),
         ])
     children.append(_node("cta", "button", {
         "position": "absolute", "x": 0, "y": 1206, "width": width, "height": 144,
-        "background_color": "#316CFF", "radius": 0, "label_color": "#FFFFFF", "font_family": "Manrope",
-        "font_size": 34, "min_font_size": 20, "font_weight": 700, "text_align": "left", "vertical_align": "center",
+        "background_color": "#316CFF", "radius": 0, "label_color": "#FFFFFF",
+        "font_family": typography["cta"]["font_family"],
+        "font_size": typography["cta"]["font_size"], "min_font_size": 20, "font_weight": 700, "text_align": "left", "vertical_align": "center",
         "text_fit": "shrink", "max_lines": 1, "padding": {"top": 22, "right": 64, "bottom": 22, "left": 68}, "z_index": 10,
     }, binding=("label", "content.cta", True)))
     document = {
@@ -496,7 +541,7 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
             *[{"id": f"role_{role}", "scope": "template", "type": "required_role", "params": {"role": role}} for role in ("background", "brand", "hero_title", "supporting_text", "device_mockup", "metrics", "cta")],
             {"id": "fixed_tree", "scope": "template", "type": "max_nodes", "params": {"maximum": 18}},
         ],
-        "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": ["owner-reference-phone-metrics-v1"], "change_note": "Natal phone-and-metrics v17 lowers the sharp hero subject slightly farther beneath the fixed Natal header while preserving the image-derived continuation to the top and the eased image-to-background transition; the tunable actions, complete status signal, and metric controls remain unchanged."},
+        "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": ["owner-reference-phone-metrics-v1"], "change_note": "Natal phone-and-metrics v22 gives every editable text role an independent bounded font family and size while preserving the fixed Natal identity and system chrome; alpha cutouts keep the selected screen texture visible and never stretch subject pixels into the header."},
     }
     if not config["offer"]["enabled"]:
         document["semantic_roles"].pop("offer")
@@ -527,7 +572,6 @@ def phone_metrics_component_settings(config: Mapping[str, Any], content: Mapping
         "configuration.background.texture": config["background"]["texture"],
         "configuration.copy_background.texture": config["copy_background"]["texture"],
         "configuration.offer.enabled": config["offer"]["enabled"],
-        "configuration.supporting_text.font_size": config["supporting_text"]["font_size"],
         "configuration.supporting_text.highlight_color": config["supporting_text"]["highlight_color"],
         "configuration.phone_screen.texture": config["phone_screen"]["texture"],
         "configuration.metric_cards": deepcopy(config["metric_cards"]),
@@ -536,6 +580,10 @@ def phone_metrics_component_settings(config: Mapping[str, Any], content: Mapping
         "content.supporting_text": content["supporting_text"], "content.cta": content["cta"],
         "content.stats": deepcopy(content["stats"]), "content.phone_hero_title": content["phone_hero_title"],
         "content.phone_buttons": deepcopy(content["phone_buttons"]),
+        **{
+            f"configuration.typography.{role}": deepcopy(appearance)
+            for role, appearance in config["typography"].items()
+        },
     }
     value = {
         "schema": PHONE_METRICS_COMPONENT_SETTINGS_SCHEMA, "template_id": PHONE_METRICS_TEMPLATE_ID,
@@ -552,7 +600,7 @@ def phone_metrics_component_settings(config: Mapping[str, Any], content: Mapping
 
 def phone_metrics_catalog() -> dict[str, Any]:
     value = {
-        "schema": "ptw.studio.phone-metrics-catalog.v1", "template_id": PHONE_METRICS_TEMPLATE_ID,
+        "schema": "ptw.studio.phone-metrics-catalog.v2", "template_id": PHONE_METRICS_TEMPLATE_ID,
         "template_version": PHONE_METRICS_TEMPLATE_VERSION, "canvas": {"width": 1080, "height": 1350},
         "semantic_roles": [item["role"] for item in PHONE_COMPONENTS],
         "components": [{
@@ -571,7 +619,14 @@ def phone_metrics_catalog() -> dict[str, Any]:
             "metric_card_shapes": list(PHONE_METRIC_CARD_SHAPES),
             "phone_button_styles": list(PHONE_ACTION_BUTTON_STYLES),
             "phone_button_shapes": list(PHONE_ACTION_BUTTON_SHAPES),
-            "supporting_text_font_size": {"minimum": 20, "maximum": 38, "default": 29},
+            "font_families": list(STUDIO_FONT_FAMILIES),
+            "typography": {
+                role: {
+                    "minimum": bounds[0], "maximum": bounds[1],
+                    "default": DEFAULT_PHONE_CONFIG["typography"][role]["font_size"],
+                }
+                for role, bounds in PHONE_TYPOGRAPHY_BOUNDS.items()
+            },
         },
     }
     _, digest = _canonical(value)
@@ -645,17 +700,22 @@ def _fallback_screen() -> bytes:
     return output.getvalue()
 
 
-def _screen_font(size: int, weight: int):
+def _screen_font(size: int, weight: int, font_family: str = "Manrope"):
     from PIL import ImageFont
 
-    path = Path(__file__).with_name("studio_assets") / "fonts" / "Manrope-Variable.ttf"
+    path = STUDIO_PREVIEW_FONTS.get(
+        font_family, SUPPORTED_FONTS.get(font_family, SUPPORTED_FONTS["Inter"]),
+    )
     try:
         font = ImageFont.truetype(str(path), size)
         try:
             axes = []
             for axis in font.get_variation_axes():
                 name = bytes(axis["name"]).decode("ascii", "ignore").lower()
-                axes.append(weight if "weight" in name else axis["default"])
+                axes.append(
+                    max(axis["minimum"], min(axis["maximum"], weight))
+                    if "weight" in name else axis["default"]
+                )
             font.set_variation_by_axes(axes)
         except (AttributeError, KeyError, OSError, TypeError, ValueError):
             pass
@@ -694,7 +754,7 @@ def _wrapped_lines(draw: Any, value: str, font: Any, max_width: int) -> list[str
 def _draw_fitted_screen_text(
     draw: Any, value: str, box: tuple[int, int, int, int], *,
     maximum_size: int, minimum_size: int, weight: int, fill: str,
-    max_lines: int, spacing: int = 8,
+    max_lines: int, spacing: int = 8, font_family: str = "Manrope",
 ) -> None:
     if not value:
         return
@@ -702,7 +762,7 @@ def _draw_fitted_screen_text(
     max_height = box[3] - box[1]
     fitted: tuple[Any, list[str], int] | None = None
     for size in range(maximum_size, minimum_size - 1, -2):
-        font = _screen_font(size, weight)
+        font = _screen_font(size, weight, font_family)
         lines = _wrapped_lines(draw, value, font, max_width)
         if len(lines) > max_lines:
             continue
@@ -712,7 +772,7 @@ def _draw_fitted_screen_text(
             fitted = (font, lines, size)
             break
     if fitted is None:
-        font = _screen_font(minimum_size, weight)
+        font = _screen_font(minimum_size, weight, font_family)
         lines = _wrapped_lines(draw, value, font, max_width)
         fitted = (font, lines[:max_lines], minimum_size)
     font, lines, _ = fitted
@@ -770,24 +830,86 @@ def _phone_hero_texture(size: tuple[int, int], preset: str):
     return texture.resize(size, Image.Resampling.BICUBIC)
 
 
+def _clear_phone_hero_edge_matte(image: Any) -> Any:
+    """Turn a generated pale edge matte into alpha without erasing bright details.
+
+    Phone-hero generators sometimes return an RGB image with an apparently
+    clear cream background instead of a real alpha channel.  Only a connected
+    near-white border is removed: white details enclosed by the subject (such
+    as a target ring or highlight) remain intact, and photographic/full-bleed
+    artwork is left unchanged.
+    """
+
+    from collections import deque
+    from PIL import Image, ImageChops, ImageFilter, ImageOps
+
+    image = image.convert("RGBA")
+    alpha = image.getchannel("A")
+    if alpha.getextrema()[0] < 250:
+        return image
+    width, height = image.size
+    pixels = image.load()
+
+    def pale_matte(x: int, y: int) -> bool:
+        red, green, blue, value_alpha = pixels[x, y]
+        return value_alpha > 0 and min(red, green, blue) >= 208 and max(red, green, blue) - min(red, green, blue) <= 48
+
+    perimeter = [
+        *( (x, 0) for x in range(width) ),
+        *( (x, height - 1) for x in range(width) ),
+        *( (0, y) for y in range(1, height - 1) ),
+        *( (width - 1, y) for y in range(1, height - 1) ),
+    ]
+    if sum(pale_matte(x, y) for x, y in perimeter) < len(perimeter) * 0.88:
+        return image
+
+    matte = Image.new("L", image.size, 0)
+    matte_pixels = matte.load()
+    pending = deque((x, y) for x, y in perimeter if pale_matte(x, y))
+    while pending:
+        x, y = pending.popleft()
+        if matte_pixels[x, y] or not pale_matte(x, y):
+            continue
+        matte_pixels[x, y] = 255
+        if x:
+            pending.append((x - 1, y))
+        if x + 1 < width:
+            pending.append((x + 1, y))
+        if y:
+            pending.append((x, y - 1))
+        if y + 1 < height:
+            pending.append((x, y + 1))
+
+    if sum(matte.histogram()[1:]) < width * height * 0.15:
+        return image
+    # A narrow antialiased transition removes the hard matte edge without
+    # softening the object itself or changing enclosed white subject detail.
+    visible = ImageOps.invert(matte.filter(ImageFilter.GaussianBlur(1.2)))
+    image.putalpha(ImageChops.multiply(alpha, visible))
+    return image
+
+
 def _position_phone_hero_art(screen: Any, size: tuple[int, int]) -> Any:
-    """Lower the sharp subject while extending its own background to the top."""
+    """Lower the subject and extend only full-bleed artwork to the top."""
 
     from PIL import Image, ImageChops, ImageOps
 
     hero = ImageOps.fit(
         screen, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.44),
     )
-    # Stretch only the artwork's first, usually background-only strip through
-    # the header. At the end of the feather it reaches the same source row as
-    # the lowered sharp layer, which avoids a blank band or a repeated seam.
-    continuation_height = PHONE_HERO_ART_OFFSET_Y + PHONE_HERO_ART_FEATHER_Y
-    continuation = hero.crop((0, 0, hero.width, PHONE_HERO_ART_FEATHER_Y + 1))
-    continuation = continuation.resize(
-        (hero.width, continuation_height), Image.Resampling.BICUBIC,
-    )
+    hero = _clear_phone_hero_edge_matte(hero)
     positioned = Image.new("RGBA", size, (0, 0, 0, 0))
-    positioned.alpha_composite(continuation, (0, 0))
+    has_alpha_background = hero.getchannel("A").getextrema()[0] < 250
+    continuation_height = PHONE_HERO_ART_OFFSET_Y + PHONE_HERO_ART_FEATHER_Y
+    if not has_alpha_background:
+        # Stretch only the first, usually background-only strip of genuinely
+        # full-bleed artwork through the header. Doing this to a cutout would
+        # stretch the subject's top edge into a triangular plume.
+        continuation = hero.crop((0, 0, hero.width, PHONE_HERO_ART_FEATHER_Y + 1))
+        continuation = continuation.resize(
+            (hero.width, continuation_height), Image.Resampling.BICUBIC,
+        )
+        positioned.alpha_composite(continuation, (0, 0))
 
     lowered = Image.new("RGBA", size, (0, 0, 0, 0))
     lowered.alpha_composite(hero, (0, PHONE_HERO_ART_OFFSET_Y))
@@ -843,7 +965,7 @@ def _draw_status_network_icons(draw: Any) -> None:
 
 def _draw_phone_action_button(
     canvas: Any, text: str, appearance: Mapping[str, Any],
-    box: tuple[int, int, int, int],
+    box: tuple[int, int, int, int], typography: Mapping[str, Any],
 ) -> None:
     """Draw one bounded in-phone action without softening its label."""
 
@@ -875,8 +997,9 @@ def _draw_phone_action_button(
         )
     _draw_fitted_screen_text(
         draw, text, (box[0] + 36, box[1] + 12, box[2] - 36, box[3] - 12),
-        maximum_size=28, minimum_size=18, weight=600,
+        maximum_size=int(typography["font_size"]), minimum_size=16, weight=600,
         fill=str(appearance["text_color"]), max_lines=1, spacing=4,
+        font_family=str(typography["font_family"]),
     )
 
 
@@ -884,26 +1007,43 @@ def _fixed_screen_shell(
     screen: Any, phone_title: str, cta: str, screen_texture: str,
     phone_button_texts: list[str] | None = None,
     phone_button_appearances: list[Mapping[str, Any]] | None = None,
+    typography: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> Any:
     """Place visual-only art inside the deterministic Natal app screen."""
 
-    from PIL import Image, ImageDraw, ImageFilter, ImageOps
+    from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
     from .natal_brand import natal_logo_bytes
 
     canvas = Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#F9FAFA")
+    resolved_typography = typography or DEFAULT_PHONE_CONFIG["typography"]
     # Cover the complete upper screen with an image-derived continuation while
     # lowering the sharp subject away from the status and Natal header.
-    hero_box = (0, 0, canvas.width, 1195 if not phone_title else 1050)
+    # The optional title occupies a reserved stack slot below the hero.  Keep
+    # the hero box constant so changing that text cannot rescale or vertically
+    # shift the owner-selected artwork.
+    hero_box = (0, 0, canvas.width, 1050)
     hero = _position_phone_hero_art(
         screen, (hero_box[2] - hero_box[0], hero_box[3] - hero_box[1]),
     )
-    canvas.alpha_composite(hero, hero_box[:2])
-
-    # Apply the selected deterministic texture before the readability fade so
-    # both the image and its finish dissolve together instead of leaving a
-    # straight texture edge immediately above the headline.
+    # First lay the texture beneath the visual-only hero. This matters for
+    # PNG/WebP assets with an alpha background: their transparent pixels must
+    # reveal the selected screen material rather than the flat shell base.
     texture = _phone_hero_texture((canvas.width, hero_box[3]), screen_texture)
     canvas.alpha_composite(texture, hero_box[:2])
+    canvas.alpha_composite(hero, hero_box[:2])
+
+    # Preserve the existing material finish on opaque hero pixels, but mask
+    # that foreground pass with the fitted artwork alpha. A transparent pixel
+    # therefore receives only the underlying texture above, never a texture
+    # layer flattened over a white shell.
+    foreground_texture = texture.copy()
+    foreground_texture.putalpha(ImageChops.multiply(
+        foreground_texture.getchannel("A"), hero.getchannel("A"),
+    ))
+    canvas.alpha_composite(foreground_texture, hero_box[:2])
+
+    # Fade the image and its selected finish together, preventing a straight
+    # texture edge immediately above the headline.
 
     # Feather the complete hero surface into white with an eased, zero-slope
     # finish. The longer overlap keeps detail visible while avoiding a visible
@@ -939,8 +1079,10 @@ def _fixed_screen_shell(
 
     if phone_title:
         _draw_fitted_screen_text(
-            draw, phone_title.upper(), (78, 1055, 754, 1255), maximum_size=55,
-            minimum_size=26, weight=800, fill="#101B31", max_lines=3, spacing=8,
+            draw, phone_title.upper(), (78, 1055, 754, 1255),
+            maximum_size=int(resolved_typography["phone_title"]["font_size"]),
+            minimum_size=24, weight=800, fill="#101B31", max_lines=3, spacing=8,
+            font_family=str(resolved_typography["phone_title"]["font_family"]),
         )
 
     # The post-level CTA is rendered outside the device. These three actions
@@ -960,7 +1102,9 @@ def _fixed_screen_shell(
         ),
         strict=True,
     ):
-        _draw_phone_action_button(canvas, text, appearance, box)
+        _draw_phone_action_button(
+            canvas, text, appearance, box, resolved_typography["phone_buttons"],
+        )
     draw = ImageDraw.Draw(canvas, "RGBA")
     draw.rounded_rectangle((218, 1642, 614, 1655), radius=7, fill="#101B31")
     return canvas
@@ -971,6 +1115,7 @@ def compose_phone_device_asset(
     screen_texture: str = "grain",
     phone_button_texts: list[str] | None = None,
     phone_button_appearances: list[Mapping[str, Any]] | None = None,
+    typography: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Fuse the fixed front frame and its deterministic upright app screen.
 
@@ -994,7 +1139,7 @@ def compose_phone_device_asset(
     )
     screen = _fixed_screen_shell(
         screen, phone_title, cta, screen_texture,
-        phone_button_texts, phone_button_appearances,
+        phone_button_texts, phone_button_appearances, typography,
     )
     screen_size = (
         IPHONE_SCREEN_BOX[2] - IPHONE_SCREEN_BOX[0],
@@ -1022,4 +1167,4 @@ def compose_phone_device_asset(
         "paper": "deterministic_soft_paper_v1",
         "frosted": "deterministic_frosted_glass_v1",
     }[screen_texture]
-    return {"bytes": data, "mime_type": "image/png", "source": {"origin": "server_composited_fixed_phone", "frame_sha256": IPHONE_FRAME_SHA256, "screen_sha256": hashlib.sha256(resolved_screen).hexdigest(), "screen_composition": "front_natal_app_shell_v13", "hero_texture": texture_provenance}}
+    return {"bytes": data, "mime_type": "image/png", "source": {"origin": "server_composited_fixed_phone", "frame_sha256": IPHONE_FRAME_SHA256, "screen_sha256": hashlib.sha256(resolved_screen).hexdigest(), "screen_composition": "front_natal_app_shell_v18", "hero_texture": texture_provenance}}

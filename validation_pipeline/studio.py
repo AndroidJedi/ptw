@@ -19,11 +19,23 @@ SUPPORTED_FONTS = {
 STUDIO_PREVIEW_FONTS = {
     "Roboto Condensed": Path(__file__).with_name("studio_assets") / "fonts" / "Roboto-Variable.ttf",
     "Manrope": Path(__file__).with_name("studio_assets") / "fonts" / "Manrope-Variable.ttf",
+    "Montserrat": Path(__file__).with_name("studio_assets") / "fonts" / "Montserrat-Variable.ttf",
+    "Source Sans 3": Path(__file__).with_name("studio_assets") / "fonts" / "SourceSans3-Variable.ttf",
     "Oswald": Path(__file__).with_name("studio_assets") / "fonts" / "Oswald-Variable.ttf",
     "Cormorant Garamond": (
         Path(__file__).with_name("studio_assets") / "fonts" / "CormorantGaramond-Variable.ttf"
     ),
+    "Cormorant Garamond Italic": (
+        Path(__file__).with_name("studio_assets") / "fonts" / "CormorantGaramond-Italic-Variable.ttf"
+    ),
+    "Lora": Path(__file__).with_name("studio_assets") / "fonts" / "Lora-Variable.ttf",
+    "Lora Italic": Path(__file__).with_name("studio_assets") / "fonts" / "Lora-Italic-Variable.ttf",
 }
+STUDIO_FONT_FAMILIES = (
+    "Inter", "Roboto Condensed", "Manrope", "Montserrat", "Source Sans 3",
+    "Oswald", "Cormorant Garamond", "Cormorant Garamond Italic", "Lora",
+    "Lora Italic",
+)
 
 
 def inspect_media(data: bytes, declared_mime: str) -> dict[str, Any]:

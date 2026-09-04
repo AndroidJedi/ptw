@@ -64,17 +64,22 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/projects", "/api/v1/briefs",
             "/api/v1/studio",
             "/api/v1/studio/configuration",
+            "/api/v1/studio/templates/apply",
             "/api/v1/studio/assets/{slot}",
             "/api/v1/studio/pexels",
+            "/api/v1/studio/phone-screen/generate",
+            "/api/v1/studio/phone-screen/select",
+            "/api/v1/studio/phone-screen/history/{sha256}",
             "/api/v1/studio/preview",
+            "/api/v1/studio/component-settings",
             "/api/v1/studio/versions/{version}/render",
+            "/api/v1/studio/versions/{version}",
             "/api/v1/studio/approve",
         }
         self.assertTrue(required <= paths)
         self.assertNotIn("/api/v1/project-assets", paths)
         self.assertNotIn("/api/v1/project-brand-kits", paths)
         self.assertFalse([path for path in paths if "/content-runs" in path])
-        self.assertFalse([path for path in paths if "/studio/templates" in path])
         forbidden_fragments = ("ad-batches", "ad-creatives", "ad-studio", "landing", "publish", "campaign")
         self.assertFalse([
             path for path in paths if any(fragment in path for fragment in forbidden_fragments)

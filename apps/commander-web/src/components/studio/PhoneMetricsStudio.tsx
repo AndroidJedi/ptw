@@ -6,8 +6,51 @@ import { translate, type Language } from '../../i18n'
 import type {
   StudioPhoneActionButtonConfiguration, StudioPhoneMetricCardConfiguration,
   StudioPhoneMetricsConfiguration, StudioPhoneMetricsContent,
-  StudioPhoneMetricsDetail,
+  StudioPhoneMetricsDetail, StudioPhoneScreenHistoryItem,
 } from '../../types'
+
+function PhoneScreenHistoryOption({
+  api, item, index, busy, label, currentLabel, onSelect,
+}: {
+  api: ApiClient
+  item: StudioPhoneScreenHistoryItem
+  index: number
+  busy: boolean
+  label: string
+  currentLabel: string
+  onSelect: () => void
+}) {
+  const [url, setUrl] = useState('')
+  useEffect(() => {
+    let disposed = false
+    let objectUrl = ''
+    void api.media(
+      `/api/v1/studio/phone-screen/history/${item.sha256}`,
+      item.mime_type, item.sha256,
+    ).then((blob) => {
+      objectUrl = URL.createObjectURL(blob)
+      if (disposed) URL.revokeObjectURL(objectUrl)
+      else setUrl(objectUrl)
+    }).catch(() => {
+      if (!disposed) setUrl('')
+    })
+    return () => {
+      disposed = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [api, item.mime_type, item.sha256])
+
+  return <button
+    className={`phone-screen-history-option ${item.selected ? 'is-selected' : ''}`}
+    type="button" role="radio" aria-checked={item.selected} aria-label={label}
+    disabled={busy} onClick={onSelect}
+  >
+    <span className="phone-screen-history-image">{url
+      ? <img src={url} alt="" />
+      : <ImagePlus aria-hidden="true" />}</span>
+    <small>{item.selected ? currentLabel : `0${index + 1}`}</small>
+  </button>
+}
 
 export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDetail }: {
   api: ApiClient
@@ -121,6 +164,30 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
       setNotice(useCurrentAsReference
         ? tr('Current iPhone hero visual enhanced and applied.', 'Поточний герой-візуал iPhone покращено й застосовано.')
         : tr('New iPhone hero visual generated and applied.', 'Новий герой-візуал для iPhone згенеровано й застосовано.'))
+    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+  }
+  const selectPhoneScreen = async (sha256: string) => {
+    if (detail.phone_screen_history.some((item) => item.sha256 === sha256 && item.selected)) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      let saved = detail
+      if (
+        JSON.stringify(configuration) !== JSON.stringify(detail.configuration)
+        || JSON.stringify(content) !== JSON.stringify(detail.content)
+      ) {
+        saved = await api.post<StudioPhoneMetricsDetail>('/api/v1/studio/configuration', {
+          base_sha256: detail.state_sha256, configuration, content,
+        }, { deadlineMs: 60_000 })
+        applyDetail(saved)
+      }
+      const next = await api.post<StudioPhoneMetricsDetail>('/api/v1/studio/phone-screen/select', {
+        base_sha256: saved.state_sha256, sha256,
+      }, { deadlineMs: 60_000 })
+      applyDetail(next); setEnhanceCurrent(true); await render(next)
+      const selected = next.phone_screen_history.find((item) => item.selected)
+      const selectedDirection = selected?.source.visual_direction
+      if (typeof selectedDirection === 'string') setScreenDirection(selectedDirection)
+      setNotice(tr('Selected iPhone image applied.', 'Вибране зображення iPhone застосовано.'))
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const selectTemplate = async (templateId: string) => {
@@ -304,6 +371,19 @@ export function PhoneMetricsStudio({ api, language, detail: initialDetail, onDet
             placeholder={tr('Example: translucent glass steps rising through soft blue light with one lime accent', 'Наприклад: прозорі скляні сходи в м’якому блакитному світлі з одним лаймовим акцентом')}
             onChange={(event) => setScreenDirection(event.target.value)}
           /></label>
+          {detail.phone_screen_history.length > 0 && <div className="phone-screen-history">
+            <div><strong>{tr('Last 3 images', 'Останні 3 зображення')}</strong><small>{tr('Choose one to apply or enhance', 'Виберіть для застосування або покращення')}</small></div>
+            <div className="phone-screen-history-options" role="radiogroup" aria-label={tr('Recent iPhone images', 'Останні зображення iPhone')}>
+              {detail.phone_screen_history.map((item, index) => <PhoneScreenHistoryOption
+                key={item.sha256} api={api} item={item} index={index} busy={busy}
+                currentLabel={tr('CURRENT', 'ПОТОЧНЕ')}
+                label={item.selected
+                  ? tr(`iPhone image ${index + 1}, current`, `Зображення iPhone ${index + 1}, поточне`)
+                  : tr(`Select iPhone image ${index + 1}`, `Вибрати зображення iPhone ${index + 1}`)}
+                onSelect={() => void selectPhoneScreen(item.sha256)}
+              />)}
+            </div>
+          </div>}
           <label className={`universal-toggle phone-screen-enhance ${hasCurrentPhoneScreen ? '' : 'is-disabled'}`}>
             <input
               aria-label={tr('Enhance current image', 'Покращити поточне зображення')}

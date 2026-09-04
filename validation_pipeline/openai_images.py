@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from typing import Any, Mapping
 
 import httpx
@@ -32,6 +33,8 @@ PHONE_SCREEN_IMAGE_MODEL = "gpt-image-2"
 PHONE_SCREEN_IMAGE_SIZE = "1024x1024"
 PHONE_SCREEN_IMAGE_QUALITY = "medium"
 CODEX_PHONE_SCREEN_TIMEOUT_SECONDS = 300
+RESULT_BRIDGE_PHONE_SCREEN_TIMEOUT_SECONDS = 420
+RESULT_BRIDGE_PHONE_SCREEN_MODE = "content_non_human_graphic_generation"
 
 
 def phone_screen_art_prompt(
@@ -278,6 +281,140 @@ class OpenAIPhoneScreenImageProvider:
                     "reference_image_sha256": hashlib.sha256(reference_image).hexdigest(),
                 } if reference_image is not None else {}),
                 "request_id": response.headers.get("x-request-id"),
+            },
+            "width": inspected["width"],
+            "height": inspected["height"],
+        }
+
+
+class ResultBridgePhoneScreenImageProvider:
+    """Generate or edit one phone hero through PTW's authenticated media bridge."""
+
+    def __init__(
+        self, bridge_url: str, bridge_token: str, model: str = "codex-cli-default", *,
+        timeout_seconds: int = RESULT_BRIDGE_PHONE_SCREEN_TIMEOUT_SECONDS,
+        client: httpx.Client | None = None,
+    ) -> None:
+        if not bridge_url or not bridge_token:
+            raise RuntimeError("the authenticated Result media bridge is required")
+        if timeout_seconds < 30 or timeout_seconds > 900:
+            raise ValueError("Result media bridge timeout must be 30-900 seconds")
+        self.bridge_url = bridge_url.rstrip("/")
+        self.bridge_token = bridge_token
+        self.model = model or "codex-cli-default"
+        self.timeout_seconds = timeout_seconds
+        self.client = client
+
+    def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        headers = {
+            "X-PTW-Bridge-Token": self.bridge_token,
+            **dict(kwargs.pop("headers", {})),
+        }
+        if self.client is not None:
+            response = self.client.request(method, url, headers=headers, **kwargs)
+        else:
+            with httpx.Client(timeout=httpx.Timeout(30.0, connect=10.0)) as client:
+                response = client.request(method, url, headers=headers, **kwargs)
+        response.raise_for_status()
+        return response
+
+    def generate(
+        self, prompt: str, *, reference_image: bytes | None = None,
+    ) -> dict[str, Any]:
+        normalized_prompt = " ".join(str(prompt).split())
+        if not 24 <= len(normalized_prompt) <= 4_000:
+            raise ValueError("phone-screen image prompt must contain 24-4000 characters")
+        prompt_digest = hashlib.sha256(normalized_prompt.encode()).hexdigest()
+        reference_digest = None
+        request_document: dict[str, Any] = {
+            "mode": RESULT_BRIDGE_PHONE_SCREEN_MODE,
+            "system_prompt": (
+                "Create exactly one premium text-free non-human editorial hero artwork from "
+                "the supplied direction. Do not add people, human faces, text, logos, UI, devices, "
+                "numbers, charts, or watermarks."
+            ),
+            "input_payload": {
+                "visual_direction": normalized_prompt,
+                "operation": "image_edit" if reference_image is not None else "image_generation",
+            },
+            "output_schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"generated": {"type": "boolean", "const": True}},
+                "required": ["generated"],
+            },
+            "prompt_template_version": "ptw_phone_screen_result_bridge_v1",
+            "context_hash": prompt_digest,
+            "idempotency_key": f"phone-screen:{prompt_digest}:new",
+        }
+        if self.model != "codex-cli-default":
+            request_document["model"] = self.model
+        if reference_image is not None:
+            if len(reference_image) > 8 * 1024 * 1024:
+                raise ValueError("phone-screen reference image exceeds the 8 MB bridge limit")
+            inspected_reference = inspect_media(reference_image, "image/png")
+            reference_digest = hashlib.sha256(reference_image).hexdigest()
+            request_document["input_images"] = [{
+                "mime_type": "image/png",
+                "digest": reference_digest,
+                "width": inspected_reference["width"],
+                "height": inspected_reference["height"],
+                "bytes_base64": base64.b64encode(reference_image).decode(),
+            }]
+            request_document["idempotency_key"] = (
+                f"phone-screen:{prompt_digest}:edit:{reference_digest}"
+            )
+
+        queued = self._request("POST", self.bridge_url, json=request_document).json()
+        try:
+            request_id = int(queued["request_id"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise RuntimeError("Result media bridge did not return a request ID") from error
+        deadline = time.monotonic() + self.timeout_seconds
+        result: Mapping[str, Any] | None = None
+        while time.monotonic() < deadline:
+            state = self._request("GET", f"{self.bridge_url}/{request_id}").json()
+            status = state.get("status")
+            if status == "completed":
+                candidate = state.get("result")
+                if not isinstance(candidate, Mapping):
+                    raise RuntimeError("Result media bridge completed without a result")
+                result = candidate
+                break
+            if status in {"failed", "cancelled"}:
+                raise RuntimeError(f"Result media bridge request {request_id} {status}")
+            time.sleep(1)
+        if result is None:
+            raise TimeoutError(f"Result media bridge request {request_id} timed out")
+        image = result.get("image")
+        if not isinstance(image, Mapping):
+            raise RuntimeError("Result media bridge returned no generated image")
+        response = self._request("GET", f"{self.bridge_url}/{request_id}/asset")
+        data = response.content
+        inspected = inspect_media(data, "image/png")
+        digest = hashlib.sha256(data).hexdigest()
+        if (
+            image.get("digest") != digest
+            or image.get("output_digest") != digest
+            or image.get("mime_type") != "image/png"
+            or image.get("width") != inspected["width"]
+            or image.get("height") != inspected["height"]
+        ):
+            raise RuntimeError("Result media bridge image failed integrity validation")
+        return {
+            "bytes": data,
+            "mime_type": "image/png",
+            "source": {
+                "origin": "result_bridge_image_generation",
+                "provider": image.get("provider", "codex_chatgpt_imagegen"),
+                "transport": "authenticated_result_bridge",
+                "model": image.get("resolved_model") or image.get("requested_model"),
+                "text_in_screen": "prohibited_by_prompt",
+                "prompt_sha256": prompt_digest,
+                "operation": "image_edit" if reference_image is not None else "image_generation",
+                "bridge_request_id": request_id,
+                "provider_request_id": image.get("request_id"),
+                **({"reference_image_sha256": reference_digest} if reference_digest else {}),
             },
             "width": inspected["width"],
             "height": inspected["height"],

@@ -15,10 +15,12 @@ needed for the task.
 
 ## Authority
 
-- `ptw_commander.public` owns Product Brief validation entities and graph lineage.
+- `ptw_commander.public` owns Product Brief validation entities and graph lineage,
+  plus the production standalone Studio workspace, immutable asset/version UUIDs,
+  relationship edges, and authoritative PNG bytes.
 - `.local/owner-briefs` is the loopback Brief authority; `.local/studio-workspace`
-  is the standalone Studio authority; `.local/post-workspace` is the local-only
-  simple post draft and approved-asset authority.
+  is the local standalone Studio authority; `.local/post-workspace` is the
+  local-only simple post draft and approved-asset authority.
 - `/opt/ptw/platform` has unrelated Git and PostgreSQL histories. Its
   authenticated structured bridge is the only generation integration.
 - Firebase owns identity and static releases, never PTW domain data.

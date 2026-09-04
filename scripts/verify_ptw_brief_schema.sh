@@ -54,6 +54,10 @@ commander_sources
 commander_weight_updates
 product_brief_approvals
 product_briefs
+universal_studio_assets
+universal_studio_versions
+universal_studio_workspace_files
+universal_studio_workspaces
 validation_generation_attempts
 validation_projects
 validation_provider_invocations

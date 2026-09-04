@@ -8,11 +8,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends as DependsParameter
 from fastapi.responses import Response
 
-from .studio_workspace import UniversalStudioWorkspace
-
-
 def studio_router(
-    workspace: UniversalStudioWorkspace, *, prefix: str,
+    workspace: Any, *, prefix: str,
     dependencies: Sequence[DependsParameter] = (),
 ) -> APIRouter:
     router = APIRouter(prefix=prefix, dependencies=list(dependencies))
@@ -70,6 +67,59 @@ def studio_router(
             )
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
+
+    @router.post("/phone-screen/select")
+    def select_phone_screen(request: Mapping[str, Any]) -> dict[str, Any]:
+        if set(request) != {"base_sha256", "sha256"}:
+            raise HTTPException(status_code=400, detail="Studio phone-screen selection fields are invalid")
+        try:
+            return workspace.select_phone_screen(
+                base_sha256=str(request["base_sha256"]),
+                sha256=str(request["sha256"]),
+            )
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.post("/phone-screen/generate")
+    def generate_phone_screen(request: Mapping[str, Any]) -> dict[str, Any]:
+        if set(request) not in (
+            {"base_sha256", "visual_direction"},
+            {"base_sha256", "visual_direction", "enhance_current"},
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Studio phone-screen generation fields are invalid",
+            )
+        enhance_current = request.get("enhance_current", False)
+        if not isinstance(enhance_current, bool):
+            raise HTTPException(
+                status_code=400,
+                detail="Studio phone-screen enhancement setting must be boolean",
+            )
+        try:
+            return workspace.generate_phone_screen(
+                base_sha256=str(request["base_sha256"]),
+                visual_direction=str(request["visual_direction"]),
+                enhance_current=enhance_current,
+            )
+        except (ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.get("/phone-screen/history/{sha256}")
+    def phone_screen_history_image(sha256: str) -> Response:
+        try:
+            image = workspace.phone_screen_history_image(sha256)
+        except (KeyError, ValueError) as error:
+            raise fail(error) from error
+        return Response(
+            content=image["bytes"], media_type=image["mime_type"],
+            headers={
+                "Cache-Control": "private, no-store",
+                "ETag": f'"{image["sha256"]}"',
+                "X-PTW-Content-SHA256": image["sha256"],
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     @router.post("/pexels")
     def pexels(request: Mapping[str, Any]) -> dict[str, Any]:

@@ -14,7 +14,7 @@ import httpx
 from validation_pipeline.openai_images import (
     OPENAI_IMAGE_EDITS_ENDPOINT, OPENAI_IMAGES_ENDPOINT, PHONE_SCREEN_IMAGE_MODEL,
     PHONE_SCREEN_IMAGE_SIZE, LocalCodexPhoneScreenImageProvider,
-    OpenAIPhoneScreenImageProvider,
+    OpenAIPhoneScreenImageProvider, ResultBridgePhoneScreenImageProvider,
     phone_screen_art_prompt,
 )
 
@@ -27,6 +27,14 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
 
         output = BytesIO()
         Image.new("RGB", (64, 128), "#F4F5F2").save(output, format="PNG")
+        return output.getvalue()
+
+    @staticmethod
+    def _square_png() -> bytes:
+        from PIL import Image
+
+        output = BytesIO()
+        Image.new("RGB", (1024, 1024), "#F4F5F2").save(output, format="PNG")
         return output.getvalue()
 
     def test_generates_validated_png_with_non_secret_text_free_provenance(self) -> None:
@@ -149,6 +157,75 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
         self.assertIn("CURRENT_HERO_IMAGE=", seen["prompt"])
         self.assertIn("sole referenced input image", seen["prompt"])
         self.assertEqual("image_edit", result["source"]["operation"])
+
+    def test_result_bridge_provider_generates_and_verifies_private_asset(self) -> None:
+        generated = self._square_png()
+        digest = hashlib.sha256(generated).hexdigest()
+        seen: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "POST":
+                seen["payload"] = json.loads(request.content)
+                seen["token"] = request.headers.get("x-ptw-bridge-token")
+                return httpx.Response(200, json={"request_id": 71, "status": "queued"})
+            if request.url.path.endswith("/71/asset"):
+                return httpx.Response(200, content=generated, headers={"content-type": "image/png"})
+            return httpx.Response(200, json={
+                "status": "completed",
+                "result": {"response": '{"generated":true}', "image": {
+                    "digest": digest, "output_digest": digest, "mime_type": "image/png",
+                    "width": 1024, "height": 1024,
+                    "provider": "codex_chatgpt_imagegen",
+                    "request_id": "provider-request-1",
+                }},
+            })
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            result = ResultBridgePhoneScreenImageProvider(
+                "http://bridge/internal/llm/structured", "bridge-token", client=client,
+            ).generate("Create one text-free glass unicorn on a warm white field.")
+
+        payload = seen["payload"]
+        self.assertEqual("content_non_human_graphic_generation", payload["mode"])
+        self.assertNotIn("input_images", payload)
+        self.assertEqual("bridge-token", seen["token"])
+        self.assertEqual(generated, result["bytes"])
+        self.assertEqual("result_bridge_image_generation", result["source"]["origin"])
+        self.assertEqual("image_generation", result["source"]["operation"])
+        self.assertNotIn("bridge_token", result["source"])
+
+    def test_result_bridge_provider_attaches_exact_current_png_for_enhancement(self) -> None:
+        generated = self._square_png()
+        digest = hashlib.sha256(generated).hexdigest()
+        reference = self._square_png()
+        seen: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "POST":
+                seen["payload"] = json.loads(request.content)
+                return httpx.Response(200, json={"request_id": 72})
+            if request.url.path.endswith("/72/asset"):
+                return httpx.Response(200, content=generated)
+            return httpx.Response(200, json={
+                "status": "completed", "result": {"image": {
+                    "digest": digest, "output_digest": digest, "mime_type": "image/png",
+                    "width": 1024, "height": 1024,
+                }},
+            })
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            result = ResultBridgePhoneScreenImageProvider(
+                "http://bridge/internal/llm/structured", "bridge-token", client=client,
+            ).generate(
+                "Enhance the supplied unicorn while preserving its composition and palette.",
+                reference_image=reference,
+            )
+
+        attached = seen["payload"]["input_images"][0]
+        self.assertEqual(reference, base64.b64decode(attached["bytes_base64"]))
+        self.assertEqual(hashlib.sha256(reference).hexdigest(), attached["digest"])
+        self.assertEqual("image_edit", result["source"]["operation"])
+        self.assertEqual(attached["digest"], result["source"]["reference_image_sha256"])
 
     def test_authenticated_codex_provider_rejects_output_outside_generated_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

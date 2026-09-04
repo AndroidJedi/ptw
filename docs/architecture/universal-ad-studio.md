@@ -103,19 +103,39 @@ image worker; the direct API provider sends a multipart request to the GPT Image
 edits endpoint. Persisted non-secret provenance distinguishes `generate_new`
 from `enhance_current` and links enhancements to the exact previous asset
 SHA-256. Temporary reference images are removed after the provider call.
-The local-only action saves any current copy/configuration first, preserves the
+Production uses the existing authenticated Result media bridge. A new image is
+one bounded `content_non_human_graphic_generation` call; Enhance attaches exactly
+one digest-checked square PNG to that same call and records its reference digest.
+The bridge rejects path input, extra images, MIME/dimension/digest mismatches,
+and base64 leakage into the model prompt. Its authenticated asset response is
+downloaded and revalidated before Studio can persist it.
+The mutable workspace also keeps the three newest distinct raw phone heroes in
+newest-first order. Their content-addressed PNGs and manifest are SHA-256 and
+dimension checked on every read. An authenticated, private/no-store thumbnail
+route feeds a compact three-slot selector; choosing a retained hero makes it
+the active render and the input for the next enhancement without changing the
+generation order. Pending copy/configuration is saved before selection. A
+fourth successful image evicts only the oldest retained PNG, while provider or
+selection failure leaves the current visual and history intact. A legacy
+workspace with one existing raw hero exposes it as its initial history entry
+without needing a migration write.
+The action saves any current copy/configuration first, preserves the
 previous visual on provider failure, validates the result as PNG, and records
 the non-secret direction and provider provenance. The local Post flow separately
 obtains one square Brief-derived hero artwork server-side through the same
 provider boundary. Both prompt contracts prohibit visible text,
 numbers, logos, UI, buttons, charts, metrics, and devices in generated pixels;
 all readable screen content is rendered deterministically afterward. The
-browser never receives provider authentication. Production Studio does not expose
-the local generation route.
+browser never receives provider authentication.
 
-A saved version stores exact configuration, content, asset digests, template
-digest, and PNG bytes below `.local/studio-workspace`; authenticated render
-responses are private/no-store.
+A local saved version stores exact configuration, content, asset digests,
+template digest, and PNG bytes below `.local/studio-workspace`. Production keeps
+the same validated filesystem representation only as a disposable renderer
+cache: PostgreSQL owns the complete file snapshot and PNG bytes, one mutable
+workspace entity, immutable generated-asset/version UUID entities, and their
+`contains`, `derived_from`, and `supersedes` edges. Authenticated render and
+history responses are private/no-store, and the cache is rehydrated from the
+database after service replacement.
 
 ## Pexels sticker boundary
 
@@ -158,7 +178,10 @@ audit is followed by a full-resolution visual inspection of the creative area
 only; social-app chrome and reference brand wording are not part of the Studio
 output. Browser checks also cover the enhancement checkbox at desktop and 360px:
 disabled without a raw current hero, checked by default with one, keyboard
-operable, and mapped to the bounded boolean API field.
+operable, and mapped to the bounded boolean API field. The same view checks the
+raw-hero history selector at both widths: at most three small thumbnails, one
+explicit current state, authenticated digest-checked loading, keyboard
+selection, no horizontal overflow, and selected-image use by Enhance.
 
 `STUDIO_TUNE_MODE=1` enables the loopback Tune wizard. It captures one requested
 Studio implementation, runs Codex in an isolated worktree, enforces a

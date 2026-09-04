@@ -41,12 +41,14 @@ class FakePhoneScreenImageProvider:
     def __init__(self) -> None:
         self.prompts: list[str] = []
         self.references: list[bytes | None] = []
+        self.colors = ["#6AAFC8", "#C586D8", "#E3A451", "#77B989", "#8D91D8"]
 
     def generate(self, prompt: str, *, reference_image: bytes | None = None) -> dict:
         self.prompts.append(prompt)
         self.references.append(reference_image)
         return {
-            "bytes": _screen_bytes("#6AAFC8"), "mime_type": "image/png",
+            "bytes": _screen_bytes(self.colors[(len(self.prompts) - 1) % len(self.colors)]),
+            "mime_type": "image/png",
             "source": {
                 "origin": "codex_builtin_image_generation", "provider": "openai",
                 "transport": "authenticated_codex_cli",
@@ -752,6 +754,8 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             screen["source"]["prompt_contract"],
         )
         self.assertEqual("generate_new", screen["source"]["generation_mode"])
+        self.assertEqual(1, len(generated["phone_screen_history"]))
+        self.assertTrue(generated["phone_screen_history"][0]["selected"])
         after = self.workspace.render_preview(state_sha256=generated["state_sha256"])
         self.assertNotEqual(before["bytes_sha256"], after["bytes_sha256"])
 
@@ -772,6 +776,8 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             enhanced_screen["source"]["prompt_contract"],
         )
         self.assertEqual(screen["sha256"], enhanced_screen["source"]["reference_asset_sha256"])
+        self.assertEqual(2, len(enhanced["phone_screen_history"]))
+        self.assertEqual(enhanced_screen["sha256"], enhanced["phone_screen_history"][0]["sha256"])
 
         class FailingProvider:
             @staticmethod
@@ -786,8 +792,68 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
                 visual_direction="A different premium sculptural direction.",
                 enhance_current=True,
             )
+        after_failure = self.workspace.detail()
         current_screen = next(
-            item for item in self.workspace.detail()["assets"]
+            item for item in after_failure["assets"]
             if item["slot"] == "phone_screen"
         )
         self.assertEqual(enhanced_screen["sha256"], current_screen["sha256"])
+        self.assertEqual(enhanced["phone_screen_history"], after_failure["phone_screen_history"])
+
+    def test_phone_screen_history_keeps_three_and_selected_image_drives_enhancement(self) -> None:
+        provider = FakePhoneScreenImageProvider()
+        self.workspace.image_provider = provider
+        detail = self._phone()
+        generated_digests = []
+        for index in range(4):
+            detail = self.workspace.generate_phone_screen(
+                base_sha256=detail["state_sha256"],
+                visual_direction=f"Distinct premium hero direction number {index + 1}.",
+            )
+            current = next(
+                item for item in detail["assets"] if item["slot"] == "phone_screen"
+            )
+            generated_digests.append(current["sha256"])
+
+        history = detail["phone_screen_history"]
+        self.assertEqual(3, len(history))
+        self.assertEqual(list(reversed(generated_digests[1:])), [item["sha256"] for item in history])
+        self.assertEqual([True, False, False], [item["selected"] for item in history])
+        self.assertEqual(3, len(list(self.workspace.assets.glob("phone_screen_history_*.png"))))
+        with self.assertRaisesRegex(KeyError, "not found"):
+            self.workspace.phone_screen_history_image(generated_digests[0])
+
+        selected_sha256 = history[2]["sha256"]
+        selected_bytes = self.workspace.phone_screen_history_image(selected_sha256)["bytes"]
+        before_selection_render = self.workspace.render_preview(
+            state_sha256=detail["state_sha256"],
+        )
+        selected = self.workspace.select_phone_screen(
+            base_sha256=detail["state_sha256"], sha256=selected_sha256,
+        )
+        self.assertEqual(
+            [False, False, True],
+            [item["selected"] for item in selected["phone_screen_history"]],
+        )
+        self.assertEqual(
+            selected_sha256,
+            next(item for item in selected["assets"] if item["slot"] == "phone_screen")["sha256"],
+        )
+        after_selection_render = self.workspace.render_preview(
+            state_sha256=selected["state_sha256"],
+        )
+        self.assertNotEqual(
+            before_selection_render["bytes_sha256"], after_selection_render["bytes_sha256"],
+        )
+
+        enhanced = self.workspace.generate_phone_screen(
+            base_sha256=selected["state_sha256"],
+            visual_direction="Preserve this selected composition and polish its material finish.",
+            enhance_current=True,
+        )
+        self.assertEqual(selected_bytes, provider.references[-1])
+        self.assertEqual(3, len(enhanced["phone_screen_history"]))
+        with self.assertRaisesRegex(ValueError, "digest"):
+            self.workspace.select_phone_screen(
+                base_sha256=enhanced["state_sha256"], sha256="not-a-digest",
+            )

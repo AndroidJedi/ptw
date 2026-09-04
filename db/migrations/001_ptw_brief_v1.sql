@@ -3,7 +3,8 @@ BEGIN;
 CREATE TABLE commander_entities (
     id uuid PRIMARY KEY,
     kind text NOT NULL CHECK (kind IN (
-        'source','validation_project','product_brief','human_feedback','weight_update'
+        'source','validation_project','product_brief','human_feedback','weight_update',
+        'studio_workspace','studio_asset','studio_version'
     )),
     attributes jsonb NOT NULL DEFAULT '{}'::jsonb,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp()
@@ -159,6 +160,56 @@ CREATE TABLE validation_provider_invocations (
 CREATE INDEX validation_provider_invocations_call_idx
     ON validation_provider_invocations(idempotency_key,created_at);
 
+CREATE TABLE universal_studio_workspaces (
+    entity_id uuid PRIMARY KEY REFERENCES commander_entities(id) ON DELETE RESTRICT,
+    singleton boolean NOT NULL UNIQUE DEFAULT true CHECK (singleton),
+    template_id text NOT NULL CHECK (template_id IN ('universal_ad','phone_metrics')),
+    state_sha256 char(64) NOT NULL,
+    requested_by text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    updated_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+
+CREATE TABLE universal_studio_workspace_files (
+    workspace_id uuid NOT NULL REFERENCES universal_studio_workspaces(entity_id) ON DELETE RESTRICT,
+    relative_path text NOT NULL CHECK (
+        length(relative_path) BETWEEN 1 AND 240
+        AND relative_path !~ '(^/|(^|/)\.\.(/|$))'
+    ),
+    content_sha256 char(64) NOT NULL,
+    content bytea NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    PRIMARY KEY(workspace_id,relative_path)
+);
+
+CREATE TABLE universal_studio_assets (
+    entity_id uuid PRIMARY KEY REFERENCES commander_entities(id) ON DELETE RESTRICT,
+    workspace_id uuid NOT NULL REFERENCES universal_studio_workspaces(entity_id) ON DELETE RESTRICT,
+    slot text NOT NULL,
+    content_sha256 char(64) NOT NULL,
+    mime_type text NOT NULL CHECK (mime_type IN ('image/png','image/jpeg','image/webp')),
+    width integer NOT NULL CHECK (width BETWEEN 1 AND 8192),
+    height integer NOT NULL CHECK (height BETWEEN 1 AND 8192),
+    content bytea NOT NULL,
+    source jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE(workspace_id,content_sha256)
+);
+
+CREATE TABLE universal_studio_versions (
+    entity_id uuid PRIMARY KEY REFERENCES commander_entities(id) ON DELETE RESTRICT,
+    workspace_id uuid NOT NULL REFERENCES universal_studio_workspaces(entity_id) ON DELETE RESTRICT,
+    version integer NOT NULL CHECK (version > 0),
+    version_sha256 char(64) NOT NULL,
+    state_sha256 char(64) NOT NULL,
+    render_sha256 char(64) NOT NULL,
+    record jsonb NOT NULL,
+    render_png bytea NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE(workspace_id,version),
+    UNIQUE(workspace_id,version_sha256)
+);
+
 CREATE FUNCTION ptw_reject_immutable_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN RAISE EXCEPTION '% is append-only',TG_TABLE_NAME; END $$;
 
@@ -168,7 +219,7 @@ BEGIN
     FOREACH table_name IN ARRAY ARRAY[
         'commander_entities','commander_relationships','commander_sources',
         'commander_human_feedback','commander_weight_updates','commander_audit_events',
-        'product_brief_approvals'
+        'product_brief_approvals','universal_studio_assets','universal_studio_versions'
     ] LOOP
         EXECUTE format(
             'CREATE TRIGGER %I_immutable BEFORE UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION ptw_reject_immutable_mutation()',

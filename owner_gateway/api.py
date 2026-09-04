@@ -149,6 +149,15 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             actor=actor(identity), timeout=60,
         )).json()
 
+    @app.post("/api/v1/studio/templates/apply")
+    async def studio_template_apply(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", "/internal/v1/studio/templates/apply", body=request,
+            actor=actor(identity), timeout=60,
+        )).json()
+
     @app.post("/api/v1/studio/assets/{slot}")
     async def studio_asset(
         slot: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
@@ -166,6 +175,46 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             "POST", "/internal/v1/studio/pexels", body=request,
             actor=actor(identity), timeout=90,
         )).json()
+
+    @app.post("/api/v1/studio/phone-screen/generate")
+    async def studio_phone_screen_generate(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", "/internal/v1/studio/phone-screen/generate", body=request,
+            actor=actor(identity), timeout=480,
+        )).json()
+
+    @app.post("/api/v1/studio/phone-screen/select")
+    async def studio_phone_screen_select(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", "/internal/v1/studio/phone-screen/select", body=request,
+            actor=actor(identity), timeout=60,
+        )).json()
+
+    @app.get("/api/v1/studio/phone-screen/history/{sha256}")
+    async def studio_phone_screen_history(
+        sha256: str, _identity: OwnerIdentity = Depends(owner),
+    ) -> Response:
+        response = await validation_bridge(
+            "GET", f"/internal/v1/studio/phone-screen/history/{sha256}", timeout=60,
+        )
+        digest = response.headers.get("x-ptw-content-sha256", "")
+        headers = {
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        }
+        if response.headers.get("etag"):
+            headers["ETag"] = response.headers["etag"]
+        if digest:
+            headers["X-PTW-Content-SHA256"] = digest
+        return Response(
+            content=response.content,
+            media_type=response.headers.get("content-type", "image/png"),
+            headers=headers,
+        )
 
     @app.post("/api/v1/studio/preview")
     async def studio_preview(
@@ -190,6 +239,15 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             headers=headers,
         )
 
+    @app.post("/api/v1/studio/component-settings")
+    async def studio_component_settings(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", "/internal/v1/studio/component-settings", body=request,
+            actor=actor(identity), timeout=60,
+        )).json()
+
     @app.get("/api/v1/studio/versions/{version}/render")
     async def studio_version_render(
         version: int, _identity: OwnerIdentity = Depends(owner),
@@ -211,6 +269,14 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             media_type=response.headers.get("content-type", "image/png"),
             headers=headers,
         )
+
+    @app.get("/api/v1/studio/versions/{version}")
+    async def studio_version(
+        version: int, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", f"/internal/v1/studio/versions/{version}", timeout=60,
+        )).json()
 
     @app.post("/api/v1/studio/approve")
     async def approve_studio_template(

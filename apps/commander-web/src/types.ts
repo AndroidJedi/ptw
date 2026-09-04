@@ -120,6 +120,7 @@ export interface StudioUniversalContent {
 }
 
 export interface StudioUniversalAssetSummary {
+  asset_id?: string
   slot: 'background_image' | 'sticker_object' | 'logo'
   role: 'background' | 'sticker' | 'logo'
   description: string
@@ -132,6 +133,7 @@ export interface StudioUniversalAssetSummary {
 }
 
 export interface StudioUniversalVersionSummary {
+  version_id?: string
   version: number
   state_sha256: string
   template_sha256: string
@@ -210,6 +212,7 @@ export interface StudioUniversalCatalog {
 }
 
 export interface StudioUniversalDetail {
+  workspace_id?: string
   schema: 'ptw.studio.universal-ad-workspace.v5'
   catalog: StudioUniversalCatalog
   state_sha256: string
@@ -271,6 +274,7 @@ export interface StudioPhoneMetricsContent {
 }
 
 export interface StudioPhoneMetricsAssetSummary {
+  asset_id?: string
   slot: 'phone_screen' | 'iphone_frame' | 'logo'
   role: string
   description: string
@@ -283,6 +287,17 @@ export interface StudioPhoneMetricsAssetSummary {
   source: Record<string, unknown> | null
 }
 
+export interface StudioPhoneScreenHistoryItem {
+  asset_id?: string
+  mime_type: 'image/png'
+  sha256: string
+  width: number
+  height: number
+  byte_count: number
+  source: Record<string, unknown>
+  selected: boolean
+}
+
 export interface StudioTemplateSummary {
   template_id: 'universal_ad' | 'phone_metrics'
   name: string
@@ -291,7 +306,8 @@ export interface StudioTemplateSummary {
 }
 
 export interface StudioPhoneMetricsDetail {
-  schema: 'ptw.studio.workspace.v7'
+  workspace_id?: string
+  schema: 'ptw.studio.workspace.v8'
   template_id: 'phone_metrics'
   templates: StudioTemplateSummary[]
   catalog: {
@@ -324,6 +340,7 @@ export interface StudioPhoneMetricsDetail {
   content: StudioPhoneMetricsContent
   component_settings: { sha256: string }
   assets: StudioPhoneMetricsAssetSummary[]
+  phone_screen_history: StudioPhoneScreenHistoryItem[]
   pexels_available: boolean
   phone_screen_generation_available: boolean
   versions: StudioUniversalVersionSummary[]

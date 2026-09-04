@@ -5,7 +5,7 @@ import type { StudioPhoneMetricsDetail } from '../../types'
 import { PhoneMetricsStudio } from './PhoneMetricsStudio'
 
 const detail = {
-  schema: 'ptw.studio.workspace.v7',
+  schema: 'ptw.studio.workspace.v8',
   template_id: 'phone_metrics',
   templates: [
     {
@@ -62,7 +62,7 @@ const detail = {
     phone_hero_title: '',
     phone_buttons: ['Створити новий акаунт', 'Увійти', 'Можливо пізніше'],
   },
-  component_settings: { sha256: 'd'.repeat(64) }, assets: [],
+  component_settings: { sha256: 'd'.repeat(64) }, assets: [], phone_screen_history: [],
   pexels_available: false, phone_screen_generation_available: true, versions: [],
 } as unknown as StudioPhoneMetricsDetail
 
@@ -70,18 +70,39 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
   let savedDetail = structuredClone(initialDetail)
   const post = vi.fn(async (path: string, body: unknown) => {
     if (path === '/api/v1/studio/phone-screen/generate') {
+      const generatedSha256 = '1'.repeat(64)
+      const generatedSource = {
+        visual_direction: (body as { visual_direction: string }).visual_direction,
+        generation_mode: (body as { enhance_current: boolean }).enhance_current ? 'enhance_current' : 'generate_new',
+      }
       savedDetail = {
         ...savedDetail, state_sha256: 'f'.repeat(64),
         assets: [{
           slot: 'phone_screen', role: 'device_screen',
           description: 'Generated phone hero', allowed_mime_types: ['image/png'],
           editable: false, available: true, mime_type: 'image/png',
-          sha256: '1'.repeat(64), byte_count: 128,
-          source: {
-            visual_direction: (body as { visual_direction: string }).visual_direction,
-            generation_mode: (body as { enhance_current: boolean }).enhance_current ? 'enhance_current' : 'generate_new',
-          },
+          sha256: generatedSha256, byte_count: 128, source: generatedSource,
         }],
+        phone_screen_history: [{
+          mime_type: 'image/png' as const, sha256: generatedSha256,
+          width: 1024, height: 1024, byte_count: 128,
+          source: generatedSource, selected: true,
+        }, ...savedDetail.phone_screen_history.filter((item) => item.sha256 !== generatedSha256)
+          .map((item) => ({ ...item, selected: false }))].slice(0, 3),
+      }
+      return structuredClone(savedDetail)
+    }
+    if (path === '/api/v1/studio/phone-screen/select') {
+      const sha256 = (body as { sha256: string }).sha256
+      const selected = savedDetail.phone_screen_history.find((item) => item.sha256 === sha256)
+      savedDetail = {
+        ...savedDetail, state_sha256: '9'.repeat(64),
+        assets: savedDetail.assets.map((asset) => asset.slot === 'phone_screen' && selected
+          ? { ...asset, sha256: selected.sha256, source: selected.source }
+          : asset),
+        phone_screen_history: savedDetail.phone_screen_history.map((item) => ({
+          ...item, selected: item.sha256 === sha256,
+        })),
       }
       return structuredClone(savedDetail)
     }
@@ -100,6 +121,7 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
     api: {
       post,
       postMedia: vi.fn().mockResolvedValue(new Blob(['preview'], { type: 'image/png' })),
+      media: vi.fn().mockResolvedValue(new Blob(['history'], { type: 'image/png' })),
     } as unknown as ApiClient,
     post,
   }
@@ -414,6 +436,51 @@ describe('Phone & metrics Studio', () => {
       }, { deadlineMs: 360_000 },
     ))
     expect(await screen.findByText('Current iPhone hero visual enhanced and applied.')).toBeInTheDocument()
+  })
+
+  it('shows the last three raw heroes and applies the selected image', async () => {
+    const current = structuredClone(detail)
+    current.assets = [{
+      slot: 'phone_screen', role: 'device_screen', description: 'Current phone hero',
+      allowed_mime_types: ['image/png'], editable: false, available: true,
+      mime_type: 'image/png', sha256: '1'.repeat(64), byte_count: 128,
+      source: { visual_direction: 'Direction 1' },
+    }]
+    current.phone_screen_history = [1, 2, 3].map((position) => ({
+      mime_type: 'image/png' as const,
+      sha256: String(position).repeat(64), width: 1024, height: 1024, byte_count: 128,
+      source: { visual_direction: `Direction ${position}` }, selected: position === 1,
+    }))
+    const { api, post } = studioApi(current)
+    render(<PhoneMetricsStudio
+      api={api} language="en" detail={current} onDetail={vi.fn()}
+    />)
+
+    expect(screen.getByRole('radiogroup', { name: 'Recent iPhone images' })).toBeInTheDocument()
+    expect(screen.getAllByRole('radio')).toHaveLength(3)
+    expect(screen.getByRole('radio', { name: 'iPhone image 1, current' })).toHaveAttribute('aria-checked', 'true')
+    await waitFor(() => expect(api.media).toHaveBeenCalledTimes(3))
+
+    fireEvent.change(screen.getByLabelText('Headline'), {
+      target: { value: 'Keep this pending headline' },
+    })
+    fireEvent.click(screen.getByRole('radio', { name: 'Select iPhone image 2' }))
+    await waitFor(() => expect(post).toHaveBeenNthCalledWith(
+      1, '/api/v1/studio/configuration',
+      expect.objectContaining({
+        content: expect.objectContaining({ hero_title: 'Keep this pending headline' }),
+      }),
+      { deadlineMs: 60_000 },
+    ))
+    await waitFor(() => expect(post).toHaveBeenNthCalledWith(
+      2, '/api/v1/studio/phone-screen/select',
+      { base_sha256: 'e'.repeat(64), sha256: '2'.repeat(64) },
+      { deadlineMs: 60_000 },
+    ))
+    expect(await screen.findByText('Selected iPhone image applied.')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'iPhone image 2, current' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByLabelText('iPhone visual direction')).toHaveValue('Direction 2')
+    expect(screen.getByLabelText('Enhance current image')).toBeChecked()
   })
 
   it('keeps generation disabled and explains the deterministic fallback without a provider', () => {

@@ -13,8 +13,12 @@ class FakeBridge(StructuredBridge):
     def _request(self, url, payload, *, timeout=30):
         if url.endswith("/capabilities"):
             return {
-                "json_modes": ["product_brief", "product_brief_revision"],
-                "media_modes": [], "max_request_bytes": 1000,
+                "json_modes": [
+                    "product_brief", "product_brief_revision",
+                    "content_candidate_generation", "content_result_critic",
+                ],
+                "media_modes": ["content_non_human_graphic_generation"],
+                "max_request_bytes": 1000,
             }
         if payload is not None:
             self.posted = payload
@@ -44,10 +48,13 @@ class StructuredBridgeTests(unittest.TestCase):
         )
         self.assertEqual(1, value["invocation"]["bridge_attempt"])
 
-    def test_capabilities_are_brief_only(self) -> None:
+    def test_capabilities_match_the_deployed_provider_contract(self) -> None:
         value = FakeBridge().capabilities()
-        self.assertEqual(["product_brief", "product_brief_revision"], value["json_modes"])
-        self.assertEqual([], value["media_modes"])
+        self.assertEqual([
+            "content_candidate_generation", "content_result_critic",
+            "product_brief", "product_brief_revision",
+        ], value["json_modes"])
+        self.assertEqual(["content_non_human_graphic_generation"], value["media_modes"])
 
     def test_other_modes_are_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported Product Brief"):

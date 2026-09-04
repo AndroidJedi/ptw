@@ -100,7 +100,11 @@ BEGIN
     ('feedback', (SELECT count(*) FROM commander_human_feedback)),
     ('weights', (SELECT count(*) FROM commander_weight_updates)),
     ('attempts', (SELECT count(*) FROM validation_generation_attempts)),
-    ('provider_invocations', (SELECT count(*) FROM validation_provider_invocations))
+    ('provider_invocations', (SELECT count(*) FROM validation_provider_invocations)),
+    ('studio_workspaces', (SELECT count(*) FROM universal_studio_workspaces)),
+    ('studio_workspace_files', (SELECT count(*) FROM universal_studio_workspace_files)),
+    ('studio_assets', (SELECT count(*) FROM universal_studio_assets)),
+    ('studio_versions', (SELECT count(*) FROM universal_studio_versions))
   ) AS counts(label,value) WHERE value <> 0;
   IF failures IS NOT NULL THEN
     RAISE EXCEPTION 'Product Brief reset postcondition failed: %', failures;

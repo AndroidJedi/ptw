@@ -11,10 +11,12 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 
 from .config import Settings
 from .images import PexelsClient
+from .openai_images import ResultBridgePhoneScreenImageProvider
 from .provider import StructuredBridge
 from .repository import ValidationRepository
 from .service import ValidationRunner, validate_create_input, validate_revision_input
 from .studio import StudioRenderer
+from .studio_repository import DatabaseStudioWorkspace, StudioRepository
 from .studio_routes import studio_router
 from .studio_workspace import UniversalStudioWorkspace
 
@@ -32,9 +34,16 @@ def create_app(
     bridge = StructuredBridge(settings.bridge_url, settings.bridge_token, settings.model)
     pexels = PexelsClient(settings.pexels_api_key)
     studio_renderer = studio_renderer or StudioRenderer()
-    studio_workspace = studio_workspace or UniversalStudioWorkspace(
-        settings.studio_workspace_path, renderer=studio_renderer, pexels=pexels,
-    )
+    if studio_workspace is None:
+        studio_workspace = DatabaseStudioWorkspace(
+            UniversalStudioWorkspace(
+                settings.studio_workspace_path, renderer=studio_renderer, pexels=pexels,
+                image_provider=ResultBridgePhoneScreenImageProvider(
+                    settings.bridge_url, settings.bridge_token, settings.model,
+                ),
+            ),
+            StudioRepository(settings.database_url),
+        )
     runner_error: Exception | None = None
     if runner is None:
         try:

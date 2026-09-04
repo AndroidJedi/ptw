@@ -12,6 +12,8 @@ import urllib.request
 
 
 JSON_MODES = ("product_brief", "product_brief_revision")
+BRIDGE_JSON_MODES = (*JSON_MODES, "content_candidate_generation", "content_result_critic")
+BRIDGE_MEDIA_MODES = ("content_non_human_graphic_generation",)
 
 
 class StructuredBridge:
@@ -38,13 +40,13 @@ class StructuredBridge:
             or not isinstance(maximum, int)
         ):
             raise ValueError("structured bridge capabilities are invalid")
-        if set(json_modes) != set(JSON_MODES) or len(json_modes) != len(JSON_MODES):
-            raise RuntimeError("structured bridge JSON modes do not match the Product Brief contract")
-        if media_modes:
-            raise RuntimeError("the Product Brief bridge must not expose media-generation modes")
+        if set(json_modes) != set(BRIDGE_JSON_MODES) or len(json_modes) != len(BRIDGE_JSON_MODES):
+            raise RuntimeError("structured bridge JSON modes do not match the deployed provider contract")
+        if set(media_modes) != set(BRIDGE_MEDIA_MODES) or len(media_modes) != len(BRIDGE_MEDIA_MODES):
+            raise RuntimeError("structured bridge media modes do not match the deployed provider contract")
         return {
             "json_modes": sorted(json_modes),
-            "media_modes": [],
+            "media_modes": sorted(media_modes),
             "max_request_bytes": maximum,
         }
 

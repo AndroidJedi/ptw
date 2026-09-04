@@ -39,10 +39,12 @@ _BUNDLED_ASSETS = {
         "origin": "canonical_natal_brand_asset",
     },
 }
-_WORKSPACE_SCHEMA = "ptw.studio.workspace.v7"
+_WORKSPACE_SCHEMA = "ptw.studio.workspace.v8"
 _TEMPLATE_SELECTION_SCHEMA = "ptw.studio.template-selection.v1"
 _TEMPLATE_VERSION_SCHEMA = "ptw.studio.template-version.v1"
 _AGENT_CONTEXT_SCHEMA = "ptw.studio.agent-context.v3"
+_PHONE_SCREEN_HISTORY_SCHEMA = "ptw.studio.phone-screen-history.v1"
+_PHONE_SCREEN_HISTORY_LIMIT = 3
 _TEMPLATE_SUMMARIES = (
     {
         "template_id": UNIVERSAL_AD_TEMPLATE_ID,
@@ -220,6 +222,104 @@ class UniversalStudioWorkspace:
             raise ValueError(f"Studio asset digest mismatch: {slot}")
         return {**metadata, "bytes": data}
 
+    def _phone_screen_history_records(self) -> list[dict[str, Any]]:
+        """Return the newest three raw phone heroes, including legacy current art."""
+
+        current = self._asset_record("phone_screen")
+        path = self.assets / "phone_screen_history.json"
+        if not path.is_file():
+            return [] if current is None else [current]
+        try:
+            value = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError("Studio phone-screen history is unreadable") from error
+        if (
+            not isinstance(value, Mapping)
+            or set(value) != {"schema", "items"}
+            or value.get("schema") != _PHONE_SCREEN_HISTORY_SCHEMA
+            or not isinstance(value.get("items"), list)
+            or not 1 <= len(value["items"]) <= _PHONE_SCREEN_HISTORY_LIMIT
+        ):
+            raise ValueError("Studio phone-screen history is invalid")
+        records: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        fields = {
+            "filename", "mime_type", "sha256", "width", "height",
+            "byte_count", "source",
+        }
+        for item in value["items"]:
+            if not isinstance(item, Mapping) or set(item) != fields:
+                raise ValueError("Studio phone-screen history item is invalid")
+            digest = item.get("sha256")
+            filename = item.get("filename")
+            if (
+                not isinstance(digest, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                or digest in seen
+                or filename != f"phone_screen_history_{digest}.png"
+                or item.get("mime_type") != "image/png"
+                or not isinstance(item.get("source"), Mapping)
+            ):
+                raise ValueError("Studio phone-screen history item is invalid")
+            try:
+                data = (self.assets / filename).read_bytes()
+            except OSError as error:
+                raise ValueError("Studio phone-screen history image is unavailable") from error
+            inspected = inspect_media(data, "image/png")
+            if (
+                hashlib.sha256(data).hexdigest() != digest
+                or item.get("byte_count") != len(data)
+                or item.get("width") != inspected["width"]
+                or item.get("height") != inspected["height"]
+            ):
+                raise ValueError("Studio phone-screen history digest is invalid")
+            seen.add(digest)
+            records.append({**item, "bytes": data})
+        if current is not None and current["sha256"] not in seen:
+            raise ValueError("Current Studio phone-screen image is absent from its history")
+        return records
+
+    def _phone_screen_history_summaries(self) -> list[dict[str, Any]]:
+        if self._selected_template_id() != PHONE_METRICS_TEMPLATE_ID:
+            return []
+        current = self._asset_record("phone_screen")
+        selected_sha256 = None if current is None else current["sha256"]
+        return [{
+            "mime_type": record["mime_type"],
+            "sha256": record["sha256"],
+            "width": record["width"],
+            "height": record["height"],
+            "byte_count": record["byte_count"],
+            "source": json.loads(json.dumps(record["source"])),
+            "selected": record["sha256"] == selected_sha256,
+        } for record in self._phone_screen_history_records()]
+
+    def _write_phone_screen_history(self, records: list[Mapping[str, Any]]) -> None:
+        kept = records[:_PHONE_SCREEN_HISTORY_LIMIT]
+        items = []
+        retained_filenames = set()
+        for record in kept:
+            digest = str(record["sha256"])
+            filename = f"phone_screen_history_{digest}.png"
+            retained_filenames.add(filename)
+            self._atomic_bytes(self.assets / filename, bytes(record["bytes"]))
+            items.append({
+                "filename": filename,
+                "mime_type": "image/png",
+                "sha256": digest,
+                "width": int(record["width"]),
+                "height": int(record["height"]),
+                "byte_count": int(record["byte_count"]),
+                "source": json.loads(json.dumps(record["source"])),
+            })
+        for path in self.assets.glob("phone_screen_history_*.png"):
+            if path.name not in retained_filenames:
+                path.unlink()
+        self._atomic_json(self.assets / "phone_screen_history.json", {
+            "schema": _PHONE_SCREEN_HISTORY_SCHEMA,
+            "items": items,
+        })
+
     def _asset_records(self, config: Mapping[str, Any], content: Mapping[str, Any] | None = None) -> dict[str, Mapping[str, Any]]:
         if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID:
             normalized_content = self._content() if content is None else normalize_phone_metrics_content(content)
@@ -347,7 +447,7 @@ class UniversalStudioWorkspace:
         config, content = self._configuration(), self._content()
         template = self._build_template(config, content)
         versions = self._version_records()
-        return {
+        value = {
             "schema": _WORKSPACE_SCHEMA,
             "template_id": self._selected_template_id(),
             "templates": [json.loads(json.dumps(item)) for item in _TEMPLATE_SUMMARIES],
@@ -368,6 +468,9 @@ class UniversalStudioWorkspace:
                 "change_note": item["change_note"],
             } for item in versions],
         }
+        if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID:
+            value["phone_screen_history"] = self._phone_screen_history_summaries()
+        return value
 
     def component_settings(
         self, *, state_sha256: str,
@@ -560,13 +663,61 @@ class UniversalStudioWorkspace:
             raise ValueError("generated phone-screen artwork requires the phone-and-metrics template")
         if source.get("origin") not in {
             "codex_builtin_image_generation", "openai_image_api",
+            "result_bridge_image_generation",
         } or source.get("text_in_screen") != "prohibited_by_prompt":
             raise ValueError("phone-screen artwork must carry verified text-free generation provenance")
+        previous = self._phone_screen_history_records()
         self._store_asset(
             "phone_screen", mime_type="image/png", data=data,
             source=source,
         )
+        current = self._asset_record("phone_screen")
+        if current is None:  # pragma: no cover - the write above is authoritative
+            raise RuntimeError("Generated phone-screen artwork was not stored")
+        history = [current, *(
+            record for record in previous if record["sha256"] != current["sha256"]
+        )]
+        self._write_phone_screen_history(history)
         return self.detail()
+
+    def select_phone_screen(self, *, base_sha256: str, sha256: str) -> dict[str, Any]:
+        """Make one retained raw hero the current render and enhancement source."""
+
+        self._assert_state(base_sha256)
+        if self._selected_template_id() != PHONE_METRICS_TEMPLATE_ID:
+            raise ValueError("phone-screen selection requires the phone-and-metrics template")
+        if not re.fullmatch(r"[0-9a-f]{64}", str(sha256)):
+            raise ValueError("Studio phone-screen history digest is invalid")
+        records = self._phone_screen_history_records()
+        selected = next((item for item in records if item["sha256"] == sha256), None)
+        if selected is None:
+            raise KeyError("Studio phone-screen history image not found")
+        current = self._asset_record("phone_screen")
+        if current is not None and current["sha256"] == sha256:
+            return self.detail()
+        self._store_asset(
+            "phone_screen", mime_type="image/png", data=bytes(selected["bytes"]),
+            source=selected["source"],
+        )
+        return self.detail()
+
+    def phone_screen_history_image(self, sha256: str) -> dict[str, Any]:
+        """Read one retained raw hero by its verified content digest."""
+
+        if self._selected_template_id() != PHONE_METRICS_TEMPLATE_ID:
+            raise KeyError("Studio phone-screen history image not found")
+        if not re.fullmatch(r"[0-9a-f]{64}", str(sha256)):
+            raise KeyError("Studio phone-screen history image not found")
+        selected = next(
+            (item for item in self._phone_screen_history_records() if item["sha256"] == sha256),
+            None,
+        )
+        if selected is None:
+            raise KeyError("Studio phone-screen history image not found")
+        return {
+            "bytes": bytes(selected["bytes"]), "mime_type": "image/png",
+            "sha256": selected["sha256"],
+        }
 
     def generate_phone_screen(
         self, *, base_sha256: str, visual_direction: str,
@@ -578,7 +729,7 @@ class UniversalStudioWorkspace:
         if self._selected_template_id() != PHONE_METRICS_TEMPLATE_ID:
             raise ValueError("phone-screen generation requires the phone-and-metrics template")
         if self.image_provider is None:
-            raise RuntimeError("Codex image generation is unavailable in this local Studio runtime")
+            raise RuntimeError("Phone-screen image generation is unavailable in this Studio runtime")
         if not isinstance(enhance_current, bool):
             raise ValueError("enhance current phone-screen setting must be boolean")
         current_screen = self._asset_record("phone_screen")

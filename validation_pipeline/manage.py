@@ -20,6 +20,8 @@ def main() -> None:
         "commander_audit_events", "commander_operation_guard", "commander_control",
         "validation_projects", "product_briefs", "product_brief_approvals",
         "validation_generation_attempts", "validation_provider_invocations",
+        "universal_studio_workspaces", "universal_studio_workspace_files",
+        "universal_studio_assets", "universal_studio_versions",
     }
     forbidden = {
         "project_assets", "project_brand_kits", "studio_recipes", "studio_renders",

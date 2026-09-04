@@ -1,8 +1,8 @@
 # Commander current state
 
-Updated: 2026-09-03
+Updated: 2026-09-04
 Branch: `codex/web-only-commander`
-Deployment: not authorized; local checkout only
+Deployment: owner-authorized production release in verification
 
 ## Current milestone
 
@@ -31,7 +31,7 @@ the complete
 upright screen is fitted into the fixed front aperture before its hardware is
 composited. Device, UI, copy, and artwork remain one downstream layer and cannot
 drift apart, while the screen text and CTA stay crisp and horizontal. Standalone
-Studio now exposes a bounded visual-direction field and local-only “Generate &
+Studio now exposes a bounded visual-direction field and “Generate &
 apply” action; it saves current draft copy/configuration first and replaces only
 the mutable in-phone artwork. An “Enhance current image” checkbox is enabled and
 checked by default whenever a generated raw hero exists. Enhance supplies that
@@ -46,6 +46,15 @@ The Codex path confines the temporary reference PNG to its read-only worker
 directory; the direct API path uses the GPT Image edits endpoint. Saved
 provenance records generate-versus-enhance mode and, for enhancement, the exact
 reference asset SHA-256. Neither path persists a temporary reference copy.
+Studio retains the three newest distinct raw iPhone hero images in a digest-
+verified local history. A compact authenticated thumbnail selector marks the
+active image and lets the owner restore any retained hero without regenerating
+it; that selection becomes both the authoritative rendered hero and the next
+Enhance reference. Selecting an image saves pending copy/configuration first,
+does not reorder recency, and keeps all three entries. A fourth successful
+generation evicts only the oldest retained raw hero and its file. Legacy
+workspaces expose their current raw hero as the first history item immediately;
+previously overwritten images cannot be reconstructed.
 The prior polished sculptural fixture remains the zero-cost fallback, and a
 failed generation preserves the current visual. The local Post flow continues
 to derive its direction from the approved Brief.
@@ -97,14 +106,25 @@ canonical lock-up is always enabled. Owner logo upload/toggle/brand substitution
 is absent from the new template controls; immutable legacy versions remain
 readable.
 
+Production integration now exposes the complete bounded Studio route set through
+Firebase-authenticated Owner Gateway. Production phone generation uses the
+existing server-side Result media bridge; Enhance supplies one digest-checked PNG
+attachment to the same bounded non-human graphic mode. PostgreSQL is the complete
+production Studio authority: it owns the singleton workspace snapshot and PNG
+bytes, immutable asset/version UUID entities, and explicit `contains`,
+`derived_from`, and `supersedes` edges. Validation restores its disposable
+renderer cache from PostgreSQL after replacement. The release gate performs real
+provider generate/edit canaries before reset and compares exact Studio workspace
+and state IDs across a forced Validation API replacement after reset.
+
 The local Post start screen exposes both template choices before the draft is
 created and locks the choice afterward. Phone drafts collect bounded copy,
 exactly three owner metrics, and all three texture choices, then generate a
 server-side OpenAI text-free hero
 visual under an explicit no-text/no-logo/no-UI contract. They have no
 after-start Tune action. Universal drafts retain the existing bounded Pexels
-and comment-tuning flow. No production Owner Gateway, Brief handoff, Telegram,
-database, Firebase, or deployment behavior changed.
+and comment-tuning flow. It remains absent from production Owner Gateway and
+does not alter Brief handoff or Telegram behavior.
 
 Mutable local Post v1 drafts created before template selection and the fixed
 Natal lock-up are recovered once, append-only, when their Studio state digest
@@ -114,8 +134,9 @@ fails closed on a digest mismatch.
 
 ## Verification status
 
-- Validation pipeline: 96 tests passed in the repository virtual environment.
-- Focused Post/Studio/phone regressions: 57 tests passed, including authenticated
+- Validation pipeline: 100 tests passed in the repository virtual environment;
+  the four Owner Gateway tests also passed.
+- Focused Post/Studio/phone regressions: 58 tests passed, including authenticated
   Codex built-in image generation, generated-path confinement and cleanup, static
   frame digest/no-runtime-fetch, front-facing app-shell composition,
   renderer-owned phone copy/actions/CTA, Natal-only identity, template replacement,
@@ -126,7 +147,10 @@ fails closed on a digest mismatch.
   owner-directed phone-screen generation, authenticated local routing, saved
   provider/direction provenance, current-image enhancement through both Codex
   and direct API provider boundaries, reference digest lineage, and preservation
-  of the deterministic fallback.
+  of the deterministic fallback. History coverage verifies the exact three-item
+  retention cap, oldest-file eviction, digest-checked authenticated reads,
+  selection without recency reordering, selected-image rendering, and use of
+  the selected raw bytes for the next enhancement.
 - Extended Studio visual audit passed six universal variants plus six exact
   full-resolution `phone_metrics` 1080×1350 states. It checks every
   texture option, all three actual `Off` states, a left-copy-only isolation
@@ -146,22 +170,29 @@ fails closed on a digest mismatch.
   independent labels/colours, and the reference elevation shadow. The creative render was
   visually inspected without social-app chrome. The live Studio editor was
   inspected at 1440 and 360 CSS pixels with reduced motion, keyboard controls,
-  all per-button fields, the original default and a mixed styled preview,
+  all per-button fields, the original default and a mixed styled preview, the
+  real one-thumbnail legacy state and an exact three-thumbnail selection state,
   refreshed authoritative preview pixels, and no horizontal overflow.
-- Owner Console: 43 Vitest tests and the production TypeScript/Vite build
+- Owner Console: 44 Vitest tests and the production TypeScript/Vite build
   passed.
+- Production-integration gates: the single baseline schema applied twice against
+  disposable PostgreSQL; one real workspace, generated-asset entity, approved-
+  version entity, and three graph edges survived cache reconstruction with the
+  same UUIDs and render digest. The independent Result bridge passed 30 tests,
+  including exact reference attachment, prompt base64 exclusion, attachment-use
+  proof, provenance, and temporary-file cleanup.
 - Commander: host suite passed 6 tests with 2 FastAPI-dependent skips; the
   built runtime image passed all 8 tests. The deterministic Commander demo
   completed.
 - Canonical skill synchronization and skill verification passed.
 
-No production state was touched.
+The release is targeted as `studio-phone-v17-20260904-0513`; production results
+are recorded only after all serial deployment and live verification gates pass.
 
 ## Next work
 
-Keep both Studio templates and the Post milestone local until the owner
-explicitly requests production integration. That future work must define
-PostgreSQL entity/edge and PNG authority, add authenticated Owner
-Gateway/internal routes, verify restart/idempotency, and preserve the rule that
-only explicit approval creates an asset. Do not reuse the retired Result
-schema, routes, or local data.
+Complete the owner-authorized serial production release and record its exact
+application/platform revisions and live verification. Keep the simple Post flow
+local-only. Studio approval remains the only operation that creates an immutable
+Studio version; generated phone heroes are immutable source assets but never
+implicitly approved versions.

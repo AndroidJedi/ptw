@@ -90,7 +90,7 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
     def test_one_fixed_template_opens_with_requested_investment_post(self) -> None:
         detail = self.workspace.detail()
         self.assertEqual("universal_ad", detail["catalog"]["template_id"])
-        self.assertEqual("ptw.studio.workspace.v7", detail["schema"])
+        self.assertEqual("ptw.studio.workspace.v8", detail["schema"])
         self.assertFalse(detail["phone_screen_generation_available"])
         self.assertEqual(["universal_ad", "phone_metrics"], [
             item["template_id"] for item in detail["templates"]
@@ -924,7 +924,8 @@ class UniversalStudioApiTests(unittest.TestCase):
                 self.prompts.append(prompt)
                 self.references.append(reference_image)
                 return {
-                    "bytes": _image_bytes(), "mime_type": "image/png",
+                    "bytes": _image_bytes(object_on_white=len(self.prompts) > 1),
+                    "mime_type": "image/png",
                     "source": {
                         "origin": "openai_image_api", "provider": "openai",
                         "model": "fake-image-model",
@@ -988,6 +989,42 @@ class UniversalStudioApiTests(unittest.TestCase):
                     screen["sha256"],
                     enhanced_screen["source"]["reference_asset_sha256"],
                 )
+                self.assertEqual(2, len(enhanced.json()["phone_screen_history"]))
+                history_image_path = (
+                    f'/api/v1/studio/phone-screen/history/{screen["sha256"]}'
+                )
+                self.assertEqual(401, client.get(history_image_path).status_code)
+                history_image = client.get(history_image_path, headers=headers)
+                self.assertEqual(200, history_image.status_code, history_image.text)
+                self.assertEqual(_image_bytes(), history_image.content)
+                self.assertEqual("private, no-store", history_image.headers["cache-control"])
+                self.assertEqual(f'"{screen["sha256"]}"', history_image.headers["etag"])
+                selected = client.post(
+                    "/api/v1/studio/phone-screen/select", headers=headers, json={
+                        "base_sha256": enhanced.json()["state_sha256"],
+                        "sha256": screen["sha256"],
+                    },
+                )
+                self.assertEqual(200, selected.status_code, selected.text)
+                self.assertEqual(
+                    [False, True],
+                    [item["selected"] for item in selected.json()["phone_screen_history"]],
+                )
+                self.assertEqual(
+                    screen["sha256"],
+                    next(
+                        item for item in selected.json()["assets"]
+                        if item["slot"] == "phone_screen"
+                    )["sha256"],
+                )
+                invalid_selection = client.post(
+                    "/api/v1/studio/phone-screen/select", headers=headers, json={
+                        "base_sha256": selected.json()["state_sha256"],
+                        "sha256": screen["sha256"],
+                        "unexpected": True,
+                    },
+                )
+                self.assertEqual(400, invalid_selection.status_code)
                 invalid = client.post(
                     "/api/v1/studio/phone-screen/generate", headers=headers, json={
                         "base_sha256": enhanced.json()["state_sha256"],

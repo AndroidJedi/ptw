@@ -77,3 +77,12 @@ bounded boolean mode to the authenticated route. Provider coverage must prove
 that enhancement receives the exact raw current asset, never the composited
 phone preview, and persists its reference SHA-256 while failure preserves the
 previous asset.
+When raw-hero history changes, verify that only the three newest distinct images
+and their digest-addressed files remain, the current item is explicit, and
+selecting an older retained item neither reorders nor drops history. Thumbnail
+reads must be authenticated, private/no-store, MIME- and SHA-checked, and
+bounded to a retained digest. Confirm pending editor changes are saved before
+selection, the selected raw bytes reach both the authoritative render and the
+next Enhance call, failure preserves current/history, and the three-column
+selector remains keyboard usable without horizontal overflow at desktop and
+360 CSS pixels.

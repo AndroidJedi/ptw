@@ -25,9 +25,14 @@ Landing is a private responsive, fixed-section workspace created from a selected
 immutable approved Post version and its approved Brief. It captures Post style
 once, AI-populates Hero/three features/visual directions/three FAQs, leaves
 owner evidence and contacts empty, then generates text-free Hero and visual-break
-art. Its required order is Hero, three features, social proof, visual break,
-contacts, and FAQ. Save/Approve creates Landing-only learning; approval requires
-all sections, both visuals, owner proof, and one email/phone/HTTPS endpoint.
+art. The rebuilt v2 renderer adds bundled typography, a balanced hero, benefit
+cards, optional proof, bounded landscape art, an actionable contact panel, and
+collapsed FAQs. The section inspector supports direct visual editing, all bounded
+layout controls, crop focus, page language, and a selectable CTA destination.
+One shared renderer powers 1280/768/360px and fullscreen previews. Save/Approve
+shows Landing-only learning; approval requires essential copy, both visuals,
+and one valid contact endpoint. Evidence is optional, complete when supplied,
+and absent from Preview when empty. Approval validates before persisting state.
 Landing has no public URL, lead handling, publishing, or Post-skill influence.
 
 A replacement Brief creates a separate first creative. Another creative from
@@ -106,13 +111,15 @@ are absent.
 
 ## Verification status
 
-Landing static checks pass: Python compilation, Landing bounded-state tests,
-Commander host tests/demo, canonical skill verification, whitespace checks, the
-production web build with 49 web unit tests, all 18 configured browser checks
-(desktop, 360px, and WebKit), and the deterministic Studio geometry audit. The
-host lacks FastAPI, Pillow, certifi, httpx, and a Docker daemon, so the
-built-image FastAPI/Pillow suite and disposable PostgreSQL migration check still
-need to run there. No production action has been taken.
+Landing redesign verification is recorded in `.local/landing-redesign` with
+before/after screenshots of the Ukrainian page at desktop, tablet, and mobile.
+Landing backend tests (10), Commander virtual-environment tests (7), host demo,
+canonical skill verification, and whitespace checks pass. All 52 web unit tests,
+the production web build, and all 33 browser checks pass. The restarted local
+v2 API also persists presentation/CTA edits and rejects an incomplete approval
+without changing draft state. The host Docker daemon is unavailable;
+the required built-image suite cannot run here. No migration, reset, paid image
+generation, or production action is part of this change.
 
 ## Next work
 

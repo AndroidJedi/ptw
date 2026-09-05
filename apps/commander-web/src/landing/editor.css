@@ -1,0 +1,91 @@
+.landing-studio { display: grid; gap: 0; min-width: 0; }
+.landing-action-bar { position: sticky; top: 0; z-index: 10; display: flex; gap: 20px; justify-content: space-between; align-items: center; padding: 18px 0; background: var(--black); }
+.landing-action-bar h1 { font-size: 26px; letter-spacing: -.04em; margin: 6px 0; }
+.landing-action-bar small, .landing-inspector header small { color: var(--muted); font-size: 9px; letter-spacing: .12em; }
+.landing-action-bar p { color: var(--muted); font-size: 11px; margin: 0; }
+.landing-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.landing-actions button { min-height: 44px; font-size: 12px; }
+.landing-actions select { width: auto; max-width: 180px; font-size: 12px; }
+.landing-workspace-toolbar { display: flex; align-items: center; gap: 20px; padding: 12px; border: 1px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0; background: var(--panel); }
+.landing-mode-controls, .landing-device-controls { display: flex; gap: 4px; }
+.landing-mode-controls button, .landing-device-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 8px 12px; border: 1px solid transparent; border-radius: 8px; color: var(--muted); background: transparent; font-size: 12px; }
+.landing-mode-controls .active, .landing-device-controls .active { color: var(--white); background: var(--panel-strong); border-color: var(--line); }
+.landing-workspace-toolbar > span { margin-left: auto; font-size: 9px; letter-spacing: .1em; color: var(--muted); }
+.landing-workbench { display: grid; grid-template-columns: 320px minmax(0, 1fr); border: 1px solid var(--line); border-radius: 0 0 14px 14px; overflow: hidden; }
+.landing-workbench.is-preview { grid-template-columns: 1fr; }
+.landing-workbench.is-preview .landing-editor { display: none; }
+.landing-editor { border-right: 1px solid var(--line); background: var(--panel); max-height: calc(100dvh - 210px); overflow-y: auto; min-width: 0; }
+.landing-section-nav { display: flex; flex-wrap: wrap; gap: 6px; padding: 14px; border-bottom: 1px solid var(--line); }
+.landing-section-nav button { min-height: 44px; padding: 8px 10px; border: 1px solid transparent; border-radius: 8px; font-size: 11px; background: transparent; color: var(--muted); }
+.landing-section-nav button.active { background: var(--panel-strong); border-color: var(--line); color: var(--white); }
+.landing-section-nav button span { margin-left: 6px; font-size: 18px; }
+.landing-inspector { padding: 20px; }
+.landing-inspector header { margin-bottom: 22px; }
+.landing-inspector h2 { margin: 6px 0; font-size: 20px; }
+.landing-inspector h3 { margin: 8px 0; font-size: 12px; }
+.landing-inspector-fields { display: grid; gap: 18px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.landing-field { display: grid; gap: 8px; font-size: 12px; min-width: 0; }
+.landing-field > span, .landing-field label > span { display: flex; justify-content: space-between; gap: 12px; color: var(--soft); }
+.landing-field small, .landing-field output { color: var(--muted); font-size: 10px; font-weight: 400; white-space: nowrap; }
+.landing-field input, .landing-field textarea, .landing-field select { width: 100%; min-height: 44px; background: var(--panel-strong); padding: 10px; font: inherit; }
+.landing-field textarea { min-height: 100px; line-height: 1.6; }
+.landing-field input[type=range] { padding: 0; accent-color: var(--white); }
+.landing-color-field { grid-template-columns: 1fr 44px 60px; align-items: center; }
+.landing-color-field input[type=color] { width: 44px; padding: 4px; }
+.landing-color-field code { font-size: 10px; color: var(--muted); }
+.landing-field-error { margin: 0; font-size: 11px; color: var(--white); line-height: 1.5; border-left: 2px solid var(--white); padding-left: 8px; }
+.landing-field-hint { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.landing-field [aria-invalid=true] { border-style: dashed; border-color: var(--muted); }
+.landing-image-editor { display: grid; gap: 14px; border-top: 1px solid var(--line); padding-top: 20px; }
+.landing-current-image { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 10px; }
+.landing-visual-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.landing-visual-actions button { min-height: 44px; font-size: 11px; }
+.landing-image-history { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.landing-image-history button { position: relative; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--white); min-height: 64px; overflow: hidden; }
+.landing-image-history button.active { border: 2px solid var(--white); opacity: 1; }
+.landing-image-history img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; border-radius: 5px; }
+.landing-image-history span { position: absolute; bottom: 2px; left: 2px; right: 2px; padding: 3px; font-size: 9px; background: #0009; }
+.landing-repeater { display: grid; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.landing-repeater button { font-size: 11px; }
+.landing-readiness { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
+.landing-readiness summary { cursor: pointer; font-size: 12px; min-height: 44px; }
+.landing-readiness > button { display: block; text-align: left; width: 100%; padding: 10px 0; min-height: 44px; color: var(--soft); background: transparent; border: 0; font-size: 11px; }
+.landing-preview-area { min-width: 0; }
+.landing-stage { width: 100%; height: calc(100dvh - 210px); min-height: 420px; overflow: auto; background: #202020; }
+.landing-scaled-frame { margin: 0 auto; position: relative; }
+.landing-device-page { transform-origin: top left; position: absolute; top: 0; left: 0; }
+.landing-inline-error { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px; border: 1px solid var(--muted); border-radius: 10px; margin: 12px 0; font-size: 12px; }
+.landing-dialog { color: var(--white); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 0; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); }
+.landing-dialog::backdrop { background: #000c; }
+.landing-dialog-body > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 18px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.landing-dialog-body > header button { min-width: 44px; min-height: 44px; }
+.landing-fullscreen { width: 1440px; }
+.landing-dialog-toolbar { display: flex; align-items: center; justify-content: center; gap: 24px; padding: 8px; }
+.landing-dialog-toolbar small { font-size: 9px; letter-spacing: .1em; color: var(--muted); }
+.landing-fullscreen .landing-stage { height: calc(100dvh - 172px); }
+.landing-learning { width: 520px; }
+.landing-learning-content { padding: 24px; font-size: 14px; line-height: 1.6; }
+.landing-learning-content h3 { font-size: 14px; }
+@media (max-width: 1100px) {
+  .landing-action-bar { align-items: start; flex-direction: column; gap: 12px; position: static; }
+  .landing-workbench { grid-template-columns: 290px minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+  .landing-actions { width: 100%; }
+  .landing-actions button { flex: 1; font-size: 11px; padding: 10px; }
+  .landing-actions button svg { display: none; }
+  .landing-workspace-toolbar { flex-wrap: wrap; gap: 6px; justify-content: space-between; }
+  .landing-workspace-toolbar > span { display: none; }
+  .landing-device-controls button { padding: 8px; }
+  .landing-device-controls button span { display: none; }
+  .landing-workbench { grid-template-columns: 1fr; }
+  .landing-editor { border-right: 0; max-height: none; }
+  .landing-workbench.is-edit .landing-preview-area { display: none; }
+  .landing-stage { min-height: 400px; height: calc(100dvh - 180px); }
+  .landing-dialog { max-width: 100vw; max-height: 100dvh; border: 0; border-radius: 0; }
+  .landing-fullscreen { width: 100vw; }
+  .landing-fullscreen .landing-stage { height: calc(100dvh - 132px); }
+}
+
+.landing-readiness-trigger { margin-left: auto; min-height: 44px; padding: 8px 12px; font-size: 11px; color: var(--soft); background: transparent; border: 1px solid var(--line); border-radius: 8px; }
+@media (max-width: 700px) { .landing-readiness-trigger { width: 100%; margin: 4px 0 0; } }

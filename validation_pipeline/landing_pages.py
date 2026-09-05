@@ -15,7 +15,7 @@ from uuid import UUID
 from commander.ids import new_uuid7
 
 from .landing_workspace import (
-    DEFAULT_CONFIGURATION, DEFAULT_CONTENT, LANDING_TEMPLATE_ID, LANDING_VISUAL_SLOTS, LandingWorkspace,
+    DEFAULT_CONFIGURATION, DEFAULT_CONTENT, DEFAULT_PRESENTATION, LANDING_TEMPLATE_ID, LANDING_VISUAL_SLOTS, LandingWorkspace,
     canonical_json, normalize_composed_content, normalize_configuration, sha256_json,
 )
 from .local_brief_store import LocalBriefStore, utc_now
@@ -70,7 +70,7 @@ def landing_generation_schema() -> dict[str, Any]:
     return {
         "type": "object",
         "properties": {
-            "configuration": _json_schema(DEFAULT_CONFIGURATION),
+            "configuration": _json_schema({**DEFAULT_CONFIGURATION, "presentation": DEFAULT_PRESENTATION}),
             "content": _json_schema(DEFAULT_CONTENT),
         },
         "required": ["configuration", "content"], "additionalProperties": False,
@@ -301,6 +301,9 @@ class LocalLandingAuthority:
         value = {"proposal_id": new_uuid7(), "checkpoint_id": checkpoint_id, "project_skill_snapshot_id": project_skill_snapshot_id, "global_rule": global_rule, "status": "pending", "created_at": utc_now()}
         self.store.append("landing_learning_proposals", value["proposal_id"], value)
         return value
+
+    def get_proposal(self, proposal_id: str) -> dict[str, Any]:
+        return self.store.get("landing_learning_proposals", proposal_id)
 
     def decide_proposal(self, proposal_id: str, decision: str) -> dict[str, Any]:
         if decision not in {"apply_global", "keep_project"}:
@@ -652,6 +655,13 @@ class DatabaseLandingAuthority:
             connection.execute("INSERT INTO landing_learning_proposals(entity_id,checkpoint_id,project_skill_snapshot_id,global_rule,status) VALUES(%s,%s,%s,%s,'pending')", (UUID(proposal_id), UUID(checkpoint_id), UUID(project_skill_snapshot_id), global_rule))
         return {"proposal_id": proposal_id, "checkpoint_id": checkpoint_id, "project_skill_snapshot_id": project_skill_snapshot_id, "global_rule": global_rule, "status": "pending"}
 
+    def get_proposal(self, proposal_id: str) -> dict[str, Any]:
+        with self.connection() as connection:
+            row = connection.execute("SELECT checkpoint_id FROM landing_learning_proposals WHERE entity_id=%s", (UUID(proposal_id),)).fetchone()
+        if row is None:
+            raise KeyError(proposal_id)
+        return {"proposal_id": proposal_id, "checkpoint_id": str(row[0])}
+
     def decide_proposal(self, proposal_id: str, decision: str) -> dict[str, Any]:
         if decision not in {"apply_global", "keep_project"}:
             raise ValueError("Landing learning decision is invalid")
@@ -736,7 +746,8 @@ class LandingService:
         return (
             "Create one premium, text-free visual for a private responsive Landing page. "
             "Match the supplied immutable Post design profile in palette, material, lighting, and visual character. "
-            "Do not render readable text, letters, numbers, logos, buttons, UI, devices, charts, testimonials, or contact details. "
+            "Do not render readable text, letters, numbers, logos, buttons, UI, devices, charts, testimonials, or contact details. " +
+            ("Compose the subject centrally for a balanced hero crop. " if slot == "hero_visual" else "Compose a wide landscape with the subject inside the central horizontal band, safe for a shallow panoramic crop. ") +
             f"The visual slot is {slot}. The subject direction is: {direction}. "
             f"Frozen Post style profile: {canonical_json(self._style_snapshot(page))[:5000]}"
         )
@@ -766,7 +777,7 @@ class LandingService:
         payload = {
             "landing_id": landing_id, "approved_product_brief": brief["document"],
             "source_post_version": self._style_snapshot(page), "live_landing_catalog": detail["catalog"],
-            "template_defaults": {"configuration": detail["configuration"], "content": detail["content"]},
+            "template_defaults": {"configuration": {**detail["configuration"], "presentation": detail["configuration"].get("presentation", DEFAULT_PRESENTATION)}, "content": detail["content"]},
             "global_landing_skill": global_skill["content"], "project_landing_skill": project_skill["content"],
         }
         stage = "composition"
@@ -775,13 +786,13 @@ class LandingService:
             result = self._provider_call(
                 mode="studio_creative_generation", system_prompt=self.composer_skill,
                 input_payload=payload, output_schema=landing_generation_schema(),
-                idempotency_key=f"landing-page:{landing_id}", prompt_version="landing-page-composer-v1",
+                idempotency_key=f"landing-page:{landing_id}", prompt_version="landing-page-composer-v2",
                 response_validator=lambda value: {
                     "configuration": normalize_configuration(value["configuration"]),
                     "content": normalize_composed_content(value["content"]),
                 } if set(value) == {"configuration", "content"} else (_ for _ in ()).throw(ValueError("Landing composer response fields are invalid")),
             )
-            self._record_generation(landing_id=landing_id, stage="composition", status="completed", input_sha256=stage_input, output_sha256=sha256_json(result["response"]), prompt_version="landing-page-composer-v1", invocation=sanitized(result.get("invocation") or {}))
+            self._record_generation(landing_id=landing_id, stage="composition", status="completed", input_sha256=stage_input, output_sha256=sha256_json(result["response"]), prompt_version="landing-page-composer-v2", invocation=sanitized(result.get("invocation") or {}))
             composed = workspace.save_configuration(base_sha256=detail["state_sha256"], **result["response"])
             self.authority.update_page(landing_id, status="generating_images", state_sha256=composed["state_sha256"], generation={"stage": "generating_images", "composition": sanitized(result.get("invocation") or {})})
             for slot, direction in (("hero_visual", composed["content"]["hero"]["visual_direction"]), ("visual_break_visual", composed["content"]["visual_break"]["visual_direction"])):
@@ -794,7 +805,7 @@ class LandingService:
             self.authority.update_page(landing_id, status="draft", state_sha256=composed["state_sha256"], generation={"stage": "draft", "composition": sanitized(result.get("invocation") or {})}, learning_baseline=baseline, learning_baseline_sha256=sha256_json(baseline))
         except Exception as error:
             self._synchronize_workspace(landing_id, workspace)
-            self._record_generation(landing_id=landing_id, stage=stage, status="failed", input_sha256=stage_input, output_sha256=None, prompt_version="landing-page-composer-v1" if stage == "composition" else "landing-visual-generator-v1", error=error)
+            self._record_generation(landing_id=landing_id, stage=stage, status="failed", input_sha256=stage_input, output_sha256=None, prompt_version="landing-page-composer-v2" if stage == "composition" else "landing-visual-generator-v1", error=error)
             self.authority.update_page(landing_id, status="failed", generation={"stage": "failed", "error_type": type(error).__name__, "error_message": str(error)[:1000]})
         return self.summary(landing_id)
 
@@ -836,6 +847,7 @@ class LandingService:
             project_skill = self.authority.create_project_skill(project_id=page["project_id"], lesson=_compact(learned["project_lesson"], "project lesson", 8, 800), checkpoint_id=checkpoint["checkpoint_id"])
             proposal = self.authority.create_proposal(checkpoint_id=checkpoint["checkpoint_id"], project_skill_snapshot_id=project_skill["skill_snapshot_id"], global_rule=_compact(learned["global_rule"], "global rule", 8, 800))
             checkpoint = self.authority.record_learning_result(checkpoint["checkpoint_id"], status="completed", edit_summary=_compact(learned["edit_summary"], "edit summary", 8, 1200), project_skill_snapshot_id=project_skill["skill_snapshot_id"], error_type=None, error_message=None)
+            checkpoint = {**checkpoint, "project_lesson": learned["project_lesson"]}
         except Exception as error:
             checkpoint = self.authority.record_learning_result(checkpoint["checkpoint_id"], status="failed", error_type=type(error).__name__, error_message=str(error)[:1000])
         return checkpoint, proposal
@@ -879,6 +891,10 @@ class LandingService:
 
     def decide_learning(self, project_id: str, landing_id: str, proposal_id: str, decision: str) -> dict[str, Any]:
         self.detail(project_id, landing_id)
+        proposal = self.authority.get_proposal(proposal_id)
+        checkpoint = self.authority.get_checkpoint(proposal["checkpoint_id"])
+        if checkpoint["landing_id"] != _uuid(landing_id, "landing_id"):
+            raise KeyError("Landing learning proposal was not found")
         return self.authority.decide_proposal(proposal_id, decision)
 
     def retry_learning(self, project_id: str, landing_id: str, checkpoint_id: str) -> dict[str, Any]:

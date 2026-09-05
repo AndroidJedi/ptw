@@ -520,8 +520,18 @@ export interface StudioTuneDetail {
   runs: StudioTuneRun[]
 }
 
+export interface LandingPresentation {
+  language: 'uk' | 'en'
+  cta_target: 'contacts' | 'url' | 'email' | 'phone'
+  heading_scale: number
+  spacing: 'compact' | 'comfortable' | 'airy'
+  hero_focus: { x: number; y: number }
+  visual_break_focus: { x: number; y: number }
+}
+
 export interface LandingConfiguration {
   schema: 'ptw.landing.configuration.v1'
+  presentation?: LandingPresentation
   theme: {
     background_color: string
     surface_color: string

@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import re
+from urllib.parse import urlsplit
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -17,7 +20,7 @@ from .studio import inspect_media
 
 
 LANDING_TEMPLATE_ID = "project_landing"
-LANDING_TEMPLATE_VERSION = 1
+LANDING_TEMPLATE_VERSION = 2
 LANDING_SCHEMA = "ptw.landing.workspace.v1"
 LANDING_CONFIGURATION_SCHEMA = "ptw.landing.configuration.v1"
 LANDING_CONTENT_SCHEMA = "ptw.landing.content.v1"
@@ -45,6 +48,45 @@ DEFAULT_CONFIGURATION: dict[str, Any] = {
     "contacts": {"alignment": "left"},
     "faq": {"style": "divided"},
 }
+
+# Optional on stored v1 documents: never materialize this block while reading.
+DEFAULT_PRESENTATION: dict[str, Any] = {
+    "language": "uk", "cta_target": "contacts", "heading_scale": 1.0,
+    "spacing": "comfortable", "hero_focus": {"x": 50, "y": 50},
+    "visual_break_focus": {"x": 50, "y": 50},
+}
+
+
+def normalize_presentation(value: Mapping[str, Any]) -> dict[str, Any]:
+    root = _object(value, set(DEFAULT_PRESENTATION), "presentation")
+    result = _copy(root)
+    for field, allowed in (("language", {"uk", "en"}),
+                           ("cta_target", {"contacts", "url", "email", "phone"}),
+                           ("spacing", {"compact", "comfortable", "airy"})):
+        if not isinstance(root[field], str) or root[field] not in allowed:
+            raise ValueError(f"Landing presentation.{field} is invalid")
+    def number(value: Any, minimum: float, maximum: float, field: str) -> None:
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not minimum <= value <= maximum:
+            raise ValueError(f"Landing presentation.{field} is invalid")
+    number(root["heading_scale"], .85, 1.15, "heading_scale")
+    for field in ("hero_focus", "visual_break_focus"):
+        focus = _object(root[field], {"x", "y"}, field)
+        for axis in ("x", "y"):
+            number(focus[axis], 0, 100, f"{field}.{axis}")
+    return result
+
+
+def valid_contact(field: str, value: str) -> bool:
+    if field == "email":
+        return re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", value) is not None
+    if field == "phone":
+        return re.fullmatch(r"\+?[0-9 ()\-]+", value) is not None and 3 <= sum(c.isdigit() for c in value) <= 15
+    try:
+        parsed = urlsplit(value)
+        return parsed.scheme == "https" and bool(parsed.hostname) and parsed.username is None and parsed.password is None and not any(c.isspace() for c in value) and "\\" not in value and (parsed.port is None or 0 < parsed.port <= 65535)
+    except ValueError:
+        return False
+
 
 DEFAULT_CONTENT: dict[str, Any] = {
     "schema": LANDING_CONTENT_SCHEMA,
@@ -100,7 +142,9 @@ def _color(value: Any, field: str) -> str:
 
 
 def normalize_configuration(value: Mapping[str, Any]) -> dict[str, Any]:
-    root = _object(value, set(DEFAULT_CONFIGURATION), "configuration")
+    if not isinstance(value, Mapping) or set(value) - {"presentation"} != set(DEFAULT_CONFIGURATION):
+        raise ValueError("Landing configuration fields are invalid")
+    root = value
     if root.get("schema") != LANDING_CONFIGURATION_SCHEMA:
         raise ValueError("Landing configuration schema is invalid")
     theme = _object(root["theme"], set(DEFAULT_CONFIGURATION["theme"]), "theme")
@@ -129,6 +173,8 @@ def normalize_configuration(value: Mapping[str, Any]) -> dict[str, Any]:
         if source[first] not in allowed_first or (second and source[second] not in allowed_second):
             raise ValueError(f"Landing {section} configuration is invalid")
         result[section] = dict(source)
+    if "presentation" in root:
+        result["presentation"] = normalize_presentation(root["presentation"])
     return result
 
 
@@ -175,10 +221,9 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
     email = _text(contacts["email"], "contact email", 3, 254)
     phone = _text(contacts["phone"], "contact phone", 3, 60)
     url = _text(contacts["url"], "contact URL", 8, 2048)
-    if email and "@" not in email:
-        raise ValueError("Landing contact email is invalid")
-    if url and not url.startswith("https://"):
-        raise ValueError("Landing contact URL must use HTTPS")
+    for field, contact in (("email", email), ("phone", phone), ("url", url)):
+        if contact and not valid_contact(field, contact):
+            raise ValueError(f"Landing contact {field} is invalid" + ("; URL must use HTTPS" if field == "url" else ""))
     result["contacts"] = {
         "heading": _text(contacts["heading"], "contact heading", 1, 120),
         "supporting_text": _text(contacts["supporting_text"], "contact supporting text", 1, 300),
@@ -220,7 +265,8 @@ def landing_catalog() -> dict[str, Any]:
         "section_order": ["hero", "features", "social_proof", "visual_break", "contacts", "faq"],
         "font_families": list(LANDING_FONT_FAMILIES),
         "visual_slots": list(LANDING_VISUAL_SLOTS),
-        "sha256": sha256_json({"configuration": DEFAULT_CONFIGURATION, "content": DEFAULT_CONTENT}),
+        "presentation_defaults": _copy(DEFAULT_PRESENTATION),
+        "sha256": sha256_json({"configuration": DEFAULT_CONFIGURATION, "content": DEFAULT_CONTENT, "presentation": DEFAULT_PRESENTATION}),
     }
 
 
@@ -332,8 +378,10 @@ class LandingWorkspace:
 
     def save_configuration(self, *, base_sha256: str, configuration: Mapping[str, Any], content: Mapping[str, Any]) -> dict[str, Any]:
         self._assert_state(base_sha256)
-        self._atomic_json(self.root / "configuration.json", normalize_configuration(configuration))
-        self._atomic_json(self.root / "content.json", normalize_content(content))
+        normalized_configuration = normalize_configuration(configuration)
+        normalized_content = normalize_content(content)
+        self._atomic_json(self.root / "configuration.json", normalized_configuration)
+        self._atomic_json(self.root / "content.json", normalized_content)
         return self.detail()
 
     def generate_visual(
@@ -391,10 +439,16 @@ class LandingWorkspace:
         content = value["content"]
         required = [
             content["hero"]["title"], content["hero"]["supporting_text"], content["hero"]["cta_label"],
-            content["social_proof"]["heading"], content["contacts"]["heading"], content["contacts"]["supporting_text"],
+            content["contacts"]["heading"], content["contacts"]["supporting_text"],
         ]
-        if not all(required) or not content["social_proof"]["items"]:
-            raise ValueError("Landing social proof and section copy must be completed before approval")
+        if not all(required):
+            raise ValueError("Landing section copy must be completed before approval")
+        proof = content["social_proof"]
+        if proof["items"] and (not proof["heading"] or any(not item["statement"] or not item["attribution"] for item in proof["items"])):
+            raise ValueError("Landing social proof entries require a heading, statement, and attribution")
+        target = value["configuration"].get("presentation", DEFAULT_PRESENTATION)["cta_target"]
+        if target != "contacts" and not content["contacts"][target]:
+            raise ValueError("Landing CTA destination requires its contact endpoint")
         if not any(content["contacts"][field] for field in ("email", "phone", "url")):
             raise ValueError("Landing requires an email, phone, or HTTPS contact URL before approval")
         if any(not item["title"] or not item["description"] for item in content["features"]):
@@ -405,9 +459,11 @@ class LandingWorkspace:
             raise ValueError("Landing hero and visual-break artwork must be generated before approval")
 
     def approve_configuration(self, *, base_sha256: str, configuration: Mapping[str, Any], content: Mapping[str, Any], change_note: str) -> dict[str, Any]:
-        saved = self.save_configuration(base_sha256=base_sha256, configuration=configuration, content=content)
-        self.approval_ready(saved)
+        self._assert_state(base_sha256)
+        candidate = {**self.detail(), "configuration": normalize_configuration(configuration), "content": normalize_content(content)}
+        self.approval_ready(candidate)
         note = _text(change_note, "version change note", 1, 240, required=True)
+        saved = self.save_configuration(base_sha256=base_sha256, configuration=candidate["configuration"], content=candidate["content"])
         version = len(self._versions()) + 1
         record = {
             "schema": LANDING_VERSION_SCHEMA, "version": version, "state_sha256": saved["state_sha256"],

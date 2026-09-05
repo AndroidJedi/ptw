@@ -1,0 +1,70 @@
+@font-face {
+  font-family: 'Landing Inter';
+  src: url('../../../../natal/assets/inter.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Landing Manrope';
+  src: url('../../../../validation_pipeline/studio_assets/fonts/Manrope-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Landing Source Sans 3';
+  src: url('../../../../validation_pipeline/studio_assets/fonts/SourceSans3-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Landing Roboto Condensed';
+  src: url('../../../../validation_pipeline/studio_assets/fonts/Roboto-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Landing Montserrat';
+  src: url('../../../../validation_pipeline/studio_assets/fonts/Montserrat-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Landing Oswald';
+  src: url('../../../../validation_pipeline/studio_assets/fonts/Oswald-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Landing Cormorant Garamond';
+  src: url('../../../../validation_pipeline/studio_assets/fonts/CormorantGaramond-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Landing Cormorant Garamond Italic';
+  src: url('../../../../validation_pipeline/studio_assets/fonts/CormorantGaramond-Italic-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Landing Lora';
+  src: url('../../../../validation_pipeline/studio_assets/fonts/Lora-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Landing Lora Italic';
+  src: url('../../../../validation_pipeline/studio_assets/fonts/Lora-Italic-Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}

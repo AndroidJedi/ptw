@@ -76,7 +76,7 @@ it('opens a dismissible full-screen Landing view', async () => {
 
   fireEvent.click(await screen.findByRole('button', { name: 'View Landing' }))
   expect(screen.getByRole('dialog', { name: 'Full-screen Landing preview' })).toBeInTheDocument()
-  fireEvent.keyDown(window, { key: 'Escape' })
+  fireEvent(screen.getByRole('dialog', { name: 'Full-screen Landing preview' }), new Event('cancel', { bubbles: false, cancelable: true }))
   expect(screen.queryByRole('dialog', { name: 'Full-screen Landing preview' })).not.toBeInTheDocument()
 })
 
@@ -92,4 +92,52 @@ it('refreshes an in-progress Landing until it reaches a terminal state', async (
 
   view.unmount()
   vi.useRealTimers()
+})
+
+it('keeps pending copy when Save fails and displays an inline error', async () => {
+  const detail = landingDetail()
+  const api = landingApi(detail)
+  vi.mocked(api.post).mockRejectedValue(new Error('Save unavailable'))
+  render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} />)
+  const input = await screen.findByLabelText('Hero title')
+  fireEvent.change(input, { target: { value: 'My unsaved headline' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save Landing' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Save unavailable')
+  expect(screen.getByLabelText('Hero title')).toHaveValue('My unsaved headline')
+})
+
+it('persists pending content before selecting another raw image', async () => {
+  const detail = landingDetail()
+  const sha = 'c'.repeat(64)
+  detail.assets = [{ slot: 'hero_visual', available: true, sha256: 'a'.repeat(64), history: [
+    { sha256: 'a'.repeat(64), selected: true, mime_type: 'image/png', width: 100, height: 100, visual_direction: '' },
+    { sha256: sha, selected: false, mime_type: 'image/png', width: 100, height: 100, visual_direction: '' },
+  ] }]
+  const api = landingApi(detail)
+  vi.mocked(api.image).mockRejectedValue(new Error('Test image unavailable'))
+  vi.mocked(api.post).mockImplementation(async (path, body) => {
+    if (path.endsWith('/configuration')) return { ...detail, state_sha256: 'd'.repeat(64), content: (body as { content: LandingDetail['content'] }).content } as never
+    if (path.endsWith('/select')) return { ...detail, state_sha256: 'e'.repeat(64), content: { ...detail.content, hero: { ...detail.content.hero, title: 'Preserved copy' } } } as never
+    throw new Error('Unexpected request')
+  })
+  render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} />)
+  fireEvent.change(await screen.findByLabelText('Hero title'), { target: { value: 'Preserved copy' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Select image 2' }))
+  await waitFor(() => expect(api.post).toHaveBeenCalledTimes(2))
+  expect(vi.mocked(api.post).mock.calls[0][0]).toMatch(/configuration$/)
+  expect(vi.mocked(api.post).mock.calls[1][1]).toEqual({ base_sha256: 'd'.repeat(64), sha256: sha })
+  expect(screen.getByLabelText('Hero title')).toHaveValue('Preserved copy')
+})
+
+it('shows the saved Project lesson and submits the bounded global decision', async () => {
+  const detail = landingDetail()
+  const api = landingApi(detail)
+  vi.mocked(api.post).mockResolvedValueOnce({ landing: detail, checkpoint: { checkpoint_id: 'checkpoint', status: 'completed', edit_summary: 'Shortened the headline.', project_lesson: 'Keep this page concise.' }, learning_proposal: { proposal_id: 'proposal', global_rule: 'Prefer a concise action label.', status: 'pending' } })
+  vi.mocked(api.post).mockResolvedValueOnce({ status: 'keep_project' })
+  render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Save Landing' }))
+  expect(await screen.findByText('Keep this page concise.')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Keep project-only' }))
+  await waitFor(() => expect(api.post).toHaveBeenLastCalledWith(`/api/v1/landings/projects/${projectId}/pages/${landingId}/learning/proposal`, { decision: 'keep_project' }))
+  expect(screen.getByRole('status')).toHaveTextContent('Learning preference saved')
 })

@@ -48,14 +48,21 @@ Updated: 2026-09-04
 
 - A Landing belongs to the selected Project, its approved Brief, and one immutable
   approved Post version. It captures Post style once and does not synchronize later edits.
-- Its fixed order is Hero, three features, owner evidence social proof, one generated
+- Its fixed order is Hero, three features, optional owner evidence social proof, one generated
   visual break, contacts, and three FAQs. Each has bounded editable controls; no page builder,
   public URL, publishing, form submission, or lead storage exists.
 - Hero and visual-break artwork inherit the frozen Post visual profile, are text-free,
   digest-checked, private/no-store, and retain at most three selected raw images per slot.
-- Approval requires both visuals, every required section, owner proof, all FAQs/features,
-  and at least one validated email, phone, or HTTPS contact endpoint. Landing learning remains
+- Approval requires both visuals, essential section copy, all FAQs/features, and at least
+  one validated email, phone, or HTTPS contact endpoint. Proof is optional and absent
+  entries are hidden; supplied entries require complete statements and attribution.
+  A direct CTA requires its selected endpoint. Validate before persisting approval.
+  Landing learning remains
   in its own global/Project namespaces and never changes Post learning.
+- Edit mode selects bounded sections directly; Preview mode enables page navigation,
+  contacts, and collapsed FAQs. The same renderer serves 1280/768/360px and fullscreen.
+  Phone layouts switch between inspector and preview. All selectable browser fonts
+  are bundled, page language is independent of console language, and long copy wraps.
 
 ## Removed surfaces
 

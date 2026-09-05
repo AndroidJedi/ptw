@@ -16,6 +16,10 @@ from commander.ids import new_uuid7
 
 from .local_brief_store import LocalBriefStore, sha256_json, utc_now
 from .local_codex import sanitized
+from .phone_hero_styles import (
+    normalize_phone_hero_creative_direction,
+    phone_hero_direction_options,
+)
 from .studio_phone_metrics import PHONE_METRICS_TEMPLATE_ID
 from .studio_workspace import UniversalStudioWorkspace
 
@@ -272,23 +276,31 @@ class LocalStudioAuthority:
 
     def create_creative(
         self, *, project_id: str, brief_id: str, template_id: str,
-        requested_by: str, origin: str, require_approved_previous: bool = False,
+        requested_by: str, origin: str, creative_direction: Mapping[str, Any] | None = None,
+        require_approved_previous: bool = False,
     ) -> tuple[dict[str, Any], bool]:
         with self._lock:
             return self._create_creative(
                 project_id=project_id, brief_id=brief_id, template_id=template_id,
-                requested_by=requested_by, origin=origin,
+                requested_by=requested_by, origin=origin, creative_direction=creative_direction,
                 require_approved_previous=require_approved_previous,
             )
 
     def _create_creative(
         self, *, project_id: str, brief_id: str, template_id: str,
-        requested_by: str, origin: str, require_approved_previous: bool = False,
+        requested_by: str, origin: str, creative_direction: Mapping[str, Any] | None = None,
+        require_approved_previous: bool = False,
     ) -> tuple[dict[str, Any], bool]:
         project_id = _uuid(project_id, "project_id")
         project = self.project(project_id)
         if template_id not in TEMPLATE_IDS:
             raise ValueError("Studio template is invalid")
+        if template_id == PHONE_METRICS_TEMPLATE_ID:
+            if creative_direction is None:
+                raise ValueError("Phone Metrics creative direction is required")
+            creative_direction = normalize_phone_hero_creative_direction(creative_direction)
+        elif creative_direction is not None:
+            raise ValueError("creative direction is available only for Phone Metrics")
         if origin not in {"brief_generation", "approved_variant"}:
             raise ValueError("Studio creative requires approved Product Brief lineage")
         brief_id = _uuid(brief_id, "brief_id")
@@ -302,6 +314,11 @@ class LocalStudioAuthority:
             first = sorted(siblings, key=lambda item: int(item["ordinal"]))[0]
             if first["template_id"] != template_id:
                 raise ValueError("Product Brief already reserved a different Studio template")
+            if template_id == PHONE_METRICS_TEMPLATE_ID and (
+                dict((first.get("generation") or {}).get("creative_direction") or {})
+                != creative_direction
+            ):
+                raise ValueError("Product Brief already reserved a different Phone Metrics creative direction")
             return first, False
         if require_approved_previous and not siblings:
             raise ValueError("create the first creative through Brief approval")
@@ -317,7 +334,10 @@ class LocalStudioAuthority:
             "ordinal": len(siblings) + 1, "template_id": template_id,
             "template_version": None, "template_sha256": None,
             "status": "queued",
-            "origin": origin, "state_sha256": None, "generation": {},
+            "origin": origin, "state_sha256": None,
+            "generation": ({} if creative_direction is None else {
+                "creative_direction": dict(creative_direction),
+            }),
             "learning_baseline": None, "learning_baseline_sha256": None,
             "approved_version_count": 0, "latest_checkpoint_id": None,
             "requested_by": requested_by, "created_at": now, "updated_at": now,
@@ -587,6 +607,8 @@ class StudioCreativeService:
                     **next(item for item in detail["templates"] if item["template_id"] == template_id),
                     "template_version": detail["catalog"]["template_version"],
                     "template_sha256": detail["template_sha256"],
+                    **({"creative_direction_options": phone_hero_direction_options()}
+                       if template_id == PHONE_METRICS_TEMPLATE_ID else {}),
                 })
         return {"schema": "ptw.studio.template-catalog.v1", "items": templates}
 
@@ -618,13 +640,14 @@ class StudioCreativeService:
 
     def reserve_from_brief(
         self, *, brief_id: str, template_id: str, requested_by: str,
-        additional: bool = False,
+        additional: bool = False, creative_direction: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], bool]:
         brief = self.authority.brief(_uuid(brief_id, "brief_id"))
         creative, created = self.authority.create_creative(
             project_id=brief["project_id"], brief_id=brief_id,
             template_id=template_id, requested_by=requested_by,
             origin="approved_variant" if additional else "brief_generation",
+            creative_direction=creative_direction,
             require_approved_previous=additional,
         )
         if created:
@@ -634,16 +657,23 @@ class StudioCreativeService:
     def approve_brief_and_reserve(
         self, *, brief_id: str, template_id: str, requested_by: str,
         brief_approver: Callable[[str, str], tuple[dict[str, Any], bool]],
+        creative_direction: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], bool, dict[str, Any], bool]:
         """Approve and reserve idempotently; PostgreSQL performs both in one transaction."""
 
         if template_id not in TEMPLATE_IDS:
             raise ValueError("Studio template is invalid")
+        if template_id == PHONE_METRICS_TEMPLATE_ID:
+            if creative_direction is None:
+                raise ValueError("Phone Metrics creative direction is required")
+            creative_direction = normalize_phone_hero_creative_direction(creative_direction)
+        elif creative_direction is not None:
+            raise ValueError("creative direction is available only for Phone Metrics")
         if hasattr(self.authority, "approve_and_create_creative"):
             creative, approved_now, creative_created = (
                 self.authority.approve_and_create_creative(
                     brief_id=_uuid(brief_id, "brief_id"), template_id=template_id,
-                    requested_by=requested_by,
+                    requested_by=requested_by, creative_direction=creative_direction,
                 )
             )
             brief = self.authority.brief(brief_id)
@@ -654,8 +684,40 @@ class StudioCreativeService:
             brief, approved_now = brief_approver(_uuid(brief_id, "brief_id"), requested_by)
             creative, creative_created = self.reserve_from_brief(
                 brief_id=brief_id, template_id=template_id, requested_by=requested_by,
+                creative_direction=creative_direction,
             )
         return brief, approved_now, creative, creative_created
+
+    @staticmethod
+    def _creative_direction(creative: Mapping[str, Any]) -> dict[str, str] | None:
+        value = dict(creative.get("generation") or {}).get("creative_direction")
+        if value is None:
+            return None
+        return normalize_phone_hero_creative_direction(value)
+
+    def set_creative_direction(
+        self, project_id: str, creative_id: str, *, base_sha256: str,
+        creative_direction: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Save or replace the direction used by later Phone Metrics generations."""
+
+        detail = self.detail(project_id, creative_id)
+        if detail.get("template_id") != PHONE_METRICS_TEMPLATE_ID:
+            raise ValueError("creative direction is available only for Phone Metrics")
+        if str(detail["state_sha256"]) != str(base_sha256):
+            raise RuntimeError("Studio creative changed; reload before saving")
+        direction = normalize_phone_hero_creative_direction(creative_direction)
+        creative = self.authority.get_creative(_uuid(creative_id, "creative_id"))
+        existing = self._creative_direction(creative)
+        if existing is not None:
+            if existing == direction:
+                return detail
+        generation = dict(creative.get("generation") or {})
+        self.authority.update_creative(
+            str(creative["creative_id"]),
+            generation={**generation, "creative_direction": direction},
+        )
+        return self.detail(project_id, creative_id)
 
     def list_creatives(self, project_id: str) -> dict[str, Any]:
         return {
@@ -720,6 +782,9 @@ class StudioCreativeService:
         creative_id = str(creative["creative_id"])
         direction = _compact(visual_direction, "visual_direction", 8, 600)
         generation = dict(creative.get("generation") or {})
+        creative_direction = self._creative_direction(creative)
+        if creative_direction is None:
+            raise ValueError("Select a Phone Metrics visual style before generating an image")
         provenance = {
             "source_brief_id": creative["source_brief_id"],
             "template_id": creative["template_id"],
@@ -730,11 +795,13 @@ class StudioCreativeService:
             "project_skill_snapshot_id": generation.get("project_skill_snapshot_id"),
             "project_skill_sha256": generation.get("project_skill_sha256"),
             "visual_direction": direction,
+            "creative_direction": creative_direction,
         }
         try:
             next_detail = self._workspace(creative_id).generate_phone_screen(
                 base_sha256=str(detail["state_sha256"]), visual_direction=direction,
                 enhance_current=False, skill_context=self._phone_skill_context(creative),
+                creative_direction=creative_direction,
             )
             active_asset = next(
                 item for item in next_detail["assets"]
@@ -742,6 +809,7 @@ class StudioCreativeService:
             )
             phone = {
                 "status": "completed", "visual_direction": direction,
+                "creative_direction": creative_direction,
                 "asset_sha256": active_asset["sha256"],
                 "provider": sanitized(active_asset.get("source") or {}),
             }
@@ -753,6 +821,7 @@ class StudioCreativeService:
         except Exception as image_error:
             phone = {
                 "status": "failed", "visual_direction": direction,
+                "creative_direction": creative_direction,
                 "error_type": type(image_error).__name__,
                 "error_message": str(image_error)[:1000],
             }
@@ -796,8 +865,9 @@ class StudioCreativeService:
         detail = workspace.detail()
         project_skill = self.authority.latest_skill(PROJECT_SKILL_SCOPE, creative["project_id"])
         global_skill = self.authority.latest_skill(GLOBAL_SKILL_SCOPE)
+        existing_generation = dict(creative.get("generation") or {})
         self.authority.update_creative(creative_id, status="composing", generation={
-            "stage": "composing", "project_skill_snapshot_id": project_skill["skill_snapshot_id"],
+            **existing_generation, "stage": "composing", "project_skill_snapshot_id": project_skill["skill_snapshot_id"],
             "project_skill_sha256": project_skill["content_sha256"],
             "global_skill_snapshot_id": global_skill["skill_snapshot_id"],
             "global_skill_sha256": global_skill["content_sha256"],
@@ -811,6 +881,8 @@ class StudioCreativeService:
             "project_skill_sha256": project_skill["content_sha256"],
             "global_skill_snapshot_id": global_skill["skill_snapshot_id"],
             "global_skill_sha256": global_skill["content_sha256"],
+            **({"creative_direction": self._creative_direction(creative)}
+               if creative["template_id"] == PHONE_METRICS_TEMPLATE_ID else {}),
         }
         payload = {
             "creative_id": creative_id, "approved_product_brief": brief["document"],
@@ -819,6 +891,8 @@ class StudioCreativeService:
                 "configuration": detail["configuration"], "content": detail["content"],
             },
             "global_skill": global_skill["content"], "project_skill": project_skill["content"],
+            **({"creative_direction": self._creative_direction(creative)}
+               if creative["template_id"] == PHONE_METRICS_TEMPLATE_ID else {}),
         }
         system_prompt = (
             self.composer_skill + "\n\nThe live catalog in INPUT_JSON is authoritative. "
@@ -869,7 +943,10 @@ class StudioCreativeService:
                     creative_id, status="generating_image", state_sha256=composed["state_sha256"],
                     generation={
                         **generation, "stage": "generating_image",
-                        "phone_image": {"status": "generating", "visual_direction": direction},
+                        "phone_image": {
+                            "status": "generating", "visual_direction": direction,
+                            "creative_direction": self._creative_direction(creative),
+                        },
                     },
                 )
                 creative = self.authority.get_creative(creative_id)
@@ -895,6 +972,11 @@ class StudioCreativeService:
             raise KeyError("Studio creative was not found in this Project")
         if creative["status"] != "failed":
             raise ValueError("only a failed Studio creative can be retried")
+        if (
+            creative["template_id"] == PHONE_METRICS_TEMPLATE_ID
+            and self._creative_direction(creative) is None
+        ):
+            raise ValueError("Select a Phone Metrics visual style before retrying")
         self.authority.update_creative(creative_id, status="queued")
         return self.summary(creative_id)
 
@@ -902,6 +984,8 @@ class StudioCreativeService:
         detail = self.detail(project_id, creative_id)
         if detail["template_id"] != PHONE_METRICS_TEMPLATE_ID:
             raise ValueError("phone image retry requires the phone_metrics template")
+        if self._creative_direction(self.authority.get_creative(creative_id)) is None:
+            raise ValueError("Select a Phone Metrics visual style before retrying")
         generation = detail.get("generation") or {}
         phone = generation.get("phone_image") or {}
         if phone.get("status") != "failed":
@@ -921,6 +1005,8 @@ class StudioCreativeService:
         phone = dict((detail.get("generation") or {}).get("phone_image") or {})
         if detail.get("template_id") != PHONE_METRICS_TEMPLATE_ID or phone.get("status") != "failed":
             raise ValueError("phone image generation is not failed")
+        if self._creative_direction(self.authority.get_creative(creative_id)) is None:
+            raise ValueError("Select a Phone Metrics visual style before retrying")
         self.authority.update_creative(
             creative_id, status="generating_image",
             generation={
@@ -938,7 +1024,11 @@ class StudioCreativeService:
         target = getattr(workspace, method)
         if method == "generate_phone_screen":
             creative = self.authority.get_creative(creative_id)
+            direction = self._creative_direction(creative)
+            if direction is None:
+                raise ValueError("Select a Phone Metrics visual style before generating an image")
             kwargs["skill_context"] = self._phone_skill_context(creative)
+            kwargs["creative_direction"] = direction
         value = target(*args, **kwargs)
         if isinstance(value, dict) and value.get("state_sha256"):
             self.authority.update_creative(

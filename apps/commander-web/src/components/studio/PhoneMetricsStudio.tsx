@@ -1,7 +1,8 @@
-import { Bold, Check, Highlighter, ImagePlus, RefreshCcw, Save, Sparkles } from 'lucide-react'
+import { Bold, Check, Highlighter, ImagePlus, RefreshCcw, Save, Sparkles, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../../api'
 import { ErrorState } from '../../components/State'
+import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from './PhoneHeroDirectionPicker'
 import { translate, type Language } from '../../i18n'
 import type {
   StudioPhoneActionButtonConfiguration, StudioPhoneMetricCardConfiguration,
@@ -74,6 +75,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     return typeof source?.visual_direction === 'string' ? source.visual_direction : ''
   })
   const [enhanceCurrent, setEnhanceCurrent] = useState(Boolean(initialScreenAsset?.available))
+  const [legacyDirection, setLegacyDirection] = useState<PhoneHeroDirectionDraft>({ style: '', background: '' })
+  const [editingCreativeDirection, setEditingCreativeDirection] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const previewGeneration = useRef(0)
@@ -81,6 +84,9 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   const hasCurrentPhoneScreen = detail.assets.some((asset) => (
     asset.slot === 'phone_screen' && asset.available && Boolean(asset.sha256)
   ))
+  const savedCreativeDirection = detail.generation?.creative_direction
+  const hasCreativeDirection = Boolean(savedCreativeDirection)
+  const canGenerateWithDirection = hasCreativeDirection && !editingCreativeDirection
   const tr = (en: string, uk: string) => translate(language, en, uk)
   const textureLabel = (texture: string) => ({
     none: tr('Off', 'Без текстури'),
@@ -177,6 +183,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const generatePhoneScreen = async () => {
+    if (!canGenerateWithDirection) return
     setBusy(true); setError(''); setNotice('')
     try {
       const useCurrentAsReference = enhanceCurrent && hasCurrentPhoneScreen
@@ -198,6 +205,19 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       setNotice(useCurrentAsReference
         ? tr('Current iPhone hero visual enhanced and applied.', 'Поточний герой-візуал iPhone покращено й застосовано.')
         : tr('New iPhone hero visual generated and applied.', 'Новий герой-візуал для iPhone згенеровано й застосовано.'))
+    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+  }
+  const saveCreativeDirection = async () => {
+    const direction = creativeDirectionFromDraft(legacyDirection)
+    if (!direction) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const next = await api.post<StudioPhoneMetricsDetail>(`${basePath}/creative-direction`, {
+        base_sha256: detail.state_sha256, creative_direction: direction,
+      }, { deadlineMs: 60_000 })
+      applyDetail(next)
+      setEditingCreativeDirection(false)
+      setNotice(tr('Image direction saved for this creative.', 'Напрям зображення збережено для цього креативу.'))
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const selectPhoneScreen = async (sha256: string) => {
@@ -441,8 +461,25 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           })}
           <p className="universal-section-note">{tr('Each button is independent. The default is the reference cobalt fill, white text, and rounded shape.', 'Кожна кнопка налаштовується окремо. Типово використано еталонну синю заливку, білий текст і заокруглену форму.')}</p>
         </section>
-        <section className="panel universal-section phone-screen-rule"><small>{tr('IPHONE HERO VISUAL', 'ГЕРОЙ-ВІЗУАЛ IPHONE')}</small><h2>{tr('Generate or enhance the background', 'Згенерувати або покращити фон')}</h2>
-          <label><span>{tr('Visual direction', 'Опис візуалу')}</span><textarea
+        <section className="panel universal-section phone-screen-rule"><small>{tr('IPHONE HERO VISUAL', 'ГЕРОЙ-ВІЗУАЛ IPHONE')}</small><h2>{tr('Generate or enhance hero artwork', 'Згенерувати або покращити герой-візуал')}</h2>
+          {savedCreativeDirection && !editingCreativeDirection
+            ? <PhoneHeroDirectionPicker
+              language={language} value={savedCreativeDirection} locked disabled={busy}
+              onReset={() => {
+                setLegacyDirection({ style: '', background: '' })
+                setEditingCreativeDirection(true)
+                setError(''); setNotice('')
+              }} idPrefix="phone-saved-direction"
+            />
+            : <><PhoneHeroDirectionPicker language={language} value={legacyDirection} onChange={setLegacyDirection} disabled={busy} idPrefix="phone-legacy-direction" /><div className="phone-hero-direction-actions"><button className="secondary phone-hero-direction-save" type="button" disabled={busy || !creativeDirectionFromDraft(legacyDirection)} onClick={() => void saveCreativeDirection()}><Check />{savedCreativeDirection
+              ? tr('Save new direction', 'Зберегти новий напрям')
+              : tr('Save direction & enable generation', 'Зберегти напрям і ввімкнути генерацію')}</button>{savedCreativeDirection && <button className="ghost" type="button" disabled={busy} onClick={() => {
+                setEditingCreativeDirection(false)
+                setLegacyDirection({ style: '', background: '' })
+              }}><X />{tr('Cancel', 'Скасувати')}</button>}</div><p className="phone-hero-direction-note">{savedCreativeDirection
+              ? tr('Choose and save a replacement direction. Existing images and history stay unchanged until you generate again.', 'Оберіть і збережіть новий напрям. Наявні зображення та історія не зміняться, доки ви не запустите нову генерацію.')
+              : tr('Choose and save one style plus one background treatment before generating a new image for this existing creative.', 'Виберіть і збережіть один стиль та один варіант фону перед генерацією нового зображення для цього наявного креативу.')}</p></>}
+          <label><span>{tr('What should be shown', 'Що має бути зображено')}</span><textarea
             aria-label={tr('iPhone visual direction', 'Опис візуалу iPhone')}
             rows={4} maxLength={600} value={screenDirection}
             placeholder={tr('Example: translucent glass steps rising through soft blue light with one lime accent', 'Наприклад: прозорі скляні сходи в м’якому блакитному світлі з одним лаймовим акцентом')}
@@ -465,7 +502,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             <input
               aria-label={tr('Enhance current image', 'Покращити поточне зображення')}
               type="checkbox" checked={enhanceCurrent && hasCurrentPhoneScreen}
-              disabled={busy || !detail.phone_screen_generation_available || !hasCurrentPhoneScreen}
+              disabled={busy || !canGenerateWithDirection || !detail.phone_screen_generation_available || !hasCurrentPhoneScreen}
               onChange={(event) => setEnhanceCurrent(event.target.checked)}
             />
             <span><strong>{tr('Enhance current image', 'Покращити поточне зображення')}</strong><small>{hasCurrentPhoneScreen
@@ -473,7 +510,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               : tr('Available after the first hero image is generated.', 'Стане доступним після першої генерації герой-візуалу.')}</small></span>
           </label>
           <button className="primary phone-screen-generate" type="button"
-            disabled={busy || !detail.phone_screen_generation_available || screenDirection.trim().length < 8}
+            disabled={busy || !canGenerateWithDirection || !detail.phone_screen_generation_available || screenDirection.trim().length < 8}
             onClick={() => void generatePhoneScreen()}><Sparkles />{tr('Generate & apply', 'Згенерувати й застосувати')}</button>
           <p>{detail.phone_screen_generation_available
             ? tr('Enhance sends the current raw hero image with your direction; turning it off generates from scratch. The Natal logo, UI, title, action buttons, and device stay crisp, and the current visual is preserved if generation fails.', 'Режим покращення надсилає поточний вихідний герой-візуал разом з описом; якщо вимкнути його, зображення генерується з нуля. Логотип Natal, інтерфейс, заголовок, кнопки дій і пристрій залишаються чіткими, а в разі помилки поточний візуал зберігається.')

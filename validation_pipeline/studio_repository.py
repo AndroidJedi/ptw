@@ -13,6 +13,7 @@ from uuid import UUID
 from commander.ids import new_uuid7
 
 from .studio_workspace import UniversalStudioWorkspace
+from .phone_hero_styles import normalize_phone_hero_creative_direction
 from .studio_creatives import (
     GLOBAL_SKILL_SCOPE, PROJECT_SKILL_SCOPE, _append_lesson, _skill_document,
     verified_skill_snapshot,
@@ -470,13 +471,20 @@ class DatabaseStudioAuthority:
 
     def create_creative(
         self, *, project_id: str, brief_id: str, template_id: str,
-        requested_by: str, origin: str, require_approved_previous: bool = False,
+        requested_by: str, origin: str, creative_direction: Mapping[str, Any] | None = None,
+        require_approved_previous: bool = False,
     ) -> tuple[dict[str, Any], bool]:
         from psycopg.types.json import Jsonb
 
         project = self.project(project_id)
         if template_id not in {"universal_ad", "phone_metrics"}:
             raise ValueError("Studio template is invalid")
+        if template_id == "phone_metrics":
+            if creative_direction is None:
+                raise ValueError("Phone Metrics creative direction is required")
+            creative_direction = normalize_phone_hero_creative_direction(creative_direction)
+        elif creative_direction is not None:
+            raise ValueError("creative direction is available only for Phone Metrics")
         if origin not in {"brief_generation", "approved_variant"}:
             raise ValueError("Studio creative requires approved Product Brief lineage")
         with self.connection() as connection:
@@ -488,12 +496,14 @@ class DatabaseStudioAuthority:
                 (f"studio-brief:{brief_id}",),
             )
             siblings = connection.execute(
-                "SELECT entity_id,ordinal,template_id FROM universal_studio_workspaces WHERE source_brief_id=%s ORDER BY ordinal",
+                "SELECT entity_id,ordinal,template_id,generation FROM universal_studio_workspaces WHERE source_brief_id=%s ORDER BY ordinal",
                 (UUID(brief_id),),
             ).fetchall()
             if siblings and not require_approved_previous:
                 if siblings[0][2] != template_id:
                     raise ValueError("Product Brief already reserved a different Studio template")
+                if template_id == "phone_metrics" and dict(siblings[0][3] or {}).get("creative_direction") != creative_direction:
+                    raise ValueError("Product Brief already reserved a different Phone Metrics creative direction")
                 return self.get_creative(str(siblings[0][0])), False
             if require_approved_previous:
                 if not siblings:
@@ -514,11 +524,12 @@ class DatabaseStudioAuthority:
             )
             connection.execute(
                 """INSERT INTO universal_studio_workspaces(
-                       entity_id,project_id,source_brief_id,ordinal,origin,template_id,status,requested_by
-                   ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s)""",
+                       entity_id,project_id,source_brief_id,ordinal,origin,template_id,status,requested_by,generation
+                   ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                 (
                     creative_id, UUID(project_id), UUID(brief_id),
                     ordinal, origin, template_id, "queued", requested_by,
+                    Jsonb({} if creative_direction is None else {"creative_direction": creative_direction}),
                 ),
             )
             self.repository._insert_edge(
@@ -537,6 +548,7 @@ class DatabaseStudioAuthority:
 
     def approve_and_create_creative(
         self, *, brief_id: str, template_id: str, requested_by: str,
+        creative_direction: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], bool, bool]:
         """Atomically approve one completed Brief and reserve its first creative."""
 
@@ -544,6 +556,12 @@ class DatabaseStudioAuthority:
 
         if template_id not in {"universal_ad", "phone_metrics"}:
             raise ValueError("Studio template is invalid")
+        if template_id == "phone_metrics":
+            if creative_direction is None:
+                raise ValueError("Phone Metrics creative direction is required")
+            creative_direction = normalize_phone_hero_creative_direction(creative_direction)
+        elif creative_direction is not None:
+            raise ValueError("creative direction is available only for Phone Metrics")
         brief_uuid = UUID(brief_id)
         with self.connection() as connection:
             connection.execute(
@@ -564,7 +582,7 @@ class DatabaseStudioAuthority:
                 (UUID(new_uuid7()), brief_uuid, requested_by),
             ).rowcount == 1
             existing = connection.execute(
-                """SELECT entity_id FROM universal_studio_workspaces
+                """SELECT entity_id,generation FROM universal_studio_workspaces
                     WHERE source_brief_id=%s AND ordinal=1""",
                 (brief_uuid,),
             ).fetchone()
@@ -576,6 +594,8 @@ class DatabaseStudioAuthority:
                 ).fetchone()[0]
                 if existing_template != template_id:
                     raise ValueError("Product Brief already reserved a different Studio template")
+                if template_id == "phone_metrics" and dict(existing[1] or {}).get("creative_direction") != creative_direction:
+                    raise ValueError("Product Brief already reserved a different Phone Metrics creative direction")
                 creative_created = False
             else:
                 creative_id = UUID(new_uuid7())
@@ -588,9 +608,12 @@ class DatabaseStudioAuthority:
                 )
                 connection.execute(
                     """INSERT INTO universal_studio_workspaces(
-                           entity_id,project_id,source_brief_id,ordinal,origin,template_id,status,requested_by
-                       ) VALUES(%s,%s,%s,1,'brief_generation',%s,'queued',%s)""",
-                    (creative_id, brief[0], brief_uuid, template_id, requested_by),
+                           entity_id,project_id,source_brief_id,ordinal,origin,template_id,status,requested_by,generation
+                       ) VALUES(%s,%s,%s,1,'brief_generation',%s,'queued',%s,%s)""",
+                    (
+                        creative_id, brief[0], brief_uuid, template_id, requested_by,
+                        Jsonb({} if creative_direction is None else {"creative_direction": creative_direction}),
+                    ),
                 )
                 self.repository._insert_edge(
                     connection, brief[0], "contains", creative_id,

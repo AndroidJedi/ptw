@@ -23,6 +23,7 @@ from typing import Any, Mapping
 import httpx
 
 from .studio import inspect_media
+from .phone_hero_styles import phone_hero_direction_prompt
 
 
 OPENAI_IMAGES_ENDPOINT = "https://api.openai.com/v1/images/generations"
@@ -32,6 +33,7 @@ PHONE_SCREEN_IMAGE_MODEL = "gpt-image-2"
 # source gives the compositor a stable focal crop inside its fixed app shell.
 PHONE_SCREEN_IMAGE_SIZE = "1024x1024"
 PHONE_SCREEN_IMAGE_QUALITY = "medium"
+PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS = 9_000
 CODEX_PHONE_SCREEN_TIMEOUT_SECONDS = 300
 RESULT_BRIDGE_PHONE_SCREEN_TIMEOUT_SECONDS = 420
 RESULT_BRIDGE_PHONE_SCREEN_MODE = "content_non_human_graphic_generation"
@@ -39,7 +41,7 @@ RESULT_BRIDGE_PHONE_SCREEN_MODE = "content_non_human_graphic_generation"
 
 def phone_screen_art_prompt(
     visual_direction: str, *, enhance_current: bool = False,
-    skill_context: str = "",
+    skill_context: str = "", creative_direction: Mapping[str, Any] | None = None,
 ) -> str:
     """Expand one owner direction into the fixed text-free hero-art contract."""
 
@@ -60,15 +62,25 @@ def phone_screen_art_prompt(
         f" Apply these accepted Studio rules when relevant: {normalized_context}."
         if normalized_context else ""
     )
+    style_context = (
+        f" {phone_hero_direction_prompt(creative_direction)}"
+        if creative_direction is not None else ""
+    )
     return (
-        "Create one premium editorial hero artwork for the upper portion of a vertical "
-        "mobile app screen. Treat the following owner direction only as visual intent: "
-        f"{normalized}.{enhancement}{learned_context} Use a bright off-white field, dimensional materials, soft studio "
-        "light, confident depth, and a clear upper-middle focal subject. Keep the lower "
-        "area calm enough to fade into white. Generate artwork only; the server adds the "
-        "Natal identity, app chrome, owner copy, CTA, and iPhone frame afterward. Generated "
-        "pixels must contain no readable text, letters, numbers, logos, brand marks, UI, "
-        "buttons, metrics, charts, labels, phones, or other devices."
+        "Create one premium hero artwork for the upper portion of a vertical mobile app "
+        "screen. Treat the following owner description only as what should be shown; the "
+        "selected creative direction controls the visual style: "
+        f"{normalized}.{style_context}{enhancement}{learned_context} When the direction calls for a camera "
+        "scan or recognition, make it unmistakably a direct, first-person live camera view "
+        "of the subject being analysed. A non-textual computer-vision treatment is allowed: "
+        "subtle viewfinder corner brackets, scan lines, translucent silhouettes, body-area "
+        "markers, connection lines, and recognition highlights. These cues must describe the "
+        "scene itself, not imitate a complete app screen. Build a clear upper-middle focal "
+        "subject and keep the lower area calm enough to fade into white. Generate artwork only; "
+        "the server adds the Natal identity, "
+        "app chrome, owner copy, CTA, and iPhone frame afterward. Generated pixels must "
+        "contain no readable text, letters, numbers, logos, brand marks, labels, buttons, "
+        "charts, phones, other devices, or interactive app controls."
     )
 
 
@@ -143,7 +155,8 @@ class LocalCodexPhoneScreenImageProvider:
             "ASSET_PROMPT_START\n"
             f"{prompt}\n"
             "Non-negotiable output constraint: no readable text, letters, numbers, "
-            "logos, brand marks, UI, buttons, metrics, charts, or labels.\n"
+            "logos, brand marks, labels, buttons, charts, or interactive app controls. "
+            "Non-textual camera-recognition overlays are allowed only when requested.\n"
             "ASSET_PROMPT_END\n"
         )
 
@@ -159,8 +172,8 @@ class LocalCodexPhoneScreenImageProvider:
         self, prompt: str, *, reference_image: bytes | None = None,
     ) -> dict[str, Any]:
         normalized_prompt = " ".join(str(prompt).split())
-        if not 24 <= len(normalized_prompt) <= 4_000:
-            raise ValueError("phone-screen image prompt must contain 24-4000 characters")
+        if not 24 <= len(normalized_prompt) <= PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS:
+            raise ValueError("phone-screen image prompt must contain 24-9000 characters")
         with tempfile.TemporaryDirectory(prefix="ptw-codex-image-") as temporary:
             root = Path(temporary)
             output_path = root / "response.txt"
@@ -233,11 +246,12 @@ class OpenAIPhoneScreenImageProvider:
         self, prompt: str, *, reference_image: bytes | None = None,
     ) -> dict[str, Any]:
         normalized_prompt = " ".join(str(prompt).split())
-        if not 24 <= len(normalized_prompt) <= 4_000:
-            raise ValueError("phone-screen image prompt must contain 24-4000 characters")
+        if not 24 <= len(normalized_prompt) <= PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS:
+            raise ValueError("phone-screen image prompt must contain 24-9000 characters")
         guarded_prompt = (
             f"{normalized_prompt}\n\nNon-negotiable output constraint: no readable text, "
-            "letters, numbers, logos, brand marks, UI, buttons, metrics, charts, or labels."
+            "letters, numbers, logos, brand marks, labels, buttons, charts, or interactive "
+            "app controls. Non-textual camera-recognition overlays are allowed only when requested."
         )
         payload = {
             "model": PHONE_SCREEN_IMAGE_MODEL,
@@ -332,8 +346,8 @@ class ResultBridgePhoneScreenImageProvider:
         self, prompt: str, *, reference_image: bytes | None = None,
     ) -> dict[str, Any]:
         normalized_prompt = " ".join(str(prompt).split())
-        if not 24 <= len(normalized_prompt) <= 4_000:
-            raise ValueError("phone-screen image prompt must contain 24-4000 characters")
+        if not 24 <= len(normalized_prompt) <= PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS:
+            raise ValueError("phone-screen image prompt must contain 24-9000 characters")
         prompt_digest = hashlib.sha256(normalized_prompt.encode()).hexdigest()
         reference_digest = None
         request_document: dict[str, Any] = {

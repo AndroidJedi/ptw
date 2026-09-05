@@ -2,6 +2,7 @@ import { Check, RefreshCcw, Send, Sparkles, Target, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading, PageHeader } from '../components/State'
+import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from '../components/studio/PhoneHeroDirectionPicker'
 import { translate, type Language } from '../i18n'
 import type {
   ProductBrief, ProductBriefDocument, StudioCreativeSummary, StudioTemplateSummary,
@@ -39,6 +40,7 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
   const [approvalOpen, setApprovalOpen] = useState(false)
   const [templates, setTemplates] = useState<StudioTemplateSummary[]>([])
   const [templateId, setTemplateId] = useState<'universal_ad' | 'phone_metrics' | ''>('')
+  const [creativeDirection, setCreativeDirection] = useState<PhoneHeroDirectionDraft>({ style: '', background: '' })
   const tr = (en: string, uk: string) => translate(language, en, uk)
   const load = async (preferredId?: string, targetProjectId = projectId) => {
     if (!targetProjectId) { setItems([]); setSelected(null); return }
@@ -83,7 +85,7 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const openApproval = async () => {
-    setApprovalOpen(true); setTemplateId(''); setError('')
+    setApprovalOpen(true); setTemplateId(''); setCreativeDirection({ style: '', background: '' }); setError('')
     if (templates.length) return
     try {
       const value = await api.get<{ items: StudioTemplateSummary[] }>('/api/v1/studio/templates')
@@ -92,11 +94,14 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
   }
   const approve = async () => {
     if (!selected || !templateId) return
+    const direction = creativeDirectionFromDraft(creativeDirection)
+    if (templateId === 'phone_metrics' && !direction) return
     const alreadyApproved = selected.approved
     setBusy(true); setError('')
     try {
       const result = await api.post<{ creative: StudioCreativeSummary }>(`/api/v1/briefs/${selected.brief_id}/approve`, {
         honor_confirmed: true, template_id: templateId,
+        ...(templateId === 'phone_metrics' ? { creative_direction: direction } : {}),
       })
       setApprovalOpen(false)
       setNotice(alreadyApproved
@@ -138,10 +143,11 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     {approvalOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-labelledby="brief-template-title">
       <header><div><small>{selected?.approved ? tr('CREATE CREATIVE', 'СТВОРИТИ КРЕАТИВ') : tr('APPROVE & CREATE', 'СХВАЛИТИ Й СТВОРИТИ')}</small><h2 id="brief-template-title">{tr('Choose the creative template', 'Оберіть шаблон креативу')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setApprovalOpen(false)}><X /></button></header>
       <p>{tr('The selected common template will be populated from this approved Brief.', 'Обраний спільний шаблон буде заповнено на основі цього схваленого брифу.')}</p>
-      <div className="studio-template-grid">{templates.map((template) => <button key={template.template_id} type="button" className={`studio-template-card ${templateId === template.template_id ? 'is-active' : ''}`} onClick={() => setTemplateId(template.template_id)}>
+      <div className="studio-template-grid">{templates.map((template) => <button key={template.template_id} type="button" className={`studio-template-card ${templateId === template.template_id ? 'is-active' : ''}`} onClick={() => { setTemplateId(template.template_id); if (template.template_id !== 'phone_metrics') setCreativeDirection({ style: '', background: '' }) }}>
         <strong>{template.name}</strong><small>{template.canvas.width}×{template.canvas.height}</small><span>{template.description}</span>
       </button>)}</div>
-      <button className="primary large" disabled={busy || !templateId} onClick={() => void approve()}><Check />{selected?.approved ? tr('Create creative', 'Створити креатив') : tr('Approve Brief & generate creative', 'Схвалити бриф і згенерувати креатив')}</button>
+      {templateId === 'phone_metrics' && <PhoneHeroDirectionPicker language={language} value={creativeDirection} onChange={setCreativeDirection} disabled={busy} idPrefix="brief-creative-direction" />}
+      <button className="primary large" disabled={busy || !templateId || (templateId === 'phone_metrics' && !creativeDirectionFromDraft(creativeDirection))} onClick={() => void approve()}><Check />{selected?.approved ? tr('Create creative', 'Створити креатив') : tr('Approve Brief & generate creative', 'Схвалити бриф і згенерувати креатив')}</button>
     </section></div>}
   </>
 }

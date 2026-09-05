@@ -13,9 +13,14 @@ import httpx
 
 from validation_pipeline.openai_images import (
     OPENAI_IMAGE_EDITS_ENDPOINT, OPENAI_IMAGES_ENDPOINT, PHONE_SCREEN_IMAGE_MODEL,
-    PHONE_SCREEN_IMAGE_SIZE, LocalCodexPhoneScreenImageProvider,
+    PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS, PHONE_SCREEN_IMAGE_SIZE,
+    LocalCodexPhoneScreenImageProvider,
     OpenAIPhoneScreenImageProvider, ResultBridgePhoneScreenImageProvider,
     phone_screen_art_prompt,
+)
+from validation_pipeline.phone_hero_styles import (
+    PHONE_HERO_BACKGROUND_DIRECTIVES, PHONE_HERO_STYLE_DIRECTIVES,
+    normalize_phone_hero_creative_direction,
 )
 
 
@@ -264,5 +269,56 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
         self.assertIn("Translucent glass steps", prompt)
         self.assertIn("the server adds the Natal identity", prompt)
         self.assertIn("lower area calm enough to fade into white", prompt)
+        self.assertIn("direct, first-person live camera view", prompt)
+        self.assertIn("non-textual computer-vision treatment is allowed", prompt)
+        self.assertIn("no readable text", prompt)
         with self.assertRaisesRegex(ValueError, "8-600"):
             phone_screen_art_prompt("short")
+
+    def test_full_bounded_direction_and_lessons_fit_the_provider_prompt_contract(self) -> None:
+        prompt = phone_screen_art_prompt(
+            "x" * 600, enhance_current=True, skill_context="y" * 6000,
+            creative_direction={
+                "schema": "ptw.studio.phone-hero-direction.v1",
+                "style": "ultra_realistic_lifestyle", "background": "scene",
+            },
+        )
+        self.assertGreater(len(prompt), 4000)
+        self.assertLessEqual(len(prompt), PHONE_SCREEN_IMAGE_PROMPT_MAX_CHARS)
+
+        with httpx.Client(transport=httpx.MockTransport(lambda _request: httpx.Response(200, json={
+            "data": [{"b64_json": base64.b64encode(self._png()).decode()}],
+        }))) as client:
+            result = OpenAIPhoneScreenImageProvider("test-key", client=client).generate(prompt)
+        self.assertEqual("image_generation", result["source"]["operation"])
+
+    def test_every_style_and_background_is_bounded_and_expands_into_the_prompt(self) -> None:
+        for style, style_directive in PHONE_HERO_STYLE_DIRECTIVES.items():
+            for background, background_directive in PHONE_HERO_BACKGROUND_DIRECTIVES.items():
+                direction = normalize_phone_hero_creative_direction({
+                    "schema": "ptw.studio.phone-hero-direction.v1",
+                    "style": style, "background": background,
+                })
+                prompt = phone_screen_art_prompt(
+                    "One clear subject for the approved product.",
+                    creative_direction=direction,
+                )
+                self.assertIn(style_directive, prompt)
+                self.assertIn(background_directive, prompt)
+                self.assertIn("no readable text", prompt)
+                self.assertIn("the server adds the Natal identity", prompt)
+        with self.assertRaisesRegex(ValueError, "style"):
+            normalize_phone_hero_creative_direction({
+                "schema": "ptw.studio.phone-hero-direction.v1",
+                "style": "unbounded", "background": "scene",
+            })
+        with self.assertRaisesRegex(ValueError, "background"):
+            normalize_phone_hero_creative_direction({
+                "schema": "ptw.studio.phone-hero-direction.v1",
+                "style": "cinematic", "background": "transparent",
+            })
+        with self.assertRaisesRegex(ValueError, "schema"):
+            normalize_phone_hero_creative_direction({
+                "schema": "ptw.studio.phone-hero-direction.v2",
+                "style": "cinematic", "background": "scene",
+            })

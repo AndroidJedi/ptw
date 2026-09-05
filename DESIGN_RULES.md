@@ -16,9 +16,10 @@ Updated: 2026-09-04
 
 - One raw idea creates one Project, permanent Source, and immutable Brief.
 - Correction creates a new complete Brief with feedback and weight lineage.
-- Approval requires an honor confirmation and a common-template selection,
-  returns the reserved creative, navigates to its Post progress screen, and
-  starts Studio AI.
+- Approval requires an honor confirmation and a common-template selection.
+  Phone Metrics also requires a style and background treatment before Studio
+  AI starts its first hero image. Approval returns the reserved creative and
+  navigates to its Post progress screen.
 
 ## Post Studio
 
@@ -33,6 +34,8 @@ Updated: 2026-09-04
 - Phone hero generation is text-free, keeps three selectable raw images, and
   may enhance exactly the selected raw hero. The checked-in phone frame is
   digest-verified and never fetched at runtime.
+- The saved Phone hero direction has a 44px edit/reset control. Replacing it
+  keeps the current image and history intact until Generate is pressed again.
 - Save creative and Approve creative atomically include all pending edits.
   A changed checkpoint shows its edit summary, automatic Project lesson, and
   sanitized global proposal with Apply globally/Keep project-only actions.

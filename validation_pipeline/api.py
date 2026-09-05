@@ -246,7 +246,12 @@ def create_app(
     async def approve_brief(
         brief_id: str, request: Mapping[str, Any], x_ptw_actor: str = Header(default="owner-web")
     ) -> dict[str, Any]:
-        if set(request) != {"honor_confirmed", "template_id"} or request.get("honor_confirmed") is not True:
+        template_id = str(request.get("template_id") or "")
+        expected = (
+            {"honor_confirmed", "template_id", "creative_direction"}
+            if template_id == "phone_metrics" else {"honor_confirmed", "template_id"}
+        )
+        if set(request) != expected or request.get("honor_confirmed") is not True:
             raise HTTPException(
                 status_code=400,
                 detail="Brief approval requires explicit confirmation that the promise and offer can be honored",
@@ -255,9 +260,10 @@ def create_app(
             normalized = str(UUID(brief_id))
             value, created, creative, creative_created = (
                 studio_creatives.approve_brief_and_reserve(
-                    brief_id=normalized, template_id=str(request["template_id"]),
+                    brief_id=normalized, template_id=template_id,
                     requested_by=x_ptw_actor[:200],
                     brief_approver=repository.approve_brief,
+                    creative_direction=request.get("creative_direction"),
                 )
             )
             if creative_created:

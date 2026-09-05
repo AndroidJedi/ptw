@@ -175,15 +175,27 @@ class ValidationApiRouteTests(unittest.TestCase):
                 f"/internal/v1/briefs/{brief_id}/approve", headers=headers,
                 json={"honor_confirmed": True},
             )
-            response = client.post(
+            missing_direction = client.post(
                 f"/internal/v1/briefs/{brief_id}/approve", headers=headers,
                 json={"honor_confirmed": True, "template_id": "phone_metrics"},
             )
+            response = client.post(
+                f"/internal/v1/briefs/{brief_id}/approve", headers=headers,
+                json={
+                    "honor_confirmed": True, "template_id": "phone_metrics",
+                    "creative_direction": {
+                        "schema": "ptw.studio.phone-hero-direction.v1",
+                        "style": "cinematic", "background": "scene",
+                    },
+                },
+            )
 
         self.assertEqual(400, invalid.status_code, invalid.text)
+        self.assertEqual(400, missing_direction.status_code, missing_direction.text)
         self.assertEqual(202, response.status_code, response.text)
         self.assertEqual(creative_id, response.json()["creative"]["creative_id"])
         self.assertEqual("phone_metrics", studio.approval["template_id"])
+        self.assertEqual("cinematic", studio.approval["creative_direction"]["style"])
         self.assertTrue(studio.generated.wait(timeout=1))
 
 

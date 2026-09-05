@@ -721,6 +721,7 @@ class UniversalStudioWorkspace:
     def generate_phone_screen(
         self, *, base_sha256: str, visual_direction: str,
         enhance_current: bool = False, skill_context: str = "",
+        creative_direction: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Generate or reference-edit one mutable, text-free phone hero artwork."""
 
@@ -739,7 +740,7 @@ class UniversalStudioWorkspace:
         normalized_direction = " ".join(str(visual_direction or "").split())
         prompt = phone_screen_art_prompt(
             normalized_direction, enhance_current=enhance_current,
-            skill_context=skill_context,
+            skill_context=skill_context, creative_direction=creative_direction,
         )
         try:
             generated = (
@@ -766,7 +767,13 @@ class UniversalStudioWorkspace:
             "generation_mode": (
                 "enhance_current" if enhance_current else "generate_new"
             ),
+            **({"creative_direction": dict(creative_direction)}
+               if creative_direction is not None else {}),
             "prompt_contract": (
+                "owner_directed_text_free_phone_hero_enhancement_v2"
+                if enhance_current and creative_direction is not None else
+                "owner_directed_text_free_phone_hero_v2"
+                if creative_direction is not None else
                 "owner_directed_text_free_phone_hero_enhancement_v1"
                 if enhance_current else "owner_directed_text_free_phone_hero_v1"
             ),

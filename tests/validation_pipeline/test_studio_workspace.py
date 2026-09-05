@@ -918,6 +918,15 @@ class UniversalStudioApiTests(unittest.TestCase):
                     {"universal_ad", "phone_metrics"},
                     {item["template_id"] for item in templates.json()["items"]},
                 )
+                phone_template = next(
+                    item for item in templates.json()["items"]
+                    if item["template_id"] == "phone_metrics"
+                )
+                self.assertEqual(10, len(phone_template["creative_direction_options"]["styles"]))
+                self.assertEqual(
+                    ["scene", "isolated_key_element"],
+                    phone_template["creative_direction_options"]["backgrounds"],
+                )
                 self.assertEqual(404, client.get("/api/v1/studio/tune", headers=headers).status_code)
 
     def test_loopback_phone_screen_generation_is_authenticated_and_bounded(self) -> None:
@@ -997,7 +1006,13 @@ class UniversalStudioApiTests(unittest.TestCase):
             )) as client:
                 approval = client.post(
                     f'/api/v1/briefs/{brief["brief_id"]}/approve', headers=headers,
-                    json={"honor_confirmed": True, "template_id": "phone_metrics"},
+                    json={
+                        "honor_confirmed": True, "template_id": "phone_metrics",
+                        "creative_direction": {
+                            "schema": "ptw.studio.phone-hero-direction.v1",
+                            "style": "cinematic", "background": "scene",
+                        },
+                    },
                 )
                 self.assertEqual(202, approval.status_code, approval.text)
                 creative_id = approval.json()["creative"]["creative_id"]
@@ -1007,6 +1022,8 @@ class UniversalStudioApiTests(unittest.TestCase):
                 phone = client.get(creative_path, headers=headers).json()
                 self.assertEqual("draft", phone["status"])
                 self.assertEqual("completed", phone["generation"]["phone_image"]["status"])
+                self.assertEqual("cinematic", phone["generation"]["creative_direction"]["style"])
+                self.assertEqual("scene", phone["assets"][0]["source"]["creative_direction"]["background"])
                 self.assertEqual(1, len(provider.prompts))
                 self.assertEqual([None], provider.references)
                 wrong_project_path = (

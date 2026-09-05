@@ -4,8 +4,11 @@ Owner Console uses Firebase Auth, pinned owner identity, and App Check. Owner
 Gateway proxies authenticated Project, Product Brief, and project-scoped Studio
 APIs. Domain data is never stored in Firebase or service-worker caches.
 
-Brief approval accepts exactly `honor_confirmed` and `template_id`, returns
-HTTP 202, and includes the reserved creative. Studio exposes the common template
+Brief approval accepts `honor_confirmed` and `template_id`; `phone_metrics`
+also requires its bounded saved `creative_direction`. The creative-scoped
+direction route is state-hash guarded and may replace that direction without
+creating a checkpoint or learning data. It returns HTTP 202
+and includes the reserved creative. Studio exposes the common template
 catalog and only Project/creative-scoped operations: list/create, detail,
 composition/image retry, configuration, Save, template apply, assets/Pexels,
 preview, phone generate/enhance/select/history, immutable creative approval,

@@ -16,6 +16,13 @@ from validation_pipeline.studio_creatives import (
 from validation_pipeline.studio_workspace import UniversalStudioWorkspace
 
 
+PHONE_DIRECTION = {
+    "schema": "ptw.studio.phone-hero-direction.v1",
+    "style": "cinematic",
+    "background": "scene",
+}
+
+
 def _png(color: str = "#f4f3ef") -> bytes:
     output = BytesIO()
     Image.new("RGB", (1024, 1024), color).save(output, format="PNG")
@@ -148,6 +155,7 @@ class StudioCreativeServiceTests(unittest.TestCase):
         project_id, brief_id = self.approved_brief()
         creative, created = self.service.reserve_from_brief(
             brief_id=brief_id, template_id=template_id, requested_by="test",
+            **({"creative_direction": PHONE_DIRECTION} if template_id == "phone_metrics" else {}),
         )
         self.assertTrue(created)
         self.service.generate(creative["creative_id"])
@@ -184,6 +192,7 @@ class StudioCreativeServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "different Studio template"):
             self.service.reserve_from_brief(
                 brief_id=brief_id, template_id="phone_metrics", requested_by="test",
+                creative_direction=PHONE_DIRECTION,
             )
 
     def test_stale_creative_state_is_rejected_before_mutation(self) -> None:
@@ -231,6 +240,9 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertEqual(project_id, detail["project_id"])
         self.assertIn("approved_product_brief", generation_call["input_payload"])
         self.assertIn("live_template_catalog", generation_call["input_payload"])
+        self.assertEqual(PHONE_DIRECTION, generation_call["input_payload"]["creative_direction"])
+        self.assertEqual(PHONE_DIRECTION, detail["generation"]["creative_direction"])
+        self.assertIn("Selected visual style", self.images.prompts[0])
         runs = [
             item for item in self.store.list("studio_generation_runs")
             if item["creative_id"] == detail["creative_id"]
@@ -239,13 +251,62 @@ class StudioCreativeServiceTests(unittest.TestCase):
         for run in runs:
             self.assertEqual(detail["source_brief_id"], run["provenance"]["source_brief_id"])
             self.assertEqual("phone_metrics", run["provenance"]["template_id"])
+            self.assertEqual(PHONE_DIRECTION, run["provenance"]["creative_direction"])
             self.assertRegex(run["provenance"]["global_skill_sha256"], r"^[0-9a-f]{64}$")
             self.assertRegex(run["provenance"]["project_skill_sha256"], r"^[0-9a-f]{64}$")
+
+    def test_phone_direction_is_required_idempotent_and_replaceable(self) -> None:
+        project_id, brief_id = self.approved_brief()
+        with self.assertRaisesRegex(ValueError, "direction is required"):
+            self.service.reserve_from_brief(
+                brief_id=brief_id, template_id="phone_metrics", requested_by="test",
+            )
+        first, created = self.service.reserve_from_brief(
+            brief_id=brief_id, template_id="phone_metrics", requested_by="test",
+            creative_direction=PHONE_DIRECTION,
+        )
+        self.assertTrue(created)
+        duplicate, created = self.service.reserve_from_brief(
+            brief_id=brief_id, template_id="phone_metrics", requested_by="test",
+            creative_direction=PHONE_DIRECTION,
+        )
+        self.assertFalse(created)
+        self.assertEqual(first["creative_id"], duplicate["creative_id"])
+        with self.assertRaisesRegex(ValueError, "different Phone Metrics"):
+            self.service.reserve_from_brief(
+                brief_id=brief_id, template_id="phone_metrics", requested_by="test",
+                creative_direction={**PHONE_DIRECTION, "style": "business_professional"},
+            )
+        detail = self.service.detail(project_id, first["creative_id"])
+        self.authority.update_creative(first["creative_id"], status="failed", generation={
+            "phone_image": {"status": "failed", "visual_direction": "One clear subject in a calm scene."},
+        })
+        with self.assertRaisesRegex(ValueError, "style before retrying"):
+            self.service.retry_generation(project_id, first["creative_id"])
+        with self.assertRaisesRegex(ValueError, "style before retrying"):
+            self.service.queue_phone_image_retry(project_id, first["creative_id"])
+        legacy = self.service.set_creative_direction(
+            project_id, first["creative_id"], base_sha256=detail["state_sha256"],
+            creative_direction=PHONE_DIRECTION,
+        )
+        self.assertEqual(PHONE_DIRECTION, legacy["generation"]["creative_direction"])
+        replacement_direction = {
+            **PHONE_DIRECTION, "style": "ultra_realistic_lifestyle",
+            "background": "isolated_key_element",
+        }
+        replaced = self.service.set_creative_direction(
+            project_id, first["creative_id"], base_sha256=legacy["state_sha256"],
+            creative_direction=replacement_direction,
+        )
+        self.assertEqual(replacement_direction, replaced["generation"]["creative_direction"])
+        self.assertEqual(legacy["state_sha256"], replaced["state_sha256"])
+        self.assertEqual([], self.store.list("studio_edit_checkpoints"))
 
     def test_phone_composer_schema_enforces_the_renderer_text_limits(self) -> None:
         _project_id, brief_id = self.approved_brief()
         creative, _created = self.service.reserve_from_brief(
             brief_id=brief_id, template_id="phone_metrics", requested_by="test",
+            creative_direction=PHONE_DIRECTION,
         )
         detail = self.service._workspace(creative["creative_id"]).detail()
         schema = creative_generation_schema(detail)
@@ -287,10 +348,29 @@ class StudioCreativeServiceTests(unittest.TestCase):
             project_id, baseline["creative_id"], "select_phone_screen",
             base_sha256=generated["state_sha256"], sha256=original_sha,
         )
+        third = self.service.mutate(
+            project_id, baseline["creative_id"], "generate_phone_screen",
+            base_sha256=selected["state_sha256"],
+            visual_direction="A hand-finished paper sculpture with a cobalt edge",
+            enhance_current=False,
+        )
+        self.assertEqual(3, len(third["phone_screen_history"]))
+        self.assertIn(original_sha, {item["sha256"] for item in third["phone_screen_history"]})
+        fourth = self.service.mutate(
+            project_id, baseline["creative_id"], "generate_phone_screen",
+            base_sha256=third["state_sha256"],
+            visual_direction="One refined mineral form in a quiet tonal landscape",
+            enhance_current=False,
+        )
+        self.assertEqual(3, len(fourth["phone_screen_history"]))
+        self.assertTrue(
+            {item["sha256"] for item in third["phone_screen_history"][:2]}
+            <= {item["sha256"] for item in fourth["phone_screen_history"]}
+        )
         checkpoint = self.service.checkpoint(
             project_id, baseline["creative_id"], kind="save",
-            base_sha256=selected["state_sha256"],
-            configuration=selected["configuration"], content=selected["content"],
+            base_sha256=fourth["state_sha256"],
+            configuration=fourth["configuration"], content=fourth["content"],
         )
 
         self.assertTrue(checkpoint["checkpoint_created"])
@@ -298,7 +378,7 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertTrue(any(path.startswith("phone_screen_history") for path in paths))
         saved = self.authority.get_checkpoint(checkpoint["checkpoint"]["checkpoint_id"])
         self.assertEqual(1, len(saved["before_snapshot"]["phone_screen_history"]))
-        self.assertEqual(2, len(saved["after_snapshot"]["phone_screen_history"]))
+        self.assertEqual(3, len(saved["after_snapshot"]["phone_screen_history"]))
 
     def test_learning_occurs_once_only_at_a_changed_checkpoint(self) -> None:
         project_id, _brief_id, detail = self.generate_creative()
@@ -387,7 +467,7 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertTrue(approved["version_created"])
         second, created = self.service.reserve_from_brief(
             brief_id=brief_id, template_id="phone_metrics",
-            requested_by="test", additional=True,
+            requested_by="test", additional=True, creative_direction=PHONE_DIRECTION,
         )
         self.assertTrue(created)
         self.assertEqual(2, second["ordinal"])

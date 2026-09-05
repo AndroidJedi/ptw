@@ -42,15 +42,18 @@ def studio_creative_router(
     def create_variant(
         project_id: str, request: Mapping[str, Any], background: BackgroundTasks,
     ) -> dict[str, Any]:
-        fields(
-            request, {"source_brief_id", "template_id"},
-            "Studio creative variant requires source_brief_id and template_id",
+        template_id = str(request.get("template_id") or "")
+        expected = (
+            {"source_brief_id", "template_id", "creative_direction"}
+            if template_id == "phone_metrics" else {"source_brief_id", "template_id"}
         )
+        fields(request, expected, "Studio creative variant fields are invalid")
         try:
             creative, created = service.reserve_from_brief(
                 brief_id=str(request["source_brief_id"]),
-                template_id=str(request["template_id"]), requested_by="owner-web",
+                template_id=template_id, requested_by="owner-web",
                 additional=True,
+                creative_direction=request.get("creative_direction"),
             )
             if creative["project_id"] != project_id:
                 raise KeyError("Studio creative was not found in this Project")
@@ -93,6 +96,24 @@ def studio_creative_router(
             value = service.queue_phone_image_retry(project_id, creative_id)
             background.add_task(service.retry_phone_image, project_id, creative_id)
             return value
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.post("/projects/{project_id}/creatives/{creative_id}/creative-direction")
+    def creative_direction(
+        project_id: str, creative_id: str, request: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        fields(
+            request, {"base_sha256", "creative_direction"},
+            "Studio creative direction fields are invalid",
+        )
+        if not isinstance(request["creative_direction"], Mapping):
+            raise HTTPException(status_code=400, detail="Studio creative direction is invalid")
+        try:
+            return service.set_creative_direction(
+                project_id, creative_id, base_sha256=str(request["base_sha256"]),
+                creative_direction=request["creative_direction"],
+            )
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
 

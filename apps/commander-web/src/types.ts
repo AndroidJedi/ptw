@@ -249,6 +249,17 @@ export type StudioPhoneMetricCardStyle = 'filled' | 'outlined'
 export type StudioPhoneMetricCardShape = 'square' | 'rounded' | 'pill'
 export type StudioPhoneActionButtonStyle = 'filled' | 'elevated' | 'outlined' | 'text'
 export type StudioPhoneActionButtonShape = 'square' | 'rounded' | 'pill'
+export type StudioPhoneHeroStyle =
+  | 'business_professional' | 'ultra_realistic_lifestyle' | 'cinematic'
+  | 'premium_editorial' | 'contemporary_3d' | 'minimal_sculptural'
+  | 'artistic_illustration' | 'playful_balloons' | 'tactile_handmade'
+  | 'futuristic_tech'
+export type StudioPhoneHeroBackground = 'scene' | 'isolated_key_element'
+export interface StudioPhoneHeroCreativeDirection {
+  schema: 'ptw.studio.phone-hero-direction.v1'
+  style: StudioPhoneHeroStyle
+  background: StudioPhoneHeroBackground
+}
 export type StudioFontFamily = StudioUniversalFontFamily
 export type StudioPhoneTypographyRole =
   | 'offer' | 'hero_title' | 'supporting_text' | 'cta'
@@ -332,6 +343,11 @@ export interface StudioTemplateSummary {
   canvas: { width: number; height: number }
   template_version?: number
   template_sha256?: string
+  creative_direction_options?: {
+    schema: 'ptw.studio.phone-hero-direction.v1'
+    styles: StudioPhoneHeroStyle[]
+    backgrounds: StudioPhoneHeroBackground[]
+  }
 }
 
 export type StudioCreativeStatus = 'queued' | 'composing' | 'generating_image' | 'draft' | 'failed'
@@ -353,6 +369,7 @@ export interface StudioCreativeSummary {
     error_type?: string
     error_message?: string
     phone_image?: { status?: 'generating' | 'completed' | 'failed'; visual_direction?: string; error_message?: string }
+    creative_direction?: StudioPhoneHeroCreativeDirection
   }
   created_at: string
   updated_at: string

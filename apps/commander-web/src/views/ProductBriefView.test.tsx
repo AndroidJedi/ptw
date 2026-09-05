@@ -100,10 +100,15 @@ describe('Product Brief workspace', () => {
     await screen.findByText('Move faster')
     fireEvent.click(screen.getByRole('button', { name: /I can honor this promise/ }))
     fireEvent.click(await screen.findByRole('button', { name: /Phone Metrics/ }))
+    fireEvent.click(screen.getByDisplayValue('cinematic'))
+    fireEvent.click(screen.getByDisplayValue('scene'))
     fireEvent.click(screen.getByRole('button', { name: 'Approve Brief & generate creative' }))
 
     await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/briefs/brief-1/approve', {
       honor_confirmed: true, template_id: 'phone_metrics',
+      creative_direction: {
+        schema: 'ptw.studio.phone-hero-direction.v1', style: 'cinematic', background: 'scene',
+      },
     }))
     expect(onCreative).toHaveBeenCalledWith('project-1', 'creative-1')
   })
@@ -144,11 +149,16 @@ describe('Product Brief workspace', () => {
     await screen.findByText('Product Brief approved')
     fireEvent.click(screen.getByRole('button', { name: 'Open or create its creative' }))
     fireEvent.click(await screen.findByRole('button', { name: /Phone Metrics/ }))
-    expect(screen.getByRole('button', { name: 'Create creative' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Create creative' })).toBeDisabled()
+    fireEvent.click(screen.getByDisplayValue('cinematic'))
+    fireEvent.click(screen.getByDisplayValue('scene'))
     fireEvent.click(screen.getByRole('button', { name: 'Create creative' }))
 
     await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/briefs/brief-1/approve', {
       honor_confirmed: true, template_id: 'phone_metrics',
+      creative_direction: {
+        schema: 'ptw.studio.phone-hero-direction.v1', style: 'cinematic', background: 'scene',
+      },
     }))
     expect(onCreative).toHaveBeenCalledWith('project-1', 'creative-1')
   })

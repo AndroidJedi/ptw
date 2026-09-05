@@ -72,9 +72,15 @@ version format exists.
 ## Phone hero generation
 
 After `phone_metrics` composition, Studio automatically starts one fresh hero
-generation. The canonical phone-hero skill, Brief-derived visual direction, and
-accepted global/Project visual lessons are included in both local Codex and
-production bridge prompts.
+generation. Before the creative starts, its owner selects one saved Phone-Hero
+style and either a contextual scene or an isolated key element on a
+clean tonal field. The canonical phone-hero skill, selected creative direction,
+Brief-derived subject description, and accepted global/Project visual lessons
+are included in both local Codex and production bridge prompts. The saved
+direction is reusable provenance for a future caption/legend generator; Studio
+does not implement that generator today. Their complete assembled prompt is
+bounded at 9,000 characters so every individually valid input combination also
+fits the provider boundary.
 
 Generated pixels must contain no phone, readable text, numbers, logo, UI,
 buttons, metrics, charts, or unsupported claim. Renderer-owned UI is added
@@ -86,6 +92,13 @@ Manual generation supports:
 - enhancement using exactly the selected raw hero PNG and its digest;
 - selection among the newest three distinct digest-checked raw heroes;
 - separate retry after automatic image failure.
+
+The style/background choice is saved on the creative and governs every later
+generation until replaced. Its edit icon resets the picker so the owner can
+save a replacement; existing images and history remain untouched until the
+owner explicitly generates again. Existing Phone Metrics drafts created before
+this capability retain their current image, but must save one direction before
+a further generation, enhancement, or image retry.
 
 A failed image request preserves the composed draft and deterministic fallback.
 The selected raw hero is the input to the next enhancement. A fourth successful

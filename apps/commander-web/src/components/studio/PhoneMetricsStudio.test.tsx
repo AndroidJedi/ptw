@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '../../api'
-import type { StudioPhoneMetricsDetail } from '../../types'
+import type { StudioPhoneHeroCreativeDirection, StudioPhoneMetricsDetail } from '../../types'
 import { PhoneMetricsStudio } from './PhoneMetricsStudio'
 
 const basePath = '/api/v1/studio/projects/11111111-1111-4111-8111-111111111111/creatives/22222222-2222-4222-8222-222222222222'
@@ -13,7 +13,12 @@ const detail = {
   ordinal: 1,
   origin: 'brief_generation',
   status: 'draft',
-  generation: { stage: 'draft' },
+  generation: {
+    stage: 'draft',
+    creative_direction: {
+      schema: 'ptw.studio.phone-hero-direction.v1', style: 'cinematic', background: 'scene',
+    },
+  },
   approved_version_count: 0,
   schema: 'ptw.studio.workspace.v8',
   template_id: 'phone_metrics',
@@ -99,6 +104,16 @@ const detail = {
 function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
   let savedDetail = structuredClone(initialDetail)
   const post = vi.fn(async (path: string, body: unknown) => {
+    if (path === `${basePath}/creative-direction`) {
+      savedDetail = {
+        ...savedDetail,
+        generation: {
+          ...savedDetail.generation,
+          creative_direction: (body as { creative_direction: StudioPhoneHeroCreativeDirection }).creative_direction,
+        },
+      }
+      return structuredClone(savedDetail)
+    }
     if (path === `${basePath}/phone-screen/generate`) {
       const generatedSha256 = '1'.repeat(64)
       const generatedSource = {
@@ -545,5 +560,81 @@ describe('Phone & metrics Studio', () => {
     expect(screen.getByLabelText('Enhance current image')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeDisabled()
     expect(screen.getByText(/Sign in to Codex and restart the Post editor/)).toBeInTheDocument()
+  })
+
+  it('requires a legacy creative to save its style before generating another hero', async () => {
+    const legacy = structuredClone(detail)
+    legacy.generation = { stage: 'draft' }
+    const { api, post } = studioApi(legacy)
+    render(<PhoneMetricsStudio
+      api={api} basePath={basePath} language="en" detail={legacy} onDetail={vi.fn()}
+    />)
+
+    expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Save direction & enable generation' })).toBeDisabled()
+    fireEvent.click(screen.getByDisplayValue('business_professional'))
+    expect(screen.getByText('Now choose a background treatment to enable saving.')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Remove scene background/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByDisplayValue('isolated_key_element'))
+    expect(screen.getByText('Direction is ready to save.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save direction & enable generation' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save direction & enable generation' }))
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`${basePath}/creative-direction`, {
+      base_sha256: 'a'.repeat(64),
+      creative_direction: {
+        schema: 'ptw.studio.phone-hero-direction.v1',
+        style: 'business_professional', background: 'isolated_key_element',
+      },
+    }, { deadlineMs: 60_000 }))
+    expect(await screen.findByText('Business professional')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('iPhone visual direction'), {
+      target: { value: 'A clear premium object for the approved product.' },
+    })
+    expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeEnabled()
+  })
+
+  it('resets and replaces the saved direction without changing existing images', async () => {
+    const current = structuredClone(detail)
+    current.assets = [{
+      slot: 'phone_screen', role: 'device_screen', description: 'Current phone hero',
+      allowed_mime_types: ['image/png'], editable: false, available: true,
+      mime_type: 'image/png', sha256: '9'.repeat(64), byte_count: 128,
+      source: { visual_direction: 'A medicine cabinet camera scan.' },
+    }]
+    current.phone_screen_history = [{
+      mime_type: 'image/png', sha256: '9'.repeat(64), width: 1024, height: 1024,
+      byte_count: 128, source: { visual_direction: 'A medicine cabinet camera scan.' },
+      selected: true,
+    }]
+    const { api, post } = studioApi(current)
+    render(<PhoneMetricsStudio
+      api={api} basePath={basePath} language="en" detail={current} onDetail={vi.fn()}
+    />)
+
+    const reset = screen.getByRole('button', { name: 'Reset image direction' })
+    reset.focus()
+    expect(reset).toHaveFocus()
+    fireEvent.click(reset)
+    expect(screen.getByText('Select an image style to continue.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeDisabled()
+    expect(screen.getByLabelText('Enhance current image')).toBeDisabled()
+
+    fireEvent.click(screen.getByDisplayValue('ultra_realistic_lifestyle'))
+    fireEvent.click(screen.getByDisplayValue('isolated_key_element'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save new direction' }))
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`${basePath}/creative-direction`, {
+      base_sha256: 'a'.repeat(64),
+      creative_direction: {
+        schema: 'ptw.studio.phone-hero-direction.v1',
+        style: 'ultra_realistic_lifestyle', background: 'isolated_key_element',
+      },
+    }, { deadlineMs: 60_000 }))
+    expect(await screen.findByText('Ultra-realistic lifestyle')).toBeInTheDocument()
+    expect(screen.getByText('Remove scene background')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate & apply' })).toBeEnabled()
+    expect(screen.getByLabelText('Enhance current image')).toBeEnabled()
+    expect(screen.getByRole('radio', { name: 'iPhone image 1, current' })).toBeInTheDocument()
   })
 })

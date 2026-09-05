@@ -302,8 +302,14 @@ describe('Universal Ad Studio', () => {
     expect(await screen.findByRole('heading', { name: 'Choose a template for your first creative' })).toBeInTheDocument()
     expect(screen.getByText('Your Brief is already approved. Selecting a template only reserves and starts its first creative.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Phone Metrics/ }))
+    fireEvent.click(screen.getByDisplayValue('cinematic'))
+    fireEvent.click(screen.getByDisplayValue('scene'))
+    fireEvent.click(screen.getByRole('button', { name: 'Create Phone Metrics creative' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/v1/briefs/33333333-3333-4333-8333-333333333333/approve', {
       honor_confirmed: true, template_id: 'phone_metrics',
+      creative_direction: {
+        schema: 'ptw.studio.phone-hero-direction.v1', style: 'cinematic', background: 'scene',
+      },
     }))
     expect(onCreative).toHaveBeenCalledWith(creativeId)
   })

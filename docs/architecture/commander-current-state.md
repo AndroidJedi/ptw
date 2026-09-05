@@ -1,6 +1,6 @@
 # Commander current state
 
-Updated: 2026-09-04
+Updated: 2026-09-05
 Branch: `codex/web-only-commander`
 Deployment: local change; not deployed
 
@@ -11,8 +11,10 @@ The Post destination is the project-scoped Studio creative workspace. There is
 no separate Studio page and no automated Post subsystem.
 
 An owner creates a Project and Product Brief, reviews the completed Brief, and
-approves it only after choosing one common Studio template. Approval accepts
-exactly `honor_confirmed` and `template_id`, returns HTTP 202 with the
+approves it only after choosing one common Studio template. Phone Metrics also
+requires a saved creative direction: one style and one background treatment.
+The owner may reset and replace that direction in the hero editor; existing
+images remain untouched until another generation. Approval returns HTTP 202 with the
 idempotently reserved creative, navigates to
 `?page=posts&project=<project_id>&creative=<creative_id>`, and starts
 `queued → composing → generating image → draft`. The image stage appears only
@@ -63,11 +65,19 @@ skill snapshots. Output is validated against the selected template's exact
 configuration/content shape; the live catalog wins over learned instructions.
 
 For `phone_metrics`, composition automatically starts a fresh, text-free hero
-generation governed by `studio-phone-hero-generator`. The prompt includes
-Brief-derived visual direction plus accepted global and Project visual lessons.
+generation governed by `studio-phone-hero-generator`. The prompt includes the
+saved creative direction, a Brief-derived subject description, and accepted
+global and Project visual lessons. The direction remains available to a future
+legend generator, which is not yet implemented.
+A complete bounded prompt may contain up to 9,000 characters so the maximum
+subject, selected style/background, enhancement rules, canonical skill, and
+accepted lessons fit the same provider contract.
 A failure keeps a deterministic editable draft and exposes a separate retry.
 Manual generation can create a fresh image or enhance the exact selected raw
 hero. The three newest raw hero images remain digest-checked and selectable.
+Legacy Phone Metrics drafts retain their existing hero but must save a direction
+before further generation, enhancement, or retry. The saved direction can be
+reset from its edit icon and replaced without creating learning data.
 
 Intermediate template, configuration, content, import, asset, generation,
 enhancement, and selection edits accumulate without learning. **Save creative**
@@ -87,8 +97,8 @@ are absent.
 ## Verification status
 
 The clean baseline schema and idempotent application passed against disposable
-PostgreSQL. The final local matrix passes 108 validation tests, four Owner
-Gateway tests, 44 web unit tests, the production web build, 18 browser tests,
+PostgreSQL. The final local matrix passes 111 validation tests, four Owner
+Gateway tests, 46 web unit tests, the production web build, 18 browser tests,
 the complete Studio visual audit, canonical skill verification, Commander host
 tests/demo, whitespace checks, and 28 independent platform-bridge tests. The
 Commander host run skips its two FastAPI-only Telegram checks; both passed in

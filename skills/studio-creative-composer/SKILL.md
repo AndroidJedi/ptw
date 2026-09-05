@@ -19,8 +19,9 @@ selected live template catalog.
   testimonials, urgency, scarcity, prices, or guarantees.
 - For `phone_metrics`, use three honest benefit-oriented labels when the Brief
   contains no measured metrics. Leave actual numeric proof out rather than
-  manufacturing it, and supply one text-free visual direction for the phone
-  hero worker.
+  manufacturing it, and supply one text-free subject description for the phone
+  hero worker. When INPUT_JSON contains `creative_direction`, it is selected by
+  the owner and controls the visual style/background treatment; never replace,
+  omit, or contradict it in the subject description.
 - The generated baseline is provenance, not feedback. It must not update any
   learned skill until the owner explicitly saves or approves an edited creative.
-

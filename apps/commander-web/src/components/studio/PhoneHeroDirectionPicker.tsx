@@ -9,7 +9,7 @@ export type PhoneHeroDirectionDraft = {
   background: StudioPhoneHeroBackground | ''
 }
 
-const styles: Array<{ id: StudioPhoneHeroStyle; en: string; uk: string; detailEn: string; detailUk: string }> = [
+export const styles: Array<{ id: StudioPhoneHeroStyle; en: string; uk: string; detailEn: string; detailUk: string }> = [
   { id: 'business_professional', en: 'Business professional', uk: 'Діловий професійний', detailEn: 'Credible commercial still life', detailUk: 'Переконливий комерційний натюрморт' },
   { id: 'ultra_realistic_lifestyle', en: 'Ultra-realistic lifestyle', uk: 'Ультрареалістичний лайфстайл', detailEn: 'Natural, high-fidelity product scene', detailUk: 'Природна деталізована продуктова сцена' },
   { id: 'cinematic', en: 'Cinematic', uk: 'Кінематографічний', detailEn: 'Filmic light and depth', detailUk: 'Кінематографічне світло й глибина' },
@@ -22,7 +22,7 @@ const styles: Array<{ id: StudioPhoneHeroStyle; en: string; uk: string; detailEn
   { id: 'futuristic_tech', en: 'Futuristic tech', uk: 'Футуристичний техно', detailEn: 'Abstract luminous technology', detailUk: 'Абстрактна світлова технологічність' },
 ]
 
-const backgrounds: Array<{ id: StudioPhoneHeroBackground; en: string; uk: string; detailEn: string; detailUk: string }> = [
+export const backgrounds: Array<{ id: StudioPhoneHeroBackground; en: string; uk: string; detailEn: string; detailUk: string }> = [
   { id: 'scene', en: 'Keep a scene background', uk: 'Залишити сценічний фон', detailEn: 'A contextual, uncluttered backdrop', detailUk: 'Контекстний, але чистий фон' },
   { id: 'isolated_key_element', en: 'Remove scene background', uk: 'Прибрати сценічний фон', detailEn: 'One object on a clean tonal field, never transparent', detailUk: 'Один об’єкт на чистому тональному полі, без прозорості' },
 ]

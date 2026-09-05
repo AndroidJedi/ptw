@@ -1,7 +1,10 @@
 import { ArrowDown, ArrowRight, ArrowUpRight, Check, ChevronDown, Layers, Pencil, ScanLine } from 'lucide-react'
 import { useId, useRef, type CSSProperties, type ReactNode } from 'react'
 import type { LandingConfiguration, LandingContent } from '../types'
-import { contactHref, defaults, labels, type Section } from './model'
+import { contactHref, defaults, componentDefaults, labels, type Section } from './model'
+import natalLogo from '../../../../natal/assets/logo-natal.png'
+import { LandingPhone } from './LandingPhone'
+import { phoneDefaults, resolvedAppFeature } from './model'
 import './fonts.css'
 import './landing.css'
 
@@ -14,8 +17,11 @@ export function LandingPage({ configuration, content, imageUrls, editing = false
   const p = configuration.presentation || defaults
   const t = labels[p.language]
   const theme = configuration.theme
+  const components = configuration.components || componentDefaults
   const serif = (name: string) => /Lora|Cormorant/.test(name) ? 'Georgia, serif' : 'system-ui, sans-serif'
   const style = {
+    '--lp-button': components.button_color, '--lp-button-text': components.button_text_color,
+    '--lp-button-radius': { square: '0px', rounded: `${Math.min(theme.corner_radius, 16)}px`, pill: '999px' }[components.button_shape],
     '--lp-bg': theme.background_color, '--lp-surface': theme.surface_color, '--lp-text': theme.text_color,
     '--lp-accent': theme.accent_color, '--lp-radius': `${theme.corner_radius}px`,
     '--lp-font': `"Landing ${theme.font_family}", ${serif(theme.font_family)}`,
@@ -40,19 +46,19 @@ export function LandingPage({ configuration, content, imageUrls, editing = false
     else if (!href) event.preventDefault()
   }} {...(target === 'url' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{content.hero.cta_label || t.contact}<ArrowUpRight aria-hidden="true" /></a>
   const section = (key: Exclude<Section, 'theme'>, className: string, children: ReactNode) => <section id={`${id}-${key}`} data-section={key} tabIndex={-1} className={`lp-section ${className} ${editing && selected === key ? 'lp-selected' : ''}`} onClickCapture={event => {
-    if (editing) { event.preventDefault(); event.stopPropagation(); onSelect?.(key) }
+    if (editing) { event.preventDefault(); event.stopPropagation(); onSelect?.((event.target as HTMLElement).closest('[data-phone-editor]') ? 'app_feature' : key) }
   }}>{editing && <button className="lp-edit-section" onClick={() => onSelect?.(key)} aria-label={`${p.language === 'uk' ? 'Редагувати' : 'Edit'}: ${t[key]}`}><Pencil aria-hidden="true" />{t[key]}</button>}{children}</section>
   const proof = content.social_proof.items.filter(item => item.statement.trim() && item.attribution.trim())
   const featureIcons = [ScanLine, Layers, Check]
-  return <div className="lp-container"><article ref={root} className={`lp-page ${editing ? 'lp-editing' : ''}`} style={style} lang={p.language} aria-label="Landing live preview">
+  return <div className="lp-container"><article ref={root} className={`lp-page lp-button-${components.button_style} lp-card-${components.card_style} lp-icon-${components.icon_style} lp-panel-${components.contact_style} ${editing ? 'lp-editing' : ''}`} style={style} lang={p.language} aria-label="Landing live preview">
     <div className="lp-inner">
       <nav className="lp-nav" aria-label={p.language === 'uk' ? 'Навігація сторінки' : 'Page navigation'}>
-        {anchor('hero', t.top, 'lp-top', <ArrowUpRight aria-hidden="true" />)}
+        <a className="lp-brand" href={`#${id}-hero`} aria-label="Natal" onClick={event => { event.preventDefault(); if (editing) onSelect?.('theme'); else scroll('hero') }}><img src={natalLogo} alt="Natal" /></a>
         <div>{anchor('features', t.features)}{anchor('faq', t.faq)}{anchor('contacts', t.contact, 'lp-nav-contact', <ArrowUpRight aria-hidden="true" />)}</div>
       </nav>
       {section('hero', `lp-hero lp-image-${configuration.hero.image_position} lp-align-${configuration.hero.alignment}`, <>
         <div className="lp-hero-copy"><h1>{content.hero.title}</h1><p>{content.hero.supporting_text}</p><div className="lp-hero-actions">{cta()}{anchor('features', t.explore, 'lp-secondary-link', <ArrowDown aria-hidden="true" />)}</div></div>
-        <div className="lp-hero-art">{imageUrls.hero_visual && <img src={imageUrls.hero_visual} alt="" style={{ objectPosition: `${p.hero_focus.x}% ${p.hero_focus.y}%` }} />}</div>
+        <div className="lp-hero-art">{imageUrls.hero_visual && <img src={imageUrls.hero_visual} alt="" style={{ objectPosition: `${p.hero_focus.x}% ${p.hero_focus.y}%` }} />}<LandingPhone feature={resolvedAppFeature(content, p.language)} appearance={configuration.phone_mockup || phoneDefaults} language={p.language} editing={editing} selected={selected === 'app_feature'} onSelect={() => onSelect?.('app_feature')} actionHref={href} external={target === 'url'} onAction={event => { if (target === 'contacts') { event.preventDefault(); scroll('contacts') } else if (!href) event.preventDefault() }} /></div>
       </>)}
       {section('features', `lp-features lp-features-${configuration.features.layout}`, <><div className="lp-section-heading"><span className="lp-eyebrow">01 / {t.features}</span><h2>{t.features}</h2></div><div className="lp-feature-grid">{content.features.map((feature, index) => { const Icon = featureIcons[index]; return <article key={index}><span className="lp-feature-icon"><Icon aria-hidden="true" /></span><h3>{feature.title}</h3><p>{feature.description}</p></article> })}</div></>)}
       {proof.length > 0 && section('social_proof', `lp-proof lp-proof-${configuration.social_proof.layout}`, <><h2>{content.social_proof.heading}</h2><div className="lp-proof-grid">{proof.map((item, index) => <blockquote key={index}><p>“{item.statement}”</p><footer>{item.attribution}</footer></blockquote>)}</div></>)}

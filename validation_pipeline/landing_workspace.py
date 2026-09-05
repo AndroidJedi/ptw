@@ -17,10 +17,11 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .studio import inspect_media
+from .landing_design import (DEFAULT_APP_FEATURE, APP_FEATURE_LIMITS, DEFAULT_PHONE_MOCKUP, PHONE_MOCKUP_OPTIONS, DEFAULT_COMPONENTS, DEFAULT_IMAGE_DIRECTIONS, COMPONENT_OPTIONS, LANDING_BACKGROUND_DIRECTIVES, PHONE_HERO_STYLE_DIRECTIVES, design_catalog)
 
 
 LANDING_TEMPLATE_ID = "project_landing"
-LANDING_TEMPLATE_VERSION = 2
+LANDING_TEMPLATE_VERSION = 4
 LANDING_SCHEMA = "ptw.landing.workspace.v1"
 LANDING_CONFIGURATION_SCHEMA = "ptw.landing.configuration.v1"
 LANDING_CONTENT_SCHEMA = "ptw.landing.content.v1"
@@ -142,7 +143,7 @@ def _color(value: Any, field: str) -> str:
 
 
 def normalize_configuration(value: Mapping[str, Any]) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or set(value) - {"presentation"} != set(DEFAULT_CONFIGURATION):
+    if not isinstance(value, Mapping) or set(value) - {"presentation", "components", "image_directions", "phone_mockup"} != set(DEFAULT_CONFIGURATION):
         raise ValueError("Landing configuration fields are invalid")
     root = value
     if root.get("schema") != LANDING_CONFIGURATION_SCHEMA:
@@ -173,13 +174,34 @@ def normalize_configuration(value: Mapping[str, Any]) -> dict[str, Any]:
         if source[first] not in allowed_first or (second and source[second] not in allowed_second):
             raise ValueError(f"Landing {section} configuration is invalid")
         result[section] = dict(source)
+    if "phone_mockup" in root:
+        phone = _object(root["phone_mockup"], set(DEFAULT_PHONE_MOCKUP), "phone mockup")
+        for key, choices in PHONE_MOCKUP_OPTIONS.items():
+            if not isinstance(phone[key], str) or phone[key] not in choices:
+                raise ValueError(f"Landing phone_mockup.{key} is invalid")
+        result["phone_mockup"] = dict(phone)
     if "presentation" in root:
         result["presentation"] = normalize_presentation(root["presentation"])
+    if "components" in root:
+        components = _object(root["components"], set(DEFAULT_COMPONENTS), "components")
+        for key, choices in COMPONENT_OPTIONS.items():
+            if not isinstance(components[key], str) or components[key] not in choices:
+                raise ValueError(f"Landing components.{key} is invalid")
+        result["components"] = {**components, **{key: _color(components[key], key) for key in ("button_color", "button_text_color")}}
+    if "image_directions" in root:
+        directions = _object(root["image_directions"], set(DEFAULT_IMAGE_DIRECTIONS), "image directions")
+        for slot, direction in directions.items():
+            direction = _object(direction, {"style", "background"}, "image direction")
+            if not isinstance(direction["style"], str) or direction["style"] not in PHONE_HERO_STYLE_DIRECTIVES or not isinstance(direction["background"], str) or direction["background"] not in LANDING_BACKGROUND_DIRECTIVES:
+                raise ValueError("Landing image direction is invalid")
+        result["image_directions"] = _copy(directions)
     return result
 
 
 def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
-    root = _object(value, set(DEFAULT_CONTENT), "content")
+    if not isinstance(value, Mapping) or set(value) - {"app_feature"} != set(DEFAULT_CONTENT):
+        raise ValueError("Landing content fields are invalid")
+    root = value
     if root.get("schema") != LANDING_CONTENT_SCHEMA:
         raise ValueError("Landing content schema is invalid")
     hero = _object(root["hero"], set(DEFAULT_CONTENT["hero"]), "hero")
@@ -194,6 +216,12 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(proof_items, list) or len(proof_items) > 3:
         raise ValueError("Landing social proof supports zero to three owner entries")
     result = _copy(DEFAULT_CONTENT)
+    if "app_feature" in root:
+        feature = _object(root["app_feature"], set(DEFAULT_APP_FEATURE), "app feature")
+        if not isinstance(feature["items"], list) or len(feature["items"]) != 3:
+            raise ValueError("Landing app feature requires three UI rows")
+        result["app_feature"] = {key: _text(feature[key], f"app_feature.{key}", 1, APP_FEATURE_LIMITS[key]) for key in ("title", "description", "action_label")}
+        result["app_feature"]["items"] = [{key: _text(_object(item, {"label", "value"}, "app feature row")[key], f"app_feature.{key}", 1, APP_FEATURE_LIMITS[key]) for key in ("label", "value")} for item in feature["items"]]
     result["hero"] = {
         "title": _text(hero["title"], "hero title", 1, 140),
         "supporting_text": _text(hero["supporting_text"], "hero supporting text", 1, 360),
@@ -242,6 +270,8 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
 def normalize_composed_content(value: Mapping[str, Any]) -> dict[str, Any]:
     """Accept only AI's non-factual page copy; proof and endpoints remain owner input."""
     result = normalize_content(value)
+    if "app_feature" not in result:
+        raise ValueError("Landing AI must provide the app feature screen")
     if result["social_proof"]["items"]:
         raise ValueError("Landing AI must not invent social proof")
     if any(result["contacts"][field] for field in ("email", "phone", "url")):
@@ -251,6 +281,9 @@ def normalize_composed_content(value: Mapping[str, Any]) -> dict[str, Any]:
         result["social_proof"]["heading"], result["visual_break"]["visual_direction"],
         result["contacts"]["heading"], result["contacts"]["supporting_text"],
     ]
+    if "app_feature" in result:
+        required.extend(result["app_feature"][key] for key in ("title", "description", "action_label"))
+        required.extend(item["label"] for item in result["app_feature"]["items"])
     required.extend(item["title"] and item["description"] for item in result["features"])
     required.extend(item["question"] and item["answer"] for item in result["faq"])
     if not all(required):
@@ -266,7 +299,8 @@ def landing_catalog() -> dict[str, Any]:
         "font_families": list(LANDING_FONT_FAMILIES),
         "visual_slots": list(LANDING_VISUAL_SLOTS),
         "presentation_defaults": _copy(DEFAULT_PRESENTATION),
-        "sha256": sha256_json({"configuration": DEFAULT_CONFIGURATION, "content": DEFAULT_CONTENT, "presentation": DEFAULT_PRESENTATION}),
+        **_copy(design_catalog()),
+        "sha256": sha256_json({"configuration": DEFAULT_CONFIGURATION, "content": DEFAULT_CONTENT, "presentation": DEFAULT_PRESENTATION, "design": design_catalog()}),
     }
 
 
@@ -443,6 +477,9 @@ class LandingWorkspace:
         ]
         if not all(required):
             raise ValueError("Landing section copy must be completed before approval")
+        feature = content.get("app_feature")
+        if feature is not None and (not all(feature[key] for key in ("title", "description", "action_label")) or any(not item["label"] for item in feature["items"])):
+            raise ValueError("Landing app feature copy and row labels must be completed before approval")
         proof = content["social_proof"]
         if proof["items"] and (not proof["heading"] or any(not item["statement"] or not item["attribution"] for item in proof["items"])):
             raise ValueError("Landing social proof entries require a heading, statement, and attribution")

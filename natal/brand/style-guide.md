@@ -1,7 +1,6 @@
-# Natal Instagram identity
+# Natal product identity
 
-Natal is the fixed umbrella product name for every PTW Project and Instagram
-post. A Product Brief may describe a different offer or audience, but it must
+Natal is the fixed umbrella product name for every PTW Project, Post, and Landing page. A Product Brief may describe a different offer or audience, but it must
 not create or substitute another brand identity.
 
 Use the canonical `assets/logo-natal.png` unchanged, Inter, near-black

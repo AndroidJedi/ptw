@@ -1,14 +1,14 @@
-import type { LandingConfiguration, LandingContent, LandingPresentation, LandingVisualSummary } from '../types'
+import type { LandingComponents, LandingImageDirections, LandingConfiguration, LandingContent, LandingPresentation, LandingVisualSummary } from '../types'
 
-export type Section = 'theme' | 'hero' | 'features' | 'social_proof' | 'visual_break' | 'contacts' | 'faq'
-export const sections: Section[] = ['theme', 'hero', 'features', 'social_proof', 'visual_break', 'contacts', 'faq']
+export type Section = 'theme' | 'hero' | 'app_feature' | 'features' | 'social_proof' | 'visual_break' | 'contacts' | 'faq'
+export const sections: Section[] = ['theme', 'hero', 'app_feature', 'features', 'social_proof', 'visual_break', 'contacts', 'faq']
 export const defaults: LandingPresentation = {
   language: 'uk', cta_target: 'contacts', heading_scale: 1, spacing: 'comfortable',
   hero_focus: { x: 50, y: 50 }, visual_break_focus: { x: 50, y: 50 },
 }
 export const labels = {
-  en: { theme: 'Page design', hero: 'Hero', features: 'Features', social_proof: 'Evidence', visual_break: 'Visual story', contacts: 'Get in touch', faq: 'Questions', explore: 'Discover the details', contact: 'Get in touch', visit: 'Open website', email: 'Email us', phone: 'Call us', top: 'Back to top', private: 'Private preview' },
-  uk: { theme: 'Дизайн сторінки', hero: 'Перший екран', features: 'Можливості', social_proof: 'Досвід користувачів', visual_break: 'Візуальна історія', contacts: 'Зв’язатися', faq: 'Запитання', explore: 'Дізнатися більше', contact: 'Зв’язатися', visit: 'Відкрити сайт', email: 'Написати нам', phone: 'Зателефонувати', top: 'На початок', private: 'Приватне прев’ю' },
+  en: { app_feature: 'App feature', theme: 'Page design', hero: 'Hero', features: 'Features', social_proof: 'Evidence', visual_break: 'Visual story', contacts: 'Get in touch', faq: 'Questions', explore: 'Discover the details', contact: 'Get in touch', visit: 'Open website', email: 'Email us', phone: 'Call us', top: 'Back to top', private: 'Private preview' },
+  uk: { app_feature: 'Функція застосунку', theme: 'Дизайн сторінки', hero: 'Перший екран', features: 'Можливості', social_proof: 'Досвід користувачів', visual_break: 'Візуальна історія', contacts: 'Зв’язатися', faq: 'Запитання', explore: 'Дізнатися більше', contact: 'Зв’язатися', visit: 'Відкрити сайт', email: 'Написати нам', phone: 'Зателефонувати', top: 'На початок', private: 'Приватне прев’ю' },
 }
 export function validContact(field: 'email' | 'phone' | 'url', value: string) {
   if (field === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
@@ -57,5 +57,32 @@ export function landingIssues(configuration: LandingConfiguration, content: Land
   bounded('contacts', 'contacts.phone', content.contacts.phone, 60, 3)
   bounded('contacts', 'contacts.url', content.contacts.url, 2048, 8)
   content.faq.forEach((v, i) => { bounded('faq', `faq.${i}.question`, v.question, 180); bounded('faq', `faq.${i}.answer`, v.answer, 500) })
+  if (content.app_feature) {
+    const feature = content.app_feature
+    for (const key of ['title', 'description', 'action_label'] as const) {
+      required('app_feature', `app_feature.${key}`, feature[key], 'Complete the app feature', 'Заповніть функцію застосунку')
+      bounded('app_feature', `app_feature.${key}`, feature[key], appFeatureLimits[key])
+    }
+    feature.items.forEach((item, index) => {
+      required('app_feature', `app_feature.items.${index}.label`, item.label, 'Add a screen row label', 'Додайте назву рядка екрана')
+      for (const key of ['label', 'value'] as const) bounded('app_feature', `app_feature.items.${index}.${key}`, item[key], appFeatureLimits[key])
+    })
+  }
   return issues
+}
+
+export const componentDefaults: LandingComponents = { button_style: 'filled', button_shape: 'rounded', button_color: '#1f55d9', button_text_color: '#ffffff', card_style: 'filled', icon_style: 'soft', contact_style: 'contrast' }
+export const imageDirectionDefaults: LandingImageDirections = {
+  hero_visual: { style: 'premium_editorial', background: 'scene' },
+  visual_break_visual: { style: 'premium_editorial', background: 'scene' },
+}
+
+export const phoneDefaults = { theme: 'light', layout: 'overview' } as const
+export const appFeatureLimits = { title: 72, description: 160, action_label: 36, label: 60, value: 80 }
+export function resolvedAppFeature(content: LandingContent, language: 'uk' | 'en') {
+  return content.app_feature || {
+    title: content.features[0].title.slice(0, 72), description: content.features[0].description.slice(0, 160),
+    action_label: language === 'uk' ? 'Дізнатися більше' : 'Explore the app',
+    items: content.features.map(item => ({ label: item.title.slice(0, 60), value: '' })),
+  }
 }

@@ -18,6 +18,7 @@ from .landing_workspace import (
     DEFAULT_CONFIGURATION, DEFAULT_CONTENT, DEFAULT_PRESENTATION, LANDING_TEMPLATE_ID, LANDING_VISUAL_SLOTS, LandingWorkspace,
     canonical_json, normalize_composed_content, normalize_configuration, sha256_json,
 )
+from .landing_design import DEFAULT_APP_FEATURE, DEFAULT_PHONE_MOCKUP, DEFAULT_COMPONENTS, DEFAULT_IMAGE_DIRECTIONS, LANDING_BACKGROUND_DIRECTIVES, PHONE_HERO_STYLE_DIRECTIVES
 from .local_brief_store import LocalBriefStore, utc_now
 from .local_codex import sanitized
 from .studio_creatives import _json_schema, studio_edit_learning_schema
@@ -70,8 +71,8 @@ def landing_generation_schema() -> dict[str, Any]:
     return {
         "type": "object",
         "properties": {
-            "configuration": _json_schema({**DEFAULT_CONFIGURATION, "presentation": DEFAULT_PRESENTATION}),
-            "content": _json_schema(DEFAULT_CONTENT),
+            "configuration": _json_schema({**DEFAULT_CONFIGURATION, "presentation": DEFAULT_PRESENTATION, "components": DEFAULT_COMPONENTS, "image_directions": DEFAULT_IMAGE_DIRECTIONS, "phone_mockup": DEFAULT_PHONE_MOCKUP}),
+            "content": _json_schema({**DEFAULT_CONTENT, "app_feature": DEFAULT_APP_FEATURE}),
         },
         "required": ["configuration", "content"], "additionalProperties": False,
     }
@@ -742,12 +743,19 @@ class LandingService:
             "assets": source.get("assets", []), "version_sha256": source["version_sha256"],
         }
 
-    def _image_prompt(self, page: Mapping[str, Any], slot: str, direction: str) -> str:
+    def _image_prompt(self, page: Mapping[str, Any], slot: str, direction: str, configuration: Mapping[str, Any] | None = None) -> str:
+        if slot not in LANDING_VISUAL_SLOTS:
+            raise ValueError("Landing visual slot is invalid")
+        config = normalize_configuration(configuration or DEFAULT_CONFIGURATION)
+        selected = config.get("image_directions", DEFAULT_IMAGE_DIRECTIONS)[slot]
         return (
             "Create one premium, text-free visual for a private responsive Landing page. "
-            "Match the supplied immutable Post design profile in palette, material, lighting, and visual character. "
+            "Use the current Landing palette. Selected style and background override conflicting frozen Post art direction. "
+            f"Selected visual style ({selected['style']}): {PHONE_HERO_STYLE_DIRECTIVES[selected['style']]} "
+            f"Selected background treatment ({selected['background']}): {LANDING_BACKGROUND_DIRECTIVES[selected['background']]} "
+            f"Current Landing palette: {canonical_json({k: v for k, v in config['theme'].items() if k.endswith('_color')})}. "
             "Do not render readable text, letters, numbers, logos, buttons, UI, devices, charts, testimonials, or contact details. " +
-            ("Compose the subject centrally for a balanced hero crop. " if slot == "hero_visual" else "Compose a wide landscape with the subject inside the central horizontal band, safe for a shallow panoramic crop. ") +
+            ("Compose the subject centrally for a balanced hero crop. This artwork sits behind an HTML app-feature phone mockup; keep it atmospheric and subordinate, with no device or UI baked into the image. " if slot == "hero_visual" else "Compose a wide landscape with the subject inside the central horizontal band, safe for a shallow panoramic crop. ") +
             f"The visual slot is {slot}. The subject direction is: {direction}. "
             f"Frozen Post style profile: {canonical_json(self._style_snapshot(page))[:5000]}"
         )
@@ -777,7 +785,7 @@ class LandingService:
         payload = {
             "landing_id": landing_id, "approved_product_brief": brief["document"],
             "source_post_version": self._style_snapshot(page), "live_landing_catalog": detail["catalog"],
-            "template_defaults": {"configuration": {**detail["configuration"], "presentation": detail["configuration"].get("presentation", DEFAULT_PRESENTATION)}, "content": detail["content"]},
+            "template_defaults": {"configuration": {**detail["configuration"], "presentation": detail["configuration"].get("presentation", DEFAULT_PRESENTATION), "components": detail["configuration"].get("components", DEFAULT_COMPONENTS), "image_directions": detail["configuration"].get("image_directions", DEFAULT_IMAGE_DIRECTIONS), "phone_mockup": detail["configuration"].get("phone_mockup", DEFAULT_PHONE_MOCKUP)}, "content": {**detail["content"], "app_feature": detail["content"].get("app_feature", DEFAULT_APP_FEATURE)}},
             "global_landing_skill": global_skill["content"], "project_landing_skill": project_skill["content"],
         }
         stage = "composition"
@@ -786,26 +794,26 @@ class LandingService:
             result = self._provider_call(
                 mode="studio_creative_generation", system_prompt=self.composer_skill,
                 input_payload=payload, output_schema=landing_generation_schema(),
-                idempotency_key=f"landing-page:{landing_id}", prompt_version="landing-page-composer-v2",
+                idempotency_key=f"landing-page:{landing_id}", prompt_version="landing-page-composer-v4",
                 response_validator=lambda value: {
                     "configuration": normalize_configuration(value["configuration"]),
                     "content": normalize_composed_content(value["content"]),
                 } if set(value) == {"configuration", "content"} else (_ for _ in ()).throw(ValueError("Landing composer response fields are invalid")),
             )
-            self._record_generation(landing_id=landing_id, stage="composition", status="completed", input_sha256=stage_input, output_sha256=sha256_json(result["response"]), prompt_version="landing-page-composer-v2", invocation=sanitized(result.get("invocation") or {}))
+            self._record_generation(landing_id=landing_id, stage="composition", status="completed", input_sha256=stage_input, output_sha256=sha256_json(result["response"]), prompt_version="landing-page-composer-v4", invocation=sanitized(result.get("invocation") or {}))
             composed = workspace.save_configuration(base_sha256=detail["state_sha256"], **result["response"])
             self.authority.update_page(landing_id, status="generating_images", state_sha256=composed["state_sha256"], generation={"stage": "generating_images", "composition": sanitized(result.get("invocation") or {})})
             for slot, direction in (("hero_visual", composed["content"]["hero"]["visual_direction"]), ("visual_break_visual", composed["content"]["visual_break"]["visual_direction"])):
-                stage, prompt = slot, self._image_prompt(page, slot, direction)
+                stage, prompt = slot, self._image_prompt(page, slot, direction, composed["configuration"])
                 stage_input = sha256_json({"base_sha256": composed["state_sha256"], "slot": slot, "visual_direction": direction, "prompt": prompt})
                 composed = workspace.generate_visual(base_sha256=composed["state_sha256"], slot=slot, visual_direction=direction, prompt=prompt)
-                self._record_generation(landing_id=landing_id, stage=slot, status="completed", input_sha256=stage_input, output_sha256=composed["state_sha256"], prompt_version="landing-visual-generator-v1", invocation={"enhance_current": False})
+                self._record_generation(landing_id=landing_id, stage=slot, status="completed", input_sha256=stage_input, output_sha256=composed["state_sha256"], prompt_version="landing-visual-generator-v2", invocation={"enhance_current": False})
             self._synchronize_workspace(landing_id, workspace)
             baseline = _snapshot(composed)
             self.authority.update_page(landing_id, status="draft", state_sha256=composed["state_sha256"], generation={"stage": "draft", "composition": sanitized(result.get("invocation") or {})}, learning_baseline=baseline, learning_baseline_sha256=sha256_json(baseline))
         except Exception as error:
             self._synchronize_workspace(landing_id, workspace)
-            self._record_generation(landing_id=landing_id, stage=stage, status="failed", input_sha256=stage_input, output_sha256=None, prompt_version="landing-page-composer-v2" if stage == "composition" else "landing-visual-generator-v1", error=error)
+            self._record_generation(landing_id=landing_id, stage=stage, status="failed", input_sha256=stage_input, output_sha256=None, prompt_version="landing-page-composer-v4" if stage == "composition" else "landing-visual-generator-v2", error=error)
             self.authority.update_page(landing_id, status="failed", generation={"stage": "failed", "error_type": type(error).__name__, "error_message": str(error)[:1000]})
         return self.summary(landing_id)
 
@@ -819,14 +827,17 @@ class LandingService:
         self.detail(project_id, landing_id)
         workspace = self._workspace(landing_id)
         before = workspace.detail()
+        if method == "generate_visual":
+            # Build from the same persisted configuration used by the digest guard.
+            kwargs["prompt"] = self._image_prompt(self.authority.get_page(landing_id), kwargs["slot"], kwargs["visual_direction"], before["configuration"])
         try:
             result = getattr(workspace, method)(**kwargs)
         except Exception as error:
             if method == "generate_visual" and kwargs.get("slot") in LANDING_VISUAL_SLOTS:
-                self._record_generation(landing_id=landing_id, stage=str(kwargs.get("slot")), status="failed", input_sha256=sha256_json({"base_sha256": before["state_sha256"], "slot": kwargs.get("slot"), "visual_direction": kwargs.get("visual_direction"), "prompt": kwargs.get("prompt")}), output_sha256=None, prompt_version="landing-visual-generator-v1", invocation={"enhance_current": bool(kwargs.get("enhance_current", False))}, error=error)
+                self._record_generation(landing_id=landing_id, stage=str(kwargs.get("slot")), status="failed", input_sha256=sha256_json({"base_sha256": before["state_sha256"], "slot": kwargs.get("slot"), "visual_direction": kwargs.get("visual_direction"), "prompt": kwargs.get("prompt")}), output_sha256=None, prompt_version="landing-visual-generator-v2", invocation={"enhance_current": bool(kwargs.get("enhance_current", False))}, error=error)
             raise
         if method == "generate_visual" and kwargs.get("slot") in LANDING_VISUAL_SLOTS:
-            self._record_generation(landing_id=landing_id, stage=str(kwargs["slot"]), status="completed", input_sha256=sha256_json({"base_sha256": before["state_sha256"], "slot": kwargs["slot"], "visual_direction": kwargs["visual_direction"], "prompt": kwargs["prompt"]}), output_sha256=result["state_sha256"], prompt_version="landing-visual-generator-v1", invocation={"enhance_current": bool(kwargs.get("enhance_current", False))})
+            self._record_generation(landing_id=landing_id, stage=str(kwargs["slot"]), status="completed", input_sha256=sha256_json({"base_sha256": before["state_sha256"], "slot": kwargs["slot"], "visual_direction": kwargs["visual_direction"], "prompt": kwargs["prompt"]}), output_sha256=result["state_sha256"], prompt_version="landing-visual-generator-v2", invocation={"enhance_current": bool(kwargs.get("enhance_current", False))})
         self._synchronize_workspace(landing_id, workspace)
         self.authority.update_page(landing_id, state_sha256=result["state_sha256"])
         return {**result, **self.summary(landing_id)}

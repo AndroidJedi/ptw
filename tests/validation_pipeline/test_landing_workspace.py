@@ -41,6 +41,7 @@ class FakeImages:
 
 def complete_content() -> dict:
     value = deepcopy(DEFAULT_CONTENT)
+    value["app_feature"] = {"title": "Home inventory", "description": "View items and add a package photo.", "action_label": "Explore inventory", "items": [{"label": label, "value": ""} for label in ("Add a photo", "View inventory", "Review categories")]}
     value["hero"] = {
         "title": "A clear honest promise", "supporting_text": "Helpful supporting copy for the owner.",
         "cta_label": "Contact us", "visual_direction": "A calm honest subject in the approved Post visual style",
@@ -168,6 +169,44 @@ class LandingWorkspaceTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
+    def test_phone_configuration_content_and_composition_contract(self):
+        from validation_pipeline.landing_design import PHONE_MOCKUP_OPTIONS, APP_FEATURE_LIMITS
+        from validation_pipeline.landing_pages import landing_generation_schema
+        self.assertIn("app_feature", landing_generation_schema()["properties"]["content"]["required"])
+        for theme in PHONE_MOCKUP_OPTIONS["theme"]:
+            for layout in PHONE_MOCKUP_OPTIONS["layout"]:
+                configuration = {**deepcopy(DEFAULT_CONFIGURATION), "phone_mockup": {"theme": theme, "layout": layout}}
+                self.assertEqual(configuration, normalize_configuration(configuration))
+        with self.assertRaisesRegex(ValueError, "phone_mockup"):
+            normalize_configuration({**DEFAULT_CONFIGURATION, "phone_mockup": {"theme": "unknown", "layout": "booking"}})
+        content = complete_content()
+        for key in ("title", "description", "action_label"):
+            candidate = deepcopy(content)
+            candidate["app_feature"][key] = "я" * (APP_FEATURE_LIMITS[key] + 1)
+            with self.assertRaisesRegex(ValueError, "app_feature"):
+                normalize_content(candidate)
+        content["app_feature"]["items"].pop()
+        with self.assertRaisesRegex(ValueError, "three UI rows"):
+            normalize_content(content)
+        content = complete_content()
+        content.pop("app_feature")
+        with self.assertRaisesRegex(ValueError, "app feature screen"):
+            normalize_composed_content(content)
+
+    def test_phone_edits_are_immutable_and_incomplete_approval_is_atomic(self):
+        detail = self.prepared(configuration={**DEFAULT_CONFIGURATION, "phone_mockup": {"theme": "dark", "layout": "checklist"}})
+        approved = self.workspace.approve_configuration(base_sha256=detail["state_sha256"], configuration=detail["configuration"], content=detail["content"], change_note="App feature ready")
+        version = self.workspace.version_detail(1)
+        candidate = deepcopy(approved["content"])
+        candidate["app_feature"]["items"][0]["label"] = ""
+        with self.assertRaisesRegex(ValueError, "app feature"):
+            self.workspace.approve_configuration(base_sha256=approved["state_sha256"], configuration=approved["configuration"], content=candidate, change_note="Incomplete screen")
+        self.assertEqual(approved["state_sha256"], self.workspace.detail()["state_sha256"])
+        candidate["app_feature"]["items"][0]["label"] = "Updated feature"
+        changed = self.workspace.save_configuration(base_sha256=approved["state_sha256"], configuration=approved["configuration"], content=candidate)
+        self.assertEqual("Updated feature", changed["content"]["app_feature"]["items"][0]["label"])
+        self.assertEqual(version, self.workspace.version_detail(1))
+
     def test_requires_copy_contacts_and_visuals_before_approval(self) -> None:
         detail = self.workspace.detail()
         with self.assertRaisesRegex(ValueError, "section copy"):
@@ -273,3 +312,69 @@ class LandingWorkspaceTests(unittest.TestCase):
                 normalize_configuration({**deepcopy(DEFAULT_CONFIGURATION), 'presentation': {**deepcopy(DEFAULT_PRESENTATION), key: value}})
         config = {**deepcopy(DEFAULT_CONFIGURATION), 'presentation': deepcopy(DEFAULT_PRESENTATION)}
         self.assertEqual(config, normalize_configuration(config))
+
+class LandingDesignTests(unittest.TestCase):
+    def test_natal_is_the_fixed_catalog_identity(self):
+        from validation_pipeline.landing_workspace import landing_catalog
+        self.assertEqual('Natal', landing_catalog()['brand'])
+        with self.assertRaises(ValueError):
+            normalize_configuration({**deepcopy(DEFAULT_CONFIGURATION), 'identity': {'app_name': 'Another brand'}})
+
+    def test_presets_and_all_component_options_are_bounded(self):
+        from validation_pipeline.landing_design import THEME_PRESETS, COMPONENT_OPTIONS, DEFAULT_COMPONENTS
+        for preset in THEME_PRESETS:
+            candidate = {**deepcopy(DEFAULT_CONFIGURATION), **{key: deepcopy(preset[key]) for key in ('theme', 'components', 'faq')}}
+            self.assertEqual(candidate, normalize_configuration(candidate))
+        for key, choices in COMPONENT_OPTIONS.items():
+            for choice in choices:
+                normalize_configuration({**deepcopy(DEFAULT_CONFIGURATION), 'components': {**DEFAULT_COMPONENTS, key: choice}})
+            with self.assertRaises(ValueError):
+                normalize_configuration({**deepcopy(DEFAULT_CONFIGURATION), 'components': {**DEFAULT_COMPONENTS, key: 'arbitrary-css'}})
+
+    @unittest.skipUnless(LocalLandingAuthority is not None, 'Landing service dependencies required')
+    def test_selected_image_styles_override_post_and_keep_slot_crops(self):
+        from validation_pipeline.landing_design import DEFAULT_IMAGE_DIRECTIONS, PHONE_HERO_STYLE_DIRECTIVES, LANDING_BACKGROUND_DIRECTIVES
+        from validation_pipeline.landing_pages import LandingService
+        service = object.__new__(LandingService)
+        page = {'source_post_snapshot': {'template_id': 'universal_ad', 'configuration': {}, 'content': {}, 'version_sha256': 'a' * 64}}
+        for style, directive in PHONE_HERO_STYLE_DIRECTIVES.items():
+            for background, treatment in LANDING_BACKGROUND_DIRECTIVES.items():
+                config = {**deepcopy(DEFAULT_CONFIGURATION), 'image_directions': deepcopy(DEFAULT_IMAGE_DIRECTIONS)}
+                config['theme']['accent_color'] = '#123456'
+                config['image_directions']['hero_visual'] = {'style': style, 'background': background}
+                prompt = service._image_prompt(page, 'hero_visual', 'A small cabinet', config)
+                self.assertIn(directive, prompt)
+                self.assertIn(treatment, prompt)
+                self.assertIn('#123456', prompt)
+                self.assertIn('balanced hero crop', prompt)
+                self.assertIn('central horizontal band', service._image_prompt(page, 'visual_break_visual', 'Another cabinet', config))
+                self.assertIn('premium_editorial', service._image_prompt(page, 'visual_break_visual', 'Another cabinet', config))
+        config['image_directions']['hero_visual']['style'] = 'unknown'
+        with self.assertRaises(ValueError):
+            normalize_configuration(config)
+
+    @unittest.skipUnless(LocalLandingAuthority is not None and Image is not None, 'Landing runtime dependencies required')
+    def test_manual_generate_and_enhance_use_persisted_style_and_exact_reference(self):
+        from validation_pipeline.landing_design import DEFAULT_IMAGE_DIRECTIONS
+        from validation_pipeline.landing_pages import LandingService
+        with tempfile.TemporaryDirectory() as root:
+            provider = FakeImages()
+            provider.generate = Mock(wraps=provider.generate)
+            workspace = LandingWorkspace(root, image_provider=provider)
+            config = {**deepcopy(DEFAULT_CONFIGURATION), 'image_directions': deepcopy(DEFAULT_IMAGE_DIRECTIONS)}
+            config['image_directions']['hero_visual']['style'] = 'tactile_handmade'
+            workspace.save_configuration(base_sha256=workspace.detail()['state_sha256'], configuration=config, content=complete_content())
+            service = object.__new__(LandingService)
+            service.detail = Mock()
+            service.summary = Mock(return_value={})
+            service._workspace = Mock(return_value=workspace)
+            service.authority = Mock()
+            service.authority.get_page.return_value = {'source_post_snapshot': {'template_id': 'universal_ad', 'configuration': {}, 'content': {}, 'version_sha256': 'a' * 64}}
+            generated = service.mutate('project', 'page', 'generate_visual', base_sha256=workspace.detail()['state_sha256'], slot='hero_visual', visual_direction='A paper cabinet')
+            self.assertIn('Handmade tactile materials', provider.generate.call_args.args[0])
+            raw = (workspace.assets / f"{generated['assets'][0]['sha256']}.png").read_bytes()
+            config['image_directions']['hero_visual']['style'] = 'contemporary_3d'
+            changed = workspace.save_configuration(base_sha256=generated['state_sha256'], configuration=config, content=complete_content())
+            service.mutate('project', 'page', 'generate_visual', base_sha256=changed['state_sha256'], slot='hero_visual', visual_direction='A dimensional cabinet', enhance_current=True)
+            self.assertIn('Tactile contemporary 3D', provider.generate.call_args.args[0])
+            self.assertEqual(raw, provider.generate.call_args.kwargs['reference_image'])

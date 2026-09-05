@@ -92,8 +92,7 @@ def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[Dep
         if set(request) not in ({"base_sha256", "visual_direction"}, {"base_sha256", "visual_direction", "enhance_current"}) or not isinstance(request.get("enhance_current", False), bool):
             raise HTTPException(status_code=400, detail="Landing visual generation fields are invalid")
         try:
-            page = service.authority.get_page(landing_id)
-            return service.mutate(project_id, landing_id, "generate_visual", base_sha256=str(request["base_sha256"]), slot=slot, visual_direction=str(request["visual_direction"]), prompt=service._image_prompt(page, slot, str(request["visual_direction"])), enhance_current=bool(request.get("enhance_current", False)))
+            return service.mutate(project_id, landing_id, "generate_visual", base_sha256=str(request["base_sha256"]), slot=slot, visual_direction=str(request["visual_direction"]), enhance_current=bool(request.get("enhance_current", False)))
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
 

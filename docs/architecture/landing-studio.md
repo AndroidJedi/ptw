@@ -7,7 +7,7 @@ Post version plus its source approved Product Brief.
 
 ## Bounded page contract
 
-The sole v2 page template keeps this semantic order: Hero, three feature cards,
+The sole v4 page template keeps this semantic order: Hero, three feature cards,
 social proof, a generated visual break, contacts, and three FAQs. The owner can
 edit bounded content and theme/layout controls but cannot add HTML, CSS,
 scripts, arbitrary sections, or reorder the composition. Hero and visual-break
@@ -79,3 +79,62 @@ maximum-length copy, focal points, section selection, contact actions, FAQ,
 page-language independence, and fullscreen focus restoration. Backend tests
 cover approval without proof, invalid contacts, failed-approval atomicity,
 bounded configuration, immutable versions, and page-scoped learning decisions.
+
+## Natal identity, themes, and visual styles
+
+Every app uses the fixed Natal identity. The shared renderer bundles the canonical
+`natal/assets/logo-natal.png` lock-up unchanged, including its app name, and the web
+build checks its SHA-256. The logo sits directly on the page background without
+a white badge. Neither Brief composition nor page themes can rename
+Natal, replace its logo, or request an owner brand kit.
+
+The Page design inspector offers three coordinated presets: Studio (crisp blue),
+Editorial (warm paper and serif headings), and Soft bloom (sage and rounded surfaces).
+A preset applies palette, fonts, radius, button/card/icon treatments, contact panel,
+and FAQ styling while preserving copy, crop settings, and generated images.
+The backend catalog owns the presets in `validation_pipeline/landing_design.py`.
+
+The optional `components` block exposes Filled/Outlined/Elevated/Text buttons,
+Square/Rounded/Pill button shapes, independent button/text colors,
+Filled/Outlined/Elevated/Minimal cards, Soft/Solid/Line/Hidden icons, and
+Contrast/Surface/Accent contact panels. Feature and evidence cards share the card
+style. These bounded controls are available in the relevant section inspectors;
+all changes use the existing configuration, checkpoint, and immutable-version paths.
+
+Each `image_directions` slot stores one of the same ten visual styles used by Post
+Studio plus a Scene or Isolated key element background. The picker reuses Post's
+component and localized descriptions. The service expands server-owned directives
+into automatic-generation, manual-generation, and exact-enhancement prompts.
+Current Landing palette and selected art direction take precedence over conflicting
+frozen Post style; the Post snapshot remains provenance. Hero and supporting images
+retain independent choices and crop-aware subject directions. A style change leaves
+existing pixels/history intact until Generate or Enhance is requested. Pending edits
+are persisted first, and the prompt uses that persisted configuration's digest.
+No new provider mode, public endpoint, storage authority, or migration is introduced.
+
+## App feature phone
+
+Every service is presented as a Natal app. The hero uses Post Studio's bundled,
+digest-checked iPhone 15 Pro front frame, with a responsive HTML screen behind its
+original aperture. Generated hero art is atmospheric context behind the phone;
+text, controls, identity, and hardware are never generated into those pixels.
+The separate App feature inspector selects Light, Dark, or Glass screen themes
+and Overview, Booking, or Checklist layouts independently of page/art themes.
+
+`configuration.phone_mockup` stores bounded theme/layout enums. `content.app_feature`
+stores the screen title (72 characters), description (160), action label (36), and
+three label/detail rows (60/80). The owner can change the demonstrated task and
+all screen copy. New composition selects a Brief-grounded task even for physical
+services, such as energy consumption or booking a visit. Unestablished values,
+availability, and capabilities must not be invented. Optional details may be empty;
+supplied screens need all required labels before approval. Validation happens before
+approval writes, and screen edits use existing saves, learning, and immutable versions.
+
+Existing documents can omit these blocks: the renderer resolves a light overview
+from saved feature copy without rewriting storage. New composition requires an
+explicit app feature screen. Page language governs renderer labels; saved screen
+copy is never translated by switching console language. Preview rows toggle local
+selection (multiple for checklists), and the screen action follows the same validated
+CTA destination as the page. The visible interface-preview caption distinguishes
+this demonstration from a live booking or account. Long copy scrolls inside the
+phone while its action remains visible. Inline/fullscreen use the same component.

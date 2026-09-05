@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
-import type { LandingDetail } from '../src/types'
+import { componentDefaults } from '../src/landing/model'
+import type { LandingDetail, LandingThemePreset } from '../src/types'
 
 const project = '018f07ea-7f20-7000-8000-000000000011'
 const landing = '018f07ea-7f20-7000-8000-000000000012'
@@ -28,6 +29,11 @@ function fixture(): LandingDetail {
 }
 async function setup(page: Page) {
   let current = fixture()
+  current.catalog.theme_presets = (['studio', 'editorial', 'soft'] as const).map((id, i) => ({
+    id, en: ['Studio', 'Editorial', 'Soft bloom'][i], uk: ['Студія', 'Редакційна', 'М’якість'][i], description_en: 'Coordinated components', description_uk: 'Узгоджені компоненти',
+    theme: { ...current.configuration.theme, background_color: ['#f7f8fc', '#f7f3eb', '#f0f6f2'][i], corner_radius: [20, 4, 32][i] },
+    components: { ...componentDefaults, button_style: ['filled', 'outlined', 'elevated'][i], button_shape: ['rounded', 'square', 'pill'][i], card_style: ['filled', 'minimal', 'elevated'][i] }, faq: { style: 'divided' },
+  } as LandingThemePreset))
   await page.route('**/api/v1/**', async route => {
     const path = new URL(route.request().url()).pathname
     const json = (value: unknown) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(value) })
@@ -36,6 +42,7 @@ async function setup(page: Page) {
     if (path.endsWith('/pages')) return json({ items: [current] })
     if (path === base) return json(current)
     if (path.includes('/history/')) return route.fulfill({ contentType: 'image/png', body: bytes, headers: { 'Cache-Control': 'private, no-store', 'X-PTW-Content-SHA256': sha } })
+    if (path.endsWith('/generate')) return json(current)
     if (path.endsWith('/configuration') || path.endsWith('/save') || path.endsWith('/approve')) {
       const body = route.request().postDataJSON()
       current = { ...current, configuration: body.configuration, content: body.content, state_sha256: 'c'.repeat(64) }
@@ -108,6 +115,7 @@ test('validates all CTA destinations and approves without evidence', async ({ pa
     await page.getByLabel('Button destination').selectOption(target)
     await page.getByRole('button', { name: 'View Landing' }).click()
     await expect(page.getByRole('dialog').locator('.lp-cta')).toHaveAttribute('href', href)
+    await expect(page.getByRole('dialog').locator('.lp-phone-action')).toHaveAttribute('href', href)
     await expect(page.getByRole('dialog').locator(`.lp-contact-links a[href="${href}"]`)).toHaveCount(1)
     await page.keyboard.press('Escape')
   }
@@ -153,4 +161,135 @@ test('contains maximum-length copy and loads every selectable font', async ({ pa
     return faces.length > 0 && faces.every(face => face.status === 'loaded')
   })), [...fonts])
   expect(loaded.every(Boolean)).toBe(true)
+})
+
+
+test('keeps canonical Natal identity across tunable themes and preview widths', async ({ page }) => {
+  await setup(page)
+  await editorSection(page, 'Page design').click()
+  for (const [name, style] of [['Studio', 'filled'], ['Editorial', 'outlined'], ['Soft bloom', 'elevated']] as const) {
+    await page.getByRole('button', { name: new RegExp(name + ' Coordinated') }).click()
+    await page.getByRole('button', { name: 'View Landing' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.locator('.lp-page')).toHaveClass(new RegExp(`lp-button-${style}`))
+    for (const width of ['Desktop 1280', 'Tablet 768', 'Mobile 360']) {
+      await dialog.getByRole('button', { name: width }).click()
+      await expect(dialog.locator('.lp-brand')).toHaveAccessibleName('Natal')
+      await expect(dialog.locator('.lp-brand img')).toHaveAttribute('alt', 'Natal')
+      await expect(dialog.locator('.lp-brand img')).toHaveJSProperty('complete', true)
+      expect(await dialog.locator('.lp-page').evaluate(root => root.scrollWidth <= root.clientWidth)).toBe(true)
+    }
+    await page.keyboard.press('Escape')
+  }
+  await editorSection(page, 'Hero').click()
+  await page.getByLabel('Button style', { exact: true }).selectOption('outlined')
+  await page.getByLabel('Button shape', { exact: true }).selectOption('pill')
+  await editorSection(page, 'Features').click()
+  await page.getByLabel('Card style', { exact: true }).selectOption('minimal')
+  await page.getByLabel('Icon style', { exact: true }).selectOption('hidden')
+  await editorSection(page, 'Get in touch').click()
+  await page.getByLabel('Panel style', { exact: true }).selectOption('surface')
+  await page.getByRole('button', { name: 'View Landing' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.locator('.lp-cta')).toHaveCSS('border-radius', '999px')
+  await expect(dialog.locator('.lp-cta')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await expect(dialog.locator('.lp-feature-icon').first()).toBeHidden()
+  await expect(dialog.locator('.lp-feature-grid article').first()).toHaveCSS('border-radius', '0px')
+  await page.keyboard.press('Escape')
+  const saved = page.waitForRequest(request => request.url().endsWith('/save'))
+  await page.getByRole('button', { name: 'Save Landing' }).click()
+  const body = (await saved).postDataJSON()
+  expect(body.configuration.identity).toBeUndefined()
+  expect(body.configuration.components.card_style).toBe('minimal')
+})
+
+test('saves independent Post-style image directions before generating or enhancing', async ({ page }) => {
+  await setup(page)
+  await page.locator('.landing-direction-picker > summary').click()
+  await page.getByRole('radio', { name: /Tactile handmade/ }).check()
+  await page.getByRole('radio', { name: /Remove scene background/ }).check()
+  await page.getByLabel('Hero title', { exact: true }).fill('Збережений заголовок')
+  const saved = page.waitForRequest(request => request.url().endsWith('/configuration'))
+  const generated = page.waitForRequest(request => request.url().endsWith('/hero_visual/generate'))
+  await page.getByRole('button', { name: 'Generate', exact: true }).click()
+  const body = (await saved).postDataJSON()
+  expect(body.configuration.image_directions.hero_visual).toEqual({ style: 'tactile_handmade', background: 'isolated_key_element' })
+  expect(body.configuration.image_directions.visual_break_visual.style).toBe('premium_editorial')
+  expect(body.content.hero.title).toBe('Збережений заголовок')
+  await generated
+  await expect(page.getByLabel('Hero title')).toHaveValue('Збережений заголовок')
+  await editorSection(page, 'Visual story').click()
+  // The same mounted inspector retains its disclosure state across sections.
+  const picker = page.locator('.landing-direction-picker')
+  if (!(await picker.evaluate(element => element.hasAttribute('open')))) await picker.locator('summary').click()
+  await page.getByRole('radio', { name: /Contemporary 3D/ }).check()
+  const enhanced = page.waitForRequest(request => request.url().endsWith('/visual_break_visual/generate'))
+  await page.getByRole('button', { name: 'Enhance', exact: true }).click()
+  expect((await enhanced).postDataJSON().enhance_current).toBe(true)
+})
+
+test('edits the app task, switches screen themes and layouts, and saves pending feature copy', async ({ page }) => {
+  await setup(page)
+  if ((page.viewportSize()?.width || 0) > 700) {
+    await page.locator('.lp-phone-edit').click()
+    await expect(page.getByLabel('Key feature title')).toBeVisible()
+    await expect(page.locator('.lp-phone-stage')).toHaveClass(/lp-phone-selected/)
+  } else await editorSection(page, 'App feature').click()
+  await page.getByLabel('Key feature title').fill('Забронювати сафарі')
+  await page.getByLabel('Feature screen description').fill('Оберіть формат відвідування у застосунку.')
+  await page.getByLabel('App action label').fill('Дізнатися про візит')
+  await page.getByLabel('Row label', { exact: true }).nth(0).fill('Формат сафарі')
+  await page.getByLabel('Row detail (optional)', { exact: true }).nth(0).fill('Переглянути варіанти')
+  for (const [theme, layout] of [['Light', 'overview'], ['Dark', 'booking'], ['Glass', 'checklist']] as const) {
+    await page.getByRole('button', { name: theme, exact: true }).click()
+    await page.getByLabel('Feature screen layout').selectOption(layout)
+    await page.getByRole('button', { name: 'View Landing' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.locator('.lp-phone')).toHaveClass(new RegExp(`lp-phone-${theme.toLowerCase()} lp-phone-${layout}`))
+    await expect(dialog.locator('.lp-phone h2')).toHaveText('Забронювати сафарі')
+    await expect(dialog.locator('.lp-phone-edit')).toHaveCount(0)
+    await dialog.locator('.lp-phone-row').first().click()
+    await expect(dialog.locator('.lp-phone-row').first()).toHaveAttribute('aria-pressed', 'true')
+    await dialog.locator('.lp-phone-row').nth(1).click()
+    await expect(dialog.locator('.lp-phone-row').first()).toHaveAttribute('aria-pressed', layout === 'checklist' ? 'true' : 'false')
+    await dialog.locator('.lp-phone-action').click()
+    await expect(dialog.locator('[data-section=contacts]')).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(page.getByLabel('Key feature title')).toHaveValue('Забронювати сафарі')
+  }
+  const saved = page.waitForRequest(request => request.url().endsWith('/save'))
+  await page.getByRole('button', { name: 'Save Landing' }).click()
+  const body = (await saved).postDataJSON()
+  expect(body.configuration.phone_mockup).toEqual({ theme: 'glass', layout: 'checklist' })
+  expect(body.content.app_feature.items[0]).toEqual({ label: 'Формат сафарі', value: 'Переглянути варіанти' })
+})
+
+test('keeps long app UI inside the canonical phone at all preview widths', async ({ page }) => {
+  await setup(page)
+  await editorSection(page, 'App feature').click()
+  await page.getByLabel('Key feature title').fill('Ї'.repeat(72))
+  await page.getByLabel('Feature screen description').fill('Опис '.repeat(32))
+  for (let i = 0; i < 3; i++) {
+    await page.getByLabel('Row label', { exact: true }).nth(i).fill('Назва '.repeat(10))
+    await page.getByLabel('Row detail (optional)', { exact: true }).nth(i).fill('Деталі '.repeat(11))
+  }
+  await page.getByRole('button', { name: 'View Landing' }).click()
+  const dialog = page.getByRole('dialog')
+  for (const width of ['Desktop 1280', 'Tablet 768', 'Mobile 360']) {
+    await dialog.getByRole('button', { name: width }).click()
+    const bounds = await dialog.locator('.lp-phone').evaluate(phone => {
+      const screen = phone.querySelector('.lp-phone-screen') as HTMLElement
+      const scroll = phone.querySelector('.lp-phone-scroll') as HTMLElement
+      const action = phone.querySelector('.lp-phone-action') as HTMLElement
+      return { width: screen.clientWidth, scrollWidth: screen.scrollWidth, height: phone.clientHeight, overflow: scroll.scrollHeight > scroll.clientHeight, actionBottom: action.getBoundingClientRect().bottom, bottom: screen.getBoundingClientRect().bottom }
+    })
+    expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.width)
+    expect(bounds.height).toBeLessThanOrEqual(601)
+    expect(bounds.overflow).toBe(true)
+    expect(bounds.actionBottom).toBeLessThan(bounds.bottom)
+    const scroll = dialog.getByRole('region', { name: 'Екран ключової функції' })
+    await scroll.scrollIntoViewIfNeeded()
+    await scroll.evaluate(el => { el.scrollTop = el.scrollHeight })
+    await expect(dialog.locator('.lp-phone-row').last()).toBeInViewport()
+  }
 })

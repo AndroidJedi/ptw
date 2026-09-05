@@ -114,3 +114,25 @@
 .lp-contact-panel:has(.lp-contact-links:empty) { grid-template-columns: 1fr; }
 .lp-contact-links:empty { display: none; }
 .lp-visual-frame { width: 100%; }
+/* Coordinated component treatments; these are shared by all preview surfaces. */
+.lp-page .lp-brand { display: inline-flex; align-items: center; width: 144px; max-width: 45%; min-height: 52px; padding: 4px 8px; background: transparent; }
+.lp-page .lp-brand img { width: 128px; max-width: 100%; height: auto; object-fit: contain; }
+.lp-page .lp-cta { background: var(--lp-button); color: var(--lp-button-text); border: 1px solid var(--lp-button); border-radius: var(--lp-button-radius); }
+.lp-button-outlined .lp-cta, .lp-button-text .lp-cta { background: transparent; color: var(--lp-button); }
+.lp-button-text .lp-cta { border-color: transparent; padding-inline: 0; }
+.lp-button-elevated .lp-cta { box-shadow: 0 8px 20px color-mix(in srgb, var(--lp-button) 25%, transparent); }
+.lp-card-outlined :is(.lp-feature-grid article, .lp-proof blockquote) { background: transparent; border: 1px solid color-mix(in srgb, var(--lp-text) 25%, transparent); }
+.lp-card-elevated :is(.lp-feature-grid article, .lp-proof blockquote) { border: 1px solid color-mix(in srgb, var(--lp-text) 5%, transparent); box-shadow: 0 10px 32px color-mix(in srgb, var(--lp-text) 8%, transparent); }
+.lp-card-minimal :is(.lp-feature-grid article, .lp-proof blockquote) { background: transparent; border: 0; border-top: 1px solid color-mix(in srgb, var(--lp-text) 25%, transparent); border-radius: 0; padding-inline: 0; }
+.lp-icon-solid .lp-feature-icon { color: var(--lp-surface); background: var(--lp-accent); }
+.lp-icon-line .lp-feature-icon { background: transparent; border: 1px solid var(--lp-accent); }
+.lp-icon-hidden .lp-feature-icon { display: none; }
+.lp-icon-hidden .lp-features-stacked article { grid-template-columns: 1fr 1.5fr; }
+.lp-panel-surface .lp-contact-panel { background: var(--lp-surface); color: var(--lp-text); border: 1px solid color-mix(in srgb, var(--lp-text) 15%, transparent); }
+.lp-panel-accent .lp-contact-panel { background: var(--lp-accent); color: var(--lp-surface); }
+.lp-panel-surface .lp-contact-links a { border-color: color-mix(in srgb, var(--lp-text) 25%, transparent); }
+@container landing (max-width: 600px) {
+  .lp-nav { flex-wrap: wrap; padding-block: 16px; gap: 12px; }
+  .lp-page .lp-brand { max-width: 100%; font-size: 16px; }
+  .lp-nav > div { width: 100%; justify-content: space-between; }
+}

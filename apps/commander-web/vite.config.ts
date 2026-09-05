@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { loadEnv } from 'vite'
@@ -10,6 +11,12 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), {
       name: 'landing-font-licenses',
+      buildStart() {
+        const frame = readFileSync(new URL('../../validation_pipeline/studio_assets/iphone-15-pro-black.png', import.meta.url))
+        if (createHash('sha256').update(frame).digest('hex') !== '04164c10370930494f2688acc6fcf65a222cd7da077c5c65c4d189ab3e083dc0') throw new Error('Canonical phone frame digest mismatch')
+        const bytes = readFileSync(new URL('../../natal/assets/logo-natal.png', import.meta.url))
+        if (createHash('sha256').update(bytes).digest('hex') !== 'f465a0e11be3c1ff1943bcc1bcd19246a9a54957fd5c1c6162081aec9a59c8ba') throw new Error('Canonical Natal logo digest mismatch')
+      },
       generateBundle() {
         const root = new URL('../../validation_pipeline/studio_assets/fonts/', import.meta.url)
         for (const name of readdirSync(root).filter(name => name.startsWith('OFL-'))) {
@@ -22,8 +29,10 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       fs: { allow: [
         fileURLToPath(new URL('.', import.meta.url)),
+        fileURLToPath(new URL('../../validation_pipeline/studio_assets/iphone-15-pro-black.png', import.meta.url)),
         fileURLToPath(new URL('../../validation_pipeline/studio_assets/fonts', import.meta.url)),
         fileURLToPath(new URL('../../natal/assets/inter.ttf', import.meta.url)),
+        fileURLToPath(new URL('../../natal/assets/logo-natal.png', import.meta.url)),
       ] },
       proxy: liveProduction ? {
         '/api/v1/studio': 'http://127.0.0.1:8088',

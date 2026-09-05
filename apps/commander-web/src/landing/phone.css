@@ -1,0 +1,40 @@
+/* The canonical 1293 × 2656 front frame and its exact screen aperture. */
+.lp-hero-art:has(.lp-phone) { position: relative; aspect-ratio: auto; min-height: 660px; overflow: visible; background: color-mix(in srgb, var(--lp-accent) 8%, var(--lp-bg)); }
+.lp-hero-art:has(.lp-phone) > img { position: absolute; inset: 0; border-radius: var(--lp-radius); opacity: .3; }
+.lp-phone-stage { position: relative; display: grid; place-items: center; padding: 30px 12px; }
+.lp-phone { --phone-bg: #f4f6fa; --phone-card: #fff; --phone-ink: #192337; --phone-muted: #596579; position: relative; width: 292px; max-width: 100%; aspect-ratio: 1293/2656; text-align: left; filter: drop-shadow(0 22px 20px #101a3029); font: 400 14px/1.5 'Landing Manrope', system-ui, sans-serif; font-style: normal; }
+.lp-phone-dark { --phone-bg: #121c2e; --phone-card: #223047; --phone-ink: #f6f8fc; --phone-muted: #b2bfd2; }
+.lp-phone-glass { --phone-bg: #edf3f5e8; --phone-card: #ffffffa8; --phone-ink: #192337; --phone-muted: #4b5c71; }
+.lp-phone-screen { position: absolute; inset: 1.883% 4.408% 1.883% 4.486%; border-radius: 12% / 6%; background: var(--phone-bg); color: var(--phone-ink); display: flex; flex-direction: column; overflow: hidden; }
+.lp-phone-glass .lp-phone-screen { backdrop-filter: blur(18px); }
+.lp-phone-hardware { position: absolute; inset: 0; background-size: 100% 100%; pointer-events: none; }
+.lp-phone-status { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; height: 40px; padding: 0 18px; font-size: 10px; font-weight: 750; }
+.lp-phone-status > span:last-child { display: flex; gap: 3px; }
+.lp-phone-status svg { width: 11px; height: 11px; }
+.lp-phone-scroll { padding: 14px 17px; overflow-y: auto; min-height: 0; scrollbar-width: thin; }
+.lp-phone-brand { display: flex; gap: 7px; align-items: center; margin-bottom: 22px; }
+.lp-phone-brand strong { font-size: 18px; letter-spacing: -.6px; }
+.lp-phone-brand > span { margin-left: auto; font-size: 10px; color: var(--phone-muted); }
+.lp-page .lp-phone h2 { color: var(--phone-ink); font: 750 23px/1.2 'Landing Manrope', system-ui, sans-serif; letter-spacing: -.6px; text-wrap: initial; margin: 0 0 9px; }
+.lp-phone-intro > p { font-size: 12px; line-height: 1.6; color: var(--phone-muted); }
+.lp-phone-rows { display: grid; gap: 8px; margin-top: 18px; }
+.lp-page .lp-phone-row { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; border: 1px solid transparent; border-radius: 14px; background: var(--phone-card); color: var(--phone-ink); padding: 12px 10px; min-height: 56px; cursor: pointer; }
+.lp-phone-row > span:nth-child(2) { min-width: 0; flex: 1; }
+.lp-phone-row strong { display: block; font-size: 12px; line-height: 1.45; font-weight: 700; }
+.lp-phone-row small { display: block; font-size: 10px; color: var(--phone-muted); margin-top: 3px; }
+.lp-phone-row svg { width: 16px; height: 16px; }
+.lp-phone-row-icon { display: flex; align-items: center; }
+.lp-phone-row .lp-phone-chevron { width: 12px; }
+.lp-page .lp-phone-row[aria-pressed=true] { border-color: var(--phone-ink); }
+.lp-phone-checkbox { display: block; width: 15px; height: 15px; border: 1px solid var(--phone-muted); border-radius: 4px; }
+.lp-phone-checklist .lp-phone-chevron { display: none; }
+.lp-phone-booking .lp-phone-row { border-radius: 8px; border-left: 3px solid var(--phone-muted); }
+.lp-phone-bottom { margin-top: auto; flex-shrink: 0; padding: 12px 17px 8px; background: var(--phone-bg); }
+.lp-page .lp-phone-action { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 12px 14px; min-height: 44px; border: 0; border-radius: 12px; background: var(--phone-ink); color: var(--phone-bg); font-size: 12px; font-weight: 700; cursor: pointer; }
+.lp-phone-bottom > small { display: block; margin-top: 7px; text-align: center; font-size: 9px; color: var(--phone-muted); }
+.lp-phone-home { flex-shrink: 0; width: 32%; height: 4px; margin: 2px auto 8px; border-radius: 4px; background: var(--phone-ink); }
+.lp-phone-edit { position: absolute; z-index: 2; top: 0; right: 8px; border-radius: 8px; border: 1px solid var(--lp-accent); background: var(--lp-surface); color: var(--lp-text); padding: 8px 12px; font-size: 12px !important; }
+.lp-phone-selected { outline: 2px solid var(--lp-accent); outline-offset: 6px; border-radius: var(--lp-radius); }
+.lp-image-below .lp-hero-art:has(.lp-phone) { max-height: none; aspect-ratio: auto; }
+@container landing (max-width: 900px) { .lp-hero-art:has(.lp-phone) { min-height: 0; } .lp-phone-stage { padding: 24px 8px; } }
+@container landing (max-width: 600px) { .lp-phone-stage { padding: 26px 10px; } .lp-phone { width: 280px; } }

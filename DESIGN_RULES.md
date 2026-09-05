@@ -46,6 +46,16 @@ Updated: 2026-09-04
 
 ## Landing Studio
 
+- Every app uses the canonical Natal logo and name. Page themes may style components
+  but never substitute another app identity or request a new brand kit.
+- Every service is experienced through a Natal app. The Landing hero demonstrates
+  one editable, Brief-grounded task inside Post Studio's canonical phone frame.
+  Bounded screen themes/layouts and copy are separate from generated text-free art.
+  UI row interactions are local demonstrations; the phone action uses the page CTA.
+- Coordinated page themes remain editable through bounded component controls.
+  Per-image Post style/background presets are persisted and expanded into generation
+  and enhancement prompts; changing a style alone does not regenerate existing art.
+
 - A Landing belongs to the selected Project, its approved Brief, and one immutable
   approved Post version. It captures Post style once and does not synchronize later edits.
 - Its fixed order is Hero, three features, optional owner evidence social proof, one generated

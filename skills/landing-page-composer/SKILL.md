@@ -20,6 +20,25 @@ description: Populate one fixed private PTW Landing page from an approved Produc
 - Populate the live catalog's presentation controls. Set page language from the
   approved Brief (Ukrainian or English), independently of the Owner Console language.
   Default the CTA target to contacts; AI has no authority to invent its endpoint.
+- Natal is the fixed umbrella identity for every app. The renderer supplies the
+  canonical Natal logo/name; never derive a new brand from a Brief product description
+  or generate branding into artwork. Page themes do not replace the Natal identity.
+- Every offering is experienced through a Natal app, including physical services.
+  Populate `app_feature` with one Brief-grounded task: a consumption interface for
+  solar optimization, a booking interface for a safari, or an inventory for medicine.
+  Choose the catalog's `phone_mockup` theme and overview/booking/checklist layout.
+  Write a concise screen title, description, action label, and three UI row labels;
+  optional row details may describe inputs or categories. Do not invent availability,
+  readings, results, prices, or capabilities. Leave unestablished values empty.
+  The browser renders editable UI inside Post Studio's canonical phone frame. Hero
+  artwork is an atmospheric background; never generate phone hardware or UI pixels.
+- Start with a coordinated catalog theme and populate its bounded component controls.
+  Keep button text/background legible. Owner tuning can override each component.
+- Select a catalog image style and background independently for each image slot.
+  These saved selections govern automatic generation, manual generation, and exact
+  enhancement; the current Landing palette and selected style take precedence over
+  conflicting frozen Post visual preferences. Subject directions describe the subject,
+  not an alternative style. Never encode page logos or other UI into generated artwork.
 - Use the frozen Post palette and visual character with readable heading/body fonts.
   Prefer comfortable spacing and balanced landscape supporting art for this template.
 - Social proof is owner evidence. Return its heading and an empty `items` array; never

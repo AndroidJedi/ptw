@@ -529,7 +529,28 @@ export interface LandingPresentation {
   visual_break_focus: { x: number; y: number }
 }
 
+export interface LandingComponents {
+  button_style: 'filled' | 'outlined' | 'elevated' | 'text'
+  button_shape: 'square' | 'rounded' | 'pill'
+  button_color: string
+  button_text_color: string
+  card_style: 'filled' | 'outlined' | 'elevated' | 'minimal'
+  icon_style: 'soft' | 'solid' | 'line' | 'hidden'
+  contact_style: 'contrast' | 'surface' | 'accent'
+}
+export type LandingImageDirections = Record<'hero_visual' | 'visual_break_visual', { style: StudioPhoneHeroStyle; background: StudioPhoneHeroBackground }>
+export interface LandingThemePreset {
+  id: string; en: string; uk: string; description_en: string; description_uk: string
+  theme: LandingConfiguration['theme']; components: LandingComponents; faq: LandingConfiguration['faq']
+}
+
+export interface LandingPhoneMockup { theme: 'light' | 'dark' | 'glass'; layout: 'overview' | 'booking' | 'checklist' }
+export interface LandingAppFeature { title: string; description: string; action_label: string; items: Array<{ label: string; value: string }> }
+
 export interface LandingConfiguration {
+  phone_mockup?: LandingPhoneMockup
+  components?: LandingComponents
+  image_directions?: LandingImageDirections
   schema: 'ptw.landing.configuration.v1'
   presentation?: LandingPresentation
   theme: {
@@ -550,6 +571,7 @@ export interface LandingConfiguration {
 }
 
 export interface LandingContent {
+  app_feature?: LandingAppFeature
   schema: 'ptw.landing.content.v1'
   hero: { title: string; supporting_text: string; cta_label: string; visual_direction: string }
   features: Array<{ title: string; description: string }>
@@ -586,7 +608,7 @@ export interface LandingSummary {
 export interface LandingDetail extends LandingSummary {
   schema: 'ptw.landing.workspace.v1'
   template_id: 'project_landing'
-  catalog: { section_order: string[]; font_families: StudioUniversalFontFamily[] }
+  catalog: { section_order: string[]; font_families: StudioUniversalFontFamily[]; theme_presets?: LandingThemePreset[] }
   state_sha256: string
   configuration: LandingConfiguration
   content: LandingContent

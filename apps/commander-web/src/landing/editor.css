@@ -89,3 +89,29 @@
 
 .landing-readiness-trigger { margin-left: auto; min-height: 44px; padding: 8px 12px; font-size: 11px; color: var(--soft); background: transparent; border: 1px solid var(--line); border-radius: 8px; }
 @media (max-width: 700px) { .landing-readiness-trigger { width: 100%; margin: 4px 0 0; } }
+.landing-theme-presets { display: grid; gap: 10px; }
+.landing-theme-preset { display: grid; grid-template-columns: 76px 1fr; gap: 6px 12px; text-align: left; padding: 12px; background: var(--panel-strong); border: 1px solid var(--line); border-radius: 10px; color: var(--white); }
+.landing-theme-preset[aria-pressed=true] { border-color: var(--white); }
+.landing-theme-preset strong { font-size: 13px; align-self: end; }
+.landing-theme-preset small { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.landing-theme-sample { grid-row: span 2; width: 76px; height: 78px; padding: 8px; background: var(--sample-bg); border-radius: 6px; color: var(--sample-ink); display: flex; gap: 3px; flex-wrap: wrap; }
+.landing-theme-sample b { width: 100%; font-size: 22px; line-height: 1; }
+.landing-theme-sample i { width: 18px; height: 13px; border: 1px solid var(--sample-ink); border-radius: var(--sample-radius); opacity: .5; }
+.landing-theme-sample em { display: block; width: 28px; height: 7px; background: var(--sample-accent); border-radius: var(--sample-radius); }
+.landing-direction-picker { min-width: 0; border: 1px solid var(--line); border-radius: 10px; }
+.landing-direction-picker > summary { cursor: pointer; padding: 14px; font-size: 12px; }
+.landing-direction-picker .phone-hero-direction { padding: 12px; border: 0; }
+.landing-direction-picker .phone-hero-style-grid, .landing-direction-picker .phone-hero-background-options { grid-template-columns: 1fr; }
+.landing-direction-picker > summary small { display: block; margin-top: 8px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.landing-direction-picker .phone-hero-direction-option { position: relative; }
+.landing-direction-picker .phone-hero-direction-option input { top: 12px; left: 12px; }
+
+.landing-phone-themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px; }
+.landing-phone-theme { padding: 12px 8px; border: 1px solid #cbd5e1; border-radius: 12px; background: transparent; font: inherit; cursor: pointer; }
+.landing-phone-theme[aria-pressed=true] { outline: 2px solid #2672df; outline-offset: 2px; }
+.landing-phone-theme > span { display: grid; gap: 6px; width: 48px; margin: 0 auto 8px; padding: 16px 5px 12px; border-radius: 10px; background: #edf0f6; border: 3px solid #182333; }
+.landing-phone-theme i { display: block; height: 8px; background: white; border-radius: 3px; }
+.landing-phone-theme-dark > span { background: #17243b; }
+.landing-phone-theme-dark i { background: #34445d; }
+.landing-phone-theme-glass > span { background: linear-gradient(135deg, #d3e5ee, #eef4df); }
+.landing-phone-theme strong { font-size: 12px; }

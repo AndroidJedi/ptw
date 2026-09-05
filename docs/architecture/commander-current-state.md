@@ -25,7 +25,7 @@ Landing is a private responsive, fixed-section workspace created from a selected
 immutable approved Post version and its approved Brief. It captures Post style
 once, AI-populates Hero/three features/visual directions/three FAQs, leaves
 owner evidence and contacts empty, then generates text-free Hero and visual-break
-art. The rebuilt v2 renderer adds bundled typography, a balanced hero, benefit
+art. The rebuilt v4 renderer adds bundled typography, a balanced hero, benefit
 cards, optional proof, bounded landscape art, an actionable contact panel, and
 collapsed FAQs. The section inspector supports direct visual editing, all bounded
 layout controls, crop focus, page language, and a selectable CTA destination.
@@ -33,6 +33,18 @@ One shared renderer powers 1280/768/360px and fullscreen previews. Save/Approve
 shows Landing-only learning; approval requires essential copy, both visuals,
 and one valid contact endpoint. Evidence is optional, complete when supplied,
 and absent from Preview when empty. Approval validates before persisting state.
+Every app keeps the canonical Natal logo/name. Landing adds three coordinated
+page themes and bounded button, card, icon, and contact-panel styling. Each image
+uses the same ten Post style presets and two background treatments; saved choices
+feed automatic generation, manual generation, and exact enhancement with the
+current page palette and slot-specific crop guidance.
+The hero now demonstrates a Brief-grounded app task inside the same canonical
+phone frame as Post Studio. Owners edit screen titles, descriptions, actions, and
+three UI rows; Light/Dark/Glass themes and Overview/Booking/Checklist layouts are
+independent of page and image styles. Screen choices and content save through the
+existing bounded contract and immutable versions. New composition requires an app
+feature screen, including for physical services. Preview selection stays local,
+and the phone action uses the page CTA destination.
 Landing has no public URL, lead handling, publishing, or Post-skill influence.
 
 A replacement Brief creates a separate first creative. Another creative from
@@ -111,15 +123,15 @@ are absent.
 
 ## Verification status
 
-Landing redesign verification is recorded in `.local/landing-redesign` with
-before/after screenshots of the Ukrainian page at desktop, tablet, and mobile.
-Landing backend tests (10), Commander virtual-environment tests (7), host demo,
-canonical skill verification, and whitespace checks pass. All 52 web unit tests,
-the production web build, and all 33 browser checks pass. The restarted local
-v2 API also persists presentation/CTA edits and rejects an incomplete approval
-without changing draft state. The host Docker daemon is unavailable;
-the required built-image suite cannot run here. No migration, reset, paid image
-generation, or production action is part of this change.
+Landing phone verification is recorded in `.local/landing-phone`, with before/after
+captures, three screen themes at 1280/768/360px, and iPhone WebKit. All 52 web unit
+tests, 45 browser checks, the production build, 16 Landing backend tests, and 7
+Commander virtual-environment tests pass. The host Commander run skips 2 runtime
+tests because the host lacks FastAPI; the virtual environment covers both. The demo,
+canonical skill verification, and whitespace checks pass. The local API serves v4
+and the current Ukrainian medicine page has a saved editable inventory screen.
+Built-image tests remain blocked by the unavailable Docker daemon. No paid image
+generation, migration, reset, approval, or production action was performed.
 
 ## Next work
 

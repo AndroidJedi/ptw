@@ -1,0 +1,4 @@
+interface:
+  display_name: "Landing Page Composer"
+  short_description: "Compose a private Landing from an approved Brief and Post"
+  default_prompt: "Use $landing-page-composer to populate the selected private Landing from this approved Product Brief and approved Post version."

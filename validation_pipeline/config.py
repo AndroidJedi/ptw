@@ -18,6 +18,9 @@ class Settings:
     studio_learner_skill_path: Path = Path("/run/ptw-auth/skills/studio-edit-learner/SKILL.md")
     studio_phone_skill_path: Path = Path("/run/ptw-auth/skills/studio-phone-hero-generator/SKILL.md")
     studio_workspace_path: Path = Path("/tmp/ptw-studio-workspace")
+    landing_composer_skill_path: Path = Path("/run/ptw-auth/skills/landing-page-composer/SKILL.md")
+    landing_learner_skill_path: Path = Path("/run/ptw-auth/skills/landing-edit-learner/SKILL.md")
+    landing_workspace_path: Path = Path("/tmp/ptw-landing-workspace")
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -52,5 +55,14 @@ class Settings:
             )),
             studio_workspace_path=Path(os.environ.get(
                 "STUDIO_WORKSPACE_PATH", "/tmp/ptw-studio-workspace",
+            )),
+            landing_composer_skill_path=Path(os.environ.get(
+                "LANDING_COMPOSER_SKILL_PATH", "/run/ptw-auth/skills/landing-page-composer/SKILL.md",
+            )),
+            landing_learner_skill_path=Path(os.environ.get(
+                "LANDING_LEARNER_SKILL_PATH", "/run/ptw-auth/skills/landing-edit-learner/SKILL.md",
+            )),
+            landing_workspace_path=Path(os.environ.get(
+                "LANDING_WORKSPACE_PATH", "/tmp/ptw-landing-workspace",
             )),
         )

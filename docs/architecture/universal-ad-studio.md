@@ -5,6 +5,10 @@ and derives from one approved Product Brief. Studio has no owner-wide singleton,
 separate Studio page, Social Post workflow, publishing, campaign, traffic,
 analytics, or optimization surface.
 
+Landing / Лендінг is a separate private page workspace documented in
+[`landing-studio.md`](landing-studio.md). It may derive from an immutable Post
+version, but it does not turn Post Studio into a public landing or publishing surface.
+
 ## Brief-to-creative workflow
 
 Brief approval requires a template choice. The server transactionally records

@@ -24,6 +24,8 @@ def main() -> None:
         "universal_studio_assets", "universal_studio_versions",
         "studio_generation_runs", "studio_edit_checkpoints", "studio_learning_runs",
         "studio_skill_snapshots", "studio_learning_proposals", "studio_learning_decisions",
+        "landing_workspaces", "landing_workspace_files", "landing_assets", "landing_generation_runs", "landing_versions",
+        "landing_checkpoints", "landing_skill_snapshots", "landing_learning_proposals",
     }
     forbidden = {
         "project_assets", "project_brand_kits", "studio_recipes", "studio_renders",

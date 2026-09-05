@@ -5,8 +5,8 @@ Updated: 2026-09-04
 
 ## Navigation and trust
 
-- Navigation contains exactly Product Briefs and Post / Допис.
-- The Project selector appears in both destinations.
+- Navigation contains exactly Product Briefs, Post / Допис, and Landing / Лендінг.
+- The Project selector appears in all destinations.
 - Design first for 360px and one-hand use with 44×44 CSS-pixel targets, no
   horizontal overflow, keyboard access, and reduced-motion support.
 - Empty state is valid. Never seed fake Briefs, metrics, proof, testimonials,
@@ -43,6 +43,19 @@ Updated: 2026-09-04
 - Preview/history/version responses are authenticated, digest-checked, and
   no-store. Approval stores the exact state and PNG as an immutable version.
 - Loopback Tune mode remains guarded and absent from production routes.
+
+## Landing Studio
+
+- A Landing belongs to the selected Project, its approved Brief, and one immutable
+  approved Post version. It captures Post style once and does not synchronize later edits.
+- Its fixed order is Hero, three features, owner evidence social proof, one generated
+  visual break, contacts, and three FAQs. Each has bounded editable controls; no page builder,
+  public URL, publishing, form submission, or lead storage exists.
+- Hero and visual-break artwork inherit the frozen Post visual profile, are text-free,
+  digest-checked, private/no-store, and retain at most three selected raw images per slot.
+- Approval requires both visuals, every required section, owner proof, all FAQs/features,
+  and at least one validated email, phone, or HTTPS contact endpoint. Landing learning remains
+  in its own global/Project namespaces and never changes Post learning.
 
 ## Removed surfaces
 

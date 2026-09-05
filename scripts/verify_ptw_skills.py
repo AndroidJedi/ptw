@@ -14,6 +14,8 @@ SKILLS = (
     "studio-creative-composer",
     "studio-edit-learner",
     "studio-phone-hero-generator",
+    "landing-page-composer",
+    "landing-edit-learner",
     "studio-tune-local",
     "studio-ui-visual-audit",
     "ptw-owner-console-incident",

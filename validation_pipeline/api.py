@@ -16,6 +16,9 @@ from .provider import StructuredBridge
 from .repository import ValidationRepository
 from .service import ValidationRunner, validate_create_input, validate_revision_input
 from .studio import StudioRenderer
+from .landing_pages import DatabaseLandingAuthority, DatabaseLandingWorkspace, LandingService
+from .landing_routes import landing_page_router
+from .landing_workspace import LandingWorkspace
 from .studio_creatives import StudioCreativeService
 from .studio_repository import DatabaseCreativeWorkspace, DatabaseStudioAuthority
 from .studio_routes import studio_creative_router
@@ -30,6 +33,7 @@ def create_app(
     studio_renderer: StudioRenderer | None = None,
     studio_workspace: UniversalStudioWorkspace | None = None,
     studio_creative_service: StudioCreativeService | None = None,
+    landing_page_service: LandingService | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_environment()
     repository = repository or ValidationRepository(settings.database_url)
@@ -60,6 +64,21 @@ def create_app(
             learner_skill_path=settings.studio_learner_skill_path,
             phone_skill_path=settings.studio_phone_skill_path,
         )
+    if landing_page_service is not None:
+        landing_pages = landing_page_service
+    else:
+        landing_authority = DatabaseLandingAuthority(settings.database_url)
+        landing_images = ResultBridgePhoneScreenImageProvider(
+            settings.bridge_url, settings.bridge_token, settings.model,
+        )
+        landing_pages = LandingService(
+            root=settings.landing_workspace_path, authority=landing_authority,
+            workspace_factory=lambda path: DatabaseLandingWorkspace(
+                LandingWorkspace(path, image_provider=landing_images), landing_authority, path.name,
+            ),
+            structured_provider=bridge, composer_skill_path=settings.landing_composer_skill_path,
+            learner_skill_path=settings.landing_learner_skill_path,
+        )
     runner_error: Exception | None = None
     if runner is None:
         try:
@@ -77,6 +96,10 @@ def create_app(
         await asyncio.to_thread(repository.recover_interrupted)
         for creative_id in await asyncio.to_thread(studio_creatives.recover_interrupted):
             task = asyncio.create_task(asyncio.to_thread(studio_creatives.generate, creative_id))
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
+        for landing_id in await asyncio.to_thread(landing_pages.recover_interrupted):
+            task = asyncio.create_task(asyncio.to_thread(landing_pages.generate, landing_id))
             tasks.add(task)
             task.add_done_callback(tasks.discard)
         for item in await asyncio.to_thread(studio_creatives.recover_learning):
@@ -101,6 +124,9 @@ def create_app(
 
     app.include_router(studio_creative_router(
         studio_creatives, prefix="/internal/v1/studio", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(landing_page_router(
+        landing_pages, prefix="/internal/v1/landings", dependencies=[Depends(authorize)],
     ))
 
     def require_brief_runner() -> ValidationRunner:

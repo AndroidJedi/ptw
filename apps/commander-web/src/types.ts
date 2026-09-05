@@ -1,4 +1,4 @@
-export type Page = 'briefs' | 'posts'
+export type Page = 'briefs' | 'posts' | 'landing'
 export type I18n<T = string> = { en: T; uk: T }
 
 export type BriefStatus = 'queued' | 'generating' | 'completed' | 'failed'
@@ -518,4 +518,69 @@ export interface StudioTuneDetail {
   active_run_id: string | null
   allowed_paths: string[]
   runs: StudioTuneRun[]
+}
+
+export interface LandingConfiguration {
+  schema: 'ptw.landing.configuration.v1'
+  theme: {
+    background_color: string
+    surface_color: string
+    text_color: string
+    accent_color: string
+    font_family: StudioUniversalFontFamily
+    heading_font_family: StudioUniversalFontFamily
+    corner_radius: number
+  }
+  hero: { alignment: 'left' | 'center'; image_position: 'left' | 'right' | 'below' }
+  features: { layout: 'three_columns' | 'stacked' }
+  social_proof: { layout: 'cards' | 'quote' }
+  visual_break: { height: 'small' | 'medium' | 'large' }
+  contacts: { alignment: 'left' | 'center' }
+  faq: { style: 'divided' | 'cards' }
+}
+
+export interface LandingContent {
+  schema: 'ptw.landing.content.v1'
+  hero: { title: string; supporting_text: string; cta_label: string; visual_direction: string }
+  features: Array<{ title: string; description: string }>
+  social_proof: { heading: string; items: Array<{ statement: string; attribution: string }> }
+  visual_break: { visual_direction: string }
+  contacts: { heading: string; supporting_text: string; email: string; phone: string; url: string }
+  faq: Array<{ question: string; answer: string }>
+}
+
+export interface LandingVisualSummary {
+  slot: 'hero_visual' | 'visual_break_visual'
+  available: boolean
+  sha256: string | null
+  history: Array<{ sha256: string; mime_type: string; width: number; height: number; visual_direction: string; selected: boolean }>
+}
+
+export interface LandingSummary {
+  landing_id: string
+  project_id: string
+  source_brief_id: string
+  source_creative_id: string
+  source_version: number
+  source_version_sha256: string
+  ordinal: number
+  origin: 'post_generation' | 'approved_variant'
+  status: 'queued' | 'composing' | 'generating_images' | 'draft' | 'failed'
+  state_sha256: string | null
+  approved_version_count: number
+  generation: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface LandingDetail extends LandingSummary {
+  schema: 'ptw.landing.workspace.v1'
+  template_id: 'project_landing'
+  catalog: { section_order: string[]; font_families: StudioUniversalFontFamily[] }
+  state_sha256: string
+  configuration: LandingConfiguration
+  content: LandingContent
+  assets: LandingVisualSummary[]
+  image_generation_available: boolean
+  versions: Array<{ version: number; state_sha256: string; version_sha256: string; change_note: string }>
 }

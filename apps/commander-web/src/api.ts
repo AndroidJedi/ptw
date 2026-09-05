@@ -18,7 +18,7 @@ const baseUrl = resolveApiBaseUrl(import.meta.env.VITE_COMMANDER_API_URL, import
 const localStudioMode = import.meta.env.DEV && import.meta.env.VITE_LOCAL_STUDIO === 'true'
 
 function routeBaseUrl(path: string) {
-  return localStudioMode && path.startsWith('/api/v1/studio') ? '' : baseUrl
+  return localStudioMode && (path.startsWith('/api/v1/studio') || path.startsWith('/api/v1/landings')) ? '' : baseUrl
 }
 
 export async function fetchWithDeadline(
@@ -108,7 +108,7 @@ export class ApiClient {
 
   private async headers(path: string, json = false): Promise<HeadersInit> {
     const e2eMode = import.meta.env.DEV && (import.meta.env.VITE_E2E === 'true' || new URLSearchParams(window.location.search).has('e2e'))
-    const localStudio = localStudioMode && path.startsWith('/api/v1/studio')
+    const localStudio = localStudioMode && (path.startsWith('/api/v1/studio') || path.startsWith('/api/v1/landings'))
     const [token, appCheckToken] = e2eMode || localStudio
       ? [await this.user.getIdToken(), 'e2e-app-check']
       : await resolveFirebaseTokens(this.user.getIdToken(), getToken(appCheck, false))

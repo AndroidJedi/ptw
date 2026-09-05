@@ -6,7 +6,8 @@ Deployment: local change; not deployed
 
 ## Current milestone
 
-PTW now has two owner destinations: **Product Briefs** and **Post / Допис**.
+PTW now has three owner destinations: **Product Briefs**, **Post / Допис**, and
+**Landing / Лендінг**.
 The Post destination is the project-scoped Studio creative workspace. There is
 no separate Studio page and no automated Post subsystem.
 
@@ -19,6 +20,15 @@ idempotently reserved creative, navigates to
 `?page=posts&project=<project_id>&creative=<creative_id>`, and starts
 `queued → composing → generating image → draft`. The image stage appears only
 for `phone_metrics`.
+
+Landing is a private responsive, fixed-section workspace created from a selected
+immutable approved Post version and its approved Brief. It captures Post style
+once, AI-populates Hero/three features/visual directions/three FAQs, leaves
+owner evidence and contacts empty, then generates text-free Hero and visual-break
+art. Its required order is Hero, three features, social proof, visual break,
+contacts, and FAQ. Save/Approve creates Landing-only learning; approval requires
+all sections, both visuals, owner proof, and one email/phone/HTTPS endpoint.
+Landing has no public URL, lead handling, publishing, or Post-skill influence.
 
 A replacement Brief creates a separate first creative. Another creative from
 the same Brief is available only after the latest creative has an immutable
@@ -51,8 +61,8 @@ checkpoint, run, and skill entities. The local authority provides the same
 contract with append-only metadata below `.local/owner-briefs` and
 per-creative renderer files below `.local/studio-workspace/creatives`.
 
-This is a clean first-version schema. Only
-`db/migrations/001_ptw_brief_v1.sql` exists. Old singleton Studio rows,
+This is a clean baseline plus Landing extension schema. Migrations
+`001_ptw_brief_v1.sql` and `002_ptw_landing_studio_v1.sql` exist. Old singleton Studio rows,
 assignment flows, schema adapters, bare mutation routes, and historical Post
 tables are not accepted or migrated. `/api/v1/posts` and bare
 `/api/v1/studio` remain absent.
@@ -96,14 +106,13 @@ are absent.
 
 ## Verification status
 
-The clean baseline schema and idempotent application passed against disposable
-PostgreSQL. The final local matrix passes 111 validation tests, four Owner
-Gateway tests, 46 web unit tests, the production web build, 18 browser tests,
-the complete Studio visual audit, canonical skill verification, Commander host
-tests/demo, whitespace checks, and 28 independent platform-bridge tests. The
-Commander host run skips its two FastAPI-only Telegram checks; both passed in
-the built image. A final disposable-database rerun could not start after Docker
-Desktop stopped, but no schema change followed its successful baseline run.
+Landing static checks pass: Python compilation, Landing bounded-state tests,
+Commander host tests/demo, canonical skill verification, whitespace checks, the
+production web build with 49 web unit tests, all 18 configured browser checks
+(desktop, 360px, and WebKit), and the deterministic Studio geometry audit. The
+host lacks FastAPI, Pillow, certifi, httpx, and a Docker daemon, so the
+built-image FastAPI/Pillow suite and disposable PostgreSQL migration check still
+need to run there. No production action has been taken.
 
 ## Next work
 

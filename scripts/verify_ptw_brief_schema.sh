@@ -52,6 +52,14 @@ commander_relationships
 commander_schema_migrations
 commander_sources
 commander_weight_updates
+landing_assets
+landing_checkpoints
+landing_generation_runs
+landing_learning_proposals
+landing_skill_snapshots
+landing_versions
+landing_workspace_files
+landing_workspaces
 product_brief_approvals
 product_briefs
 studio_edit_checkpoints
@@ -79,11 +87,13 @@ docker exec "$database_container" psql -X -qAt -v ON_ERROR_STOP=1 \
   -U ptw_brief_test -d ptw_brief_test <<'SQL'
 DO $$
 BEGIN
-  IF (SELECT count(*) FROM commander_schema_migrations) <> 1
+  IF (SELECT count(*) FROM commander_schema_migrations) <> 2
      OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='001_ptw_brief_v1.sql'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM commander_schema_migrations WHERE name='002_ptw_landing_studio_v1.sql'
      ) THEN
-    RAISE EXCEPTION 'the database must contain one Product Brief and Studio baseline migration';
+    RAISE EXCEPTION 'the database must contain the Product Brief, Studio, and Landing migrations';
   END IF;
   IF (SELECT count(*) FROM commander_control) <> 1
      OR (SELECT count(*) FROM commander_operation_guard) <> 1 THEN
@@ -92,4 +102,4 @@ BEGIN
 END $$;
 SQL
 
-echo "Verified the single Product Brief plus project-scoped Studio baseline and idempotent migration journey."
+echo "Verified Product Brief, project-scoped Studio, and private Landing migrations and idempotent journey."

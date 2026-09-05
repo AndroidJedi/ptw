@@ -29,8 +29,9 @@ immutable approved version.
 
 PostgreSQL is the complete production authority for Projects, Sources, Briefs,
 corrections, approvals, Studio creatives, skills, and graph lineage. The only
-schema baseline is `db/migrations/001_ptw_brief_v1.sql`; no earlier Studio or
-Post state is migrated.
+schema baseline is `db/migrations/001_ptw_brief_v1.sql` plus the private Landing
+extension `db/migrations/002_ptw_landing_studio_v1.sql`; no earlier Studio, Post,
+or legacy Landing state is migrated.
 
 Loopback uses append-only metadata below `.local/owner-briefs` and
 per-creative renderer state below `.local/studio-workspace/creatives` with the

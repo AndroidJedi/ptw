@@ -9,6 +9,7 @@ import type { Language } from './i18n'
 import type { Page, ValidationProject } from './types'
 import { ProductBriefView } from './views/ProductBriefView'
 import { StudioView } from './views/StudioView'
+import { LandingView } from './views/LandingView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
 export const AUTH_BOOT_TIMEOUT_MS = 10_000
@@ -30,20 +31,20 @@ function persistLanguage(language: Language) {
   }
 }
 
-function initialConsoleLocation(): { page: Page; projectId: string | null; creativeId: string | null } {
+function initialConsoleLocation(): { page: Page; projectId: string | null; creativeId: string | null; landingId: string | null } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const page: Page = requestedPage === 'posts' ? 'posts' : 'briefs'
-  if (requestedPage && requestedPage !== 'briefs' && requestedPage !== 'posts') {
+  const page: Page = requestedPage === 'posts' || requestedPage === 'landing' ? requestedPage : 'briefs'
+  if (requestedPage && requestedPage !== 'briefs' && requestedPage !== 'posts' && requestedPage !== 'landing') {
     params.delete('page')
     const search = params.toString()
     window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
   }
-  return { page, projectId: params.get('project'), creativeId: params.get('creative') }
+  return { page, projectId: params.get('project'), creativeId: params.get('creative'), landingId: params.get('landing') }
 }
 
 function writeConsoleLocation(
-  page: Page, projectId: string | null, creativeId: string | null = null, push = false,
+  page: Page, projectId: string | null, creativeId: string | null = null, landingId: string | null = null, push = false,
 ) {
   const params = new URLSearchParams(window.location.search)
   if (page === 'briefs') params.delete('page')
@@ -52,6 +53,8 @@ function writeConsoleLocation(
   else params.delete('project')
   if (page === 'posts' && creativeId) params.set('creative', creativeId)
   else params.delete('creative')
+  if (page === 'landing' && landingId) params.set('landing', landingId)
+  else params.delete('landing')
   const search = params.toString()
   window.history[push ? 'pushState' : 'replaceState']({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
 }
@@ -113,6 +116,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
   const [projects, setProjects] = useState<ValidationProject[] | null>(null)
   const [projectId, setProjectId] = useState<string | null>(initialLocation.projectId)
   const [creativeId, setCreativeId] = useState<string | null>(initialLocation.creativeId)
+  const [landingId, setLandingId] = useState<string | null>(initialLocation.landingId)
   const [projectError, setProjectError] = useState('')
   const [language, setLanguage] = useState<Language>(initialLanguage)
   const api = useMemo(() => new ApiClient(user), [user])
@@ -128,7 +132,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
       ? requested
       : value.items[0]?.project_id || null
     setProjectId(nextId)
-    writeConsoleLocation(page, nextId, page === 'posts' ? creativeId : null)
+    writeConsoleLocation(page, nextId, page === 'posts' ? creativeId : null, page === 'landing' ? landingId : null)
     setProjectError('')
   }
 
@@ -146,19 +150,21 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
       setPage(location.page)
       setProjectId(location.projectId)
       setCreativeId(location.creativeId)
+      setLandingId(location.landingId)
     }
     window.addEventListener('popstate', restore)
     return () => window.removeEventListener('popstate', restore)
   }, [])
 
   const navigate = (nextPage: Page) => {
-    writeConsoleLocation(nextPage, projectId, nextPage === 'posts' ? creativeId : null, true)
+    writeConsoleLocation(nextPage, projectId, nextPage === 'posts' ? creativeId : null, nextPage === 'landing' ? landingId : null, true)
     setPage(nextPage)
   }
   const selectProject = (nextProjectId: string) => {
     setProjectId(nextProjectId)
     setCreativeId(null)
-    writeConsoleLocation(page, nextProjectId, null, true)
+    setLandingId(null)
+    writeConsoleLocation(page, nextProjectId, null, null, true)
   }
   const projectCreated = (project: ValidationProject) => {
     setProjects((items) => [project, ...(items || []).filter((item) => item.project_id !== project.project_id)])
@@ -177,7 +183,8 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     setPage('briefs')
     setProjectId(null)
     setCreativeId(null)
-    writeConsoleLocation('briefs', null, null, true)
+    setLandingId(null)
+    writeConsoleLocation('briefs', null, null, null, true)
     window.setTimeout(() => document.getElementById('new-project-idea')?.focus(), 0)
   }
   const changeLanguage = () => setLanguage((current) => {
@@ -189,11 +196,18 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     setProjectId(nextProjectId)
     setCreativeId(nextCreativeId)
     setPage('posts')
-    writeConsoleLocation('posts', nextProjectId, nextCreativeId, true)
+    setLandingId(null)
+    writeConsoleLocation('posts', nextProjectId, nextCreativeId, null, true)
   }
   const selectCreative = (nextCreativeId: string) => {
     setCreativeId(nextCreativeId)
-    writeConsoleLocation('posts', projectId, nextCreativeId, true)
+    setLandingId(null)
+    writeConsoleLocation('posts', projectId, nextCreativeId, null, true)
+  }
+  const selectLanding = (nextLandingId: string) => {
+    setLandingId(nextLandingId)
+    setCreativeId(null)
+    writeConsoleLocation('landing', projectId, null, nextLandingId, true)
   }
   return <Shell page={page} onPage={navigate} language={language} onLanguage={changeLanguage}>
     {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Створення та виправлення брифів запускають реальних провайдерів.' : 'Brief creation and correction invoke real providers.'}</span></div>}
@@ -202,6 +216,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     {projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
     {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onCreative={openCreative} language={language} />}
     {page === 'posts' && <StudioView api={api} language={language} tuneMode={localApp} projectId={validatedProjectId} creativeId={creativeId} onCreative={selectCreative} />}
+    {page === 'landing' && <LandingView api={api} language={language} projectId={validatedProjectId} landingId={landingId} onLanding={selectLanding} />}
   </Shell>
 }
 

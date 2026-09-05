@@ -25,6 +25,11 @@ class ValidationApiRouteTests(unittest.TestCase):
         def recover_learning():
             return []
 
+    class Landing:
+        @staticmethod
+        def recover_interrupted():
+            return []
+
     @staticmethod
     def settings() -> Settings:
         return Settings(
@@ -42,6 +47,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             repository=object(),
             runner=object(),
             studio_creative_service=self.Studio(),
+            landing_page_service=self.Landing(),
         )
         background_routes = {
             ("POST", "/internal/v1/briefs"),
@@ -92,6 +98,7 @@ class ValidationApiRouteTests(unittest.TestCase):
         app = create_app(
             self.settings(), repository=repository, runner=runner,
             studio_creative_service=self.Studio(),
+            landing_page_service=self.Landing(),
         )
 
         with TestClient(app) as client:
@@ -119,6 +126,7 @@ class ValidationApiRouteTests(unittest.TestCase):
         app = create_app(
             self.settings(), repository=Repository(), runner=object(),
             studio_creative_service=self.Studio(),
+            landing_page_service=self.Landing(),
         )
 
         with TestClient(app) as client:
@@ -168,6 +176,7 @@ class ValidationApiRouteTests(unittest.TestCase):
         app = create_app(
             self.settings(), repository=Repository(), runner=object(),
             studio_creative_service=studio,
+            landing_page_service=self.Landing(),
         )
         headers = {"X-PTW-Owner-Gateway-Token": "owner-token"}
         with TestClient(app) as client:

@@ -326,6 +326,74 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             request, identity, timeout=480,
         )
 
+    def landing_path(project_id: str, landing_id: str = "", suffix: str = "") -> str:
+        base = f"/internal/v1/landings/projects/{project_id}"
+        return f"{base}/pages/{landing_id}{suffix}" if landing_id else base
+
+    async def landing_post(project_id: str, landing_id: str, suffix: str, request: Mapping[str, Any], identity: OwnerIdentity, *, timeout: float = 90) -> dict[str, Any]:
+        return (await validation_bridge("POST", landing_path(project_id, landing_id, suffix), body=request, actor=actor(identity), timeout=timeout)).json()
+
+    @app.get("/api/v1/landings/projects/{project_id}/source-posts")
+    async def landing_sources(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", f"/internal/v1/landings/projects/{project_id}/source-posts", timeout=60)).json()
+
+    @app.get("/api/v1/landings/projects/{project_id}/pages")
+    async def landing_pages(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", f"/internal/v1/landings/projects/{project_id}/pages", timeout=60)).json()
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages", status_code=202)
+    async def landing_create(project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/landings/projects/{project_id}/pages", body=request, actor=actor(identity), timeout=60)).json()
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages/variants", status_code=202)
+    async def landing_variant(project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/landings/projects/{project_id}/pages/variants", body=request, actor=actor(identity), timeout=60)).json()
+
+    @app.get("/api/v1/landings/projects/{project_id}/pages/{landing_id}")
+    async def landing_detail(project_id: str, landing_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", landing_path(project_id, landing_id), timeout=60)).json()
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/retry", status_code=202)
+    async def landing_retry(project_id: str, landing_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await landing_post(project_id, landing_id, "/retry", request, identity, timeout=60)
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/configuration")
+    async def landing_configuration(project_id: str, landing_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await landing_post(project_id, landing_id, "/configuration", request, identity)
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/visuals/{slot}/generate")
+    async def landing_visual_generate(project_id: str, landing_id: str, slot: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await landing_post(project_id, landing_id, f"/visuals/{slot}/generate", request, identity, timeout=480)
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/visuals/{slot}/select")
+    async def landing_visual_select(project_id: str, landing_id: str, slot: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await landing_post(project_id, landing_id, f"/visuals/{slot}/select", request, identity)
+
+    @app.get("/api/v1/landings/projects/{project_id}/pages/{landing_id}/visuals/{slot}/history/{sha256}")
+    async def landing_visual_history(project_id: str, landing_id: str, slot: str, sha256: str, _identity: OwnerIdentity = Depends(owner)) -> Response:
+        response = await validation_bridge("GET", landing_path(project_id, landing_id, f"/visuals/{slot}/history/{sha256}"), timeout=60)
+        return Response(content=response.content, media_type=response.headers.get("content-type", "image/png"), headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", **({"ETag": response.headers["etag"]} if response.headers.get("etag") else {}), **({"X-PTW-Content-SHA256": response.headers["x-ptw-content-sha256"]} if response.headers.get("x-ptw-content-sha256") else {})})
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/save")
+    async def landing_save(project_id: str, landing_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await landing_post(project_id, landing_id, "/save", request, identity, timeout=480)
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/approve")
+    async def landing_approve(project_id: str, landing_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await landing_post(project_id, landing_id, "/approve", request, identity, timeout=480)
+
+    @app.get("/api/v1/landings/projects/{project_id}/pages/{landing_id}/versions/{version}")
+    async def landing_version(project_id: str, landing_id: str, version: int, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", landing_path(project_id, landing_id, f"/versions/{version}"), timeout=60)).json()
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/learning/{proposal_id}")
+    async def landing_learning(project_id: str, landing_id: str, proposal_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await landing_post(project_id, landing_id, f"/learning/{proposal_id}", request, identity)
+
+    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/learning/{checkpoint_id}/retry")
+    async def landing_learning_retry(project_id: str, landing_id: str, checkpoint_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await landing_post(project_id, landing_id, f"/learning/{checkpoint_id}/retry", request, identity, timeout=480)
+
     @app.get("/api/v1/system/health")
     async def system_health(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         try:

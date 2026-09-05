@@ -48,7 +48,7 @@ Before rollout, run real canaries for all four JSON modes, fresh image
 generation, one-image enhancement, and Pexels. After an authorized clean reset
 require zero Projects, Briefs, creatives, assets, versions, checkpoints,
 generation/learning runs, proposals, decisions, skill snapshots, and graph rows.
-Require only `001_ptw_brief_v1.sql`, no retired Result/Post tables or routes,
+Require `001_ptw_brief_v1.sql` and `002_ptw_landing_studio_v1.sql`, no retired Result/Post or legacy Landing tables/routes,
 unchanged independent platform data, database-backed readiness, and the current
 PWA cache.
 

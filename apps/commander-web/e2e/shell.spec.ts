@@ -267,13 +267,14 @@ test('approves a Brief through the required template picker and opens its creati
   await expect.poll(() => new URL(page.url()).searchParams.get('creative')).toBe(creativeId)
 })
 
-test('shows Product Briefs and the project-scoped Post editor', async ({ page }) => {
+test('shows Product Briefs, the project-scoped Post editor, and Landing Studio', async ({ page }) => {
   await page.goto('/?e2e=1')
   await expect(page.getByRole('button', { name: 'Продуктові брифи' }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Змінити мову' }).click()
   await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Social posts' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Post', exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Landing', exact: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Studio' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Post', exact: true }).first().click()
   await expect(page.locator('.universal-canvas-panel')).toBeVisible()
@@ -282,7 +283,8 @@ test('shows Product Briefs and the project-scoped Post editor', async ({ page })
   await expect(page.getByRole('button', { name: 'Post', exact: true }).first()).toBeVisible()
   await expect(page.getByText('Ad Studio')).toHaveCount(0)
   await expect(page.getByText('Ads', { exact: true })).toHaveCount(0)
-  await expect(page.getByText('Landing', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Landing', exact: true }).first().click()
+  await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('landing')
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

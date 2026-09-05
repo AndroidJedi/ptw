@@ -1,0 +1,4 @@
+interface:
+  display_name: "Landing Edit Learner"
+  short_description: "Learn Landing-only rules from owner checkpoints"
+  default_prompt: "Use $landing-edit-learner to turn this saved Landing checkpoint into a Landing-only lesson and privacy-safe proposal."

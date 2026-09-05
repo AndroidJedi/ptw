@@ -121,7 +121,7 @@ BEGIN
     )
     OR
     table_name LIKE 'ad\_%' ESCAPE '\'
-    OR table_name LIKE 'landing\_%' ESCAPE '\'
+    OR table_name IN ('landing_builds','landing_draft_sets')
     OR table_name LIKE 'positioning\_%' ESCAPE '\'
     OR table_name LIKE 'idea\_%' ESCAPE '\'
     OR table_name LIKE 'laval\_%' ESCAPE '\'
@@ -133,11 +133,13 @@ BEGIN
   IF forbidden IS NOT NULL THEN
     RAISE EXCEPTION 'retired tables survived Product Brief reset: %', forbidden;
   END IF;
-  IF (SELECT count(*) FROM commander_schema_migrations) <> 1
+  IF (SELECT count(*) FROM commander_schema_migrations) <> 2
      OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='001_ptw_brief_v1.sql'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM commander_schema_migrations WHERE name='002_ptw_landing_studio_v1.sql'
      ) THEN
-    RAISE EXCEPTION 'Product Brief and Studio baseline migration is incomplete';
+    RAISE EXCEPTION 'Product Brief, Studio, and Landing migrations are incomplete';
   END IF;
 END $$;
 SQL

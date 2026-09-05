@@ -22,6 +22,7 @@ const requiredMarkers = {
   'Validation Project workspace': 'PROJECT WORKSPACE',
   'Product Brief workspace': 'BRIEF HISTORY',
   'single universal Studio': 'universal_ad · v',
+  'private Landing Studio': 'PRIVATE LANDING',
 }
 
 const missing = Object.entries(requiredMarkers)
@@ -39,7 +40,6 @@ const forbiddenMarkers = {
   'retired calibration workflow': 'Calibration Studio',
   'publication control': 'Publish',
   'campaign control': 'Campaign',
-  'Landing UI': 'Landing',
   'manual template controls': 'Template controls',
   'manual brand-kit setup': 'PROJECT BRAND KIT',
   'text-profile chooser': 'Result type',
@@ -59,7 +59,7 @@ if (exposed.length) {
 if (!worker.includes("url.pathname.startsWith('/__/auth/')")) {
   throw new Error('Unsafe Commander service worker; Firebase Auth helper traffic is not bypassed')
 }
-if (!worker.includes("ptw-shell-brief-studio-v1")) {
+if (!worker.includes("ptw-shell-brief-studio-landing-v1")) {
   throw new Error('Unsafe Owner Console service worker; cache version is stale')
 }
 
@@ -83,4 +83,4 @@ if (chromatic.length) {
   throw new Error(`Commander chrome must remain monochrome; found: ${chromatic.join(', ')}`)
 }
 
-process.stdout.write('Verified Product Brief + Studio flow, App Check, Safari Auth, monochrome chrome, and service-worker markers in production build.\n')
+process.stdout.write('Verified Product Brief, Studio, and private Landing flows; App Check, Safari Auth, monochrome chrome, and service-worker markers are present.\n')

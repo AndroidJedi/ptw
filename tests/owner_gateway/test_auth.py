@@ -54,7 +54,7 @@ class OwnerClaimsTests(unittest.TestCase):
         )
         self.assertEqual(list(configured.owner_public_origins), middleware.kwargs["allow_origins"])
 
-    def test_route_table_is_briefs_plus_project_scoped_post_studio(self) -> None:
+    def test_route_table_is_briefs_plus_project_scoped_post_and_landing_studio(self) -> None:
         class Verifier:
             def verify(self, _token: str, _app_check: str):  # pragma: no cover
                 raise AssertionError
@@ -74,6 +74,20 @@ class OwnerClaimsTests(unittest.TestCase):
             f"{creative}/versions/{{version}}", f"{creative}/approve",
             f"{creative}/learning/{{proposal_id}}",
             f"{creative}/checkpoints/{{checkpoint_id}}/retry",
+            "/api/v1/landings/projects/{project_id}/source-posts",
+            "/api/v1/landings/projects/{project_id}/pages",
+            "/api/v1/landings/projects/{project_id}/pages/{landing_id}",
+            "/api/v1/landings/projects/{project_id}/pages/variants",
+            "/api/v1/landings/projects/{project_id}/pages/{landing_id}/retry",
+            "/api/v1/landings/projects/{project_id}/pages/{landing_id}/configuration",
+            "/api/v1/landings/projects/{project_id}/pages/{landing_id}/visuals/{slot}/generate",
+            "/api/v1/landings/projects/{project_id}/pages/{landing_id}/visuals/{slot}/select",
+            "/api/v1/landings/projects/{project_id}/pages/{landing_id}/visuals/{slot}/history/{sha256}",
+            "/api/v1/landings/projects/{project_id}/pages/{landing_id}/save",
+            "/api/v1/landings/projects/{project_id}/pages/{landing_id}/approve",
+            "/api/v1/landings/projects/{project_id}/pages/{landing_id}/versions/{version}",
+            "/api/v1/landings/projects/{project_id}/pages/{landing_id}/learning/{proposal_id}",
+            "/api/v1/landings/projects/{project_id}/pages/{landing_id}/learning/{checkpoint_id}/retry",
         }
         self.assertTrue(required <= paths)
         self.assertNotIn("/api/v1/studio", paths)
@@ -81,7 +95,7 @@ class OwnerClaimsTests(unittest.TestCase):
         self.assertNotIn("/api/v1/project-assets", paths)
         self.assertNotIn("/api/v1/project-brand-kits", paths)
         self.assertFalse([path for path in paths if "/content-runs" in path])
-        forbidden_fragments = ("ad-batches", "ad-creatives", "ad-studio", "landing", "publish", "campaign")
+        forbidden_fragments = ("ad-batches", "ad-creatives", "ad-studio", "publish", "campaign")
         self.assertFalse([
             path for path in paths if any(fragment in path for fragment in forbidden_fragments)
         ])

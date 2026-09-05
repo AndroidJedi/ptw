@@ -16,6 +16,9 @@ from .local_brief_routes import local_brief_router
 from .local_brief_store import LocalBriefStore
 from .local_briefs import LocalBriefService
 from .local_codex import LocalCodexStructuredProvider
+from .landing_pages import LandingService, LocalLandingAuthority
+from .landing_routes import landing_page_router
+from .landing_workspace import LandingWorkspace
 from .openai_images import (
     LocalCodexPhoneScreenImageProvider, OpenAIPhoneScreenImageProvider,
 )
@@ -93,6 +96,14 @@ def create_app(
         learner_skill_path=repository_root / "skills/studio-edit-learner/SKILL.md",
         phone_skill_path=repository_root / "skills/studio-phone-hero-generator/SKILL.md",
     )
+    landing_pages = LandingService(
+        root=workspace_path.parent / "landing-workspace",
+        authority=LocalLandingAuthority(local_store, post_workspace_root=workspace_path),
+        workspace_factory=lambda path: LandingWorkspace(path, image_provider=phone_screen_images),
+        structured_provider=structured_provider,
+        composer_skill_path=repository_root / "skills/landing-page-composer/SKILL.md",
+        learner_skill_path=repository_root / "skills/landing-edit-learner/SKILL.md",
+    )
     recovery_tasks: set[asyncio.Task[Any]] = set()
 
     @asynccontextmanager
@@ -103,6 +114,10 @@ def create_app(
             task.add_done_callback(recovery_tasks.discard)
         for creative_id in studio_creatives.recover_interrupted():
             task = asyncio.create_task(asyncio.to_thread(studio_creatives.generate, creative_id))
+            recovery_tasks.add(task)
+            task.add_done_callback(recovery_tasks.discard)
+        for landing_id in landing_pages.recover_interrupted():
+            task = asyncio.create_task(asyncio.to_thread(landing_pages.generate, landing_id))
             recovery_tasks.add(task)
             task.add_done_callback(recovery_tasks.discard)
         for item in studio_creatives.recover_learning():
@@ -138,6 +153,9 @@ def create_app(
 
     app.include_router(studio_creative_router(
         studio_creatives, prefix="/api/v1/studio", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(landing_page_router(
+        landing_pages, prefix="/api/v1/landings", dependencies=[Depends(authorize)],
     ))
     app.include_router(local_brief_router(
         brief_service, studio_creatives=studio_creatives, dependencies=[Depends(authorize)],

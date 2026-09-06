@@ -1,6 +1,6 @@
 # Commander current state
 
-Updated: 2026-09-04
+Updated: 2026-09-06
 Branch: `codex/web-only-commander`
 Deployment: targeted Owner Console authorization rollout deployed 2026-09-06
 
@@ -191,7 +191,9 @@ are recorded only after all serial deployment and live verification gates pass.
 
 ## Next work
 
-ChatGPT Authorization is available from the deployed Owner Console Settings.
+ChatGPT Authorization is available from its own deployed Owner Console Settings
+page (`?page=settings`), opened by the gear control beside the language switch.
+It is not displayed as a dialog over a Brief or any other workspace.
 Use Refresh authorization only when the owner is ready to complete the displayed
 device flow; the service then verifies the resulting CLI credentials. Keep the
 simple Post flow local-only. Studio approval remains the only operation that

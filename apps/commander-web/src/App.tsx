@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { ApiClient } from './api'
 import { AUTH_PERSISTENCE_MARKER, auth, googleProvider } from './firebase'
 import { Shell } from './components/Shell'
-import { AuthorizationSettings } from './components/AuthorizationSettings'
 import { ProjectSwitcher } from './components/ProjectSwitcher'
 import type { Language } from './i18n'
 import type { Page, ValidationProject } from './types'
 import { ProductBriefView } from './views/ProductBriefView'
 import { PostView } from './views/PostView'
+import { SettingsView } from './views/SettingsView'
 import { StudioView } from './views/StudioView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
@@ -35,7 +35,7 @@ function persistLanguage(language: Language) {
 function initialConsoleLocation(postsAvailable = false): { page: Page; projectId: string | null } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const known = ['briefs', 'studio', ...(postsAvailable ? ['posts'] : [])].includes(requestedPage || '')
+  const known = ['briefs', 'studio', 'settings', ...(postsAvailable ? ['posts'] : [])].includes(requestedPage || '')
   const page: Page = known
     ? requestedPage as Page
     : 'briefs'
@@ -58,7 +58,7 @@ function writeConsoleLocation(
   const params = new URLSearchParams(window.location.search)
   if (page === 'briefs') params.delete('page')
   else params.set('page', page)
-  if (projectId) params.set('project', projectId)
+  if ((page === 'briefs' || page === 'posts') && projectId) params.set('project', projectId)
   else params.delete('project')
   params.delete('run')
   const search = params.toString()
@@ -123,7 +123,6 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
   const [projectId, setProjectId] = useState<string | null>(initialLocation.projectId)
   const [projectError, setProjectError] = useState('')
   const [language, setLanguage] = useState<Language>(initialLanguage)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const api = useMemo(() => new ApiClient(user), [user])
   const validatedProjectId = projects?.some((item) => item.project_id === projectId)
     ? projectId
@@ -142,7 +141,7 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
   }
 
   useEffect(() => {
-    if (page === 'studio' || projects !== null) return
+    if (page === 'studio' || page === 'settings' || projects !== null) return
     void refreshProjects().catch((cause: Error) => {
       setProjects([])
       setProjectError(cause.message)
@@ -191,15 +190,15 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
     persistLanguage(next)
     return next
   })
-  return <Shell page={page} onPage={navigate} language={language} onLanguage={changeLanguage} onSettings={() => setSettingsOpen(true)} postsAvailable={localDemo}>
+  return <Shell page={page} onPage={navigate} language={language} onLanguage={changeLanguage} postsAvailable={localDemo}>
     {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Створення та виправлення брифів запускають реальних провайдерів.' : 'Brief creation and correction invoke real providers.'}</span></div>}
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label={language === 'uk' ? 'Вийти' : 'Sign out'}><LogOut /></button></div>
     {(page === 'briefs' || page === 'posts') && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
-    {page !== 'studio' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
+    {(page === 'briefs' || page === 'posts') && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
     {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onPost={localDemo ? () => navigate('posts') : undefined} language={language} />}
     {page === 'posts' && localDemo && <PostView api={api} projectId={validatedProjectId} language={language} />}
     {page === 'studio' && <StudioView api={api} language={language} tuneMode={localDemo} />}
-    {settingsOpen && <AuthorizationSettings api={api} language={language} onClose={() => setSettingsOpen(false)} />}
+    {page === 'settings' && <SettingsView api={api} language={language} />}
   </Shell>
 }
 

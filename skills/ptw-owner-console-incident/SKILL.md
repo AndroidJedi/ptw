@@ -37,6 +37,10 @@ readiness.
 - Do not accept `codex login status` as provider readiness. Check the root-owned
   auth file only by metadata and run the token-safe working Codex test. A
   credential can look logged in while model execution is revoked or times out.
+- Exercise device authorization through a pseudo-terminal and require both the
+  official device URL and one-time code before reporting `authorizing`. Current
+  Codex CLI releases may not emit the code to a plain pipe; a flow that returns
+  to `authorization_required` without updating auth is a failed flow.
 - Verify raw idea → immutable Brief → correction lineage → honor confirmation
   plus template choice → HTTP 202 creative reservation/navigation.
 - Provider JSON modes are exactly `product_brief`,

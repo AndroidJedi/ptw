@@ -81,7 +81,7 @@ def main() -> None:
         "App Check header": "X-Firebase-AppCheck",
         "reCAPTCHA Enterprise site key": args.site_key,
         "Safari-safe Auth persistence": "ptw-auth-local-storage-v1",
-        "Product Brief workspace": "Product Briefs",
+        "Product Brief workspace": "Product Brief",
         "Post destination": "Post",
         "Landing destination": "Landing",
         "ChatGPT authorization settings": "ChatGPT Authorization",

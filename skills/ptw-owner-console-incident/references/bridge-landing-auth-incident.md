@@ -86,6 +86,10 @@ single-file mount. Verify readability from inside the worker before canaries.
   `codex-auth` on backend plus edge, authorization working test passed, matching
   revisions/images, public boundary audit, clean reset counts, and healthy
   restart behavior.
+- Keep public-bundle audit markers aligned with the intentional current labels
+  (`Brief`, `Post`, and `Landing`). A stale plural label in the audit is an audit
+  defect when the deployed bundle contains the current destinations; it is not
+  evidence that Hosting is stale.
 
 For one-image enhancement, current Codex CLI JSON may show only outer
 `command_execution` events and omit the nested imagegen argument object. Do not

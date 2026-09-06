@@ -19,7 +19,7 @@ before changing code or runtime state.
 
 - Verify hashed bundles, service-worker cache, Firebase Auth persistence, App
   Check, exact Owner CORS origins, and unauthenticated rejection.
-- The app exposes only Product Briefs, Post / Допис, Landing / Лендінг,
+- The app exposes only Brief / Бриф, Post / Допис, Landing / Лендінг,
   and Settings. Brief, Post, and Landing retain their required Project scope;
   every Studio mutation is Project/creative-scoped.
 - Preview, history, and immutable-version renders are authenticated,

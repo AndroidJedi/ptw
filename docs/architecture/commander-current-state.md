@@ -2,7 +2,7 @@
 
 Updated: 2026-09-06
 Branch: `main`
-Deployment: local clean baseline; the targeted authorization release is deployed separately
+Deployment: one compatible production release across VPS services and Firebase Hosting
 
 ## Current milestone
 
@@ -131,17 +131,28 @@ are absent.
 
 ## Verification status
 
-Landing phone verification is recorded in `.local/landing-phone`, with before/after
-captures, three screen themes at 1280/768/360px, and iPhone WebKit. All 53 web unit
-tests, 45 browser checks, the production build, 16 Landing backend tests, and 8
-Commander virtual-environment tests pass. The host Commander run skips 2 runtime
-tests because the host lacks FastAPI; the virtual environment covers both. The demo,
-canonical skill verification, and whitespace checks pass. The local API serves v4
-and the current Ukrainian medicine page has a saved editable inventory screen.
-Built-image tests remain blocked by the unavailable Docker daemon. No paid image
-generation, migration, reset, approval, or production action was performed.
+Landing phone verification is recorded in `.local/landing-phone`, with
+before/after captures, three screen themes at 1280/768/360px, and iPhone WebKit.
+The 53 web unit tests, 45 browser checks, production build, full 127-test
+Validation suite, 8 Commander tests, 4 Owner Gateway tests, and 38 platform tests
+pass. The Commander demo, schema idempotency, canonical skill verification,
+Studio visual audit, Python compilation, and whitespace checks pass.
+
+Production advertises the exact four structured JSON modes and one bounded media
+mode. Real canaries passed for all modes, fresh image generation, exact-reference
+enhancement, and Pexels. All six versioned services are healthy; ChatGPT/Codex
+reports `authorized` only after its real working test passes. The public Hosting
+audit confirms Brief/Post/Landing, Settings authorization, the current service
+worker, App Check, CORS, authenticated rejection, and Gateway health.
+
+The confirmation-gated production reset installed both migrations and left all
+owned Brief, Studio, Landing, and graph business tables empty. Its before/after
+snapshot confirmed that independent platform database counts did not change.
+Both emergency stops are false, the 1 GB resource audit passed, and the scheduled
+24-hour follow-up audit is active.
 
 ## Next work
 
-The Authorization UI and private device-flow service use the dedicated Settings
-destination; production rollout remains separately targeted from this clean baseline.
+Observe the scheduled 24-hour resource audit. The next owner action starts a new
+Project and exercises the clean Brief → Post → Landing journey through the
+deployed web console.

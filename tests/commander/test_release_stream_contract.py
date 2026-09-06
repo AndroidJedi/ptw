@@ -62,6 +62,20 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertNotIn("preserve the validation artifacts", deployer)
         self.assertEqual(1, deployer.count("reset_ptw.sh"))
 
+    def test_reset_postcondition_covers_every_landing_table(self) -> None:
+        reset = (ROOT / "scripts/reset_ptw.sh").read_text()
+        for table in (
+            "landing_workspaces",
+            "landing_workspace_files",
+            "landing_assets",
+            "landing_generation_runs",
+            "landing_versions",
+            "landing_checkpoints",
+            "landing_skill_snapshots",
+            "landing_learning_proposals",
+        ):
+            self.assertIn(f"(SELECT count(*) FROM {table})", reset)
+
     def test_platform_enforcement_and_canaries_precede_reset(self) -> None:
         deployer = (ROOT / "scripts/deploy_ptw_serial.sh").read_text()
         rollout = deployer.index('export PTW_PLATFORM_IMAGE_TAG=$release_tag')

@@ -101,7 +101,15 @@ BEGIN
     ('studio_learning_runs', (SELECT count(*) FROM studio_learning_runs)),
     ('studio_skill_snapshots', (SELECT count(*) FROM studio_skill_snapshots)),
     ('studio_learning_proposals', (SELECT count(*) FROM studio_learning_proposals)),
-    ('studio_learning_decisions', (SELECT count(*) FROM studio_learning_decisions))
+    ('studio_learning_decisions', (SELECT count(*) FROM studio_learning_decisions)),
+    ('landing_workspaces', (SELECT count(*) FROM landing_workspaces)),
+    ('landing_workspace_files', (SELECT count(*) FROM landing_workspace_files)),
+    ('landing_assets', (SELECT count(*) FROM landing_assets)),
+    ('landing_generation_runs', (SELECT count(*) FROM landing_generation_runs)),
+    ('landing_versions', (SELECT count(*) FROM landing_versions)),
+    ('landing_checkpoints', (SELECT count(*) FROM landing_checkpoints)),
+    ('landing_skill_snapshots', (SELECT count(*) FROM landing_skill_snapshots)),
+    ('landing_learning_proposals', (SELECT count(*) FROM landing_learning_proposals))
   ) AS counts(label,value) WHERE value <> 0;
   IF failures IS NOT NULL THEN
     RAISE EXCEPTION 'Product Brief reset postcondition failed: %', failures;

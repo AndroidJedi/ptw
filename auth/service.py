@@ -19,6 +19,8 @@ from fastapi import FastAPI, Header, HTTPException
 AUTHORIZATION_TIMEOUT_SECONDS = 15 * 60
 STATUS_TIMEOUT_SECONDS = 15
 TEST_TIMEOUT_SECONDS = 90
+WORKING_TEST_ATTEMPTS = 3
+WORKING_TEST_RETRY_DELAY_SECONDS = 2
 DEVICE_URL_PATTERN = re.compile(r"https://auth\.openai\.com/codex/device(?:\?[^\s'\"]*)?")
 DEVICE_CODE_PATTERN = re.compile(r"\b[A-Z0-9]{4,8}-[A-Z0-9]{4,8}\b")
 ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -80,7 +82,14 @@ class AuthorizationController:
             return False
 
     def _verify_credentials(self) -> None:
-        test_ok = self._logged_in() and self._working_test()
+        test_ok = False
+        if self._logged_in():
+            for attempt in range(WORKING_TEST_ATTEMPTS):
+                test_ok = self._working_test()
+                if test_ok:
+                    break
+                if attempt + 1 < WORKING_TEST_ATTEMPTS:
+                    time.sleep(WORKING_TEST_RETRY_DELAY_SECONDS)
         with self._lock:
             self._test_status = "passed" if test_ok else "failed"
             self._phase = "authorized" if test_ok else "failed"

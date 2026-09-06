@@ -51,6 +51,7 @@ class CodexAuthorizationStatusTests(unittest.TestCase):
         with (
             patch.object(controller, "_logged_in", return_value=True),
             patch.object(controller, "_working_test", return_value=False),
+            patch("auth.service.WORKING_TEST_RETRY_DELAY_SECONDS", 0),
         ):
             self.assertEqual(
                 {"status": "verifying", "test_status": None}, controller.status(),
@@ -59,6 +60,22 @@ class CodexAuthorizationStatusTests(unittest.TestCase):
                 {"status": "failed", "test_status": "failed"},
                 self.await_terminal(controller),
             )
+
+    def test_transient_working_test_failure_is_retried(self) -> None:
+        controller = AuthorizationController("codex", Path("/tmp/test-codex-auth"))
+        with (
+            patch.object(controller, "_logged_in", return_value=True),
+            patch.object(controller, "_working_test", side_effect=[False, True]) as working_test,
+            patch("auth.service.WORKING_TEST_RETRY_DELAY_SECONDS", 0),
+        ):
+            self.assertEqual(
+                {"status": "verifying", "test_status": None}, controller.status(),
+            )
+            self.assertEqual(
+                {"status": "authorized", "test_status": "passed"},
+                self.await_terminal(controller),
+            )
+        self.assertEqual(2, working_test.call_count)
 
     def test_device_login_uses_a_pseudo_terminal(self) -> None:
         controller = AuthorizationController("codex", Path("/tmp/test-codex-auth"))

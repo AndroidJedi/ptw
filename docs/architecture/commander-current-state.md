@@ -143,10 +143,17 @@ are absent.
 
 Landing phone verification is recorded in `.local/landing-phone`, with
 before/after captures, three screen themes at 1280/768/360px, and iPhone WebKit.
-The 58 web unit tests, 48 browser checks, production build, full 127-test
+The 58 web unit tests, 48 browser checks, production build, full 128-test
 Validation suite, 10 Commander tests, 4 Owner Gateway tests, and 38 platform tests
 pass. The Commander demo, schema idempotency, canonical skill verification,
 Studio visual audit, Python compilation, and whitespace checks pass.
+
+The production PostgreSQL Landing reservation path now records its approved
+Post `derived_from` edge with the correct typed argument order. The affected
+Project was preserved: the failed transaction had added no page, its exact
+approved Post retry completed a draft with both visuals and three lineage
+edges, duplicate reservation was idempotent, and restart recovery retained the
+same IDs/digests with an empty queue. No reset ran.
 
 Production advertises the exact four structured JSON modes and one bounded media
 mode. Real canaries passed for all modes, fresh image generation, exact-reference
@@ -163,6 +170,6 @@ Both emergency stops are false, the 1 GB resource audit passed, and the schedule
 
 ## Next work
 
-Observe the scheduled 24-hour resource audit. The next owner action starts a new
-Project and exercises the clean Brief → Post → Landing journey through the
-deployed web console.
+Observe the scheduled 24-hour resource audit. The owner can continue editing
+and approving the successfully generated private Landing through the deployed
+web console.

@@ -20,9 +20,16 @@ and VPS operations skills now route this exact UUID signature to graph-edge
 ordering and require rollback verification before retry, without resetting the
 Project.
 
-**Verification:** pending local suites, versioned production rollout, one
-successful retry from the same approved Post version, typed graph persistence,
-idempotent reservation, generation completion, and production health audits.
+**Verification:** 128 Validation tests, 10 Commander tests plus demo, 4 Owner
+Gateway tests, 58 web tests/build, 48 browser checks, schema idempotency, the
+Studio visual audit, compilation, skill validation, and whitespace checks pass.
+The versioned production rollout preserved the database. Retrying the same
+approved Post returned HTTP 202, persisted the three typed lineage edges, and
+completed composition plus both visuals; a duplicate reservation returned the
+same Landing ID without creating another row. The draft and exact asset/state
+digests survived a Validation restart with an empty recovery queue. The full
+dependency audit, schema-bound worker probe, public Hosting boundary, live
+Pexels canary, and 1 GB resource audit pass. No reset ran.
 
 ## 2026-09-06 — HTTP 200 masked a failed structured provider execution
 

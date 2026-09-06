@@ -9,6 +9,9 @@ owner must complete OpenAI authentication and workspace approval.
 - Hold no maintenance lock for ordinary status inspection. Identify the exact
   running auth image ID and health without rendering environment values.
 - Confirm the private service has both `backend` and `edge` network attachments.
+- Confirm the persisted credential is root-owned and not world-readable, then
+  test only that the non-root platform worker can read its read-only mounted
+  copy. Do not print the file or loosen it to mode `0644`.
 - Query authorization through the Owner Gateway/auth bridge using its existing
   runtime environment. Print only `status`, `test_status`, `authorization_url`,
   and `device_code`; never print headers, environment, raw CLI output, or the
@@ -22,7 +25,9 @@ owner must complete OpenAI authentication and workspace approval.
    overwriting uncommitted work.
 2. Ensure the platform auth launcher uses a pseudo-terminal, removes ANSI CSI
    styling before parsing, and keeps only an allowlisted OpenAI device URL and
-   bounded code. Ensure Compose attaches `codex-auth` to `[backend, edge]`.
+   bounded code. Ensure Compose attaches `codex-auth` to `[backend, edge]` and
+   gives it the worker's dedicated supplemental group so it can publish the
+   root-owned credential as group-readable mode `0640` after Codex rewrites it.
 3. Run the platform auth/unit suite and render Compose with disposable values.
 4. Build an immutable non-`latest` Linux/amd64 release image off-host.
 5. In one nonblocking maintenance lock, load the image and recreate only

@@ -45,6 +45,10 @@ Use this runbook when production combines any of these symptoms:
      credential as stale and require a new owner-completed device flow;
    - saved credentials followed by `failed`: preserve the failure and retry the
      working test; do not claim readiness.
+   - the first bridge job fails immediately with `PermissionError` after a new
+     login: verify the non-root worker can read its mounted credential. Keep the
+     file root-owned and grant only the dedicated worker group read access; do
+     not make it world-readable or run the worker as root.
 6. Success is only `status: authorized` and `test_status: passed` after the
    working model request. The owner must complete OpenAI account/workspace
    approval; automation may prepare and poll the challenge but must not replace
@@ -61,6 +65,12 @@ pseudo-terminal, collect output asynchronously, remove ANSI control sequences,
 return only the allowlisted URL/code, expire the flow, and verify the resulting
 credential with a real bounded request. Never log raw terminal output because
 future CLI versions may add sensitive fields.
+
+Codex can recreate `auth.json` as root mode `0600` during device login. After a
+successful handoff, the root auth service must publish it as root-owned mode
+`0640` to the worker's dedicated numeric group. Give the auth container that
+supplemental group, keep the worker non-root, and retain the worker's read-only
+single-file mount. Verify readability from inside the worker before canaries.
 
 ## Repair and accept
 

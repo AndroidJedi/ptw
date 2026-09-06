@@ -104,13 +104,23 @@ class CodexAuthorizationStatusTests(unittest.TestCase):
     def test_publishes_root_owned_group_readable_worker_credential(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             auth_file = Path(directory, "auth.json")
-            auth_file.write_text("{}", encoding="utf-8")
+            auth_file.write_text('{"generation": 1}', encoding="utf-8")
             controller = AuthorizationController("codex", Path(directory))
             with (
                 patch("auth.service.WORKER_CREDENTIAL_GID", 10001),
                 patch("auth.service.os.chown") as chown,
             ):
                 controller._publish_worker_credential()
+                published = Path(directory, "ptw-worker-credential", "auth.json")
+                first_inode = published.stat().st_ino
+                auth_file.write_text('{"generation": 2}', encoding="utf-8")
+                controller._publish_worker_credential()
 
-            chown.assert_called_once_with(auth_file, -1, 10001)
-            self.assertEqual(0o640, stat.S_IMODE(auth_file.stat().st_mode))
+            credential_directory = Path(directory, "ptw-worker-credential")
+            self.assertEqual('{"generation": 2}', published.read_text(encoding="utf-8"))
+            self.assertNotEqual(first_inode, published.stat().st_ino)
+            self.assertEqual(0o750, stat.S_IMODE(credential_directory.stat().st_mode))
+            self.assertEqual(0o640, stat.S_IMODE(published.stat().st_mode))
+            self.assertEqual(0o600, stat.S_IMODE(auth_file.stat().st_mode))
+            chown.assert_any_call(credential_directory, -1, 10001)
+            chown.assert_any_call(auth_file, -1, 0)

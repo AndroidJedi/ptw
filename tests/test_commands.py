@@ -143,6 +143,8 @@ def test_platform_api_release_is_explicitly_tagged_and_never_built_on_production
     assert "image: ptw-agent-platform-commander-worker:${PTW_PLATFORM_IMAGE_TAG:-latest}" in worker
     assert "pull_policy: never" in worker
     assert "commander-assets:/var/lib/ptw/assets" in worker
+    assert "/root/.codex/ptw-worker-credential:/run/ptw-codex-auth:ro" in worker
+    assert "/root/.codex/auth.json:/run/ptw-codex-auth/auth.json:ro" not in worker
     codex_auth = compose.split("  codex-auth:", 1)[1].split("  caddy:", 1)[0]
     assert "image: ptw-agent-platform-codex-auth:${PTW_PLATFORM_IMAGE_TAG:-latest}" in codex_auth
     assert "pull_policy: never" in codex_auth

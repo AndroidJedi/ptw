@@ -16,10 +16,15 @@ table. Do not drop or recreate this database. On rollback, restore the matching
 API and worker image tag together. Remove obsolete `git-watcher` and
 `git-credential-agent` containers after the Result-only services are healthy.
 
-The worker needs the root-owned Codex package and authentication mounts. It has
-no Git credentials, repository workspace, owner attachments, or Telegram send
-path. Generated graphic bytes live in the external private assets volume and
-are returned only through the authenticated digest-checked endpoint.
+The worker needs the root-owned Codex package and dedicated authentication
+directory mounts. Never bind-mount the primary `auth.json` as one file: Codex
+replaces it atomically after device login, while an existing single-file bind
+remains pinned to the stale inode. The auth service publishes a root-owned,
+group-readable copy below `ptw-worker-credential/`; the worker mounts that
+directory read-only and refreshes its private runtime copy for every request.
+It has no Git credentials, repository workspace, owner attachments, or Telegram
+send path. Generated graphic bytes live in the external private assets volume
+and are returned only through the authenticated digest-checked endpoint.
 
 `content_non_human_graphic_generation` accepts either no attachment or exactly
 one 512–2048px square PNG reference up to 8 MiB. API and worker both verify MIME,

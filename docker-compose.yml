@@ -86,7 +86,9 @@ services:
       - "/tmp:size=64m,mode=1777"
     volumes:
       - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
-      - /root/.codex/auth.json:/run/ptw-codex-auth/auth.json:ro
+      # Mount the dedicated directory, not auth.json itself. Codex replaces its
+      # auth file atomically; a single-file bind would remain pinned to the old inode.
+      - /root/.codex/ptw-worker-credential:/run/ptw-codex-auth:ro
       - commander-assets:/var/lib/ptw/assets
     security_opt: [no-new-privileges:true]
     networks: [backend, edge]

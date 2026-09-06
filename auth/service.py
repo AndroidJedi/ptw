@@ -7,6 +7,7 @@ from pathlib import Path
 import pty
 import re
 import secrets
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -22,6 +23,7 @@ TEST_TIMEOUT_SECONDS = 90
 WORKING_TEST_ATTEMPTS = 3
 WORKING_TEST_RETRY_DELAY_SECONDS = 2
 WORKER_CREDENTIAL_GID = int(os.environ.get("PTW_CODEX_WORKER_GID", "10001"))
+WORKER_CREDENTIAL_DIRECTORY = "ptw-worker-credential"
 DEVICE_URL_PATTERN = re.compile(r"https://auth\.openai\.com/codex/device(?:\?[^\s'\"]*)?")
 DEVICE_CODE_PATTERN = re.compile(r"\b[A-Z0-9]{4,8}-[A-Z0-9]{4,8}\b")
 ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -86,8 +88,27 @@ class AuthorizationController:
         auth_file = self.codex_home / "auth.json"
         if not auth_file.is_file():
             return
-        os.chown(auth_file, -1, WORKER_CREDENTIAL_GID)
-        auth_file.chmod(0o640)
+        credential_directory = self.codex_home / WORKER_CREDENTIAL_DIRECTORY
+        credential_directory.mkdir(mode=0o750, parents=True, exist_ok=True)
+        os.chown(credential_directory, -1, WORKER_CREDENTIAL_GID)
+        credential_directory.chmod(0o750)
+        published = credential_directory / "auth.json"
+        descriptor, staged_name = tempfile.mkstemp(
+            prefix=".auth-", dir=credential_directory,
+        )
+        os.close(descriptor)
+        staged = Path(staged_name)
+        try:
+            shutil.copyfile(auth_file, staged)
+            os.chown(staged, -1, WORKER_CREDENTIAL_GID)
+            staged.chmod(0o640)
+            os.replace(staged, published)
+            # The primary Codex store remains root-only. Only its dedicated copy
+            # is shared with the non-root worker.
+            os.chown(auth_file, -1, 0)
+            auth_file.chmod(0o600)
+        finally:
+            staged.unlink(missing_ok=True)
 
     def _verify_credentials(self) -> None:
         test_ok = False

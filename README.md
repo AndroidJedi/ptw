@@ -12,6 +12,8 @@ Services:
   health, and the one established Telegram poller;
 - `commander-worker`: fresh schema-bound Codex execution with private mapped
   enhancement references and one-call graphic handling;
+- `codex-auth`: owner-initiated device authorization, working verification, and
+  an atomic root-owned credential handoff through a dedicated directory mount;
 - `postgres`: preserved queue, invocation, event, and emergency-stop authority;
 - `caddy`: health edge only.
 

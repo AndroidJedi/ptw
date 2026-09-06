@@ -1,7 +1,7 @@
 # Commander current state
 
 Updated: 2026-09-06
-Branch: `codex/web-only-commander`
+Branch: `main`
 Deployment: local clean baseline; the targeted authorization release is deployed separately
 
 ## Current milestone

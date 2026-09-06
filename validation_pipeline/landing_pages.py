@@ -499,7 +499,7 @@ class DatabaseLandingAuthority:
             )
             self._edge(connection, project_id, "contains", landing_id, {"member": "landing_page", "ordinal": len(siblings)+1})
             self._edge(connection, landing_id, "derived_from", source["source_brief_id"], {"input": "approved_product_brief"})
-            self._edge(connection, landing_id, source_creative_id, "derived_from", {"input": "approved_post_version", "version": source_version, "sha256": source["version_sha256"]})
+            self._edge(connection, landing_id, "derived_from", source_creative_id, {"input": "approved_post_version", "version": source_version, "sha256": source["version_sha256"]})
         self.ensure_skill("global")
         self.ensure_skill("project", project_id)
         return self.get_page(landing_id), True

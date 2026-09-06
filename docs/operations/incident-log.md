@@ -2,6 +2,28 @@
 
 Updated: 2026-09-06
 
+## 2026-09-06 — Landing reservation passed a relationship label as a UUID
+
+**Symptom:** creating the first private Landing from a valid Project and
+approved Post returned HTTP 400 with `badly formed hexadecimal UUID string`.
+
+**Cause:** the PostgreSQL-only Landing reservation path called the graph-edge
+helper with `relation` and `target_id` reversed for the approved Post lineage.
+It therefore attempted to parse the literal relationship name `derived_from`
+as a UUID. The local loopback path used the correct ordering, so existing local
+workspace tests did not exercise the production failure.
+
+**Durable fix:** corrected the database graph call and added a database-path
+regression that asserts the Project `contains` edge and both Brief/Post
+`derived_from` edges by semantic argument position. The Owner Console incident
+and VPS operations skills now route this exact UUID signature to graph-edge
+ordering and require rollback verification before retry, without resetting the
+Project.
+
+**Verification:** pending local suites, versioned production rollout, one
+successful retry from the same approved Post version, typed graph persistence,
+idempotent reservation, generation completion, and production health audits.
+
 ## 2026-09-06 — HTTP 200 masked a failed structured provider execution
 
 **Symptom:** the project Brief list returned HTTP 200, but its persisted Brief

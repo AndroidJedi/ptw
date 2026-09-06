@@ -61,6 +61,12 @@ into a complete compatible release, read
 - Bare Studio mutation routes, `/api/v1/posts`, candidate/critic modes,
   historical schema adapters, and singleton assignment flows are absent.
 - Telegram accepts only `/help`, `/status`, and `/stop`.
+- A Landing create failure containing `badly formed hexadecimal UUID string`
+  can originate from an internal graph-edge argument inversion rather than an
+  invalid Project or Post ID. Check that the failed transaction added neither a
+  `landing_workspaces` row nor relationship rows, inspect the deployed
+  `DatabaseLandingAuthority._edge` call order, and preserve the Project for one
+  post-fix retry. This incident does not justify a production reset.
 
 ## Canaries and reset acceptance
 

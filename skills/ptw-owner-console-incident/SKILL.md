@@ -80,6 +80,13 @@ before changing code or runtime state.
   sanitized global proposal, explicit owner decision, and retry without rollback.
 - Restart recovery resumes queued composition/image/learning exactly once.
   PostgreSQL remains authority; per-creative renderer files are disposable cache.
+- When Landing reservation returns `badly formed hexadecimal UUID string`, first
+  validate both the Project and selected Post IDs, then inspect every
+  `DatabaseLandingAuthority._edge(connection, source_id, relation, target_id, …)`
+  call. A swapped `relation`/`target_id` can send the literal `derived_from` to
+  `UUID()` even though every owner-supplied ID is valid. Require a database-path
+  regression test for the Project `contains` edge plus Brief and Post-version
+  `derived_from` edges; the loopback path alone cannot cover this failure.
 - Bare Studio routes, `/api/v1/posts`, candidate/critic modes, singleton rows,
   assignment UX, and historical schema adapters must remain absent.
 
@@ -93,6 +100,12 @@ contract to HTTP/network/timeout/auth/integrity failures and persisted async
 credentials, filesystem paths, or tracebacks. Preserve already-saved state and
 tell the owner to refresh before retrying any request whose server outcome may
 be uncertain.
+
+For a failed Landing reservation, confirm transaction rollback with zero new
+Landing workspace and relationship rows before retrying. After rollout, retry
+the same approved Post version once and verify the returned Landing ID, all
+three typed lineage edges, background generation progress, and idempotent
+second reservation. Do not delete or reset an otherwise clean Project.
 
 Run schema idempotency, provider contract/canaries, Validation and Owner Gateway
 tests, Commander tests/demo, skill validation, web unit/build/Playwright,

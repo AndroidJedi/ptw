@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from copy import deepcopy
 from io import BytesIO
 import json
@@ -19,8 +20,9 @@ from validation_pipeline.landing_workspace import (
 from validation_pipeline.local_brief_store import LocalBriefStore
 
 try:
-    from validation_pipeline.landing_pages import LocalLandingAuthority
+    from validation_pipeline.landing_pages import DatabaseLandingAuthority, LocalLandingAuthority
 except ModuleNotFoundError:  # Full service tests run in the built image.
+    DatabaseLandingAuthority = None  # type: ignore[assignment,misc]
     LocalLandingAuthority = None  # type: ignore[assignment,misc]
 
 
@@ -61,6 +63,60 @@ def complete_content() -> dict:
 
 
 class LandingAuthorityTests(unittest.TestCase):
+    @unittest.skipUnless(DatabaseLandingAuthority is not None, "Landing authority dependencies are required")
+    def test_database_reservation_records_typed_lineage_edges_in_argument_order(self) -> None:
+        project_id = "01900000-0000-7000-8000-000000000001"
+        brief_id = "01900000-0000-7000-8000-000000000003"
+        creative_id = "01900000-0000-7000-8000-000000000004"
+
+        class Result:
+            def fetchall(self):
+                return []
+
+        class Connection:
+            def execute(self, _query, _values=()):
+                return Result()
+
+        class RecordingAuthority(DatabaseLandingAuthority):  # type: ignore[misc,valid-type]
+            def __init__(self):
+                self.edges = []
+
+            @contextmanager
+            def connection(self):
+                yield Connection()
+
+            def _source_version(self, received_project_id, received_creative_id, version):
+                self.assert_source = (received_project_id, received_creative_id, version)
+                return {
+                    "source_brief_id": brief_id, "version_sha256": "a" * 64,
+                    "configuration": {}, "content": {}, "assets": [],
+                }
+
+            def _edge(self, _connection, source_id, relation, target_id, attributes):
+                evidence = attributes.get("input", attributes.get("member"))
+                self.edges.append((source_id, relation, target_id, evidence))
+
+            def ensure_skill(self, _scope, _project_id=None):
+                return None
+
+            def get_page(self, landing_id):
+                return {"landing_id": landing_id}
+
+        authority = RecordingAuthority()
+        page, created = authority.create_page(
+            project_id=project_id, source_creative_id=creative_id,
+            source_version=1, requested_by="test",
+        )
+
+        self.assertTrue(created)
+        self.assertEqual((project_id, creative_id, 1), authority.assert_source)
+        landing_id = page["landing_id"]
+        self.assertEqual([
+            (project_id, "contains", landing_id, "landing_page"),
+            (landing_id, "derived_from", brief_id, "approved_product_brief"),
+            (landing_id, "derived_from", creative_id, "approved_post_version"),
+        ], authority.edges)
+
     @unittest.skipUnless(LocalLandingAuthority is not None, "Landing authority dependencies are required")
     def test_frozen_approved_post_source_is_project_scoped_and_variants_follow_approval(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

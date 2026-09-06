@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Mapping
 
 import httpx
@@ -62,6 +63,30 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     def actor(identity: OwnerIdentity) -> str:
         return f"firebase:{identity.uid}"[:200]
 
+    async def codex_auth(method: str, path: str) -> dict[str, Any]:
+        if not settings.codex_authorization_service_url or not settings.codex_authorization_bridge_token:
+            raise HTTPException(status_code=503, detail="ChatGPT authorization service is unavailable")
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                response = await client.request(method, f"{settings.codex_authorization_service_url}{path}", headers={"X-PTW-Codex-Authorization-Token": settings.codex_authorization_bridge_token})
+        except httpx.HTTPError as error:
+            raise HTTPException(status_code=503, detail="ChatGPT authorization service is unavailable") from error
+        if response.status_code >= 400:
+            raise HTTPException(status_code=503, detail="ChatGPT authorization service is unavailable")
+        try: payload = response.json()
+        except ValueError as error: raise HTTPException(status_code=503, detail="ChatGPT authorization service is unavailable") from error
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=503, detail="ChatGPT authorization service is unavailable")
+        status, test = payload.get("status"), payload.get("test_status")
+        if status not in {"authorized", "authorization_required", "authorizing", "verifying", "failed"} or test not in {None, "passed", "failed"}:
+            raise HTTPException(status_code=503, detail="ChatGPT authorization service is unavailable")
+        safe: dict[str, Any] = {"status": status, "test_status": test}
+        if status == "authorizing":
+            url, code = payload.get("authorization_url"), payload.get("device_code")
+            if isinstance(url, str) and re.fullmatch(r"https://auth\.openai\.com/codex/device(?:\?[^\s]{0,450})?", url): safe["authorization_url"] = url
+            if isinstance(code, str) and re.fullmatch(r"[A-Z0-9]{4,8}-[A-Z0-9]{4,8}", code): safe["device_code"] = code
+        return safe
+
     @app.get("/healthz")
     def health() -> dict[str, str]:
         return {"status": "ok"}
@@ -73,6 +98,14 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             "projects": len(projects),
             "briefs": sum(int(item["brief_count"]) for item in projects),
         }
+
+    @app.get("/api/v1/settings/chatgpt-authorization")
+    async def chatgpt_authorization(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await codex_auth("GET", "/v1/authorization")
+
+    @app.post("/api/v1/settings/chatgpt-authorization/refresh", status_code=202)
+    async def refresh_chatgpt_authorization(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await codex_auth("POST", "/v1/authorization/refresh")
 
     @app.get("/api/v1/projects")
     async def projects(

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ApiClient } from './api'
 import { AUTH_PERSISTENCE_MARKER, auth, googleProvider } from './firebase'
 import { Shell } from './components/Shell'
+import { AuthorizationSettings } from './components/AuthorizationSettings'
 import { ProjectSwitcher } from './components/ProjectSwitcher'
 import type { Language } from './i18n'
 import type { Page, ValidationProject } from './types'
@@ -122,6 +123,7 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
   const [projectId, setProjectId] = useState<string | null>(initialLocation.projectId)
   const [projectError, setProjectError] = useState('')
   const [language, setLanguage] = useState<Language>(initialLanguage)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const api = useMemo(() => new ApiClient(user), [user])
   const validatedProjectId = projects?.some((item) => item.project_id === projectId)
     ? projectId
@@ -189,7 +191,7 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
     persistLanguage(next)
     return next
   })
-  return <Shell page={page} onPage={navigate} language={language} onLanguage={changeLanguage} postsAvailable={localDemo}>
+  return <Shell page={page} onPage={navigate} language={language} onLanguage={changeLanguage} onSettings={() => setSettingsOpen(true)} postsAvailable={localDemo}>
     {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Створення та виправлення брифів запускають реальних провайдерів.' : 'Brief creation and correction invoke real providers.'}</span></div>}
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label={language === 'uk' ? 'Вийти' : 'Sign out'}><LogOut /></button></div>
     {(page === 'briefs' || page === 'posts') && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
@@ -197,6 +199,7 @@ function Console({ user, localDemo = false, liveProduction = false }: { user: Us
     {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onPost={localDemo ? () => navigate('posts') : undefined} language={language} />}
     {page === 'posts' && localDemo && <PostView api={api} projectId={validatedProjectId} language={language} />}
     {page === 'studio' && <StudioView api={api} language={language} tuneMode={localDemo} />}
+    {settingsOpen && <AuthorizationSettings api={api} language={language} onClose={() => setSettingsOpen(false)} />}
   </Shell>
 }
 

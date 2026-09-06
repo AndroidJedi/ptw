@@ -1,20 +1,21 @@
-import { Image, Layers3, Target } from 'lucide-react'
+import { Image, Layers3, Settings, Target } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { translate, type Language } from '../i18n'
 import type { Page } from '../types'
 
 const items: Array<{ id: Page; en: string; uk: string; icon: typeof Target }> = [
-  { id: 'briefs', en: 'Product Briefs', uk: 'Продуктові брифи', icon: Target },
+  { id: 'briefs', en: 'Brief', uk: 'Бриф', icon: Target },
   { id: 'posts', en: 'Post', uk: 'Допис', icon: Image },
   { id: 'studio', en: 'Studio', uk: 'Студія', icon: Layers3 },
 ]
 
-export function Shell({ page, onPage, children, language, onLanguage, postsAvailable = false }: {
+export function Shell({ page, onPage, children, language, onLanguage, onSettings, postsAvailable = false }: {
   page: Page
   onPage: (page: Page) => void
   children: ReactNode
   language: Language
   onLanguage: () => void
+  onSettings: () => void
   postsAvailable?: boolean
 }) {
   const tr = (en: string, uk: string) => translate(language, en, uk)
@@ -27,7 +28,7 @@ export function Shell({ page, onPage, children, language, onLanguage, postsAvail
           <Icon aria-hidden="true" /><span>{tr(en, uk)}</span>
         </button>)}
       </nav>
-      <button className="language" onClick={onLanguage} aria-label={tr('Change language', 'Змінити мову')}>{language === 'uk' ? 'EN' : 'УКР'}</button>
+      <div className="rail-controls"><button className="language" onClick={onLanguage} aria-label={tr('Change language', 'Змінити мову')}>{language === 'uk' ? 'EN' : 'УКР'}</button><button className="settings-button" onClick={onSettings} aria-label={tr('Settings', 'Налаштування')}><Settings /></button></div>
     </aside>
     <main id="main-content">{children}</main>
     <nav className="bottom-nav" aria-label={tr('Mobile navigation', 'Головна навігація на телефоні')}>
@@ -35,6 +36,7 @@ export function Shell({ page, onPage, children, language, onLanguage, postsAvail
         <Icon aria-hidden="true" /><span>{tr(en, uk)}</span>
       </button>)}
       <button className="mobile-language" onClick={onLanguage} aria-label={tr('Change language', 'Змінити мову')}><span>{language === 'uk' ? 'EN' : 'УКР'}</span></button>
+      <button className="mobile-settings" onClick={onSettings} aria-label={tr('Settings', 'Налаштування')}><Settings /><span>{tr('Settings', 'Налаштування')}</span></button>
     </nav>
   </div>
 }

@@ -5,7 +5,7 @@ import { Shell } from './Shell'
 it('shows the Post destination only for the loopback local app', () => {
   const props = {
     page: 'briefs' as const, onPage: vi.fn(), language: 'en' as const,
-    onLanguage: vi.fn(), children: <p>content</p>,
+    onLanguage: vi.fn(), onSettings: vi.fn(), children: <p>content</p>,
   }
   const view = render(<Shell {...props} postsAvailable={false} />)
   expect(screen.queryByRole('button', { name: /^Post$/ })).not.toBeInTheDocument()

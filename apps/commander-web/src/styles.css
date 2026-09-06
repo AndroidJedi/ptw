@@ -39,7 +39,7 @@ label { display: grid; gap: 7px; color: var(--soft); font-size: 12px; font-weigh
 }
 .rail nav button.active, .bottom-nav button.active { border-color: var(--line); color: var(--white); background: var(--panel-strong); }
 .rail svg, .bottom-nav svg { width: 18px; }
-.language { margin-top: auto; padding: 9px; border: 1px solid var(--line); border-radius: 10px; color: var(--soft); background: transparent; }
+.rail-controls { margin-top: auto; display: flex; gap: 7px; }.language, .settings-button { min-height: 42px; padding: 9px; border: 1px solid var(--line); border-radius: 10px; color: var(--soft); background: transparent; }.language { flex: 1; }.settings-button { width: 42px; display: grid; place-items: center; }
 .bottom-nav { display: none; }
 
 #main-content { min-width: 0; margin-left: 208px; padding: 28px clamp(18px, 4vw, 54px) 72px; }
@@ -405,6 +405,8 @@ button svg { width: 17px; height: 17px; }
 .login-security { display: flex; align-items: center; gap: 8px; color: var(--soft); }
 .login-button { min-height: 50px; }
 .login-error { color: var(--white) !important; }
+
+.settings-dialog { width: min(100%, 720px); max-height: calc(100dvh - 28px); margin: auto; overflow: auto; border-color: var(--white); background: #0b0b0b; box-shadow: 0 28px 100px rgba(0,0,0,.8); }.settings-dialog > header { display: flex; align-items: start; justify-content: space-between; gap: 16px; }.settings-dialog header small { color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .14em; }.settings-dialog header h2 { margin: 4px 0 0; }.authorization-status { margin: 18px 0; padding: 14px; display: flex; gap: 11px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-strong); }.authorization-status div { display: grid; gap: 3px; }.authorization-status small { color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .12em; }.authorization-status span,.authorization-device p { color: var(--soft); font-size: 11px; line-height:1.5; }.authorization-device { display:grid; gap:10px; }.authorization-device code { width:fit-content; padding:9px 12px; border:1px dashed var(--line); border-radius:9px; color:var(--white); font-size:16px; letter-spacing:.08em; }.settings-dialog footer { margin-top:18px; display:flex; gap:8px; }
 
 @media (max-width: 760px) {
   .rail { display: none; }

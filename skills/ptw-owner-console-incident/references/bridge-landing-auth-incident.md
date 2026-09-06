@@ -87,5 +87,16 @@ single-file mount. Verify readability from inside the worker before canaries.
   revisions/images, public boundary audit, clean reset counts, and healthy
   restart behavior.
 
+For one-image enhancement, current Codex CLI JSON may show only outer
+`command_execution` events and omit the nested imagegen argument object. Do not
+fail solely because `num_last_images_to_include` is absent from that stream, and
+do not claim evidence that the runtime cannot observe. Require the observable
+boundary instead: exact digest/MIME/dimensions for one reference, private
+materialization, one explicit CLI `--image` attachment, digest-only prompt
+mapping, exactly one bounded square output PNG, an output digest different from
+the reference, and recorded evidence
+`validated_cli_attachment_and_distinct_output`. Base64 reference bytes must
+never enter the prompt or persisted metadata.
+
 Do not store one-time codes, tokens, credential contents, incident-specific job
 IDs, IP addresses, release hashes, or personal identifiers in this skill.

@@ -51,6 +51,11 @@ owner must complete OpenAI authentication and workspace approval.
 - Stop before reset on auth failure, missing URL/code, failed working test,
   wrong bridge modes, failed JSON/media/Pexels canary, checksum mismatch, or an
   unavailable maintenance lock.
+- Diagnose fresh and enhancement media canaries separately. A current CLI may
+  omit nested imagegen arguments from `--json`; accept enhancement only when the
+  bridge proves one validated private CLI attachment, one valid square output,
+  a distinct output digest, and the bounded evidence marker. Do not weaken this
+  to output existence alone or persist raw reference bytes/prompts.
 - After cutover verify matching immutable images/revisions, exact capabilities,
   auth health and networks, `authorized`/`passed`, Landing schema and live bundle,
   public boundary audit, reset counts, independent platform-data preservation,

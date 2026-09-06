@@ -29,6 +29,16 @@ curl --fail --silent --show-error http://127.0.0.1:8091/readyz >/dev/null
 curl --fail --silent --show-error http://127.0.0.1:8092/healthz >/dev/null
 curl --fail --silent --show-error http://127.0.0.1:8093/readyz >/dev/null
 docker exec "$validation_container" python -m validation_pipeline.manage verify
+docker exec "$validation_container" python -c '
+from validation_pipeline.config import Settings
+from validation_pipeline.provider import StructuredBridge
+
+settings = Settings.from_environment()
+capabilities = StructuredBridge(
+    settings.bridge_url, settings.bridge_token, settings.model,
+).capabilities()
+print("Structured bridge capabilities:", capabilities)
+'
 
 if docker inspect "$validation_container" --format '{{range .Config.Env}}{{println .}}{{end}}' \
   | grep -Eq '^(DATAFORSEO_|POSITIONING_|LANDING_|YOUTUBE_)'; then

@@ -82,7 +82,9 @@ def main() -> None:
         "reCAPTCHA Enterprise site key": args.site_key,
         "Safari-safe Auth persistence": "ptw-auth-local-storage-v1",
         "Product Brief workspace": "Product Briefs",
-        "Universal Studio": "Universal Ad Studio",
+        "Post destination": "Post",
+        "Landing destination": "Landing",
+        "ChatGPT authorization settings": "ChatGPT Authorization",
     }.items():
         require(marker in app_bundle, f"Live App bundle is missing {label}")
     for retired_label in (

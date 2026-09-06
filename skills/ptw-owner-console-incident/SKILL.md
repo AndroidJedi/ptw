@@ -14,8 +14,9 @@ readiness.
 
 - Verify hashed bundles, service-worker cache, Firebase Auth persistence, App
   Check, exact Owner CORS origins, and unauthenticated rejection.
-- The app exposes only Product Briefs and Post / Допис, with a Project selector
-  in both. Every Studio mutation is Project/creative-scoped.
+- The app exposes only Product Briefs, Post / Допис, Landing / Лендінг,
+  and Settings. Brief, Post, and Landing retain their required Project scope;
+  every Studio mutation is Project/creative-scoped.
 - Preview, history, and immutable-version renders are authenticated,
   digest-checked, and private/no-store. The browser receives no provider path,
   prompt credential, database secret, or raw token.
@@ -26,6 +27,16 @@ readiness.
 
 ## Brief, Studio, and provider checks
 
+- Treat `structured bridge request N failed` as a bridge job ID, not an HTTP
+  status. Correlate that ID across the Product Brief attempt, provider
+  invocation, platform `jobs` row, and worker log without exposing prompts or
+  credentials.
+- Read the authenticated live capabilities response even when API/worker image
+  tags match. A reused tag can conceal stale image content; retired modes or
+  missing Studio modes make the release incompatible.
+- Do not accept `codex login status` as provider readiness. Check the root-owned
+  auth file only by metadata and run the token-safe working Codex test. A
+  credential can look logged in while model execution is revoked or times out.
 - Verify raw idea → immutable Brief → correction lineage → honor confirmation
   plus template choice → HTTP 202 creative reservation/navigation.
 - Provider JSON modes are exactly `product_brief`,

@@ -12,6 +12,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import struct
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import Response
@@ -35,14 +36,13 @@ secrets = EnvironmentSecretStore()
 
 EMERGENCY_COMMANDS = frozenset({"/help", "/status", "/stop"})
 JSON_MODES = frozenset({
-    "product_brief", "product_brief_revision", "content_candidate_generation",
-    "content_result_critic",
+    "product_brief", "product_brief_revision", "studio_creative_generation",
+    "studio_edit_learning",
 })
 MEDIA_MODES = frozenset({"content_non_human_graphic_generation"})
 STRUCTURED_LLM_MODES = frozenset(JSON_MODES | MEDIA_MODES)
 MAX_STRUCTURED_LLM_REQUEST_BYTES = 12_000_000
-MAX_CRITIC_IMAGE_BYTES = 1_500_000
-MAX_CRITIC_TOTAL_IMAGE_BYTES = 8 * 1024 * 1024
+MAX_REFERENCE_IMAGE_BYTES = 8 * 1024 * 1024
 
 
 def validate_structured_llm_request(request: dict) -> None:
@@ -66,39 +66,31 @@ def validate_structured_llm_request(request: dict) -> None:
     ):
         raise ValueError("invalid structured LLM request")
     images = request.get("input_images")
-    if request["mode"] == "content_result_critic":
-        if not isinstance(images, list) or not 1 <= len(images) <= 5:
-            raise ValueError("Result critic requires one to five mapped JPEG attachments")
-        total = 0
-        candidates: set[str] = set()
-        for image in images:
-            if not isinstance(image, dict) or set(image) != {
-                "candidate_id", "mime_type", "digest", "width", "height", "bytes_base64",
-            }:
-                raise ValueError("invalid Result critic attachment mapping")
-            if image["mime_type"] != "image/jpeg" or image["width"] != 1080 or image["height"] != 1080:
-                raise ValueError("Result critic attachments must be 1080x1080 JPEGs")
-            candidate_id = image["candidate_id"]
-            if not isinstance(candidate_id, str) or candidate_id in candidates:
-                raise ValueError("Result critic candidate mappings must be unique")
-            candidates.add(candidate_id)
-            try:
-                content = base64.b64decode(image["bytes_base64"], validate=True)
-            except (TypeError, ValueError, binascii.Error) as error:
-                raise ValueError("Result critic attachment base64 is invalid") from error
-            digest = hashlib.sha256(content).hexdigest()
-            if (
-                not content.startswith(b"\xff\xd8")
-                or not content.endswith(b"\xff\xd9")
-                or not 1 <= len(content) <= MAX_CRITIC_IMAGE_BYTES
-                or image["digest"] != digest
-            ):
-                raise ValueError("Result critic attachment bytes or digest are invalid")
-            total += len(content)
-        if total > MAX_CRITIC_TOTAL_IMAGE_BYTES:
-            raise ValueError("Result critic attachments exceed the aggregate limit")
+    if request["mode"] == "content_non_human_graphic_generation" and images is not None:
+        if not isinstance(images, list) or len(images) != 1:
+            raise ValueError("graphic enhancement requires exactly one PNG reference")
+        image = images[0]
+        if not isinstance(image, dict) or set(image) != {
+            "mime_type", "digest", "width", "height", "bytes_base64",
+        }:
+            raise ValueError("invalid graphic enhancement reference mapping")
+        try:
+            content = base64.b64decode(image["bytes_base64"], validate=True)
+        except (TypeError, ValueError, binascii.Error) as error:
+            raise ValueError("graphic enhancement reference base64 is invalid") from error
+        if len(content) < 24 or not content.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError("graphic enhancement reference must be a PNG")
+        width, height = struct.unpack(">II", content[16:24])
+        if (
+            image["mime_type"] != "image/png"
+            or image["digest"] != hashlib.sha256(content).hexdigest()
+            or image["width"] != width or image["height"] != height
+            or not 1 <= width <= 8192 or not 1 <= height <= 8192
+            or len(content) > MAX_REFERENCE_IMAGE_BYTES
+        ):
+            raise ValueError("graphic enhancement reference bytes or digest are invalid")
     elif images is not None:
-        raise ValueError("only Result critic mode accepts input images")
+        raise ValueError("only graphic enhancement accepts an input image")
     if len(json.dumps(request, ensure_ascii=False).encode("utf-8")) > MAX_STRUCTURED_LLM_REQUEST_BYTES:
         raise ValueError("structured LLM request is too large")
 

@@ -31,8 +31,8 @@ def test_telegram_surface_is_emergency_only() -> None:
 
 def test_structured_bridge_accepts_exact_result_modes_and_full_contract() -> None:
     json_modes = {
-        "product_brief", "product_brief_revision", "content_candidate_generation",
-        "content_result_critic",
+        "product_brief", "product_brief_revision", "studio_creative_generation",
+        "studio_edit_learning",
     }
     assert JSON_MODES == json_modes
     assert MEDIA_MODES == {"content_non_human_graphic_generation"}
@@ -41,7 +41,7 @@ def test_structured_bridge_accepts_exact_result_modes_and_full_contract() -> Non
         "media_modes": ["content_non_human_graphic_generation"],
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
     }
-    for mode in (json_modes - {"content_result_critic"}) | MEDIA_MODES:
+    for mode in json_modes | MEDIA_MODES:
         validate_structured_llm_request({
             "mode": mode,
             "system_prompt": "Return structured evidence.",
@@ -51,25 +51,27 @@ def test_structured_bridge_accepts_exact_result_modes_and_full_contract() -> Non
             "context_hash": "sha256:abc",
             "idempotency_key": f"test:{mode}:attempt:1",
         })
-    content = b"\xff\xd8critic-render\xff\xd9"
+    content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8 + (1024).to_bytes(4, "big") * 2
     validate_structured_llm_request({
-        "mode": "content_result_critic",
-        "system_prompt": "Inspect the exact render.",
+        "mode": "content_non_human_graphic_generation",
+        "system_prompt": "Enhance the exact reference.",
         "input_payload": {},
         "output_schema": {"type": "object"},
-        "idempotency_key": "test:critic:attempt:1",
+        "idempotency_key": "test:enhance:attempt:1",
         "input_images": [{
-            "candidate_id": "0190aa00-0000-7000-8000-000000000101",
-            "mime_type": "image/jpeg",
+            "mime_type": "image/png",
             "digest": hashlib.sha256(content).hexdigest(),
-            "width": 1080,
-            "height": 1080,
+            "width": 1024,
+            "height": 1024,
             "bytes_base64": base64.b64encode(content).decode(),
         }],
     })
 
 
-@pytest.mark.parametrize("mode", ["marketing_positioning_document", "natal_landing_revision", "branding_logo_generation"])
+@pytest.mark.parametrize("mode", [
+    "marketing_positioning_document", "natal_landing_revision", "branding_logo_generation",
+    "content_candidate_generation", "content_result_critic",
+])
 def test_structured_bridge_rejects_retired_ptw_modes(mode: str) -> None:
     with pytest.raises(ValueError, match="unsupported structured LLM mode"):
         validate_structured_llm_request({

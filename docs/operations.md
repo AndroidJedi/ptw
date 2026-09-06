@@ -2,12 +2,14 @@
 
 Deploy the worker image before the API image. The new worker understands the
 old queue schema; API startup then applies additive migrations before admitting
-new Result modes.
+new bounded PTW modes.
 
 Verify `/internal/llm/structured/capabilities` through the authenticated
 application canary. It must report exactly `product_brief`,
-`product_brief_revision`, `content_candidate_generation`,
-`content_result_critic`, and `content_non_human_graphic_generation`.
+`product_brief_revision`, `studio_creative_generation`,
+`studio_edit_learning`, and `content_non_human_graphic_generation`.
+The media canary must cover both a fresh text-free graphic and one
+digest-mapped PNG enhancement.
 
 Before and after a PTW application reset, compare row counts for every platform
 table. Do not drop or recreate this database. On rollback, restore the matching

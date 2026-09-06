@@ -156,46 +156,35 @@ def _used_image_generation(stdout: str) -> bool:
     return False
 
 
-def _materialize_critic_images(parameters: dict, directory: Path) -> tuple[list[Path], list[dict]]:
+def _materialize_reference_image(parameters: dict, directory: Path) -> tuple[list[Path], list[dict]]:
     images = parameters.get("input_images")
-    if parameters.get("mode") != "content_result_critic":
-        if images is not None:
-            raise RuntimeError("only Result critic mode accepts input images")
+    if images is None:
         return [], []
-    if not isinstance(images, list) or not 1 <= len(images) <= 5:
-        raise RuntimeError("Result critic requires one to five mapped JPEG attachments")
-    paths: list[Path] = []
-    mapping: list[dict] = []
-    total = 0
-    for index, image in enumerate(images, start=1):
-        try:
-            content = base64.b64decode(image["bytes_base64"], validate=True)
-        except (KeyError, TypeError, ValueError, binascii.Error) as exc:
-            raise RuntimeError("Result critic attachment base64 is invalid") from exc
-        digest = hashlib.sha256(content).hexdigest()
-        if (
-            image.get("mime_type") != "image/jpeg"
-            or image.get("width") != 1080
-            or image.get("height") != 1080
-            or image.get("digest") != digest
-            or not content.startswith(b"\xff\xd8")
-            or not content.endswith(b"\xff\xd9")
-            or not 1 <= len(content) <= 1_500_000
-        ):
-            raise RuntimeError("Result critic attachment failed exact JPEG validation")
-        total += len(content)
-        path = directory / f"candidate-{index}-{digest[:12]}.jpg"
-        path.write_bytes(content)
-        path.chmod(0o600)
-        paths.append(path)
-        mapping.append({
-            "candidate_id": image["candidate_id"],
-            "sha256": digest,
-            "attachment_index": index,
-        })
-    if total > 8 * 1024 * 1024:
-        raise RuntimeError("Result critic attachments exceed the aggregate limit")
-    return paths, mapping
+    if parameters.get("mode") != "content_non_human_graphic_generation":
+        raise RuntimeError("only graphic enhancement accepts an input image")
+    if not isinstance(images, list) or len(images) != 1:
+        raise RuntimeError("graphic enhancement requires exactly one PNG reference")
+    image = images[0]
+    try:
+        content = base64.b64decode(image["bytes_base64"], validate=True)
+    except (KeyError, TypeError, ValueError, binascii.Error) as exc:
+        raise RuntimeError("graphic enhancement reference base64 is invalid") from exc
+    digest = hashlib.sha256(content).hexdigest()
+    if (
+        image.get("mime_type") != "image/png"
+        or image.get("digest") != digest
+        or not content.startswith(b"\x89PNG\r\n\x1a\n")
+        or not 24 <= len(content) <= 8 * 1024 * 1024
+    ):
+        raise RuntimeError("graphic enhancement reference failed PNG validation")
+    width = struct.unpack(">I", content[16:20])[0]
+    height = struct.unpack(">I", content[20:24])[0]
+    if image.get("width") != width or image.get("height") != height:
+        raise RuntimeError("graphic enhancement reference dimensions do not match")
+    path = directory / f"reference-{digest[:12]}.png"
+    path.write_bytes(content)
+    path.chmod(0o600)
+    return [path], [{"sha256": digest, "width": width, "height": height}]
 
 
 def execute_structured_llm(parameters: dict) -> dict:
@@ -210,8 +199,8 @@ def execute_structured_llm(parameters: dict) -> dict:
 
     mode = parameters.get("mode")
     if mode not in {
-        "product_brief", "product_brief_revision", "content_candidate_generation",
-        "content_result_critic", "content_non_human_graphic_generation",
+        "product_brief", "product_brief_revision", "studio_creative_generation",
+        "studio_edit_learning", "content_non_human_graphic_generation",
     }:
         raise RuntimeError("unsupported Result bridge mode")
     prompt = (
@@ -224,17 +213,18 @@ def execute_structured_llm(parameters: dict) -> dict:
         temporary_root = Path(directory)
         output = temporary_root / "result.json"
         schema = temporary_root / "output-schema.json"
-        attachments, attachment_mapping = _materialize_critic_images(parameters, temporary_root)
+        attachments, attachment_mapping = _materialize_reference_image(parameters, temporary_root)
         if attachment_mapping:
             prompt += (
-                "\nRENDER_ATTACHMENTS: Each digest-checked JPEG is attached separately and maps "
-                "to the candidate exactly as follows. Inspect pixels; do not generate images.\n"
+                "\nREFERENCE_IMAGE: The digest-checked PNG is attached for image enhancement. "
+                "Preserve its recognizable composition and edit it exactly once.\n"
                 + json.dumps(attachment_mapping, ensure_ascii=False, sort_keys=True)
             )
         if mode == "content_non_human_graphic_generation":
             prompt += (
-                "\nUse image generation exactly once to create one square PNG containing no people, "
-                "faces, text, logos, or watermarks. The generated graphic remains review-gated."
+                "\nUse image generation or image editing exactly once to create one square PNG "
+                "containing no people, faces, text, logos, UI, devices, numbers, charts, labels, "
+                "or watermarks. The generated graphic remains review-gated."
             )
         schema.write_text(
             json.dumps(parameters["output_schema"], ensure_ascii=False, sort_keys=True),

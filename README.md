@@ -1,17 +1,17 @@
 # PTW Result bridge
 
-This independent platform is the bounded provider bridge for PTW Result v1 and
-the standalone Studio. It exposes exactly four authenticated JSON modes and one
-reviewed non-human graphic mode. That media mode optionally accepts one
-digest-checked square PNG reference for a bounded image edit. PostgreSQL `jobs`
-are the durable provider queue; they are not an owner task system.
+This independent platform is the bounded provider bridge for PTW.
+It exposes exactly four authenticated JSON modes and one reviewed non-human
+graphic mode. That media mode optionally accepts one digest-checked square PNG
+reference for a bounded image edit. PostgreSQL `jobs` are the durable provider
+queue; they are not an owner task system.
 
 Services:
 
 - `commander-api`: authenticated enqueue/result/asset endpoints, capabilities,
   health, and the one established Telegram poller;
 - `commander-worker`: fresh schema-bound Codex execution with private mapped
-  critic attachments and one-call graphic handling;
+  enhancement references and one-call graphic handling;
 - `postgres`: preserved queue, invocation, event, and emergency-stop authority;
 - `caddy`: health edge only.
 

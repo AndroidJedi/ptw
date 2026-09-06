@@ -35,14 +35,12 @@ secrets = EnvironmentSecretStore()
 
 EMERGENCY_COMMANDS = frozenset({"/help", "/status", "/stop"})
 JSON_MODES = frozenset({
-    "product_brief", "product_brief_revision", "content_candidate_generation",
-    "content_result_critic",
+    "product_brief", "product_brief_revision", "studio_creative_generation",
+    "studio_edit_learning",
 })
 MEDIA_MODES = frozenset({"content_non_human_graphic_generation"})
 STRUCTURED_LLM_MODES = frozenset(JSON_MODES | MEDIA_MODES)
 MAX_STRUCTURED_LLM_REQUEST_BYTES = 12_000_000
-MAX_CRITIC_IMAGE_BYTES = 1_500_000
-MAX_CRITIC_TOTAL_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_MEDIA_REFERENCE_BYTES = 8 * 1024 * 1024
 
 
@@ -67,38 +65,7 @@ def validate_structured_llm_request(request: dict) -> None:
     ):
         raise ValueError("invalid structured LLM request")
     images = request.get("input_images")
-    if request["mode"] == "content_result_critic":
-        if not isinstance(images, list) or not 1 <= len(images) <= 5:
-            raise ValueError("Result critic requires one to five mapped JPEG attachments")
-        total = 0
-        candidates: set[str] = set()
-        for image in images:
-            if not isinstance(image, dict) or set(image) != {
-                "candidate_id", "mime_type", "digest", "width", "height", "bytes_base64",
-            }:
-                raise ValueError("invalid Result critic attachment mapping")
-            if image["mime_type"] != "image/jpeg" or image["width"] != 1080 or image["height"] != 1080:
-                raise ValueError("Result critic attachments must be 1080x1080 JPEGs")
-            candidate_id = image["candidate_id"]
-            if not isinstance(candidate_id, str) or candidate_id in candidates:
-                raise ValueError("Result critic candidate mappings must be unique")
-            candidates.add(candidate_id)
-            try:
-                content = base64.b64decode(image["bytes_base64"], validate=True)
-            except (TypeError, ValueError, binascii.Error) as error:
-                raise ValueError("Result critic attachment base64 is invalid") from error
-            digest = hashlib.sha256(content).hexdigest()
-            if (
-                not content.startswith(b"\xff\xd8")
-                or not content.endswith(b"\xff\xd9")
-                or not 1 <= len(content) <= MAX_CRITIC_IMAGE_BYTES
-                or image["digest"] != digest
-            ):
-                raise ValueError("Result critic attachment bytes or digest are invalid")
-            total += len(content)
-        if total > MAX_CRITIC_TOTAL_IMAGE_BYTES:
-            raise ValueError("Result critic attachments exceed the aggregate limit")
-    elif request["mode"] == "content_non_human_graphic_generation":
+    if request["mode"] == "content_non_human_graphic_generation":
         if images is not None:
             if not isinstance(images, list) or len(images) != 1:
                 raise ValueError("non-human graphic generation accepts at most one PNG reference")
@@ -126,7 +93,7 @@ def validate_structured_llm_request(request: dict) -> None:
             ):
                 raise ValueError("non-human graphic reference bytes or dimensions are invalid")
     elif images is not None:
-        raise ValueError("only critic and media modes accept input images")
+        raise ValueError("only the media mode accepts input images")
     if len(json.dumps(request, ensure_ascii=False).encode("utf-8")) > MAX_STRUCTURED_LLM_REQUEST_BYTES:
         raise ValueError("structured LLM request is too large")
 

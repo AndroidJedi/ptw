@@ -229,44 +229,9 @@ def _materialize_input_images(parameters: dict, directory: Path) -> tuple[list[P
         path.write_bytes(content)
         path.chmod(0o600)
         return [path], [{"sha256": digest, "attachment_index": 1}]
-    if mode != "content_result_critic":
-        if images is not None:
-            raise RuntimeError("only critic and media modes accept input images")
-        return [], []
-    if not isinstance(images, list) or not 1 <= len(images) <= 5:
-        raise RuntimeError("Result critic requires one to five mapped JPEG attachments")
-    paths: list[Path] = []
-    mapping: list[dict] = []
-    total = 0
-    for index, image in enumerate(images, start=1):
-        try:
-            content = base64.b64decode(image["bytes_base64"], validate=True)
-        except (KeyError, TypeError, ValueError, binascii.Error) as exc:
-            raise RuntimeError("Result critic attachment base64 is invalid") from exc
-        digest = hashlib.sha256(content).hexdigest()
-        if (
-            image.get("mime_type") != "image/jpeg"
-            or image.get("width") != 1080
-            or image.get("height") != 1080
-            or image.get("digest") != digest
-            or not content.startswith(b"\xff\xd8")
-            or not content.endswith(b"\xff\xd9")
-            or not 1 <= len(content) <= 1_500_000
-        ):
-            raise RuntimeError("Result critic attachment failed exact JPEG validation")
-        total += len(content)
-        path = directory / f"candidate-{index}-{digest[:12]}.jpg"
-        path.write_bytes(content)
-        path.chmod(0o600)
-        paths.append(path)
-        mapping.append({
-            "candidate_id": image["candidate_id"],
-            "sha256": digest,
-            "attachment_index": index,
-        })
-    if total > 8 * 1024 * 1024:
-        raise RuntimeError("Result critic attachments exceed the aggregate limit")
-    return paths, mapping
+    if images is not None:
+        raise RuntimeError("only the media mode accepts input images")
+    return [], []
 
 
 def execute_structured_llm(parameters: dict) -> dict:
@@ -283,8 +248,8 @@ def execute_structured_llm(parameters: dict) -> dict:
 
     mode = parameters.get("mode")
     if mode not in {
-        "product_brief", "product_brief_revision", "content_candidate_generation",
-        "content_result_critic", "content_non_human_graphic_generation",
+        "product_brief", "product_brief_revision", "studio_creative_generation",
+        "studio_edit_learning", "content_non_human_graphic_generation",
     }:
         raise RuntimeError("unsupported Result bridge mode")
     prompt = (
@@ -298,13 +263,7 @@ def execute_structured_llm(parameters: dict) -> dict:
         output = temporary_root / "result.json"
         schema = temporary_root / "output-schema.json"
         attachments, attachment_mapping = _materialize_input_images(parameters, temporary_root)
-        if attachment_mapping and mode == "content_result_critic":
-            prompt += (
-                "\nRENDER_ATTACHMENTS: Each digest-checked JPEG is attached separately and maps "
-                "to the candidate exactly as follows. Inspect pixels; do not generate images.\n"
-                + json.dumps(attachment_mapping, ensure_ascii=False, sort_keys=True)
-            )
-        elif attachment_mapping:
+        if attachment_mapping:
             prompt += (
                 "\nREFERENCE_ATTACHMENT: Edit the one attached digest-checked PNG as the starting "
                 "composition. Preserve its recognizable subject, palette, material character, and "
@@ -314,8 +273,9 @@ def execute_structured_llm(parameters: dict) -> dict:
             )
         if mode == "content_non_human_graphic_generation":
             prompt += (
-                "\nUse image generation exactly once to create one square PNG containing no people, "
-                "human faces, text, logos, or watermarks. The generated graphic remains review-gated."
+                "\nUse image generation or image editing exactly once to create one square PNG "
+                "containing no people, faces, text, logos, UI, devices, numbers, charts, labels, "
+                "or watermarks. The generated graphic remains review-gated."
             )
         schema.write_text(
             json.dumps(parameters["output_schema"], ensure_ascii=False, sort_keys=True),

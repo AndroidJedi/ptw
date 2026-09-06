@@ -67,7 +67,7 @@ def test_result_json_uses_fresh_ephemeral_schema_bound_session(monkeypatch) -> N
         )
 
     monkeypatch.setattr("worker.main.subprocess.run", fake_run)
-    value = execute_structured_llm(request("content_candidate_generation", model="gpt-5"))
+    value = execute_structured_llm(request("studio_creative_generation", model="gpt-5"))
 
     assert json.loads(value["response"]) == {"candidate": "ok"}
     assert value["invocation"]["session_id"] == "fresh-result-1"
@@ -81,10 +81,14 @@ def test_result_json_uses_fresh_ephemeral_schema_bound_session(monkeypatch) -> N
     assert observed["schema"] == {"type": "object"}
 
 
-def test_result_critic_receives_digest_mapped_private_jpeg_attachments(monkeypatch) -> None:
-    content = b"\xff\xd8exact-render-bytes\xff\xd9"
-    digest = hashlib.sha256(content).hexdigest()
+def test_non_human_graphic_enhancement_receives_private_png_reference(monkeypatch, tmp_path: Path) -> None:
+    codex_home = tmp_path / "codex-home"
+    asset_root = tmp_path / "assets" / "content-graphics"
+    reference = png_header(1024, 1024)
+    digest = hashlib.sha256(reference).hexdigest()
     observed = {}
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setenv("CONTENT_GRAPHIC_ASSET_DIR", str(asset_root))
 
     def fake_run(command, **kwargs):
         paths = [Path(command[index + 1]) for index, value in enumerate(command) if value == "--image"]
@@ -92,57 +96,32 @@ def test_result_critic_receives_digest_mapped_private_jpeg_attachments(monkeypat
         observed["bytes"] = [path.read_bytes() for path in paths]
         observed["input"] = kwargs["input"]
         Path(command[command.index("--output-last-message") + 1]).write_text(
-            '{"selected":true}', encoding="utf-8"
+            '{"generated":true}', encoding="utf-8"
         )
+        generated = codex_home / "generated_images" / "graphic-edit-1"
+        generated.mkdir(parents=True)
+        (generated / "graphic.png").write_bytes(png_header())
         return subprocess.CompletedProcess(
-            command, 0, stdout=thread_output("fresh-critic-1"), stderr=""
+            command, 0,
+            stdout=thread_output("graphic-edit-1", image_call=True, attached_image=True),
+            stderr="",
         )
 
     monkeypatch.setattr("worker.main.subprocess.run", fake_run)
     value = execute_structured_llm(request(
-        "content_result_critic",
+        "content_non_human_graphic_generation",
         input_images=[{
-            "candidate_id": "0190aa00-0000-7000-8000-000000000101",
-            "mime_type": "image/jpeg",
-            "digest": digest,
-            "width": 1080,
-            "height": 1080,
-            "bytes_base64": base64.b64encode(content).decode(),
+            "mime_type": "image/png", "digest": digest,
+            "width": 1024, "height": 1024,
+            "bytes_base64": base64.b64encode(reference).decode(),
         }],
     ))
 
-    assert json.loads(value["response"]) == {"selected": True}
-    assert observed["bytes"] == [content]
+    assert value["image"]["digest"]
+    assert observed["bytes"] == [reference]
     assert digest in observed["input"]
-    assert base64.b64encode(content).decode() not in observed["input"]
+    assert base64.b64encode(reference).decode() not in observed["input"]
     assert all(not path.exists() for path in observed["paths"])
-
-
-def test_result_critic_rejects_image_generation(monkeypatch) -> None:
-    content = b"\xff\xd8render\xff\xd9"
-    digest = hashlib.sha256(content).hexdigest()
-
-    def fake_run(command, **_kwargs):
-        Path(command[command.index("--output-last-message") + 1]).write_text(
-            '{"selected":true}', encoding="utf-8"
-        )
-        return subprocess.CompletedProcess(
-            command, 0, stdout=thread_output("critic-image-call", image_call=True), stderr=""
-        )
-
-    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
-    with pytest.raises(RuntimeError, match="prohibited"):
-        execute_structured_llm(request(
-            "content_result_critic",
-            input_images=[{
-                "candidate_id": "0190aa00-0000-7000-8000-000000000101",
-                "mime_type": "image/jpeg",
-                "digest": digest,
-                "width": 1080,
-                "height": 1080,
-                "bytes_base64": base64.b64encode(content).decode(),
-            }],
-        ))
 
 
 def test_non_human_graphic_is_single_square_png_with_review_policy(monkeypatch, tmp_path: Path) -> None:

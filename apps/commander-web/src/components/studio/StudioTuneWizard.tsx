@@ -271,7 +271,7 @@ export function StudioTuneWizard({ api, language, open, studioPreviewUrl, onClos
 
       {loading && !detail && <div className="studio-tune-loading" role="status"><RefreshCcw className="spin" /> {tr('Checking local Tune runtime…', 'Перевіряється локальне середовище Tune…')}</div>}
       {detail && !detail.available && <div className="studio-tune-alert" role="alert"><strong>{tr('Tune mode is not ready.', 'Режим Tune не готовий.')}</strong><p>{detail.unavailable_reason}</p></div>}
-      {error && <div className="studio-tune-alert" role="alert"><strong>{tr('Tune request could not continue.', 'Запит Tune не вдалося продовжити.')}</strong><p>{tr('Your draft is retained. Please try again.', 'Чернетку збережено. Спробуйте ще раз.')}</p></div>}
+      {error && <div className="studio-tune-alert" role="alert"><strong>{tr('Tune request could not continue. Your draft is retained.', 'Запит Tune не вдалося продовжити. Чернетку збережено.')}</strong><p>{error}</p></div>}
 
       {!reviewable && <div className="studio-tune-body">
         <div className="studio-tune-fields">

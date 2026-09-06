@@ -8,6 +8,7 @@ import { PhoneMetricsStudio } from '../components/studio/PhoneMetricsStudio'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from '../components/studio/PhoneHeroDirectionPicker'
 import { Empty, ErrorState, Loading } from '../components/State'
 import { translate, type Language } from '../i18n'
+import { operationFailureMessage } from '../operation-errors'
 import type {
   StudioUniversalComponentSettings, StudioUniversalConfiguration, StudioUniversalContent,
   StudioCheckpointResponse, StudioCreativeSummary, StudioLearningProposal,
@@ -640,13 +641,13 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
   if (detail.status === 'failed' && !(
     (detail as unknown as { template_id?: string }).template_id === 'phone_metrics'
     && !detail.generation?.creative_direction
-  )) return <div className="studio-page">{creativePicker}<ErrorState message={detail.generation?.error_message || tr('Studio composition failed.', 'Не вдалося створити креатив Studio.')} language={language} /><button className="primary" disabled={busy} onClick={() => void retryGeneration()}>{tr('Retry composition', 'Повторити створення')}</button></div>
+  )) return <div className="studio-page">{creativePicker}<ErrorState message={operationFailureMessage({ operation: 'studio', detail: detail.generation?.error_message, code: detail.generation?.error_type, reference: detail.creative_id }, language)} retry={() => void retryGeneration()} language={language} /></div>
 
   if ((detail as unknown as { template_id?: string }).template_id === 'phone_metrics') {
     const phoneFailure = detail.generation?.phone_image?.status === 'failed'
     const hasCreativeDirection = Boolean(detail.generation?.creative_direction)
     return <>{creativePicker}{phoneFailure && <section className="panel studio-phone-retry" role="alert">
-      <div><strong>{tr('The creative is ready with fallback artwork', 'Креатив готовий із резервним зображенням')}</strong><p>{detail.generation?.phone_image?.error_message || tr('The automatic iPhone image could not be generated.', 'Не вдалося автоматично згенерувати зображення iPhone.')}</p></div>
+      <div><strong>{tr('The creative is ready with fallback artwork', 'Креатив готовий із резервним зображенням')}</strong><p>{operationFailureMessage({ operation: 'phone_image', detail: detail.generation?.phone_image?.error_message, reference: detail.creative_id }, language)}</p></div>
       <button className="secondary" disabled={busy || !hasCreativeDirection} onClick={() => void retryPhoneImage()}><RefreshCcw />{tr('Retry iPhone image', 'Повторити зображення iPhone')}</button>
     </section>}<PhoneMetricsStudio
       api={api} language={language}

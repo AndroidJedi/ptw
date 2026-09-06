@@ -60,6 +60,30 @@ describe('Product Brief workspace', () => {
     expect(post.mock.calls[0][1]).toMatchObject({ raw_idea: 'An English idea', language: 'uk' })
   })
 
+  it('explains a stored bridge failure and gives the exact recovery action', async () => {
+    const failed = {
+      brief_id: 'brief-1', project_id: 'project-1', project_name: 'Проєкт',
+      request_id: 'request-1', owner_idea_source_id: 'source-1', raw_idea: 'Ідея',
+      status: 'failed', failure_count: 2, approved: false,
+      error_code: 'RuntimeError', error_message: 'structured bridge request 437 failed',
+      created_at: '2026-09-01T00:00:00Z',
+    }
+    const api = { get: vi.fn(async (path: string) => path.includes('?') ? { items: [failed] } : failed), post: vi.fn() } as unknown as ApiClient
+
+    render(<ProductBriefView
+      api={api} projectId="project-1" onProjectCreated={vi.fn()}
+      onProjectBriefChanged={vi.fn()} onProjectsRefresh={vi.fn(async () => undefined)}
+      language="uk"
+    />)
+
+    expect(await screen.findByText('Не вдалося згенерувати продуктовий бриф.')).toBeVisible()
+    expect(screen.getByText(/Пояснення: Сервіс ChatGPT\/Codex/)).toBeVisible()
+    expect(screen.getByText(/Що робити: У Налаштуваннях/)).toBeVisible()
+    expect(screen.getByText(/bridge job 437 · ID brief-1/)).toBeVisible()
+    expect(screen.queryByText('structured bridge request 437 failed')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Повторити' })).toBeEnabled()
+  })
+
   it('requires a common template and hands the reserved creative to Post', async () => {
     const brief = {
       brief_id: 'brief-1', project_id: 'project-1', project_name: 'Project One',

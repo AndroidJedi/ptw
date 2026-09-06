@@ -81,6 +81,48 @@ assert value.get("status") == "authorized", value.get("status")
 assert value.get("test_status") == "passed", value.get("test_status")
 print("ChatGPT/Codex authorization working test passed")
 '
+docker exec -i "$platform_worker_container" python - <<'PY'
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+
+mounted = Path("/run/ptw-codex-auth/auth.json")
+runtime = Path(os.environ.get("CODEX_HOME", "/tmp/ptw-codex")) / "auth.json"
+assert mounted.is_file() and os.access(mounted, os.R_OK), "worker credential is unreadable"
+runtime.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+shutil.copyfile(mounted, runtime)
+runtime.chmod(0o600)
+with tempfile.TemporaryDirectory(prefix="ptw-schema-auth-audit-") as directory:
+    root = Path(directory)
+    output = root / "result.json"
+    schema = root / "schema.json"
+    schema.write_text(json.dumps({
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"ready": {"type": "boolean"}},
+        "required": ["ready"],
+    }), encoding="utf-8")
+    completed = subprocess.run(
+        [
+            os.environ.get("CODEX_EXECUTABLE", "codex"), "exec", "--ephemeral",
+            "--ignore-user-config", "--sandbox", "read-only", "--skip-git-repo-check",
+            "--json", "--cd", directory, "--output-schema", str(schema),
+            "--output-last-message", str(output), "-",
+        ],
+        input='Return only {"ready": true}.', text=True,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        timeout=90, env=os.environ.copy(), check=False,
+    )
+    assert completed.returncode == 0, "schema-bound Codex worker probe failed"
+    assert output.is_file(), "schema-bound Codex worker probe returned no output"
+    assert json.loads(output.read_text(encoding="utf-8")) == {"ready": True}, (
+        "schema-bound Codex worker probe returned an invalid object"
+    )
+print("Schema-bound Codex worker probe passed")
+PY
 
 if docker inspect "$validation_container" --format '{{range .Config.Env}}{{println .}}{{end}}' \
   | grep -Eq '^(DATAFORSEO_|POSITIONING_|LANDING_|YOUTUBE_)'; then

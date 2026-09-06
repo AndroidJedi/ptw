@@ -47,3 +47,10 @@ idempotently.
 The PWA service worker caches only public shell assets. Bind loopback services
 only to `127.0.0.1`. Production deployment/reset remains separate,
 irreversible, and requires the exact `RESET PTW PRODUCTION` confirmation.
+
+Every API failure exposed to the owner must state what failed, explain the
+likely cause in plain language, give the next safe action, and include only
+bounded technical context such as HTTP status, method, query-free endpoint, or
+object ID. Apply the same contract when an HTTP 200 list/detail response contains
+a persisted item with `status: failed`. Never reflect raw provider output, 5xx
+response details, credentials, prompts, or private asset paths into the UI.

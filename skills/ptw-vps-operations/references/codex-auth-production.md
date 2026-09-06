@@ -18,6 +18,11 @@ owner must complete OpenAI authentication and workspace approval.
   persisted auth JSON.
 - `codex login status` is advisory. The production readiness result comes from
   the bounded working test.
+- A plain working test is not the final bridge proof. Run the benign
+  schema-bound worker probe in `audit_vps_owner_dependencies.sh`, which uses the
+  production `--ephemeral --output-schema` shape and suppresses raw CLI output.
+  This catches a worker that can read the credential but still receives
+  `unauthorized` on real structured execution.
 
 ## Safe repair sequence
 
@@ -43,6 +48,9 @@ owner must complete OpenAI authentication and workspace approval.
    another device flow automatically. Give readiness audits enough time for the
    complete bounded retry window; a shorter audit deadline can falsely fail
    while the service is legitimately still `verifying`.
+   If a flow returns to `authorization_required`, it did not complete; start a
+   new single flow and have the owner approve its current code. Never reuse an
+   earlier code or interpret prior approval as approval of a new challenge.
 7. Promote the complete compatible image/revision set with
    `scripts/publish_ptw_release_serial.sh`. An irreversible reset still requires
    the owner's separate exact `RESET PTW PRODUCTION` confirmation and must occur

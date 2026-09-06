@@ -120,7 +120,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
   const [landingId, setLandingId] = useState<string | null>(initialLocation.landingId)
   const [projectError, setProjectError] = useState('')
   const [language, setLanguage] = useState<Language>(initialLanguage)
-  const api = useMemo(() => new ApiClient(user), [user])
+  const api = useMemo(() => new ApiClient(user, language), [user, language])
   const validatedProjectId = projects?.some((item) => item.project_id === projectId)
     ? projectId
     : null

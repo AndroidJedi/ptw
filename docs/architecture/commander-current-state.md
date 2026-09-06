@@ -55,6 +55,13 @@ root-owned `codex-auth` service updates the existing Codex CLI store and runs a
 working test request before marking the status authorized. No access/refresh
 token, auth-file content, or CLI output reaches the web API, frontend, or logs.
 
+Every owner-visible API and persisted background failure uses one localized
+four-part contract: outcome, plain-language explanation, the next safe action,
+and bounded technical context. A successful list/detail read does not hide an
+item whose stored state is `failed`. Raw provider and server output never reaches
+the owner; failed Brief, Studio, phone-image, Landing, and Landing-learning work
+remains explicitly retryable.
+
 A replacement Brief creates a separate first creative. Another creative from
 the same Brief is available only after the latest creative has an immutable
 approved version. Cross-Project creative access fails closed.
@@ -133,8 +140,8 @@ are absent.
 
 Landing phone verification is recorded in `.local/landing-phone`, with
 before/after captures, three screen themes at 1280/768/360px, and iPhone WebKit.
-The 53 web unit tests, 45 browser checks, production build, full 127-test
-Validation suite, 8 Commander tests, 4 Owner Gateway tests, and 38 platform tests
+The 58 web unit tests, 48 browser checks, production build, full 127-test
+Validation suite, 10 Commander tests, 4 Owner Gateway tests, and 38 platform tests
 pass. The Commander demo, schema idempotency, canonical skill verification,
 Studio visual audit, Python compilation, and whitespace checks pass.
 

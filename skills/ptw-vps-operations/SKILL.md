@@ -20,6 +20,9 @@ into a complete compatible release, read
    worktrees, exact image tags, containers, memory/swap, disk, database,
    bridge, Firebase, Pexels, and emergency-stop readiness without printing
    secrets.
+   When a persisted object is failed inside an HTTP 200 response, correlate its
+   bridge job and use the schema-bound worker probe; HTTP health and login status
+   are insufficient.
 2. Use one locked serial SSH session. Build matching Linux/amd64 Commander,
    Validation, Owner Gateway, platform API, and platform worker images off-host
    with one versioned non-`latest` tag. Render Compose before deployment.
@@ -72,3 +75,7 @@ After cutover exercise create Project/Brief → approve with template → automa
 creative composition/phone image → edit → Save learning → global decision →
 Approve creative, then restart services and verify the same IDs/digests plus
 empty recovery queues. Never claim readiness from health checks alone.
+
+Owner-facing error acceptance also covers failure paths: each API or persisted
+background failure shows what failed, why in plain language, the next safe
+action, and bounded technical context without raw provider/5xx output.

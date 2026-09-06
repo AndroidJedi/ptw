@@ -31,7 +31,7 @@ describe('API deadline', () => {
       init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
     })))
     const request = fetchWithDeadline('/api/v1/overview', {}, 25)
-    const rejected = expect(request).rejects.toThrow(/Стан на сервері міг уже змінитися.*Повторити/)
+    const rejected = expect(request).rejects.toThrow(/API не відповів вчасно[\s\S]*Пояснення:[\s\S]*Що робити:[\s\S]*Повторити/)
     await vi.advanceTimersByTimeAsync(25)
     await rejected
   })
@@ -43,7 +43,7 @@ describe('API deadline', () => {
       new Promise<{ token: string }>(() => undefined),
       25,
     )
-    const rejected = expect(tokens).rejects.toThrow(/Firebase ID token \/ App Check.*Повторити/)
+    const rejected = expect(tokens).rejects.toThrow(/сесію власника[\s\S]*Firebase ID token або App Check[\s\S]*Що робити:/)
     await vi.advanceTimersByTimeAsync(25)
     await rejected
   })
@@ -80,13 +80,38 @@ describe('authenticated image integrity', () => {
     })
 
     await expect(validateImageResponse(response, 'image/jpeg', 'a'.repeat(64)))
-      .rejects.toThrow('returned image/png; expected image/jpeg')
+      .rejects.toThrow(/integrity check[\s\S]*What to do:[\s\S]*returned image\/png; expected image\/jpeg/)
   })
 
   it('rejects corrupted bytes even when the media type is correct', async () => {
     const response = new Response('corrupted', { headers: { 'Content-Type': 'image/jpeg' } })
 
     await expect(validateImageResponse(response, 'image/jpeg', 'a'.repeat(64)))
-      .rejects.toThrow('SHA-256 integrity check')
+      .rejects.toThrow(/integrity check[\s\S]*SHA-256 mismatch/)
+  })
+})
+
+describe('actionable API errors', () => {
+  it('explains authorization failures and gives an owner action in the selected language', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ detail: 'invalid Firebase credentials' }), {
+      status: 401, headers: { 'Content-Type': 'application/json' },
+    })))
+    const client = new ApiClient({ getIdToken: vi.fn(async () => 'owner-token') } as any, 'uk')
+
+    await expect(client.get('/api/v1/projects?limit=100')).rejects.toThrow(
+      /Сесія авторизації більше не дійсна[\s\S]*Пояснення:[\s\S]*Що робити:[\s\S]*HTTP 401 · GET \/api\/v1\/projects/,
+    )
+  })
+
+  it('does not expose an internal 5xx detail while preserving useful technical context', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ detail: 'private internal provider path' }), {
+      status: 503, headers: { 'Content-Type': 'application/json' },
+    })))
+    const client = new ApiClient({ getIdToken: vi.fn(async () => 'owner-token') } as any, 'en')
+
+    let message = ''
+    try { await client.post('/api/v1/briefs', { raw_idea: 'test' }) } catch (cause) { message = (cause as Error).message }
+    expect(message).toMatch(/PTW service could not complete[\s\S]*What to do:[\s\S]*HTTP 503 · POST \/api\/v1\/briefs/)
+    expect(message).not.toContain('private internal provider path')
   })
 })

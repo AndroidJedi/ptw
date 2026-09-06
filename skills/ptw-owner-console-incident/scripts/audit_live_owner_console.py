@@ -85,6 +85,8 @@ def main() -> None:
         "Post destination": "Post",
         "Landing destination": "Landing",
         "ChatGPT authorization settings": "ChatGPT Authorization",
+        "actionable API error guidance": "Що робити",
+        "bounded API technical context": "Технічні дані",
     }.items():
         require(marker in app_bundle, f"Live App bundle is missing {label}")
     for retired_label in (

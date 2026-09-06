@@ -36,12 +36,22 @@ before changing code or runtime state.
   status. Correlate that ID across the Product Brief attempt, provider
   invocation, platform `jobs` row, and worker log without exposing prompts or
   credentials.
+- A Brief/list GET can correctly return HTTP 200 while an item inside it has
+  `status: failed`. Diagnose that stored background-operation failure separately
+  from transport/API status; never tell the owner that HTTP 200 proves the
+  generation succeeded.
 - Read the authenticated live capabilities response even when API/worker image
   tags match. A reused tag can conceal stale image content; retired modes or
   missing Studio modes make the release incompatible.
 - Do not accept `codex login status` as provider readiness. Check the root-owned
   auth file only by metadata and run the token-safe working Codex test. A
   credential can look logged in while model execution is revoked or times out.
+- When ordinary auth verification and health look green but a bridge job fails,
+  run the token-safe schema-bound worker probe from
+  `scripts/audit_vps_owner_dependencies.sh`. `unauthorized` on the same
+  `codex exec --ephemeral --output-schema` boundary used by jobs requires one
+  new owner-completed device flow; do not retry the Brief until authorization
+  reports `authorized`/`passed` and the schema-bound probe succeeds.
 - Exercise device authorization through a pseudo-terminal and require both the
   official device URL and one-time code before reporting `authorizing`. Current
   Codex CLI releases may not emit the code to a plain pipe; a flow that returns
@@ -68,6 +78,15 @@ before changing code or runtime state.
   assignment UX, and historical schema adapters must remain absent.
 
 ## Release acceptance
+
+Every owner-visible API failure must state: what failed, a plain-language
+explanation, the next safe owner action, and bounded technical context such as
+HTTP method/status, endpoint, object ID, or bridge job ID. Apply the same
+contract to HTTP/network/timeout/auth/integrity failures and persisted async
+`status: failed` states. Do not expose raw 5xx/provider output, prompts,
+credentials, filesystem paths, or tracebacks. Preserve already-saved state and
+tell the owner to refresh before retrying any request whose server outcome may
+be uncertain.
 
 Run schema idempotency, provider contract/canaries, Validation and Owner Gateway
 tests, Commander tests/demo, skill validation, web unit/build/Playwright,

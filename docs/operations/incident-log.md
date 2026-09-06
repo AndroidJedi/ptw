@@ -2,6 +2,32 @@
 
 Updated: 2026-09-06
 
+## 2026-09-06 — HTTP 200 masked a failed structured provider execution
+
+**Symptom:** the project Brief list returned HTTP 200, but its persisted Brief
+was failed after repeated `structured bridge request N failed` attempts. The UI
+showed an internal bridge string without explaining that the successful HTTP
+response represented only a successful read or how the owner could recover.
+
+**Cause:** all containers and credential mounts were healthy, but a benign probe
+using the worker's exact schema-bound Codex execution path returned unauthorized.
+The frontend normalized transport errors only partially, treated a readable
+failed entity separately, and omitted the persisted Landing generation error.
+
+**Durable fix:** centralized localized API failures into outcome, explanation,
+safe next action, and bounded technical context; applied the same contract to
+persisted Brief, Studio, phone-image, Landing, and Landing-learning failures;
+and suppressed raw 5xx/provider details. The production dependency audit now
+runs a token-safe schema-bound worker probe. Both incident resolver skills record
+the HTTP-200/failed-state distinction and require fresh owner device approval
+before retrying failed generation.
+
+**Verification:** 58 web unit tests, 48 browser checks, the production web build,
+10 Commander checks, Commander demo, skill validation, script syntax, and
+whitespace checks pass locally. Production Hosting publication, completion of
+the active owner authorization challenge, a passing schema-bound probe, and the
+failed Brief retry remain required before closing this entry.
+
 ## 2026-09-06 — Mixed production release broke generation, Landing, and ChatGPT authorization
 
 **Symptom:** a Brief remained readable over HTTP 200 but its persisted state was

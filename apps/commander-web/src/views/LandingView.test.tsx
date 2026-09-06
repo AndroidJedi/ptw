@@ -94,6 +94,19 @@ it('refreshes an in-progress Landing until it reaches a terminal state', async (
   vi.useRealTimers()
 })
 
+it('explains a persisted Landing generation failure returned over HTTP 200', async () => {
+  const detail = landingDetail('failed')
+  detail.generation = { error_type: 'RuntimeError', error_message: 'structured bridge request 438 failed' }
+  const api = landingApi(detail)
+  render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} />)
+
+  expect(await screen.findByText('The Landing could not be generated.')).toBeVisible()
+  expect(screen.getByText(/Explanation: The ChatGPT\/Codex service/)).toBeVisible()
+  expect(screen.getByText(/What to do: In Settings/)).toBeVisible()
+  expect(screen.getByText(new RegExp(`bridge job 438 · ID ${landingId}`))).toBeVisible()
+  expect(screen.queryByText('structured bridge request 438 failed')).not.toBeInTheDocument()
+})
+
 it('keeps pending copy when Save fails and displays an inline error', async () => {
   const detail = landingDetail()
   const api = landingApi(detail)

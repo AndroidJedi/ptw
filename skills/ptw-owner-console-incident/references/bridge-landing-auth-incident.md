@@ -15,6 +15,9 @@ Use this runbook when production combines any of these symptoms:
   execution without printing prompts, tokens, or credentials.
 - HTTP 200 on the Brief GET proves only that the failed entity can be read. It
   does not prove generation readiness.
+- This also applies to a list response: HTTP 200 with an item whose persisted
+  `status` is `failed` is a background generation incident, not a successful
+  Brief. Read that item detail and correlate its bounded bridge job ID.
 - A missing Landing marker in the live hashed bundle plus missing Landing schema
   tables means the Landing release was never deployed. Treat that as a release
   mismatch, not a browser-cache diagnosis.
@@ -49,6 +52,13 @@ Use this runbook when production combines any of these symptoms:
      login: verify the non-root worker can read its mounted credential. Keep the
      file root-owned and grant only the dedicated worker group read access; do
      not make it world-readable or run the worker as root.
+   - the auth service/containers are healthy but a real structured job reports
+     `Result provider execution failed`: run one benign token-safe probe from
+     the worker with the production `--ephemeral --output-schema` contract. Do
+     not print raw CLI streams. If the allowlisted classifier detects
+     `unauthorized`, start exactly one new device flow, wait for the owner, then
+     require both auth `authorized`/`passed` and the schema-bound probe before
+     retrying the stored Brief.
 6. Success is only `status: authorized` and `test_status: passed` after the
    working model request. The owner must complete OpenAI account/workspace
    approval; automation may prepare and poll the challenge but must not replace
@@ -71,6 +81,24 @@ successful handoff, the root auth service must publish it as root-owned mode
 `0640` to the worker's dedicated numeric group. Give the auth container that
 supplemental group, keep the worker non-root, and retain the worker's read-only
 single-file mount. Verify readability from inside the worker before canaries.
+
+## Owner-visible failure contract
+
+An HTTP/API error and a persisted async failure enter the UI through different
+paths and both need actionable presentation:
+
+- transport, timeout, Firebase/App Check, HTTP status, invalid response, and
+  media-integrity errors are normalized by the shared API client;
+- Brief, Post, phone-image, Landing, and learning objects returned with HTTP 200
+  still need explicit handling when their stored status is `failed`;
+- show a concise outcome, explanation, safe next action, and bounded technical
+  reference; localize all four parts;
+- hide raw 5xx/provider details, CLI output, prompts, paths, tracebacks, and
+  credentials. A bridge job number and object UUID are allowed references.
+
+For a bridge authorization failure, tell the owner to open Settings, require
+`Authorized and verified`, return to the failed object, then use its explicit
+Retry action. Never silently submit a second mutating request after a timeout.
 
 ## Repair and accept
 

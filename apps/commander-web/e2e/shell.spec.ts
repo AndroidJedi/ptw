@@ -267,6 +267,29 @@ test('approves a Brief through the required template picker and opens its creati
   await expect.poll(() => new URL(page.url()).searchParams.get('creative')).toBe(creativeId)
 })
 
+test('explains a persisted API-backed Brief failure without exposing raw provider text', async ({ page }) => {
+  const failed = {
+    ...brief, status: 'failed', document: null, document_sha256: null,
+    failure_count: 2, error_code: 'RuntimeError',
+    error_message: 'structured bridge request 437 failed', approved: false,
+  }
+  await page.route('**/api/v1/briefs**', async (route) => {
+    const url = new URL(route.request().url())
+    if (route.request().method() !== 'GET') return route.fallback()
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify(url.pathname === '/api/v1/briefs' ? { items: [failed], next_cursor: null } : failed),
+    })
+  })
+
+  await page.goto(`/?e2e=1&project=${projectId}`)
+  await expect(page.getByText('Не вдалося згенерувати продуктовий бриф.')).toBeVisible()
+  await expect(page.getByText(/Пояснення: Сервіс ChatGPT\/Codex/)).toBeVisible()
+  await expect(page.getByText(/Що робити: У Налаштуваннях/)).toBeVisible()
+  await expect(page.getByText(new RegExp(`bridge job 437 · ID ${briefId}`))).toBeVisible()
+  await expect(page.getByText('structured bridge request 437 failed')).toHaveCount(0)
+})
+
 test('shows Brief, the project-scoped Post editor, and Landing Studio', async ({ page }) => {
   await page.goto('/?e2e=1')
   await expect(page.getByRole('button', { name: 'Бриф' }).first()).toBeVisible()

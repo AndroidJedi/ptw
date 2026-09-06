@@ -38,6 +38,19 @@ class ReleaseStreamContractTests(unittest.TestCase):
             module.resolve_app_bundle_url(origin, entry, '"assets/App-lazy.js"'),
         )
 
+    def test_dependency_audit_exercises_schema_bound_worker_auth(self) -> None:
+        audit = (
+            ROOT
+            / "skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh"
+        ).read_text()
+
+        self.assertIn('"--output-schema", str(schema)', audit)
+        self.assertIn("stdout=subprocess.DEVNULL", audit)
+        self.assertIn("stderr=subprocess.DEVNULL", audit)
+        self.assertIn('json.loads(output.read_text(encoding="utf-8")) == {"ready": True}', audit)
+        self.assertNotIn("print(completed.stdout", audit)
+        self.assertNotIn("print(completed.stderr", audit)
+
     def test_non_tar_artifacts_preserve_exact_size_across_transport(self) -> None:
         publisher = (ROOT / "scripts/publish_ptw_release_serial.sh").read_text()
         deployer = (ROOT / "scripts/deploy_ptw_serial.sh").read_text()

@@ -147,7 +147,7 @@ def test_platform_api_release_is_explicitly_tagged_and_never_built_on_production
     assert "image: ptw-agent-platform-codex-auth:${PTW_PLATFORM_IMAGE_TAG:-latest}" in codex_auth
     assert "pull_policy: never" in codex_auth
     assert "/root/.codex:/root/.codex" in codex_auth
-    assert "networks: [backend]" in codex_auth
+    assert "networks: [backend, edge]" in codex_auth
 
 
 def test_tmpfs_mount_options_remain_one_quoted_compose_item() -> None:

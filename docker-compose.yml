@@ -120,7 +120,9 @@ services:
       - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    networks: [backend]
+    # Device authorization and the post-login working test both require outbound
+    # access, while the status API remains private on the backend network.
+    networks: [backend, edge]
 
   caddy:
     image: caddy:2.10-alpine

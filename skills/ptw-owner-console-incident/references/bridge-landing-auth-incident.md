@@ -50,6 +50,12 @@ Use this runbook when production combines any of these symptoms:
    approval; automation may prepare and poll the challenge but must not replace
    that human step.
 
+Run a small bounded retry set for the working test after credential handoff.
+The first model request can fail transiently while the new login becomes usable;
+if an identical isolated test passes immediately afterward, retry verification
+instead of forcing another device login. Keep the final state failed when every
+bounded attempt fails.
+
 The service implementation must launch `codex login --device-auth` on a
 pseudo-terminal, collect output asynchronously, remove ANSI control sequences,
 return only the allowlisted URL/code, expire the flow, and verify the resulting

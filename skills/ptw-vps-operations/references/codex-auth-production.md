@@ -33,7 +33,9 @@ owner must complete OpenAI authentication and workspace approval.
    declarative.
 6. Start refresh once, confirm both URL and code appear, and wait for the owner.
    Do not start competing device flows. Require `authorized` plus a passed
-   working test before provider canaries.
+   working test before provider canaries. The auth service should retry only the
+   bounded working test after a transient post-login failure; it must not launch
+   another device flow automatically.
 7. Promote the complete compatible image/revision set with
    `scripts/publish_ptw_release_serial.sh`. An irreversible reset still requires
    the owner's separate exact `RESET PTW PRODUCTION` confirmation and must occur

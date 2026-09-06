@@ -1,4 +1,4 @@
-import { ExternalLink, LoaderCircle, RefreshCcw, ShieldCheck, X } from 'lucide-react'
+import { ExternalLink, LoaderCircle, RefreshCcw, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api'
 import { translate, type Language } from '../i18n'
@@ -12,10 +12,9 @@ type AuthorizationStatus = {
 
 const active = new Set(['authorizing', 'verifying'])
 
-export function AuthorizationSettings({ api, language, onClose }: {
+export function AuthorizationSettings({ api, language }: {
   api: ApiClient
   language: Language
-  onClose: () => void
 }) {
   const [value, setValue] = useState<AuthorizationStatus | null>(null)
   const [error, setError] = useState('')
@@ -51,9 +50,8 @@ export function AuthorizationSettings({ api, language, onClose }: {
           ? tr('Authorization check failed', 'Перевірка авторизації не вдалася')
           : status === 'loading' ? tr('Checking status…', 'Перевіряється статус…')
             : tr('Authorization required', 'Потрібна авторизація')
-  return <div className="modal-backdrop" role="presentation">
-    <section className="panel settings-dialog" role="dialog" aria-modal="true" aria-labelledby="chatgpt-authorization-title">
-      <header><div><small>{tr('SETTINGS', 'НАЛАШТУВАННЯ')}</small><h2 id="chatgpt-authorization-title">ChatGPT Authorization</h2></div><button className="icon-button" onClick={onClose} aria-label={tr('Close settings', 'Закрити налаштування')}><X /></button></header>
+  return <section className="panel settings-card" aria-labelledby="chatgpt-authorization-title">
+      <header><div><small>{tr('CHATGPT CONNECTION', 'ПІДКЛЮЧЕННЯ CHATGPT')}</small><h2 id="chatgpt-authorization-title">ChatGPT Authorization</h2></div></header>
       <div className={`authorization-status is-${status}`} role="status"><ShieldCheck /><div><small>{tr('CURRENT STATUS', 'ПОТОЧНИЙ СТАН')}</small><strong>{label}</strong>{value?.test_status === 'passed' && <span>{tr('Working test request passed.', 'Робочий тестовий запит пройдено.')}</span>}</div></div>
       {value?.status === 'authorizing' && <div className="authorization-device">
         <p>{tr('Open the secure device page and enter the code. This window will update automatically after completion.', 'Відкрийте захищену сторінку пристрою та введіть код. Це вікно оновиться автоматично після завершення.')}</p>
@@ -64,6 +62,5 @@ export function AuthorizationSettings({ api, language, onClose }: {
       {value?.status === 'failed' && <p>{tr('The credentials were saved, but the required working test did not pass. Start authorization again.', 'Дані авторизації збережено, але обов’язковий робочий тест не пройшов. Запустіть авторизацію ще раз.')}</p>}
       {error && <p className="settings-error" role="alert">{error}</p>}
       <footer><button className="primary" disabled={refreshing || status === 'authorizing' || status === 'verifying'} onClick={() => void refresh()}>{refreshing ? <LoaderCircle className="spin" /> : <RefreshCcw />}{tr('Refresh authorization', 'Оновити авторизацію')}</button><button className="secondary" onClick={() => void load()}>{tr('Check status', 'Перевірити статус')}</button></footer>
-    </section>
-  </div>
+  </section>
 }

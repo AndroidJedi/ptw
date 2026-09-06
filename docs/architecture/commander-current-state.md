@@ -1,8 +1,8 @@
 # Commander current state
 
-Updated: 2026-09-05
+Updated: 2026-09-06
 Branch: `codex/web-only-commander`
-Deployment: local change; not deployed
+Deployment: local clean baseline; the targeted authorization release is deployed separately
 
 ## Current milestone
 
@@ -48,7 +48,8 @@ and the phone action uses the page CTA destination.
 Landing has no public URL, lead handling, publishing, or Post-skill influence.
 
 The lower owner navigation includes a compact Settings control next to language.
-Its ChatGPT Authorization panel returns only an authorization status and, during
+It opens a dedicated `?page=settings` destination rather than a dialog over the
+Brief. Its ChatGPT Authorization card returns only an authorization status and, during
 an owner-initiated device login, the official device URL/code. A private
 root-owned `codex-auth` service updates the existing Codex CLI store and runs a
 working test request before marking the status authorized. No access/refresh
@@ -142,5 +143,5 @@ generation, migration, reset, approval, or production action was performed.
 
 ## Next work
 
-The Authorization UI and private device-flow service are implemented locally;
-their production release remains pending a separately authorized release.
+The Authorization UI and private device-flow service use the dedicated Settings
+destination; production rollout remains separately targeted from this clean baseline.

@@ -1,4 +1,4 @@
-export type Page = 'briefs' | 'posts' | 'landing'
+export type Page = 'briefs' | 'posts' | 'landing' | 'settings'
 export type I18n<T = string> = { en: T; uk: T }
 
 export type BriefStatus = 'queued' | 'generating' | 'completed' | 'failed'

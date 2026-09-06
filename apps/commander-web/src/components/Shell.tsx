@@ -9,13 +9,12 @@ const items: Array<{ id: Page; en: string; uk: string; icon: typeof Target }> = 
   { id: 'landing', en: 'Landing', uk: 'Лендінг', icon: LayoutTemplate },
 ]
 
-export function Shell({ page, onPage, children, language, onLanguage, onSettings }: {
+export function Shell({ page, onPage, children, language, onLanguage }: {
   page: Page
   onPage: (page: Page) => void
   children: ReactNode
   language: Language
   onLanguage: () => void
-  onSettings: () => void
 }) {
   const tr = (en: string, uk: string) => translate(language, en, uk)
   return <div className="app-shell">
@@ -26,7 +25,7 @@ export function Shell({ page, onPage, children, language, onLanguage, onSettings
           <Icon aria-hidden="true" /><span>{tr(en, uk)}</span>
         </button>)}
       </nav>
-      <div className="rail-controls"><button className="language" onClick={onLanguage} aria-label={tr('Change language', 'Змінити мову')}>{language === 'uk' ? 'EN' : 'УКР'}</button><button className="settings-button" onClick={onSettings} aria-label={tr('Settings', 'Налаштування')}><Settings /></button></div>
+      <div className="rail-controls"><button className="language" onClick={onLanguage} aria-label={tr('Change language', 'Змінити мову')}>{language === 'uk' ? 'EN' : 'УКР'}</button><button className={`settings-button ${page === 'settings' ? 'active' : ''}`} onClick={() => onPage('settings')} aria-current={page === 'settings' ? 'page' : undefined} aria-label={tr('Settings', 'Налаштування')}><Settings /></button></div>
     </aside>
     <main id="main-content">{children}</main>
     <nav className="bottom-nav" aria-label={tr('Mobile navigation', 'Головна навігація на телефоні')}>
@@ -34,7 +33,7 @@ export function Shell({ page, onPage, children, language, onLanguage, onSettings
         <Icon aria-hidden="true" /><span>{tr(en, uk)}</span>
       </button>)}
       <button className="mobile-language" onClick={onLanguage} aria-label={tr('Change language', 'Змінити мову')}><span>{language === 'uk' ? 'EN' : 'УКР'}</span></button>
-      <button className="mobile-settings" onClick={onSettings} aria-label={tr('Settings', 'Налаштування')}><Settings /><span>{tr('Settings', 'Налаштування')}</span></button>
+      <button className={page === 'settings' ? 'mobile-settings active' : 'mobile-settings'} onClick={() => onPage('settings')} aria-current={page === 'settings' ? 'page' : undefined} aria-label={tr('Settings', 'Налаштування')}><Settings /><span>{tr('Settings', 'Налаштування')}</span></button>
     </nav>
   </div>
 }

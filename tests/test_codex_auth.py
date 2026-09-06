@@ -12,7 +12,8 @@ from auth.service import AuthorizationController, device_login_details
 class CodexAuthorizationOutputTests(unittest.TestCase):
     def test_exposes_only_exact_device_url_and_code(self) -> None:
         url, code = device_login_details(
-            "Open https://auth.openai.com/codex/device and enter Q7T2-4MNP; secret=do-not-return"
+            "Open \x1b[94mhttps://auth.openai.com/codex/device\x1b[0m and enter "
+            "\x1b[94mQ7T2-4MNP\x1b[0m; secret=do-not-return"
         )
         self.assertEqual("https://auth.openai.com/codex/device", url)
         self.assertEqual("Q7T2-4MNP", code)

@@ -21,10 +21,12 @@ STATUS_TIMEOUT_SECONDS = 15
 TEST_TIMEOUT_SECONDS = 90
 DEVICE_URL_PATTERN = re.compile(r"https://auth\.openai\.com/codex/device(?:\?[^\s'\"]*)?")
 DEVICE_CODE_PATTERN = re.compile(r"\b[A-Z0-9]{4,8}-[A-Z0-9]{4,8}\b")
+ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 def device_login_details(output: str) -> tuple[str | None, str | None]:
     """Return only the browser-safe fields from Codex device-login output."""
+    output = ANSI_ESCAPE_PATTERN.sub("", output)
     return (
         (match.group(0) if (match := DEVICE_URL_PATTERN.search(output)) else None),
         (match.group(0) if (match := DEVICE_CODE_PATTERN.search(output)) else None),

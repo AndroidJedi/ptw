@@ -16,15 +16,19 @@ class Settings:
     validation_service_token: str
     public_origin: str
     owner_public_origins: tuple[str, ...] = ()
+    codex_authorization_service_url: str = ""
+    codex_authorization_bridge_token: str = ""
 
     @classmethod
     def from_environment(cls) -> "Settings":
         owner_uid = os.environ.get("FIREBASE_OWNER_UID", "").strip()
         token = os.environ.get("OWNER_GATEWAY_BRIDGE_TOKEN", "").strip()
+        codex_authorization_token = os.environ.get("PTW_CODEX_AUTH_BRIDGE_TOKEN", "").strip()
         missing = [
             name for name, value in (
                 ("FIREBASE_OWNER_UID", owner_uid),
                 ("OWNER_GATEWAY_BRIDGE_TOKEN", token),
+                ("PTW_CODEX_AUTH_BRIDGE_TOKEN", codex_authorization_token),
             ) if not value
         ]
         if missing:
@@ -59,4 +63,8 @@ class Settings:
             validation_service_token=token,
             public_origin=public_origin,
             owner_public_origins=origins,
+            codex_authorization_service_url=os.environ.get(
+                "PTW_CODEX_AUTH_SERVICE_URL", "http://codex-auth:8094"
+            ).rstrip("/"),
+            codex_authorization_bridge_token=codex_authorization_token,
         )

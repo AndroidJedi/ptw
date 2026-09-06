@@ -267,11 +267,11 @@ test('approves a Brief through the required template picker and opens its creati
   await expect.poll(() => new URL(page.url()).searchParams.get('creative')).toBe(creativeId)
 })
 
-test('shows Product Briefs, the project-scoped Post editor, and Landing Studio', async ({ page }) => {
+test('shows Brief, the project-scoped Post editor, and Landing Studio', async ({ page }) => {
   await page.goto('/?e2e=1')
-  await expect(page.getByRole('button', { name: 'Продуктові брифи' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Бриф' }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Змінити мову' }).click()
-  await expect(page.getByRole('button', { name: 'Product Briefs' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Brief' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Social posts' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Post', exact: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Landing', exact: true }).first()).toBeVisible()

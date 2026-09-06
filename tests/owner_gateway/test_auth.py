@@ -63,6 +63,8 @@ class OwnerClaimsTests(unittest.TestCase):
         creative = "/api/v1/studio/projects/{project_id}/creatives/{creative_id}"
         required = {
             "/api/v1/projects", "/api/v1/briefs",
+            "/api/v1/settings/chatgpt-authorization",
+            "/api/v1/settings/chatgpt-authorization/refresh",
             "/api/v1/studio/templates",
             "/api/v1/studio/projects/{project_id}/creatives", creative,
             f"{creative}/retry", f"{creative}/configuration", f"{creative}/save",

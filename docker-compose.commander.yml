@@ -74,6 +74,7 @@ services:
     environment:
       VALIDATION_SERVICE_URL: http://ptw-validation-api:8080
       FIREBASE_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-service-account.json
+      PTW_CODEX_AUTH_SERVICE_URL: http://codex-auth:8094
     volumes:
       - /opt/ptw/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
     networks:

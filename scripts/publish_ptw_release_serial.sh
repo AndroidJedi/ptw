@@ -59,6 +59,7 @@ emit_image validation "$image_directory/validation.tar" >> "$stream_file"
 emit_image owner-gateway "$image_directory/owner-gateway.tar" >> "$stream_file"
 emit_image platform-commander-api "$platform_image_directory/commander-api.tar" >> "$stream_file"
 emit_image platform-commander-worker "$platform_image_directory/commander-worker.tar" >> "$stream_file"
+emit_image platform-codex-auth "$platform_image_directory/codex-auth.tar" >> "$stream_file"
 emit_file platform-revision "$platform_image_directory/platform-revision.bundle" >> "$stream_file"
 printf 'END\n' >> "$stream_file"
 

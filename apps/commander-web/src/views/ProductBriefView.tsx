@@ -127,7 +127,7 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
   </>
   if (!items) return error ? <ErrorState message={error} retry={() => void load()} language={language} /> : <Loading language={language} />
   return <>
-    <PageHeader title={tr('Product Briefs', 'Продуктові брифи')} />
+    <PageHeader title={tr('Brief', 'Бриф')} />
     {error && <ErrorState message={error} language={language} />}{notice && <p className="notice" role="status">{notice}</p>}
     {!items.length ? <Empty><Target className="empty-mark" /><h2>{tr('No Product Brief in this Project', 'У цьому проєкті немає продуктового брифу')}</h2><p>{tr('Use New Project to start a separate validation loop.', 'Скористайтеся «Новий проєкт», щоб почати окремий цикл валідації.')}</p></Empty> : <div className="brief-workspace">
       <aside className="panel brief-list"><small>{tr('BRIEF HISTORY', 'ІСТОРІЯ БРИФІВ')}</small>{items.map((item, index) => <button key={item.brief_id} className={selected?.brief_id === item.brief_id ? 'selected' : ''} onClick={() => void load(item.brief_id)}><strong>{index === 0 ? tr('Current Brief', 'Поточний бриф') : tr('Earlier Brief', 'Попередній бриф')} · {item.product || item.raw_idea.slice(0, 70)}</strong><span>{item.status} · {item.language?.toUpperCase() || '—'} · {item.approved ? tr('approved', 'схвалено') : tr('not approved', 'не схвалено')} · {new Date(item.created_at).toLocaleDateString(language === 'uk' ? 'uk-UA' : 'en-US')}</span></button>)}</aside>

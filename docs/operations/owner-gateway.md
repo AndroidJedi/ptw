@@ -20,6 +20,18 @@ version render is authenticated and private/no-store. Provider credentials and
 provider asset paths never cross the boundary. Cross-Project IDs fail closed.
 Bare Studio mutation routes and `/api/v1/posts` do not exist.
 
+The authenticated Settings surface exposes `ChatGPT Authorization` through only
+`GET /api/v1/settings/chatgpt-authorization` and
+`POST /api/v1/settings/chatgpt-authorization/refresh`. The Gateway forwards a
+separate root-owned bridge secret to the private `codex-auth` service and
+allowlists only authorization state, a device URL, and a device code. The
+service runs the official `codex login --device-auth` against the existing
+root-owned `/root/.codex` store, then runs a short non-interactive Codex test
+request before reporting authorized. Tokens, auth-file contents, CLI output,
+and prompts never cross this boundary or enter logs. The worker refreshes its
+read-only auth copy for every request, so completed device authorization needs
+no SSH session or service restart.
+
 Landing routes are only `/api/v1/landings/projects/{project_id}/…`: source
 approved Post versions, pages, page-scoped mutations, visual history, versions,
 learning decisions, and failed-learning retry. They are Firebase/App-Check protected, cross-Project

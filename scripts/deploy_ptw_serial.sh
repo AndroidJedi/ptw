@@ -83,6 +83,7 @@ receive_image validation "ptw-validation:$release_tag"
 receive_image owner-gateway "ptw-owner-gateway:$release_tag"
 receive_image platform-commander-api "ptw-agent-platform-commander-api:$release_tag"
 receive_image platform-commander-worker "ptw-agent-platform-commander-worker:$release_tag"
+receive_image platform-codex-auth "ptw-agent-platform-codex-auth:$release_tag"
 receive_file() {
     local stream_name=$1 header kind name blocks size digest artifact_file checksum_line actual_digest
     IFS=' ' read -r kind name blocks size digest
@@ -106,7 +107,7 @@ IFS= read -r stream_end
 for image in ptw-commander ptw-validation ptw-owner-gateway; do
     [[ $(docker image inspect "$image:$release_tag" --format '{{.RepoTags}}') == *"$image:$release_tag"* ]] || exit 1
 done
-for image in ptw-agent-platform-commander-api ptw-agent-platform-commander-worker; do
+for image in ptw-agent-platform-commander-api ptw-agent-platform-commander-worker ptw-agent-platform-codex-auth; do
     [[ $(docker image inspect "$image:$release_tag" --format '{{.RepoTags}}') == *"$image:$release_tag"* ]] || exit 1
 done
 
@@ -145,6 +146,7 @@ if grep -Eq '^[[:space:]]*-[[:space:]]+mode=' "$rendered_platform_compose"; then
     exit 1
 fi
 # Put the enforcing worker in place before the API admits PTW structured modes.
+"${platform_compose[@]}" up -d --no-deps --no-build --wait codex-auth
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api
 

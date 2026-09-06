@@ -5,8 +5,12 @@ Updated: 2026-09-04
 
 ## Navigation and trust
 
-- Navigation contains exactly Product Briefs, Post / Допис, and Landing / Лендінг.
+- Navigation contains exactly Brief / Бриф, Post / Допис, and Landing / Лендінг.
 - The Project selector appears in all destinations.
+- The lower navigation controls include the language switcher and a compact Settings
+  control. Settings may expose the private ChatGPT Authorization state and the
+  device-login URL/code only; access and refresh tokens, CLI output, and provider
+  credentials never enter browser state, API responses, or logs.
 - Design first for 360px and one-hand use with 44×44 CSS-pixel targets, no
   horizontal overflow, keyboard access, and reduced-motion support.
 - Empty state is valid. Never seed fake Briefs, metrics, proof, testimonials,

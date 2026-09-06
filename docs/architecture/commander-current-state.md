@@ -6,7 +6,7 @@ Deployment: local change; not deployed
 
 ## Current milestone
 
-PTW now has three owner destinations: **Product Briefs**, **Post / Допис**, and
+PTW now has three owner destinations: **Brief / Бриф**, **Post / Допис**, and
 **Landing / Лендінг**.
 The Post destination is the project-scoped Studio creative workspace. There is
 no separate Studio page and no automated Post subsystem.
@@ -46,6 +46,13 @@ existing bounded contract and immutable versions. New composition requires an ap
 feature screen, including for physical services. Preview selection stays local,
 and the phone action uses the page CTA destination.
 Landing has no public URL, lead handling, publishing, or Post-skill influence.
+
+The lower owner navigation includes a compact Settings control next to language.
+Its ChatGPT Authorization panel returns only an authorization status and, during
+an owner-initiated device login, the official device URL/code. A private
+root-owned `codex-auth` service updates the existing Codex CLI store and runs a
+working test request before marking the status authorized. No access/refresh
+token, auth-file content, or CLI output reaches the web API, frontend, or logs.
 
 A replacement Brief creates a separate first creative. Another creative from
 the same Brief is available only after the latest creative has an immutable
@@ -124,7 +131,7 @@ are absent.
 ## Verification status
 
 Landing phone verification is recorded in `.local/landing-phone`, with before/after
-captures, three screen themes at 1280/768/360px, and iPhone WebKit. All 52 web unit
+captures, three screen themes at 1280/768/360px, and iPhone WebKit. All 53 web unit
 tests, 45 browser checks, the production build, 16 Landing backend tests, and 7
 Commander virtual-environment tests pass. The host Commander run skips 2 runtime
 tests because the host lacks FastAPI; the virtual environment covers both. The demo,
@@ -135,6 +142,5 @@ generation, migration, reset, approval, or production action was performed.
 
 ## Next work
 
-Deploy only after a separate explicit owner instruction and production
-confirmation. No production reset or deployment is part of this local
-implementation.
+The Authorization UI and private device-flow service are implemented locally;
+their production release remains pending a separately authorized release.

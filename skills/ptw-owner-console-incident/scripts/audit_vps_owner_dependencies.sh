@@ -2,6 +2,7 @@
 set -eu
 
 repository_root=${PTW_REPOSITORY_ROOT:-/root/ptw}
+platform_root=${PTW_PLATFORM_ROOT:-/opt/ptw/platform}
 platform_environment=${PTW_PLATFORM_ENVIRONMENT:-/opt/ptw/platform/.env}
 cd "$repository_root"
 test -f "$platform_environment"
@@ -10,16 +11,28 @@ test -f .env.owner-gateway
 
 commander_compose="docker compose --env-file $platform_environment --env-file .env.commander --env-file .env.owner-gateway --project-directory $repository_root -f docker-compose.commander.yml"
 validation_compose="docker compose --env-file $platform_environment --env-file .env.commander --env-file .env.owner-gateway --project-name ptw-validation --project-directory $repository_root -f docker-compose.validation.yml"
+platform_compose="docker compose --env-file $platform_environment --project-directory $platform_root -f $platform_root/docker-compose.yml"
 
 owner_container=$($commander_compose ps -q owner-gateway)
 commander_container=$($commander_compose ps -q commander-api)
 validation_container=$($validation_compose ps -q validation-api)
-for pair in "Owner_Gateway:$owner_container" "Commander:$commander_container" "Validation:$validation_container"; do
+codex_auth_container=$($platform_compose ps -q codex-auth)
+for pair in "Owner_Gateway:$owner_container" "Commander:$commander_container" "Validation:$validation_container" "Codex_Auth:$codex_auth_container"; do
   name=${pair%%:*}; container=${pair#*:}
   test -n "$container" || { echo "$name container is missing" >&2; exit 1; }
   test "$(docker inspect --format '{{.State.Status}}' "$container")" = running || { echo "$name is not running" >&2; exit 1; }
   test "$(docker inspect --format '{{.State.Health.Status}}' "$container")" = healthy || { echo "$name is not healthy" >&2; exit 1; }
 done
+
+auth_networks=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$codex_auth_container")
+printf '%s\n' "$auth_networks" | grep -Eq '(^|_)backend$' || {
+  echo "Codex Auth is missing its private backend network" >&2
+  exit 1
+}
+printf '%s\n' "$auth_networks" | grep -Eq '(^|_)edge$' || {
+  echo "Codex Auth is missing outbound edge-network access" >&2
+  exit 1
+}
 
 owner_project=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$owner_container")
 validation_project=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$validation_container")
@@ -38,6 +51,29 @@ capabilities = StructuredBridge(
     settings.bridge_url, settings.bridge_token, settings.model,
 ).capabilities()
 print("Structured bridge capabilities:", capabilities)
+'
+docker exec "$owner_container" python -c '
+import json
+import os
+import time
+import urllib.request
+
+headers = {
+    "X-PTW-Codex-Authorization-Token": os.environ["PTW_CODEX_AUTH_BRIDGE_TOKEN"],
+}
+deadline = time.monotonic() + 100
+while True:
+    request = urllib.request.Request(
+        "http://codex-auth:8094/v1/authorization", headers=headers,
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        value = json.load(response)
+    if value.get("status") != "verifying" or time.monotonic() >= deadline:
+        break
+    time.sleep(2)
+assert value.get("status") == "authorized", value.get("status")
+assert value.get("test_status") == "passed", value.get("test_status")
+print("ChatGPT/Codex authorization working test passed")
 '
 
 if docker inspect "$validation_container" --format '{{range .Config.Env}}{{println .}}{{end}}' \

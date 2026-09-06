@@ -10,6 +10,11 @@ Trace a public symptom through browser → Firebase Hosting/Caddy → Owner Gate
 A healthy Gateway alone does not prove Brief, creative, image, or learning
 readiness.
 
+When a failed structured bridge request, a missing Landing tab, or a no-op
+ChatGPT Authorization button appears in production, read
+[references/bridge-landing-auth-incident.md](references/bridge-landing-auth-incident.md)
+before changing code or runtime state.
+
 ## Public boundary
 
 - Verify hashed bundles, service-worker cache, Firebase Auth persistence, App
@@ -41,6 +46,10 @@ readiness.
   official device URL and one-time code before reporting `authorizing`. Current
   Codex CLI releases may not emit the code to a plain pipe; a flow that returns
   to `authorization_required` without updating auth is a failed flow.
+- The auth container must be attached to both the private backend network and an
+  outbound-capable edge network. Strip ANSI terminal control sequences before
+  matching the one-time code; otherwise the URL can appear while the styled code
+  remains absent. Never expose the persisted credential or bridge token.
 - Verify raw idea → immutable Brief → correction lineage → honor confirmation
   plus template choice → HTTP 202 creative reservation/navigation.
 - Provider JSON modes are exactly `product_brief`,

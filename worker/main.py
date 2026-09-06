@@ -275,7 +275,9 @@ def execute_structured_llm(parameters: dict) -> dict:
     codex_home.mkdir(mode=0o700, parents=True, exist_ok=True)
     mounted = Path("/run/ptw-codex-auth/auth.json")
     runtime = codex_home / "auth.json"
-    if mounted.is_file() and not runtime.exists():
+    # Refresh the runtime copy for every request so a completed owner device-login
+    # takes effect without an SSH session or a worker restart.
+    if mounted.is_file():
         shutil.copyfile(mounted, runtime)
         runtime.chmod(0o600)
 

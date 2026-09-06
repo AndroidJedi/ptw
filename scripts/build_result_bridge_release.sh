@@ -28,6 +28,12 @@ docker buildx build --platform linux/amd64 --load \
 docker save --output "$output_directory/commander-worker.tar" \
   "ptw-agent-platform-commander-worker:$release_tag"
 
+docker buildx build --platform linux/amd64 --load \
+  --tag "ptw-agent-platform-codex-auth:$release_tag" \
+  --file auth/Dockerfile .
+docker save --output "$output_directory/codex-auth.tar" \
+  "ptw-agent-platform-codex-auth:$release_tag"
+
 git bundle create "$output_directory/platform-revision.bundle" HEAD
 git bundle verify "$output_directory/platform-revision.bundle"
 echo "Built Linux/amd64 Result bridge release $release_tag"

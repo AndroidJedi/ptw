@@ -91,6 +91,37 @@ services:
     security_opt: [no-new-privileges:true]
     networks: [backend, edge]
 
+  codex-auth:
+    image: ptw-agent-platform-codex-auth:${PTW_PLATFORM_IMAGE_TAG:-latest}
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: auth/Dockerfile
+    restart: unless-stopped
+    # This narrowly scoped process is the only container permitted to update the
+    # existing root-owned Codex credential store.
+    user: "0:0"
+    environment:
+      CODEX_HOME: /root/.codex
+      CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
+      PTW_CODEX_AUTH_BRIDGE_TOKEN: ${PTW_CODEX_AUTH_BRIDGE_TOKEN:?Set PTW_CODEX_AUTH_BRIDGE_TOKEN in .env}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8094/healthz', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    mem_limit: 128m
+    pids_limit: 32
+    read_only: true
+    tmpfs:
+      - "/tmp:size=32m,mode=1777"
+    volumes:
+      - /root/.codex:/root/.codex
+      - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [backend]
+
   caddy:
     image: caddy:2.10-alpine
     restart: unless-stopped

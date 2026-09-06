@@ -198,6 +198,7 @@ class ValidationApiRouteTests(unittest.TestCase):
                     },
                 },
             )
+            self.assertTrue(studio.generated.wait(timeout=1))
 
         self.assertEqual(400, invalid.status_code, invalid.text)
         self.assertEqual(400, missing_direction.status_code, missing_direction.text)
@@ -205,7 +206,6 @@ class ValidationApiRouteTests(unittest.TestCase):
         self.assertEqual(creative_id, response.json()["creative"]["creative_id"])
         self.assertEqual("phone_metrics", studio.approval["template_id"])
         self.assertEqual("cinematic", studio.approval["creative_direction"]["style"])
-        self.assertTrue(studio.generated.wait(timeout=1))
 
 
 if __name__ == "__main__":

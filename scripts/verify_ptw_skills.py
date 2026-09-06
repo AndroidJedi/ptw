@@ -28,6 +28,10 @@ def require(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
+def is_generated_skill_artifact(path: Path) -> bool:
+    return "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}
+
+
 def main() -> None:
     canonical_root = ROOT / "skills"
     for name in SKILLS:
@@ -81,6 +85,8 @@ def main() -> None:
 
     if ROOT == Path("/root/ptw"):
         for path in canonical_root.rglob("*"):
+            if is_generated_skill_artifact(path):
+                continue
             require(path.stat().st_gid == 10001, f"wrong CLI skill group: {path}")
             require(path.stat().st_mode & 0o020 != 0, f"CLI skill is not group-writable: {path}")
 

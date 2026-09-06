@@ -133,7 +133,7 @@ are absent.
 
 Landing phone verification is recorded in `.local/landing-phone`, with before/after
 captures, three screen themes at 1280/768/360px, and iPhone WebKit. All 53 web unit
-tests, 45 browser checks, the production build, 16 Landing backend tests, and 7
+tests, 45 browser checks, the production build, 16 Landing backend tests, and 8
 Commander virtual-environment tests pass. The host Commander run skips 2 runtime
 tests because the host lacks FastAPI; the virtual environment covers both. The demo,
 canonical skill verification, and whitespace checks pass. The local API serves v4

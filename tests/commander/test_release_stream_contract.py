@@ -7,6 +7,19 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class ReleaseStreamContractTests(unittest.TestCase):
+    def test_skill_verifier_ignores_generated_python_cache_artifacts(self) -> None:
+        script = ROOT / "scripts/verify_ptw_skills.py"
+        spec = importlib.util.spec_from_file_location("verify_ptw_skills", script)
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        self.assertTrue(module.is_generated_skill_artifact(Path("skill/__pycache__")))
+        self.assertTrue(module.is_generated_skill_artifact(Path("skill/__pycache__/audit.cpython-313.pyc")))
+        self.assertTrue(module.is_generated_skill_artifact(Path("skill/audit.pyo")))
+        self.assertFalse(module.is_generated_skill_artifact(Path("skill/scripts/audit.py")))
+
     def test_public_auditor_resolves_current_vite_lazy_bundle_forms(self) -> None:
         script = ROOT / "skills/ptw-owner-console-incident/scripts/audit_live_owner_console.py"
         spec = importlib.util.spec_from_file_location("audit_live_owner_console", script)

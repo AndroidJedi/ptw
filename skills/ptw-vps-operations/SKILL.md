@@ -28,6 +28,10 @@ a Commander reset.
 4. Treat `scripts/reset_ptw.sh` as irreversible. Run it only after the owner
    separately authorizes deployment and provides exactly
    `RESET PTW PRODUCTION`.
+5. Treat `__pycache__`, `.pyc`, and `.pyo` below the mounted skill tree as
+   generated runtime artifacts, not canonical skill content. Skill verification
+   ignores them; run skill-hosted Python with `PYTHONDONTWRITEBYTECODE=1` where
+   practical so a read-only audit does not create permission-noisy artifacts.
 
 ## Production contract
 

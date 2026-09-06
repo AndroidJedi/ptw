@@ -72,7 +72,9 @@ def _codex_usage(stdout: str) -> dict[str, int]:
     return usage
 
 
-def _persist_non_human_graphic(codex_home: Path, session_id: str) -> dict:
+def _persist_non_human_graphic(
+    codex_home: Path, session_id: str, *, reference_digest: str | None = None,
+) -> dict:
     if not re.fullmatch(r"[A-Za-z0-9-]{1,100}", session_id):
         raise RuntimeError("image generation returned an invalid session ID")
     generated_root = (codex_home / "generated_images").resolve()
@@ -91,6 +93,8 @@ def _persist_non_human_graphic(codex_home: Path, session_id: str) -> dict:
         if width != height or not 512 <= width <= 2048:
             raise RuntimeError("non-human graphic generation must return a bounded square image")
         digest = hashlib.sha256(content).hexdigest()
+        if reference_digest is not None and digest == reference_digest:
+            raise RuntimeError("non-human graphic edit returned the unchanged reference")
         asset_root = Path(
             os.environ.get("CONTENT_GRAPHIC_ASSET_DIR", "/var/lib/ptw/assets/content-graphics")
         ).resolve()
@@ -132,15 +136,6 @@ def _persist_non_human_graphic(codex_home: Path, session_id: str) -> dict:
             shutil.rmtree(session_directory)
 
 
-def _remove_generated_session(codex_home: Path, session_id: str) -> None:
-    if not re.fullmatch(r"[A-Za-z0-9-]{1,100}", session_id):
-        return
-    generated_root = (codex_home / "generated_images").resolve()
-    session_directory = (generated_root / session_id).resolve()
-    if generated_root in session_directory.parents and session_directory.is_dir():
-        shutil.rmtree(session_directory)
-
-
 def _used_image_generation(stdout: str) -> bool:
     for line in stdout.splitlines():
         try:
@@ -162,38 +157,6 @@ def _used_image_generation(stdout: str) -> bool:
             except json.JSONDecodeError:
                 continue
         return True
-    return False
-
-
-def _proved_attached_image_use(stdout: str) -> bool:
-    """Require the image call to consume the one CLI-attached reference."""
-
-    for line in stdout.splitlines():
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        item = event.get("item") if isinstance(event, dict) else None
-        if not isinstance(item, dict):
-            continue
-        tool_marker = " ".join(
-            str(item.get(key) or "") for key in ("type", "server", "tool", "name")
-        ).lower()
-        if "tool" not in tool_marker or "image" not in tool_marker:
-            continue
-        arguments = item.get("arguments") or item.get("input") or {}
-        if isinstance(arguments, str):
-            try:
-                arguments = json.loads(arguments)
-            except json.JSONDecodeError:
-                continue
-        if not isinstance(arguments, dict):
-            continue
-        if (
-            arguments.get("num_last_images_to_include") == 1
-            and arguments.get("referenced_image_paths") in (None, [])
-        ):
-            return True
     return False
 
 
@@ -321,13 +284,6 @@ def execute_structured_llm(parameters: dict) -> dict:
         used_image_generation = _used_image_generation(completed.stdout)
         if mode != "content_non_human_graphic_generation" and used_image_generation:
             raise RuntimeError("image generation is prohibited in Result JSON modes")
-        if (
-            mode == "content_non_human_graphic_generation"
-            and attachment_mapping
-            and not _proved_attached_image_use(completed.stdout)
-        ):
-            _remove_generated_session(codex_home, session_id)
-            raise RuntimeError("non-human graphic edit did not prove use of its attached reference")
         invocation = {
             "session_id": session_id,
             "session_mode": "fresh",
@@ -341,12 +297,16 @@ def execute_structured_llm(parameters: dict) -> dict:
             "invocation": invocation,
         }
         if mode == "content_non_human_graphic_generation":
-            result["image"] = _persist_non_human_graphic(codex_home, session_id)
+            reference_digest = attachment_mapping[0]["sha256"] if attachment_mapping else None
+            result["image"] = _persist_non_human_graphic(
+                codex_home, session_id, reference_digest=reference_digest,
+            )
             if attachment_mapping:
                 result["image"]["reference"] = {
                     "sha256": attachment_mapping[0]["sha256"],
                     "used": True,
                     "transport": "codex_cli_image_attachment",
+                    "evidence": "validated_cli_attachment_and_distinct_output",
                 }
         return result
 

@@ -201,10 +201,11 @@ def test_non_human_graphic_reference_is_digest_checked_attached_and_provenanced(
     assert value["image"]["reference"] == {
         "sha256": digest, "used": True,
         "transport": "codex_cli_image_attachment",
+        "evidence": "validated_cli_attachment_and_distinct_output",
     }
 
 
-def test_non_human_graphic_reference_fails_without_tool_attachment_proof(
+def test_non_human_graphic_reference_rejects_unchanged_output(
     monkeypatch, tmp_path: Path,
 ) -> None:
     codex_home = tmp_path / "codex-home"
@@ -217,16 +218,17 @@ def test_non_human_graphic_reference_fails_without_tool_attachment_proof(
         Path(command[command.index("--output-last-message") + 1]).write_text(
             '{"generated":true}', encoding="utf-8"
         )
-        generated = codex_home / "generated_images" / "unproved-edit-session"
+        generated = codex_home / "generated_images" / "unchanged-edit-session"
         generated.mkdir(parents=True)
-        (generated / "graphic.png").write_bytes(png_header())
+        (generated / "graphic.png").write_bytes(reference)
         return subprocess.CompletedProcess(
             command, 0,
-            stdout=thread_output("unproved-edit-session", image_call=True), stderr="",
+            # Current Codex CLI JSON does not expose nested imagegen arguments.
+            stdout=thread_output("unchanged-edit-session"), stderr="",
         )
 
     monkeypatch.setattr("worker.main.subprocess.run", fake_run)
-    with pytest.raises(RuntimeError, match="prove use"):
+    with pytest.raises(RuntimeError, match="unchanged reference"):
         execute_structured_llm(request(
             "content_non_human_graphic_generation",
             input_images=[{
@@ -235,7 +237,7 @@ def test_non_human_graphic_reference_fails_without_tool_attachment_proof(
                 "bytes_base64": base64.b64encode(reference).decode(),
             }],
         ))
-    assert not (codex_home / "generated_images" / "unproved-edit-session").exists()
+    assert not (codex_home / "generated_images" / "unchanged-edit-session").exists()
 
 
 def test_non_human_graphic_rejects_multiple_generated_images(monkeypatch, tmp_path: Path) -> None:

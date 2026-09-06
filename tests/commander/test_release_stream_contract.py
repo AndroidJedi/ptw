@@ -48,6 +48,9 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("stdout=subprocess.DEVNULL", audit)
         self.assertIn("stderr=subprocess.DEVNULL", audit)
         self.assertIn('json.loads(output.read_text(encoding="utf-8")) == {"ready": True}', audit)
+        self.assertIn("*/ptw-worker-credential", audit)
+        self.assertIn("Platform worker Codex credential mount is stale", audit)
+        self.assertIn('"$published_credential_digest" = "$mounted_credential_digest"', audit)
         self.assertNotIn("print(completed.stdout", audit)
         self.assertNotIn("print(completed.stderr", audit)
 

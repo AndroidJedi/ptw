@@ -50,8 +50,11 @@ before changing code or runtime state.
   run the token-safe schema-bound worker probe from
   `scripts/audit_vps_owner_dependencies.sh`. `unauthorized` on the same
   `codex exec --ephemeral --output-schema` boundary used by jobs requires one
-  new owner-completed device flow; do not retry the Brief until authorization
-  reports `authorized`/`passed` and the schema-bound probe succeeds.
+  new owner-completed device flow. If auth then reports `authorized`/`passed`
+  while the worker still fails, compare the auth service's published copy with
+  the worker mount without printing either value. A mismatched copy means the
+  mount is stale, not that the owner must authorize again. Do not retry the
+  Brief until the schema-bound probe succeeds.
 - Exercise device authorization through a pseudo-terminal and require both the
   official device URL and one-time code before reporting `authorizing`. Current
   Codex CLI releases may not emit the code to a plain pipe; a flow that returns
@@ -59,7 +62,10 @@ before changing code or runtime state.
 - The auth container must be attached to both the private backend network and an
   outbound-capable edge network. Strip ANSI terminal control sequences before
   matching the one-time code; otherwise the URL can appear while the styled code
-  remains absent. Never expose the persisted credential or bridge token.
+  remains absent. Publish credentials through a dedicated root-owned directory
+  mounted read-only by the worker. Never bind the primary `auth.json` as one
+  file: Codex can atomically replace it and leave the worker pinned to the old
+  inode. Never expose the persisted credential or bridge token.
 - Verify raw idea → immutable Brief → correction lineage → honor confirmation
   plus template choice → HTTP 202 creative reservation/navigation.
 - Provider JSON modes are exactly `product_brief`,

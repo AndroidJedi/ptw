@@ -34,7 +34,9 @@ into a complete compatible release, read
    print, rotate, copy, or replace them.
    Keep `codex-auth` private on the backend network but also attach it to the
    outbound-capable edge network; device authorization and its required working
-   test both need egress.
+   test both need egress. Share the worker credential through a dedicated
+   read-only directory bind, never a primary-auth single-file bind that can stay
+   pinned to a stale inode after atomic replacement.
 4. Treat `scripts/reset_ptw.sh` as irreversible. Run it only after the owner
    separately authorizes deployment and provides exactly
    `RESET PTW PRODUCTION`.

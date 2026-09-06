@@ -9,24 +9,33 @@ was failed after repeated `structured bridge request N failed` attempts. The UI
 showed an internal bridge string without explaining that the successful HTTP
 response represented only a successful read or how the owner could recover.
 
-**Cause:** all containers and credential mounts were healthy, but a benign probe
-using the worker's exact schema-bound Codex execution path returned unauthorized.
-The frontend normalized transport errors only partially, treated a readable
-failed entity separately, and omitted the persisted Landing generation error.
+**Cause:** all containers were healthy and the auth service passed its working
+test, but a benign probe using the worker's exact schema-bound Codex execution
+path returned unauthorized. The worker used a single-file bind of the primary
+credential; Codex atomically replaced that file after device login, leaving the
+running worker pinned to its stale inode. The frontend also normalized transport
+errors only partially, treated a readable failed entity separately, and omitted
+the persisted Landing generation error.
 
 **Durable fix:** centralized localized API failures into outcome, explanation,
 safe next action, and bounded technical context; applied the same contract to
 persisted Brief, Studio, phone-image, Landing, and Landing-learning failures;
-and suppressed raw 5xx/provider details. The production dependency audit now
-runs a token-safe schema-bound worker probe. Both incident resolver skills record
-the HTTP-200/failed-state distinction and require fresh owner device approval
-before retrying failed generation.
+and suppressed raw 5xx/provider details. The auth service now keeps the primary
+credential root-only and publishes a separate copy through a dedicated directory
+mount that remains current across atomic replacement. The production dependency
+audit compares the handoff internally and runs a token-safe schema-bound worker
+probe. Both incident resolver skills record the HTTP-200/failed-state and stale
+single-file-mount diagnoses before any generation retry.
 
 **Verification:** 58 web unit tests, 48 browser checks, the production web build,
-10 Commander checks, Commander demo, skill validation, script syntax, and
-whitespace checks pass locally. Production Hosting publication, completion of
-the active owner authorization challenge, a passing schema-bound probe, and the
-failed Brief retry remain required before closing this entry.
+10 Commander checks, Commander demo, 38 platform tests, skill validation, script
+syntax, and whitespace checks pass. The public Hosting audit confirms Landing
+and the actionable-error markers. Production auth reports `authorized`/`passed`;
+the dedicated published credential matches the worker mount; the schema-bound
+worker probe and complete dependency audit pass. One explicit retry changed the
+same Brief from failed to completed: its third append-only attempt and latest
+structured provider invocation are completed, with document digest, quality
+gates, and completion timestamp present. No reset ran.
 
 ## 2026-09-06 — Mixed production release broke generation, Landing, and ChatGPT authorization
 

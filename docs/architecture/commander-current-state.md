@@ -52,8 +52,11 @@ It opens a dedicated `?page=settings` destination rather than a dialog over the
 Brief. Its ChatGPT Authorization card returns only an authorization status and, during
 an owner-initiated device login, the official device URL/code. A private
 root-owned `codex-auth` service updates the existing Codex CLI store and runs a
-working test request before marking the status authorized. No access/refresh
-token, auth-file content, or CLI output reaches the web API, frontend, or logs.
+working test request before marking the status authorized. It keeps the primary
+credential root-only and atomically publishes a separate group-readable copy
+through a dedicated read-only worker directory mount, so a Codex file replacement
+cannot leave the worker pinned to an old inode. No access/refresh token,
+auth-file content, or CLI output reaches the web API, frontend, or logs.
 
 Every owner-visible API and persisted background failure uses one localized
 four-part contract: outcome, plain-language explanation, the next safe action,

@@ -59,6 +59,12 @@ Use this runbook when production combines any of these symptoms:
      `unauthorized`, start exactly one new device flow, wait for the owner, then
      require both auth `authorized`/`passed` and the schema-bound probe before
      retrying the stored Brief.
+   - auth is `authorized`/`passed` after that fresh flow but the schema-bound
+     worker probe remains unauthorized: compare the auth service's published
+     credential and worker-mounted credential internally and output only whether
+     they match. If they differ, inspect the mount boundary. A single-file bind
+     remains attached to the old inode when Codex atomically replaces
+     `auth.json`; do not ask the owner to authorize yet again.
 6. Success is only `status: authorized` and `test_status: passed` after the
    working model request. The owner must complete OpenAI account/workspace
    approval; automation may prepare and poll the challenge but must not replace
@@ -76,11 +82,14 @@ return only the allowlisted URL/code, expire the flow, and verify the resulting
 credential with a real bounded request. Never log raw terminal output because
 future CLI versions may add sensitive fields.
 
-Codex can recreate `auth.json` as root mode `0600` during device login. After a
-successful handoff, the root auth service must publish it as root-owned mode
-`0640` to the worker's dedicated numeric group. Give the auth container that
-supplemental group, keep the worker non-root, and retain the worker's read-only
-single-file mount. Verify readability from inside the worker before canaries.
+Codex can recreate `auth.json` as root mode `0600` during device login. Keep that
+primary file root-only. After a successful handoff, the root auth service must
+atomically publish a separate root-owned mode `0640` copy in a dedicated mode
+`0750` directory owned by the worker's numeric group. Mount that directory, not
+either credential file, read-only into the non-root worker. A directory bind
+observes replacement entries; a single-file bind remains pinned to the stale
+inode. Verify the published and mounted copies match internally, without
+printing their hashes or contents, before canaries.
 
 ## Owner-visible failure contract
 

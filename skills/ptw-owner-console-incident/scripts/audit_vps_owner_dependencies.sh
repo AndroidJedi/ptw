@@ -28,6 +28,30 @@ docker exec "$platform_worker_container" test -r /run/ptw-codex-auth/auth.json |
   echo "Platform worker cannot read its root-owned Codex credential mount" >&2
   exit 1
 }
+worker_auth_mount=$(
+  docker inspect --format '{{range .Mounts}}{{if eq .Destination "/run/ptw-codex-auth"}}{{.Source}}{{end}}{{end}}' \
+    "$platform_worker_container"
+)
+case "$worker_auth_mount" in
+  */ptw-worker-credential) ;;
+  *) echo "Platform worker does not use the dedicated Codex credential directory" >&2; exit 1 ;;
+esac
+published_credential_digest=$(
+  docker exec "$codex_auth_container" sh -c \
+    'sha256sum "$CODEX_HOME/ptw-worker-credential/auth.json"' | awk '{print $1}'
+)
+mounted_credential_digest=$(
+  docker exec "$platform_worker_container" sha256sum /run/ptw-codex-auth/auth.json | awk '{print $1}'
+)
+test -n "$published_credential_digest" && test -n "$mounted_credential_digest" || {
+  echo "Codex credential handoff digest is unavailable" >&2
+  exit 1
+}
+test "$published_credential_digest" = "$mounted_credential_digest" || {
+  echo "Platform worker Codex credential mount is stale" >&2
+  exit 1
+}
+unset published_credential_digest mounted_credential_digest
 
 auth_networks=$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$codex_auth_container")
 printf '%s\n' "$auth_networks" | grep -Eq '(^|_)backend$' || {

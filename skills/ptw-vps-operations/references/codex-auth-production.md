@@ -11,7 +11,9 @@ owner must complete OpenAI authentication and workspace approval.
 - Confirm the private service has both `backend` and `edge` network attachments.
 - Confirm the persisted credential is root-owned and not world-readable, then
   test only that the non-root platform worker can read its read-only mounted
-  copy. Do not print the file or loosen it to mode `0644`.
+  copy. Internally compare the auth service's dedicated published copy with the
+  worker mount and expose only match/mismatch, never either hash or file. Do not
+  print the file or loosen it to mode `0644`.
 - Query authorization through the Owner Gateway/auth bridge using its existing
   runtime environment. Print only `status`, `test_status`, `authorization_url`,
   and `device_code`; never print headers, environment, raw CLI output, or the
@@ -31,12 +33,17 @@ owner must complete OpenAI authentication and workspace approval.
 2. Ensure the platform auth launcher uses a pseudo-terminal, removes ANSI CSI
    styling before parsing, and keeps only an allowlisted OpenAI device URL and
    bounded code. Ensure Compose attaches `codex-auth` to `[backend, edge]` and
-   gives it the worker's dedicated supplemental group so it can publish the
-   root-owned credential as group-readable mode `0640` after Codex rewrites it.
+   gives it the worker's dedicated supplemental group. Keep the primary
+   `auth.json` root-only and atomically publish a root-owned, group-readable copy
+   into a dedicated directory mounted read-only by the worker. Never bind the
+   primary file itself: an atomic Codex rewrite leaves a single-file bind pinned
+   to the stale inode.
 3. Run the platform auth/unit suite and render Compose with disposable values.
 4. Build an immutable non-`latest` Linux/amd64 release image off-host.
-5. In one nonblocking maintenance lock, load the image and recreate only
-   `codex-auth` with `--no-deps --no-build`. Verify its exact image ID and health.
+5. In one nonblocking maintenance lock, load the image, recreate `codex-auth`
+   first so it publishes the dedicated copy, then recreate `commander-worker`
+   so it receives the directory mount. Use `--no-deps --no-build`; verify exact
+   image IDs and health.
    If the installed production Compose predates the durable edge declaration,
    connecting the recreated container to the existing edge network is a
    temporary recovery step only; the subsequent platform revision must make it

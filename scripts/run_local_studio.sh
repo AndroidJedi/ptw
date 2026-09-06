@@ -102,4 +102,4 @@ curl --fail --silent \
 }
 
 echo "PTW local app: http://127.0.0.1:5173/?e2e=1"
-VITE_E2E=true VITE_LOCAL_APP=true npm --prefix apps/commander-web run dev -- --host 127.0.0.1 --strictPort
+VITE_E2E=true VITE_LOCAL_STUDIO=true npm --prefix apps/commander-web run dev -- --host 127.0.0.1 --strictPort

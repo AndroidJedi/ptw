@@ -19,6 +19,10 @@ a Commander reset.
 2. Use one locked serial SSH session. Build matching Linux/amd64 Commander,
    Validation, Owner Gateway, platform API, and platform worker images off-host
    with one versioned non-`latest` tag. Render Compose before deployment.
+   Compare the image of every running public service before and after cutover;
+   never update the Gateway independently of its Validation and platform API/
+   worker release, because an otherwise healthy proxy can forward into a
+   retired route contract.
 3. Keep Pexels, Firebase, bridge, and Telegram credentials root-owned. Never
    print, rotate, copy, or replace them.
 4. Treat `scripts/reset_ptw.sh` as irreversible. Run it only after the owner

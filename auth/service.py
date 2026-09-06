@@ -21,6 +21,7 @@ STATUS_TIMEOUT_SECONDS = 15
 TEST_TIMEOUT_SECONDS = 90
 WORKING_TEST_ATTEMPTS = 3
 WORKING_TEST_RETRY_DELAY_SECONDS = 2
+WORKER_CREDENTIAL_GID = int(os.environ.get("PTW_CODEX_WORKER_GID", "10001"))
 DEVICE_URL_PATTERN = re.compile(r"https://auth\.openai\.com/codex/device(?:\?[^\s'\"]*)?")
 DEVICE_CODE_PATTERN = re.compile(r"\b[A-Z0-9]{4,8}-[A-Z0-9]{4,8}\b")
 ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -81,6 +82,13 @@ class AuthorizationController:
         except (OSError, subprocess.SubprocessError):
             return False
 
+    def _publish_worker_credential(self) -> None:
+        auth_file = self.codex_home / "auth.json"
+        if not auth_file.is_file():
+            return
+        os.chown(auth_file, -1, WORKER_CREDENTIAL_GID)
+        auth_file.chmod(0o640)
+
     def _verify_credentials(self) -> None:
         test_ok = False
         if self._logged_in():
@@ -100,6 +108,13 @@ class AuthorizationController:
             self._authorization_url = None
             self._device_code = None
             self._phase = "verifying"
+        try:
+            self._publish_worker_credential()
+        except OSError:
+            with self._lock:
+                self._test_status = "failed"
+                self._phase = "failed"
+            return
         self._verify_credentials()
 
     def _start_device_login(self) -> tuple[subprocess.Popen[bytes], TextIO]:
@@ -227,6 +242,7 @@ controller = AuthorizationController(
     os.environ.get("CODEX_EXECUTABLE", "/opt/ptw-codex/bin/codex"),
     Path(os.environ.get("CODEX_HOME", "/root/.codex")),
 )
+controller._publish_worker_credential()
 app = FastAPI(title="PTW Codex Authorization", docs_url=None, redoc_url=None)
 
 

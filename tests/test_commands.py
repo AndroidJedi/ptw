@@ -147,6 +147,8 @@ def test_platform_api_release_is_explicitly_tagged_and_never_built_on_production
     assert "image: ptw-agent-platform-codex-auth:${PTW_PLATFORM_IMAGE_TAG:-latest}" in codex_auth
     assert "pull_policy: never" in codex_auth
     assert "/root/.codex:/root/.codex" in codex_auth
+    assert 'group_add:\n      - "10001"' in codex_auth
+    assert 'PTW_CODEX_WORKER_GID: "10001"' in codex_auth
     assert "networks: [backend, edge]" in codex_auth
 
 

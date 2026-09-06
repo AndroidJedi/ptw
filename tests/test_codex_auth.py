@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import unittest
 import io
+import stat
+import tempfile
 from pathlib import Path
 import time
 from unittest.mock import MagicMock, patch
@@ -98,3 +100,17 @@ class CodexAuthorizationStatusTests(unittest.TestCase):
         )
         close.assert_called_once_with(11)
         fdopen.assert_called_once_with(10, "r", encoding="utf-8", errors="replace")
+
+    def test_publishes_root_owned_group_readable_worker_credential(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            auth_file = Path(directory, "auth.json")
+            auth_file.write_text("{}", encoding="utf-8")
+            controller = AuthorizationController("codex", Path(directory))
+            with (
+                patch("auth.service.WORKER_CREDENTIAL_GID", 10001),
+                patch("auth.service.os.chown") as chown,
+            ):
+                controller._publish_worker_credential()
+
+            chown.assert_called_once_with(auth_file, -1, 10001)
+            self.assertEqual(0o640, stat.S_IMODE(auth_file.stat().st_mode))

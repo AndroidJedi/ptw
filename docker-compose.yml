@@ -101,9 +101,12 @@ services:
     # This narrowly scoped process is the only container permitted to update the
     # existing root-owned Codex credential store.
     user: "0:0"
+    group_add:
+      - "10001"
     environment:
       CODEX_HOME: /root/.codex
       CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
+      PTW_CODEX_WORKER_GID: "10001"
       PTW_CODEX_AUTH_BRIDGE_TOKEN: ${PTW_CODEX_AUTH_BRIDGE_TOKEN:?Set PTW_CODEX_AUTH_BRIDGE_TOKEN in .env}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8094/healthz', timeout=2)"]

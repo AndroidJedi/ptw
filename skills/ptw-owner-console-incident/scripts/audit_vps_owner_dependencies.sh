@@ -66,7 +66,8 @@ import urllib.request
 headers = {
     "X-PTW-Codex-Authorization-Token": os.environ["PTW_CODEX_AUTH_BRIDGE_TOKEN"],
 }
-deadline = time.monotonic() + 100
+# The service may perform three bounded 90-second attempts after a fresh login.
+deadline = time.monotonic() + 300
 while True:
     request = urllib.request.Request(
         "http://codex-auth:8094/v1/authorization", headers=headers,

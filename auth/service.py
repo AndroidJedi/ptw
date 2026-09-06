@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import pty
 import re
 import secrets
 import subprocess
 import tempfile
 import threading
 import time
-from typing import Any
+from typing import Any, TextIO
 
 from fastapi import FastAPI, Header, HTTPException
 
@@ -35,11 +36,11 @@ class AuthorizationController:
         self.executable = executable
         self.codex_home = codex_home
         self._lock = threading.Lock()
-        self._process: subprocess.Popen[str] | None = None
+        self._process: subprocess.Popen[bytes] | None = None
         self._started_at = 0.0
         self._authorization_url: str | None = None
         self._device_code: str | None = None
-        self._phase = "authorization_required"
+        self._phase = "unverified"
         self._test_status: str | None = None
 
     def _environment(self) -> dict[str, str]:
@@ -76,29 +77,55 @@ class AuthorizationController:
         except (OSError, subprocess.SubprocessError):
             return False
 
+    def _verify_credentials(self) -> None:
+        test_ok = self._logged_in() and self._working_test()
+        with self._lock:
+            self._test_status = "passed" if test_ok else "failed"
+            self._phase = "authorized" if test_ok else "failed"
+
     def _finish(self) -> None:
         with self._lock:
             self._process = None
             self._authorization_url = None
             self._device_code = None
             self._phase = "verifying"
-        test_ok = self._logged_in() and self._working_test()
-        with self._lock:
-            self._test_status = "passed" if test_ok else "failed"
-            self._phase = "authorized" if test_ok else "failed"
+        self._verify_credentials()
 
-    def _collect_login_output(self, process: subprocess.Popen[str]) -> None:
-        assert process.stdout is not None
+    def _start_device_login(self) -> tuple[subprocess.Popen[bytes], TextIO]:
+        master_fd, slave_fd = pty.openpty()
+        try:
+            process = subprocess.Popen(
+                [self.executable, "login", "--device-auth"],
+                stdin=slave_fd, stdout=slave_fd, stderr=slave_fd,
+                env=self._environment(), close_fds=True,
+            )
+        except OSError:
+            os.close(master_fd)
+            raise
+        finally:
+            os.close(slave_fd)
+        return process, os.fdopen(
+            master_fd, "r", encoding="utf-8", errors="replace",
+        )
+
+    def _collect_login_output(self, process: subprocess.Popen[bytes], output: TextIO) -> None:
         captured: list[str] = []
-        for line in process.stdout:
-            captured.append(line)
-            if len(captured) > 32:
-                captured.pop(0)
-            url, code = device_login_details("".join(captured))
-            if url or code:
-                with self._lock:
-                    self._authorization_url = url or self._authorization_url
-                    self._device_code = code or self._device_code
+        try:
+            for line in output:
+                captured.append(line)
+                if len(captured) > 32:
+                    captured.pop(0)
+                url, code = device_login_details("".join(captured))
+                if url or code:
+                    with self._lock:
+                        self._authorization_url = url or self._authorization_url
+                        self._device_code = code or self._device_code
+        except OSError:
+            # Linux PTYs report EIO rather than EOF after the child closes its
+            # slave descriptor.
+            pass
+        finally:
+            output.close()
         try:
             process.wait(timeout=1)
         except subprocess.TimeoutExpired:
@@ -130,6 +157,7 @@ class AuthorizationController:
 
     def status(self) -> dict[str, Any]:
         self._expire_if_needed()
+        start_verification = False
         with self._lock:
             if self._process is not None:
                 return {
@@ -139,12 +167,15 @@ class AuthorizationController:
                 }
             phase = self._phase
             test_status = self._test_status
+            if phase == "unverified":
+                self._phase = "verifying"
+                phase = "verifying"
+                start_verification = True
+        if start_verification:
+            threading.Thread(target=self._verify_credentials, daemon=True).start()
         if phase in {"authorized", "failed"}:
             return {"status": phase, "test_status": test_status}
-        return {
-            "status": "authorized" if self._logged_in() else "authorization_required",
-            "test_status": None,
-        }
+        return {"status": phase, "test_status": None}
 
     def refresh(self) -> dict[str, Any]:
         self._expire_if_needed()
@@ -155,12 +186,10 @@ class AuthorizationController:
                     "authorization_url": self._authorization_url,
                     "device_code": self._device_code,
                 }
+            if self._phase == "verifying":
+                return {"status": "verifying", "test_status": None}
             try:
-                process = subprocess.Popen(
-                    [self.executable, "login", "--device-auth"], stdin=subprocess.DEVNULL,
-                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                    env=self._environment(), bufsize=1,
-                )
+                process, output = self._start_device_login()
             except OSError as error:
                 raise RuntimeError("Codex authorization flow could not start") from error
             self._process = process
@@ -169,7 +198,9 @@ class AuthorizationController:
             self._device_code = None
             self._test_status = None
             self._phase = "authorizing"
-            threading.Thread(target=self._collect_login_output, args=(process,), daemon=True).start()
+            threading.Thread(
+                target=self._collect_login_output, args=(process, output), daemon=True,
+            ).start()
         # The CLI prints the device prompt asynchronously. Polling status is the durable contract.
         return self.status()
 

@@ -23,9 +23,10 @@ export interface MetaAdsPresetVersion {
   specification_sha256: string
   created_at: string
   specification: {
-    schema: 'ptw.meta-ads.preset.v1'
+    schema: 'ptw.meta-ads.preset.v1' | 'ptw.meta-ads.preset.v2'
     name: string
     countries: string[]
+    cities?: Array<{ key: string; name: string; country_code: string; radius_km: number }>
     age_min: number
     age_max: number
     gender: 'all' | 'men' | 'women'
@@ -34,6 +35,15 @@ export interface MetaAdsPresetVersion {
     instagram_positions: ['stream']
     location_types: ['home']
   }
+}
+
+export interface MetaAdsLocation {
+  key: string
+  name: string
+  type: 'city'
+  country_code: string
+  country_name: string
+  region: string
 }
 
 export interface MetaAdsSourceVersion {

@@ -90,7 +90,7 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/landings/projects/{project_id}/pages/{landing_id}/versions/{version}",
             "/api/v1/landings/projects/{project_id}/pages/{landing_id}/learning/{proposal_id}",
             "/api/v1/landings/projects/{project_id}/pages/{landing_id}/learning/{checkpoint_id}/retry",
-            "/api/v1/ads/connection", "/api/v1/ads/presets",
+            "/api/v1/ads/connection", "/api/v1/ads/presets", "/api/v1/ads/locations",
             "/api/v1/ads/projects/{project_id}",
             "/api/v1/ads/projects/{project_id}/deployments",
             "/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/retry",

@@ -14,6 +14,7 @@ import httpx
 from validation_pipeline.local_brief_store import LocalBriefStore, sha256_json, utc_now
 from validation_pipeline.meta_ads import (
     LocalMetaAdsAuthority, MetaAdsAdapter, MetaAdsConfiguration, MetaAdsService,
+    normalize_preset,
 )
 
 
@@ -46,6 +47,11 @@ class MetaAdsAdapterTests(unittest.TestCase):
                 })
             if request.method == "GET" and path.endswith("/instagram_accounts"):
                 return httpx.Response(200, json={"data": [{"id": "789", "username": "ptw"}]})
+            if request.method == "GET" and path.endswith("/search"):
+                return httpx.Response(200, json={"data": [
+                    {"key": "2420605", "name": "Kyiv", "type": "city", "country_code": "UA", "country_name": "Ukraine", "region": "Kyiv"},
+                    {"key": "not-a-city", "name": "Ukraine", "type": "country", "country_code": "UA"},
+                ]})
             if request.method == "GET" and path.rsplit("/", 1)[-1] in {"campaigns", "adsets", "adcreatives", "ads"}:
                 return httpx.Response(200, json={"data": self.existing.get(path.rsplit("/", 1)[-1], [])})
             if request.method == "POST" and path.endswith("/campaigns"):
@@ -119,6 +125,52 @@ class MetaAdsAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "digest mismatch"):
             self.adapter.upload_image(b"changed", "0" * 64)
         self.assertFalse(any(request.url.path.endswith("/adimages") for request in self.requests))
+
+    def test_searches_meta_city_keys_and_targets_city_radius_without_country_broadening(self) -> None:
+        cities = self.adapter.search_cities("Kyiv", "UA")
+        self.assertEqual([{
+            "key": "2420605", "name": "Kyiv", "type": "city", "country_code": "UA",
+            "country_name": "Ukraine", "region": "Kyiv",
+        }], cities)
+        search = next(request for request in self.requests if request.url.path.endswith("/search"))
+        self.assertEqual("adgeolocation", search.url.params["type"])
+        self.assertEqual('["city"]', search.url.params["location_types"])
+        self.assertEqual("UA", search.url.params["country_code"])
+
+        self.adapter.ensure_ad_set("Kyiv radius", campaign_id="campaign-1", preset={
+            "countries": [], "cities": [{
+                "key": "2420605", "name": "Kyiv", "country_code": "UA", "radius_km": 20,
+            }],
+            "age_min": 25, "age_max": 55, "gender": "all", "daily_budget_minor": 500,
+        })
+        ad_set_request = next(request for request in self.requests if request.method == "POST" and request.url.path.endswith("/adsets"))
+        targeting = json.loads(form(ad_set_request)["targeting"])
+        self.assertNotIn("countries", targeting["geo_locations"])
+        self.assertEqual([{
+            "key": "2420605", "radius": 20, "distance_unit": "kilometer",
+        }], targeting["geo_locations"]["cities"])
+
+    def test_city_preset_is_versioned_and_rejects_ambiguous_or_unsafe_geo(self) -> None:
+        city = normalize_preset({
+            "name": "Kyiv 20 km", "countries": [], "cities": [{
+                "key": "2420605", "name": "Kyiv", "country_code": "UA", "radius_km": 20,
+            }],
+            "age_min": 25, "age_max": 55, "gender": "all", "daily_budget_minor": 500,
+        })
+        self.assertEqual("ptw.meta-ads.preset.v2", city["schema"])
+        self.assertEqual([], city["countries"])
+        self.assertEqual("2420605", city["cities"][0]["key"])
+        with self.assertRaisesRegex(ValueError, "either countries or cities"):
+            normalize_preset({**{key: value for key, value in city.items() if key not in {
+                "schema", "publisher_platforms", "instagram_positions", "location_types",
+            }}, "countries": ["UA"]})
+        with self.assertRaisesRegex(ValueError, "between 17 and 80"):
+            normalize_preset({
+                "name": "Too tight", "countries": [], "cities": [{
+                    "key": "2420605", "name": "Kyiv", "country_code": "UA", "radius_km": 5,
+                }],
+                "age_min": 25, "age_max": 55, "gender": "all", "daily_budget_minor": 500,
+            })
 
     def test_configuration_reads_optional_locked_secret_file_without_exposing_token(self) -> None:
         with TemporaryDirectory() as temporary:

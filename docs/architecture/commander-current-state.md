@@ -63,6 +63,12 @@ Token Debugger, and Ads Manager even while staging is disabled. There is no
 activation, spend, organic post, insights, batch launch, or Facebook Page/Ad
 Account creation surface.
 
+Audience preset v2 adds an in-app Meta city search and immutable city-radius
+targeting. The owner selects a verified `adgeolocation` city key and a 17–80 km
+radius; city Ad Sets omit country targeting so a local service cannot
+accidentally broaden delivery to the entire country. Country-only v1 presets
+remain readable and stage with their original semantics.
+
 Local Meta credentials are optional and load only from mode-600/400
 `.local/local-studio.env`. Production reads an isolated root-owned mode-440
 `/opt/ptw/secrets/meta-ads/config.env` mounted only into Validation. The

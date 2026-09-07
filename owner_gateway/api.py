@@ -450,6 +450,17 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def meta_ads_presets(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return (await validation_bridge("GET", "/internal/v1/ads/presets", timeout=60)).json()
 
+    @app.get("/api/v1/ads/locations")
+    async def meta_ads_locations(
+        query: str = Query(min_length=2, max_length=80),
+        country_code: str = Query(min_length=2, max_length=2),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", "/internal/v1/ads/locations",
+            params={"query": query, "country_code": country_code}, timeout=60,
+        )).json()
+
     @app.post("/api/v1/ads/presets", status_code=201)
     async def meta_ads_create_preset(
         request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),

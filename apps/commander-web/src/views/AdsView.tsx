@@ -1,9 +1,9 @@
-import { AlertTriangle, CheckCircle2, ExternalLink, Megaphone, RefreshCcw, RotateCcw, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ExternalLink, MapPin, Megaphone, RefreshCcw, RotateCcw, Search, ShieldCheck, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading } from '../components/State'
 import { translate, type Language } from '../i18n'
-import type { MetaAdsDeployment, MetaAdsPresetVersion, MetaAdsProjectWorkspace, MetaAdsSourceVersion } from '../types'
+import type { MetaAdsDeployment, MetaAdsLocation, MetaAdsPresetVersion, MetaAdsProjectWorkspace, MetaAdsSourceVersion } from '../types'
 
 const runningStates = new Set(['queued', 'creating_campaign', 'creating_ad_set', 'uploading_image', 'creating_creative', 'creating_ad'])
 const categories = ['NONE', 'CREDIT', 'EMPLOYMENT', 'HOUSING', 'ISSUES_ELECTIONS_POLITICS', 'FINANCIAL_PRODUCTS_SERVICES', 'ONLINE_GAMBLING_AND_GAMING']
@@ -18,6 +18,24 @@ const metaConsoles = [
 ]
 
 function short(value?: string | null) { return value ? value.length > 22 ? `${value.slice(0, 10)}…${value.slice(-8)}` : value : '—' }
+function presetGeography(preset: MetaAdsPresetVersion['specification']) {
+  return preset.cities?.length
+    ? preset.cities.map(city => `${city.name} · ${city.radius_km} km`).join(', ')
+    : preset.countries.join(', ')
+}
+
+interface PresetCity extends MetaAdsLocation { radius_km: number }
+interface PresetDraft {
+  name: string
+  geo_mode: 'countries' | 'cities'
+  countries: string
+  city_country_code: string
+  cities: PresetCity[]
+  age_min: number
+  age_max: number
+  gender: string
+  daily_budget_minor: number
+}
 function objectStatus(value: unknown) {
   if (!value || typeof value !== 'object') return '—'
   const item = value as { effective_status?: unknown; status?: unknown; issues_info?: unknown }
@@ -43,7 +61,14 @@ export function AdsView({ api, language, projectId = null }: {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [presetOpen, setPresetOpen] = useState(false)
-  const [preset, setPreset] = useState({ name: '', countries: 'UA', age_min: 25, age_max: 55, gender: 'all', daily_budget_minor: 500 })
+  const [preset, setPreset] = useState<PresetDraft>({
+    name: '', geo_mode: 'countries', countries: 'UA', city_country_code: 'UA', cities: [],
+    age_min: 25, age_max: 55, gender: 'all', daily_budget_minor: 500,
+  })
+  const [locationQuery, setLocationQuery] = useState('Kyiv')
+  const [locationResults, setLocationResults] = useState<MetaAdsLocation[]>([])
+  const [locationBusy, setLocationBusy] = useState(false)
+  const [locationError, setLocationError] = useState('')
   const epoch = useRef(0)
   const tr = (en: string, uk: string) => translate(language, en, uk)
   const base = projectId ? `/api/v1/ads/projects/${projectId}` : ''
@@ -108,7 +133,13 @@ export function AdsView({ api, language, projectId = null }: {
     try {
       const result = await api.post<{ preset: MetaAdsPresetVersion }>('/api/v1/ads/presets', {
         name: preset.name,
-        countries: preset.countries.split(',').map(item => item.trim().toUpperCase()).filter(Boolean),
+        countries: preset.geo_mode === 'countries'
+          ? preset.countries.split(',').map(item => item.trim().toUpperCase()).filter(Boolean)
+          : [],
+        ...(preset.geo_mode === 'cities' ? { cities: preset.cities.map(city => ({
+          key: city.key, name: city.name, country_code: city.country_code,
+          radius_km: Number(city.radius_km),
+        })) } : {}),
         age_min: Number(preset.age_min), age_max: Number(preset.age_max), gender: preset.gender,
         daily_budget_minor: Number(preset.daily_budget_minor),
       })
@@ -117,6 +148,29 @@ export function AdsView({ api, language, projectId = null }: {
       setPresetOpen(false)
       setNotice(tr('Audience preset version saved.', 'Версію пресета аудиторії збережено.'))
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
+  }
+
+  const searchLocations = async () => {
+    setLocationBusy(true); setLocationError(''); setLocationResults([])
+    try {
+      const query = encodeURIComponent(locationQuery.trim())
+      const country = encodeURIComponent(preset.city_country_code.trim().toUpperCase())
+      const result = await api.get<{ items: MetaAdsLocation[] }>(`/api/v1/ads/locations?query=${query}&country_code=${country}`)
+      setLocationResults(result.items)
+      if (!result.items.length) setLocationError(tr('No Meta city matches found.', 'Meta не знайшла відповідного міста.'))
+    } catch (cause) {
+      setLocationError(cause instanceof Error ? cause.message : String(cause))
+    } finally { setLocationBusy(false) }
+  }
+
+  const addCity = (city: MetaAdsLocation) => {
+    setPreset(current => current.cities.some(item => item.key === city.key) || current.cities.length >= 5
+      ? current
+      : { ...current, cities: [...current.cities, { ...city, radius_km: 20 }] })
+  }
+
+  const removeCity = (key: string) => {
+    setPreset(current => ({ ...current, cities: current.cities.filter(city => city.key !== key) }))
   }
 
   const stage = async () => {
@@ -243,8 +297,27 @@ export function AdsView({ api, language, projectId = null }: {
 
     <section className="panel ads-presets">
       <div className="ads-section-title"><div><small>{tr('VERSIONED TARGETING', 'ВЕРСІЙНИЙ TARGETING')}</small><h2>{tr('Audience presets', 'Пресети аудиторії')}</h2></div><button className="secondary" onClick={() => setPresetOpen(value => !value)}>{presetOpen ? tr('Close', 'Закрити') : tr('New preset', 'Новий пресет')}</button></div>
-      {presetOpen && <div className="ads-preset-form"><label>{tr('Name', 'Назва')}<input value={preset.name} maxLength={80} onChange={event => setPreset(current => ({ ...current, name: event.target.value }))} /></label><label>{tr('Countries (ISO, comma-separated)', 'Країни (ISO, через кому)')}<input value={preset.countries} onChange={event => setPreset(current => ({ ...current, countries: event.target.value }))} /></label><label>{tr('Minimum age', 'Мінімальний вік')}<input type="number" min="18" max="65" value={preset.age_min} onChange={event => setPreset(current => ({ ...current, age_min: Number(event.target.value) }))} /></label><label>{tr('Maximum age', 'Максимальний вік')}<input type="number" min="18" max="65" value={preset.age_max} onChange={event => setPreset(current => ({ ...current, age_max: Number(event.target.value) }))} /></label><label>{tr('Gender', 'Стать')}<select value={preset.gender} onChange={event => setPreset(current => ({ ...current, gender: event.target.value }))}><option value="all">{tr('All', 'Усі')}</option><option value="women">{tr('Women', 'Жінки')}</option><option value="men">{tr('Men', 'Чоловіки')}</option></select></label><label>{tr('Daily budget (minor currency units)', 'Денний бюджет (мінімальні одиниці валюти)')}<input type="number" min="1" value={preset.daily_budget_minor} onChange={event => setPreset(current => ({ ...current, daily_budget_minor: Number(event.target.value) }))} /></label><button className="primary" disabled={busy || !preset.name.trim()} onClick={() => void createPreset()}>{tr('Save immutable version', 'Зберегти незмінну версію')}</button></div>}
-      {!presetOpen && <div className="ads-preset-list">{workspace.presets.map(item => <button key={item.preset_id} className={selectedPresetId === item.preset_id ? 'selected' : ''} onClick={() => setSelectedPresetId(item.preset_id)}><strong>v{item.version} · {item.specification.name}</strong><span>{item.specification.countries.join(', ')} · {item.specification.age_min}–{item.specification.age_max} · {item.specification.gender}</span><code>{short(item.specification_sha256)}</code></button>)}</div>}
+      {presetOpen && <div className="ads-preset-form">
+        <label>{tr('Name', 'Назва')}<input value={preset.name} maxLength={80} onChange={event => setPreset(current => ({ ...current, name: event.target.value }))} /></label>
+        <label>{tr('Geography', 'Географія')}<select value={preset.geo_mode} onChange={event => setPreset(current => ({ ...current, geo_mode: event.target.value as PresetDraft['geo_mode'] }))}><option value="countries">{tr('Entire countries', 'Цілі країни')}</option><option value="cities">{tr('City + radius', 'Місто + радіус')}</option></select></label>
+        {preset.geo_mode === 'countries' ? <label>{tr('Countries (ISO, comma-separated)', 'Країни (ISO, через кому)')}<input value={preset.countries} onChange={event => setPreset(current => ({ ...current, countries: event.target.value }))} /></label> : <div className="ads-city-targeting">
+          <div className="ads-city-search">
+            <label>{tr('Country code', 'Код країни')}<input value={preset.city_country_code} maxLength={2} onChange={event => setPreset(current => ({ ...current, city_country_code: event.target.value.toUpperCase() }))} /></label>
+            <label>{tr('Search city in Meta', 'Знайти місто в Meta')}<input value={locationQuery} maxLength={80} onChange={event => setLocationQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void searchLocations() } }} /></label>
+            <button className="secondary" type="button" disabled={!connected || locationBusy || locationQuery.trim().length < 2 || preset.city_country_code.trim().length !== 2} onClick={() => void searchLocations()}><Search />{locationBusy ? tr('Searching…', 'Пошук…') : tr('Search Meta', 'Знайти в Meta')}</button>
+          </div>
+          {!connected && <p className="ads-location-help">{tr('Connect and verify Meta first; city keys come directly from its targeting search.', 'Спочатку під’єднайте та перевірте Meta; ключі міст беруться безпосередньо з її targeting search.')}</p>}
+          {locationError && <p className="ads-location-error" role="alert">{locationError}</p>}
+          {locationResults.length > 0 && <div className="ads-location-results">{locationResults.map(city => <button type="button" key={city.key} disabled={preset.cities.some(item => item.key === city.key)} onClick={() => addCity(city)}><MapPin /><span><strong>{city.name}</strong><small>{[city.region, city.country_name].filter(Boolean).join(', ')}</small></span>{preset.cities.some(item => item.key === city.key) ? <CheckCircle2 /> : tr('Add', 'Додати')}</button>)}</div>}
+          {preset.cities.length > 0 && <div className="ads-selected-cities">{preset.cities.map(city => <article key={city.key}><span><MapPin /><strong>{city.name}</strong><small>{city.country_code} · Meta key {city.key}</small></span><label>{tr('Radius, km', 'Радіус, км')}<input type="number" min="17" max="80" value={city.radius_km} onChange={event => setPreset(current => ({ ...current, cities: current.cities.map(item => item.key === city.key ? { ...item, radius_km: Number(event.target.value) } : item) }))} /></label><button type="button" className="icon-button" aria-label={tr(`Remove ${city.name}`, `Видалити ${city.name}`)} onClick={() => removeCity(city.key)}><X /></button></article>)}</div>}
+        </div>}
+        <label>{tr('Minimum age', 'Мінімальний вік')}<input type="number" min="18" max="65" value={preset.age_min} onChange={event => setPreset(current => ({ ...current, age_min: Number(event.target.value) }))} /></label>
+        <label>{tr('Maximum age', 'Максимальний вік')}<input type="number" min="18" max="65" value={preset.age_max} onChange={event => setPreset(current => ({ ...current, age_max: Number(event.target.value) }))} /></label>
+        <label>{tr('Gender', 'Стать')}<select value={preset.gender} onChange={event => setPreset(current => ({ ...current, gender: event.target.value }))}><option value="all">{tr('All', 'Усі')}</option><option value="women">{tr('Women', 'Жінки')}</option><option value="men">{tr('Men', 'Чоловіки')}</option></select></label>
+        <label>{tr('Daily budget (minor currency units)', 'Денний бюджет (мінімальні одиниці валюти)')}<input type="number" min="1" value={preset.daily_budget_minor} onChange={event => setPreset(current => ({ ...current, daily_budget_minor: Number(event.target.value) }))} /></label>
+        <button className="primary" disabled={busy || !preset.name.trim() || (preset.geo_mode === 'cities' ? !preset.cities.length : !preset.countries.trim())} onClick={() => void createPreset()}>{tr('Save immutable version', 'Зберегти незмінну версію')}</button>
+      </div>}
+      {!presetOpen && <div className="ads-preset-list">{workspace.presets.map(item => <button key={item.preset_id} className={selectedPresetId === item.preset_id ? 'selected' : ''} onClick={() => setSelectedPresetId(item.preset_id)}><strong>v{item.version} · {item.specification.name}</strong><span>{presetGeography(item.specification)} · {item.specification.age_min}–{item.specification.age_max} · {item.specification.gender}</span><code>{short(item.specification_sha256)}</code></button>)}</div>}
     </section>
 
     <section className="panel ads-history">

@@ -32,6 +32,7 @@ SPECIAL_AD_CATEGORIES = frozenset({
     "FINANCIAL_PRODUCTS_SERVICES", "ONLINE_GAMBLING_AND_GAMING",
 })
 _COUNTRY = re.compile(r"[A-Z]{2}")
+_CITY_KEY = re.compile(r"[0-9]+")
 _SECRET_KEYS = frozenset({
     "META_SYSTEM_USER_ACCESS_TOKEN", "META_AD_ACCOUNT_ID", "META_PAGE_ID",
     "META_INSTAGRAM_ACTOR_ID", "META_GRAPH_API_VERSION", "META_ADS_NAME_PREFIX",
@@ -102,15 +103,43 @@ def _categories(value: Any) -> list[str]:
 
 
 def normalize_preset(value: Mapping[str, Any]) -> dict[str, Any]:
-    expected = {"name", "countries", "age_min", "age_max", "gender", "daily_budget_minor"}
-    if set(value) != expected:
+    base_fields = {"name", "countries", "age_min", "age_max", "gender", "daily_budget_minor"}
+    supplied_fields = set(value)
+    if supplied_fields != base_fields and supplied_fields != {*base_fields, "cities"}:
         raise ValueError("Meta Ads preset fields are invalid")
     countries = value["countries"]
-    if not isinstance(countries, list) or not 1 <= len(countries) <= 10:
-        raise ValueError("Meta Ads preset requires 1-10 country codes")
+    if not isinstance(countries, list) or len(countries) > 10:
+        raise ValueError("Meta Ads preset requires at most 10 country codes")
     normalized_countries = sorted({str(item).strip().upper() for item in countries})
     if len(normalized_countries) != len(countries) or any(not _COUNTRY.fullmatch(item) for item in normalized_countries):
         raise ValueError("Meta Ads country codes must be unique ISO alpha-2 values")
+    raw_cities = value.get("cities", [])
+    if not isinstance(raw_cities, list) or len(raw_cities) > 5:
+        raise ValueError("Meta Ads preset requires at most 5 cities")
+    normalized_cities: list[dict[str, Any]] = []
+    for raw_city in raw_cities:
+        if not isinstance(raw_city, Mapping) or set(raw_city) != {"key", "name", "country_code", "radius_km"}:
+            raise ValueError("Meta Ads city fields are invalid")
+        key = str(raw_city["key"]).strip()
+        country_code = str(raw_city["country_code"]).strip().upper()
+        radius = raw_city["radius_km"]
+        if not _CITY_KEY.fullmatch(key):
+            raise ValueError("Meta Ads city key is invalid")
+        if not _COUNTRY.fullmatch(country_code):
+            raise ValueError("Meta Ads city country code is invalid")
+        if isinstance(radius, bool) or not isinstance(radius, int) or not 17 <= radius <= 80:
+            raise ValueError("Meta Ads city radius must be between 17 and 80 kilometers")
+        normalized_cities.append({
+            "key": key,
+            "name": _single_line(raw_city["name"], "city name", 1, 100),
+            "country_code": country_code,
+            "radius_km": radius,
+        })
+    normalized_cities.sort(key=lambda item: (item["country_code"], item["name"].casefold(), item["key"]))
+    if len({item["key"] for item in normalized_cities}) != len(normalized_cities):
+        raise ValueError("Meta Ads city keys must be unique")
+    if bool(normalized_countries) == bool(normalized_cities):
+        raise ValueError("Meta Ads preset requires either countries or cities, but not both")
     age_min, age_max = value["age_min"], value["age_max"]
     budget = value["daily_budget_minor"]
     if any(isinstance(item, bool) or not isinstance(item, int) for item in (age_min, age_max, budget)):
@@ -123,9 +152,10 @@ def normalize_preset(value: Mapping[str, Any]) -> dict[str, Any]:
     if gender not in {"all", "men", "women"}:
         raise ValueError("Meta Ads gender must be all, men, or women")
     return {
-        "schema": "ptw.meta-ads.preset.v1",
+        "schema": "ptw.meta-ads.preset.v2" if normalized_cities else "ptw.meta-ads.preset.v1",
         "name": _single_line(value["name"], "preset name", 1, 80),
         "countries": normalized_countries,
+        **({"cities": normalized_cities} if normalized_cities else {}),
         "age_min": age_min, "age_max": age_max, "gender": gender,
         "daily_budget_minor": budget,
         "publisher_platforms": ["instagram"], "instagram_positions": ["stream"],
@@ -301,6 +331,32 @@ class MetaAdsAdapter:
             },
         }
 
+    def search_cities(self, query: str, country_code: str) -> list[dict[str, str]]:
+        result = self._call(
+            "GET", "search",
+            params={
+                "type": "adgeolocation", "location_types": _canonical(["city"]),
+                "q": query, "country_code": country_code, "limit": 20,
+            },
+            outcome="Meta city search failed",
+        )
+        items: list[dict[str, str]] = []
+        for raw_item in result.get("data", []):
+            if not isinstance(raw_item, Mapping):
+                continue
+            key = str(raw_item.get("key") or "").strip()
+            name = " ".join(str(raw_item.get("name") or "").split())
+            item_country = str(raw_item.get("country_code") or "").strip().upper()
+            item_type = str(raw_item.get("type") or "").strip().lower()
+            if not _CITY_KEY.fullmatch(key) or not name or item_country != country_code or item_type != "city":
+                continue
+            items.append({
+                "key": key, "name": name[:100], "type": "city", "country_code": item_country,
+                "country_name": " ".join(str(raw_item.get("country_name") or "").split())[:100],
+                "region": " ".join(str(raw_item.get("region") or "").split())[:100],
+            })
+        return items
+
     def _find(self, edge: str, name: str, *, fields: str) -> dict[str, Any] | None:
         result = self._call(
             "GET", f"{self.account_node}/{edge}",
@@ -341,8 +397,20 @@ class MetaAdsAdapter:
                 raise MetaAdsProviderError("Existing PTW ad set does not match its PAUSED campaign")
             return existing
         genders = None if preset["gender"] == "all" else [1 if preset["gender"] == "men" else 2]
+        cities = preset.get("cities") or []
+        geo_locations = {"location_types": ["home"]}
+        if cities:
+            geo_locations["cities"] = [
+                {
+                    "key": city["key"], "radius": city["radius_km"],
+                    "distance_unit": "kilometer",
+                }
+                for city in cities
+            ]
+        else:
+            geo_locations["countries"] = preset["countries"]
         targeting = {
-            "geo_locations": {"countries": preset["countries"], "location_types": ["home"]},
+            "geo_locations": geo_locations,
             "age_min": preset["age_min"], "age_max": preset["age_max"],
             "publisher_platforms": ["instagram"], "instagram_positions": ["stream"],
         }
@@ -851,6 +919,18 @@ class MetaAdsService:
 
     def presets(self) -> dict[str, Any]:
         return {"items": self.authority.list_presets()}
+
+    def locations(self, query: str, country_code: str) -> dict[str, Any]:
+        query = _single_line(query, "location query", 2, 80)
+        country_code = str(country_code).strip().upper()
+        if not _COUNTRY.fullmatch(country_code):
+            raise ValueError("Meta Ads location country code must be ISO alpha-2")
+        if not self.configuration.configured or self.adapter is None:
+            raise RuntimeError("Meta Ads city search is disabled until credentials and asset IDs are configured")
+        connection = self.connection()
+        if not connection.get("verified"):
+            raise RuntimeError(str(connection.get("explanation") or "Meta Ads assets could not be verified"))
+        return {"items": self.adapter.search_cities(query, country_code)}
 
     def create_preset(self, request: Mapping[str, Any]) -> dict[str, Any]:
         return {"preset": self.authority.create_preset(normalize_preset(request))}

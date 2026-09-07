@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from fastapi.params import Depends as DependsParameter
 
 
@@ -32,6 +32,16 @@ def meta_ads_router(
     @router.get("/presets")
     def presets() -> dict[str, Any]:
         return service.presets()
+
+    @router.get("/locations")
+    def locations(
+        query: str = Query(min_length=2, max_length=80),
+        country_code: str = Query(min_length=2, max_length=2),
+    ) -> dict[str, Any]:
+        try:
+            return service.locations(query, country_code)
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
 
     @router.post("/presets", status_code=201)
     def create_preset(request: Mapping[str, Any]) -> dict[str, Any]:

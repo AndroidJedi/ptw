@@ -76,8 +76,12 @@ CTA is fixed to `SEND_MESSAGE`; the welcome message defaults to localized
 “Вітаю! Хочу дізнатися більше.” The owner may edit the three text fields before
 staging. The normalized final specification is then immutable.
 
-Presets are append-only versions containing name, countries, age range, gender,
-and daily budget in the ad account's minor currency units. One Project owns one
+Presets are append-only versions containing name, either whole countries or up
+to five Meta city keys with a 17–80 km radius, age range, gender, and daily
+budget in the ad account's minor currency units. City keys are selected through
+the authenticated Meta `adgeolocation` search in Ads; PTW never accepts a city
+name as sufficient targeting authority. A city Ad Set sends `cities` without
+`countries`, preventing accidental country-wide broadening. One Project owns one
 Meta experiment/campaign. One unique preset specification SHA-256 within that
 experiment owns one Ad Set. Every deployment owns one Creative and one Ad.
 Changing targeting or budget creates another immutable preset snapshot and Ad
@@ -106,6 +110,7 @@ chained append-only records.
 Owner routes are:
 
 - `GET /api/v1/ads/connection`;
+- `GET /api/v1/ads/locations?query=...&country_code=...`;
 - `GET|POST /api/v1/ads/presets`;
 - `GET /api/v1/ads/projects/{project_id}`;
 - `POST /api/v1/ads/projects/{project_id}/deployments`;

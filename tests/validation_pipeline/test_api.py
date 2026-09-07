@@ -35,6 +35,10 @@ class ValidationApiRouteTests(unittest.TestCase):
         def recover_interrupted():
             return []
 
+        @staticmethod
+        def locations(query, country_code):
+            return {"items": [{"name": query, "country_code": country_code}]}
+
     @staticmethod
     def settings() -> Settings:
         return Settings(
@@ -114,6 +118,24 @@ class ValidationApiRouteTests(unittest.TestCase):
             )
             self.assertEqual(202, response.status_code, response.text)
             self.assertTrue(meta.called.wait(timeout=1))
+
+    def test_meta_ads_location_search_is_authenticated(self) -> None:
+        class Repository:
+            @staticmethod
+            def recover_interrupted():
+                return {"briefs": 0}
+
+        app = create_app(
+            self.settings(), repository=Repository(), runner=object(),
+            studio_creative_service=self.Studio(), landing_page_service=self.Landing(),
+            meta_ads_service=self.MetaAds(),
+        )
+        with TestClient(app) as client:
+            path = "/internal/v1/ads/locations?query=Kyiv&country_code=UA"
+            self.assertEqual(401, client.get(path).status_code)
+            response = client.get(path, headers={"X-PTW-Owner-Gateway-Token": "owner-token"})
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertEqual("Kyiv", response.json()["items"][0]["name"])
 
     def test_create_brief_schedules_generation_and_returns_accepted(self) -> None:
         brief_id = "01900000-0000-7000-8000-000000000001"

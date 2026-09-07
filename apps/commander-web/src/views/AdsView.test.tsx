@@ -38,7 +38,7 @@ function fixture(verified = true): MetaAdsProjectWorkspace {
 }
 
 function apiFor(workspace: MetaAdsProjectWorkspace) {
-  const get = vi.fn(async (path: string) => {
+  const get = vi.fn(async (path: string): Promise<unknown> => {
     expect(path).toBe(`/api/v1/ads/projects/${projectId}`)
     return workspace
   })
@@ -118,5 +118,34 @@ it('creates a versioned audience preset', async () => {
   await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/ads/presets', {
     name: 'Kyiv test', countries: ['UA', 'PL'], age_min: 25, age_max: 55,
     gender: 'all', daily_budget_minor: 500,
+  }))
+})
+
+it('searches Meta and saves an immutable city-radius preset without country broadening', async () => {
+  const workspace = fixture()
+  const { api, get, post } = apiFor(workspace)
+  get.mockImplementation(async (path: string) => {
+    if (path === `/api/v1/ads/projects/${projectId}`) return workspace
+    if (path === '/api/v1/ads/locations?query=Kyiv&country_code=UA') return { items: [{
+      key: '2420605', name: 'Kyiv', type: 'city', country_code: 'UA',
+      country_name: 'Ukraine', region: 'Kyiv',
+    }] }
+    throw new Error(`Unexpected path ${path}`)
+  })
+
+  render(<AdsView api={api} language="en" projectId={projectId} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'New preset' }))
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Kyiv 25 km' } })
+  fireEvent.change(screen.getByLabelText('Geography'), { target: { value: 'cities' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Search Meta' }))
+  fireEvent.click(await screen.findByRole('button', { name: /Kyiv.*Add/ }))
+  fireEvent.change(screen.getByLabelText('Radius, km'), { target: { value: '25' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save immutable version' }))
+
+  await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/ads/presets', {
+    name: 'Kyiv 25 km', countries: [], cities: [{
+      key: '2420605', name: 'Kyiv', country_code: 'UA', radius_km: 25,
+    }],
+    age_min: 25, age_max: 55, gender: 'all', daily_budget_minor: 500,
   }))
 })

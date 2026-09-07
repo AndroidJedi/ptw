@@ -290,7 +290,7 @@ test('explains a persisted API-backed Brief failure without exposing raw provide
   await expect(page.getByText('structured bridge request 437 failed')).toHaveCount(0)
 })
 
-test('shows Brief, the project-scoped Post editor, and Landing Studio', async ({ page }) => {
+test('shows Brief, the project-scoped Post editor, Landing Studio, and Ads', async ({ page }) => {
   await page.goto('/?e2e=1')
   await expect(page.getByRole('button', { name: 'Бриф' }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Змінити мову' }).click()
@@ -298,6 +298,7 @@ test('shows Brief, the project-scoped Post editor, and Landing Studio', async ({
   await expect(page.getByRole('button', { name: 'Social posts' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Post', exact: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Landing', exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Ads', exact: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Studio' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Post', exact: true }).first().click()
   await expect(page.locator('.universal-canvas-panel')).toBeVisible()
@@ -305,7 +306,7 @@ test('shows Brief, the project-scoped Post editor, and Landing Studio', async ({
   await page.reload()
   await expect(page.getByRole('button', { name: 'Post', exact: true }).first()).toBeVisible()
   await expect(page.getByText('Ad Studio')).toHaveCount(0)
-  await expect(page.getByText('Ads', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Ads', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: 'Landing', exact: true }).first().click()
   await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('landing')
 

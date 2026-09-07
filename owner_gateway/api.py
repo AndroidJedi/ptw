@@ -442,6 +442,61 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def landing_learning_retry(project_id: str, landing_id: str, checkpoint_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await landing_post(project_id, landing_id, f"/learning/{checkpoint_id}/retry", request, identity, timeout=480)
 
+    @app.get("/api/v1/ads/connection")
+    async def meta_ads_connection(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", "/internal/v1/ads/connection", timeout=60)).json()
+
+    @app.get("/api/v1/ads/presets")
+    async def meta_ads_presets(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", "/internal/v1/ads/presets", timeout=60)).json()
+
+    @app.post("/api/v1/ads/presets", status_code=201)
+    async def meta_ads_create_preset(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", "/internal/v1/ads/presets", body=request,
+            actor=actor(identity), timeout=60,
+        )).json()
+
+    @app.get("/api/v1/ads/projects/{project_id}")
+    async def meta_ads_workspace(
+        project_id: str, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", f"/internal/v1/ads/projects/{project_id}", timeout=60,
+        )).json()
+
+    @app.post("/api/v1/ads/projects/{project_id}/deployments", status_code=202)
+    async def meta_ads_deploy(
+        project_id: str, request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/ads/projects/{project_id}/deployments",
+            body=request, actor=actor(identity), timeout=60,
+        )).json()
+
+    @app.post("/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/retry", status_code=202)
+    async def meta_ads_retry(
+        project_id: str, deployment_id: str, request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/ads/projects/{project_id}/deployments/{deployment_id}/retry",
+            body=request, actor=actor(identity), timeout=60,
+        )).json()
+
+    @app.post("/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/sync")
+    async def meta_ads_sync(
+        project_id: str, deployment_id: str, request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/ads/projects/{project_id}/deployments/{deployment_id}/sync",
+            body=request, actor=actor(identity), timeout=60,
+        )).json()
+
     @app.get("/api/v1/system/health")
     async def system_health(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         try:

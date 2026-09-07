@@ -3,7 +3,9 @@
 The owner sees Studio as **Post / Допис**. Every creative belongs to one Project
 and derives from one approved Product Brief. Studio has no owner-wide singleton,
 separate Studio page, Social Post workflow, publishing, campaign, traffic,
-analytics, or optimization surface.
+analytics, or optimization surface. PAUSED campaign staging is isolated in the
+separate [`Ads / Реклама`](meta-ads.md) workspace and consumes only immutable
+approved Post versions.
 
 Landing / Лендінг is a separate private page workspace documented in
 [`landing-studio.md`](landing-studio.md). It may derive from an immutable Post

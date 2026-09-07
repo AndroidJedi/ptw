@@ -19,6 +19,10 @@ from .studio import StudioRenderer
 from .landing_pages import DatabaseLandingAuthority, DatabaseLandingWorkspace, LandingService
 from .landing_routes import landing_page_router
 from .landing_workspace import LandingWorkspace
+from .meta_ads import (
+    DatabaseMetaAdsAuthority, MetaAdsAdapter, MetaAdsConfiguration, MetaAdsService,
+)
+from .meta_ads_routes import meta_ads_router
 from .studio_creatives import StudioCreativeService
 from .studio_repository import DatabaseCreativeWorkspace, DatabaseStudioAuthority
 from .studio_routes import studio_creative_router
@@ -34,6 +38,7 @@ def create_app(
     studio_workspace: UniversalStudioWorkspace | None = None,
     studio_creative_service: StudioCreativeService | None = None,
     landing_page_service: LandingService | None = None,
+    meta_ads_service: MetaAdsService | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_environment()
     repository = repository or ValidationRepository(settings.database_url)
@@ -79,6 +84,13 @@ def create_app(
             structured_provider=bridge, composer_skill_path=settings.landing_composer_skill_path,
             learner_skill_path=settings.landing_learner_skill_path,
         )
+    if meta_ads_service is None:
+        meta_configuration = MetaAdsConfiguration.from_environment()
+        meta_adapter = MetaAdsAdapter(meta_configuration) if meta_configuration.configured else None
+        meta_ads_service = MetaAdsService(
+            DatabaseMetaAdsAuthority(settings.database_url), studio_creatives,
+            meta_configuration, meta_adapter,
+        )
     runner_error: Exception | None = None
     if runner is None:
         try:
@@ -100,6 +112,10 @@ def create_app(
             task.add_done_callback(tasks.discard)
         for landing_id in await asyncio.to_thread(landing_pages.recover_interrupted):
             task = asyncio.create_task(asyncio.to_thread(landing_pages.generate, landing_id))
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
+        for deployment_id in await asyncio.to_thread(meta_ads_service.recover_interrupted):
+            task = asyncio.create_task(asyncio.to_thread(meta_ads_service.execute, deployment_id))
             tasks.add(task)
             task.add_done_callback(tasks.discard)
         for item in await asyncio.to_thread(studio_creatives.recover_learning):
@@ -127,6 +143,9 @@ def create_app(
     ))
     app.include_router(landing_page_router(
         landing_pages, prefix="/internal/v1/landings", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(meta_ads_router(
+        meta_ads_service, prefix="/internal/v1/ads", dependencies=[Depends(authorize)],
     ))
 
     def require_brief_runner() -> ValidationRunner:

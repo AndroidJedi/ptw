@@ -92,6 +92,36 @@ class ReleaseStreamContractTests(unittest.TestCase):
         ):
             self.assertIn(f"(SELECT count(*) FROM {table})", reset)
 
+    def test_reset_and_schema_checks_cover_every_meta_ads_table(self) -> None:
+        reset = (ROOT / "scripts/reset_ptw.sh").read_text()
+        schema = (ROOT / "scripts/verify_ptw_brief_schema.sh").read_text()
+        for table in (
+            "meta_ads_preset_versions",
+            "meta_ads_workspaces",
+            "meta_ads_audience_versions",
+            "meta_ads_deployments",
+            "meta_ads_stage_runs",
+            "meta_ads_status_snapshots",
+        ):
+            self.assertIn(table, reset)
+            self.assertIn(table, schema)
+
+    def test_meta_token_is_a_validation_only_file_secret(self) -> None:
+        compose = (ROOT / "docker-compose.validation.yml").read_text()
+        gateway = (ROOT / "docker-compose.commander.yml").read_text()
+
+        self.assertIn("META_ADS_SECRETS_PATH: /run/ptw-meta-ads/config.env", compose)
+        self.assertIn("/opt/ptw/secrets/meta-ads:/run/ptw-meta-ads:ro", compose)
+        self.assertNotIn("META_SYSTEM_USER_ACCESS_TOKEN", compose)
+        self.assertNotIn("ptw-meta-ads", gateway)
+
+        configurator = (ROOT / "scripts/configure_meta_ads.sh").read_text()
+        self.assertIn("read -r -s access_token", configurator)
+        self.assertIn("oauth2-bearer", configurator)
+        self.assertIn("chmod 0440", configurator)
+        self.assertIn("chmod 0600", configurator)
+        self.assertNotIn("--oauth2-bearer", configurator)
+
     def test_platform_enforcement_and_canaries_precede_reset(self) -> None:
         deployer = (ROOT / "scripts/deploy_ptw_serial.sh").read_text()
         rollout = deployer.index('export PTW_PLATFORM_IMAGE_TAG=$release_tag')

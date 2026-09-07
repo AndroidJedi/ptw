@@ -19,6 +19,10 @@ from .local_codex import LocalCodexStructuredProvider
 from .landing_pages import LandingService, LocalLandingAuthority
 from .landing_routes import landing_page_router
 from .landing_workspace import LandingWorkspace
+from .meta_ads import (
+    LocalMetaAdsAuthority, MetaAdsAdapter, MetaAdsConfiguration, MetaAdsService,
+)
+from .meta_ads_routes import meta_ads_router
 from .openai_images import (
     LocalCodexPhoneScreenImageProvider, OpenAIPhoneScreenImageProvider,
 )
@@ -36,6 +40,7 @@ def create_app(
     *, tune_service: StudioTuneService | None = None,
     brief_service: LocalBriefService | None = None,
     phone_screen_image_provider: Any | None = None,
+    meta_ads_service: MetaAdsService | None = None,
 ) -> FastAPI:
     tune_enabled = os.environ.get("STUDIO_TUNE_MODE", "").strip() == "1"
     workspace_path = Path(os.environ.get(
@@ -104,6 +109,13 @@ def create_app(
         composer_skill_path=repository_root / "skills/landing-page-composer/SKILL.md",
         learner_skill_path=repository_root / "skills/landing-edit-learner/SKILL.md",
     )
+    if meta_ads_service is None:
+        meta_configuration = MetaAdsConfiguration.from_environment()
+        meta_adapter = MetaAdsAdapter(meta_configuration) if meta_configuration.configured else None
+        meta_ads_service = MetaAdsService(
+            LocalMetaAdsAuthority(local_store), studio_creatives,
+            meta_configuration, meta_adapter,
+        )
     recovery_tasks: set[asyncio.Task[Any]] = set()
 
     @asynccontextmanager
@@ -118,6 +130,10 @@ def create_app(
             task.add_done_callback(recovery_tasks.discard)
         for landing_id in landing_pages.recover_interrupted():
             task = asyncio.create_task(asyncio.to_thread(landing_pages.generate, landing_id))
+            recovery_tasks.add(task)
+            task.add_done_callback(recovery_tasks.discard)
+        for deployment_id in meta_ads_service.recover_interrupted():
+            task = asyncio.create_task(asyncio.to_thread(meta_ads_service.execute, deployment_id))
             recovery_tasks.add(task)
             task.add_done_callback(recovery_tasks.discard)
         for item in studio_creatives.recover_learning():
@@ -156,6 +172,9 @@ def create_app(
     ))
     app.include_router(landing_page_router(
         landing_pages, prefix="/api/v1/landings", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(meta_ads_router(
+        meta_ads_service, prefix="/api/v1/ads", dependencies=[Depends(authorize)],
     ))
     app.include_router(local_brief_router(
         brief_service, studio_creatives=studio_creatives, dependencies=[Depends(authorize)],

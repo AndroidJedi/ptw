@@ -10,6 +10,7 @@ import type { Page, ValidationProject } from './types'
 import { ProductBriefView } from './views/ProductBriefView'
 import { StudioView } from './views/StudioView'
 import { LandingView } from './views/LandingView'
+import { AdsView } from './views/AdsView'
 import { SettingsView } from './views/SettingsView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
@@ -35,8 +36,8 @@ function persistLanguage(language: Language) {
 function initialConsoleLocation(): { page: Page; projectId: string | null; creativeId: string | null; landingId: string | null } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const page: Page = requestedPage === 'posts' || requestedPage === 'landing' || requestedPage === 'settings' ? requestedPage : 'briefs'
-  if (requestedPage && requestedPage !== 'briefs' && requestedPage !== 'posts' && requestedPage !== 'landing' && requestedPage !== 'settings') {
+  const page: Page = requestedPage === 'posts' || requestedPage === 'landing' || requestedPage === 'ads' || requestedPage === 'settings' ? requestedPage : 'briefs'
+  if (requestedPage && requestedPage !== 'briefs' && requestedPage !== 'posts' && requestedPage !== 'landing' && requestedPage !== 'ads' && requestedPage !== 'settings') {
     params.delete('page')
     const search = params.toString()
     window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
@@ -218,6 +219,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onCreative={openCreative} language={language} />}
     {page === 'posts' && <StudioView api={api} language={language} tuneMode={localApp} projectId={validatedProjectId} creativeId={creativeId} onCreative={selectCreative} />}
     {page === 'landing' && <LandingView api={api} language={language} projectId={validatedProjectId} landingId={landingId} onLanding={selectLanding} />}
+    {page === 'ads' && <AdsView api={api} language={language} projectId={validatedProjectId} />}
     {page === 'settings' && <SettingsView api={api} language={language} />}
   </Shell>
 }

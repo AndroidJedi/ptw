@@ -26,6 +26,8 @@ def main() -> None:
         "studio_skill_snapshots", "studio_learning_proposals", "studio_learning_decisions",
         "landing_workspaces", "landing_workspace_files", "landing_assets", "landing_generation_runs", "landing_versions",
         "landing_checkpoints", "landing_skill_snapshots", "landing_learning_proposals",
+        "meta_ads_preset_versions", "meta_ads_workspaces", "meta_ads_audience_versions",
+        "meta_ads_deployments", "meta_ads_stage_runs", "meta_ads_status_snapshots",
     }
     forbidden = {
         "project_assets", "project_brand_kits", "studio_recipes", "studio_renders",

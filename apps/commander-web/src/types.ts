@@ -1,5 +1,95 @@
-export type Page = 'briefs' | 'posts' | 'landing' | 'settings'
+export type Page = 'briefs' | 'posts' | 'landing' | 'ads' | 'settings'
 export type I18n<T = string> = { en: T; uk: T }
+
+export interface MetaAdsConnection {
+  configured: boolean
+  verified: boolean
+  graph_version: string
+  explanation?: string
+  required_permissions?: string[]
+  account?: { id?: string; name?: string; currency?: string; timezone_name?: string; account_status?: number }
+  page?: { id: string; name?: string | null }
+  instagram?: { id: string; username?: string | null }
+  available?: {
+    ad_accounts: Array<{ id?: string; name?: string; currency?: string; timezone_name?: string; account_status?: number }>
+    pages: Array<{ id?: string; name?: string }>
+    instagram_accounts: Array<{ id?: string; username?: string }>
+  }
+}
+
+export interface MetaAdsPresetVersion {
+  preset_id: string
+  version: number
+  specification_sha256: string
+  created_at: string
+  specification: {
+    schema: 'ptw.meta-ads.preset.v1'
+    name: string
+    countries: string[]
+    age_min: number
+    age_max: number
+    gender: 'all' | 'men' | 'women'
+    daily_budget_minor: number
+    publisher_platforms: ['instagram']
+    instagram_positions: ['stream']
+    location_types: ['home']
+  }
+}
+
+export interface MetaAdsSourceVersion {
+  creative_id: string
+  creative_ordinal: number
+  template_id: string
+  version: number
+  version_id?: string | null
+  version_sha256: string
+  render_sha256: string
+  change_note: string
+  defaults: { headline: string; primary_text: string; welcome_message: string }
+}
+
+export interface MetaAdsStatusSnapshot {
+  campaign?: Record<string, unknown>
+  ad_set?: Record<string, unknown>
+  ad?: Record<string, unknown>
+}
+
+export interface MetaAdsDeployment {
+  deployment_id: string
+  request_id: string
+  project_id: string
+  source_creative_id: string
+  source_version: number
+  render_sha256: string
+  status: 'queued' | 'creating_campaign' | 'creating_ad_set' | 'uploading_image' | 'creating_creative' | 'creating_ad' | 'staged' | 'failed'
+  specification: {
+    primary_text: string
+    headline: string
+    welcome_message: string
+    special_ad_categories: string[]
+    preset: MetaAdsPresetVersion['specification']
+  }
+  meta_image_hash?: string | null
+  meta_ad_set_id?: string | null
+  meta_creative_id?: string | null
+  meta_ad_id?: string | null
+  status_snapshot?: MetaAdsStatusSnapshot
+  error?: { error_type?: string; error_message?: string; provider_context?: Record<string, unknown> } | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MetaAdsProjectWorkspace {
+  schema: 'ptw.meta-ads.workspace.v1'
+  project_id: string
+  project_name: string
+  connection: MetaAdsConnection
+  presets: MetaAdsPresetVersion[]
+  sources: MetaAdsSourceVersion[]
+  experiment?: { meta_campaign_id?: string | null; status: string; special_ad_categories: string[] } | null
+  deployments: MetaAdsDeployment[]
+  ads_manager_url?: string | null
+}
 
 export type BriefStatus = 'queued' | 'generating' | 'completed' | 'failed'
 

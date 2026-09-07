@@ -1,13 +1,13 @@
 # Commander current state
 
-Updated: 2026-09-06
+Updated: 2026-09-07
 Branch: `main`
-Deployment: one compatible production release across VPS services and Firebase Hosting
+Deployment: production unchanged; Meta Ads implementation is prepared for an authorized rollout
 
 ## Current milestone
 
-PTW now has three owner destinations: **Brief / Бриф**, **Post / Допис**, and
-**Landing / Лендінг**.
+PTW now has four project owner destinations: **Brief / Бриф**, **Post / Допис**,
+**Landing / Лендінг**, and **Ads / Реклама**.
 The Post destination is the project-scoped Studio creative workspace. There is
 no separate Studio page and no automated Post subsystem.
 
@@ -46,6 +46,24 @@ existing bounded contract and immutable versions. New composition requires an ap
 feature screen, including for physical services. Preview selection stays local,
 and the phone action uses the page CTA destination.
 Landing has no public URL, lead handling, publishing, or Post-skill influence.
+
+Ads is a separate Project workspace over immutable approved Post versions. It
+creates or reconciles one Project Campaign, one Ad Set per immutable audience
+preset digest, and one Creative/Ad per deployment through Meta Marketing API
+v26.0. Campaign, Ad Set, and Ad are fixed to PAUSED; Instagram Feed, Instagram
+Direct, engagement/conversations/impressions, lowest-cost bidding, and disabled
+creative enhancements are server-owned. The owner can edit deterministic ad
+copy before staging, inspect verified assets/PNG, Meta IDs, append-only history,
+status/issues, and retry or sync. There is no activation, spend, organic post,
+insights, batch launch, or Facebook Page/Ad Account creation surface.
+
+Local Meta credentials are optional and load only from mode-600/400
+`.local/local-studio.env`. Production reads an isolated root-owned mode-440
+`/opt/ptw/secrets/meta-ads/config.env` mounted only into Validation. The
+system-user token never enters persistence,
+browser responses, or logs. Missing/wrong configuration disables staging while
+the rest of PTW remains usable. Current local secrets contain no Meta variables,
+so the real PAUSED canary has not run and no Meta objects were created.
 
 The lower owner navigation includes a compact Settings control next to language.
 It opens a dedicated `?page=settings` destination rather than a dialog over the
@@ -96,8 +114,9 @@ checkpoint, run, and skill entities. The local authority provides the same
 contract with append-only metadata below `.local/owner-briefs` and
 per-creative renderer files below `.local/studio-workspace/creatives`.
 
-This is a clean baseline plus Landing extension schema. Migrations
-`001_ptw_brief_v1.sql` and `002_ptw_landing_studio_v1.sql` exist. Old singleton Studio rows,
+This is a clean baseline plus Landing and Meta Ads extension schema. Migrations
+`001_ptw_brief_v1.sql`, `002_ptw_landing_studio_v1.sql`, and
+`003_ptw_meta_ads_v1.sql` exist. Old singleton Studio rows,
 assignment flows, schema adapters, bare mutation routes, and historical Post
 tables are not accepted or migrated. `/api/v1/posts` and bare
 `/api/v1/studio` remain absent.
@@ -143,10 +162,13 @@ are absent.
 
 Landing phone verification is recorded in `.local/landing-phone`, with
 before/after captures, three screen themes at 1280/768/360px, and iPhone WebKit.
-The 58 web unit tests, 48 browser checks, production build, full 128-test
-Validation suite, 10 Commander tests, 4 Owner Gateway tests, and 38 platform tests
-pass. The Commander demo, schema idempotency, canonical skill verification,
-Studio visual audit, Python compilation, and whitespace checks pass.
+The 61 web unit tests, 51 browser checks, production build, full 141-test
+Validation suite, 12 Commander tests, and 4 Owner Gateway tests pass. The prior
+38 platform tests remain unchanged. The Commander demo, three-migration schema
+idempotency, canonical skill verification, Python compilation, and whitespace
+checks pass. Local Ads smoke testing used one real saved Project and its approved
+PNG at desktop and 360 px; missing Meta credentials produced the intended safe
+disabled state with no horizontal overflow.
 
 The production PostgreSQL Landing reservation path now records its approved
 Post `derived_from` edge with the correct typed argument order. The affected
@@ -162,14 +184,19 @@ reports `authorized` only after its real working test passes. The public Hosting
 audit confirms Brief/Post/Landing, Settings authorization, the current service
 worker, App Check, CORS, authenticated rejection, and Gateway health.
 
-The confirmation-gated production reset installed both migrations and left all
-owned Brief, Studio, Landing, and graph business tables empty. Its before/after
+The confirmation-gated production reset previously installed the then-current
+migrations and left all owned Brief, Studio, Landing, and graph business tables empty. Its before/after
 snapshot confirmed that independent platform database counts did not change.
 Both emergency stops are false, the 1 GB resource audit passed, and the scheduled
 24-hour follow-up audit is active.
 
 ## Next work
 
-Observe the scheduled 24-hour resource audit. The owner can continue editing
-and approving the successfully generated private Landing through the deployed
-web console.
+The Meta App, system user, Ad Account, Facebook Page, and professional Instagram
+account are assigned. The owner must rotate the token disclosed during setup and
+run the hidden-prompt configurator so PTW can discover the Instagram actor ID
+without putting the replacement token in chat or shell history. Then stage one
+`[PTW LOCAL]` deployment and sync it back to verify that Campaign, Ad Set, and Ad
+all remain PAUSED. Production remains unchanged until the clean-reset release
+receives its separately required exact confirmation and its isolated VPS secret
+file is configured with that fresh token.

@@ -60,6 +60,12 @@ landing_skill_snapshots
 landing_versions
 landing_workspace_files
 landing_workspaces
+meta_ads_audience_versions
+meta_ads_deployments
+meta_ads_preset_versions
+meta_ads_stage_runs
+meta_ads_status_snapshots
+meta_ads_workspaces
 product_brief_approvals
 product_briefs
 studio_edit_checkpoints
@@ -87,13 +93,15 @@ docker exec "$database_container" psql -X -qAt -v ON_ERROR_STOP=1 \
   -U ptw_brief_test -d ptw_brief_test <<'SQL'
 DO $$
 BEGIN
-  IF (SELECT count(*) FROM commander_schema_migrations) <> 2
+  IF (SELECT count(*) FROM commander_schema_migrations) <> 3
      OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='001_ptw_brief_v1.sql'
      ) OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='002_ptw_landing_studio_v1.sql'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM commander_schema_migrations WHERE name='003_ptw_meta_ads_v1.sql'
      ) THEN
-    RAISE EXCEPTION 'the database must contain the Product Brief, Studio, and Landing migrations';
+    RAISE EXCEPTION 'the database must contain the Product Brief, Studio, Landing, and Meta Ads migrations';
   END IF;
   IF (SELECT count(*) FROM commander_control) <> 1
      OR (SELECT count(*) FROM commander_operation_guard) <> 1 THEN
@@ -102,4 +110,4 @@ BEGIN
 END $$;
 SQL
 
-echo "Verified Product Brief, project-scoped Studio, and private Landing migrations and idempotent journey."
+echo "Verified Product Brief, project-scoped Studio, private Landing, and PAUSED Meta Ads migrations and idempotent journey."

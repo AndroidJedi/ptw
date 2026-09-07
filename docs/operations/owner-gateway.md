@@ -2,7 +2,7 @@
 
 Owner Console uses Firebase Auth, pinned owner identity, and App Check. Owner
 Gateway proxies authenticated Project, Product Brief, project-scoped Studio,
-and project-scoped private Landing APIs. Domain data is never stored in Firebase
+project-scoped private Landing, and PAUSED-only Meta Ads APIs. Domain data is never stored in Firebase
 or service-worker caches.
 
 Brief approval accepts `honor_confirmed` and `template_id`; `phone_metrics`
@@ -37,6 +37,13 @@ approved Post versions, pages, page-scoped mutations, visual history, versions,
 learning decisions, and failed-learning retry. They are Firebase/App-Check protected, cross-Project
 IDs fail closed, and images are private/no-store. There is no public Landing
 render, lead endpoint, publishing action, or unscoped `/api/v1/landings` route.
+
+Ads routes are only `/api/v1/ads/connection`, versioned presets, and
+`/api/v1/ads/projects/{project_id}/…` workspace/deployment/retry/sync calls.
+Meta credentials remain inside the server process. The Gateway receives only
+sanitized connection metadata, Meta object IDs/statuses/issues, and local
+deployment records. All write-side Meta payloads are server-fixed to PAUSED and
+Instagram Feed; the owner API has no activation route.
 
 PostgreSQL owns all creative state and bytes, append-only generation/learning
 runs, immutable checkpoints/versions/skill snapshots, proposals/decisions, and

@@ -109,7 +109,13 @@ BEGIN
     ('landing_versions', (SELECT count(*) FROM landing_versions)),
     ('landing_checkpoints', (SELECT count(*) FROM landing_checkpoints)),
     ('landing_skill_snapshots', (SELECT count(*) FROM landing_skill_snapshots)),
-    ('landing_learning_proposals', (SELECT count(*) FROM landing_learning_proposals))
+    ('landing_learning_proposals', (SELECT count(*) FROM landing_learning_proposals)),
+    ('meta_ads_presets', (SELECT count(*) FROM meta_ads_preset_versions)),
+    ('meta_ads_workspaces', (SELECT count(*) FROM meta_ads_workspaces)),
+    ('meta_ads_audiences', (SELECT count(*) FROM meta_ads_audience_versions)),
+    ('meta_ads_deployments', (SELECT count(*) FROM meta_ads_deployments)),
+    ('meta_ads_runs', (SELECT count(*) FROM meta_ads_stage_runs)),
+    ('meta_ads_snapshots', (SELECT count(*) FROM meta_ads_status_snapshots))
   ) AS counts(label,value) WHERE value <> 0;
   IF failures IS NOT NULL THEN
     RAISE EXCEPTION 'Product Brief reset postcondition failed: %', failures;
@@ -141,13 +147,15 @@ BEGIN
   IF forbidden IS NOT NULL THEN
     RAISE EXCEPTION 'retired tables survived Product Brief reset: %', forbidden;
   END IF;
-  IF (SELECT count(*) FROM commander_schema_migrations) <> 2
+  IF (SELECT count(*) FROM commander_schema_migrations) <> 3
      OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='001_ptw_brief_v1.sql'
      ) OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='002_ptw_landing_studio_v1.sql'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM commander_schema_migrations WHERE name='003_ptw_meta_ads_v1.sql'
      ) THEN
-    RAISE EXCEPTION 'Product Brief, Studio, and Landing migrations are incomplete';
+    RAISE EXCEPTION 'Product Brief, Studio, Landing, and Meta Ads migrations are incomplete';
   END IF;
 END $$;
 SQL

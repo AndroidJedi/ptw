@@ -1,4 +1,4 @@
-import { Image, LayoutTemplate, Settings, Target } from 'lucide-react'
+import { Image, LayoutTemplate, Megaphone, Settings, Target } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { translate, type Language } from '../i18n'
 import type { Page } from '../types'
@@ -7,6 +7,7 @@ const items: Array<{ id: Page; en: string; uk: string; icon: typeof Target }> = 
   { id: 'briefs', en: 'Brief', uk: 'Бриф', icon: Target },
   { id: 'posts', en: 'Post', uk: 'Допис', icon: Image },
   { id: 'landing', en: 'Landing', uk: 'Лендінг', icon: LayoutTemplate },
+  { id: 'ads', en: 'Ads', uk: 'Реклама', icon: Megaphone },
 ]
 
 export function Shell({ page, onPage, children, language, onLanguage }: {

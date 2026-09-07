@@ -30,6 +30,11 @@ class ValidationApiRouteTests(unittest.TestCase):
         def recover_interrupted():
             return []
 
+    class MetaAds:
+        @staticmethod
+        def recover_interrupted():
+            return []
+
     @staticmethod
     def settings() -> Settings:
         return Settings(
@@ -48,6 +53,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             runner=object(),
             studio_creative_service=self.Studio(),
             landing_page_service=self.Landing(),
+            meta_ads_service=self.MetaAds(),
         )
         background_routes = {
             ("POST", "/internal/v1/briefs"),
@@ -63,6 +69,51 @@ class ValidationApiRouteTests(unittest.TestCase):
 
         self.assertEqual(background_routes, set(handlers))
         self.assertTrue(all(inspect.iscoroutinefunction(handler) for handler in handlers.values()))
+
+    def test_meta_ads_staging_route_is_authenticated_and_runs_in_background(self) -> None:
+        deployment_id = "01900000-0000-7000-8000-000000000010"
+
+        class MetaAds(self.MetaAds):
+            def __init__(self) -> None:
+                self.called = threading.Event()
+
+            @staticmethod
+            def reserve(project_id, request):
+                return ({"deployment_id": deployment_id, "project_id": project_id, "request_id": request["request_id"]}, True)
+
+            def execute(self, identifier):
+                if identifier == deployment_id:
+                    self.called.set()
+
+        meta = MetaAds()
+        class Repository:
+            @staticmethod
+            def recover_interrupted():
+                return {"briefs": 0}
+        app = create_app(
+            self.settings(), repository=Repository(), runner=object(),
+            studio_creative_service=self.Studio(), landing_page_service=self.Landing(),
+            meta_ads_service=meta,
+        )
+        request = {
+            "request_id": "01900000-0000-7000-8000-000000000011",
+            "creative_id": "01900000-0000-7000-8000-000000000012", "version": 1,
+            "preset_id": "01900000-0000-7000-8000-000000000013",
+            "headline": "Headline", "primary_text": "Primary",
+            "welcome_message": "Hello", "special_ad_categories": ["NONE"],
+        }
+        with TestClient(app) as client:
+            denied = client.post(
+                f"/internal/v1/ads/projects/01900000-0000-7000-8000-000000000014/deployments",
+                json=request,
+            )
+            self.assertEqual(401, denied.status_code)
+            response = client.post(
+                f"/internal/v1/ads/projects/01900000-0000-7000-8000-000000000014/deployments",
+                headers={"X-PTW-Owner-Gateway-Token": "owner-token"}, json=request,
+            )
+            self.assertEqual(202, response.status_code, response.text)
+            self.assertTrue(meta.called.wait(timeout=1))
 
     def test_create_brief_schedules_generation_and_returns_accepted(self) -> None:
         brief_id = "01900000-0000-7000-8000-000000000001"
@@ -99,6 +150,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             self.settings(), repository=repository, runner=runner,
             studio_creative_service=self.Studio(),
             landing_page_service=self.Landing(),
+            meta_ads_service=self.MetaAds(),
         )
 
         with TestClient(app) as client:
@@ -127,6 +179,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             self.settings(), repository=Repository(), runner=object(),
             studio_creative_service=self.Studio(),
             landing_page_service=self.Landing(),
+            meta_ads_service=self.MetaAds(),
         )
 
         with TestClient(app) as client:
@@ -177,6 +230,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             self.settings(), repository=Repository(), runner=object(),
             studio_creative_service=studio,
             landing_page_service=self.Landing(),
+            meta_ads_service=self.MetaAds(),
         )
         headers = {"X-PTW-Owner-Gateway-Token": "owner-token"}
         with TestClient(app) as client:

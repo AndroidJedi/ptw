@@ -11,23 +11,32 @@ if [[ -f "$local_secrets" ]]; then
     echo "Refusing symlinked local secrets file: $local_secrets" >&2
     exit 1
   fi
+  secrets_mode="$(stat -f '%Lp' "$local_secrets" 2>/dev/null || stat -c '%a' "$local_secrets")"
+  if [[ "$secrets_mode" != "600" && "$secrets_mode" != "400" ]]; then
+    echo "Local secrets must use mode 600 or 400: $local_secrets" >&2
+    exit 1
+  fi
+  unset secrets_mode
 fi
 
-if [[ -z "${PEXELS_API_KEY:-}" && -f "$local_secrets" ]]; then
-  pexels_line="$(grep -m 1 '^PEXELS_API_KEY=' "$local_secrets" || true)"
-  if [[ -n "$pexels_line" ]]; then
-    export PEXELS_API_KEY="${pexels_line#PEXELS_API_KEY=}"
+load_local_secret() {
+  local secret_name="$1" secret_line
+  if [[ -z "${!secret_name:-}" && -f "$local_secrets" ]]; then
+    secret_line="$(grep -m 1 "^${secret_name}=" "$local_secrets" || true)"
+    if [[ -n "$secret_line" ]]; then
+      export "$secret_name=${secret_line#*=}"
+    fi
+    unset secret_line
   fi
-  unset pexels_line
-fi
+}
 
-if [[ -z "${OPENAI_API_KEY:-}" && -f "$local_secrets" ]]; then
-  openai_line="$(grep -m 1 '^OPENAI_API_KEY=' "$local_secrets" || true)"
-  if [[ -n "$openai_line" ]]; then
-    export OPENAI_API_KEY="${openai_line#OPENAI_API_KEY=}"
-  fi
-  unset openai_line
-fi
+for local_secret_name in \
+  PEXELS_API_KEY OPENAI_API_KEY META_SYSTEM_USER_ACCESS_TOKEN META_AD_ACCOUNT_ID \
+  META_PAGE_ID META_INSTAGRAM_ACTOR_ID META_GRAPH_API_VERSION META_ADS_NAME_PREFIX
+do
+  load_local_secret "$local_secret_name"
+done
+unset local_secret_name
 
 if [[ ! -x "$python" ]]; then
   echo "Missing .venv. Run: python3 -m venv .venv && .venv/bin/python -m pip install -r requirements-validation.txt" >&2
@@ -100,6 +109,11 @@ curl --fail --silent \
   echo "Local Owner API did not become ready on 127.0.0.1:8088." >&2
   exit 1
 }
+
+# The API child already inherited these values. Remove them before starting
+# Vite so Meta credentials and asset IDs do not enter the frontend process.
+unset META_SYSTEM_USER_ACCESS_TOKEN META_AD_ACCOUNT_ID META_PAGE_ID \
+  META_INSTAGRAM_ACTOR_ID META_GRAPH_API_VERSION META_ADS_NAME_PREFIX
 
 echo "PTW local app: http://127.0.0.1:5173/?e2e=1"
 VITE_E2E=true VITE_LOCAL_STUDIO=true npm --prefix apps/commander-web run dev -- --host 127.0.0.1 --strictPort

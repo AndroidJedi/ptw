@@ -55,6 +55,16 @@ it('stages the selected approved artifact with deterministic defaults and a fres
   render(<AdsView api={api} language="uk" projectId={projectId} />)
 
   expect(await screen.findByText('Активи Meta перевірено')).toBeVisible()
+  expect(screen.getByText('Затверджено для Ads')).toBeVisible()
+  expect(screen.getByRole('link', { name: /Відкрити в Post Studio/ })).toHaveAttribute(
+    'href', `?page=posts&project=${projectId}&creative=${creativeId}`,
+  )
+  expect(screen.getByRole('link', { name: /Системні користувачі/ })).toHaveAttribute(
+    'href', 'https://business.facebook.com/settings/system-users',
+  )
+  expect(screen.getByRole('link', { name: /Статуси Campaign, Ad Set/ })).toHaveAttribute(
+    'href', 'https://adsmanager.facebook.com/test',
+  )
   await waitFor(() => expect(screen.getByLabelText('Заголовок')).toHaveValue('Natal headline'))
   expect(screen.getByLabelText('Основний текст')).toHaveValue('Guidance\n\nOffer')
   await waitFor(() => expect(image).toHaveBeenCalledWith(
@@ -71,11 +81,31 @@ it('stages the selected approved artifact with deterministic defaults and a fres
 })
 
 it('disables staging and explains safe local configuration when Meta is missing', async () => {
-  const { api } = apiFor(fixture(false))
+  const disconnected = fixture(false)
+  const { api } = apiFor(disconnected)
   render(<AdsView api={api} language="en" projectId={projectId} />)
   expect(await screen.findByText('Meta staging disabled')).toBeVisible()
   expect(screen.getByText(/Add the Meta system-user token/)).toBeVisible()
+  expect(screen.getByText('Secure system-user token')).toBeVisible()
   expect(screen.getByRole('button', { name: 'Create PAUSED campaign structure' })).toBeDisabled()
+})
+
+it('links an empty Ads source list back to Post Studio and exposes the generic Ads Manager', async () => {
+  const disconnected = fixture(false)
+  disconnected.sources = []
+  disconnected.ads_manager_url = null
+  const { api } = apiFor(disconnected)
+  render(<AdsView api={api} language="en" projectId={projectId} />)
+  await screen.findByText('Meta staging disabled')
+  expect(screen.getByRole('link', { name: 'Open Post Studio' })).toHaveAttribute(
+    'href', `?page=posts&project=${projectId}`,
+  )
+  expect(screen.getByRole('link', { name: /Token debugger/ })).toHaveAttribute(
+    'href', 'https://developers.facebook.com/tools/debug/accesstoken/',
+  )
+  expect(screen.getByRole('link', { name: /Campaign, Ad Set/ })).toHaveAttribute(
+    'href', 'https://adsmanager.facebook.com/adsmanager/manage/campaigns',
+  )
 })
 
 it('creates a versioned audience preset', async () => {

@@ -7,6 +7,15 @@ import type { MetaAdsDeployment, MetaAdsPresetVersion, MetaAdsProjectWorkspace, 
 
 const runningStates = new Set(['queued', 'creating_campaign', 'creating_ad_set', 'uploading_image', 'creating_creative', 'creating_ad'])
 const categories = ['NONE', 'CREDIT', 'EMPLOYMENT', 'HOUSING', 'ISSUES_ELECTIONS_POLITICS', 'FINANCIAL_PRODUCTS_SERVICES', 'ONLINE_GAMBLING_AND_GAMING']
+const metaConsoles = [
+  { href: 'https://business.facebook.com/settings', en: 'Business settings', uk: 'Налаштування бізнесу', detailEn: 'Portfolio and assigned business assets', detailUk: 'Портфоліо та призначені бізнес-активи' },
+  { href: 'https://business.facebook.com/settings/system-users', en: 'System users', uk: 'Системні користувачі', detailEn: 'App role, assets and token generation', detailUk: 'Роль застосунку, активи та створення токена' },
+  { href: 'https://developers.facebook.com/apps/', en: 'App dashboard', uk: 'Панель застосунків', detailEn: 'Marketing API app and access level', detailUk: 'Застосунок Marketing API та рівень доступу' },
+  { href: 'https://business.facebook.com/settings/ad-accounts', en: 'Ad accounts', uk: 'Рекламні акаунти', detailEn: 'Account status, access and payment setup', detailUk: 'Статус акаунта, доступ і налаштування оплати' },
+  { href: 'https://business.facebook.com/settings/pages', en: 'Facebook Pages', uk: 'Сторінки Facebook', detailEn: 'Page ownership and system-user access', detailUk: 'Власність Page і доступ системного користувача' },
+  { href: 'https://business.facebook.com/settings/instagram-accounts', en: 'Instagram accounts', uk: 'Акаунти Instagram', detailEn: 'Professional account and connected assets', detailUk: 'Професійний акаунт і пов’язані активи' },
+  { href: 'https://developers.facebook.com/tools/debug/accesstoken/', en: 'Token debugger', uk: 'Перевірка токена', detailEn: 'Expiry, app and granted permissions', detailUk: 'Строк дії, застосунок і надані дозволи' },
+]
 
 function short(value?: string | null) { return value ? value.length > 22 ? `${value.slice(0, 10)}…${value.slice(-8)}` : value : '—' }
 function objectStatus(value: unknown) {
@@ -136,6 +145,43 @@ export function AdsView({ api, language, projectId = null }: {
   if (!workspace && error) return <ErrorState message={error} retry={() => void reload()} language={language} />
   if (!workspace) return null
   const connected = workspace.connection.configured && workspace.connection.verified
+  const adsManagerUrl = workspace.ads_manager_url || 'https://adsmanager.facebook.com/adsmanager/manage/campaigns'
+  const setupChecks = [
+    {
+      ok: workspace.connection.configured,
+      en: 'Secure system-user token', uk: 'Захищений токен системного користувача',
+      detail: workspace.connection.configured
+        ? tr('Server secret is configured; the token is never sent to this browser.', 'Серверний секрет налаштовано; токен ніколи не передається в цей браузер.')
+        : tr('Run the hidden-prompt PTW configurator with a fresh token.', 'Запустіть PTW-конфігуратор із прихованим введенням нового токена.'),
+    },
+    {
+      ok: connected,
+      en: 'Permissions verified', uk: 'Дозволи перевірено',
+      detail: (workspace.connection.required_permissions || ['ads_management', 'ads_read']).join(' · '),
+    },
+    {
+      ok: Boolean(workspace.connection.account),
+      en: 'Ad Account available', uk: 'Рекламний акаунт доступний',
+      detail: workspace.connection.account?.name || tr('Assign the Ad Account to the system user.', 'Призначте рекламний акаунт системному користувачу.'),
+    },
+    {
+      ok: Boolean(workspace.connection.page),
+      en: 'Facebook Page available', uk: 'Сторінка Facebook доступна',
+      detail: workspace.connection.page?.name || tr('Assign the connected Page to the system user.', 'Призначте пов’язану Page системному користувачу.'),
+    },
+    {
+      ok: Boolean(workspace.connection.instagram),
+      en: 'Instagram actor available', uk: 'Instagram actor доступний',
+      detail: workspace.connection.instagram?.username ? `@${workspace.connection.instagram.username}` : tr('Connect the professional Instagram account to the Page.', 'Під’єднайте професійний Instagram-акаунт до Page.'),
+    },
+    {
+      ok: workspace.sources.length > 0,
+      en: 'Approved Post available', uk: 'Затверджений Post доступний',
+      detail: workspace.sources.length
+        ? tr(`${workspace.sources.length} immutable version(s) ready for Ads.`, `${workspace.sources.length} незмінних версій готово для Ads.`)
+        : tr('Approve a Post version in this Project.', 'Затвердьте версію Post у цьому Project.'),
+    },
+  ]
 
   return <div className="ads-page">
     <header className="page-header ads-header">
@@ -154,10 +200,28 @@ export function AdsView({ api, language, projectId = null }: {
       </div>
     </section>
 
+    <section className="panel ads-setup">
+      <div className="ads-section-title"><div><small>{tr('READINESS & CONSOLES', 'ГОТОВНІСТЬ І КОНСОЛІ')}</small><h2>{tr('What is still needed', 'Що ще потрібно')}</h2></div><span>{setupChecks.filter(item => item.ok).length}/{setupChecks.length}</span></div>
+      <div className="ads-setup-grid">
+        <div className="ads-checklist">
+          {setupChecks.map(item => <div key={item.en} className={`ads-check ${item.ok ? 'is-ok' : 'is-pending'}`}>
+            {item.ok ? <CheckCircle2 /> : <AlertTriangle />}
+            <span><strong>{language === 'uk' ? item.uk : item.en}</strong><small>{item.detail}</small></span>
+          </div>)}
+        </div>
+        <div className="ads-console-grid">
+          {metaConsoles.map(item => <a key={item.href} className="ads-console-link" href={item.href} target="_blank" rel="noreferrer">
+            <span><strong>{language === 'uk' ? item.uk : item.en}</strong><small>{language === 'uk' ? item.detailUk : item.detailEn}</small></span><ExternalLink />
+          </a>)}
+          <a className="ads-console-link" href={adsManagerUrl} target="_blank" rel="noreferrer"><span><strong>Ads Manager</strong><small>{tr('Campaign, Ad Set, Creative and Ad status', 'Статуси Campaign, Ad Set, Creative та Ad')}</small></span><ExternalLink /></a>
+        </div>
+      </div>
+    </section>
+
     <section className="ads-compose-grid">
       <div className="panel ads-sources">
         <div className="ads-section-title"><div><small>{tr('APPROVED SOURCES', 'ЗАТВЕРДЖЕНІ ДЖЕРЕЛА')}</small><h2>{tr('Post versions', 'Версії дописів')}</h2></div><span>{workspace.sources.length}</span></div>
-        {workspace.sources.length === 0 ? <p>{tr('Approve a version in Post Studio first.', 'Спочатку затвердьте версію у Post Studio.')}</p> : <div className="ads-source-list">{workspace.sources.map(source => <button key={`${source.creative_id}-${source.version}`} className={selectedSource?.creative_id === source.creative_id && selectedSource.version === source.version ? 'selected' : ''} onClick={() => setSelectedSource(source)}><strong>Post {source.creative_ordinal} · v{source.version}</strong><span>{source.template_id}</span><code>{short(source.render_sha256)}</code></button>)}</div>}
+        {workspace.sources.length === 0 ? <div className="ads-source-empty"><p>{tr('Approve a version in Post Studio first. It will appear here automatically.', 'Спочатку затвердьте версію у Post Studio. Вона автоматично з’явиться тут.')}</p><a className="secondary" href={`?page=posts&project=${encodeURIComponent(projectId)}`}>{tr('Open Post Studio', 'Відкрити Post Studio')}</a></div> : <div className="ads-source-list">{workspace.sources.map(source => <article key={`${source.creative_id}-${source.version}`} className={selectedSource?.creative_id === source.creative_id && selectedSource.version === source.version ? 'selected' : ''}><button type="button" onClick={() => setSelectedSource(source)}><span className="ads-approved-source"><CheckCircle2 />{tr('Approved for Ads', 'Затверджено для Ads')}</span><strong>Post {source.creative_ordinal} · v{source.version}</strong><span>{source.template_id}{source.change_note ? ` · ${source.change_note}` : ''}</span><code>{short(source.render_sha256)}</code></button><a href={`?page=posts&project=${encodeURIComponent(projectId)}&creative=${encodeURIComponent(source.creative_id)}`}>{tr('Open in Post Studio', 'Відкрити в Post Studio')} <ExternalLink /></a></article>)}</div>}
       </div>
 
       <div className="panel ads-editor">

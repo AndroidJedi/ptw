@@ -54,8 +54,14 @@ v26.0. Campaign, Ad Set, and Ad are fixed to PAUSED; Instagram Feed, Instagram
 Direct, engagement/conversations/impressions, lowest-cost bidding, and disabled
 creative enhancements are server-owned. The owner can edit deterministic ad
 copy before staging, inspect verified assets/PNG, Meta IDs, append-only history,
-status/issues, and retry or sync. There is no activation, spend, organic post,
-insights, batch launch, or Facebook Page/Ad Account creation surface.
+status/issues, and retry or sync. Every immutable approved Post appears as an
+explicit Ads source card with its digest-verified preview and a link back to its
+Post Studio creative. A readiness checklist separately reports the token,
+permissions, Ad Account, Page, Instagram actor, and approved-Post gates. Direct
+links open Meta Business Settings, System Users, App Dashboard, asset settings,
+Token Debugger, and Ads Manager even while staging is disabled. There is no
+activation, spend, organic post, insights, batch launch, or Facebook Page/Ad
+Account creation surface.
 
 Local Meta credentials are optional and load only from mode-600/400
 `.local/local-studio.env`. Production reads an isolated root-owned mode-440
@@ -188,9 +194,9 @@ worker, App Check, CORS, authenticated rejection, and Gateway health.
 
 The confirmation-gated production reset at PTW revision
 `210ebca733c723008f8f751f93c03b6f2d039786` installed migrations `001` through
-`003` and left all owned Brief, Studio, Landing, Ads, and graph business tables
-empty. Its before/after snapshot confirmed that independent platform database
-counts did not change. The independent platform remained at revision
+`003` and immediately left all owned Brief, Studio, Landing, Ads, and graph
+business tables empty. Its before/after snapshot confirmed that independent
+platform database counts did not change. The independent platform remained at revision
 `addcd6546d986a18e54d5ed300f7153e38f36cb4`; all six application services run
 the shared `meta-ads-20260907-210ebca` release tag and are healthy. Both
 emergency stops are false, the 1 GB resource audit passed, and the scheduled
@@ -199,6 +205,12 @@ emergency stops are false, the 1 GB resource audit passed, and the scheduled
 worker plus healthy Gateway/authentication boundaries.
 
 ## Next work
+
+Production now contains Project `Natal Service`
+(`01a07c66-b00a-7364-8fda-7de87c12a907`) and one completed, unapproved Brief
+(`01a07c66-b00a-7ffe-a44f-a5fd2d738515`). Its explicit promise and offer await
+owner confirmation before the first `universal_ad` Post can be composed and
+approved; the approval cannot be inferred or bypassed.
 
 The Meta App, system user, Ad Account, Facebook Page, and professional Instagram
 account are assigned. The owner must rotate the token disclosed during setup and

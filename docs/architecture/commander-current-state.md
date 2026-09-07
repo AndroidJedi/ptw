@@ -2,7 +2,7 @@
 
 Updated: 2026-09-07
 Branch: `main`
-Deployment: production unchanged; Meta Ads implementation is prepared for an authorized rollout
+Deployment: Meta Ads release `meta-ads-20260907-210ebca` is live; staging is disabled until a fresh secret is configured
 
 ## Current milestone
 
@@ -63,7 +63,9 @@ Local Meta credentials are optional and load only from mode-600/400
 system-user token never enters persistence,
 browser responses, or logs. Missing/wrong configuration disables staging while
 the rest of PTW remains usable. Current local secrets contain no Meta variables,
-so the real PAUSED canary has not run and no Meta objects were created.
+and the production Meta secret file is absent, so both connections report the
+intended safe disabled state. The real PAUSED canary has not run and no Meta
+objects were created.
 
 The lower owner navigation includes a compact Settings control next to language.
 It opens a dedicated `?page=settings` destination rather than a dialog over the
@@ -184,11 +186,17 @@ reports `authorized` only after its real working test passes. The public Hosting
 audit confirms Brief/Post/Landing, Settings authorization, the current service
 worker, App Check, CORS, authenticated rejection, and Gateway health.
 
-The confirmation-gated production reset previously installed the then-current
-migrations and left all owned Brief, Studio, Landing, and graph business tables empty. Its before/after
-snapshot confirmed that independent platform database counts did not change.
-Both emergency stops are false, the 1 GB resource audit passed, and the scheduled
-24-hour follow-up audit is active.
+The confirmation-gated production reset at PTW revision
+`210ebca733c723008f8f751f93c03b6f2d039786` installed migrations `001` through
+`003` and left all owned Brief, Studio, Landing, Ads, and graph business tables
+empty. Its before/after snapshot confirmed that independent platform database
+counts did not change. The independent platform remained at revision
+`addcd6546d986a18e54d5ed300f7153e38f36cb4`; all six application services run
+the shared `meta-ads-20260907-210ebca` release tag and are healthy. Both
+emergency stops are false, the 1 GB resource audit passed, and the scheduled
+24-hour follow-up audit is active. Firebase Hosting version
+`0ecdafadfcf3dd5a` is live, and its public audit confirms the Ads-aware service
+worker plus healthy Gateway/authentication boundaries.
 
 ## Next work
 
@@ -197,6 +205,7 @@ account are assigned. The owner must rotate the token disclosed during setup and
 run the hidden-prompt configurator so PTW can discover the Instagram actor ID
 without putting the replacement token in chat or shell history. Then stage one
 `[PTW LOCAL]` deployment and sync it back to verify that Campaign, Ad Set, and Ad
-all remain PAUSED. Production remains unchanged until the clean-reset release
-receives its separately required exact confirmation and its isolated VPS secret
-file is configured with that fresh token.
+all remain PAUSED. The same fresh token and verified actor ID can then be written
+through the configurator's VPS mode, followed by a Validation-only restart and
+one production connection read. Production code is deployed, but Meta staging
+remains disabled until that isolated secret file exists.

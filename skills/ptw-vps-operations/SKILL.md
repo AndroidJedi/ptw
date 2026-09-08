@@ -85,6 +85,9 @@ into a complete compatible release, read
   the worker execution timeout explicitly bounded below the client deadline;
   verify both values in tests so queue wait cannot silently consume a second
   request's entire deadline.
+- Require an explicit server-owned bounded reasoning effort for bridge workers;
+  never inherit an ambient CLI setting. Verify the exact CLI override and keep
+  domain-validation canaries as the quality gate.
 - Recovered entities must clear current top-level error fields while preserving
   append-only failure history. Never expose a provider HTTP body while
   diagnosing a status; keep only bounded status, job ID, and object ID.

@@ -112,6 +112,9 @@ Validation serializes bridge submissions to the single production worker. The
 worker execution timeout is bounded below the client deadline, so a large
 Landing response has a verified completion margin without allowing a queued
 parallel request to exhaust its deadline before execution starts.
+The bridge worker also pins the server-owned reasoning effort to `low` instead
+of inheriting an ambient CLI default; strict domain validation, not unbounded
+reasoning time, determines acceptance.
 
 Normal backend releases use `scripts/deploy_ptw_preserving.sh`. It refuses an
 active mutable operation, requires six matching versioned Linux/amd64 images and

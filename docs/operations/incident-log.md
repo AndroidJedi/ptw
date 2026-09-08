@@ -61,6 +61,9 @@ and the worker execution timeout is configurable only within a tested bound
 below the client deadline. This prevents queue wait from consuming a parallel
 request's entire timeout while still allowing the largest Landing contract to
 finish.
+Production bridge jobs pin the Codex reasoning effort to the explicit bounded
+`low` setting rather than inheriting an ambient CLI default. Strict schemas,
+domain validators, and attempt-1 canaries remain the acceptance authority.
 
 ## 2026-09-06 — Landing reservation passed a relationship label as a UUID
 

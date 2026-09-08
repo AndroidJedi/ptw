@@ -116,6 +116,10 @@ before changing code or runtime state.
   Worker execution timeout must remain bounded below the client deadline and
   covered by a configuration-boundary test; a timeout may be extended only
   within that verified margin, never made unbounded.
+- Pin production structured jobs to the server-owned bounded reasoning effort
+  instead of inheriting an ambient CLI default. Keep the allowed effort values
+  closed and test the exact CLI argument; all results still require schema and
+  domain validation before acceptance.
 - A retry transition must clear stale top-level error metadata while retaining
   append-only failed run records. Never show a recovered draft as failed merely
   because an earlier error remains in its current-state envelope. HTTP bridge

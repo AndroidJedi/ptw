@@ -243,8 +243,8 @@ Landing phone verification is recorded in `.local/landing-phone`, with
 before/after captures, three screen themes at 1280/768/360px, and iPhone WebKit.
 The 66 Owner Console and 6 public-web unit tests, 51 Owner Console and 16 public
 browser checks, both production builds, full 166-test Validation suite, 13
-Commander built-image tests, and 6 Owner Gateway tests pass. The prior 38
-platform tests remain unchanged. The Commander demo, four-migration disposable
+Commander built-image tests, and 6 Owner Gateway tests pass. All 39 tests for
+the exact current platform revision pass. The Commander demo, four-migration disposable
 PostgreSQL idempotency/preservation check, canonical skill verification, Python
 compilation, shell syntax, and whitespace checks pass. Local Ads smoke testing used one real saved Project and its approved
 PNG at desktop and 360 px; missing Meta credentials produced the intended safe

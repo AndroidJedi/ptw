@@ -51,6 +51,11 @@ strict Landing schema, and media-integrity coverage. Release acceptance now
 requires fresh attempt-1 real canaries for both Product Brief modes, both Studio
 templates, Landing composition, Studio learning, Landing learning, new image
 generation, and exact-reference enhancement before and after cutover.
+Normal rollouts now use a tracked preserving deploy path rather than an
+SSH-stdin control stream: Compose one-off jobs disable TTY/stdin consumption,
+active mutations block cutover, every authoritative row is fingerprinted before
+and after, any incomplete exit rolls back images and persisted tags, and the
+destructive reset script is never called.
 
 ## 2026-09-06 — Landing reservation passed a relationship label as a UUID
 

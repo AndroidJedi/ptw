@@ -94,6 +94,16 @@ into a complete compatible release, read
 
 ## Canaries and reset acceptance
 
+Normal releases must use the tracked `scripts/deploy_ptw_preserving.sh` after
+all six versioned Linux/amd64 images are loaded and both repositories are at the
+requested revisions. Never stream deployment control code into `bash -s` when
+a child command could consume stdin. Every `docker compose run` in a control
+path must use `-T`; the preserving script runs from a file, refuses active
+mutable operations, snapshots every authoritative row, rolls both service sets
+and persisted tags back on any incomplete exit (including exit status zero),
+and never calls the reset script. The destructive serial reset remains a
+separate, explicit owner-confirmed workflow.
+
 Before rollout, run real domain-validating canaries for both Product Brief
 modes, Universal Post, Phone Metrics, Landing composition, Studio learning,
 Landing learning, fresh image generation, one-image enhancement, and Pexels.

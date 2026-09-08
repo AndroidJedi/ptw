@@ -151,6 +151,12 @@ modes, both Post templates, Landing composition, both learning skills, fresh
 media generation, and exact-reference enhancement; every structured canary
 must use a fresh request fingerprint and pass on attempt 1. Adding a structured
 workflow without its validator and canary is a release-blocking contract gap.
+For a normal VPS release, execute the tracked
+`scripts/deploy_ptw_preserving.sh`; do not feed a control script over SSH stdin.
+Its Compose one-off jobs must retain `-T`, its cleanup must roll back any
+incomplete exit even if the shell reports zero, and its full-row authority
+snapshot must match before release tags are persisted. Never substitute the
+confirmation-gated reset publisher for this preserving path.
 Before claiming Telegram works, verify authorization,
 deployed help/routing, provider readiness, persistence, restart behavior, and
 the user-facing failure path.

@@ -109,6 +109,14 @@ transport, timeout, cancellation, CLI, and provider failures remain on their
 original attempt. Recovery clears stale current errors but retains append-only
 failure history.
 
+Normal backend releases use `scripts/deploy_ptw_preserving.sh`. It refuses an
+active mutable operation, requires six matching versioned Linux/amd64 images and
+exact repository revisions, snapshots every authoritative database row, runs
+domain canaries and audits, and persists release tags only after the snapshot is
+unchanged. Any incomplete exit restores the prior application and platform
+images plus their persisted tags. This path never invokes the separately
+confirmation-gated destructive reset.
+
 A replacement Brief creates a separate first creative. Another creative from
 the same Brief is available only after the latest creative has an immutable
 approved version. Cross-Project creative access fails closed.

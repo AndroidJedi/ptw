@@ -203,6 +203,33 @@ class LandingAuthorityTests(unittest.TestCase):
             normalize_composed_content(generated)
 
     @unittest.skipUnless(LocalLandingAuthority is not None, "Landing dependencies are required")
+    def test_composition_payload_is_bounded_and_excludes_presentation_state(self) -> None:
+        from validation_pipeline.landing_pages import (
+            LANDING_GENERATION_LESSON_LIMIT, landing_composition_payload,
+        )
+        lessons = "\n".join(f"- accepted lesson {number}" for number in range(20))
+        payload = landing_composition_payload(
+            landing_id="01900000-0000-7000-8000-000000000001",
+            approved_product_brief={"language": "en"},
+            source_post_snapshot={
+                "template_id": "universal_ad", "content": {"hero_title": "Hello"},
+                "configuration": {"must_not_reach_ai": True}, "assets": ["large"],
+                "version_sha256": "a" * 64,
+            },
+            content_defaults=DEFAULT_CONTENT,
+            global_skill=lessons,
+            project_skill=lessons,
+        )
+        self.assertNotIn("live_landing_catalog", payload)
+        self.assertNotIn("configuration", payload["source_post_copy"])
+        self.assertNotIn("assets", payload["source_post_copy"])
+        self.assertEqual(
+            LANDING_GENERATION_LESSON_LIMIT,
+            len(payload["accepted_global_landing_lessons"]),
+        )
+        self.assertEqual("accepted lesson 12", payload["accepted_project_landing_lessons"][0])
+
+    @unittest.skipUnless(LocalLandingAuthority is not None, "Landing dependencies are required")
     def test_learning_decision_cannot_cross_a_page_boundary(self):
         from validation_pipeline.landing_pages import LandingService
         service = object.__new__(LandingService)
@@ -227,21 +254,14 @@ class LandingWorkspaceTests(unittest.TestCase):
 
     def test_phone_configuration_content_and_composition_contract(self):
         from validation_pipeline.landing_design import PHONE_MOCKUP_OPTIONS, APP_FEATURE_LIMITS
-        from validation_pipeline.landing_pages import landing_generation_schema
+        from validation_pipeline.landing_pages import (
+            landing_generation_schema, validate_landing_composition,
+        )
         schema = landing_generation_schema()
+        self.assertEqual({"content"}, set(schema["properties"]))
+        self.assertEqual(["content"], schema["required"])
         self.assertIn("app_feature", schema["properties"]["content"]["required"])
-        configuration_schema = schema["properties"]["configuration"]["properties"]
         content_schema = schema["properties"]["content"]["properties"]
-        self.assertEqual(
-            {"minimum": 0, "maximum": 48},
-            {key: configuration_schema["theme"]["properties"]["corner_radius"][key]
-             for key in ("minimum", "maximum")},
-        )
-        self.assertEqual(
-            {"minimum": 0.85, "maximum": 1.15},
-            {key: configuration_schema["presentation"]["properties"]["heading_scale"][key]
-             for key in ("minimum", "maximum")},
-        )
         self.assertEqual(
             [""], content_schema["contacts"]["properties"]["url"]["enum"],
         )
@@ -252,6 +272,14 @@ class LandingWorkspaceTests(unittest.TestCase):
         self.assertEqual(
             600, content_schema["hero"]["properties"]["visual_direction"]["maxLength"],
         )
+        generated = complete_content()
+        generated["social_proof"]["items"] = []
+        generated["contacts"].update({"email": "", "phone": "", "url": ""})
+        self.assertEqual(generated, validate_landing_composition({"content": generated})["content"])
+        with self.assertRaisesRegex(ValueError, "response fields"):
+            validate_landing_composition({
+                "configuration": deepcopy(DEFAULT_CONFIGURATION), "content": generated,
+            })
         for theme in PHONE_MOCKUP_OPTIONS["theme"]:
             for layout in PHONE_MOCKUP_OPTIONS["layout"]:
                 configuration = {**deepcopy(DEFAULT_CONFIGURATION), "phone_mockup": {"theme": theme, "layout": layout}}
@@ -409,6 +437,86 @@ class LandingDesignTests(unittest.TestCase):
                 normalize_configuration({**deepcopy(DEFAULT_CONFIGURATION), 'components': {**DEFAULT_COMPONENTS, key: choice}})
             with self.assertRaises(ValueError):
                 normalize_configuration({**deepcopy(DEFAULT_CONFIGURATION), 'components': {**DEFAULT_COMPONENTS, key: 'arbitrary-css'}})
+
+    @unittest.skipUnless(LocalLandingAuthority is not None and Image is not None, 'Landing runtime dependencies required')
+    def test_generation_preserves_server_configuration_and_accepts_content_only(self):
+        from validation_pipeline.landing_pages import (
+            LANDING_COMPOSER_PROMPT_VERSION, LandingService,
+        )
+
+        landing_id = "01900000-0000-7000-8000-000000000001"
+        project_id = "01900000-0000-7000-8000-000000000002"
+        brief_id = "01900000-0000-7000-8000-000000000003"
+        generated = complete_content()
+        generated["social_proof"]["items"] = []
+        generated["contacts"].update({"email": "", "phone": "", "url": ""})
+
+        class Authority:
+            def __init__(self):
+                self.page = {
+                    "landing_id": landing_id, "project_id": project_id,
+                    "source_brief_id": brief_id, "status": "queued",
+                    "source_post_snapshot": {
+                        "template_id": "universal_ad",
+                        "configuration": {"must_not_reach_ai": True},
+                        "content": {"hero_title": "Frozen source copy"},
+                        "assets": ["must_not_reach_ai"], "generation": {},
+                        "version_sha256": "a" * 64,
+                    },
+                }
+                self.runs = []
+
+            def get_page(self, _landing_id):
+                return self.page
+
+            def brief(self, _brief_id):
+                return {"approved": True, "document": {"language": "en"}}
+
+            def latest_skill(self, _scope, _project_id=None):
+                return {"content": "No owner-approved Landing lessons yet.", "content_sha256": "b" * 64}
+
+            def update_page(self, _landing_id, **patch):
+                self.page.update(deepcopy(patch))
+                return self.page
+
+            def record_generation_run(self, **value):
+                self.runs.append(value)
+
+        class Provider:
+            def call(self, **kwargs):
+                self.kwargs = kwargs
+                return {
+                    "response": kwargs["response_validator"]({"content": generated}),
+                    "invocation": {"bridge_attempt": 1, "request_fingerprint": "c" * 64},
+                }
+
+        with tempfile.TemporaryDirectory() as root:
+            authority, provider, images = Authority(), Provider(), FakeImages()
+            service = LandingService(
+                root=root, authority=authority,
+                workspace_factory=lambda path: LandingWorkspace(path, image_provider=images),
+                structured_provider=provider,
+                composer_skill_path=Path("skills/landing-page-composer/SKILL.md"),
+                learner_skill_path=Path("skills/landing-edit-learner/SKILL.md"),
+            )
+            workspace = service._workspace(landing_id)
+            detail = workspace.detail()
+            configuration = deepcopy(detail["configuration"])
+            configuration["theme"]["accent_color"] = "#123456"
+            workspace.save_configuration(
+                base_sha256=detail["state_sha256"], configuration=configuration,
+                content=detail["content"],
+            )
+
+            service.generate(landing_id)
+
+            self.assertEqual(configuration, workspace.detail()["configuration"])
+            self.assertEqual(generated, workspace.detail()["content"])
+            self.assertEqual("draft", authority.page["status"])
+            self.assertEqual(LANDING_COMPOSER_PROMPT_VERSION, provider.kwargs["prompt_version"])
+            self.assertEqual({"content"}, set(provider.kwargs["output_schema"]["properties"]))
+            self.assertNotIn("live_landing_catalog", provider.kwargs["input_payload"])
+            self.assertNotIn("configuration", provider.kwargs["input_payload"]["source_post_copy"])
 
     @unittest.skipUnless(LocalLandingAuthority is not None, 'Landing service dependencies required')
     def test_selected_image_styles_override_post_and_keep_slot_crops(self):

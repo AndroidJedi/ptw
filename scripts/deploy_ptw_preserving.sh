@@ -47,6 +47,18 @@ grep -q '^PTW_PLATFORM_IMAGE_TAG=' "$platform/.env" || { echo "PTW_PLATFORM_IMAG
     echo "platform repository is not at the requested revision" >&2; exit 1;
 }
 
+for migration in "$repository"/db/migrations/*.sql; do
+    migration_name=$(basename "$migration")
+    applied=$("${commander_compose[@]}" exec -T commander-db \
+        psql -X -qAt -v ON_ERROR_STOP=1 -v migration_name="$migration_name" \
+        -U ptw_commander -d ptw_commander \
+        -c "SELECT count(*) FROM commander_schema_migrations WHERE name=:'migration_name'")
+    [[ $applied == 1 ]] || {
+        echo "pending migrations require the confirmation-gated in-place deployment path" >&2
+        exit 1
+    }
+done
+
 for image in ptw-commander ptw-validation ptw-owner-gateway \
     ptw-agent-platform-commander-api ptw-agent-platform-commander-worker \
     ptw-agent-platform-codex-auth; do
@@ -67,24 +79,50 @@ case "$old_platform_image" in ptw-agent-platform-commander-api:*) old_platform_t
 before=$(mktemp /run/ptw-preserve-before.XXXXXX)
 after=$(mktemp /run/ptw-preserve-after.XXXXXX)
 rollback_needed=1
+snapshot_ready=0
 
 rollback() {
     set +e
+    local rollback_failed=0
     echo "preserving rollout failed; restoring prior image tags" >&2
     export PTW_PLATFORM_IMAGE_TAG=$old_platform_tag
-    "${platform_compose[@]}" up -d --no-deps --no-build --wait codex-auth commander-worker commander-api
+    "${platform_compose[@]}" up -d --no-deps --no-build --wait codex-auth commander-worker commander-api || rollback_failed=1
     export PTW_IMAGE_TAG=$old_app_tag
-    "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api owner-gateway
-    "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api
-    sed -i "s/^PTW_PLATFORM_IMAGE_TAG=.*/PTW_PLATFORM_IMAGE_TAG=$old_platform_tag/" "$platform/.env"
-    sed -i "s/^PTW_IMAGE_TAG=.*/PTW_IMAGE_TAG=$old_app_tag/" "$repository/.env.commander"
+    "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api owner-gateway || rollback_failed=1
+    "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api || rollback_failed=1
+    sed -i "s/^PTW_PLATFORM_IMAGE_TAG=.*/PTW_PLATFORM_IMAGE_TAG=$old_platform_tag/" "$platform/.env" || rollback_failed=1
+    sed -i "s/^PTW_IMAGE_TAG=.*/PTW_IMAGE_TAG=$old_app_tag/" "$repository/.env.commander" || rollback_failed=1
+    [[ $(docker inspect ptw-commander-api-1 --format '{{.Config.Image}}') == "ptw-commander:$old_app_tag" ]] || rollback_failed=1
+    [[ $(docker inspect ptw-validation-validation-api-1 --format '{{.Config.Image}}') == "ptw-validation:$old_app_tag" ]] || rollback_failed=1
+    [[ $(docker inspect ptw-owner-gateway-1 --format '{{.Config.Image}}') == "ptw-owner-gateway:$old_app_tag" ]] || rollback_failed=1
+    [[ $(docker inspect ptw-agent-platform-commander-api-1 --format '{{.Config.Image}}') == "ptw-agent-platform-commander-api:$old_platform_tag" ]] || rollback_failed=1
+    [[ $(docker inspect ptw-agent-platform-commander-worker-1 --format '{{.Config.Image}}') == "ptw-agent-platform-commander-worker:$old_platform_tag" ]] || rollback_failed=1
+    [[ $(docker inspect ptw-agent-platform-codex-auth-1 --format '{{.Config.Image}}') == "ptw-agent-platform-codex-auth:$old_platform_tag" ]] || rollback_failed=1
+    if [[ $rollback_failed -ne 0 ]]; then
+        echo "CRITICAL: preserving rollout could not verify complete image rollback" >&2
+    fi
+    return "$rollback_failed"
 }
 
 cleanup() {
     status=$?
     trap - EXIT
     if [[ $rollback_needed -eq 1 ]]; then
-        rollback
+        if [[ $snapshot_ready -eq 1 ]]; then
+            if snapshot_authority > "$after"; then
+                if cmp -s "$before" "$after"; then
+                    echo "Commander authority remained unchanged during rejected rollout" >&2
+                else
+                    echo "CRITICAL: Commander authority changed during rejected rollout" >&2
+                    diff -u "$before" "$after" >&2 || true
+                    status=1
+                fi
+            else
+                echo "CRITICAL: unable to verify Commander authority after rejected rollout" >&2
+                status=1
+            fi
+        fi
+        rollback || status=1
         [[ $status -ne 0 ]] || status=1
     fi
     rm -f -- "$before" "$after"
@@ -133,6 +171,7 @@ SQL
 }
 
 snapshot_authority > "$before"
+snapshot_ready=1
 export PTW_PLATFORM_IMAGE_TAG=$release_tag
 "${platform_compose[@]}" up -d --no-deps --no-build --wait codex-auth
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker

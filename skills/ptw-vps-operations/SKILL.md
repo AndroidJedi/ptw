@@ -88,6 +88,14 @@ into a complete compatible release, read
 - Require an explicit server-owned bounded reasoning effort for bridge workers;
   never inherit an ambient CLI setting. Verify the exact CLI override and keep
   domain-validation canaries as the quality gate.
+- A workflow that repeatedly reaches the worker deadline after queue and
+  reasoning controls are verified has an oversized or over-owned contract.
+  Do not keep increasing timeouts or blind-retrying it. Move deterministic
+  configuration/layout/routing/identity fields out of the model response,
+  bound the source snapshot and recent lesson context, record only byte counts,
+  and make runtime plus canary use one payload builder. Reject oversized
+  contracts locally before they enter the queue; require the compact canary to
+  finish on attempt 1 before promotion.
 - Recovered entities must clear current top-level error fields while preserving
   append-only failure history. Never expose a provider HTTP body while
   diagnosing a status; keep only bounded status, job ID, and object ID.
@@ -109,13 +117,30 @@ path must use `-T`; the preserving script runs from a file, refuses active
 mutable operations, snapshots every authoritative row, rolls both service sets
 and persisted tags back on any incomplete exit (including exit status zero),
 and never calls the reset script. The destructive serial reset remains a
-separate, explicit owner-confirmed workflow.
+separate, explicit owner-confirmed workflow. The preserving script must refuse
+when any repository migration is unapplied; do not use it to bypass the
+backup-bearing in-place confirmation.
+
+Migration-bearing preserving releases instead require the exact
+`DEPLOY PTW IN PLACE` confirmation and
+`scripts/publish_ptw_in_place_serial.sh`. Never bypass that gate with the
+non-migration preserving script. Require `-T` on every Compose one-off. The
+inner deployer refuses active mutable work, backs up PostgreSQL, fingerprints
+pre-existing rows before and after migration and again on failure, and verifies
+all restored application image tags. The outer deployer owns the whole release:
+until every dependency/resource/OOM audit passes, any error or termination must
+restore and verify all application and platform images plus their persisted
+tags. An additive migration may remain after rollback; existing rows must not
+change and the root-only backup remains the recovery authority.
 
 Before rollout, run real domain-validating canaries for both Product Brief
 modes, Universal Post, Phone Metrics, Landing composition, Studio learning,
 Landing learning, fresh image generation, one-image enhancement, and Pexels.
 Every structured canary must carry a fresh request fingerprint and complete on
-attempt 1. After an authorized clean reset
+attempt 1. It must also report valid prompt/input/schema byte budgets. The
+Landing canary must use the exact runtime content-only payload, remain below its
+stricter compact input/schema budgets, and prove that presentation state stays
+server-owned. After an authorized clean reset
 require zero Projects, Briefs, creatives, assets, versions, checkpoints,
 generation/learning runs, proposals, decisions, skill snapshots, graph rows,
 and every Landing workspace/file/asset/run/version/checkpoint/skill/proposal row.

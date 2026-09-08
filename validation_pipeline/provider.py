@@ -20,6 +20,7 @@ BRIDGE_JSON_MODES = JSON_MODES
 BRIDGE_MEDIA_MODES = ("content_non_human_graphic_generation",)
 BRIDGE_IDEMPOTENCY_KEY_LIMIT = 240
 BRIDGE_CONCURRENT_SLOT_LIMIT = 1
+BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES = 512_000
 
 
 def _validation_error(error: Exception) -> str:
@@ -36,6 +37,24 @@ def _json_digest(value: Any) -> str:
             value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str,
         ).encode()
     ).hexdigest()
+
+
+def _structured_contract_bytes(
+    *, system_prompt: str, input_payload: Mapping[str, Any],
+    output_schema: Mapping[str, Any],
+) -> dict[str, int]:
+    parts = {
+        "system_prompt": len(system_prompt.encode("utf-8")),
+        "input_payload": len(json.dumps(
+            input_payload, ensure_ascii=False, sort_keys=True,
+            separators=(",", ":"), default=str,
+        ).encode("utf-8")),
+        "output_schema": len(json.dumps(
+            output_schema, ensure_ascii=False, sort_keys=True,
+            separators=(",", ":"), default=str,
+        ).encode("utf-8")),
+    }
+    return {**parts, "total": sum(parts.values())}
 
 
 def bridge_request_fingerprint(
@@ -208,6 +227,12 @@ class StructuredBridge:
                 f"was rejected by PTW validation: {correction}. Return a corrected "
                 "object that obeys that exact constraint."
             )
+        contract_bytes = _structured_contract_bytes(
+            system_prompt=prompt, input_payload=input_payload,
+            output_schema=output_schema,
+        )
+        if contract_bytes["total"] > BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES:
+            raise ValueError("structured bridge contract exceeds its safe byte budget")
         request_document: dict[str, Any] = {
             "mode": mode,
             "system_prompt": prompt,
@@ -234,6 +259,7 @@ class StructuredBridge:
             "context_hash": context_hash,
             "request_fingerprint": request_fingerprint,
             "bridge_attempt": attempt,
+            "contract_bytes": contract_bytes,
         }
         return {"response": response, "invocation": invocation}
 

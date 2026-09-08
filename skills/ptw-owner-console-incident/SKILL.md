@@ -120,6 +120,15 @@ before changing code or runtime state.
   instead of inheriting an ambient CLI default. Keep the allowed effort values
   closed and test the exact CLI argument; all results still require schema and
   domain validation before acceptance.
+- Treat repeated execution-deadline failures on one schema-bound workflow as a
+  contract-shape incident, not a reason to keep extending timeouts. Separate
+  AI-owned semantic content from deterministic server-owned configuration,
+  layout, routing, IDs, and asset policy. Send only the bounded source fields
+  needed for that decision, cap the accepted lesson window without deleting
+  append-only learning history, and build runtime plus canary payloads through
+  the same function. Record prompt/input/schema byte counts without recording
+  their contents; reject oversized contracts before submission. A compact
+  workflow-specific canary must pass on attempt 1 before promotion.
 - A retry transition must clear stale top-level error metadata while retaining
   append-only failed run records. Never show a recovered draft as failed merely
   because an earlier error remains in its current-state envelope. HTTP bridge
@@ -160,12 +169,25 @@ modes, both Post templates, Landing composition, both learning skills, fresh
 media generation, and exact-reference enhancement; every structured canary
 must use a fresh request fingerprint and pass on attempt 1. Adding a structured
 workflow without its validator and canary is a release-blocking contract gap.
+The Landing canary additionally proves that AI returns content only, that the
+current server-owned configuration survives composition byte-for-byte, and
+that no live catalog, Post configuration, or asset body enters the structured
+prompt. Apply this ownership split to any future workflow whose schema or
+context begins to grow, instead of solving one failing field in isolation.
 For a normal VPS release, execute the tracked
 `scripts/deploy_ptw_preserving.sh`; do not feed a control script over SSH stdin.
 Its Compose one-off jobs must retain `-T`, its cleanup must roll back any
 incomplete exit even if the shell reports zero, and its full-row authority
 snapshot must match before release tags are persisted. Never substitute the
 confirmation-gated reset publisher for this preserving path.
+When the revision contains an additive migration, use only the separately
+confirmation-gated `publish_ptw_in_place_serial.sh` path. Its outer cleanup must
+restore and verify application plus platform images and persisted tags after
+any incomplete exit, signal, canary, audit, or resource failure. Its inner
+cleanup must refuse active mutable work, fingerprint pre-existing rows again on
+the failed path, restore and verify all application images, preserve the
+root-only backup, and never reverse the additive migration. Every Compose
+one-off in either layer uses `-T` so SSH stdin cannot be consumed.
 Before claiming Telegram works, verify authorization,
 deployed help/routing, provider readiness, persistence, restart behavior, and
 the user-facing failure path.

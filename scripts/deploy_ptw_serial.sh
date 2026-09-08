@@ -31,7 +31,21 @@ commander_compose=(docker compose --env-file "$platform/.env" --env-file "$repos
 validation_compose=(docker compose --env-file "$platform/.env" --env-file "$repository/.env.commander" --env-file "$repository/.env.owner-gateway" --project-name ptw-validation --project-directory "$repository" -f "$repository/docker-compose.validation.yml")
 platform_compose=(docker compose --env-file "$platform/.env" --project-directory "$platform" -f "$platform/docker-compose.yml")
 release_directory=$(mktemp -d /var/tmp/ptw-release.XXXXXX)
-trap 'rm -rf -- "$release_directory"' EXIT
+rollout_rollback_ready=0
+rollout_committed=0
+cleanup_release() {
+    status=$?
+    trap - EXIT HUP INT TERM
+    if [[ $rollout_rollback_ready -eq 1 && $rollout_committed -eq 0 ]]; then
+        restore_platform_images || status=1
+        restore_application_images || status=1
+        [[ $status -ne 0 ]] || status=1
+    fi
+    rm -rf -- "$release_directory"
+    exit "$status"
+}
+trap cleanup_release EXIT
+trap 'exit 1' HUP INT TERM
 deployment_started_at=$(date --iso-8601=seconds)
 
 [[ -f "$platform/.env" && -f "$repository/.env.commander" && -f "$repository/.env.owner-gateway" ]] || {
@@ -126,6 +140,52 @@ esac
 [[ $old_platform_worker_image == "ptw-agent-platform-commander-worker:$old_platform_tag" ]] || {
     echo "deployed platform API and worker tags do not match" >&2; exit 1;
 }
+old_commander_image=$(docker inspect ptw-commander-api-1 --format '{{.Config.Image}}')
+old_validation_image=$(docker inspect ptw-validation-validation-api-1 --format '{{.Config.Image}}')
+old_gateway_image=$(docker inspect ptw-owner-gateway-1 --format '{{.Config.Image}}')
+case "$old_commander_image" in
+    ptw-commander:*) old_app_tag=${old_commander_image#ptw-commander:} ;;
+    *) echo "unexpected deployed Commander image: $old_commander_image" >&2; exit 1 ;;
+esac
+[[ $old_app_tag != latest && $old_validation_image == "ptw-validation:$old_app_tag" && $old_gateway_image == "ptw-owner-gateway:$old_app_tag" ]] || {
+    echo "deployed PTW application tags do not match" >&2; exit 1;
+}
+
+restore_platform_images() {
+    local restore_failed=0
+    export PTW_PLATFORM_IMAGE_TAG=$old_platform_tag
+    "${platform_compose[@]}" up -d --no-deps --no-build --wait codex-auth || restore_failed=1
+    "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker || restore_failed=1
+    "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api || restore_failed=1
+    sed -i "s/^PTW_PLATFORM_IMAGE_TAG=.*/PTW_PLATFORM_IMAGE_TAG=$old_platform_tag/" "$platform/.env" || restore_failed=1
+    [[ $(docker inspect ptw-agent-platform-commander-api-1 --format '{{.Config.Image}}') == "ptw-agent-platform-commander-api:$old_platform_tag" ]] || restore_failed=1
+    [[ $(docker inspect ptw-agent-platform-commander-worker-1 --format '{{.Config.Image}}') == "ptw-agent-platform-commander-worker:$old_platform_tag" ]] || restore_failed=1
+    [[ $(docker inspect ptw-agent-platform-codex-auth-1 --format '{{.Config.Image}}') == "ptw-agent-platform-codex-auth:$old_platform_tag" ]] || restore_failed=1
+    if [[ $restore_failed -ne 0 ]]; then
+        echo "CRITICAL: platform rollback could not be fully verified" >&2
+    fi
+    return "$restore_failed"
+}
+
+restore_application_images() {
+    local restore_failed=0
+    export PTW_IMAGE_TAG=$old_app_tag
+    "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api || restore_failed=1
+    "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api || restore_failed=1
+    "${commander_compose[@]}" up -d --no-deps --no-build --wait owner-gateway || restore_failed=1
+    sed -i "s/^PTW_IMAGE_TAG=.*/PTW_IMAGE_TAG=$old_app_tag/" "$repository/.env.commander" || restore_failed=1
+    [[ $(docker inspect ptw-commander-api-1 --format '{{.Config.Image}}') == "ptw-commander:$old_app_tag" ]] || restore_failed=1
+    [[ $(docker inspect ptw-validation-validation-api-1 --format '{{.Config.Image}}') == "ptw-validation:$old_app_tag" ]] || restore_failed=1
+    [[ $(docker inspect ptw-owner-gateway-1 --format '{{.Config.Image}}') == "ptw-owner-gateway:$old_app_tag" ]] || restore_failed=1
+    if [[ $restore_failed -ne 0 ]]; then
+        echo "CRITICAL: application rollback could not be fully verified" >&2
+    fi
+    return "$restore_failed"
+}
+
+if [[ $confirmation == "DEPLOY PTW IN PLACE" ]]; then
+    rollout_rollback_ready=1
+fi
 git -C "$platform" bundle verify "$release_directory/platform-revision.bundle"
 git -C "$platform" fetch "$release_directory/platform-revision.bundle" HEAD
 [[ $(git -C "$platform" rev-parse FETCH_HEAD) == "$platform_git_revision" ]] || {
@@ -150,24 +210,18 @@ fi
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api
 
-restore_platform_images() {
-    export PTW_PLATFORM_IMAGE_TAG=$old_platform_tag
-    "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api
-    "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker
-}
-
 # Run a fresh strict-model invocation through the newly deployed API and worker
 # for every retained PTW mode. Restore the prior images if any canary fails;
 # Commander database maintenance has not started at this point.
-if ! "${validation_compose[@]}" run --rm --no-deps validation-api \
+if ! "${validation_compose[@]}" run -T --rm --no-deps validation-api \
     python -m validation_pipeline.verify_bridge_contract; then
-    restore_platform_images
+    restore_platform_images || true
     echo "platform bridge canary failed; prior platform images restored" >&2
     exit 1
 fi
-if ! "${validation_compose[@]}" run --rm --no-deps validation-api \
+if ! "${validation_compose[@]}" run -T --rm --no-deps validation-api \
     python -m validation_pipeline.verify_pexels; then
-    restore_platform_images
+    restore_platform_images || true
     echo "Pexels source canary failed; prior platform images restored" >&2
     exit 1
 fi
@@ -182,7 +236,7 @@ if [[ $confirmation == "RESET PTW PRODUCTION" ]]; then
 else
     if ! PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/deploy_ptw_in_place.sh" \
         --confirm "$confirmation" --release-tag "$release_tag"; then
-        restore_platform_images
+        restore_platform_images || true
         echo "in-place PTW deployment failed; prior platform images restored" >&2
         exit 1
     fi
@@ -225,4 +279,5 @@ systemctl is-active --quiet ptw-validation-24h-audit.timer || {
     echo "24-hour PTW resource audit timer was not scheduled" >&2
     exit 1
 }
+rollout_committed=1
 echo "PTW Product Brief, Studio, and Landing APIs deployed with confirmation '$confirmation' at $git_revision"

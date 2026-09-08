@@ -2,6 +2,47 @@
 
 Updated: 2026-09-08
 
+## 2026-09-08 — Monolithic Landing composition repeatedly exhausted the worker deadline
+
+**Symptom:** expanded pre-cutover canaries passed all retained structured and
+media modes, but post-cutover Landing composition alone failed at the worker
+deadline. It failed once at 300 seconds, again after the bounded worker timeout
+was raised to 360 seconds, and again with explicit server-owned low reasoning.
+Each preserving rollout rejected the candidate and restored the prior images;
+the owner Creative and append-only state were unchanged.
+
+**Cause:** the Landing model contract asked one structured call to return both
+marketing content and the complete renderer configuration while also receiving
+the live catalog, frozen Post configuration/assets, defaults, and skill
+documents. Queue alignment, authentication, schema validation, and reasoning
+were healthy. The repeated exact-deadline signature isolated excess contract
+shape and model ownership, rather than a data, auth, or recoverability problem.
+
+**Durable fix:** Landing composition v5 makes AI responsible only for strict
+bounded content. The server preserves configuration, layout, theme,
+presentation, components, image styles, phone layout, routing, Natal identity,
+and asset policy. One canonical payload builder is shared by runtime and release
+canary; it sends the approved Brief, bounded frozen Post copy, current content
+defaults, and at most eight recent lessons per scope, never the live catalog,
+Post configuration, or assets. Append-only learning history is retained. The
+bridge now rejects any structured contract over 512 KB before submission and
+records only prompt/input/schema byte counts. Landing has stricter compact
+canary limits. Both incident skills now route repeated deadline failures to an
+AI/server ownership split instead of longer timeouts or blind retry.
+
+**Verification:** unit coverage proves content-only schema enforcement, AI
+configuration rejection, exact preservation of current server configuration,
+bounded lesson context, exclusion of catalog/config/assets, pre-submission
+contract rejection, and byte-count provenance. All 169 Validation tests pass
+(162 in the Git-free production image plus seven Tune tests in the same image
+with ephemeral Git), together with 15 Commander/deployer, 6 Gateway, 72 web
+unit, 67 browser, two build, four-migration idempotency, syntax, compilation,
+and whitespace gates. The deployer tests cover active-work refusal, `-T`,
+failed-path authority fingerprints, full app/platform rollback verification,
+persisted-tag restoration, and refusal to bypass the backup-bearing path when a
+migration is pending. Final real canary and in-place rollout verification are
+pending the separate exact deployment confirmation.
+
 ## 2026-09-08 — Phone Metrics replayed a completed response outside renderer bounds
 
 **Symptom:** the first approved Phone Metrics Post remained `failed` with a

@@ -70,7 +70,7 @@ $commander_compose exec -T commander-db psql -X -v ON_ERROR_STOP=1 \
   -U ptw_commander -d ptw_commander \
   -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION ptw_commander;'
 
-$commander_compose run --rm --no-deps commander-migrate
+$commander_compose run -T --rm --no-deps commander-migrate
 $commander_compose up -d --no-deps --wait --no-build commander-api >/dev/null
 $validation_compose up -d --no-deps --wait --no-build validation-api >/dev/null
 $commander_compose up -d --no-deps --wait --no-build --force-recreate owner-gateway >/dev/null

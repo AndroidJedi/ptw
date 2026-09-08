@@ -9,10 +9,13 @@ from uuid import uuid4
 
 from .config import Settings
 from .domain import ProductBriefV1, product_brief_schema
-from .landing_pages import landing_generation_schema, validate_landing_composition
+from .landing_pages import (
+    LANDING_COMPOSER_PROMPT_VERSION, landing_composition_payload,
+    landing_generation_schema, validate_landing_composition,
+)
 from .landing_workspace import LandingWorkspace
 from .openai_images import ResultBridgePhoneScreenImageProvider
-from .provider import StructuredBridge
+from .provider import BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES, StructuredBridge
 from .service import load_product_brief_skill, product_brief_system_prompt
 from .studio_creatives import (
     creative_generation_schema, studio_edit_learning_schema,
@@ -39,10 +42,31 @@ def main() -> None:
         fingerprint = invocation.get("request_fingerprint")
         if not isinstance(fingerprint, str) or len(fingerprint) != 64:
             raise RuntimeError(f"{mode} canary omitted its request fingerprint")
+        contract_bytes = invocation.get("contract_bytes")
+        if (
+            not isinstance(contract_bytes, dict)
+            or set(contract_bytes) != {
+                "system_prompt", "input_payload", "output_schema", "total",
+            }
+            or any(not isinstance(item, int) or item < 0 for item in contract_bytes.values())
+            or contract_bytes["total"] != sum(
+                contract_bytes[key] for key in (
+                    "system_prompt", "input_payload", "output_schema",
+                )
+            )
+            or contract_bytes["total"] > BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES
+        ):
+            raise RuntimeError(f"{mode} canary reported an invalid contract budget")
+        if mode == "landing_composition" and (
+            contract_bytes["input_payload"] > 64_000
+            or contract_bytes["output_schema"] > 16_000
+        ):
+            raise RuntimeError("Landing composition canary exceeded its compact contract budget")
         invocations.append({
             "mode": mode,
             "request_id": invocation.get("bridge_request_id"),
             "request_fingerprint": fingerprint,
+            "contract_bytes": contract_bytes,
         })
 
     for mode in ("product_brief", "product_brief_revision"):
@@ -155,32 +179,36 @@ def main() -> None:
     accept(phone_composed, "studio_creative_generation_phone_metrics")
 
     with tempfile.TemporaryDirectory(prefix="ptw-landing-canary-") as temporary:
-        landing_detail = LandingWorkspace(temporary).detail()
+        landing_workspace = LandingWorkspace(temporary)
+        landing_detail = landing_workspace.detail()
         landing = provider.call(
             mode="studio_creative_generation",
             system_prompt=settings.landing_composer_skill_path.read_text(encoding="utf-8"),
-            input_payload={
-                "landing_id": marker,
-                "approved_product_brief": base_document,
-                "source_post_version": {
+            input_payload=landing_composition_payload(
+                landing_id=marker,
+                approved_product_brief=base_document,
+                source_post_snapshot={
                     "template_id": "universal_ad",
                     "configuration": detail["configuration"],
                     "content": detail["content"],
                     "generation": {}, "assets": [], "version_sha256": "0" * 64,
                 },
-                "live_landing_catalog": landing_detail["catalog"],
-                "template_defaults": {
-                    "configuration": landing_detail["configuration"],
-                    "content": landing_detail["content"],
-                },
-                "global_landing_skill": "No accepted global Landing lessons yet.",
-                "project_landing_skill": "No accepted Project Landing lessons yet.",
-            },
+                content_defaults=landing_detail["content"],
+                global_skill="No accepted global Landing lessons yet.",
+                project_skill="No accepted Project Landing lessons yet.",
+            ),
             output_schema=landing_generation_schema(),
-            prompt_version="landing-page-composer-v4",
+            prompt_version=LANDING_COMPOSER_PROMPT_VERSION,
             idempotency_key=f"canary:{marker}:landing_composition",
             response_validator=validate_landing_composition,
         )
+        landing_saved = landing_workspace.save_configuration(
+            base_sha256=landing_detail["state_sha256"],
+            configuration=landing_detail["configuration"],
+            content=landing["response"]["content"],
+        )
+        if landing_saved["configuration"] != landing_detail["configuration"]:
+            raise RuntimeError("Landing composition changed server-owned configuration")
     accept(landing, "landing_composition")
 
     studio_private_marker = f"project-private-{marker}"

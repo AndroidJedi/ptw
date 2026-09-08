@@ -6,7 +6,8 @@ import urllib.error
 from unittest.mock import patch
 
 from validation_pipeline.provider import (
-    BRIDGE_CONCURRENT_SLOT_LIMIT, BRIDGE_IDEMPOTENCY_KEY_LIMIT, StructuredBridge,
+    BRIDGE_CONCURRENT_SLOT_LIMIT, BRIDGE_IDEMPOTENCY_KEY_LIMIT,
+    BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES, StructuredBridge,
 )
 
 
@@ -93,6 +94,25 @@ class StructuredBridgeTests(unittest.TestCase):
             bridge.posted["idempotency_key"],
         )
         self.assertEqual(1, value["invocation"]["bridge_attempt"])
+        self.assertGreater(value["invocation"]["contract_bytes"]["total"], 0)
+        self.assertEqual(
+            value["invocation"]["contract_bytes"]["total"],
+            sum(value["invocation"]["contract_bytes"][key] for key in (
+                "system_prompt", "input_payload", "output_schema",
+            )),
+        )
+
+    def test_oversized_structured_contract_is_rejected_before_submission(self) -> None:
+        bridge = FakeBridge()
+        with self.assertRaisesRegex(ValueError, "safe byte budget"):
+            bridge.generate(
+                mode="product_brief", system_prompt="Generate one brief.",
+                input_payload={"raw_idea": "x" * BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES},
+                output_schema={"type": "object"},
+                idempotency_key="brief-uuid:product_brief", prompt_version="brief-v2",
+                response_validator=lambda response: response,
+            )
+        self.assertIsNone(bridge.posted)
 
     def test_capabilities_match_the_deployed_provider_contract(self) -> None:
         value = FakeBridge().capabilities()

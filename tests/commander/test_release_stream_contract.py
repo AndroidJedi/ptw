@@ -105,6 +105,31 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn('chmod 0600 "$backup_file"', deployer)
         self.assertIn('sha256sum "$backup_file"', deployer)
         self.assertIn("landing_publication_events", deployer)
+        self.assertIn("a mutable PTW operation is active; in-place deployment refused", deployer)
+        self.assertIn('run -T --rm --no-deps commander-migrate', deployer)
+        self.assertIn("Commander authority remained unchanged during rejected in-place deployment", deployer)
+        self.assertIn("CRITICAL: Commander authority changed during rejected in-place deployment", deployer)
+        self.assertIn("CRITICAL: in-place deployment could not verify complete application rollback", deployer)
+
+    def test_preserving_rollout_verifies_failed_path_data_and_all_image_rollbacks(self) -> None:
+        deployer = (ROOT / "scripts/deploy_ptw_preserving.sh").read_text()
+
+        self.assertNotIn("reset_ptw.sh", deployer)
+        self.assertIn("pending migrations require the confirmation-gated in-place deployment path", deployer)
+        self.assertIn('snapshot_ready=1', deployer)
+        self.assertIn('snapshot_authority > "$after"', deployer)
+        self.assertIn("Commander authority remained unchanged during rejected rollout", deployer)
+        self.assertIn("CRITICAL: Commander authority changed during rejected rollout", deployer)
+        self.assertIn("CRITICAL: preserving rollout could not verify complete image rollback", deployer)
+        for image in (
+            "ptw-commander:$old_app_tag",
+            "ptw-validation:$old_app_tag",
+            "ptw-owner-gateway:$old_app_tag",
+            "ptw-agent-platform-commander-api:$old_platform_tag",
+            "ptw-agent-platform-commander-worker:$old_platform_tag",
+            "ptw-agent-platform-codex-auth:$old_platform_tag",
+        ):
+            self.assertIn(image, deployer)
 
     def test_reset_postcondition_covers_every_landing_table(self) -> None:
         reset = (ROOT / "scripts/reset_ptw.sh").read_text()
@@ -167,6 +192,22 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertLess(api, bridge_canary)
         self.assertLess(bridge_canary, pexels_canary)
         self.assertLess(pexels_canary, reset)
+        self.assertEqual(2, deployer.count('"${validation_compose[@]}" run -T --rm --no-deps validation-api'))
+        self.assertIn('up -d --no-deps --no-build --wait codex-auth', deployer)
+        self.assertIn("CRITICAL: platform rollback could not be fully verified", deployer)
+
+    def test_in_place_outer_rollout_restores_both_service_sets_on_any_incomplete_exit(self) -> None:
+        deployer = (ROOT / "scripts/deploy_ptw_serial.sh").read_text()
+
+        self.assertIn("cleanup_release()", deployer)
+        self.assertIn('trap cleanup_release EXIT', deployer)
+        self.assertIn("trap 'exit 1' HUP INT TERM", deployer)
+        self.assertIn('if [[ $confirmation == "DEPLOY PTW IN PLACE" ]]', deployer)
+        self.assertIn('rollout_rollback_ready=1', deployer)
+        self.assertIn('restore_application_images || status=1', deployer)
+        self.assertIn('restore_platform_images || status=1', deployer)
+        self.assertIn('rollout_committed=1', deployer)
+        self.assertIn("CRITICAL: application rollback could not be fully verified", deployer)
 
     def test_release_uses_named_multisite_targets_and_public_shell_first_for_in_place(self) -> None:
         publisher = (ROOT / "scripts/publish_ptw_release_serial.sh").read_text()

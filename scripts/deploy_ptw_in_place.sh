@@ -36,17 +36,55 @@ case "$old_commander_image" in ptw-commander:*) old_tag=${old_commander_image#pt
     echo "deployed PTW application images are not one matching versioned release" >&2; exit 1;
 }
 
+before_snapshot=$(mktemp /run/ptw-in-place-before.XXXXXX)
+after_snapshot=$(mktemp /run/ptw-in-place-after.XXXXXX)
+rollback_needed=1
+snapshot_ready=0
+
 rollback() {
-    status=$?
-    trap - ERR
+    set +e
+    local rollback_failed=0
     export PTW_IMAGE_TAG=$old_tag
-    "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api >/dev/null 2>&1 || true
-    "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api >/dev/null 2>&1 || true
-    "${commander_compose[@]}" up -d --no-deps --no-build --wait owner-gateway >/dev/null 2>&1 || true
-    echo "in-place deployment failed; prior PTW images were restored and the additive migration was not reversed" >&2
+    "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api >/dev/null 2>&1 || rollback_failed=1
+    "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api >/dev/null 2>&1 || rollback_failed=1
+    "${commander_compose[@]}" up -d --no-deps --no-build --wait owner-gateway >/dev/null 2>&1 || rollback_failed=1
+    [[ $(docker inspect "$("${commander_compose[@]}" ps -q commander-api)" --format '{{.Config.Image}}') == "ptw-commander:$old_tag" ]] || rollback_failed=1
+    [[ $(docker inspect "$("${validation_compose[@]}" ps -q validation-api)" --format '{{.Config.Image}}') == "ptw-validation:$old_tag" ]] || rollback_failed=1
+    [[ $(docker inspect "$("${commander_compose[@]}" ps -q owner-gateway)" --format '{{.Config.Image}}') == "ptw-owner-gateway:$old_tag" ]] || rollback_failed=1
+    if [[ $rollback_failed -ne 0 ]]; then
+        echo "CRITICAL: in-place deployment could not verify complete application rollback" >&2
+    else
+        echo "in-place deployment failed; prior PTW images were restored and the additive migration was not reversed" >&2
+    fi
+    return "$rollback_failed"
+}
+
+cleanup() {
+    status=$?
+    trap - EXIT HUP INT TERM
+    if [[ $rollback_needed -eq 1 ]]; then
+        if [[ $snapshot_ready -eq 1 ]]; then
+            if snapshot_database > "$after_snapshot"; then
+                if cmp -s "$before_snapshot" "$after_snapshot"; then
+                    echo "Commander authority remained unchanged during rejected in-place deployment" >&2
+                else
+                    echo "CRITICAL: Commander authority changed during rejected in-place deployment" >&2
+                    diff -u "$before_snapshot" "$after_snapshot" >&2 || true
+                    status=1
+                fi
+            else
+                echo "CRITICAL: unable to verify Commander authority after rejected in-place deployment" >&2
+                status=1
+            fi
+        fi
+        rollback || status=1
+        [[ $status -ne 0 ]] || status=1
+    fi
+    rm -f -- "$before_snapshot" "$after_snapshot"
     exit "$status"
 }
-trap rollback ERR
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
 
 snapshot_database() {
     "${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander <<'SQL'
@@ -74,9 +112,20 @@ FROM pg_temp.ptw_business_fingerprints() ORDER BY table_name;
 SQL
 }
 
-before_snapshot=$(mktemp /run/ptw-in-place-before.XXXXXX)
-after_snapshot=$(mktemp /run/ptw-in-place-after.XXXXXX)
-trap 'rm -f -- "$before_snapshot" "$after_snapshot"' EXIT
+
+"${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 \
+    -U ptw_commander -d ptw_commander <<'SQL'
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM product_briefs WHERE status='generating')
+     OR EXISTS (SELECT 1 FROM universal_studio_workspaces WHERE status IN ('queued','composing','generating_image'))
+     OR EXISTS (SELECT 1 FROM landing_workspaces WHERE status IN ('queued','composing','generating_images'))
+     OR EXISTS (SELECT 1 FROM landing_checkpoints WHERE status='learning')
+     OR EXISTS (SELECT 1 FROM meta_ads_deployments WHERE status NOT IN ('staged','failed')) THEN
+    RAISE EXCEPTION 'a mutable PTW operation is active; in-place deployment refused';
+  END IF;
+END $$;
+SQL
 
 # Stop every Commander-database writer before taking the backup and snapshot.
 "${commander_compose[@]}" stop owner-gateway commander-api >/dev/null
@@ -94,8 +143,9 @@ sha256sum "$backup_file" > "$backup_file.sha256"
 chmod 0600 "$backup_file.sha256"
 
 snapshot_database > "$before_snapshot"
+snapshot_ready=1
 export PTW_IMAGE_TAG=$release_tag
-"${commander_compose[@]}" run --rm --no-deps commander-migrate
+"${commander_compose[@]}" run -T --rm --no-deps commander-migrate
 
 "${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander <<'SQL'
 DO $$
@@ -125,5 +175,5 @@ curl --fail --silent --max-time 3 http://127.0.0.1:8093/readyz >/dev/null
 "${commander_compose[@]}" up -d --no-deps --no-build --wait --force-recreate owner-gateway >/dev/null
 curl --fail --silent --max-time 3 http://127.0.0.1:8092/healthz >/dev/null
 
-trap - ERR
+rollback_needed=0
 echo "in-place migration and serial service cutover preserved every pre-existing Commander business row; root-only backup: $backup_file"

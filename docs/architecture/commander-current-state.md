@@ -25,7 +25,10 @@ for `phone_metrics`.
 
 Landing is a private responsive, fixed-section workspace created from a selected
 immutable approved Post version and its approved Brief. It captures Post style
-once, AI-populates Hero/three features/visual directions/three FAQs, leaves
+once, and the v5 composer AI-populates only bounded Hero/three features/app
+screen/visual directions/three FAQs content. Theme, layout, presentation,
+components, image styles, phone layout, routing, identity, and asset policy stay
+server-owned and preserve the current workspace configuration. It leaves
 owner evidence and contacts empty, then generates text-free Hero and visual-break
 art. The rebuilt v4 renderer adds bundled typography, a balanced hero, benefit
 cards, optional proof, bounded landscape art, an actionable contact panel, and
@@ -127,10 +130,18 @@ completed response rejected by domain validation may receive one correction;
 transport, timeout, cancellation, CLI, and provider failures remain on their
 original attempt. Recovery clears stale current errors but retains append-only
 failure history.
+Every structured request also enforces a local 512 KB prompt/input/schema
+contract budget before submission and records only per-part byte counts in
+provenance. Landing uses a stricter release budget, a shared runtime/canary
+payload builder, a maximum of eight recent global and eight recent Project
+lessons, frozen Post copy without its configuration/assets, and no live catalog
+in the prompt. Complete append-only lesson history remains authoritative.
 Validation serializes bridge submissions to the single production worker. The
-worker execution timeout is bounded below the client deadline, so a large
-Landing response has a verified completion margin without allowing a queued
-parallel request to exhaust its deadline before execution starts.
+worker execution timeout is bounded below the client deadline so a queued
+parallel request cannot exhaust its deadline before execution starts. Repeated
+Landing deadline failures at both 300 and 360 seconds proved that timeout growth
+was not a safe remedy; promotion now requires the compact content-only contract
+to finish on fresh attempt 1.
 The bridge worker also pins the server-owned reasoning effort to `low` instead
 of inheriting an ambient CLI default; strict domain validation, not unbounded
 reasoning time, determines acceptance.
@@ -141,7 +152,8 @@ exact repository revisions, snapshots every authoritative database row, runs
 domain canaries and audits, and persists release tags only after the snapshot is
 unchanged. Any incomplete exit restores the prior application and platform
 images plus their persisted tags. This path never invokes the separately
-confirmation-gated destructive reset.
+confirmation-gated destructive reset, and it refuses any unapplied migration so
+the backup-bearing in-place gate cannot be bypassed.
 
 Migration-bearing data-preserving releases additionally use the confirmation-
 gated `scripts/publish_ptw_in_place_serial.sh` entrypoint with exactly
@@ -150,7 +162,11 @@ root-only checksummed PostgreSQL backup, fingerprints every existing business
 row while writers are stopped, applies migration 004, proves preservation, and
 cuts services over serially. `RESET PTW PRODUCTION` remains a mutually exclusive
 destructive path. Domain transfer, DNS edits, and old-site disablement remain
-separately authorized operations.
+separately authorized operations. All Compose one-offs disable TTY/stdin. Both
+inner and outer cleanup paths cover shell errors and termination signals,
+re-fingerprint authority after rejected deployment, restore and verify all six
+prior image tags plus persisted tags, and reject active mutable work before the
+backup window.
 
 A replacement Brief creates a separate first creative. Another creative from
 the same Brief is available only after the latest creative has an immutable
@@ -206,7 +222,9 @@ attempt; transport, timeout, cancellation, and provider failures never trigger
 an unsafe blind second attempt. Release acceptance covers both Product Brief
 modes, Universal Post, Phone Metrics, Landing composition, Studio learning,
 Landing learning, new image generation, and exact-reference enhancement; every
-structured canary must pass domain validation on fresh attempt 1.
+structured canary must pass domain validation on fresh attempt 1 and report a
+valid prompt/input/schema byte budget. Landing additionally has compact
+input/schema limits and uses exactly the runtime payload builder.
 
 For `phone_metrics`, composition automatically starts a fresh, text-free hero
 generation governed by `studio-phone-hero-generator`. The prompt includes the
@@ -243,7 +261,7 @@ are absent.
 Landing phone verification is recorded in `.local/landing-phone`, with
 before/after captures, three screen themes at 1280/768/360px, and iPhone WebKit.
 The 66 Owner Console and 6 public-web unit tests, 51 Owner Console and 16 public
-browser checks, both production builds, full 166-test Validation suite, 13
+browser checks, both production builds, full 169-test Validation suite, 15
 Commander built-image tests, and 6 Owner Gateway tests pass. All 39 tests for
 the exact current platform revision pass. The Commander demo, four-migration disposable
 PostgreSQL idempotency/preservation check, canonical skill verification, Python

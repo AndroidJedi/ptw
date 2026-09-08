@@ -15,19 +15,14 @@ from uuid import UUID
 from commander.ids import new_uuid7
 
 from .landing_workspace import (
-    DEFAULT_CONFIGURATION, DEFAULT_CONTENT, DEFAULT_PRESENTATION,
-    LANDING_CONFIGURATION_SCHEMA, LANDING_CONTENT_LIMITS, LANDING_CONTENT_SCHEMA,
-    LANDING_FONT_FAMILIES, LANDING_HEX_COLOR_PATTERN,
-    LANDING_PRESENTATION_NUMBER_BOUNDS, LANDING_PRESENTATION_OPTIONS,
-    LANDING_SECTION_OPTIONS, LANDING_TEMPLATE_ID,
-    LANDING_THEME_CORNER_RADIUS_BOUNDS, LANDING_VISUAL_SLOTS, LandingWorkspace,
+    DEFAULT_CONFIGURATION, DEFAULT_CONTENT,
+    LANDING_CONTENT_LIMITS, LANDING_CONTENT_SCHEMA, LANDING_TEMPLATE_ID,
+    LANDING_VISUAL_SLOTS, LandingWorkspace,
     canonical_json, normalize_composed_content, normalize_configuration, sha256_json,
 )
 from .landing_design import (
-    APP_FEATURE_LIMITS, COMPONENT_OPTIONS, DEFAULT_APP_FEATURE,
-    DEFAULT_COMPONENTS, DEFAULT_IMAGE_DIRECTIONS, DEFAULT_PHONE_MOCKUP,
+    APP_FEATURE_LIMITS, DEFAULT_APP_FEATURE, DEFAULT_IMAGE_DIRECTIONS,
     LANDING_BACKGROUND_DIRECTIVES, PHONE_HERO_STYLE_DIRECTIVES,
-    PHONE_MOCKUP_OPTIONS,
 )
 from .local_brief_store import LocalBriefStore, utc_now
 from .local_codex import sanitized
@@ -37,6 +32,8 @@ from .studio_creatives import (
 
 
 LANDING_STATUSES = frozenset({"queued", "composing", "generating_images", "draft", "failed"})
+LANDING_COMPOSER_PROMPT_VERSION = "landing-page-composer-v5"
+LANDING_GENERATION_LESSON_LIMIT = 8
 _DIGEST = re.compile(r"\b[0-9a-fA-F]{64}\b")
 
 
@@ -80,49 +77,14 @@ def _snapshot(detail: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def landing_generation_schema() -> dict[str, Any]:
+    """Return only the bounded AI-owned portion of a Landing composition."""
     result = {
         "type": "object",
         "properties": {
-            "configuration": _json_schema({**DEFAULT_CONFIGURATION, "presentation": DEFAULT_PRESENTATION, "components": DEFAULT_COMPONENTS, "image_directions": DEFAULT_IMAGE_DIRECTIONS, "phone_mockup": DEFAULT_PHONE_MOCKUP}),
             "content": _json_schema({**DEFAULT_CONTENT, "app_feature": DEFAULT_APP_FEATURE}),
         },
-        "required": ["configuration", "content"], "additionalProperties": False,
+        "required": ["content"], "additionalProperties": False,
     }
-    configuration = result["properties"]["configuration"]["properties"]
-    configuration["schema"]["enum"] = [LANDING_CONFIGURATION_SCHEMA]
-    theme = configuration["theme"]["properties"]
-    for field in ("background_color", "surface_color", "text_color", "accent_color"):
-        theme[field]["pattern"] = LANDING_HEX_COLOR_PATTERN
-    for field in ("font_family", "heading_font_family"):
-        theme[field]["enum"] = list(LANDING_FONT_FAMILIES)
-    theme["corner_radius"].update(dict(zip(
-        ("minimum", "maximum"), LANDING_THEME_CORNER_RADIUS_BOUNDS,
-    )))
-    for section, options in LANDING_SECTION_OPTIONS.items():
-        for field, values in options.items():
-            configuration[section]["properties"][field]["enum"] = list(values)
-    presentation = configuration["presentation"]["properties"]
-    for field, values in LANDING_PRESENTATION_OPTIONS.items():
-        presentation[field]["enum"] = list(values)
-    presentation["heading_scale"].update(dict(zip(
-        ("minimum", "maximum"), LANDING_PRESENTATION_NUMBER_BOUNDS["heading_scale"],
-    )))
-    for focus in ("hero_focus", "visual_break_focus"):
-        for axis in ("x", "y"):
-            presentation[focus]["properties"][axis].update(dict(zip(
-                ("minimum", "maximum"), LANDING_PRESENTATION_NUMBER_BOUNDS["focus_axis"],
-            )))
-    for field, values in COMPONENT_OPTIONS.items():
-        configuration["components"]["properties"][field]["enum"] = list(values)
-    for field in ("button_color", "button_text_color"):
-        configuration["components"]["properties"][field]["pattern"] = LANDING_HEX_COLOR_PATTERN
-    for field, values in PHONE_MOCKUP_OPTIONS.items():
-        configuration["phone_mockup"]["properties"][field]["enum"] = list(values)
-    for slot in DEFAULT_IMAGE_DIRECTIONS:
-        direction = configuration["image_directions"]["properties"][slot]["properties"]
-        direction["style"]["enum"] = list(PHONE_HERO_STYLE_DIRECTIVES)
-        direction["background"]["enum"] = list(LANDING_BACKGROUND_DIRECTIVES)
-
     content = result["properties"]["content"]["properties"]
     content["schema"]["enum"] = [LANDING_CONTENT_SCHEMA]
     app = content["app_feature"]["properties"]
@@ -159,11 +121,35 @@ def landing_generation_schema() -> dict[str, Any]:
 
 
 def validate_landing_composition(value: Mapping[str, Any]) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or set(value) != {"configuration", "content"}:
+    if not isinstance(value, Mapping) or set(value) != {"content"}:
         raise ValueError("Landing composer response fields are invalid")
+    return {"content": normalize_composed_content(value["content"])}
+
+
+def _bounded_landing_lessons(document: str) -> list[str]:
+    """Expose recent accepted lessons without allowing prompt growth forever."""
+    return _lessons(document)[-LANDING_GENERATION_LESSON_LIMIT:]
+
+
+def landing_composition_payload(
+    *, landing_id: str, approved_product_brief: Mapping[str, Any],
+    source_post_snapshot: Mapping[str, Any], content_defaults: Mapping[str, Any],
+    global_skill: str, project_skill: str,
+) -> dict[str, Any]:
+    """Build the one canonical, bounded payload used by runtime and canaries."""
     return {
-        "configuration": normalize_configuration(value["configuration"]),
-        "content": normalize_composed_content(value["content"]),
+        "landing_id": landing_id,
+        "approved_product_brief": deepcopy(dict(approved_product_brief)),
+        "source_post_copy": {
+            "template_id": source_post_snapshot.get("template_id"),
+            "content": deepcopy(source_post_snapshot.get("content") or {}),
+            "version_sha256": source_post_snapshot.get("version_sha256"),
+        },
+        "template_content_defaults": {
+            "content": deepcopy(dict(content_defaults)),
+        },
+        "accepted_global_landing_lessons": _bounded_landing_lessons(global_skill),
+        "accepted_project_landing_lessons": _bounded_landing_lessons(project_skill),
     }
 
 
@@ -873,23 +859,32 @@ class LandingService:
         global_skill = self.authority.latest_skill("global")
         project_skill = self.authority.latest_skill("project", page["project_id"])
         self.authority.update_page(landing_id, status="composing", generation={"stage": "composing", "global_skill_sha256": global_skill["content_sha256"], "project_skill_sha256": project_skill["content_sha256"]})
-        payload = {
-            "landing_id": landing_id, "approved_product_brief": brief["document"],
-            "source_post_version": self._style_snapshot(page), "live_landing_catalog": detail["catalog"],
-            "template_defaults": {"configuration": {**detail["configuration"], "presentation": detail["configuration"].get("presentation", DEFAULT_PRESENTATION), "components": detail["configuration"].get("components", DEFAULT_COMPONENTS), "image_directions": detail["configuration"].get("image_directions", DEFAULT_IMAGE_DIRECTIONS), "phone_mockup": detail["configuration"].get("phone_mockup", DEFAULT_PHONE_MOCKUP)}, "content": {**detail["content"], "app_feature": detail["content"].get("app_feature", DEFAULT_APP_FEATURE)}},
-            "global_landing_skill": global_skill["content"], "project_landing_skill": project_skill["content"],
-        }
+        payload = landing_composition_payload(
+            landing_id=landing_id,
+            approved_product_brief=brief["document"],
+            source_post_snapshot=page["source_post_snapshot"],
+            content_defaults={
+                **detail["content"],
+                "app_feature": detail["content"].get("app_feature", DEFAULT_APP_FEATURE),
+            },
+            global_skill=global_skill["content"],
+            project_skill=project_skill["content"],
+        )
         stage = "composition"
         stage_input = sha256_json(payload)
         try:
             result = self._provider_call(
                 mode="studio_creative_generation", system_prompt=self.composer_skill,
                 input_payload=payload, output_schema=landing_generation_schema(),
-                idempotency_key=f"landing-page:{landing_id}", prompt_version="landing-page-composer-v4",
+                idempotency_key=f"landing-page:{landing_id}", prompt_version=LANDING_COMPOSER_PROMPT_VERSION,
                 response_validator=validate_landing_composition,
             )
-            self._record_generation(landing_id=landing_id, stage="composition", status="completed", input_sha256=stage_input, output_sha256=sha256_json(result["response"]), prompt_version="landing-page-composer-v4", invocation=sanitized(result.get("invocation") or {}))
-            composed = workspace.save_configuration(base_sha256=detail["state_sha256"], **result["response"])
+            self._record_generation(landing_id=landing_id, stage="composition", status="completed", input_sha256=stage_input, output_sha256=sha256_json(result["response"]), prompt_version=LANDING_COMPOSER_PROMPT_VERSION, invocation=sanitized(result.get("invocation") or {}))
+            composed = workspace.save_configuration(
+                base_sha256=detail["state_sha256"],
+                configuration=detail["configuration"],
+                content=result["response"]["content"],
+            )
             self.authority.update_page(landing_id, status="generating_images", state_sha256=composed["state_sha256"], generation={"stage": "generating_images", "composition": sanitized(result.get("invocation") or {})})
             for slot, direction in (("hero_visual", composed["content"]["hero"]["visual_direction"]), ("visual_break_visual", composed["content"]["visual_break"]["visual_direction"])):
                 stage, prompt = slot, self._image_prompt(page, slot, direction, composed["configuration"])
@@ -901,7 +896,7 @@ class LandingService:
             self.authority.update_page(landing_id, status="draft", state_sha256=composed["state_sha256"], generation={"stage": "draft", "composition": sanitized(result.get("invocation") or {})}, learning_baseline=baseline, learning_baseline_sha256=sha256_json(baseline))
         except Exception as error:
             self._synchronize_workspace(landing_id, workspace)
-            self._record_generation(landing_id=landing_id, stage=stage, status="failed", input_sha256=stage_input, output_sha256=None, prompt_version="landing-page-composer-v4" if stage == "composition" else "landing-visual-generator-v2", error=error)
+            self._record_generation(landing_id=landing_id, stage=stage, status="failed", input_sha256=stage_input, output_sha256=None, prompt_version=LANDING_COMPOSER_PROMPT_VERSION if stage == "composition" else "landing-visual-generator-v2", error=error)
             self.authority.update_page(landing_id, status="failed", generation={"stage": "failed", "error_type": type(error).__name__, "error_message": str(error)[:1000]})
         return self.summary(landing_id)
 

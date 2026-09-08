@@ -2,7 +2,7 @@
 
 Updated: 2026-09-08
 Branch: `main`
-Deployment: systemic contract/recovery release `contract-budget-20260908-153b1dc` is live; Meta staging is disabled until a fresh secret is configured
+Deployment: backend release `contract-budget-20260908-153b1dc` and Owner Console Hosting version `a7a47a45ede67c7e` are live; Meta staging is disabled until a fresh secret is configured
 
 ## Current milestone
 
@@ -265,8 +265,8 @@ are absent.
 ## Verification status
 
 The approved-Brief reopen conflict was diagnosed against production Brief
-`01a07c66-b00a-7ffe-a44f-a5fd2d738515`. Two owner requests returned HTTP 409
-at 2026-09-08 13:40:53 and 13:41:01 UTC because the Brief UI reopened a blank
+`01a07c66-b00a-7ffe-a44f-a5fd2d738515`. Four owner requests returned HTTP 409
+at 2026-09-08 13:40:53, 13:41:01, 13:57:57, and 13:58:27 UTC because the Brief UI reopened a blank
 template/direction chooser even though its ordinal-1 Phone Metrics Creative
 `01a07f55-20a5-755c-bbec-17a3f158ef4b` already existed. PostgreSQL retained
 exactly one approval and one first Creative; the Creative remains a draft and
@@ -280,6 +280,14 @@ every Owner Console Hosting release, and provides a tracked clean-main web-only
 deployer that cannot touch VPS services or PostgreSQL. The 16 Commander tests
 (two dependency skips outside the image), Commander demo, skill verification,
 Python compilation, shell syntax, and whitespace checks also pass locally.
+PTW revision `80019c5` is deployed as Owner Console Hosting version
+`a7a47a45ede67c7e`. Both Firebase default origins serve entry bundle
+`index-D5YU1IIQ.js`, App bundle `App-uXl8cPRc.js`, the incident marker, and PWA
+cache `ptw-shell-brief-studio-landing-ads-v2`; Gateway health, unauthenticated
+rejection, and CORS pass. There were no matching approval POSTs after the
+14:11 UTC cutover. PostgreSQL still has one approval, one ordinal-1 draft
+Creative `01a07f55-20a5-755c-bbec-17a3f158ef4b`, zero approved versions, and
+unchanged `contains=1` / `derived_from=2` Brief lineage counts.
 
 Landing phone verification is recorded in `.local/landing-phone`, with
 before/after captures, three screen themes at 1280/768/360px, and iPhone WebKit.

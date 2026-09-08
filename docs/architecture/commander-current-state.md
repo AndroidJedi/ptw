@@ -2,7 +2,7 @@
 
 Updated: 2026-09-08
 Branch: `main`
-Deployment: Studio replay-guard release `studio-replay-20260908-7611034` is live; Meta staging is disabled until a fresh secret is configured
+Deployment: path-based public Landing release `path-landings-20260908-9a5043e` is live; Meta staging is disabled until a fresh secret is configured
 
 ## Current milestone
 
@@ -62,8 +62,9 @@ in non-editing mode. Its English `/` umbrella contains no links or CTA;
 unpublished paths use a branded visual 404 with Hosting HTTP 200. The shell has
 no Auth or service worker, ships noindex/noarchive plus disallow-all robots, and
 uses self-hosted Natal assets. Named Firebase targets keep it separate from the
-private Owner Console. This milestone is implemented locally but is not yet
-deployed and no custom-domain or GoDaddy record has been changed.
+private Owner Console. Firebase version `185107aab38614ab` is live on
+`natal-landings-86123.web.app`; no custom-domain or GoDaddy record has been
+changed.
 
 Ads is a separate Project workspace over immutable approved Post versions. It
 creates or reconciles one Project Campaign, one Ad Set per immutable audience
@@ -268,9 +269,9 @@ The confirmation-gated production reset at PTW revision
 `210ebca733c723008f8f751f93c03b6f2d039786` installed migrations `001` through
 `003` and immediately left all owned Brief, Studio, Landing, Ads, and graph
 business tables empty. Its before/after snapshot confirmed that independent
-platform database counts did not change. The independent platform remained at revision
-`addcd6546d986a18e54d5ed300f7153e38f36cb4`; all six application services run
-the shared `studio-replay-20260908-7611034` release tag and are healthy. The
+platform database counts did not change. The independent platform is now at
+revision `b3907db6b7dd4435fa58065dc96902e5536a9dc8`; all six application services
+run the shared `path-landings-20260908-9a5043e` release tag and are healthy. The
 non-reset city-targeting rollout at PTW revision
 `a92fbc758d6a25cf7dff35111891ee97ed2757dc` preserved the exact Project and
 Brief IDs plus their pre-rollout row counts. Bridge, image generation,
@@ -279,6 +280,19 @@ emergency stops are false, the 1 GB resource audit passed, and the scheduled
 24-hour follow-up audit is active. Firebase Hosting version
 `9046603eb4d5b84d` is live, and its public audit confirms the Ads-aware service
 worker plus healthy Gateway/authentication boundaries.
+
+The data-preserving path-based Landing rollout completed at PTW revision
+`9a5043ea257832966676c3816bd9fb528f7b479b`. It created and checksummed a
+root-only pre-migration PostgreSQL backup, installed migration 004, and proved
+every pre-existing business-table fingerprint unchanged before serial cutover.
+Project `01a07c66-b00a-7364-8fda-7de87c12a907` remains named `Natal Service`;
+the new publication tables are empty until an owner explicitly publishes an
+approved Landing. Real provider, generate/enhance, Pexels, dependency,
+Telegram, and 1 GB canaries passed, and the persistent follow-up audit is due
+2026-09-09 11:22 UTC. Owner Hosting version `57692ac4789cc5d0` and public
+Hosting version `185107aab38614ab` are live. Public root/lane rendering,
+noindex/robots/CSP, exact CORS, public 404s, private 401s, backup checksum, and
+all six healthy versioned services were independently rechecked.
 
 The Phone Metrics replay incident is closed at PTW revision
 `76110344697854085ac03676dc1d7da744f7cf82`. Pre- and post-cutover strict-schema
@@ -299,6 +313,15 @@ Production now contains Project `Natal Service`
 immutable approved version. The owner must inspect/edit it in Post and use the
 explicit Approve action before it may appear as an Ads deployment source; PTW
 must not infer that approval.
+
+The remaining public-domain work is the separately controlled Firebase Quick
+Setup/GoDaddy transfer in `docs/operations/natal-domain-cutover.md`. Current DNS
+still has the legacy `hosting-site=natal-dashboard-dev` ownership TXT, the apex
+Firebase A record `199.36.158.100`, preserved SPF, and `www` pointing to the
+apex with its pre-existing certificate mismatch. Replace only the TXT value
+Firebase displays, preserve mail records and the apex A unless instructed, then
+attach `www` as a permanent apex redirect. Do not disable the legacy Hosting
+site before a successful 24-hour soak and separate retirement authorization.
 
 The Meta App, system user, Ad Account, Facebook Page, and professional Instagram
 account are assigned. The owner must rotate the token disclosed during setup and

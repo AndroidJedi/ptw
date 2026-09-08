@@ -74,6 +74,59 @@ def main() -> None:
         "mode": "studio_creative_generation",
         "request_id": composed["invocation"].get("bridge_request_id"),
     })
+    with tempfile.TemporaryDirectory(prefix="ptw-phone-studio-canary-") as temporary:
+        phone_workspace = UniversalStudioWorkspace(temporary)
+        phone_detail = phone_workspace.apply_template(
+            base_sha256=phone_workspace.detail()["state_sha256"],
+            template_id="phone_metrics",
+        )
+
+        def validate_phone_composition(value):
+            if set(value) != {"configuration", "content", "visual_direction"}:
+                raise ValueError("Phone Metrics canary response fields are invalid")
+            phone_workspace.component_settings(
+                state_sha256=phone_detail["state_sha256"],
+                configuration=value["configuration"], content=value["content"],
+            )
+            direction = " ".join(str(value["visual_direction"]).split())
+            if not 8 <= len(direction) <= 600:
+                raise ValueError("Phone Metrics canary visual direction is invalid")
+            return value
+
+        phone_composed = provider.call(
+            mode="studio_creative_generation",
+            system_prompt=(
+                studio_skill + "\n\nThe live catalog in INPUT_JSON is authoritative. "
+                "Return a complete bounded configuration and content object."
+            ),
+            input_payload={
+                "creative_id": marker,
+                "approved_product_brief": base_document,
+                "selected_template_id": "phone_metrics",
+                "live_template_catalog": phone_detail["catalog"],
+                "template_defaults": {
+                    "configuration": phone_detail["configuration"],
+                    "content": phone_detail["content"],
+                },
+                "global_skill": "No accepted global Studio lessons yet.",
+                "project_skill": "No accepted Project Studio lessons yet.",
+                "creative_direction": {
+                    "schema": "ptw.studio.phone-hero-direction.v1",
+                    "style": "minimal_sculptural",
+                    "background": "isolated_key_element",
+                },
+            },
+            output_schema=creative_generation_schema(phone_detail),
+            prompt_version="studio-creative-composer-v3",
+            idempotency_key=f"canary:{marker}:studio_phone_metrics:v3",
+            response_validator=validate_phone_composition,
+        )
+    if phone_composed["invocation"].get("bridge_attempt") != 1:
+        raise RuntimeError("Phone Metrics strict-schema canary required a correction attempt")
+    invocations.append({
+        "mode": "studio_creative_generation_phone_metrics",
+        "request_id": phone_composed["invocation"].get("bridge_request_id"),
+    })
     learned = provider.generate(
         mode="studio_edit_learning",
         system_prompt=settings.studio_learner_skill_path.read_text(encoding="utf-8"),

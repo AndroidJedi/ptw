@@ -38,6 +38,13 @@ PHONE_METRIC_CARD_RADII = {"square": 0, "rounded": 28, "pill": 70}
 PHONE_ACTION_BUTTON_STYLES = ("filled", "elevated", "outlined", "text")
 PHONE_ACTION_BUTTON_SHAPES = ("square", "rounded", "pill")
 PHONE_ACTION_BUTTON_RADII = {"square": 0, "rounded": 24, "pill": 52}
+PHONE_TEXTURE_INTENSITY_BOUNDS = (0.04, 0.24)
+PHONE_DEVICE_BOUNDS = {
+    "x": (580, 640),
+    "y": (70, 130),
+    "width": (380, 430),
+    "rotation": (0.0, 0.0),
+}
 PHONE_TYPOGRAPHY_BOUNDS = {
     "offer": (16, 42),
     "hero_title": (42, 110),
@@ -321,7 +328,10 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
                 background["texture"], PHONE_BACKGROUND_TEXTURES,
                 "phone metrics background.texture",
             ),
-            "texture_intensity": _number(background["texture_intensity"], "phone metrics texture intensity", 0.04, 0.24),
+            "texture_intensity": _number(
+                background["texture_intensity"], "phone metrics texture intensity",
+                *PHONE_TEXTURE_INTENSITY_BOUNDS,
+            ),
         },
         "copy_background": {
             "texture": _enum(
@@ -343,10 +353,8 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
         "metric_cards": metric_cards,
         "phone_buttons": phone_buttons,
         "device": {
-            "x": _number(device["x"], "phone metrics device.x", 580, 640),
-            "y": _number(device["y"], "phone metrics device.y", 70, 130),
-            "width": _number(device["width"], "phone metrics device.width", 380, 430),
-            "rotation": _number(device["rotation"], "phone metrics device.rotation", 0.0, 0.0),
+            key: _number(device[key], f"phone metrics device.{key}", *bounds)
+            for key, bounds in PHONE_DEVICE_BOUNDS.items()
         },
     }
 

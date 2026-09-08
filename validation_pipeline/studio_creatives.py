@@ -20,7 +20,24 @@ from .phone_hero_styles import (
     normalize_phone_hero_creative_direction,
     phone_hero_direction_options,
 )
-from .studio_phone_metrics import PHONE_METRICS_TEMPLATE_ID
+from .studio import STUDIO_FONT_FAMILIES
+from .studio_phone_metrics import (
+    PHONE_ACTION_BUTTON_SHAPES,
+    PHONE_ACTION_BUTTON_STYLES,
+    PHONE_BACKGROUND_TEXTURES,
+    PHONE_COPY_BACKGROUND_TEXTURES,
+    PHONE_DEVICE_BOUNDS,
+    PHONE_METRIC_CARD_SHAPES,
+    PHONE_METRIC_CARD_STYLES,
+    PHONE_METRICS_TEMPLATE_ID,
+    PHONE_SCREEN_TEXTURES,
+    PHONE_TEXTURE_INTENSITY_BOUNDS,
+    PHONE_TYPOGRAPHY_BOUNDS,
+)
+from .studio_universal import (
+    UNIVERSAL_AD_TEMPLATE_ID,
+    UNIVERSAL_SETTING_DEFINITIONS,
+)
 from .studio_workspace import UniversalStudioWorkspace
 
 
@@ -28,6 +45,7 @@ CREATIVE_STATUSES = frozenset({"queued", "composing", "generating_image", "draft
 TEMPLATE_IDS = frozenset({"universal_ad", PHONE_METRICS_TEMPLATE_ID})
 GLOBAL_SKILL_SCOPE = "global"
 PROJECT_SKILL_SCOPE = "project"
+STUDIO_COMPOSER_PROMPT_VERSION = "studio-creative-composer-v3"
 _DIGEST = re.compile(r"\b[0-9a-fA-F]{64}\b")
 
 
@@ -118,7 +136,43 @@ def creative_generation_schema(detail: Mapping[str, Any]) -> dict[str, Any]:
         "content": _json_schema(detail["content"]),
     }
     if detail.get("template_id") == PHONE_METRICS_TEMPLATE_ID:
+        configuration = properties["configuration"]["properties"]
+        configuration["schema"]["enum"] = [detail["configuration"]["schema"]]
+        background = configuration["background"]["properties"]
+        background["color"]["pattern"] = r"^#[0-9A-Fa-f]{6}$"
+        background["texture"]["enum"] = list(PHONE_BACKGROUND_TEXTURES)
+        background["texture_intensity"].update({
+            "minimum": PHONE_TEXTURE_INTENSITY_BOUNDS[0],
+            "maximum": PHONE_TEXTURE_INTENSITY_BOUNDS[1],
+        })
+        configuration["copy_background"]["properties"]["texture"]["enum"] = list(
+            PHONE_COPY_BACKGROUND_TEXTURES
+        )
+        configuration["supporting_text"]["properties"]["highlight_color"]["pattern"] = (
+            r"^#[0-9A-Fa-f]{6}$"
+        )
+        for role, bounds in PHONE_TYPOGRAPHY_BOUNDS.items():
+            appearance = configuration["typography"]["properties"][role]["properties"]
+            appearance["font_family"]["enum"] = list(STUDIO_FONT_FAMILIES)
+            appearance["font_size"].update({"minimum": bounds[0], "maximum": bounds[1]})
+        configuration["phone_screen"]["properties"]["texture"]["enum"] = list(
+            PHONE_SCREEN_TEXTURES
+        )
+        for collection, styles, shapes in (
+            ("metric_cards", PHONE_METRIC_CARD_STYLES, PHONE_METRIC_CARD_SHAPES),
+            ("phone_buttons", PHONE_ACTION_BUTTON_STYLES, PHONE_ACTION_BUTTON_SHAPES),
+        ):
+            item = configuration[collection]["items"]["properties"]
+            item["style"]["enum"] = list(styles)
+            item["shape"]["enum"] = list(shapes)
+            item["text_color"]["pattern"] = r"^#[0-9A-Fa-f]{6}$"
+            item["background_color"]["pattern"] = r"^#[0-9A-Fa-f]{6}$"
+        for field, bounds in PHONE_DEVICE_BOUNDS.items():
+            configuration["device"]["properties"][field].update({
+                "minimum": bounds[0], "maximum": bounds[1],
+            })
         content = properties["content"]["properties"]
+        content["schema"]["enum"] = [detail["content"]["schema"]]
         for field, minimum, maximum in (
             ("offer", 1, 32), ("hero_title", 1, 140),
             ("supporting_text", 1, 220), ("cta", 1, 60),
@@ -133,6 +187,35 @@ def creative_generation_schema(detail: Mapping[str, Any]) -> dict[str, Any]:
         })
         content["phone_buttons"]["items"].update({"minLength": 1, "maxLength": 48})
         properties["visual_direction"] = {"type": "string", "minLength": 8, "maxLength": 600}
+    elif detail.get("template_id") == UNIVERSAL_AD_TEMPLATE_ID:
+        configuration = properties["configuration"]["properties"]
+        configuration["schema"]["enum"] = [detail["configuration"]["schema"]]
+        for setting_id, definition in UNIVERSAL_SETTING_DEFINITIONS.items():
+            parts = setting_id.split(".")
+            field = configuration
+            for part in parts[1:-1]:
+                field = field[part]["properties"]
+            field = field[parts[-1]]
+            value_type = definition["value_type"]
+            if value_type == "color":
+                field["pattern"] = r"^#[0-9A-Fa-f]{6}$"
+            elif definition.get("values"):
+                field["enum"] = list(definition["values"])
+            elif value_type in {"integer", "number"}:
+                field.update({
+                    "minimum": definition["minimum"],
+                    "maximum": definition["maximum"],
+                })
+        for field, maximum in (
+            ("hero_title", 140), ("supporting_text", 280),
+            ("offer", 160), ("cta", 60),
+        ):
+            properties["content"]["properties"][field].update({
+                "minLength": 1, "maxLength": maximum,
+            })
+        content = properties["content"]["properties"]
+        content["schema"]["enum"] = [detail["content"]["schema"]]
+        content["bullets"]["items"].update({"minLength": 1, "maxLength": 100})
     return {
         "type": "object", "properties": properties,
         "required": list(properties), "additionalProperties": False,
@@ -920,8 +1003,10 @@ class StudioCreativeService:
             result = self._provider_call(
                 mode="studio_creative_generation", system_prompt=system_prompt,
                 input_payload=payload, output_schema=creative_generation_schema(detail),
-                idempotency_key=f"studio-creative:{creative_id}",
-                prompt_version="studio-creative-composer-v2",
+                idempotency_key=(
+                    f"studio-creative:{creative_id}:{STUDIO_COMPOSER_PROMPT_VERSION}"
+                ),
+                prompt_version=STUDIO_COMPOSER_PROMPT_VERSION,
                 response_validator=validate_composition,
             )
             response = result["response"]

@@ -32,6 +32,39 @@ class FakeBridge(StructuredBridge):
         }
 
 
+class CorrectingFakeBridge(StructuredBridge):
+    def __init__(self) -> None:
+        super().__init__("https://bridge.invalid/internal/llm/structured", "token", "model")
+        self.posts = []
+        self.active_request_id = 0
+
+    def _request(self, url, payload, *, timeout=30):
+        if payload is not None:
+            self.posts.append(payload)
+            self.active_request_id = len(self.posts)
+            return {"request_id": self.active_request_id}
+        intensity = 0 if self.active_request_id == 1 else 0.13
+        return {
+            "status": "completed",
+            "result": {
+                "response": {"texture_intensity": intensity},
+                "invocation": {"provider": "fake"},
+            },
+        }
+
+
+class FailedProviderBridge(StructuredBridge):
+    def __init__(self) -> None:
+        super().__init__("https://bridge.invalid/internal/llm/structured", "token", "model")
+        self.posts = []
+
+    def _request(self, url, payload, *, timeout=30):
+        if payload is not None:
+            self.posts.append(payload)
+            return {"request_id": 9}
+        return {"status": "failed"}
+
+
 class StructuredBridgeTests(unittest.TestCase):
     def test_product_brief_call_uses_one_stable_attempt_key(self) -> None:
         bridge = FakeBridge()
@@ -63,6 +96,56 @@ class StructuredBridgeTests(unittest.TestCase):
                 input_payload={}, output_schema={}, idempotency_key="x",
                 prompt_version="x",
             )
+
+    def test_completed_invalid_response_gets_one_fresh_corrective_attempt(self) -> None:
+        bridge = CorrectingFakeBridge()
+
+        def validate(response):
+            intensity = response["texture_intensity"]
+            if not 0.04 <= intensity <= 0.24:
+                raise ValueError("texture intensity must be between 0.04 and 0.24")
+            return response
+
+        value = bridge.call(
+            mode="studio_creative_generation", system_prompt="Compose one creative.",
+            input_payload={"template": "phone_metrics"},
+            output_schema={"type": "object"},
+            idempotency_key="studio-creative:creative-uuid", prompt_version="studio-v2",
+            response_validator=validate,
+        )
+
+        self.assertEqual({"texture_intensity": 0.13}, value["response"])
+        self.assertEqual([
+            "studio-creative:creative-uuid:attempt:1",
+            "studio-creative:creative-uuid:attempt:2",
+        ], [post["idempotency_key"] for post in bridge.posts])
+        self.assertNotEqual(
+            bridge.posts[0]["system_prompt"], bridge.posts[1]["system_prompt"],
+        )
+        self.assertIn("between 0.04 and 0.24", bridge.posts[1]["system_prompt"])
+        self.assertEqual(2, value["invocation"]["bridge_attempt"])
+        self.assertEqual(
+            ["rejected", "completed"],
+            [item["status"] for item in value["invocation"]["validation_attempts"]],
+        )
+
+    def test_provider_failure_does_not_create_a_second_attempt(self) -> None:
+        bridge = FailedProviderBridge()
+
+        with self.assertRaisesRegex(RuntimeError, "structured bridge request 9 failed"):
+            bridge.call(
+                mode="studio_creative_generation", system_prompt="Compose one creative.",
+                input_payload={"template": "phone_metrics"},
+                output_schema={"type": "object"},
+                idempotency_key="studio-creative:creative-uuid", prompt_version="studio-v2",
+                response_validator=lambda response: response,
+            )
+
+        self.assertEqual(1, len(bridge.posts))
+        self.assertEqual(
+            "studio-creative:creative-uuid:attempt:1",
+            bridge.posts[0]["idempotency_key"],
+        )
 
 
 if __name__ == "__main__":

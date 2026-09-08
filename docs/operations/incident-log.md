@@ -1,6 +1,32 @@
 # PTW incident log
 
-Updated: 2026-09-06
+Updated: 2026-09-08
+
+## 2026-09-08 — Phone Metrics replayed a completed response outside renderer bounds
+
+**Symptom:** the first approved Phone Metrics Post remained `failed` with a
+`ValueError` saying that texture intensity must be between `0.04` and `0.24`.
+Owner retries preserved the Post but repeated the same error.
+
+**Cause:** the strict Studio generation schema described the field only as a
+number, while the renderer enforced the narrower range. The provider therefore
+completed a schema-valid response with zero intensity. Every retry reused the
+same completed `:attempt:1` bridge job because the composition idempotency key
+did not change, so no corrected composition was generated.
+
+**Durable fix:** the Phone Metrics generation schema now mirrors renderer-owned
+numeric bounds, enums, colors, typography, and fixed device constraints from
+shared constants. Studio composition uses a versioned prompt/idempotency
+namespace. The production bridge wrapper permits one fresh `:attempt:2` only
+when a completed response is rejected by deterministic domain validation; it
+does not make a new attempt after transport, timeout, cancellation, or provider
+failure. Both incident skills now require this diagnosis and same-Post recovery
+without reset.
+
+**Verification:** focused provider and Studio tests prove strict texture bounds,
+separate corrective idempotency keys, and a successful corrected response.
+Complete suite, production rollout, same-Post retry, restart recovery, and
+release canaries are pending before closure.
 
 ## 2026-09-06 — Landing reservation passed a relationship label as a UUID
 

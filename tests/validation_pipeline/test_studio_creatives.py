@@ -237,6 +237,12 @@ class StudioCreativeServiceTests(unittest.TestCase):
             call for call in self.provider.calls
             if call["mode"] == "studio_creative_generation"
         )
+        self.assertTrue(generation_call["idempotency_key"].endswith(
+            ":studio-creative-composer-v3"
+        ))
+        self.assertEqual(
+            "studio-creative-composer-v3", generation_call["prompt_version"],
+        )
         self.assertEqual(project_id, detail["project_id"])
         self.assertIn("approved_product_brief", generation_call["input_payload"])
         self.assertIn("live_template_catalog", generation_call["input_payload"])
@@ -319,6 +325,46 @@ class StudioCreativeServiceTests(unittest.TestCase):
             key: content["stats"]["items"]["properties"]["value"][key]
             for key in ("minLength", "maxLength")
         })
+        configuration = schema["properties"]["configuration"]["properties"]
+        self.assertEqual({"minimum": 0.04, "maximum": 0.24}, {
+            key: configuration["background"]["properties"]["texture_intensity"][key]
+            for key in ("minimum", "maximum")
+        })
+        self.assertEqual(
+            ["none", "grain", "concrete", "travertine"],
+            configuration["background"]["properties"]["texture"]["enum"],
+        )
+        self.assertEqual({"minimum": 580, "maximum": 640}, {
+            key: configuration["device"]["properties"]["x"][key]
+            for key in ("minimum", "maximum")
+        })
+        self.assertEqual(
+            r"^#[0-9A-Fa-f]{6}$",
+            configuration["metric_cards"]["items"]["properties"]["text_color"]["pattern"],
+        )
+
+    def test_universal_composer_schema_mirrors_registered_renderer_bounds(self) -> None:
+        _project_id, brief_id = self.approved_brief()
+        creative, _created = self.service.reserve_from_brief(
+            brief_id=brief_id, template_id="universal_ad", requested_by="test",
+        )
+        detail = self.service._workspace(creative["creative_id"]).detail()
+        schema = creative_generation_schema(detail)
+        configuration = schema["properties"]["configuration"]["properties"]
+        background = configuration["background"]["properties"]
+        self.assertEqual({"minimum": 0, "maximum": 0.85}, {
+            key: background["overlay_opacity"][key]
+            for key in ("minimum", "maximum")
+        })
+        self.assertEqual(
+            ["solid", "texture", "image"], background["mode"]["enum"],
+        )
+        self.assertEqual(
+            r"^#[0-9A-Fa-f]{6}$", background["color"]["pattern"],
+        )
+        content = schema["properties"]["content"]["properties"]
+        self.assertEqual(280, content["supporting_text"]["maxLength"])
+        self.assertEqual(100, content["bullets"]["items"]["maxLength"])
 
     def test_runtime_skill_digest_is_verified_before_generation(self) -> None:
         project_id, _brief_id = self.approved_brief()

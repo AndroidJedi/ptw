@@ -80,6 +80,20 @@ before changing code or runtime state.
   sanitized global proposal, explicit owner decision, and retry without rollback.
 - Restart recovery resumes queued composition/image/learning exactly once.
   PostgreSQL remains authority; per-creative renderer files are disposable cache.
+- When Studio composition is `failed` with a domain `ValueError` but its bridge
+  job is `completed`, read only the rejected field and matching output-schema
+  constraint from the provider job. Repeated failures with the same response
+  and `:attempt:1` idempotency key mean a completed invalid response is being
+  replayed; provider health and owner Retry cannot repair that loop. Keep the
+  renderer bound authoritative, add the exact bound/enum/pattern to the strict
+  generation schema, and version the Studio composition prompt/idempotency
+  namespace when its contract changes. Permit at most one `:attempt:2` job only
+  after a completed response is rejected by deterministic PTW validation, with
+  the bounded validation error as correction context. Never create that second
+  job after an HTTP, network, timeout, cancellation, or provider failure whose
+  outcome is uncertain. Preserve the failed creative and all append-only runs;
+  after rollout, retry that same creative once and require a valid draft plus
+  distinct completed provider provenance rather than reserving a replacement.
 - When Landing reservation returns `badly formed hexadecimal UUID string`, first
   validate both the Project and selected Post IDs, then inspect every
   `DatabaseLandingAuthority._edge(connection, source_id, relation, target_id, …)`

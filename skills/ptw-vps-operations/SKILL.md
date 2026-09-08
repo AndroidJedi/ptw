@@ -60,6 +60,17 @@ into a complete compatible release, read
   resumes queued composition, phone-image, and learning stages idempotently.
 - Bare Studio mutation routes, `/api/v1/posts`, candidate/critic modes,
   historical schema adapters, and singleton assignment flows are absent.
+- A completed structured bridge job can still be unusable when its response
+  violates a renderer-only bound that was absent from the output schema. If the
+  same Studio `ValueError` repeats against one `:attempt:1` job, do not reset or
+  keep clicking Retry. Verify the rejected field and schema constraint without
+  exposing the full prompt/response, deploy the mirrored strict constraint and
+  a versioned composition idempotency namespace, then allow at most one fresh
+  corrective `:attempt:2` only after deterministic validation rejects a
+  completed response. Transport/timeouts/provider failures must not trigger a
+  new attempt automatically. Acceptance requires retrying the same failed
+  creative to a valid draft, preserving its ID and append-only failed runs, and
+  proving restart recovery does not enqueue duplicates.
 - Telegram accepts only `/help`, `/status`, and `/stop`.
 - A Landing create failure containing `badly formed hexadecimal UUID string`
   can originate from an internal graph-edge argument inversion rather than an

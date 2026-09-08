@@ -32,6 +32,8 @@ secrets = EnvironmentSecretStore()
 STRUCTURED_EXECUTION_TIMEOUT_DEFAULT = 360
 STRUCTURED_EXECUTION_TIMEOUT_MINIMUM = 60
 STRUCTURED_EXECUTION_TIMEOUT_MAXIMUM = 390
+STRUCTURED_REASONING_EFFORT_DEFAULT = "low"
+STRUCTURED_REASONING_EFFORTS = frozenset({"low", "medium", "high", "xhigh"})
 
 
 def stop(_signum: int, _frame: object) -> None:
@@ -177,6 +179,15 @@ def _structured_execution_timeout() -> int:
     return value
 
 
+def _structured_reasoning_effort() -> str:
+    value = os.getenv(
+        "RESULT_BRIDGE_REASONING_EFFORT", STRUCTURED_REASONING_EFFORT_DEFAULT,
+    ).strip().lower()
+    if value not in STRUCTURED_REASONING_EFFORTS:
+        raise RuntimeError("Result bridge reasoning effort is invalid")
+    return value
+
+
 def _materialize_input_images(parameters: dict, directory: Path) -> tuple[list[Path], list[dict]]:
     images = parameters.get("input_images")
     mode = parameters.get("mode")
@@ -266,6 +277,8 @@ def execute_structured_llm(parameters: dict) -> dict:
             "exec",
             "--ephemeral",
             "--ignore-user-config",
+            "--config",
+            f'model_reasoning_effort="{_structured_reasoning_effort()}"',
         ]
         requested_model = str(parameters.get("model") or "").strip()
         if requested_model and requested_model != "codex-cli-default":

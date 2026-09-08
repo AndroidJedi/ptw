@@ -71,6 +71,7 @@ services:
       <<: *app-environment
       WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-2}
       RESULT_BRIDGE_EXECUTION_TIMEOUT_SECONDS: ${RESULT_BRIDGE_EXECUTION_TIMEOUT_SECONDS:-360}
+      RESULT_BRIDGE_REASONING_EFFORT: ${RESULT_BRIDGE_REASONING_EFFORT:-low}
     depends_on:
       postgres:
         condition: service_healthy

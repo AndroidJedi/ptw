@@ -22,6 +22,11 @@ idempotently reserved creative, navigates to
 `?page=posts&project=<project_id>&creative=<creative_id>`, and starts
 `queued → composing → generating image → draft`. The image stage appears only
 for `phone_metrics`.
+For an already-approved Brief, **Open or create its creative** first resolves
+the Project's ordinal-1 Creative and opens it without resubmitting approval. The
+template chooser remains only as recovery for the exceptional approved-Brief
+state with no first Creative. The API still rejects a different template or
+Phone Metrics direction for an immutable existing reservation.
 
 Landing is a private responsive, fixed-section workspace created from a selected
 immutable approved Post version and its approved Brief. It captures Post style
@@ -259,6 +264,21 @@ are absent.
 
 ## Verification status
 
+The approved-Brief reopen conflict was diagnosed against production Brief
+`01a07c66-b00a-7ffe-a44f-a5fd2d738515`. Two owner requests returned HTTP 409
+at 2026-09-08 13:40:53 and 13:41:01 UTC because the Brief UI reopened a blank
+template/direction chooser even though its ordinal-1 Phone Metrics Creative
+`01a07f55-20a5-755c-bbec-17a3f158ef4b` already existed. PostgreSQL retained
+exactly one approval and one first Creative; the Creative remains a draft and
+the conflicts added no replacement. PTW revision `8c76246` fixes the client
+resolution path, adds unit and desktop/mobile/iPhone WebKit browser regressions,
+and updates the canonical Owner Console incident skill. The 67 web unit tests,
+production build, 51 pre-existing browser checks plus the three targeted
+approved-Brief browser checks, full 169-test Validation suite, 15 Commander
+tests, Commander demo, skill verification, Python compilation, and whitespace
+checks pass locally. This web-only fix is committed and pushed but not deployed;
+the protected production release still requires explicit owner authorization.
+
 Landing phone verification is recorded in `.local/landing-phone`, with
 before/after captures, three screen themes at 1280/768/360px, and iPhone WebKit.
 The 66 Owner Console and 6 public-web unit tests, 51 Owner Console and 16 public
@@ -348,6 +368,11 @@ the same Creative ID and state digest, with exactly one Creative for the Brief
 and no approved version. No reset ran.
 
 ## Next work
+
+After explicit owner authorization, deploy the owner-console web-only revision
+`8c76246`, audit the hashed bundle/service-worker and authenticated boundaries,
+then use the production Brief action once and require direct navigation to the
+existing Creative with no `/approve` POST or new database rows.
 
 Production now contains Project `Natal Service`
 (`01a07c66-b00a-7364-8fda-7de87c12a907`), approved Brief

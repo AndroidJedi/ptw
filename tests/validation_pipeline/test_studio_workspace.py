@@ -929,7 +929,7 @@ class UniversalStudioApiTests(unittest.TestCase):
                 )
                 self.assertEqual(404, client.get("/api/v1/studio/tune", headers=headers).status_code)
 
-    def test_loopback_phone_screen_generation_is_authenticated_and_bounded(self) -> None:
+    def test_loopback_phone_workflow_is_authenticated_bounded_and_restart_safe(self) -> None:
         from fastapi.testclient import TestClient
         from validation_pipeline.studio_local_api import create_app
 
@@ -968,6 +968,15 @@ class UniversalStudioApiTests(unittest.TestCase):
             class StructuredProvider:
                 def call(self, **request):
                     self.request = request
+                    if request["mode"] == "studio_edit_learning":
+                        return {
+                            "response": {
+                                "edit_summary": "The owner refined the phone creative.",
+                                "project_lesson": "Prefer the selected sculptural direction in this Project.",
+                                "global_rule": "Keep phone hero artwork visually focused and text-free.",
+                            },
+                            "invocation": {"provider": "test", "model": "test-learner"},
+                        }
                     defaults = request["input_payload"]["template_defaults"]
                     return {
                         "response": {
@@ -1031,6 +1040,42 @@ class UniversalStudioApiTests(unittest.TestCase):
                 self.assertEqual("scene", phone["assets"][0]["source"]["creative_direction"]["background"])
                 self.assertEqual(1, len(provider.prompts))
                 self.assertEqual([None], provider.references)
+                direction_path = f"{creative_path}/creative-direction"
+                replacement_direction = {
+                    "schema": "ptw.studio.phone-hero-direction.v1",
+                    "style": "minimal_sculptural",
+                    "background": "isolated_key_element",
+                }
+                direction_request = {
+                    "base_sha256": phone["state_sha256"],
+                    "creative_direction": replacement_direction,
+                }
+                self.assertEqual(401, client.post(direction_path, json=direction_request).status_code)
+                self.assertEqual(409, client.post(
+                    direction_path, headers=headers, json={
+                        **direction_request, "base_sha256": "0" * 64,
+                    },
+                ).status_code)
+                self.assertEqual(400, client.post(
+                    direction_path, headers=headers, json={
+                        **direction_request,
+                        "creative_direction": {**replacement_direction, "style": "invented"},
+                    },
+                ).status_code)
+                direction = client.post(
+                    direction_path, headers=headers, json=direction_request,
+                )
+                self.assertEqual(200, direction.status_code, direction.text)
+                self.assertEqual(
+                    replacement_direction,
+                    direction.json()["generation"]["creative_direction"],
+                )
+                self.assertEqual(phone["state_sha256"], direction.json()["state_sha256"])
+                idempotent_direction = client.post(
+                    direction_path, headers=headers, json=direction_request,
+                )
+                self.assertEqual(200, idempotent_direction.status_code, idempotent_direction.text)
+                self.assertEqual(direction.json(), idempotent_direction.json())
                 wrong_project_path = (
                     f"/api/v1/studio/projects/01900000-0000-7000-8000-000000000099/"
                     f"creatives/{creative_id}"
@@ -1046,8 +1091,12 @@ class UniversalStudioApiTests(unittest.TestCase):
                     f"{wrong_project_path}/component-settings", headers=headers,
                     json={"state_sha256": phone["state_sha256"]},
                 ).status_code)
+                self.assertEqual(404, client.post(
+                    f"{wrong_project_path}/creative-direction", headers=headers,
+                    json=direction_request,
+                ).status_code)
                 request = {
-                    "base_sha256": phone["state_sha256"],
+                    "base_sha256": direction.json()["state_sha256"],
                     "visual_direction": "Preserve the form and improve material detail.",
                     "enhance_current": True,
                 }
@@ -1075,6 +1124,10 @@ class UniversalStudioApiTests(unittest.TestCase):
                     enhanced_screen["source"]["reference_asset_sha256"],
                 )
                 self.assertEqual(2, len(enhanced.json()["phone_screen_history"]))
+                self.assertEqual(
+                    replacement_direction,
+                    enhanced_screen["source"]["creative_direction"],
+                )
                 history_image_path = (
                     f'{creative_path}/phone-screen/history/{screen["sha256"]}'
                 )
@@ -1118,3 +1171,59 @@ class UniversalStudioApiTests(unittest.TestCase):
                     },
                 )
                 self.assertEqual(400, invalid.status_code)
+
+                edited_content = copy.deepcopy(selected.json()["content"])
+                edited_content["hero_title"] = "A clearer owner-approved phone promise"
+                configured = client.post(
+                    f"{creative_path}/configuration", headers=headers, json={
+                        "base_sha256": selected.json()["state_sha256"],
+                        "configuration": selected.json()["configuration"],
+                        "content": edited_content,
+                    },
+                )
+                self.assertEqual(200, configured.status_code, configured.text)
+                saved = client.post(
+                    f"{creative_path}/save", headers=headers, json={
+                        "base_sha256": configured.json()["state_sha256"],
+                        "configuration": configured.json()["configuration"],
+                        "content": configured.json()["content"],
+                    },
+                )
+                self.assertEqual(200, saved.status_code, saved.text)
+                self.assertTrue(saved.json()["checkpoint_created"])
+                proposal = saved.json()["learning_proposal"]
+                self.assertIsNotNone(proposal)
+                decision = client.post(
+                    f'{creative_path}/learning/{proposal["proposal_id"]}',
+                    headers=headers, json={"decision": "project_only"},
+                )
+                self.assertEqual(200, decision.status_code, decision.text)
+                self.assertEqual("project_only", decision.json()["decision"])
+
+                approved = client.post(
+                    f"{creative_path}/approve", headers=headers, json={
+                        "base_sha256": saved.json()["creative"]["state_sha256"],
+                        "configuration": saved.json()["creative"]["configuration"],
+                        "content": saved.json()["creative"]["content"],
+                        "change_note": "Approved complete phone workflow",
+                    },
+                )
+                self.assertEqual(200, approved.status_code, approved.text)
+                self.assertTrue(approved.json()["version_created"])
+                version = client.get(f"{creative_path}/versions/1", headers=headers)
+                render = client.get(f"{creative_path}/versions/1/render", headers=headers)
+                self.assertEqual(200, version.status_code, version.text)
+                self.assertEqual(200, render.status_code, render.text)
+                self.assertEqual("private, no-store", render.headers["cache-control"])
+
+            with TestClient(create_app(
+                brief_service=brief_service, phone_screen_image_provider=provider,
+            )) as restarted_client:
+                restarted = restarted_client.get(creative_path, headers=headers)
+                self.assertEqual(200, restarted.status_code, restarted.text)
+                self.assertEqual(1, restarted.json()["approved_version_count"])
+                self.assertEqual(
+                    replacement_direction,
+                    restarted.json()["generation"]["creative_direction"],
+                )
+                self.assertEqual(2, len(restarted.json()["phone_screen_history"]))

@@ -111,6 +111,24 @@ before changing code or runtime state.
   outcome is uncertain. Preserve the failed creative and all append-only runs;
   after rollout, retry that same creative once and require a valid draft plus
   distinct completed provider provenance rather than reserving a replacement.
+- When a browser Studio mutation returns 404, compare the exact method/path at
+  all three boundaries before inspecting the provider: built/live Owner
+  Console call, public Owner Gateway route, and internal Validation route. A
+  public 404 paired with an internal unauthenticated 401 means the Gateway
+  proxy is missing; it is not an object or provider failure. Preserve the
+  Creative and add the missing authenticated proxy. Require method/path parity
+  between every shared Studio Gateway and Validation route, a forwarding test
+  for the exact body/service token/actor, and a live unauthenticated probe that
+  returns 401 rather than 404 without mutating state.
+- Do not describe a Playwright suite that intercepts all `/api/v1/**` traffic
+  as a complete end-to-end system test. Report it as browser/UI E2E. Full flow
+  acceptance must additionally traverse real HTTP route handlers and domain
+  services for approval, direction save/replacement/idempotency, stale-state
+  and cross-Project rejection, fresh generation, exact-reference enhancement,
+  history integrity, selection, Save/learning, approval/version, failure/retry,
+  and restart recovery. The release is blocked if the browser, Gateway,
+  Validation, persistence, or provider boundary is only mocked at the point
+  whose compatibility is being claimed.
 - Treat that Studio failure as one example of a general contract-drift class,
   not a field-specific exception. Every structured Product Brief, revision,
   Universal Post, Phone Metrics, Landing composition, Studio-learning, and

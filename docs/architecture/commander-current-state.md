@@ -264,6 +264,22 @@ are absent.
 
 ## Verification status
 
+The Phone Metrics direction-save incident was reproduced against production
+Creative `01a07f55-20a5-755c-bbec-17a3f158ef4b`: Owner Gateway logged the exact
+`POST .../creative-direction` as HTTP 404 at 2026-09-08 14:39:50 UTC, while the
+same internal Validation route returned its expected unauthenticated HTTP 401.
+The Creative remained a draft with its existing selected image and direction;
+the rejected public request changed no authoritative row. The cause was a
+missing public Gateway proxy, hidden by browser tests that mocked every API
+request. The fix adds that authenticated proxy, exact Gateway/Validation
+GET/POST route parity, body/token/actor forwarding coverage, a live 401-vs-404
+route-registration audit, a complete Phone Metrics browser/UI workflow on
+desktop/360px/iPhone WebKit, and a real HTTP/domain workflow covering auth,
+idempotency, stale state, invalid input, cross-Project isolation, generation,
+enhancement, history, selection, Save/learning, approval/version, and restart
+persistence. The canonical incident skill now forbids calling fully mocked
+browser traffic complete system E2E and makes these boundaries release gates.
+
 The approved-Brief reopen conflict was diagnosed against production Brief
 `01a07c66-b00a-7ffe-a44f-a5fd2d738515`. Four owner requests returned HTTP 409
 at 2026-09-08 13:40:53, 13:41:01, 13:57:57, and 13:58:27 UTC because the Brief UI reopened a blank

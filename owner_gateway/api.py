@@ -246,6 +246,10 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def studio_phone_retry(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await creative_post(project_id, creative_id, "/phone-screen/retry", request, identity, timeout=60)
 
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/creative-direction")
+    async def studio_creative_direction(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return await creative_post(project_id, creative_id, "/creative-direction", request, identity, timeout=60)
+
     @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/configuration")
     async def studio_configuration(project_id: str, creative_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await creative_post(project_id, creative_id, "/configuration", request, identity, timeout=60)

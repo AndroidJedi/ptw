@@ -117,6 +117,20 @@ def main() -> None:
     require(auth_status == 401, f"Unauthenticated Overview returned HTTP {auth_status}")
     require("Bearer token is required" in auth_bytes.decode(), "Unexpected auth failure body")
 
+    private_route_status, _, private_route_bytes = fetch(
+        f"{args.api}/api/v1/studio/projects/00000000-0000-0000-0000-000000000001/"
+        "creatives/00000000-0000-0000-0000-000000000002/creative-direction",
+        method="POST",
+    )
+    require(
+        private_route_status == 401,
+        f"Creative-direction route registration returned HTTP {private_route_status}",
+    )
+    require(
+        "Bearer token is required" in private_route_bytes.decode(),
+        "Unexpected creative-direction auth failure body",
+    )
+
     for retired_path in (
         "/api/v1/ideas", "/api/v1/branding", "/api/v1/posts",
         "/api/v1/content-runs", "/api/v1/project-assets",
@@ -145,7 +159,9 @@ def main() -> None:
     print(json.dumps({
         "status": "ok", "entry_bundle": main_url, "app_bundle": app_url,
         "service_worker_cache": cache_match.group(1), "gateway_health": health_status,
-        "unauthenticated_overview": auth_status, "cors_preflight": cors_status,
+        "unauthenticated_overview": auth_status,
+        "creative_direction_route": private_route_status,
+        "cors_preflight": cors_status,
     }, indent=2))
 
 

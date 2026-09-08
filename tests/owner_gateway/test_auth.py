@@ -14,7 +14,8 @@ if HAS_FASTAPI:
     from fastapi import HTTPException
     from fastapi.middleware.cors import CORSMiddleware
     from owner_gateway.api import create_app
-    from owner_gateway.auth import validate_owner_claims
+    from owner_gateway.auth import OwnerIdentity, validate_owner_claims
+    from validation_pipeline.studio_routes import studio_creative_router
 
 
 def settings() -> Settings:
@@ -102,7 +103,8 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/settings/chatgpt-authorization/refresh",
             "/api/v1/studio/templates",
             "/api/v1/studio/projects/{project_id}/creatives", creative,
-            f"{creative}/retry", f"{creative}/configuration", f"{creative}/save",
+            f"{creative}/retry", f"{creative}/creative-direction",
+            f"{creative}/configuration", f"{creative}/save",
             f"{creative}/templates/apply", f"{creative}/assets/{{slot}}",
             f"{creative}/pexels", f"{creative}/phone-screen/generate",
             f"{creative}/phone-screen/retry", f"{creative}/phone-screen/select",
@@ -147,6 +149,79 @@ class OwnerClaimsTests(unittest.TestCase):
         self.assertFalse([
             path for path in paths if any(fragment in path for fragment in forbidden_fragments)
         ])
+
+    def test_gateway_and_validation_studio_routes_have_exact_method_parity(self) -> None:
+        class Verifier:
+            def verify(self, _token: str, _app_check: str):  # pragma: no cover
+                raise AssertionError
+
+        def contract(routes, prefix: str) -> set[tuple[str, str]]:
+            return {
+                (method, route.path.replace(prefix, "", 1))
+                for route in routes
+                if getattr(route, "path", "").startswith(prefix)
+                for method in set(getattr(route, "methods", set())) & {"GET", "POST"}
+            }
+
+        gateway = create_app(self.settings, verifier=Verifier())
+        validation = studio_creative_router(
+            object(), prefix="/internal/v1/studio",
+        )
+        self.assertEqual(
+            contract(validation.routes, "/internal/v1/studio"),
+            contract(gateway.routes, "/api/v1/studio"),
+        )
+
+    def test_creative_direction_crosses_authenticated_gateway_with_exact_contract(self) -> None:
+        class Verifier:
+            def verify(self, token: str, app_check_token: str) -> OwnerIdentity:
+                if token != "owner-token" or app_check_token != "app-token":
+                    raise AssertionError("gateway did not verify both owner credentials")
+                return OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
+
+        project_id = "01900000-0000-7000-8000-000000000001"
+        creative_id = "01900000-0000-7000-8000-000000000002"
+        path = f"/api/v1/studio/projects/{project_id}/creatives/{creative_id}/creative-direction"
+        payload = {
+            "base_sha256": "a" * 64,
+            "creative_direction": {
+                "schema": "ptw.studio.phone-hero-direction.v1",
+                "style": "minimal_sculptural",
+                "background": "isolated_key_element",
+            },
+        }
+        upstream = httpx.Response(
+            200,
+            json={
+                "creative_id": creative_id, "project_id": project_id,
+                "state_sha256": "a" * 64,
+                "generation": {"creative_direction": payload["creative_direction"]},
+            },
+            request=httpx.Request("POST", f"http://validation/internal{path[4:]}"),
+        )
+        request = AsyncMock(return_value=upstream)
+        headers = {
+            "Authorization": "Bearer owner-token",
+            "X-Firebase-AppCheck": "app-token",
+        }
+        with patch("httpx.AsyncClient.request", request):
+            with TestClient(create_app(self.settings, verifier=Verifier())) as client:
+                missing_auth = client.post(path, json=payload)
+                response = client.post(path, headers=headers, json=payload)
+
+        self.assertEqual(401, missing_auth.status_code)
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual(payload["creative_direction"], response.json()["generation"]["creative_direction"])
+        request.assert_awaited_once_with(
+            "POST",
+            f"http://validation/internal/v1/studio/projects/{project_id}/creatives/{creative_id}/creative-direction",
+            headers={
+                "X-PTW-Owner-Gateway-Token": "bridge",
+                "X-PTW-Actor": "firebase:owner-uid",
+            },
+            json=payload,
+            params={},
+        )
 
     def test_wrong_owner_or_app_is_denied(self) -> None:
         with self.assertRaises(HTTPException):

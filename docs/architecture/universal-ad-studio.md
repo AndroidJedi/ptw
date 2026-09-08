@@ -143,9 +143,10 @@ Public routes are:
 
 - `GET /api/v1/studio/templates`;
 - project creative list/create;
-- creative-scoped detail, retry, configuration, Save, template apply, assets,
-  Pexels, preview, component metadata, phone generation/select/history/retry,
-  approval, versions, learning decision, and learning retry.
+- creative-scoped detail, retry, creative-direction replacement, configuration,
+  Save, template apply, assets, Pexels, preview, component metadata, phone
+  generation/select/history/retry, approval, versions, learning decision, and
+  learning retry.
 
 Bare Studio detail/mutation routes and `/api/v1/posts` do not exist. Local
 loopback exposes the same creative-scoped contracts. Restart recovery resumes
@@ -157,9 +158,13 @@ creatives, assets, skill snapshots, or completed checkpoints.
 `skills/studio-ui-visual-audit/scripts/audit_universal_studio.py` verifies both
 templates at authoritative resolution, including copy bounds, device alignment,
 network glyphs, button variants, textures, hero top coverage/fade, and
-text-free artwork. The browser suite checks desktop, 360px, and iPhone WebKit
-flows, creative progress, enhancement/history selection, Save/Approve learning
-dialogs, and no horizontal overflow.
+text-free artwork. The browser/UI E2E suite checks desktop, 360px, and iPhone
+WebKit flows, creative progress, direction replacement, fresh generation,
+enhancement/history selection, Save/Approve learning dialogs, and no horizontal
+overflow. It is paired with real HTTP/domain-service tests, exact
+Gateway-to-Validation route parity, authenticated forwarding assertions, and a
+live route-registration probe; mocked browser traffic alone is not accepted as
+complete system E2E evidence.
 
 `STUDIO_TUNE_MODE=1` remains loopback-only. It may modify Studio implementation
 files through its guarded worktree and requires explicit owner approval before

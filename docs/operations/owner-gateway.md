@@ -8,12 +8,20 @@ or service-worker caches.
 Brief approval accepts `honor_confirmed` and `template_id`; `phone_metrics`
 also requires its bounded saved `creative_direction`. The creative-scoped
 direction route is state-hash guarded and may replace that direction without
-creating a checkpoint or learning data. It returns HTTP 202
-and includes the reserved creative. Studio exposes the common template
+creating a checkpoint or learning data. It returns the updated Creative without
+starting image generation. Studio exposes the common template
 catalog and only Project/creative-scoped operations: list/create, detail,
 composition/image retry, configuration, Save, template apply, assets/Pexels,
 preview, phone generate/enhance/select/history, immutable creative approval,
 version retrieval, learning decision, and learning retry.
+
+The public Gateway and private Validation Studio route tables must have exact
+GET/POST method-and-path parity after their `/api/v1/studio` and
+`/internal/v1/studio` prefixes are removed. The authenticated
+`POST .../creative-direction` proxy forwards the exact bounded request with the
+service token and Firebase owner actor. A release must fail if the parity test
+finds drift or if the live unauthenticated route-registration probe returns 404
+instead of the expected 401.
 
 Phone generation has a 480-second gateway deadline. Every history, preview, and
 version render is authenticated and private/no-store. Provider credentials and

@@ -65,9 +65,10 @@ in non-editing mode. Its English `/` umbrella contains no links or CTA;
 unpublished paths use a branded visual 404 with Hosting HTTP 200. The shell has
 no Auth or service worker, ships noindex/noarchive plus disallow-all robots, and
 uses self-hosted Natal assets. Named Firebase targets keep it separate from the
-private Owner Console. Firebase version `185107aab38614ab` is live on
-`natal-landings-86123.web.app`; no custom-domain or GoDaddy record has been
-changed.
+private Owner Console. Firebase version `185107aab38614ab` is live on both
+`natal-landings-86123.web.app` and the verified apex `natal-service.com`.
+The owner elected not to attach `www.natal-service.com`; the apex is the only
+supported public hostname.
 
 Ads is a separate Project workspace over immutable approved Post versions. It
 creates or reconciles one Project Campaign, one Ad Set per immutable audience
@@ -312,6 +313,14 @@ Hosting version `185107aab38614ab` are live. Public root/lane rendering,
 noindex/robots/CSP, exact CORS, public 404s, private 401s, backup checksum, and
 all six healthy versioned services were independently rechecked.
 
+The Firebase/GoDaddy apex cutover completed at 2026-09-08 13:34 UTC. The exact
+ownership TXT now names `natal-landings-86123`, while the existing Firebase apex
+A record and all mail records remain unchanged. The apex has valid TLS and
+passes the public root, all three lane rewrites, CSP, robots, and noindex audit.
+The owner explicitly declined the optional `www` attachment, so its historical
+certificate mismatch is outside the supported apex-only release. The legacy
+`natal-dashboard-dev` Hosting site remains intact during the soak.
+
 The systemic contract/recovery rollout completed at PTW revision
 `153b1dc6417a4c26b36ca9af4f8aac5d00d8b591` without a migration or reset. Its
 first preflight stopped before service cutover because `psql -c` did not expand
@@ -348,14 +357,12 @@ immutable approved version. The owner must inspect/edit it in Post and use the
 explicit Approve action before it may appear as an Ads deployment source; PTW
 must not infer that approval.
 
-The remaining public-domain work is the separately controlled Firebase Quick
-Setup/GoDaddy transfer in `docs/operations/natal-domain-cutover.md`. Current DNS
-still has the legacy `hosting-site=natal-dashboard-dev` ownership TXT, the apex
-Firebase A record `199.36.158.100`, preserved SPF, and `www` pointing to the
-apex with its pre-existing certificate mismatch. Replace only the TXT value
-Firebase displays, preserve mail records and the apex A unless instructed, then
-attach `www` as a permanent apex redirect. Do not disable the legacy Hosting
-site before a successful 24-hour soak and separate retirement authorization.
+The public apex transfer is complete. Keep the legacy Hosting site intact until
+the apex has completed its 24-hour soak and the owner separately authorizes
+retirement. `www` is intentionally outside the supported release by owner
+decision and does not block the soak. The next public workflow is owner review
+and approval of the existing Post, creation and approval of its Landing, and an
+explicit first Publish with a permanent lane/slug reservation.
 
 The Meta App, system user, Ad Account, Facebook Page, and professional Instagram
 account are assigned. The owner must rotate the token disclosed during setup and

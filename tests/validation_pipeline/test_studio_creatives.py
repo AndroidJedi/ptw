@@ -219,8 +219,13 @@ class StudioCreativeServiceTests(unittest.TestCase):
 
         queued = self.service.retry_generation(project_id, creative["creative_id"])
         self.assertEqual("queued", queued["status"])
+        self.assertNotIn("error_type", queued["generation"])
+        self.assertNotIn("error_message", queued["generation"])
         self.provider.invalid_generation = False
-        self.assertEqual("draft", self.service.generate(creative["creative_id"])["status"])
+        recovered = self.service.generate(creative["creative_id"])
+        self.assertEqual("draft", recovered["status"])
+        self.assertNotIn("error_type", recovered["generation"])
+        self.assertNotIn("error_message", recovered["generation"])
 
     def test_phone_generation_uses_brief_composition_and_all_skill_layers(self) -> None:
         project_id, _brief_id, detail = self.generate_creative("phone_metrics")

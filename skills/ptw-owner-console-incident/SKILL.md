@@ -94,6 +94,27 @@ before changing code or runtime state.
   outcome is uncertain. Preserve the failed creative and all append-only runs;
   after rollout, retry that same creative once and require a valid draft plus
   distinct completed provider provenance rather than reserving a replacement.
+- Treat that Studio failure as one example of a general contract-drift class,
+  not a field-specific exception. Every structured Product Brief, revision,
+  Universal Post, Phone Metrics, Landing composition, Studio-learning, and
+  Landing-learning call must supply a deterministic domain response validator.
+  A provider/schema-valid object is never sufficient by itself. Keep renderer
+  and Landing bounds, enums, patterns, fixed values, content lengths, and
+  privacy constraints in shared domain constants consumed by both the strict
+  schema and runtime normalizer; do not copy numeric literals into independent
+  contracts.
+- Bind bridge idempotency automatically to a canonical fingerprint of mode,
+  model, prompt version, system-prompt digest, complete input-payload digest,
+  output-schema digest, and referenced-asset digests. A manual prompt-version
+  suffix alone is not an acceptable cache boundary. Prove that changing any
+  dependency changes the job key, while an identical request reconciles the
+  same job. Keep the final printable key within the platform's 240-character
+  limit without dropping collision resistance. Media generation/enhancement
+  follows the same rule.
+- A retry transition must clear stale top-level error metadata while retaining
+  append-only failed run records. Never show a recovered draft as failed merely
+  because an earlier error remains in its current-state envelope. HTTP bridge
+  failures expose only the bounded status and never reflect the provider body.
 - When Landing reservation returns `badly formed hexadecimal UUID string`, first
   validate both the Project and selected Post IDs, then inspect every
   `DatabaseLandingAuthority._edge(connection, source_id, relation, target_id, …)`
@@ -125,6 +146,11 @@ Run schema idempotency, provider contract/canaries, Validation and Owner Gateway
 tests, Commander tests/demo, skill validation, web unit/build/Playwright,
 Studio visual audit, Python compilation, and `git diff --check`. Exercise the
 complete browser workflow and cross-Project rejection before declaring the
-incident resolved. Before claiming Telegram works, verify authorization,
+incident resolved. The release canary must domain-validate both Product Brief
+modes, both Post templates, Landing composition, both learning skills, fresh
+media generation, and exact-reference enhancement; every structured canary
+must use a fresh request fingerprint and pass on attempt 1. Adding a structured
+workflow without its validator and canary is a release-blocking contract gap.
+Before claiming Telegram works, verify authorization,
 deployed help/routing, provider readiness, persistence, restart behavior, and
 the user-facing failure path.

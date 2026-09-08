@@ -79,6 +79,22 @@ class LocalBriefTests(unittest.TestCase):
         self.assertEqual(self.service.recover_interrupted(), [brief["brief_id"]])
         self.assertEqual(self.store.get("briefs", brief["brief_id"])["status"], "queued")
 
+    def test_successful_generation_clears_stale_current_failure(self) -> None:
+        _, brief, _ = self.service.create_brief(
+            request_id=str(uuid4()), raw_idea="A calmer focus planner",
+            required_language="en", requested_by="test-owner",
+        )
+        self.store.append("briefs", brief["brief_id"], {
+            **brief, "status": "failed", "failure_count": 1,
+            "error_code": "ValueError", "error_message": "stale failure",
+        })
+
+        completed = self.service.generate_brief(brief["brief_id"])
+
+        self.assertEqual(completed["status"], "completed")
+        self.assertIsNone(completed["error_code"])
+        self.assertIsNone(completed["error_message"])
+
     def test_correction_records_feedback_weight_and_complete_lineage(self) -> None:
         project, queued, _ = self.service.create_brief(
             request_id=str(uuid4()), raw_idea="A calmer focus planner",

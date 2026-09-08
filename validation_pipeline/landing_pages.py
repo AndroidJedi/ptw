@@ -15,13 +15,25 @@ from uuid import UUID
 from commander.ids import new_uuid7
 
 from .landing_workspace import (
-    DEFAULT_CONFIGURATION, DEFAULT_CONTENT, DEFAULT_PRESENTATION, LANDING_TEMPLATE_ID, LANDING_VISUAL_SLOTS, LandingWorkspace,
+    DEFAULT_CONFIGURATION, DEFAULT_CONTENT, DEFAULT_PRESENTATION,
+    LANDING_CONFIGURATION_SCHEMA, LANDING_CONTENT_LIMITS, LANDING_CONTENT_SCHEMA,
+    LANDING_FONT_FAMILIES, LANDING_HEX_COLOR_PATTERN,
+    LANDING_PRESENTATION_NUMBER_BOUNDS, LANDING_PRESENTATION_OPTIONS,
+    LANDING_SECTION_OPTIONS, LANDING_TEMPLATE_ID,
+    LANDING_THEME_CORNER_RADIUS_BOUNDS, LANDING_VISUAL_SLOTS, LandingWorkspace,
     canonical_json, normalize_composed_content, normalize_configuration, sha256_json,
 )
-from .landing_design import DEFAULT_APP_FEATURE, DEFAULT_PHONE_MOCKUP, DEFAULT_COMPONENTS, DEFAULT_IMAGE_DIRECTIONS, LANDING_BACKGROUND_DIRECTIVES, PHONE_HERO_STYLE_DIRECTIVES
+from .landing_design import (
+    APP_FEATURE_LIMITS, COMPONENT_OPTIONS, DEFAULT_APP_FEATURE,
+    DEFAULT_COMPONENTS, DEFAULT_IMAGE_DIRECTIONS, DEFAULT_PHONE_MOCKUP,
+    LANDING_BACKGROUND_DIRECTIVES, PHONE_HERO_STYLE_DIRECTIVES,
+    PHONE_MOCKUP_OPTIONS,
+)
 from .local_brief_store import LocalBriefStore, utc_now
 from .local_codex import sanitized
-from .studio_creatives import _json_schema, studio_edit_learning_schema
+from .studio_creatives import (
+    _json_schema, studio_edit_learning_schema, validate_studio_edit_learning,
+)
 
 
 LANDING_STATUSES = frozenset({"queued", "composing", "generating_images", "draft", "failed"})
@@ -68,13 +80,90 @@ def _snapshot(detail: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def landing_generation_schema() -> dict[str, Any]:
-    return {
+    result = {
         "type": "object",
         "properties": {
             "configuration": _json_schema({**DEFAULT_CONFIGURATION, "presentation": DEFAULT_PRESENTATION, "components": DEFAULT_COMPONENTS, "image_directions": DEFAULT_IMAGE_DIRECTIONS, "phone_mockup": DEFAULT_PHONE_MOCKUP}),
             "content": _json_schema({**DEFAULT_CONTENT, "app_feature": DEFAULT_APP_FEATURE}),
         },
         "required": ["configuration", "content"], "additionalProperties": False,
+    }
+    configuration = result["properties"]["configuration"]["properties"]
+    configuration["schema"]["enum"] = [LANDING_CONFIGURATION_SCHEMA]
+    theme = configuration["theme"]["properties"]
+    for field in ("background_color", "surface_color", "text_color", "accent_color"):
+        theme[field]["pattern"] = LANDING_HEX_COLOR_PATTERN
+    for field in ("font_family", "heading_font_family"):
+        theme[field]["enum"] = list(LANDING_FONT_FAMILIES)
+    theme["corner_radius"].update(dict(zip(
+        ("minimum", "maximum"), LANDING_THEME_CORNER_RADIUS_BOUNDS,
+    )))
+    for section, options in LANDING_SECTION_OPTIONS.items():
+        for field, values in options.items():
+            configuration[section]["properties"][field]["enum"] = list(values)
+    presentation = configuration["presentation"]["properties"]
+    for field, values in LANDING_PRESENTATION_OPTIONS.items():
+        presentation[field]["enum"] = list(values)
+    presentation["heading_scale"].update(dict(zip(
+        ("minimum", "maximum"), LANDING_PRESENTATION_NUMBER_BOUNDS["heading_scale"],
+    )))
+    for focus in ("hero_focus", "visual_break_focus"):
+        for axis in ("x", "y"):
+            presentation[focus]["properties"][axis].update(dict(zip(
+                ("minimum", "maximum"), LANDING_PRESENTATION_NUMBER_BOUNDS["focus_axis"],
+            )))
+    for field, values in COMPONENT_OPTIONS.items():
+        configuration["components"]["properties"][field]["enum"] = list(values)
+    for field in ("button_color", "button_text_color"):
+        configuration["components"]["properties"][field]["pattern"] = LANDING_HEX_COLOR_PATTERN
+    for field, values in PHONE_MOCKUP_OPTIONS.items():
+        configuration["phone_mockup"]["properties"][field]["enum"] = list(values)
+    for slot in DEFAULT_IMAGE_DIRECTIONS:
+        direction = configuration["image_directions"]["properties"][slot]["properties"]
+        direction["style"]["enum"] = list(PHONE_HERO_STYLE_DIRECTIVES)
+        direction["background"]["enum"] = list(LANDING_BACKGROUND_DIRECTIVES)
+
+    content = result["properties"]["content"]["properties"]
+    content["schema"]["enum"] = [LANDING_CONTENT_SCHEMA]
+    app = content["app_feature"]["properties"]
+    for field in ("title", "description", "action_label"):
+        app[field].update({"minLength": 1, "maxLength": APP_FEATURE_LIMITS[field]})
+    for field in ("label", "value"):
+        app["items"]["items"]["properties"][field].update({
+            "minLength": 1, "maxLength": APP_FEATURE_LIMITS[field],
+        })
+    for path in (
+        "hero.title", "hero.supporting_text", "hero.cta_label",
+        "hero.visual_direction", "social_proof.heading",
+        "visual_break.visual_direction", "contacts.heading",
+        "contacts.supporting_text",
+    ):
+        section, field = path.split(".")
+        minimum, maximum = LANDING_CONTENT_LIMITS[path]
+        content[section]["properties"][field].update({
+            "minLength": minimum, "maxLength": maximum,
+        })
+    for field in ("email", "phone", "url"):
+        content["contacts"]["properties"][field]["enum"] = [""]
+    for field in ("title", "description"):
+        minimum, maximum = LANDING_CONTENT_LIMITS[f"feature.{field}"]
+        content["features"]["items"]["properties"][field].update({
+            "minLength": minimum, "maxLength": maximum,
+        })
+    for field in ("question", "answer"):
+        minimum, maximum = LANDING_CONTENT_LIMITS[f"faq.{field}"]
+        content["faq"]["items"]["properties"][field].update({
+            "minLength": minimum, "maxLength": maximum,
+        })
+    return result
+
+
+def validate_landing_composition(value: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != {"configuration", "content"}:
+        raise ValueError("Landing composer response fields are invalid")
+    return {
+        "configuration": normalize_configuration(value["configuration"]),
+        "content": normalize_composed_content(value["content"]),
     }
 
 
@@ -729,6 +818,8 @@ class LandingService:
         if self.structured_provider is None:
             raise RuntimeError("Landing structured provider is unavailable")
         validator = kwargs.pop("response_validator", None)
+        if not callable(validator):
+            raise ValueError("Landing structured calls require a domain response validator")
         if hasattr(self.structured_provider, "call"):
             return self.structured_provider.call(**kwargs, response_validator=validator)
         value = self.structured_provider.generate(**kwargs)
@@ -795,10 +886,7 @@ class LandingService:
                 mode="studio_creative_generation", system_prompt=self.composer_skill,
                 input_payload=payload, output_schema=landing_generation_schema(),
                 idempotency_key=f"landing-page:{landing_id}", prompt_version="landing-page-composer-v4",
-                response_validator=lambda value: {
-                    "configuration": normalize_configuration(value["configuration"]),
-                    "content": normalize_composed_content(value["content"]),
-                } if set(value) == {"configuration", "content"} else (_ for _ in ()).throw(ValueError("Landing composer response fields are invalid")),
+                response_validator=validate_landing_composition,
             )
             self._record_generation(landing_id=landing_id, stage="composition", status="completed", input_sha256=stage_input, output_sha256=sha256_json(result["response"]), prompt_version="landing-page-composer-v4", invocation=sanitized(result.get("invocation") or {}))
             composed = workspace.save_configuration(base_sha256=detail["state_sha256"], **result["response"])
@@ -821,7 +909,13 @@ class LandingService:
         detail = self.detail(project_id, landing_id)
         if detail["status"] != "failed":
             raise ValueError("only a failed Landing can be retried")
-        return self.authority.update_page(landing_id, status="queued")
+        generation = {
+            key: deepcopy(item) for key, item in dict(detail.get("generation") or {}).items()
+            if key not in {"error_type", "error_message"}
+        }
+        return self.authority.update_page(
+            landing_id, status="queued", generation={**generation, "stage": "queued"},
+        )
 
     def mutate(self, project_id: str, landing_id: str, method: str, **kwargs: Any) -> dict[str, Any]:
         self.detail(project_id, landing_id)
@@ -851,10 +945,16 @@ class LandingService:
     def _learn_checkpoint(self, page: Mapping[str, Any], checkpoint: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | None]:
         proposal = None
         try:
-            result = self._provider_call(mode="studio_edit_learning", system_prompt=self.learner_skill, input_payload={"checkpoint_kind": checkpoint["kind"], "changed_paths": checkpoint["changed_paths"], "before": checkpoint["before_snapshot"], "after": checkpoint["after_snapshot"]}, output_schema=studio_edit_learning_schema(), idempotency_key=f"landing-checkpoint:{checkpoint['checkpoint_id']}", prompt_version="landing-edit-learner-v1")
+            def validate_learning(value: Mapping[str, Any]) -> Mapping[str, Any]:
+                learned = validate_studio_edit_learning(value)
+                if self._unsafe_global_rule(learned["global_rule"], page):
+                    raise ValueError(
+                        "Landing global proposal contains project-specific or contact data"
+                    )
+                return learned
+
+            result = self._provider_call(mode="studio_edit_learning", system_prompt=self.learner_skill, input_payload={"checkpoint_kind": checkpoint["kind"], "changed_paths": checkpoint["changed_paths"], "before": checkpoint["before_snapshot"], "after": checkpoint["after_snapshot"]}, output_schema=studio_edit_learning_schema(), idempotency_key=f"landing-checkpoint:{checkpoint['checkpoint_id']}", prompt_version="landing-edit-learner-v1", response_validator=validate_learning)
             learned = result["response"]
-            if self._unsafe_global_rule(str(learned["global_rule"]), page):
-                raise ValueError("Landing global proposal contains project-specific or contact data")
             project_skill = self.authority.create_project_skill(project_id=page["project_id"], lesson=_compact(learned["project_lesson"], "project lesson", 8, 800), checkpoint_id=checkpoint["checkpoint_id"])
             proposal = self.authority.create_proposal(checkpoint_id=checkpoint["checkpoint_id"], project_skill_snapshot_id=project_skill["skill_snapshot_id"], global_rule=_compact(learned["global_rule"], "global rule", 8, 800))
             checkpoint = self.authority.record_learning_result(checkpoint["checkpoint_id"], status="completed", edit_summary=_compact(learned["edit_summary"], "edit summary", 8, 1200), project_skill_snapshot_id=project_skill["skill_snapshot_id"], error_type=None, error_message=None)

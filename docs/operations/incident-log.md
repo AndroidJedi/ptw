@@ -14,14 +14,22 @@ completed a schema-valid response with zero intensity. Every retry reused the
 same completed `:attempt:1` bridge job because the composition idempotency key
 did not change, so no corrected composition was generated.
 
-**Durable fix:** the Phone Metrics generation schema now mirrors renderer-owned
-numeric bounds, enums, colors, typography, and fixed device constraints from
-shared constants. Studio composition uses a versioned prompt/idempotency
-namespace. The production bridge wrapper permits one fresh `:attempt:2` only
-when a completed response is rejected by deterministic domain validation; it
-does not make a new attempt after transport, timeout, cancellation, or provider
-failure. Both incident skills now require this diagnosis and same-Post recovery
-without reset.
+**Durable fix:** this is treated as a contract-drift class, not a one-field
+exception. Provider schemas and runtime normalizers now consume the same domain
+constants for Studio and Landing bounds, enums, colors, typography, fixed device
+constraints, content lengths, and privacy-sensitive blank fields. Every
+structured Product Brief, Studio composition, Landing composition, Studio
+learning, and Landing learning call requires a deterministic domain validator.
+Every local and production bridge request is keyed by a canonical fingerprint
+of its mode, model, complete system prompt, input, output schema, prompt version,
+and referenced asset digests; a contract change therefore cannot replay an old
+completed response. Image generation and enhancement use the same fingerprint
+rule. One fresh `:attempt:2` is permitted only when a completed response is
+rejected by deterministic domain validation; transport, timeout, cancellation,
+CLI, and provider failures do not cause an unsafe blind retry. A successful
+retry clears stale current error fields while append-only failed runs remain.
+Raw provider HTTP bodies are never reflected. Both incident skills encode these
+system-wide diagnostics, release gates, and same-entity recovery without reset.
 
 **Verification:** focused provider and Studio tests prove strict texture bounds,
 separate corrective idempotency keys, a successful corrected response, and no
@@ -36,6 +44,13 @@ phone image. The original three failed runs remain append-only beside the two
 new completed runs. The exact Creative ID and state digest survived a
 Validation recreate, with one Creative for the Brief and no approved version
 invented. No reset ran.
+
+The generalized follow-up adds automated fingerprint dependency, bounded-key,
+mandatory-validator, no-blind-retry, stale-error cleanup, secret-reflection,
+strict Landing schema, and media-integrity coverage. Release acceptance now
+requires fresh attempt-1 real canaries for both Product Brief modes, both Studio
+templates, Landing composition, Studio learning, Landing learning, new image
+generation, and exact-reference enhancement before and after cutover.
 
 ## 2026-09-06 — Landing reservation passed a relationship label as a UUID
 

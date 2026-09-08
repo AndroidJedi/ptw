@@ -18,6 +18,7 @@ JSON_MODES = (
 )
 BRIDGE_JSON_MODES = JSON_MODES
 BRIDGE_MEDIA_MODES = ("content_non_human_graphic_generation",)
+BRIDGE_IDEMPOTENCY_KEY_LIMIT = 240
 
 
 def _validation_error(error: Exception) -> str:
@@ -26,6 +27,55 @@ def _validation_error(error: Exception) -> str:
         r"(?i)(token|secret|credential|password)\s*[:=]\s*\S+",
         r"\1=[redacted]", message,
     )
+
+
+def _json_digest(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str,
+        ).encode()
+    ).hexdigest()
+
+
+def bridge_request_fingerprint(
+    *, mode: str, system_prompt: str, input_payload: Mapping[str, Any],
+    output_schema: Mapping[str, Any], prompt_version: str, model: str,
+    input_artifact_digests: Mapping[str, str] | None = None,
+) -> str:
+    """Bind provider idempotency to every semantic request dependency."""
+
+    return _json_digest({
+        "schema": "ptw.bridge-request-fingerprint.v1",
+        "mode": mode,
+        "model": model or "codex-cli-default",
+        "prompt_version": prompt_version,
+        "system_prompt_sha256": hashlib.sha256(system_prompt.encode()).hexdigest(),
+        "input_payload_sha256": _json_digest(input_payload),
+        "output_schema_sha256": _json_digest(output_schema),
+        "input_artifact_digests": dict(sorted((input_artifact_digests or {}).items())),
+    })
+
+
+def bridge_idempotency_key(base_key: str, request_fingerprint: str, attempt: int) -> str:
+    """Create one printable, collision-resistant bridge key within its hard limit."""
+
+    if (
+        not isinstance(base_key, str) or not base_key
+        or any(ord(character) < 33 or ord(character) > 126 for character in base_key)
+    ):
+        raise ValueError("structured bridge idempotency base key is invalid")
+    if not re.fullmatch(r"[0-9a-f]{64}", request_fingerprint):
+        raise ValueError("structured bridge request fingerprint is invalid")
+    if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
+        raise ValueError("structured bridge attempt is invalid")
+    suffix = f":request:{request_fingerprint}:attempt:{attempt}"
+    available = BRIDGE_IDEMPOTENCY_KEY_LIMIT - len(suffix)
+    if available < 18:
+        raise RuntimeError("structured bridge idempotency suffix exceeds its contract")
+    if len(base_key) > available:
+        digest = hashlib.sha256(base_key.encode()).hexdigest()[:16]
+        base_key = f"{base_key[:available - 17]}:{digest}"
+    return base_key + suffix
 
 
 class StructuredBridge:
@@ -66,27 +116,19 @@ class StructuredBridge:
         self, *, mode: str, system_prompt: str, input_payload: Mapping[str, Any],
         output_schema: Mapping[str, Any], prompt_version: str,
         idempotency_key: str,
+        response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]],
     ) -> dict[str, Any]:
-        if mode not in JSON_MODES:
-            raise ValueError("unsupported structured bridge mode")
-        if not self._slots.acquire(timeout=max(0, self.timeout_seconds)):
-            raise TimeoutError(f"{mode} could not enter its bounded execution slot")
-        try:
-            result = self._call(
-                mode=mode, system_prompt=system_prompt, input_payload=input_payload,
-                output_schema=output_schema, prompt_version=prompt_version,
-                idempotency_key=idempotency_key, attempt=1,
-            )
-        finally:
-            self._slots.release()
-        self.last_invocation = dict(result["invocation"])
-        return result
+        return self.call(
+            mode=mode, system_prompt=system_prompt, input_payload=input_payload,
+            output_schema=output_schema, prompt_version=prompt_version,
+            idempotency_key=idempotency_key, response_validator=response_validator,
+        )
 
     def call(
         self, *, mode: str, system_prompt: str, input_payload: Mapping[str, Any],
         output_schema: Mapping[str, Any], prompt_version: str,
         idempotency_key: str,
-        response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
+        response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]],
     ) -> dict[str, Any]:
         """Validate a completed response and make at most one fresh correction.
 
@@ -96,12 +138,8 @@ class StructuredBridge:
         deterministic domain validator has rejected that object.
         """
 
-        if response_validator is None:
-            return self.generate(
-                mode=mode, system_prompt=system_prompt, input_payload=input_payload,
-                output_schema=output_schema, prompt_version=prompt_version,
-                idempotency_key=idempotency_key,
-            )
+        if not callable(response_validator):
+            raise ValueError("structured bridge calls require a domain response validator")
         if mode not in JSON_MODES:
             raise ValueError("unsupported structured bridge mode")
         if not self._slots.acquire(timeout=max(0, self.timeout_seconds)):
@@ -155,6 +193,11 @@ class StructuredBridge:
         idempotency_key: str, attempt: int, correction: str | None = None,
     ) -> dict[str, Any]:
         context_hash = self._digest(input_payload)
+        request_fingerprint = bridge_request_fingerprint(
+            mode=mode, system_prompt=system_prompt, input_payload=input_payload,
+            output_schema=output_schema, prompt_version=prompt_version,
+            model=self.model,
+        )
         prompt = system_prompt
         if correction is not None:
             prompt += (
@@ -169,7 +212,9 @@ class StructuredBridge:
             "output_schema": dict(output_schema),
             "prompt_template_version": prompt_version,
             "context_hash": context_hash,
-            "idempotency_key": f"{idempotency_key}:attempt:{attempt}",
+            "idempotency_key": bridge_idempotency_key(
+                idempotency_key, request_fingerprint, attempt,
+            ),
         }
         if self.model != "codex-cli-default":
             request_document["model"] = self.model
@@ -180,11 +225,12 @@ class StructuredBridge:
             raise ValueError("structured JSON modes must not return generated media")
         response = self._response_object(result)
         invocation = {
+            **dict(result.get("invocation") or {}),
             "bridge_request_id": request_id,
             "prompt_template_version": prompt_version,
             "context_hash": context_hash,
+            "request_fingerprint": request_fingerprint,
             "bridge_attempt": attempt,
-            **dict(result.get("invocation") or {}),
         }
         return {"response": response, "invocation": invocation}
 
@@ -235,8 +281,10 @@ class StructuredBridge:
             with urllib.request.urlopen(outgoing, timeout=timeout) as response:
                 value = json.loads(response.read())
         except urllib.error.HTTPError as error:
-            raw = error.read(4096).decode("utf-8", errors="replace")
-            raise RuntimeError(f"structured bridge HTTP {error.code}: {raw[:500]}") from error
+            error.read(4096)
+            raise RuntimeError(f"structured bridge HTTP {error.code}") from error
+        except urllib.error.URLError as error:
+            raise ConnectionError("structured bridge connection failed") from error
         if not isinstance(value, dict):
             raise ValueError("structured bridge returned invalid JSON")
         return value

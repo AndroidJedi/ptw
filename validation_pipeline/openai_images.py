@@ -24,6 +24,7 @@ import httpx
 
 from .studio import inspect_media
 from .phone_hero_styles import phone_hero_direction_prompt
+from .provider import bridge_idempotency_key, bridge_request_fingerprint
 
 
 OPENAI_IMAGES_ENDPOINT = "https://api.openai.com/v1/images/generations"
@@ -350,26 +351,29 @@ class ResultBridgePhoneScreenImageProvider:
             raise ValueError("phone-screen image prompt must contain 24-9000 characters")
         prompt_digest = hashlib.sha256(normalized_prompt.encode()).hexdigest()
         reference_digest = None
+        system_prompt = (
+            "Create exactly one premium text-free non-human editorial hero artwork from "
+            "the supplied direction. Do not add people, human faces, text, logos, UI, devices, "
+            "numbers, charts, or watermarks."
+        )
+        input_payload = {
+            "visual_direction": normalized_prompt,
+            "operation": "image_edit" if reference_image is not None else "image_generation",
+        }
+        output_schema = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"generated": {"type": "boolean", "const": True}},
+            "required": ["generated"],
+        }
+        prompt_version = "ptw_phone_screen_result_bridge_v1"
         request_document: dict[str, Any] = {
             "mode": RESULT_BRIDGE_PHONE_SCREEN_MODE,
-            "system_prompt": (
-                "Create exactly one premium text-free non-human editorial hero artwork from "
-                "the supplied direction. Do not add people, human faces, text, logos, UI, devices, "
-                "numbers, charts, or watermarks."
-            ),
-            "input_payload": {
-                "visual_direction": normalized_prompt,
-                "operation": "image_edit" if reference_image is not None else "image_generation",
-            },
-            "output_schema": {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {"generated": {"type": "boolean", "const": True}},
-                "required": ["generated"],
-            },
-            "prompt_template_version": "ptw_phone_screen_result_bridge_v1",
+            "system_prompt": system_prompt,
+            "input_payload": input_payload,
+            "output_schema": output_schema,
+            "prompt_template_version": prompt_version,
             "context_hash": prompt_digest,
-            "idempotency_key": f"phone-screen:{prompt_digest}:new",
         }
         if self.model != "codex-cli-default":
             request_document["model"] = self.model
@@ -385,9 +389,24 @@ class ResultBridgePhoneScreenImageProvider:
                 "height": inspected_reference["height"],
                 "bytes_base64": base64.b64encode(reference_image).decode(),
             }]
-            request_document["idempotency_key"] = (
-                f"phone-screen:{prompt_digest}:edit:{reference_digest}"
-            )
+        base_key = (
+            f"phone-screen:{prompt_digest}:new" if reference_digest is None
+            else f"phone-screen:{prompt_digest}:edit:{reference_digest}"
+        )
+        request_fingerprint = bridge_request_fingerprint(
+            mode=RESULT_BRIDGE_PHONE_SCREEN_MODE,
+            system_prompt=system_prompt,
+            input_payload=input_payload,
+            output_schema=output_schema,
+            prompt_version=prompt_version,
+            model=self.model,
+            input_artifact_digests=(
+                {} if reference_digest is None else {"reference_image": reference_digest}
+            ),
+        )
+        request_document["idempotency_key"] = bridge_idempotency_key(
+            base_key, request_fingerprint, 1,
+        )
 
         queued = self._request("POST", self.bridge_url, json=request_document).json()
         try:
@@ -435,6 +454,7 @@ class ResultBridgePhoneScreenImageProvider:
                 "model": image.get("resolved_model") or image.get("requested_model"),
                 "text_in_screen": "prohibited_by_prompt",
                 "prompt_sha256": prompt_digest,
+                "request_fingerprint": request_fingerprint,
                 "operation": "image_edit" if reference_image is not None else "image_generation",
                 "bridge_request_id": request_id,
                 "provider_request_id": image.get("request_id"),

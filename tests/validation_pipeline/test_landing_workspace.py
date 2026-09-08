@@ -228,7 +228,30 @@ class LandingWorkspaceTests(unittest.TestCase):
     def test_phone_configuration_content_and_composition_contract(self):
         from validation_pipeline.landing_design import PHONE_MOCKUP_OPTIONS, APP_FEATURE_LIMITS
         from validation_pipeline.landing_pages import landing_generation_schema
-        self.assertIn("app_feature", landing_generation_schema()["properties"]["content"]["required"])
+        schema = landing_generation_schema()
+        self.assertIn("app_feature", schema["properties"]["content"]["required"])
+        configuration_schema = schema["properties"]["configuration"]["properties"]
+        content_schema = schema["properties"]["content"]["properties"]
+        self.assertEqual(
+            {"minimum": 0, "maximum": 48},
+            {key: configuration_schema["theme"]["properties"]["corner_radius"][key]
+             for key in ("minimum", "maximum")},
+        )
+        self.assertEqual(
+            {"minimum": 0.85, "maximum": 1.15},
+            {key: configuration_schema["presentation"]["properties"]["heading_scale"][key]
+             for key in ("minimum", "maximum")},
+        )
+        self.assertEqual(
+            [""], content_schema["contacts"]["properties"]["url"]["enum"],
+        )
+        self.assertEqual(
+            APP_FEATURE_LIMITS["description"],
+            content_schema["app_feature"]["properties"]["description"]["maxLength"],
+        )
+        self.assertEqual(
+            600, content_schema["hero"]["properties"]["visual_direction"]["maxLength"],
+        )
         for theme in PHONE_MOCKUP_OPTIONS["theme"]:
             for layout in PHONE_MOCKUP_OPTIONS["layout"]:
                 configuration = {**deepcopy(DEFAULT_CONFIGURATION), "phone_mockup": {"theme": theme, "layout": layout}}

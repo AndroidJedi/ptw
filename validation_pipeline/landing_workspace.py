@@ -33,6 +33,44 @@ LANDING_FONT_FAMILIES = (
     "Oswald", "Cormorant Garamond", "Cormorant Garamond Italic", "Lora",
     "Lora Italic",
 )
+LANDING_HEX_COLOR_PATTERN = r"^#[0-9A-Fa-f]{6}$"
+LANDING_THEME_CORNER_RADIUS_BOUNDS = (0, 48)
+LANDING_PRESENTATION_OPTIONS = {
+    "language": ("uk", "en"),
+    "cta_target": ("contacts", "url", "email", "phone"),
+    "spacing": ("compact", "comfortable", "airy"),
+}
+LANDING_PRESENTATION_NUMBER_BOUNDS = {
+    "heading_scale": (0.85, 1.15),
+    "focus_axis": (0, 100),
+}
+LANDING_SECTION_OPTIONS = {
+    "hero": {"alignment": ("left", "center"), "image_position": ("left", "right", "below")},
+    "features": {"layout": ("three_columns", "stacked")},
+    "social_proof": {"layout": ("cards", "quote")},
+    "visual_break": {"height": ("small", "medium", "large")},
+    "contacts": {"alignment": ("left", "center")},
+    "faq": {"style": ("divided", "cards")},
+}
+LANDING_CONTENT_LIMITS = {
+    "hero.title": (1, 140),
+    "hero.supporting_text": (1, 360),
+    "hero.cta_label": (1, 60),
+    "hero.visual_direction": (8, 600),
+    "feature.title": (1, 90),
+    "feature.description": (1, 300),
+    "social_proof.heading": (1, 120),
+    "social_proof.statement": (1, 360),
+    "social_proof.attribution": (1, 120),
+    "visual_break.visual_direction": (8, 600),
+    "contacts.heading": (1, 120),
+    "contacts.supporting_text": (1, 300),
+    "contacts.email": (3, 254),
+    "contacts.phone": (3, 60),
+    "contacts.url": (8, 2048),
+    "faq.question": (1, 180),
+    "faq.answer": (1, 500),
+}
 
 DEFAULT_CONFIGURATION: dict[str, Any] = {
     "schema": LANDING_CONFIGURATION_SCHEMA,
@@ -61,19 +99,23 @@ DEFAULT_PRESENTATION: dict[str, Any] = {
 def normalize_presentation(value: Mapping[str, Any]) -> dict[str, Any]:
     root = _object(value, set(DEFAULT_PRESENTATION), "presentation")
     result = _copy(root)
-    for field, allowed in (("language", {"uk", "en"}),
-                           ("cta_target", {"contacts", "url", "email", "phone"}),
-                           ("spacing", {"compact", "comfortable", "airy"})):
+    for field, allowed in LANDING_PRESENTATION_OPTIONS.items():
         if not isinstance(root[field], str) or root[field] not in allowed:
             raise ValueError(f"Landing presentation.{field} is invalid")
     def number(value: Any, minimum: float, maximum: float, field: str) -> None:
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not minimum <= value <= maximum:
             raise ValueError(f"Landing presentation.{field} is invalid")
-    number(root["heading_scale"], .85, 1.15, "heading_scale")
+    number(
+        root["heading_scale"], *LANDING_PRESENTATION_NUMBER_BOUNDS["heading_scale"],
+        "heading_scale",
+    )
     for field in ("hero_focus", "visual_break_focus"):
         focus = _object(root[field], {"x", "y"}, field)
         for axis in ("x", "y"):
-            number(focus[axis], 0, 100, f"{field}.{axis}")
+            number(
+                focus[axis], *LANDING_PRESENTATION_NUMBER_BOUNDS["focus_axis"],
+                f"{field}.{axis}",
+            )
     return result
 
 
@@ -137,7 +179,7 @@ def _object(value: Any, expected: set[str], field: str) -> Mapping[str, Any]:
 
 def _color(value: Any, field: str) -> str:
     result = str(value or "")
-    if len(result) != 7 or result[0] != "#" or any(c not in "0123456789abcdefABCDEF" for c in result[1:]):
+    if re.fullmatch(LANDING_HEX_COLOR_PATTERN, result) is None:
         raise ValueError(f"Landing {field} must be a six-digit hex color")
     return result.lower()
 
@@ -158,21 +200,18 @@ def normalize_configuration(value: Mapping[str, Any]) -> dict[str, Any]:
     if result["theme"]["font_family"] not in LANDING_FONT_FAMILIES or result["theme"]["heading_font_family"] not in LANDING_FONT_FAMILIES:
         raise ValueError("Landing font family is invalid")
     radius = theme["corner_radius"]
-    if isinstance(radius, bool) or not isinstance(radius, int) or not 0 <= radius <= 48:
+    radius_minimum, radius_maximum = LANDING_THEME_CORNER_RADIUS_BOUNDS
+    if (
+        isinstance(radius, bool) or not isinstance(radius, int)
+        or not radius_minimum <= radius <= radius_maximum
+    ):
         raise ValueError("Landing corner radius is invalid")
     result["theme"]["corner_radius"] = radius
-    enums = {
-        "hero": ("alignment", {"left", "center"}, "image_position", {"left", "right", "below"}),
-        "features": ("layout", {"three_columns", "stacked"}, None, set()),
-        "social_proof": ("layout", {"cards", "quote"}, None, set()),
-        "visual_break": ("height", {"small", "medium", "large"}, None, set()),
-        "contacts": ("alignment", {"left", "center"}, None, set()),
-        "faq": ("style", {"divided", "cards"}, None, set()),
-    }
-    for section, (first, allowed_first, second, allowed_second) in enums.items():
+    for section, options in LANDING_SECTION_OPTIONS.items():
         source = _object(root[section], set(DEFAULT_CONFIGURATION[section]), section)
-        if source[first] not in allowed_first or (second and source[second] not in allowed_second):
-            raise ValueError(f"Landing {section} configuration is invalid")
+        for field, allowed in options.items():
+            if source[field] not in allowed:
+                raise ValueError(f"Landing {section} configuration is invalid")
         result[section] = dict(source)
     if "phone_mockup" in root:
         phone = _object(root["phone_mockup"], set(DEFAULT_PHONE_MOCKUP), "phone mockup")
@@ -215,6 +254,11 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("Landing requires exactly three features and three FAQs")
     if not isinstance(proof_items, list) or len(proof_items) > 3:
         raise ValueError("Landing social proof supports zero to three owner entries")
+
+    def bounded(item: Any, path: str, field: str) -> str:
+        minimum, maximum = LANDING_CONTENT_LIMITS[path]
+        return _text(item, field, minimum, maximum)
+
     result = _copy(DEFAULT_CONTENT)
     if "app_feature" in root:
         feature = _object(root["app_feature"], set(DEFAULT_APP_FEATURE), "app feature")
@@ -223,44 +267,48 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
         result["app_feature"] = {key: _text(feature[key], f"app_feature.{key}", 1, APP_FEATURE_LIMITS[key]) for key in ("title", "description", "action_label")}
         result["app_feature"]["items"] = [{key: _text(_object(item, {"label", "value"}, "app feature row")[key], f"app_feature.{key}", 1, APP_FEATURE_LIMITS[key]) for key in ("label", "value")} for item in feature["items"]]
     result["hero"] = {
-        "title": _text(hero["title"], "hero title", 1, 140),
-        "supporting_text": _text(hero["supporting_text"], "hero supporting text", 1, 360),
-        "cta_label": _text(hero["cta_label"], "CTA label", 1, 60),
-        "visual_direction": _text(hero["visual_direction"], "hero visual direction", 8, 600),
+        "title": bounded(hero["title"], "hero.title", "hero title"),
+        "supporting_text": bounded(
+            hero["supporting_text"], "hero.supporting_text", "hero supporting text",
+        ),
+        "cta_label": bounded(hero["cta_label"], "hero.cta_label", "CTA label"),
+        "visual_direction": bounded(
+            hero["visual_direction"], "hero.visual_direction", "hero visual direction",
+        ),
     }
     result["features"] = [
         {
-            "title": _text(_object(item, {"title", "description"}, "feature")["title"], "feature title", 1, 90),
-            "description": _text(_object(item, {"title", "description"}, "feature")["description"], "feature description", 1, 300),
+            "title": bounded(_object(item, {"title", "description"}, "feature")["title"], "feature.title", "feature title"),
+            "description": bounded(_object(item, {"title", "description"}, "feature")["description"], "feature.description", "feature description"),
         }
         for item in features
     ]
     result["social_proof"] = {
-        "heading": _text(proof["heading"], "social proof heading", 1, 120),
+        "heading": bounded(proof["heading"], "social_proof.heading", "social proof heading"),
         "items": [
             {
-                "statement": _text(_object(item, {"statement", "attribution"}, "social proof item")["statement"], "social proof statement", 1, 360),
-                "attribution": _text(_object(item, {"statement", "attribution"}, "social proof item")["attribution"], "social proof attribution", 1, 120),
+                "statement": bounded(_object(item, {"statement", "attribution"}, "social proof item")["statement"], "social_proof.statement", "social proof statement"),
+                "attribution": bounded(_object(item, {"statement", "attribution"}, "social proof item")["attribution"], "social_proof.attribution", "social proof attribution"),
             }
             for item in proof_items
         ],
     }
-    result["visual_break"] = {"visual_direction": _text(visual_break["visual_direction"], "visual-break direction", 8, 600)}
-    email = _text(contacts["email"], "contact email", 3, 254)
-    phone = _text(contacts["phone"], "contact phone", 3, 60)
-    url = _text(contacts["url"], "contact URL", 8, 2048)
+    result["visual_break"] = {"visual_direction": bounded(visual_break["visual_direction"], "visual_break.visual_direction", "visual-break direction")}
+    email = bounded(contacts["email"], "contacts.email", "contact email")
+    phone = bounded(contacts["phone"], "contacts.phone", "contact phone")
+    url = bounded(contacts["url"], "contacts.url", "contact URL")
     for field, contact in (("email", email), ("phone", phone), ("url", url)):
         if contact and not valid_contact(field, contact):
             raise ValueError(f"Landing contact {field} is invalid" + ("; URL must use HTTPS" if field == "url" else ""))
     result["contacts"] = {
-        "heading": _text(contacts["heading"], "contact heading", 1, 120),
-        "supporting_text": _text(contacts["supporting_text"], "contact supporting text", 1, 300),
+        "heading": bounded(contacts["heading"], "contacts.heading", "contact heading"),
+        "supporting_text": bounded(contacts["supporting_text"], "contacts.supporting_text", "contact supporting text"),
         "email": email, "phone": phone, "url": url,
     }
     result["faq"] = [
         {
-            "question": _text(_object(item, {"question", "answer"}, "FAQ")["question"], "FAQ question", 1, 180),
-            "answer": _text(_object(item, {"question", "answer"}, "FAQ")["answer"], "FAQ answer", 1, 500),
+            "question": bounded(_object(item, {"question", "answer"}, "FAQ")["question"], "faq.question", "FAQ question"),
+            "answer": bounded(_object(item, {"question", "answer"}, "FAQ")["answer"], "faq.answer", "FAQ answer"),
         }
         for item in faq
     ]

@@ -165,7 +165,10 @@ class LocalBriefService:
         brief = self.store.get("briefs", _uuid(brief_id, "brief_id"))
         if brief["status"] not in {"queued", "failed"}:
             return brief
-        generating = {**brief, "status": "generating", "updated_at": utc_now()}
+        generating = {
+            **brief, "status": "generating", "error_code": None,
+            "error_message": None, "updated_at": utc_now(),
+        }
         self.store.append("briefs", brief_id, generating)
         base = None
         correction = None

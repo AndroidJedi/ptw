@@ -97,6 +97,18 @@ item whose stored state is `failed`. Raw provider and server output never reache
 the owner; failed Brief, Studio, phone-image, Landing, and Landing-learning work
 remains explicitly retryable.
 
+All structured local and production generation paths require a deterministic
+domain validator; schema-only acceptance is prohibited. A canonical request
+fingerprint binds idempotency to mode, model, the complete system prompt, input,
+output schema, prompt version, and referenced artifact digests. The key is
+bounded without discarding collision resistance. This prevents a changed
+contract, prompt, model, input, or image from replaying an older successful job.
+Image generation and exact-reference enhancement use the same rule. Only a
+completed response rejected by domain validation may receive one correction;
+transport, timeout, cancellation, CLI, and provider failures remain on their
+original attempt. Recovery clears stale current errors but retains append-only
+failure history.
+
 A replacement Brief creates a separate first creative. Another creative from
 the same Brief is available only after the latest creative has an immutable
 approved version. Cross-Project creative access fails closed.
@@ -141,14 +153,17 @@ Composition uses the approved Brief, selected live template catalog, canonical
 `studio-creative-composer` skill, and the latest accepted global and Project
 skill snapshots. Output is validated against the selected template's exact
 configuration/content shape; the live catalog wins over learned instructions.
-Renderer-owned numeric bounds, enums, colors, typography, and device limits are
-also present in the strict provider schema. The composer prompt/idempotency
-namespace is versioned with that contract, so a changed contract cannot replay
-a completed response from an older schema. If a completed response still fails
+Renderer-owned numeric bounds, enums, colors, typography, device limits, Landing
+content lengths, and privacy-sensitive blank fields are also present in the
+strict provider schemas and share constants with their runtime normalizers. The
+request fingerprint is versioned with that complete contract, so a changed
+contract cannot replay a completed response from an older schema. If a completed response still fails
 deterministic PTW validation, the bridge may make exactly one fresh corrective
 attempt; transport, timeout, cancellation, and provider failures never trigger
-an unsafe blind second attempt. Release acceptance includes a real Phone
-Metrics canary that must pass domain validation on fresh attempt 1.
+an unsafe blind second attempt. Release acceptance covers both Product Brief
+modes, Universal Post, Phone Metrics, Landing composition, Studio learning,
+Landing learning, new image generation, and exact-reference enhancement; every
+structured canary must pass domain validation on fresh attempt 1.
 
 For `phone_metrics`, composition automatically starts a fresh, text-free hero
 generation governed by `studio-phone-hero-generator`. The prompt includes the
@@ -184,7 +199,7 @@ are absent.
 
 Landing phone verification is recorded in `.local/landing-phone`, with
 before/after captures, three screen themes at 1280/768/360px, and iPhone WebKit.
-The 63 web unit tests, 51 browser checks, production build, full 146-test
+The 63 web unit tests, 51 browser checks, production build, full 155-test
 Validation suite, 12 Commander tests, and 4 Owner Gateway tests pass. The prior
 38 platform tests remain unchanged. The Commander demo, three-migration schema
 idempotency, canonical skill verification, Python compilation, and whitespace

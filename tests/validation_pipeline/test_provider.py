@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from io import BytesIO
 import unittest
+import urllib.error
+from unittest.mock import patch
 
-from validation_pipeline.provider import StructuredBridge
+from validation_pipeline.provider import (
+    BRIDGE_IDEMPOTENCY_KEY_LIMIT, StructuredBridge,
+)
 
 
 class FakeBridge(StructuredBridge):
@@ -72,11 +77,16 @@ class StructuredBridgeTests(unittest.TestCase):
             mode="product_brief", system_prompt="Generate one brief.",
             input_payload={"raw_idea": "test"}, output_schema={"type": "object"},
             idempotency_key="brief-uuid:product_brief", prompt_version="brief-v2",
+            response_validator=lambda response: response,
         )
 
         self.assertEqual({"schema_version": 1}, value["response"])
-        self.assertEqual(
-            "brief-uuid:product_brief:attempt:1",
+        self.assertRegex(
+            bridge.posted["idempotency_key"],
+            r"^brief-uuid:product_brief:request:[0-9a-f]{64}:attempt:1$",
+        )
+        self.assertIn(
+            value["invocation"]["request_fingerprint"],
             bridge.posted["idempotency_key"],
         )
         self.assertEqual(1, value["invocation"]["bridge_attempt"])
@@ -94,7 +104,7 @@ class StructuredBridgeTests(unittest.TestCase):
             FakeBridge().generate(
                 mode="content_candidate_generation", system_prompt="x",
                 input_payload={}, output_schema={}, idempotency_key="x",
-                prompt_version="x",
+                prompt_version="x", response_validator=lambda response: response,
             )
 
     def test_completed_invalid_response_gets_one_fresh_corrective_attempt(self) -> None:
@@ -115,10 +125,14 @@ class StructuredBridgeTests(unittest.TestCase):
         )
 
         self.assertEqual({"texture_intensity": 0.13}, value["response"])
-        self.assertEqual([
-            "studio-creative:creative-uuid:attempt:1",
-            "studio-creative:creative-uuid:attempt:2",
-        ], [post["idempotency_key"] for post in bridge.posts])
+        self.assertRegex(
+            bridge.posts[0]["idempotency_key"],
+            r"^studio-creative:creative-uuid:request:[0-9a-f]{64}:attempt:1$",
+        )
+        self.assertEqual(
+            bridge.posts[0]["idempotency_key"].removesuffix("attempt:1") + "attempt:2",
+            bridge.posts[1]["idempotency_key"],
+        )
         self.assertNotEqual(
             bridge.posts[0]["system_prompt"], bridge.posts[1]["system_prompt"],
         )
@@ -142,10 +156,93 @@ class StructuredBridgeTests(unittest.TestCase):
             )
 
         self.assertEqual(1, len(bridge.posts))
-        self.assertEqual(
-            "studio-creative:creative-uuid:attempt:1",
+        self.assertRegex(
             bridge.posts[0]["idempotency_key"],
+            r"^studio-creative:creative-uuid:request:[0-9a-f]{64}:attempt:1$",
         )
+
+    def test_every_semantic_request_dependency_changes_the_fingerprint(self) -> None:
+        base = {
+            "mode": "product_brief",
+            "system_prompt": "Generate one brief.",
+            "input_payload": {"raw_idea": "first"},
+            "output_schema": {"type": "object"},
+            "idempotency_key": "brief-uuid:product_brief",
+            "prompt_version": "brief-v2",
+            "response_validator": lambda response: response,
+        }
+        variants = [
+            {},
+            {"system_prompt": "Generate one bounded brief."},
+            {"input_payload": {"raw_idea": "second"}},
+            {"output_schema": {"type": "object", "maxProperties": 1}},
+            {"prompt_version": "brief-v3"},
+        ]
+        keys = []
+        for patch in variants:
+            bridge = FakeBridge()
+            bridge.generate(**{**base, **patch})
+            keys.append(bridge.posted["idempotency_key"])
+        model_bridge = FakeBridge()
+        model_bridge.model = "different-model"
+        model_bridge.generate(**base)
+        keys.append(model_bridge.posted["idempotency_key"])
+        self.assertEqual(len(keys), len(set(keys)))
+
+        ordered = FakeBridge()
+        reordered = FakeBridge()
+        ordered.generate(**{
+            **base, "input_payload": {"first": 1, "second": 2},
+        })
+        reordered.generate(**{
+            **base, "input_payload": {"second": 2, "first": 1},
+        })
+        self.assertEqual(
+            ordered.posted["idempotency_key"], reordered.posted["idempotency_key"],
+        )
+
+    def test_long_base_key_is_bounded_without_losing_collision_resistance(self) -> None:
+        bridge = FakeBridge()
+        bridge.generate(
+            mode="product_brief", system_prompt="Generate one brief.",
+            input_payload={"raw_idea": "test"}, output_schema={"type": "object"},
+            idempotency_key="brief:" + "x" * 400, prompt_version="brief-v2",
+            response_validator=lambda response: response,
+        )
+        self.assertEqual(BRIDGE_IDEMPOTENCY_KEY_LIMIT, len(bridge.posted["idempotency_key"]))
+        self.assertRegex(bridge.posted["idempotency_key"], r":request:[0-9a-f]{64}:attempt:1$")
+        other = FakeBridge()
+        other.generate(
+            mode="product_brief", system_prompt="Generate one brief.",
+            input_payload={"raw_idea": "test"}, output_schema={"type": "object"},
+            idempotency_key="brief:" + "y" * 400, prompt_version="brief-v2",
+            response_validator=lambda response: response,
+        )
+        self.assertNotEqual(
+            bridge.posted["idempotency_key"], other.posted["idempotency_key"],
+        )
+
+    def test_domain_validator_is_mandatory(self) -> None:
+        with self.assertRaisesRegex(ValueError, "domain response validator"):
+            FakeBridge().call(
+                mode="product_brief", system_prompt="Generate one brief.",
+                input_payload={}, output_schema={}, idempotency_key="brief",
+                prompt_version="brief-v2", response_validator=None,
+            )
+
+    def test_http_failure_never_reflects_provider_body_or_secret(self) -> None:
+        error = urllib.error.HTTPError(
+            "https://bridge.invalid", 500, "failed", {},
+            BytesIO(b"token=should-never-be-reflected private provider output"),
+        )
+        bridge = StructuredBridge(
+            "https://bridge.invalid/internal/llm/structured", "bridge-secret", "model",
+        )
+        with patch("urllib.request.urlopen", side_effect=error):
+            with self.assertRaisesRegex(RuntimeError, r"structured bridge HTTP 500") as caught:
+                bridge._request(bridge.url, {"safe": True})
+        self.assertNotIn("token", str(caught.exception).casefold())
+        self.assertNotIn("private provider output", str(caught.exception))
 
 
 if __name__ == "__main__":

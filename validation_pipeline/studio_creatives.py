@@ -235,6 +235,25 @@ def studio_edit_learning_schema() -> dict[str, Any]:
     }
 
 
+def validate_studio_edit_learning(value: Mapping[str, Any]) -> dict[str, str]:
+    if not isinstance(value, Mapping) or set(value) != {
+        "edit_summary", "project_lesson", "global_rule",
+    }:
+        raise ValueError("Studio learning response fields are invalid")
+    return {
+        "edit_summary": _compact(value["edit_summary"], "edit_summary", 8, 1200),
+        "project_lesson": _compact(value["project_lesson"], "project_lesson", 8, 800),
+        "global_rule": _compact(value["global_rule"], "global_rule", 8, 800),
+    }
+
+
+def _clear_generation_failure(value: Mapping[str, Any] | None) -> dict[str, Any]:
+    return {
+        key: deepcopy(item) for key, item in dict(value or {}).items()
+        if key not in {"error_type", "error_message"}
+    }
+
+
 def _diff_paths(before: Any, after: Any, prefix: str = "") -> list[str]:
     if isinstance(before, Mapping) and isinstance(after, Mapping):
         paths: list[str] = []
@@ -823,6 +842,8 @@ class StudioCreativeService:
         if self.structured_provider is None:
             raise RuntimeError("Studio structured provider is unavailable")
         response_validator = kwargs.pop("response_validator", None)
+        if not callable(response_validator):
+            raise ValueError("Studio structured calls require a domain response validator")
         if hasattr(self.structured_provider, "call"):
             return self.structured_provider.call(
                 **kwargs, response_validator=response_validator,
@@ -849,6 +870,7 @@ class StudioCreativeService:
         self, creative_id: str, detail: Mapping[str, Any], generation: Mapping[str, Any],
     ) -> dict[str, Any]:
         baseline = _state_snapshot(detail)
+        generation = _clear_generation_failure(generation)
         self.authority.update_creative(
             creative_id, status="draft", state_sha256=detail["state_sha256"],
             template_version=detail["catalog"]["template_version"],
@@ -948,7 +970,7 @@ class StudioCreativeService:
         detail = workspace.detail()
         project_skill = self.authority.latest_skill(PROJECT_SKILL_SCOPE, creative["project_id"])
         global_skill = self.authority.latest_skill(GLOBAL_SKILL_SCOPE)
-        existing_generation = dict(creative.get("generation") or {})
+        existing_generation = _clear_generation_failure(creative.get("generation"))
         self.authority.update_creative(creative_id, status="composing", generation={
             **existing_generation, "stage": "composing", "project_skill_snapshot_id": project_skill["skill_snapshot_id"],
             "project_skill_sha256": project_skill["content_sha256"],
@@ -1062,7 +1084,10 @@ class StudioCreativeService:
             and self._creative_direction(creative) is None
         ):
             raise ValueError("Select a Phone Metrics visual style before retrying")
-        self.authority.update_creative(creative_id, status="queued")
+        self.authority.update_creative(
+            creative_id, status="queued",
+            generation=_clear_generation_failure(creative.get("generation")),
+        )
         return self.summary(creative_id)
 
     def retry_phone_image(self, project_id: str, creative_id: str) -> dict[str, Any]:
@@ -1169,20 +1194,27 @@ class StudioCreativeService:
             "project_name": self.authority.project(project_id).get("name"),
         }
         try:
+            def validate_learning(value: Mapping[str, Any]) -> Mapping[str, Any]:
+                learned = validate_studio_edit_learning(value)
+                if self._unsafe_global_rule(
+                    learned["global_rule"], creative=creative, before=before, after=after,
+                ):
+                    raise ValueError(
+                        "global Studio proposal contains project-specific or sensitive content"
+                    )
+                return learned
+
             result = self._provider_call(
                 mode="studio_edit_learning", system_prompt=self.learner_skill,
                 input_payload=payload, output_schema=studio_edit_learning_schema(),
                 idempotency_key=f"studio-checkpoint:{checkpoint_id}",
                 prompt_version="studio-edit-learner-v1",
+                response_validator=validate_learning,
             )
             learned = result["response"]
             summary = _compact(learned["edit_summary"], "edit_summary", 8, 1200)
             project_lesson = _compact(learned["project_lesson"], "project_lesson", 8, 800)
             global_rule = _compact(learned["global_rule"], "global_rule", 8, 800)
-            if self._unsafe_global_rule(
-                global_rule, creative=creative, before=before, after=after,
-            ):
-                raise ValueError("global Studio proposal contains project-specific or sensitive content")
             project_skill = self.authority.create_project_skill(
                 project_id=project_id, lesson=project_lesson, checkpoint_id=checkpoint_id,
             )

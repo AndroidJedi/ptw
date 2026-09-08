@@ -71,6 +71,19 @@ into a complete compatible release, read
   new attempt automatically. Acceptance requires retrying the same failed
   creative to a valid draft, preserving its ID and append-only failed runs, and
   proving restart recovery does not enqueue duplicates.
+- Apply that guard to every structured workflow, not only Phone Metrics.
+  Product Brief/revision, both Post templates, Landing composition, and both
+  learning skills require domain validators after provider-schema validation.
+  Strict schemas and normalizers must consume the same bound/enum/pattern/
+  length/privacy constants. The platform idempotency key must include the
+  automatic canonical request fingerprint (mode, model, prompt, input, schema,
+  and referenced-asset digests), be bounded to 240 printable characters, and
+  change whenever any semantic dependency changes. Image generation and
+  enhancement use the same fingerprint boundary. Reject a rollout that relies
+  only on a manually bumped prompt version.
+- Recovered entities must clear current top-level error fields while preserving
+  append-only failure history. Never expose a provider HTTP body while
+  diagnosing a status; keep only bounded status, job ID, and object ID.
 - Telegram accepts only `/help`, `/status`, and `/stop`.
 - A Landing create failure containing `badly formed hexadecimal UUID string`
   can originate from an internal graph-edge argument inversion rather than an
@@ -81,8 +94,11 @@ into a complete compatible release, read
 
 ## Canaries and reset acceptance
 
-Before rollout, run real canaries for all four JSON modes, fresh image
-generation, one-image enhancement, and Pexels. After an authorized clean reset
+Before rollout, run real domain-validating canaries for both Product Brief
+modes, Universal Post, Phone Metrics, Landing composition, Studio learning,
+Landing learning, fresh image generation, one-image enhancement, and Pexels.
+Every structured canary must carry a fresh request fingerprint and complete on
+attempt 1. After an authorized clean reset
 require zero Projects, Briefs, creatives, assets, versions, checkpoints,
 generation/learning runs, proposals, decisions, skill snapshots, graph rows,
 and every Landing workspace/file/asset/run/version/checkpoint/skill/proposal row.

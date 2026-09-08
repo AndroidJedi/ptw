@@ -64,10 +64,10 @@ class FakeRepository:
 class FakeBridge:
     def __init__(self, language: str = "en") -> None:
         self.language = language
-        self.call: dict = {}
+        self.last_call: dict = {}
 
-    def generate(self, **value) -> dict:
-        self.call = value
+    def call(self, **value) -> dict:
+        self.last_call = value
         if self.language == "uk":
             document = {
                 "schema_version": 1,
@@ -122,10 +122,11 @@ class ProductBriefServiceTests(unittest.TestCase):
         runner.generate_brief(BRIEF_ID, operation_reserved=True)
 
         expected_key = f"{BRIEF_ID}:product_brief:attempt-2"
-        self.assertEqual("en", bridge.call["input_payload"]["required_language"])
-        self.assertEqual("en", bridge.call["output_schema"]["properties"]["language"]["const"])
-        self.assertIn("required_language=en", bridge.call["system_prompt"])
-        self.assertEqual(expected_key, bridge.call["idempotency_key"])
+        self.assertEqual("en", bridge.last_call["input_payload"]["required_language"])
+        self.assertEqual("en", bridge.last_call["output_schema"]["properties"]["language"]["const"])
+        self.assertIn("required_language=en", bridge.last_call["system_prompt"])
+        self.assertEqual(expected_key, bridge.last_call["idempotency_key"])
+        self.assertTrue(callable(bridge.last_call["response_validator"]))
         self.assertEqual(expected_key, repository.created_invocation["idempotency_key"])
         self.assertEqual(912, repository.completed_invocation["provenance"]["bridge_request_id"])
         self.assertTrue(repository.finished)
@@ -155,7 +156,7 @@ class ProductBriefServiceTests(unittest.TestCase):
 
         runner.generate_brief(BRIEF_ID, operation_reserved=True)
 
-        self.assertEqual("uk", bridge.call["input_payload"]["required_language"])
+        self.assertEqual("uk", bridge.last_call["input_payload"]["required_language"])
         self.assertEqual("uk", repository.completed_invocation["response"]["language"])
         self.assertIn("Безкоштовна", repository.completed_invocation["response"]["offer"])
 

@@ -98,13 +98,20 @@ class ValidationRunner:
             )
             provenance: dict[str, Any] = {}
             try:
-                result = self.bridge.generate(
+                def validate_response(value: Mapping[str, Any]) -> Mapping[str, Any]:
+                    return ProductBriefV1.from_dict(
+                        value, raw_idea=source["content"],
+                        required_language=required_language,
+                    ).to_dict()
+
+                result = self.bridge.call(
                     mode=mode,
                     system_prompt=product_brief_system_prompt(self._skill(), required_language),
                     input_payload=payload,
                     output_schema=product_brief_schema(required_language),
                     prompt_version=f"product_brief_v2:{mode}",
                     idempotency_key=provider_attempt_key,
+                    response_validator=validate_response,
                 )
                 response = dict(result["response"])
                 provenance = dict(result["invocation"])

@@ -21,6 +21,8 @@ import threading
 import time
 from typing import Any
 
+from .provider import bridge_idempotency_key, bridge_request_fingerprint
+
 
 class LocalCodexError(RuntimeError):
     """Terminal structured-call failure with sanitized attempt provenance."""
@@ -72,7 +74,7 @@ def sanitized(value: Any) -> Any:
 
 
 class LocalCodexStructuredProvider:
-    """Bounded non-interactive Codex calls with one fresh retry."""
+    """Bounded Codex calls with one domain-validation correction only."""
 
     supported_reasoning_efforts = frozenset({"low", "medium", "high", "xhigh"})
 
@@ -227,16 +229,23 @@ class LocalCodexStructuredProvider:
         output_schema: Mapping[str, Any],
         idempotency_key: str,
         prompt_version: str,
-        response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
+        response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]],
         cancel_event: threading.Event | None = None,
         reasoning_effort: str | None = None,
     ) -> dict[str, Any]:
+        if not callable(response_validator):
+            raise ValueError("local structured calls require a domain response validator")
         attempts: list[dict[str, Any]] = []
         input_digest = sha256_json(sanitized(input_payload))
         last_error: Exception | None = None
         selected_effort = reasoning_effort or self.reasoning_effort
         if selected_effort not in self.supported_reasoning_efforts:
             raise ValueError("local structured reasoning effort must be low, medium, high, or xhigh")
+        request_fingerprint = bridge_request_fingerprint(
+            mode=mode, system_prompt=system_prompt, input_payload=input_payload,
+            output_schema=output_schema, prompt_version=prompt_version,
+            model=self.model or "codex-cli-default",
+        )
         for attempt in range(1, self.maximum_attempts + 1):
             with tempfile.TemporaryDirectory(prefix="ptw-local-codex-") as temporary:
                 root = Path(temporary)
@@ -250,7 +259,10 @@ class LocalCodexStructuredProvider:
                 record: dict[str, Any] = {
                     "attempt": attempt,
                     "mode": mode,
-                    "idempotency_key": f"{idempotency_key}:attempt:{attempt}",
+                    "idempotency_key": bridge_idempotency_key(
+                        idempotency_key, request_fingerprint, attempt,
+                    ),
+                    "request_fingerprint": request_fingerprint,
                     "prompt_version": prompt_version,
                     "input_sha256": input_digest,
                     "model": self.model or "codex-cli-default",
@@ -259,6 +271,7 @@ class LocalCodexStructuredProvider:
                     "sandbox": "read-only",
                     "ephemeral": True,
                 }
+                completed_response = False
                 try:
                     if cancel_event is not None and cancel_event.is_set():
                         raise _CancellationRequested()
@@ -283,11 +296,12 @@ class LocalCodexStructuredProvider:
                     })
                     if completed.returncode != 0:
                         raise RuntimeError(f"Codex CLI exited with status {completed.returncode}")
+                    completed_response = True
                     raw = output_path.read_text(encoding="utf-8")
                     response = json.loads(raw)
                     if not isinstance(response, Mapping):
                         raise ValueError("Codex structured output must be one JSON object")
-                    validated = dict(response_validator(response) if response_validator else response)
+                    validated = dict(response_validator(response))
                     record.update({
                         "status": "completed",
                         "response_sha256": sha256_json(validated),
@@ -319,6 +333,13 @@ class LocalCodexStructuredProvider:
                         "error_message": self._sanitized_error_message(error),
                     })
                     attempts.append(record)
+                    if not completed_response or attempt == self.maximum_attempts:
+                        raise LocalCodexError(
+                            "local Codex structured call failed after "
+                            f"{len(attempts)} attempt(s): {type(error).__name__}: "
+                            f"{self._sanitized_error_message(error)}",
+                            attempts,
+                        ) from error
         raise LocalCodexError(
             "local Codex structured call failed after two attempts: "
             f"{type(last_error).__name__}: {self._sanitized_error_message(last_error or RuntimeError('unknown error'))}",

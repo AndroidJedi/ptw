@@ -192,7 +192,15 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
 
         payload = seen["payload"]
         self.assertEqual("content_non_human_graphic_generation", payload["mode"])
+        self.assertRegex(
+            payload["idempotency_key"],
+            r"^phone-screen:[0-9a-f]{64}:new:request:[0-9a-f]{64}:attempt:1$",
+        )
         self.assertNotIn("input_images", payload)
+        self.assertEqual(
+            payload["idempotency_key"].split(":request:", 1)[1].split(":", 1)[0],
+            result["source"]["request_fingerprint"],
+        )
         self.assertEqual("bridge-token", seen["token"])
         self.assertEqual(generated, result["bytes"])
         self.assertEqual("result_bridge_image_generation", result["source"]["origin"])
@@ -227,7 +235,15 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
             )
 
         attached = seen["payload"]["input_images"][0]
+        self.assertRegex(
+            seen["payload"]["idempotency_key"],
+            r"^phone-screen:[0-9a-f]{64}:edit:[0-9a-f]{64}:request:[0-9a-f]{64}:attempt:1$",
+        )
         self.assertEqual(reference, base64.b64decode(attached["bytes_base64"]))
+        self.assertEqual(
+            seen["payload"]["idempotency_key"].split(":request:", 1)[1].split(":", 1)[0],
+            result["source"]["request_fingerprint"],
+        )
         self.assertEqual(hashlib.sha256(reference).hexdigest(), attached["digest"])
         self.assertEqual("image_edit", result["source"]["operation"])
         self.assertEqual(attached["digest"], result["source"]["reference_image_sha256"])

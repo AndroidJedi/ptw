@@ -2,7 +2,7 @@
 
 Updated: 2026-09-08
 Branch: `main`
-Deployment: backend release `contract-budget-20260908-153b1dc` and Owner Console Hosting version `a7a47a45ede67c7e` are live; Meta staging is disabled until a fresh secret is configured
+Deployment: backend release `creative-direction-20260908-0ec8445` and Owner Console Hosting version `a7a47a45ede67c7e` are live; Meta staging is disabled until a fresh secret is configured
 
 ## Current milestone
 
@@ -279,6 +279,29 @@ idempotency, stale state, invalid input, cross-Project isolation, generation,
 enhancement, history, selection, Save/learning, approval/version, and restart
 persistence. The canonical incident skill now forbids calling fully mocked
 browser traffic complete system E2E and makes these boundaries release gates.
+PTW revision `0ec8445e40958a059ee1f029264c6a7017dc31e7` is deployed as
+backend release `creative-direction-20260908-0ec8445`. The first preserving
+candidate was correctly rejected when exact-reference provider job 531 failed;
+the authority snapshot stayed byte-identical and all six prior images and
+persisted tags were restored and verified. A fresh known-good-stack canary then
+passed jobs 532–540, and the restarted preserving rollout passed fresh jobs
+541–549 for all structured modes, both Post templates, Landing composition,
+both learning paths, new image generation, and exact-reference enhancement.
+Pexels, ChatGPT/Codex authorization, the schema-bound worker, dependency, skill,
+and 1 GB resource audits also passed. All six services now run the one new tag
+and are healthy; the live public route-registration probe returns HTTP 401, with
+zero post-cutover direction-route 404s. The affected Creative still has state
+digest `b68f5ff2391aa206e4a7632c5b924be337c0e965d24e561411228c8e80872685`,
+the same saved `minimal_sculptural` / `isolated_key_element` direction, one
+asset, zero versions, and the same five append-only generation runs. The
+follow-up resource timer remains active with a concrete next elapse.
+
+Release verification passed 169 Validation tests; 8 Owner Gateway tests; 16
+Commander tests and the demo; 67 Owner Console unit tests; 57 desktop, 360px,
+and iPhone WebKit browser/UI checks; all 39 platform tests; the exact Phone
+Metrics workflow in the Linux/amd64 Validation image; the Studio geometry/pixel
+audit; four-migration disposable PostgreSQL idempotency/preservation; canonical
+skill validation; Python compilation; shell syntax; and whitespace checks.
 
 The approved-Brief reopen conflict was diagnosed against production Brief
 `01a07c66-b00a-7ffe-a44f-a5fd2d738515`. Four owner requests returned HTTP 409

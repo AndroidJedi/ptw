@@ -2,7 +2,7 @@
 
 Updated: 2026-09-08
 Branch: `main`
-Deployment: Meta Ads city release `meta-ads-city-20260907-a92fbc7` is live; staging is disabled until a fresh secret is configured
+Deployment: Studio replay-guard release `studio-replay-20260908-7611034` is live; Meta staging is disabled until a fresh secret is configured
 
 ## Current milestone
 
@@ -141,6 +141,14 @@ Composition uses the approved Brief, selected live template catalog, canonical
 `studio-creative-composer` skill, and the latest accepted global and Project
 skill snapshots. Output is validated against the selected template's exact
 configuration/content shape; the live catalog wins over learned instructions.
+Renderer-owned numeric bounds, enums, colors, typography, and device limits are
+also present in the strict provider schema. The composer prompt/idempotency
+namespace is versioned with that contract, so a changed contract cannot replay
+a completed response from an older schema. If a completed response still fails
+deterministic PTW validation, the bridge may make exactly one fresh corrective
+attempt; transport, timeout, cancellation, and provider failures never trigger
+an unsafe blind second attempt. Release acceptance includes a real Phone
+Metrics canary that must pass domain validation on fresh attempt 1.
 
 For `phone_metrics`, composition automatically starts a fresh, text-free hero
 generation governed by `studio-phone-hero-generator`. The prompt includes the
@@ -176,7 +184,7 @@ are absent.
 
 Landing phone verification is recorded in `.local/landing-phone`, with
 before/after captures, three screen themes at 1280/768/360px, and iPhone WebKit.
-The 61 web unit tests, 51 browser checks, production build, full 141-test
+The 63 web unit tests, 51 browser checks, production build, full 146-test
 Validation suite, 12 Commander tests, and 4 Owner Gateway tests pass. The prior
 38 platform tests remain unchanged. The Commander demo, three-migration schema
 idempotency, canonical skill verification, Python compilation, and whitespace
@@ -204,7 +212,7 @@ The confirmation-gated production reset at PTW revision
 business tables empty. Its before/after snapshot confirmed that independent
 platform database counts did not change. The independent platform remained at revision
 `addcd6546d986a18e54d5ed300f7153e38f36cb4`; all six application services run
-the shared `meta-ads-city-20260907-a92fbc7` release tag and are healthy. The
+the shared `studio-replay-20260908-7611034` release tag and are healthy. The
 non-reset city-targeting rollout at PTW revision
 `a92fbc758d6a25cf7dff35111891ee97ed2757dc` preserved the exact Project and
 Brief IDs plus their pre-rollout row counts. Bridge, image generation,
@@ -214,13 +222,25 @@ emergency stops are false, the 1 GB resource audit passed, and the scheduled
 `9046603eb4d5b84d` is live, and its public audit confirms the Ads-aware service
 worker plus healthy Gateway/authentication boundaries.
 
+The Phone Metrics replay incident is closed at PTW revision
+`76110344697854085ac03676dc1d7da744f7cf82`. Pre- and post-cutover strict-schema
+canaries passed composition on attempt 1 plus both image operations. A single
+retry recovered Creative `01a07f55-20a5-755c-bbec-17a3f158ef4b` in place as a
+draft with texture intensity `0.08` and a completed phone image. Its three
+original failed composition runs remain append-only beside one completed
+composition and one completed phone-image run. A Validation recreate preserved
+the same Creative ID and state digest, with exactly one Creative for the Brief
+and no approved version. No reset ran.
+
 ## Next work
 
 Production now contains Project `Natal Service`
-(`01a07c66-b00a-7364-8fda-7de87c12a907`) and one completed, unapproved Brief
-(`01a07c66-b00a-7ffe-a44f-a5fd2d738515`). Its explicit promise and offer await
-owner confirmation before the first `universal_ad` Post can be composed and
-approved; the approval cannot be inferred or bypassed.
+(`01a07c66-b00a-7364-8fda-7de87c12a907`), approved Brief
+`01a07c66-b00a-7ffe-a44f-a5fd2d738515`, and recovered Phone Metrics Creative
+`01a07f55-20a5-755c-bbec-17a3f158ef4b`. The Creative is a draft with no
+immutable approved version. The owner must inspect/edit it in Post and use the
+explicit Approve action before it may appear as an Ads deployment source; PTW
+must not infer that approval.
 
 The Meta App, system user, Ad Account, Facebook Page, and professional Instagram
 account are assigned. The owner must rotate the token disclosed during setup and

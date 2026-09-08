@@ -24,9 +24,18 @@ failure. Both incident skills now require this diagnosis and same-Post recovery
 without reset.
 
 **Verification:** focused provider and Studio tests prove strict texture bounds,
-separate corrective idempotency keys, and a successful corrected response.
-Complete suite, production rollout, same-Post retry, restart recovery, and
-release canaries are pending before closure.
+separate corrective idempotency keys, a successful corrected response, and no
+second attempt after transport/provider failure. The complete Validation,
+Commander, Owner Gateway, web unit/build/browser, schema-idempotency, skill,
+compilation, whitespace, demo, and Studio visual checks pass. Pre- and
+post-cutover production canaries completed Phone Metrics composition on fresh
+`:attempt:1` jobs and passed image generation, exact-reference enhancement,
+Pexels, dependency, and resource audits. Retrying the affected Post used the
+new versioned key once, accepted texture intensity `0.08`, and completed its
+phone image. The original three failed runs remain append-only beside the two
+new completed runs. The exact Creative ID and state digest survived a
+Validation recreate, with one Creative for the Brief and no approved version
+invented. No reset ran.
 
 ## 2026-09-06 — Landing reservation passed a relationship label as a UUID
 

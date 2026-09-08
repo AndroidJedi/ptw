@@ -1,8 +1,8 @@
 # Commander current state
 
-Updated: 2026-09-07
+Updated: 2026-09-08
 Branch: `main`
-Deployment: Meta Ads release `meta-ads-20260907-210ebca` is live; staging is disabled until a fresh secret is configured
+Deployment: Meta Ads city release `meta-ads-city-20260907-a92fbc7` is live; staging is disabled until a fresh secret is configured
 
 ## Current milestone
 
@@ -204,10 +204,14 @@ The confirmation-gated production reset at PTW revision
 business tables empty. Its before/after snapshot confirmed that independent
 platform database counts did not change. The independent platform remained at revision
 `addcd6546d986a18e54d5ed300f7153e38f36cb4`; all six application services run
-the shared `meta-ads-20260907-210ebca` release tag and are healthy. Both
+the shared `meta-ads-city-20260907-a92fbc7` release tag and are healthy. The
+non-reset city-targeting rollout at PTW revision
+`a92fbc758d6a25cf7dff35111891ee97ed2757dc` preserved the exact Project and
+Brief IDs plus their pre-rollout row counts. Bridge, image generation,
+enhancement, Pexels, dependency, and 1 GB resource canaries passed. Both
 emergency stops are false, the 1 GB resource audit passed, and the scheduled
 24-hour follow-up audit is active. Firebase Hosting version
-`0ecdafadfcf3dd5a` is live, and its public audit confirms the Ads-aware service
+`9046603eb4d5b84d` is live, and its public audit confirms the Ads-aware service
 worker plus healthy Gateway/authentication boundaries.
 
 ## Next work

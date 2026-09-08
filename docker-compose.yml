@@ -70,6 +70,7 @@ services:
     environment:
       <<: *app-environment
       WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-2}
+      RESULT_BRIDGE_EXECUTION_TIMEOUT_SECONDS: ${RESULT_BRIDGE_EXECUTION_TIMEOUT_SECONDS:-360}
     depends_on:
       postgres:
         condition: service_healthy

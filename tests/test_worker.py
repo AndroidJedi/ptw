@@ -81,6 +81,29 @@ def test_result_json_uses_fresh_ephemeral_schema_bound_session(monkeypatch) -> N
     assert observed["schema"] == {"type": "object"}
 
 
+def test_structured_execution_timeout_is_bounded_and_passed_to_codex(monkeypatch) -> None:
+    observed = {}
+    monkeypatch.setenv("RESULT_BRIDGE_EXECUTION_TIMEOUT_SECONDS", "360")
+
+    def fake_run(command, **kwargs):
+        observed["timeout"] = kwargs["timeout"]
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"candidate":"ok"}', encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(
+            command, 0, stdout=thread_output("bounded-timeout"), stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    execute_structured_llm(request("studio_creative_generation"))
+    assert observed["timeout"] == 360
+
+    for value in ("59", "391", "not-a-number"):
+        monkeypatch.setenv("RESULT_BRIDGE_EXECUTION_TIMEOUT_SECONDS", value)
+        with pytest.raises(RuntimeError, match="execution timeout"):
+            execute_structured_llm(request("studio_creative_generation"))
+
+
 def test_non_human_graphic_enhancement_receives_private_png_reference(monkeypatch, tmp_path: Path) -> None:
     codex_home = tmp_path / "codex-home"
     asset_root = tmp_path / "assets" / "content-graphics"

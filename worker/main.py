@@ -29,6 +29,9 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 running = True
 secrets = EnvironmentSecretStore()
+STRUCTURED_EXECUTION_TIMEOUT_DEFAULT = 360
+STRUCTURED_EXECUTION_TIMEOUT_MINIMUM = 60
+STRUCTURED_EXECUTION_TIMEOUT_MAXIMUM = 390
 
 
 def stop(_signum: int, _frame: object) -> None:
@@ -160,6 +163,20 @@ def _used_image_generation(stdout: str) -> bool:
     return False
 
 
+def _structured_execution_timeout() -> int:
+    raw = os.getenv(
+        "RESULT_BRIDGE_EXECUTION_TIMEOUT_SECONDS",
+        str(STRUCTURED_EXECUTION_TIMEOUT_DEFAULT),
+    )
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("Result bridge execution timeout is invalid") from exc
+    if not STRUCTURED_EXECUTION_TIMEOUT_MINIMUM <= value <= STRUCTURED_EXECUTION_TIMEOUT_MAXIMUM:
+        raise RuntimeError("Result bridge execution timeout is outside its safe bounds")
+    return value
+
+
 def _materialize_input_images(parameters: dict, directory: Path) -> tuple[list[Path], list[dict]]:
     images = parameters.get("input_images")
     mode = parameters.get("mode")
@@ -274,7 +291,7 @@ def execute_structured_llm(parameters: dict) -> dict:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=300,
+            timeout=_structured_execution_timeout(),
             env=os.environ.copy(),
         )
         if completed.returncode:

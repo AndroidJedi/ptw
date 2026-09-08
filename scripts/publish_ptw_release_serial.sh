@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 if [[ $# -ne 6 || $5 != --confirm ]]; then
-    echo "usage: $0 RELEASE_TAG IMAGE_DIRECTORY PLATFORM_GIT_REVISION PLATFORM_IMAGE_DIRECTORY --confirm 'RESET PTW PRODUCTION'" >&2
+    echo "usage: $0 RELEASE_TAG IMAGE_DIRECTORY PLATFORM_GIT_REVISION PLATFORM_IMAGE_DIRECTORY --confirm CONFIRMATION" >&2
     exit 2
 fi
 release_tag=$1
@@ -10,9 +10,11 @@ image_directory=$2
 platform_revision=$3
 platform_image_directory=$4
 confirmation=$6
-[[ $confirmation == "RESET PTW PRODUCTION" ]] || {
-    echo "exact production reset confirmation is required" >&2; exit 2;
-}
+if [[ ${PTW_IN_PLACE_DEPLOY_ENTRYPOINT:-0} == 1 ]]; then
+    [[ $confirmation == "DEPLOY PTW IN PLACE" ]] || { echo "exact in-place deployment confirmation is required" >&2; exit 2; }
+else
+    [[ $confirmation == "RESET PTW PRODUCTION" ]] || { echo "exact production reset confirmation is required" >&2; exit 2; }
+fi
 [[ $release_tag =~ ^[A-Za-z0-9._-]+$ && $release_tag != latest ]] || { echo "invalid release tag" >&2; exit 2; }
 [[ $platform_revision =~ ^[0-9a-f]{40}$ ]] || { echo "PLATFORM_GIT_REVISION must be a full commit SHA" >&2; exit 2; }
 revision=$(git rev-parse HEAD)
@@ -63,10 +65,22 @@ emit_image platform-codex-auth "$platform_image_directory/codex-auth.tar" >> "$s
 emit_file platform-revision "$platform_image_directory/platform-revision.bundle" >> "$stream_file"
 printf 'END\n' >> "$stream_file"
 
+if [[ $confirmation == "DEPLOY PTW IN PLACE" ]]; then
+    npm --prefix apps/landing-web run check
+    firebase deploy --only hosting:public-landings
+    scripts/audit_public_landing.sh https://natal-landings-86123.web.app
+    scripts/archive_natal_dashboard.sh
+fi
+
 ssh -i "$HOME/.ssh/ptw_commander" -o IdentitiesOnly=yes root@165.245.212.184 \
     "set -e; exec 9>/run/lock/ptw-maintenance.lock; flock -n 9 || exit 73; git -C /root/ptw diff --quiet; git -C /root/ptw diff --cached --quiet; export PTW_MAINTENANCE_LOCK_HELD=1; git -C /root/ptw fetch origin '$revision'; git -C /root/ptw merge --ff-only '$revision'; exec /root/ptw/scripts/deploy_ptw_serial.sh '$release_tag' '$revision' '$platform_revision' '$confirmation'" \
     < "$stream_file"
 
 npm --prefix apps/commander-web run check
-firebase deploy --only hosting
+if [[ $confirmation == "RESET PTW PRODUCTION" ]]; then
+    npm --prefix apps/landing-web run check
+    firebase deploy --only hosting:owner-console,hosting:public-landings
+else
+    firebase deploy --only hosting:owner-console
+fi
 python3 skills/ptw-owner-console-incident/scripts/audit_live_owner_console.py

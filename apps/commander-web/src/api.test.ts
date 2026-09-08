@@ -110,8 +110,8 @@ describe('actionable API errors', () => {
     const client = new ApiClient({ getIdToken: vi.fn(async () => 'owner-token') } as any, 'en')
 
     let message = ''
-    try { await client.post('/api/v1/briefs', { raw_idea: 'test' }) } catch (cause) { message = (cause as Error).message }
-    expect(message).toMatch(/PTW service could not complete[\s\S]*What to do:[\s\S]*HTTP 503 · POST \/api\/v1\/briefs/)
+    try { await client.post('/api/v1/projects/project-1/briefs', { raw_idea: 'test' }) } catch (cause) { message = (cause as Error).message }
+    expect(message).toMatch(/PTW service could not complete[\s\S]*What to do:[\s\S]*HTTP 503 · POST \/api\/v1\/projects\/project-1\/briefs/)
     expect(message).not.toContain('private internal provider path')
   })
 })

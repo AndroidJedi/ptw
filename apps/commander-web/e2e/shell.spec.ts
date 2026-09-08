@@ -537,7 +537,7 @@ test('separates new Project creation from the selected Project workspace', async
 
   await page.getByRole('button', { name: 'New Project' }).click()
   await expect(page.getByRole('heading', { name: 'New Project' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'What do you want to validate?' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Name the Project' })).toBeVisible()
   await expect(page.getByText('BRIEF HISTORY', { exact: true })).toHaveCount(0)
 
   await page.getByLabel('Existing Project').selectOption(projectId)

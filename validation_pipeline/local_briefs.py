@@ -110,33 +110,61 @@ class LocalBriefService:
         self.store.append("projects", project_id, updated)
         return self._project(project_id)
 
+    def create_project(
+        self, *, request_id: str, name: str, requested_by: str,
+    ) -> tuple[dict[str, Any], bool]:
+        request_id = _uuid(request_id, "request_id")
+        name = _compact(name, "Project name", 1, 120)
+        project_id, created = self.store.reserve_request(
+            scope="project-create", request_id=request_id,
+            fingerprint={"request_id": request_id, "name": name},
+        )
+        if not created:
+            return self._project(project_id), False
+        now = utc_now()
+        self.store.append("projects", project_id, {
+            "project_id": project_id, "request_id": request_id,
+            "owner_idea_source_id": None, "name": name,
+            "name_source": "owner", "requested_by": requested_by,
+            "created_at": now, "updated_at": now,
+        })
+        if self.on_project_created is not None:
+            self.on_project_created(project_id)
+        return self._project(project_id), True
+
     def create_brief(
-        self, *, request_id: str, raw_idea: str, required_language: str,
+        self, *, project_id: str, request_id: str, raw_idea: str, required_language: str,
         requested_by: str,
     ) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        project_id = _uuid(project_id, "project_id")
         request_id = _uuid(request_id, "request_id")
         raw_idea = _compact(raw_idea, "raw_idea", 1, 10_000)
         if required_language not in {"uk", "en"}:
             raise ValueError("required_language must be uk or en")
-        project_id, created = self.store.reserve_request(
+        project = self.store.get("projects", project_id)
+        fingerprint = {
+            "project_id": project_id, "request_id": request_id, "raw_idea": raw_idea,
+            "required_language": required_language,
+        }
+        existing_brief_id = self.store.lookup_request(
+            scope="brief-create", request_id=request_id, fingerprint=fingerprint,
+        )
+        if existing_brief_id is not None:
+            return self._project(project_id), self.store.get("briefs", existing_brief_id), False
+        if project.get("owner_idea_source_id") is not None or any(
+            item["project_id"] == project_id and item.get("base_brief_id") is None
+            for item in self.store.list("briefs")
+        ):
+            raise ValueError("Project already has its first Product Brief")
+        brief_id, created = self.store.reserve_request(
             scope="brief-create", request_id=request_id,
-            fingerprint={
-                "request_id": request_id, "raw_idea": raw_idea,
-                "required_language": required_language,
-            },
+            fingerprint=fingerprint,
         )
         if not created:
-            project = self._project(project_id)
-            brief = next(item for item in self.store.list("briefs") if item["request_id"] == request_id)
-            return project, brief, False
-        source_id, brief_id = new_uuid7(), new_uuid7()
+            brief = self.store.get("briefs", brief_id)
+            return self._project(project_id), brief, False
+        source_id = new_uuid7()
         now = utc_now()
-        project = {
-            "project_id": project_id, "request_id": request_id,
-            "owner_idea_source_id": source_id, "name": raw_idea[:80],
-            "name_source": "raw_idea", "requested_by": requested_by,
-            "created_at": now, "updated_at": now,
-        }
         source = {
             "source_id": source_id, "project_id": project_id, "kind": "owner_idea",
             "content": raw_idea, "sha256": hashlib.sha256(raw_idea.encode()).hexdigest(),
@@ -151,14 +179,14 @@ class LocalBriefService:
             "document": None, "document_sha256": None, "failure_count": 0,
             "approved": False, "created_at": now, "updated_at": now,
         }
-        self.store.append("projects", project_id, project)
+        self.store.append("projects", project_id, {
+            **project, "owner_idea_source_id": source_id, "updated_at": now,
+        })
         self.store.append("sources", source_id, source)
         self.store.append("briefs", brief_id, brief)
         self.store.edge(source_id=project_id, relation="contains", target_id=source_id)
         self.store.edge(source_id=project_id, relation="contains", target_id=brief_id)
         self.store.edge(source_id=brief_id, relation="derived_from", target_id=source_id)
-        if self.on_project_created is not None:
-            self.on_project_created(project_id)
         return self._project(project_id), brief, True
 
     def generate_brief(self, brief_id: str) -> dict[str, Any]:

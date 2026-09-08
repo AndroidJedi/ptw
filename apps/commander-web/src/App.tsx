@@ -187,7 +187,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     setCreativeId(null)
     setLandingId(null)
     writeConsoleLocation('briefs', null, null, null, true)
-    window.setTimeout(() => document.getElementById('new-project-idea')?.focus(), 0)
+    window.setTimeout(() => document.getElementById('new-project-name')?.focus(), 0)
   }
   const changeLanguage = () => setLanguage((current) => {
     const next = current === 'uk' ? 'en' : 'uk'
@@ -218,7 +218,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     {page !== 'settings' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
     {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onCreative={openCreative} language={language} />}
     {page === 'posts' && <StudioView api={api} language={language} tuneMode={localApp} projectId={validatedProjectId} creativeId={creativeId} onCreative={selectCreative} />}
-    {page === 'landing' && <LandingView api={api} language={language} projectId={validatedProjectId} landingId={landingId} onLanding={selectLanding} />}
+    {page === 'landing' && <LandingView api={api} language={language} projectId={validatedProjectId} projectName={projects?.find(item => item.project_id === validatedProjectId)?.name || ''} landingId={landingId} onLanding={selectLanding} />}
     {page === 'ads' && <AdsView api={api} language={language} projectId={validatedProjectId} />}
     {page === 'settings' && <SettingsView api={api} language={language} />}
   </Shell>

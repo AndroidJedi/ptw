@@ -1,9 +1,11 @@
 # Project-scoped Landing Studio
 
-Landing / Лендінг is the third private Owner Console destination. A Landing is
-not a public site, publishing workflow, campaign, analytics surface, or lead
-collector. It belongs to one Project and starts from one immutable approved
-Post version plus its source approved Product Brief.
+Landing / Лендінг is the third private Owner Console destination and the owner
+of Natal's bounded publication workflow. A private Landing belongs to one
+Project and starts from one immutable approved Post version plus its source
+approved Product Brief. Publishing exposes only an explicitly selected approved
+Landing version; it never creates analytics, cookies, forms, lead storage, or a
+public Project directory.
 
 ## Bounded page contract
 
@@ -34,9 +36,28 @@ PostgreSQL stores Landing metadata, workspace files, visual bytes, composition
 and visual generation runs, immutable versions, checkpoints, and Landing-only
 learning snapshots/proposals with explicit Project, Brief, and Post-version
 graph lineage. Loopback provides the
-same append-only metadata contract and per-page workspace files. All APIs are
+same append-only metadata contract and per-page workspace files. Editor APIs are
 authenticated and Project/page scoped under `/api/v1/landings`; visual bytes are
-private and `no-store`. Bare or public Landing endpoints do not exist.
+private and `no-store`.
+
+Migration `004_public_landing_v1.sql` adds one stable `landing_publications`
+record per Project and append-only `landing_publication_events`. First Publish
+requires a selected approved version plus a manually confirmed `ai`, `la`, or
+`wa` lane and a 3–63 character lowercase ASCII slug. `(namespace, slug)` is
+unique and permanent: rename, Unpublish, and republish never change or release
+it. Each publish event points to the exact immutable Landing version. A later
+publish atomically changes the current version, so publishing an earlier event
+is the rollback mechanism. Unpublish appends an event and makes public reads
+return 404; it cannot recall already cached or downloaded files.
+
+Authenticated owner routes live at
+`/api/v1/landings/projects/{project_id}/publication...`. The only unauthenticated
+routes are bounded `GET`/`HEAD` snapshot and selected-asset reads below
+`/api/v1/public/landings/{namespace}/{slug}`. Snapshot JSON allowlists the
+Project display name, canonical URL, normalized approved configuration/content,
+two selected asset URLs, version digest, and publication time. IDs, history,
+provenance, learning data, and unselected assets remain private. JSON is
+`no-store`; digest-addressed current PNGs are immutable-cacheable.
 
 Save and Approve create a Landing-only checkpoint when state changed. Learning
 may append Landing global and Project rules, but never alters Post Studio skills
@@ -110,7 +131,8 @@ frozen Post style; the Post snapshot remains provenance. Hero and supporting ima
 retain independent choices and crop-aware subject directions. A style change leaves
 existing pixels/history intact until Generate or Enhance is requested. Pending edits
 are persisted first, and the prompt uses that persisted configuration's digest.
-No new provider mode, public endpoint, storage authority, or migration is introduced.
+No new provider mode is introduced. Publication is a separate read authority
+over approved versions and never influences Landing or Post generation.
 
 ## App feature phone
 

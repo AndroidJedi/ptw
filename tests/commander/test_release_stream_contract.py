@@ -67,16 +67,44 @@ class ReleaseStreamContractTests(unittest.TestCase):
         checksum = deployer.index('checksum_line=$(sha256sum "$artifact_file")', truncate)
         self.assertLess(truncate, checksum)
 
-    def test_release_has_only_the_clean_reset_path(self) -> None:
+    def test_reset_and_in_place_entrypoints_require_mutually_exclusive_confirmations(self) -> None:
         publisher = (ROOT / "scripts/publish_ptw_release_serial.sh").read_text()
         deployer = (ROOT / "scripts/deploy_ptw_serial.sh").read_text()
+        in_place_publisher = (ROOT / "scripts/publish_ptw_in_place_serial.sh").read_text()
+        in_place_deployer = (ROOT / "scripts/deploy_ptw_in_place.sh").read_text()
 
         self.assertIn('[[ $confirmation == "RESET PTW PRODUCTION" ]]', publisher)
-        self.assertIn('[[ $confirmation == "RESET PTW PRODUCTION" ]]', deployer)
-        self.assertNotIn("DEPLOY PTW IN PLACE", publisher)
-        self.assertNotIn("DEPLOY PTW IN PLACE", deployer)
-        self.assertNotIn("preserve the validation artifacts", deployer)
+        self.assertIn('PTW_IN_PLACE_DEPLOY_ENTRYPOINT', publisher)
+        self.assertIn('[[ $confirmation == "DEPLOY PTW IN PLACE" ]]', in_place_deployer)
+        self.assertIn('$6 != "DEPLOY PTW IN PLACE"', in_place_publisher)
+        self.assertNotIn("RESET PTW PRODUCTION", in_place_deployer)
+        self.assertNotIn("RESET PTW PRODUCTION", in_place_publisher)
         self.assertEqual(1, deployer.count("reset_ptw.sh"))
+        self.assertEqual(1, deployer.count("deploy_ptw_in_place.sh"))
+
+    def test_in_place_deployment_backs_up_and_proves_row_preservation_before_cutover(self) -> None:
+        deployer = (ROOT / "scripts/deploy_ptw_in_place.sh").read_text()
+        stop = deployer.index('stop owner-gateway commander-api')
+        backup = deployer.index('pg_dump -Fc', stop)
+        before = deployer.index('snapshot_database > "$before_snapshot"', backup)
+        migrate = deployer.index('commander-migrate', before)
+        after = deployer.index('snapshot_database > "$after_snapshot"', migrate)
+        compare = deployer.index('cmp -s "$before_snapshot" "$after_snapshot"', after)
+        commander = deployer.index('commander-api >/dev/null', compare)
+        validation = deployer.index('validation-api >/dev/null', commander)
+        gateway = deployer.index('owner-gateway >/dev/null', validation)
+
+        self.assertLess(stop, backup)
+        self.assertLess(backup, before)
+        self.assertLess(before, migrate)
+        self.assertLess(migrate, after)
+        self.assertLess(after, compare)
+        self.assertLess(compare, commander)
+        self.assertLess(commander, validation)
+        self.assertLess(validation, gateway)
+        self.assertIn('chmod 0600 "$backup_file"', deployer)
+        self.assertIn('sha256sum "$backup_file"', deployer)
+        self.assertIn("landing_publication_events", deployer)
 
     def test_reset_postcondition_covers_every_landing_table(self) -> None:
         reset = (ROOT / "scripts/reset_ptw.sh").read_text()
@@ -89,6 +117,8 @@ class ReleaseStreamContractTests(unittest.TestCase):
             "landing_checkpoints",
             "landing_skill_snapshots",
             "landing_learning_proposals",
+            "landing_publications",
+            "landing_publication_events",
         ):
             self.assertIn(f"(SELECT count(*) FROM {table})", reset)
 
@@ -138,10 +168,15 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertLess(bridge_canary, pexels_canary)
         self.assertLess(pexels_canary, reset)
 
-    def test_release_does_not_deploy_a_landing_site(self) -> None:
+    def test_release_uses_named_multisite_targets_and_public_shell_first_for_in_place(self) -> None:
         publisher = (ROOT / "scripts/publish_ptw_release_serial.sh").read_text()
         self.assertNotIn("firebase.natal-placeholder.json", publisher)
-        self.assertEqual(1, publisher.count("firebase deploy --only hosting"))
+        public = publisher.index("firebase deploy --only hosting:public-landings")
+        ssh = publisher.index('ssh -i "$HOME/.ssh/ptw_commander"')
+        owner = publisher.index("firebase deploy --only hosting:owner-console", ssh)
+        self.assertLess(public, ssh)
+        self.assertLess(ssh, owner)
+        self.assertIn("hosting:owner-console,hosting:public-landings", publisher)
 
 
 if __name__ == "__main__":

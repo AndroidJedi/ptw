@@ -110,6 +110,8 @@ BEGIN
     ('landing_checkpoints', (SELECT count(*) FROM landing_checkpoints)),
     ('landing_skill_snapshots', (SELECT count(*) FROM landing_skill_snapshots)),
     ('landing_learning_proposals', (SELECT count(*) FROM landing_learning_proposals)),
+    ('landing_publications', (SELECT count(*) FROM landing_publications)),
+    ('landing_publication_events', (SELECT count(*) FROM landing_publication_events)),
     ('meta_ads_presets', (SELECT count(*) FROM meta_ads_preset_versions)),
     ('meta_ads_workspaces', (SELECT count(*) FROM meta_ads_workspaces)),
     ('meta_ads_audiences', (SELECT count(*) FROM meta_ads_audience_versions)),
@@ -141,19 +143,20 @@ BEGIN
     OR table_name LIKE 'laval\_%' ESCAPE '\'
     OR table_name LIKE 'brand\_run%' ESCAPE '\'
     OR table_name LIKE '%batch%'
-    OR table_name LIKE '%publication%'
     OR table_name LIKE '%campaign%'
   );
   IF forbidden IS NOT NULL THEN
     RAISE EXCEPTION 'retired tables survived Product Brief reset: %', forbidden;
   END IF;
-  IF (SELECT count(*) FROM commander_schema_migrations) <> 3
+  IF (SELECT count(*) FROM commander_schema_migrations) <> 4
      OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='001_ptw_brief_v1.sql'
      ) OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='002_ptw_landing_studio_v1.sql'
      ) OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='003_ptw_meta_ads_v1.sql'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM commander_schema_migrations WHERE name='004_public_landing_v1.sql'
      ) THEN
     RAISE EXCEPTION 'Product Brief, Studio, Landing, and Meta Ads migrations are incomplete';
   END IF;
@@ -184,4 +187,4 @@ do
   [ -z "$container_id" ] || docker rm --force "$container_id" >/dev/null
 done
 
-echo "PTW Product Brief v1 reset complete; all owned business data is empty and platform counts are unchanged"
+echo "PTW Product Brief v1 reset complete; all owned business data, including Landing publications, is empty and platform counts are unchanged"

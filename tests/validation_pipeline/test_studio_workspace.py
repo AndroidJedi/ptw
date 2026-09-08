@@ -984,7 +984,12 @@ class UniversalStudioApiTests(unittest.TestCase):
                 store=store, provider=structured,
                 repository_root=Path(__file__).resolve().parents[2],
             )
+            project, _project_created = brief_service.create_project(
+                request_id="01900000-0000-7000-8000-000000000030",
+                name="Focused product", requested_by="test",
+            )
             project, brief, _created = brief_service.create_brief(
+                project_id=project["project_id"],
                 request_id="01900000-0000-7000-8000-000000000031",
                 raw_idea="A focused owner idea", required_language="en",
                 requested_by="test",

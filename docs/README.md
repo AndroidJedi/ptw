@@ -10,7 +10,7 @@ needed for the task.
 | Project Post and Landing Studio | [`architecture/universal-ad-studio.md`](architecture/universal-ad-studio.md) and [`architecture/landing-studio.md`](architecture/landing-studio.md), plus their composer/learner, phone-hero, Tune, and visual-audit skills |
 | Local PAUSED Meta Ads staging | [`architecture/meta-ads.md`](architecture/meta-ads.md) |
 | Owner UI and authentication | [`operations/owner-gateway.md`](operations/owner-gateway.md) and [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
-| Deployment and reset | [`operations/commander.md`](operations/commander.md) and [`operations/disaster-recovery.md`](operations/disaster-recovery.md) |
+| Deployment and reset | [`operations/commander.md`](operations/commander.md), [`operations/natal-domain-cutover.md`](operations/natal-domain-cutover.md), and [`operations/disaster-recovery.md`](operations/disaster-recovery.md) |
 | Telegram emergency boundary | [`operations/telegram-runtime.md`](operations/telegram-runtime.md) |
 
 ## Authority

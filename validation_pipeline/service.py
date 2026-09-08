@@ -154,6 +154,17 @@ def validate_create_input(value: Mapping[str, Any]) -> dict[str, str]:
     }
 
 
+def validate_project_input(value: Mapping[str, Any]) -> dict[str, str]:
+    from uuid import UUID
+
+    if set(value) != {"request_id", "name"}:
+        raise ValueError("Project request fields do not match the v1 contract")
+    name = " ".join(str(value.get("name") or "").split())
+    if not 1 <= len(name) <= 120:
+        raise ValueError("Project name must contain 1-120 characters")
+    return {"request_id": str(UUID(str(value["request_id"]))), "name": name}
+
+
 def validate_revision_input(value: Mapping[str, Any]) -> dict[str, str]:
     from uuid import UUID
 

@@ -19,9 +19,12 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     app = FastAPI(title="PTW Owner Gateway", version="1.0.0", docs_url=None, redoc_url=None)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=list(dict.fromkeys([settings.public_origin, *settings.owner_public_origins])),
+        allow_origins=list(dict.fromkeys([
+            settings.public_origin, *settings.owner_public_origins,
+            *settings.landing_public_origins,
+        ])),
         allow_credentials=False,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "HEAD", "POST"],
         allow_headers=["Authorization", "Content-Type", "X-Firebase-AppCheck"],
         expose_headers=["ETag", "Content-Length", "X-PTW-Content-SHA256"],
     )
@@ -129,6 +132,14 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     ) -> dict[str, Any]:
         return (await validation_bridge("GET", "/internal/v1/projects", params={"limit": limit})).json()
 
+    @app.post("/api/v1/projects")
+    async def create_project(
+        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", "/internal/v1/projects", body=request, actor=actor(identity)
+        )).json()
+
     @app.post("/api/v1/projects/{project_id}/rename")
     async def rename_project(
         project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
@@ -137,12 +148,13 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             "POST", f"/internal/v1/projects/{project_id}/rename", body=request, actor=actor(identity)
         )).json()
 
-    @app.post("/api/v1/briefs", status_code=202)
+    @app.post("/api/v1/projects/{project_id}/briefs", status_code=202)
     async def create_brief(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
+        project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)
     ) -> dict[str, Any]:
         return (await validation_bridge(
-            "POST", "/internal/v1/briefs", body=request, actor=actor(identity)
+            "POST", f"/internal/v1/projects/{project_id}/briefs",
+            body=request, actor=actor(identity),
         )).json()
 
     @app.get("/api/v1/briefs")
@@ -441,6 +453,68 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/learning/{checkpoint_id}/retry")
     async def landing_learning_retry(project_id: str, landing_id: str, checkpoint_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return await landing_post(project_id, landing_id, f"/learning/{checkpoint_id}/retry", request, identity, timeout=480)
+
+    @app.get("/api/v1/landings/projects/{project_id}/publication")
+    async def landing_publication(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", f"/internal/v1/landings/projects/{project_id}/publication", timeout=60,
+        )).json()
+
+    @app.get("/api/v1/landings/projects/{project_id}/publication/availability")
+    async def landing_publication_availability(
+        project_id: str, namespace: str, slug: str,
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", f"/internal/v1/landings/projects/{project_id}/publication/availability",
+            params={"namespace": namespace, "slug": slug}, timeout=60,
+        )).json()
+
+    @app.post("/api/v1/landings/projects/{project_id}/publication/publish")
+    async def landing_publish(
+        project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/landings/projects/{project_id}/publication/publish",
+            body=request, actor=actor(identity), timeout=60,
+        )).json()
+
+    @app.post("/api/v1/landings/projects/{project_id}/publication/unpublish")
+    async def landing_unpublish(
+        project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/landings/projects/{project_id}/publication/unpublish",
+            body=request, actor=actor(identity), timeout=60,
+        )).json()
+
+    @app.api_route("/api/v1/public/landings/{namespace}/{slug}", methods=["GET", "HEAD"])
+    async def public_landing(namespace: str, slug: str) -> Response:
+        response = await validation_bridge(
+            "GET", f"/internal/v1/public/landings/{namespace}/{slug}", timeout=60,
+        )
+        return Response(
+            content=response.content,
+            media_type=response.headers.get("content-type", "application/json"),
+            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+        )
+
+    @app.api_route("/api/v1/public/landings/{namespace}/{slug}/versions/{version_sha256}/assets/{slot}/{sha256}.png", methods=["GET", "HEAD"])
+    async def public_landing_asset(
+        namespace: str, slug: str, version_sha256: str, slot: str, sha256: str,
+    ) -> Response:
+        response = await validation_bridge(
+            "GET", f"/internal/v1/public/landings/{namespace}/{slug}/versions/{version_sha256}/assets/{slot}/{sha256}.png",
+            timeout=60,
+        )
+        return Response(
+            content=response.content, media_type=response.headers.get("content-type", "image/png"),
+            headers={
+                "Cache-Control": "public, max-age=31536000, immutable",
+                "X-Content-Type-Options": "nosniff",
+                **({"ETag": response.headers["etag"]} if response.headers.get("etag") else {}),
+            },
+        )
 
     @app.get("/api/v1/ads/connection")
     async def meta_ads_connection(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:

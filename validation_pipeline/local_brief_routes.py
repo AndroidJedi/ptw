@@ -28,6 +28,19 @@ def local_brief_router(
     def projects(limit: int = Query(default=100, ge=1, le=100)) -> dict[str, Any]:
         return {"items": service.list_projects(limit), "next_cursor": None}
 
+    @router.post("/projects")
+    def create_project(request: Mapping[str, Any]) -> dict[str, Any]:
+        if set(request) != {"request_id", "name"}:
+            raise HTTPException(status_code=400, detail="Project request fields do not match v1")
+        try:
+            project, created = service.create_project(
+                request_id=str(request["request_id"]), name=str(request["name"]),
+                requested_by="loopback:owner",
+            )
+            return {"project": project, "created": created}
+        except ValueError as error:
+            raise fail(error) from error
+
     @router.post("/projects/{project_id}/rename")
     def rename_project(project_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
         if set(request) != {"name"}:
@@ -37,19 +50,22 @@ def local_brief_router(
         except (KeyError, ValueError) as error:
             raise fail(error) from error
 
-    @router.post("/briefs", status_code=202)
-    def create_brief(request: Mapping[str, Any], background: BackgroundTasks) -> dict[str, Any]:
+    @router.post("/projects/{project_id}/briefs", status_code=202)
+    def create_brief(
+        project_id: str, request: Mapping[str, Any], background: BackgroundTasks,
+    ) -> dict[str, Any]:
         if set(request) != {"request_id", "raw_idea", "language"}:
             raise HTTPException(status_code=400, detail="Product Brief request fields do not match v1")
         try:
             project, brief, created = service.create_brief(
-                request_id=str(request["request_id"]), raw_idea=str(request["raw_idea"]),
+                project_id=project_id, request_id=str(request["request_id"]),
+                raw_idea=str(request["raw_idea"]),
                 required_language=str(request["language"]), requested_by="loopback:owner",
             )
             if created:
                 background.add_task(service.generate_brief, brief["brief_id"])
             return {"project": project, "brief": brief, "created": created}
-        except (RuntimeError, ValueError) as error:
+        except (KeyError, RuntimeError, ValueError) as error:
             raise fail(error) from error
 
     @router.get("/briefs")

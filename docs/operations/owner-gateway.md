@@ -2,7 +2,7 @@
 
 Owner Console uses Firebase Auth, pinned owner identity, and App Check. Owner
 Gateway proxies authenticated Project, Product Brief, project-scoped Studio,
-project-scoped private Landing, and PAUSED-only Meta Ads APIs. Domain data is never stored in Firebase
+private Landing/publication, and PAUSED-only Meta Ads APIs. Domain data is never stored in Firebase
 or service-worker caches.
 
 Brief approval accepts `honor_confirmed` and `template_id`; `phone_metrics`
@@ -32,11 +32,21 @@ and prompts never cross this boundary or enter logs. The worker refreshes its
 read-only auth copy for every request, so completed device authorization needs
 no SSH session or service restart.
 
-Landing routes are only `/api/v1/landings/projects/{project_id}/…`: source
+Private Landing routes are `/api/v1/landings/projects/{project_id}/…`: source
 approved Post versions, pages, page-scoped mutations, visual history, versions,
 learning decisions, and failed-learning retry. They are Firebase/App-Check protected, cross-Project
-IDs fail closed, and images are private/no-store. There is no public Landing
-render, lead endpoint, publishing action, or unscoped `/api/v1/landings` route.
+IDs fail closed, and editor images are private/no-store. Publication status,
+availability, Publish, Republish, rollback, and Unpublish remain owner-only and
+Firebase/Auth/App Check protected.
+
+The only authentication exception is bounded `GET`/`HEAD` below
+`/api/v1/public/landings/{namespace}/{slug}`. It returns a sanitized current
+snapshot or one exact selected digest-addressed PNG. Unknown, malformed,
+unpublished, cross-Project, old-version, unselected-asset, and write requests
+fail closed. Public JSON is `no-store`; selected current PNGs are immutable.
+`LANDING_WEB_ORIGINS` is an exact comma-separated allowlist and defaults to the
+Natal apex plus both Firebase default domains. No public forms, lead endpoints,
+analytics, cookies, Project listing, or mutation routes exist.
 
 Ads routes are only `/api/v1/ads/connection`, versioned presets, and
 `/api/v1/ads/projects/{project_id}/…` workspace/deployment/retry/sync calls.
@@ -51,9 +61,12 @@ graph edges. Validation may rebuild only a disposable per-creative renderer
 cache after restart; queued composition, image, and learning stages resume
 idempotently.
 
-The PWA service worker caches only public shell assets. Bind loopback services
+The private Owner PWA service worker caches only its shell assets. The separate
+Natal public Hosting app has no authentication or service worker. Bind loopback services
 only to `127.0.0.1`. Production deployment/reset remains separate,
-irreversible, and requires the exact `RESET PTW PRODUCTION` confirmation.
+irreversible, and requires the exact `RESET PTW PRODUCTION` confirmation. The
+separate data-preserving release entrypoint requires the exact
+`DEPLOY PTW IN PLACE` confirmation and cannot invoke reset.
 
 Every API failure exposed to the owner must state what failed, explain the
 likely cause in plain language, give the next safe action, and include only

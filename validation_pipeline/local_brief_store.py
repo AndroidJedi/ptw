@@ -149,6 +149,19 @@ class LocalBriefStore:
             })
             return target_id, True
 
+    def lookup_request(
+        self, *, scope: str, request_id: str, fingerprint: Mapping[str, Any],
+    ) -> str | None:
+        scope = self._kind(scope)
+        path = self.idempotency / scope / f"{request_id}.json"
+        with self._lock:
+            if not path.exists():
+                return None
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if value.get("request_sha256") != sha256_json(fingerprint):
+                raise ValueError("idempotency request ID was reused with different input")
+            return str(value["target_id"])
+
     def edge(
         self, *, source_id: str, relation: str, target_id: str,
         evidence: Mapping[str, Any] | None = None,

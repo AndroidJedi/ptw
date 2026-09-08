@@ -11,7 +11,9 @@ PTW now has four project owner destinations: **Brief / Бриф**, **Post / До
 The Post destination is the project-scoped Studio creative workspace. There is
 no separate Studio page and no automated Post subsystem.
 
-An owner creates a Project and Product Brief, reviews the completed Brief, and
+An owner first creates and persists an empty Project with a manual name, then
+enters the idea inside that Project to create its first Product Brief. Brief
+generation never replaces the owner-entered Project name. The owner reviews the completed Brief and
 approves it only after choosing one common Studio template. Phone Metrics also
 requires a saved creative direction: one style and one background treatment.
 The owner may reset and replace that direction in the hero editor; existing
@@ -45,7 +47,23 @@ independent of page and image styles. Screen choices and content save through th
 existing bounded contract and immutable versions. New composition requires an app
 feature screen, including for physical services. Preview selection stays local,
 and the phone action uses the page CTA destination.
-Landing has no public URL, lead handling, publishing, or Post-skill influence.
+Landing now has a separate local publication milestone. One permanent
+`ai|la|wa/<slug>` URL is reserved per Project on first Publish, and every
+append-only event points to an exact approved immutable Landing version.
+Republish atomically switches the stable URL, an older event is the rollback
+path, and Unpublish preserves the reservation while public reads return 404.
+The public snapshot/asset API exposes no internal IDs, provenance, history,
+learning data, or unselected assets. It has no lead handling, forms, analytics,
+cookies, directory, or Post-skill influence.
+
+The dedicated `apps/landing-web` Firebase SPA imports the exact Landing renderer
+in non-editing mode. Its English `/` umbrella contains no links or CTA;
+`/ai|la|wa/<slug>` fetches the sanitized current snapshot. Invalid and
+unpublished paths use a branded visual 404 with Hosting HTTP 200. The shell has
+no Auth or service worker, ships noindex/noarchive plus disallow-all robots, and
+uses self-hosted Natal assets. Named Firebase targets keep it separate from the
+private Owner Console. This milestone is implemented locally but is not yet
+deployed and no custom-domain or GoDaddy record has been changed.
 
 Ads is a separate Project workspace over immutable approved Post versions. It
 creates or reconciles one Project Campaign, one Ad Set per immutable audience
@@ -124,6 +142,15 @@ unchanged. Any incomplete exit restores the prior application and platform
 images plus their persisted tags. This path never invokes the separately
 confirmation-gated destructive reset.
 
+Migration-bearing data-preserving releases additionally use the confirmation-
+gated `scripts/publish_ptw_in_place_serial.sh` entrypoint with exactly
+`DEPLOY PTW IN PLACE`. It deploys the public shell first, then creates a
+root-only checksummed PostgreSQL backup, fingerprints every existing business
+row while writers are stopped, applies migration 004, proves preservation, and
+cuts services over serially. `RESET PTW PRODUCTION` remains a mutually exclusive
+destructive path. Domain transfer, DNS edits, and old-site disablement remain
+separately authorized operations.
+
 A replacement Brief creates a separate first creative. Another creative from
 the same Brief is available only after the latest creative has an immutable
 approved version. Cross-Project creative access fails closed.
@@ -156,8 +183,8 @@ contract with append-only metadata below `.local/owner-briefs` and
 per-creative renderer files below `.local/studio-workspace/creatives`.
 
 This is a clean baseline plus Landing and Meta Ads extension schema. Migrations
-`001_ptw_brief_v1.sql`, `002_ptw_landing_studio_v1.sql`, and
-`003_ptw_meta_ads_v1.sql` exist. Old singleton Studio rows,
+`001_ptw_brief_v1.sql`, `002_ptw_landing_studio_v1.sql`,
+`003_ptw_meta_ads_v1.sql`, and additive `004_public_landing_v1.sql` exist. Old singleton Studio rows,
 assignment flows, schema adapters, bare mutation routes, and historical Post
 tables are not accepted or migrated. `/api/v1/posts` and bare
 `/api/v1/studio` remain absent.
@@ -214,11 +241,12 @@ are absent.
 
 Landing phone verification is recorded in `.local/landing-phone`, with
 before/after captures, three screen themes at 1280/768/360px, and iPhone WebKit.
-The 63 web unit tests, 51 browser checks, production build, full 156-test
-Validation suite, 12 Commander tests, and 4 Owner Gateway tests pass. The prior
-38 platform tests remain unchanged. The Commander demo, three-migration schema
-idempotency, canonical skill verification, Python compilation, and whitespace
-checks pass. Local Ads smoke testing used one real saved Project and its approved
+The 66 Owner Console and 6 public-web unit tests, 51 Owner Console and 16 public
+browser checks, both production builds, full 166-test Validation suite, 13
+Commander built-image tests, and 6 Owner Gateway tests pass. The prior 38
+platform tests remain unchanged. The Commander demo, four-migration disposable
+PostgreSQL idempotency/preservation check, canonical skill verification, Python
+compilation, shell syntax, and whitespace checks pass. Local Ads smoke testing used one real saved Project and its approved
 PNG at desktop and 360 px; missing Meta credentials produced the intended safe
 disabled state with no horizontal overflow.
 

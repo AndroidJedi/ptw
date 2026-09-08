@@ -4,7 +4,7 @@ import type { ApiClient } from '../api'
 import { ProductBriefView } from './ProductBriefView'
 
 describe('Product Brief workspace', () => {
-  it('keeps the new-project screen focused on the idea input', () => {
+  it('starts with an owner-entered Project name', () => {
     const api = {} as ApiClient
 
     render(<ProductBriefView
@@ -17,47 +17,65 @@ describe('Product Brief workspace', () => {
     />)
 
     expect(screen.getByRole('heading', { name: 'New Project' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'What do you want to validate?' })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Describe one product idea…')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Name the Project' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Project name')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Describe one product idea…')).not.toBeInTheDocument()
     expect(screen.queryByText('NEW PROJECT · RAW IDEA ONLY')).not.toBeInTheDocument()
     expect(screen.queryByText(/Local learning workspace/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Generating an initial Brief creates/)).not.toBeInTheDocument()
   })
 
-  it('sends the active console language with new Project creation', async () => {
+  it('creates an empty Project with the manually entered name', async () => {
     const post = vi.fn(async (_path: string, _body: Record<string, unknown>) => ({
       project: {
-        project_id: 'project-1', request_id: 'request-1', owner_idea_source_id: 'source-1',
-        name: 'Проєкт', name_source: 'raw_idea', requested_by: 'owner',
-        brief_count: 1,
+        project_id: 'project-1', request_id: 'request-1', owner_idea_source_id: null,
+        name: 'Назва власника', name_source: 'owner', requested_by: 'owner',
+        brief_count: 0,
         created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z',
       },
-      brief: {
-        brief_id: 'brief-1', project_id: 'project-1', project_name: 'Проєкт',
-        request_id: 'request-1', owner_idea_source_id: 'source-1', raw_idea: 'An English idea',
-        status: 'queued', failure_count: 0, approved: false,
-        created_at: '2026-09-01T00:00:00Z',
-      },
     }))
-    const get = vi.fn(async (path: string) => path.includes('?') ? { items: [] } : {})
-    const api = { post, get } as unknown as ApiClient
+    const onProjectCreated = vi.fn()
+    const api = { post } as unknown as ApiClient
 
     render(<ProductBriefView
       api={api}
       projectId={null}
-      onProjectCreated={vi.fn()}
+      onProjectCreated={onProjectCreated}
       onProjectBriefChanged={vi.fn()}
       onProjectsRefresh={vi.fn(async () => undefined)}
       language="uk"
     />)
 
-    fireEvent.change(screen.getByPlaceholderText('Опишіть одну продуктову ідею…'), {
-      target: { value: 'An English idea' },
+    fireEvent.change(screen.getByPlaceholderText('Назва проєкту'), {
+      target: { value: 'Назва власника' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Згенерувати продуктовий бриф і створити проєкт' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Створити проєкт' }))
 
-    await waitFor(() => expect(post).toHaveBeenCalled())
-    expect(post.mock.calls[0][1]).toMatchObject({ raw_idea: 'An English idea', language: 'uk' })
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/projects', expect.objectContaining({ name: 'Назва власника' })))
+    expect(onProjectCreated).toHaveBeenCalledWith(expect.objectContaining({ name: 'Назва власника', owner_idea_source_id: null }))
+  })
+
+  it('sends the active language when creating the first Brief in an empty Project', async () => {
+    const post = vi.fn(async () => ({
+      project: { project_id: 'project-1', name: 'Owner Project' },
+      brief: { brief_id: 'brief-1', project_id: 'project-1' },
+    }))
+    const get = vi.fn(async (path: string) => path.includes('?') ? { items: [] } : {})
+    const api = { post, get } as unknown as ApiClient
+
+    render(<ProductBriefView
+      api={api} projectId="project-1" onProjectCreated={vi.fn()}
+      onProjectBriefChanged={vi.fn()} onProjectsRefresh={vi.fn(async () => undefined)}
+      language="uk"
+    />)
+
+    const input = await screen.findByPlaceholderText('Опишіть одну продуктову ідею…')
+    fireEvent.change(input, { target: { value: 'An English idea' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Згенерувати перший продуктовий бриф' }))
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/projects/project-1/briefs', expect.objectContaining({
+      raw_idea: 'An English idea', language: 'uk',
+    })))
   })
 
   it('explains a stored bridge failure and gives the exact recovery action', async () => {

@@ -1,3 +1,11 @@
 {
-  "projects": { "default": "provethemwrong-86123" }
+  "projects": { "default": "provethemwrong-86123" },
+  "targets": {
+    "provethemwrong-86123": {
+      "hosting": {
+        "owner-console": ["provethemwrong-86123"],
+        "public-landings": ["natal-landings-86123"]
+      }
+    }
+  }
 }

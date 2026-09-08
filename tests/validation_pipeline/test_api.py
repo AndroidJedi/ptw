@@ -60,7 +60,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             meta_ads_service=self.MetaAds(),
         )
         background_routes = {
-            ("POST", "/internal/v1/briefs"),
+            ("POST", "/internal/v1/projects/{project_id}/briefs"),
             ("POST", "/internal/v1/briefs/{brief_id}/correct"),
             ("POST", "/internal/v1/briefs/{brief_id}/retry"),
         }
@@ -137,6 +137,42 @@ class ValidationApiRouteTests(unittest.TestCase):
             self.assertEqual(200, response.status_code, response.text)
             self.assertEqual("Kyiv", response.json()["items"][0]["name"])
 
+    def test_public_read_authority_is_bridge_authenticated_and_get_head_only(self) -> None:
+        class Repository:
+            @staticmethod
+            def recover_interrupted():
+                return {"briefs": 0}
+
+        class Publication:
+            @staticmethod
+            def snapshot(namespace, slug):
+                return {
+                    "schema": "ptw.public-landing.v1",
+                    "canonical_url": f"https://natal-service.com/{namespace}/{slug}",
+                }
+
+            @staticmethod
+            def asset(*_args):
+                return {"bytes": b"png", "mime_type": "image/png", "sha256": "a" * 64}
+
+        app = create_app(
+            self.settings(), repository=Repository(), runner=object(),
+            studio_creative_service=self.Studio(), landing_page_service=self.Landing(),
+            landing_publication_service=Publication(), meta_ads_service=self.MetaAds(),
+        )
+        path = "/internal/v1/public/landings/ai/example"
+        with TestClient(app) as client:
+            self.assertEqual(401, client.get(path).status_code)
+            response = client.get(path, headers={"X-PTW-Owner-Gateway-Token": "owner-token"})
+            head = client.head(path, headers={"X-PTW-Owner-Gateway-Token": "owner-token"})
+            write = client.post(path, headers={"X-PTW-Owner-Gateway-Token": "owner-token"})
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("no-store", response.headers["cache-control"])
+        self.assertEqual(200, head.status_code)
+        self.assertEqual(b"", head.content)
+        self.assertEqual(405, write.status_code)
+
     def test_create_brief_schedules_generation_and_returns_accepted(self) -> None:
         brief_id = "01900000-0000-7000-8000-000000000001"
         project_id = "01900000-0000-7000-8000-000000000002"
@@ -177,7 +213,7 @@ class ValidationApiRouteTests(unittest.TestCase):
 
         with TestClient(app) as client:
             response = client.post(
-                "/internal/v1/briefs",
+                f"/internal/v1/projects/{project_id}/briefs",
                 headers={"X-PTW-Owner-Gateway-Token": "owner-token"},
                 json={
                     "request_id": "01900000-0000-7000-8000-000000000003",
@@ -188,6 +224,46 @@ class ValidationApiRouteTests(unittest.TestCase):
             self.assertEqual(202, response.status_code, response.text)
             self.assertTrue(runner.called.wait(timeout=1))
             self.assertEqual("uk", repository.create_input["required_language"])
+            self.assertEqual(project_id, repository.create_input["project_id"])
+
+    def test_create_project_persists_owner_name_without_starting_generation(self) -> None:
+        project_id = "01900000-0000-7000-8000-000000000020"
+
+        class Repository:
+            def __init__(self) -> None:
+                self.input = None
+
+            @staticmethod
+            def recover_interrupted() -> dict[str, int]:
+                return {"briefs": 0}
+
+            def create_project(self, **value):
+                self.input = value
+                return ({
+                    "project_id": project_id, "name": value["name"],
+                    "owner_idea_source_id": None, "brief_count": 0,
+                }, True)
+
+        repository = Repository()
+        app = create_app(
+            self.settings(), repository=repository, runner=object(),
+            studio_creative_service=self.Studio(), landing_page_service=self.Landing(),
+            meta_ads_service=self.MetaAds(),
+        )
+        with TestClient(app) as client:
+            response = client.post(
+                "/internal/v1/projects",
+                headers={"X-PTW-Owner-Gateway-Token": "owner-token"},
+                json={
+                    "request_id": "01900000-0000-7000-8000-000000000021",
+                    "name": "Owner Chosen Name",
+                },
+            )
+
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual("Owner Chosen Name", response.json()["project"]["name"])
+        self.assertIsNone(response.json()["project"]["owner_idea_source_id"])
+        self.assertEqual("owner-web", repository.input["requested_by"])
 
     def test_busy_brief_admission_returns_conflict_instead_of_500(self) -> None:
         class Repository:
@@ -206,7 +282,7 @@ class ValidationApiRouteTests(unittest.TestCase):
 
         with TestClient(app) as client:
             response = client.post(
-                "/internal/v1/briefs",
+                "/internal/v1/projects/01900000-0000-7000-8000-000000000005/briefs",
                 headers={"X-PTW-Owner-Gateway-Token": "owner-token"},
                 json={
                     "request_id": "01900000-0000-7000-8000-000000000004",

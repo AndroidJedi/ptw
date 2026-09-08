@@ -16,6 +16,7 @@ class Settings:
     validation_service_token: str
     public_origin: str
     owner_public_origins: tuple[str, ...] = ()
+    landing_public_origins: tuple[str, ...] = ()
     codex_authorization_service_url: str = ""
     codex_authorization_bridge_token: str = ""
 
@@ -47,6 +48,15 @@ class Settings:
             f"https://{firebase_project_id}.firebaseapp.com",
             f"https://{firebase_project_id}.web.app",
         )
+        landing_origins = tuple(
+            value.strip().rstrip("/")
+            for value in os.environ.get("LANDING_WEB_ORIGINS", "").split(",")
+            if value.strip()
+        ) or (
+            "https://natal-service.com",
+            "https://natal-landings-86123.web.app",
+            "https://natal-landings-86123.firebaseapp.com",
+        )
         return cls(
             firebase_project_id=firebase_project_id,
             firebase_app_id=os.environ.get(
@@ -63,6 +73,7 @@ class Settings:
             validation_service_token=token,
             public_origin=public_origin,
             owner_public_origins=origins,
+            landing_public_origins=landing_origins,
             codex_authorization_service_url=os.environ.get(
                 "PTW_CODEX_AUTH_SERVICE_URL", "http://codex-auth:8094"
             ).rstrip("/"),

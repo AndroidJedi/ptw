@@ -9,7 +9,30 @@ The unrelated bridge under `/opt/ptw/platform` must advertise exactly
 `studio_creative_generation`, and `studio_edit_learning` JSON modes plus the
 bounded `content_non_human_graphic_generation` media mode. Enhancement accepts
 at most one digest-checked PNG reference. Run real canaries for all JSON modes,
-fresh image generation, enhancement, and Pexels before any authorized reset.
+fresh image generation, enhancement, and Pexels before either authorized
+maintenance path.
+
+`scripts/publish_ptw_release_serial.sh` remains the destructive reset publisher
+and accepts only `RESET PTW PRODUCTION`. Data-preserving releases enter through
+`scripts/publish_ptw_in_place_serial.sh` and require exactly
+`DEPLOY PTW IN PLACE`. The in-place path acquires the same maintenance lock,
+requires matched versioned images and exact PTW/platform revisions, deploys and
+audits the public Firebase shell first, stops Commander-database writers,
+creates a root-only checksummed PostgreSQL custom-format backup, fingerprints
+every pre-existing business row, applies additive migration 004, proves all
+fingerprints unchanged, and cuts Commander, Validation, then Owner Gateway over
+serially. Failure restores prior service images without reversing the additive
+migration. Dependency/resource canaries and the persistent 24-hour audit remain
+mandatory.
+
+Firebase Hosting uses the named `owner-console` and `public-landings` targets.
+The public target is `natal-landings-86123`; `/` is the English Natal umbrella
+and `/ai|la|wa/<slug>` are SPA deep links using the exact private renderer in
+non-editing mode. The shell is noindex/disallow-all and its visual 404 is HTTP
+200, while its backing API returns 404. Before custom-domain transfer, run
+`scripts/archive_natal_dashboard.sh` to preserve the old site assets,
+screenshots, Firebase metadata, and SHA-256 manifest. DNS/custom-domain transfer
+and later old-site disablement remain manual, separately authorized operations.
 
 After cutover verify Brief approval-to-creative navigation, project isolation,
 composition, automatic phone image, edit/save learning, global decision,

@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 if [[ $# -ne 4 ]]; then
-    echo "usage: $0 RELEASE_TAG GIT_REVISION PLATFORM_GIT_REVISION 'RESET PTW PRODUCTION'" >&2
+    echo "usage: $0 RELEASE_TAG GIT_REVISION PLATFORM_GIT_REVISION {'RESET PTW PRODUCTION'|'DEPLOY PTW IN PLACE'}" >&2
     exit 2
 fi
 release_tag=$1
@@ -12,8 +12,8 @@ confirmation=$4
 [[ $release_tag =~ ^[A-Za-z0-9._-]+$ && $release_tag != latest ]] || { echo "invalid or unversioned release tag" >&2; exit 2; }
 [[ $git_revision =~ ^[0-9a-f]{40}$ ]] || { echo "GIT_REVISION must be a full commit SHA" >&2; exit 2; }
 [[ $platform_git_revision =~ ^[0-9a-f]{40}$ ]] || { echo "PLATFORM_GIT_REVISION must be a full commit SHA" >&2; exit 2; }
-[[ $confirmation == "RESET PTW PRODUCTION" ]] || {
-    echo "exact production reset confirmation is required" >&2; exit 2;
+[[ $confirmation == "RESET PTW PRODUCTION" || $confirmation == "DEPLOY PTW IN PLACE" ]] || {
+    echo "an exact production deployment confirmation is required" >&2; exit 2;
 }
 [[ $(id -u) -eq 0 ]] || { echo "production deployment must run as root" >&2; exit 1; }
 
@@ -38,7 +38,7 @@ deployment_started_at=$(date --iso-8601=seconds)
     echo "required production environment file is missing" >&2; exit 1;
 }
 # Remove obsolete first-attempt settings without reading or printing values.
-sed -i '/^DATAFORSEO_/d;/^POSITIONING_/d;/^LANDING_/d;/^YOUTUBE_/d;/^OWNER_CONTROL_DATABASE=/d;/^ROOT_BROKER_/d;/^CODEX_/d;/^GH_CONFIG_/d' "$repository/.env.owner-gateway"
+sed -i '/^DATAFORSEO_/d;/^POSITIONING_/d;/^YOUTUBE_/d;/^OWNER_CONTROL_DATABASE=/d;/^ROOT_BROKER_/d;/^CODEX_/d;/^GH_CONFIG_/d' "$repository/.env.owner-gateway"
 pexels_line=$(grep '^PEXELS_API_KEY=' "$repository/.env.owner-gateway" || true)
 pexels_value=${pexels_line#PEXELS_API_KEY=}
 [[ ${#pexels_value} -ge 20 && $pexels_value != replace-with-pexels-api-key ]] || {
@@ -158,7 +158,7 @@ restore_platform_images() {
 
 # Run a fresh strict-model invocation through the newly deployed API and worker
 # for every retained PTW mode. Restore the prior images if any canary fails;
-# the irreversible Commander reset has not started at this point.
+# Commander database maintenance has not started at this point.
 if ! "${validation_compose[@]}" run --rm --no-deps validation-api \
     python -m validation_pipeline.verify_bridge_contract; then
     restore_platform_images
@@ -176,8 +176,17 @@ grep -qx "PTW_PLATFORM_IMAGE_TAG=$release_tag" "$platform/.env" || {
     echo "platform release tag was not persisted" >&2; exit 1;
 }
 
-PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/reset_ptw.sh" \
-    --confirm "$confirmation" --release-tag "$release_tag"
+if [[ $confirmation == "RESET PTW PRODUCTION" ]]; then
+    PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/reset_ptw.sh" \
+        --confirm "$confirmation" --release-tag "$release_tag"
+else
+    if ! PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/deploy_ptw_in_place.sh" \
+        --confirm "$confirmation" --release-tag "$release_tag"; then
+        restore_platform_images
+        echo "in-place PTW deployment failed; prior platform images restored" >&2
+        exit 1
+    fi
+fi
 
 if grep -q '^PTW_IMAGE_TAG=' "$repository/.env.commander"; then
     sed -i "s/^PTW_IMAGE_TAG=.*/PTW_IMAGE_TAG=$release_tag/" "$repository/.env.commander"
@@ -216,4 +225,4 @@ systemctl is-active --quiet ptw-validation-24h-audit.timer || {
     echo "24-hour PTW resource audit timer was not scheduled" >&2
     exit 1
 }
-echo "PTW Product Brief and Studio APIs deployed from a clean production reset at $git_revision"
+echo "PTW Product Brief, Studio, and Landing APIs deployed with confirmation '$confirmation' at $git_revision"

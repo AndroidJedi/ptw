@@ -23,6 +23,7 @@ const requiredMarkers = {
   'Product Brief workspace': 'BRIEF HISTORY',
   'single universal Studio': 'universal_ad · v',
   'private Landing Studio': 'PRIVATE LANDING',
+  'Landing publication control': 'PUBLIC NATAL PAGE',
   'PAUSED-only Meta Ads staging': 'PAUSED ONLY',
 }
 
@@ -39,7 +40,6 @@ const forbiddenMarkers = {
   'arbitrary Studio tree authoring': 'Primitive tree',
   'Studio reference matching': 'Reference image',
   'retired calibration workflow': 'Calibration Studio',
-  'publication control': 'Publish',
   'manual template controls': 'Template controls',
   'manual brand-kit setup': 'PROJECT BRAND KIT',
   'text-profile chooser': 'Result type',

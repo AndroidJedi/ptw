@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 import type { ApiClient } from '../api'
-import type { LandingDetail } from '../types'
+import type { LandingDetail, LandingPublication } from '../types'
 import { LandingView } from './LandingView'
 
 const projectId = '11111111-1111-4111-8111-111111111111'
@@ -153,4 +153,87 @@ it('shows the saved Project lesson and submits the bounded global decision', asy
   fireEvent.click(screen.getByRole('button', { name: 'Keep project-only' }))
   await waitFor(() => expect(api.post).toHaveBeenLastCalledWith(`/api/v1/landings/projects/${projectId}/pages/${landingId}/learning/proposal`, { decision: 'keep_project' }))
   expect(screen.getByRole('status')).toHaveTextContent('Learning preference saved')
+})
+
+it('validates and confirms the complete permanent URL before first Publish', async () => {
+  const detail = landingDetail()
+  detail.approved_version_count = 1
+  detail.versions = [{ version: 1, state_sha256: 'b'.repeat(64), version_sha256: 'c'.repeat(64), change_note: 'Approved' }]
+  const post = vi.fn(async () => ({ created: true }))
+  const api = {
+    get: vi.fn(async (path: string) => {
+      if (path.endsWith('/pages')) return { items: [detail] }
+      if (path.endsWith('/source-posts')) return { items: [] }
+      if (path.endsWith('/publication')) return { publication: null }
+      if (path.includes('/publication/availability?')) return { available: true }
+      if (path.endsWith(`/pages/${landingId}`)) return detail
+      throw new Error(`unexpected GET ${path}`)
+    }), post, image: vi.fn(),
+  } as unknown as ApiClient
+  render(<LandingView api={api} language="en" projectId={projectId} projectName="Sample Project" landingId={landingId} />)
+
+  expect(await screen.findByText('https://natal-service.com/ai/sample-project')).toBeVisible()
+  const publish = screen.getByRole('button', { name: 'Publish approved version' })
+  expect(publish).toBeDisabled()
+  fireEvent.change(screen.getByLabelText('Latin slug'), { target: { value: 'Bad Slug' } })
+  fireEvent.click(screen.getByRole('checkbox'))
+  expect(publish).toBeDisabled()
+  fireEvent.change(screen.getByLabelText('Latin slug'), { target: { value: 'valid-slug' } })
+  fireEvent.click(screen.getByRole('checkbox'))
+  fireEvent.click(publish)
+
+  await waitFor(() => expect(post).toHaveBeenCalledWith(
+    `/api/v1/landings/projects/${projectId}/publication/publish`,
+    expect.objectContaining({ landing_id: landingId, version: 1, namespace: 'ai', slug: 'valid-slug' }),
+  ))
+})
+
+it('republishes old approved events and unpublishes without releasing the URL', async () => {
+  const detail = landingDetail()
+  detail.approved_version_count = 2
+  detail.versions = [
+    { version: 1, state_sha256: 'b'.repeat(64), version_sha256: 'c'.repeat(64), change_note: 'First' },
+    { version: 2, state_sha256: 'd'.repeat(64), version_sha256: 'e'.repeat(64), change_note: 'Second' },
+  ]
+  const publication: LandingPublication = {
+    schema: 'ptw.landing.publication.v1', publication_id: 'publication', project_id: projectId,
+    namespace: 'wa', slug: 'stable-page', status: 'published', current_event_id: 'event-2',
+    canonical_url: 'https://natal-service.com/wa/stable-page', requested_by: 'owner',
+    created_at: '2026-09-08T00:00:00Z', updated_at: '2026-09-08T00:00:00Z',
+    events: [{
+      event_id: 'event-2', publication_id: 'publication', request_id: 'request-2', sequence: 2,
+      action: 'publish', landing_id: landingId, landing_version_id: 'version-2', landing_version: 2,
+      landing_version_sha256: 'e'.repeat(64), requested_by: 'owner', created_at: '2026-09-08T00:00:00Z',
+    }, {
+      event_id: 'event-1', publication_id: 'publication', request_id: 'request-1', sequence: 1,
+      action: 'publish', landing_id: landingId, landing_version_id: 'version-1', landing_version: 1,
+      landing_version_sha256: 'c'.repeat(64), requested_by: 'owner', created_at: '2026-09-07T00:00:00Z',
+    }],
+  }
+  const post = vi.fn(async () => ({ created: true }))
+  const api = {
+    get: vi.fn(async (path: string) => {
+      if (path.endsWith('/pages')) return { items: [detail] }
+      if (path.endsWith('/source-posts')) return { items: [] }
+      if (path.endsWith('/publication')) return { publication }
+      if (path.endsWith(`/pages/${landingId}`)) return detail
+      throw new Error(`unexpected GET ${path}`)
+    }), post, image: vi.fn(),
+  } as unknown as ApiClient
+  render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} />)
+
+  expect(await screen.findByRole('link', { name: /stable-page/ })).toHaveAttribute('href', publication.canonical_url)
+  const restore = screen.getAllByRole('button', { name: 'Restore' })
+  expect(restore).toHaveLength(2)
+  expect(restore[0]).toBeDisabled()
+  fireEvent.click(restore[1])
+  await waitFor(() => expect(post).toHaveBeenCalledWith(
+    `/api/v1/landings/projects/${projectId}/publication/publish`,
+    expect.objectContaining({ landing_id: landingId, version: 1 }),
+  ))
+  fireEvent.click(screen.getByRole('button', { name: 'Unpublish' }))
+  await waitFor(() => expect(post).toHaveBeenCalledWith(
+    `/api/v1/landings/projects/${projectId}/publication/unpublish`,
+    expect.objectContaining({ request_id: expect.any(String) }),
+  ))
 })

@@ -18,6 +18,10 @@ from .local_briefs import LocalBriefService
 from .local_codex import LocalCodexStructuredProvider
 from .landing_pages import LandingService, LocalLandingAuthority
 from .landing_routes import landing_page_router
+from .landing_publication import LocalLandingPublicationAuthority
+from .landing_publication_routes import (
+    landing_publication_owner_router, landing_publication_read_router,
+)
 from .landing_workspace import LandingWorkspace
 from .meta_ads import (
     LocalMetaAdsAuthority, MetaAdsAdapter, MetaAdsConfiguration, MetaAdsService,
@@ -109,6 +113,9 @@ def create_app(
         composer_skill_path=repository_root / "skills/landing-page-composer/SKILL.md",
         learner_skill_path=repository_root / "skills/landing-edit-learner/SKILL.md",
     )
+    landing_publications = LocalLandingPublicationAuthority(
+        local_store, landing_pages._workspace,
+    )
     if meta_ads_service is None:
         meta_configuration = MetaAdsConfiguration.from_environment()
         meta_adapter = MetaAdsAdapter(meta_configuration) if meta_configuration.configured else None
@@ -172,6 +179,12 @@ def create_app(
     ))
     app.include_router(landing_page_router(
         landing_pages, prefix="/api/v1/landings", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(landing_publication_owner_router(
+        landing_publications, prefix="/api/v1/landings", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(landing_publication_read_router(
+        landing_publications, prefix="/api/v1/public/landings",
     ))
     app.include_router(meta_ads_router(
         meta_ads_service, prefix="/api/v1/ads", dependencies=[Depends(authorize)],

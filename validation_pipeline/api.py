@@ -14,10 +14,17 @@ from .images import PexelsClient
 from .openai_images import ResultBridgePhoneScreenImageProvider
 from .provider import StructuredBridge
 from .repository import ValidationRepository
-from .service import ValidationRunner, validate_create_input, validate_revision_input
+from .service import (
+    ValidationRunner, validate_create_input, validate_project_input,
+    validate_revision_input,
+)
 from .studio import StudioRenderer
 from .landing_pages import DatabaseLandingAuthority, DatabaseLandingWorkspace, LandingService
 from .landing_routes import landing_page_router
+from .landing_publication import DatabaseLandingPublicationAuthority
+from .landing_publication_routes import (
+    landing_publication_owner_router, landing_publication_read_router,
+)
 from .landing_workspace import LandingWorkspace
 from .meta_ads import (
     DatabaseMetaAdsAuthority, MetaAdsAdapter, MetaAdsConfiguration, MetaAdsService,
@@ -38,6 +45,7 @@ def create_app(
     studio_workspace: UniversalStudioWorkspace | None = None,
     studio_creative_service: StudioCreativeService | None = None,
     landing_page_service: LandingService | None = None,
+    landing_publication_service: Any | None = None,
     meta_ads_service: MetaAdsService | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_environment()
@@ -91,6 +99,9 @@ def create_app(
             DatabaseMetaAdsAuthority(settings.database_url), studio_creatives,
             meta_configuration, meta_adapter,
         )
+    landing_publications = landing_publication_service or DatabaseLandingPublicationAuthority(
+        settings.database_url
+    )
     runner_error: Exception | None = None
     if runner is None:
         try:
@@ -143,6 +154,13 @@ def create_app(
     ))
     app.include_router(landing_page_router(
         landing_pages, prefix="/internal/v1/landings", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(landing_publication_owner_router(
+        landing_publications, prefix="/internal/v1/landings", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(landing_publication_read_router(
+        landing_publications, prefix="/internal/v1/public/landings",
+        dependencies=[Depends(authorize)],
     ))
     app.include_router(meta_ads_router(
         meta_ads_service, prefix="/internal/v1/ads", dependencies=[Depends(authorize)],
@@ -202,6 +220,18 @@ def create_app(
     def projects(limit: int = Query(default=100, ge=1, le=100)) -> dict[str, Any]:
         return {"items": repository.list_projects(limit), "next_cursor": None}
 
+    @app.post("/internal/v1/projects", dependencies=[Depends(authorize)])
+    def create_project(
+        request: Mapping[str, Any], x_ptw_actor: str = Header(default="owner-web")
+    ) -> dict[str, Any]:
+        try:
+            project, created = repository.create_project(
+                **validate_project_input(request), requested_by=x_ptw_actor[:200]
+            )
+            return {"project": project, "created": created}
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
     @app.post("/internal/v1/projects/{project_id}/rename", dependencies=[Depends(authorize)])
     def rename_project(
         project_id: str, request: Mapping[str, Any], x_ptw_actor: str = Header(default="owner-web")
@@ -217,19 +247,26 @@ def create_app(
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
 
-    @app.post("/internal/v1/briefs", dependencies=[Depends(authorize)], status_code=202)
+    @app.post(
+        "/internal/v1/projects/{project_id}/briefs",
+        dependencies=[Depends(authorize)], status_code=202,
+    )
     async def create_brief(
-        request: Mapping[str, Any], x_ptw_actor: str = Header(default="owner-web")
+        project_id: str, request: Mapping[str, Any],
+        x_ptw_actor: str = Header(default="owner-web")
     ) -> dict[str, Any]:
         active = require_brief_runner()
         try:
             value = validate_create_input(request)
             brief, created = repository.create_brief(
-                **value, requested_by=x_ptw_actor[:200], reserve_operation=True
+                project_id=str(UUID(project_id)), **value,
+                requested_by=x_ptw_actor[:200], reserve_operation=True,
             )
             if brief["status"] == "queued":
                 run_background(active.generate_brief, brief["brief_id"], reserved=True)
             return {"project": repository.get_project(brief["project_id"]), "brief": brief, "created": created}
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="Project not found") from error
         except (RuntimeError, ValueError) as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 

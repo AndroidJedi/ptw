@@ -106,7 +106,7 @@ export type BriefStatus = 'queued' | 'generating' | 'completed' | 'failed'
 export interface ValidationProject {
   project_id: string
   request_id: string
-  owner_idea_source_id: string
+  owner_idea_source_id: string | null
   name: string
   name_source: 'raw_idea' | 'product_brief' | 'owner'
   requested_by: string
@@ -715,4 +715,33 @@ export interface LandingDetail extends LandingSummary {
   assets: LandingVisualSummary[]
   image_generation_available: boolean
   versions: Array<{ version: number; state_sha256: string; version_sha256: string; change_note: string }>
+}
+
+export interface LandingPublicationEvent {
+  event_id: string
+  publication_id: string
+  request_id: string
+  sequence: number
+  action: 'publish' | 'unpublish'
+  landing_id: string | null
+  landing_version_id: string | null
+  landing_version: number | null
+  landing_version_sha256: string | null
+  requested_by: string
+  created_at: string
+}
+
+export interface LandingPublication {
+  schema: 'ptw.landing.publication.v1'
+  publication_id: string
+  project_id: string
+  namespace: 'ai' | 'la' | 'wa'
+  slug: string
+  status: 'published' | 'unpublished'
+  current_event_id: string | null
+  canonical_url: string
+  events: LandingPublicationEvent[]
+  requested_by: string
+  created_at: string
+  updated_at: string
 }

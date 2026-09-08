@@ -33,6 +33,7 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
 }) {
   const [items, setItems] = useState<ProductBrief[] | null>(null)
   const [selected, setSelected] = useState<ProductBrief | null>(null)
+  const [projectName, setProjectName] = useState('')
   const [rawIdea, setRawIdea] = useState('')
   const [correction, setCorrection] = useState('')
   const [error, setError] = useState('')
@@ -63,15 +64,24 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
     return () => window.clearInterval(timer)
   }, [selected?.brief_id, selected?.status])
 
-  const create = async () => {
-    if (!rawIdea.trim()) return
+  const createProject = async () => {
+    if (!projectName.trim()) return
     setBusy(true); setError(''); setNotice('')
     try {
-      const result = await api.post<{ project: ValidationProject; brief: ProductBrief }>('/api/v1/briefs', {
-        request_id: crypto.randomUUID(), raw_idea: rawIdea.trim(), language,
+      const result = await api.post<{ project: ValidationProject }>('/api/v1/projects', {
+        request_id: crypto.randomUUID(), name: projectName.trim(),
       })
       onProjectCreated(result.project)
-      setRawIdea(''); setNotice(tr('Project created. One Product Brief is being generated from the idea.', 'Проєкт створено. З ідеї генерується один продуктовий бриф.')); await load(result.brief.brief_id, result.project.project_id)
+    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+  }
+  const createBrief = async () => {
+    if (!projectId || !rawIdea.trim()) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const result = await api.post<{ project: ValidationProject; brief: ProductBrief }>(`/api/v1/projects/${encodeURIComponent(projectId)}/briefs`, {
+        request_id: crypto.randomUUID(), raw_idea: rawIdea.trim(), language,
+      })
+      setRawIdea(''); setNotice(tr('The first Product Brief is being generated from the idea.', 'З ідеї генерується перший продуктовий бриф.')); await load(result.brief.brief_id, result.project.project_id)
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const correct = async () => {
@@ -121,16 +131,19 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
   if (!projectId) return <>
     <PageHeader title={tr('New Project', 'Новий проєкт')} />
     {error && <ErrorState message={error} language={language} />}{notice && <p className="notice" role="status">{notice}</p>}
-    <section className="panel brief-create"><div><h2>{tr('What do you want to validate?', 'Що ви хочете перевірити?')}</h2></div>
-      <textarea id="new-project-idea" rows={5} maxLength={10000} value={rawIdea} onChange={(event) => setRawIdea(event.target.value)} placeholder={tr('Describe one product idea…', 'Опишіть одну продуктову ідею…')} />
-      <button className="primary large" disabled={busy || !rawIdea.trim()} onClick={create}><Sparkles />{tr('Generate Product Brief & Create Project', 'Згенерувати продуктовий бриф і створити проєкт')}</button>
+    <section className="panel brief-create"><div><h2>{tr('Name the Project', 'Назвіть проєкт')}</h2><p>{tr('The name is permanent owner input and will not be replaced by Brief generation.', 'Назва задається власником і не буде замінена під час генерації брифу.')}</p></div>
+      <input id="new-project-name" maxLength={120} value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder={tr('Project name', 'Назва проєкту')} />
+      <button className="primary large" disabled={busy || !projectName.trim()} onClick={createProject}>{tr('Create Project', 'Створити проєкт')}</button>
     </section>
   </>
   if (!items) return error ? <ErrorState message={error} retry={() => void load()} language={language} /> : <Loading language={language} />
   return <>
     <PageHeader title={tr('Brief', 'Бриф')} />
     {error && <ErrorState message={error} language={language} />}{notice && <p className="notice" role="status">{notice}</p>}
-    {!items.length ? <Empty><Target className="empty-mark" /><h2>{tr('No Product Brief in this Project', 'У цьому проєкті немає продуктового брифу')}</h2><p>{tr('Use New Project to start a separate validation loop.', 'Скористайтеся «Новий проєкт», щоб почати окремий цикл валідації.')}</p></Empty> : <div className="brief-workspace">
+    {!items.length ? <section className="panel brief-create"><Target className="empty-mark" /><div><h2>{tr('What do you want to validate?', 'Що ви хочете перевірити?')}</h2><p>{tr('This creates the first immutable Product Brief inside the Project.', 'Це створить перший незмінний продуктовий бриф усередині проєкту.')}</p></div>
+      <textarea id="new-project-idea" rows={5} maxLength={10000} value={rawIdea} onChange={(event) => setRawIdea(event.target.value)} placeholder={tr('Describe one product idea…', 'Опишіть одну продуктову ідею…')} />
+      <button className="primary large" disabled={busy || !rawIdea.trim()} onClick={createBrief}><Sparkles />{tr('Generate first Product Brief', 'Згенерувати перший продуктовий бриф')}</button>
+    </section> : <div className="brief-workspace">
       <aside className="panel brief-list"><small>{tr('BRIEF HISTORY', 'ІСТОРІЯ БРИФІВ')}</small>{items.map((item, index) => <button key={item.brief_id} className={selected?.brief_id === item.brief_id ? 'selected' : ''} onClick={() => void load(item.brief_id)}><strong>{index === 0 ? tr('Current Brief', 'Поточний бриф') : tr('Earlier Brief', 'Попередній бриф')} · {item.product || item.raw_idea.slice(0, 70)}</strong><span>{item.status} · {item.language?.toUpperCase() || '—'} · {item.approved ? tr('approved', 'схвалено') : tr('not approved', 'не схвалено')} · {new Date(item.created_at).toLocaleDateString(language === 'uk' ? 'uk-UA' : 'en-US')}</span></button>)}</aside>
       {selected && <div className="panel brief-detail"><small>{selected.base_brief_id ? tr('REPLACEMENT BRIEF', 'БРИФ НА ЗАМІНУ') : tr('CURRENT IMMUTABLE BRIEF', 'ПОТОЧНИЙ НЕЗМІННИЙ БРИФ')}</small>
         {activeStatuses.has(selected.status) && <p className="generation-state"><RefreshCcw className="spin" /> {tr('Generating one testable hypothesis…', 'Генерується одна перевірювана гіпотеза…')}</p>}

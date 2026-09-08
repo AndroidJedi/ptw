@@ -51,7 +51,8 @@ class ValidationRepository:
     def _project_row(row: Sequence[Any]) -> dict[str, Any]:
         return {
             "project_id": str(row[0]), "request_id": str(row[1]),
-            "owner_idea_source_id": str(row[2]), "name": row[3], "name_source": row[4],
+            "owner_idea_source_id": None if row[2] is None else str(row[2]),
+            "name": row[3], "name_source": row[4],
             "requested_by": row[5], "created_at": row[6].isoformat(),
             "updated_at": row[7].isoformat(),
             "latest_brief_id": None if row[8] is None else str(row[8]),
@@ -125,54 +126,29 @@ class ValidationRepository:
             **({} if document is None else document),
         }
 
-    def create_brief(
-        self, *, request_id: str, raw_idea: str, required_language: str, requested_by: str,
-        reserve_operation: bool = False,
+    def create_project(
+        self, *, request_id: str, name: str, requested_by: str,
     ) -> tuple[dict[str, Any], bool]:
         from psycopg.types.json import Jsonb
 
         request_uuid = UUID(request_id)
-        idea = raw_idea.strip()
-        if not 1 <= len(idea) <= 10_000:
-            raise ValueError("raw idea must contain 1-10000 characters")
-        if required_language not in {"uk", "en"}:
-            raise ValueError("required language must be uk or en")
+        normalized = " ".join(name.split())
+        if not 1 <= len(normalized) <= 120:
+            raise ValueError("Project name must contain 1-120 characters")
         with self.connection() as connection:
+            connection.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",
+                (f"project-create:{request_uuid}",),
+            )
             existing = connection.execute(
-                self._brief_select() + " WHERE brief.request_id=%s", (request_uuid,)
+                self._project_select() + " WHERE project.request_id=%s", (request_uuid,)
             ).fetchone()
             if existing is not None:
-                value = self._brief_row(existing)
-                source_row = connection.execute(
-                    "SELECT metadata FROM commander_sources WHERE entity_id=%s",
-                    (UUID(value["owner_idea_source_id"]),),
-                ).fetchone()
-                metadata = {} if source_row is None else dict(source_row[0] or {})
-                existing_language = str(
-                    metadata.get("required_language")
-                    or (value.get("document") or {}).get("language")
-                    or infer_language(value["raw_idea"])
-                )
-                if value["raw_idea"] != idea or existing_language != required_language:
-                    raise ValueError("request_id was already used with different Product Brief input")
-                if reserve_operation and value["status"] == "queued":
-                    self._acquire_operation(connection, "product_brief", value["brief_id"])
+                value = self._project_row(existing)
+                if value["name"] != normalized:
+                    raise ValueError("request_id was already used with a different Project name")
                 return value, False
-            source_id, project_id, brief_id = (UUID(new_uuid7()) for _ in range(3))
-            digest = hashlib.sha256(idea.encode()).hexdigest()
-            connection.execute(
-                "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'source',%s)",
-                (source_id, Jsonb({"source_type": "owner_idea"})),
-            )
-            connection.execute(
-                """INSERT INTO commander_sources(
-                       entity_id,source_type,title,provider,external_id,content,content_sha256,metadata
-                   ) VALUES(%s,'owner_idea','Owner idea','owner',%s,%s,%s,%s)""",
-                (
-                    source_id, request_uuid.hex, idea, digest,
-                    Jsonb({"required_language": required_language}),
-                ),
-            )
+            project_id = UUID(new_uuid7())
             connection.execute(
                 "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'validation_project',%s)",
                 (project_id, Jsonb({"schema_version": 1})),
@@ -180,8 +156,8 @@ class ValidationRepository:
             connection.execute(
                 """INSERT INTO validation_projects(
                        entity_id,request_id,owner_idea_source_id,name,name_source,requested_by
-                   ) VALUES(%s,%s,%s,%s,'raw_idea',%s)""",
-                (project_id, request_uuid, source_id, _project_name(idea), requested_by),
+                   ) VALUES(%s,%s,NULL,%s,'owner',%s)""",
+                (project_id, request_uuid, normalized, requested_by),
             )
             from .studio_creatives import _skill_document
             project_skill_id = UUID(new_uuid7())
@@ -202,6 +178,90 @@ class ValidationRepository:
                 ),
             )
             connection.execute(
+                """INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes)
+                   VALUES(%s,%s,'contains',%s,%s)""",
+                (
+                    UUID(new_uuid7()), project_id, project_skill_id,
+                    Jsonb({"member": "studio_skill_snapshot"}),
+                ),
+            )
+        return self.get_project(str(project_id)), True
+
+    def create_brief(
+        self, *, project_id: str, request_id: str, raw_idea: str,
+        required_language: str, requested_by: str,
+        reserve_operation: bool = False,
+    ) -> tuple[dict[str, Any], bool]:
+        from psycopg.types.json import Jsonb
+
+        project_uuid = UUID(project_id)
+        request_uuid = UUID(request_id)
+        idea = raw_idea.strip()
+        if not 1 <= len(idea) <= 10_000:
+            raise ValueError("raw idea must contain 1-10000 characters")
+        if required_language not in {"uk", "en"}:
+            raise ValueError("required language must be uk or en")
+        with self.connection() as connection:
+            connection.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",
+                (f"brief-create:{request_uuid}",),
+            )
+            project = connection.execute(
+                "SELECT owner_idea_source_id FROM validation_projects WHERE entity_id=%s FOR UPDATE",
+                (project_uuid,),
+            ).fetchone()
+            if project is None:
+                raise KeyError(project_id)
+            existing = connection.execute(
+                self._brief_select() + " WHERE brief.request_id=%s", (request_uuid,)
+            ).fetchone()
+            if existing is not None:
+                value = self._brief_row(existing)
+                if value["project_id"] != str(project_uuid):
+                    raise ValueError("request_id was already used for a different Project")
+                source_row = connection.execute(
+                    "SELECT metadata FROM commander_sources WHERE entity_id=%s",
+                    (UUID(value["owner_idea_source_id"]),),
+                ).fetchone()
+                metadata = {} if source_row is None else dict(source_row[0] or {})
+                existing_language = str(
+                    metadata.get("required_language")
+                    or (value.get("document") or {}).get("language")
+                    or infer_language(value["raw_idea"])
+                )
+                if value["raw_idea"] != idea or existing_language != required_language:
+                    raise ValueError("request_id was already used with different Product Brief input")
+                if reserve_operation and value["status"] == "queued":
+                    self._acquire_operation(connection, "product_brief", value["brief_id"])
+                return value, False
+            root = connection.execute(
+                "SELECT entity_id FROM product_briefs WHERE project_id=%s AND base_brief_id IS NULL",
+                (project_uuid,),
+            ).fetchone()
+            if project[0] is not None or root is not None:
+                raise ValueError("Project already has its first Product Brief")
+            source_id, brief_id = (UUID(new_uuid7()) for _ in range(2))
+            digest = hashlib.sha256(idea.encode()).hexdigest()
+            connection.execute(
+                "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'source',%s)",
+                (source_id, Jsonb({"source_type": "owner_idea"})),
+            )
+            connection.execute(
+                """INSERT INTO commander_sources(
+                       entity_id,source_type,title,provider,external_id,content,content_sha256,metadata
+                   ) VALUES(%s,'owner_idea','Owner idea','owner',%s,%s,%s,%s)""",
+                (
+                    source_id, request_uuid.hex, idea, digest,
+                    Jsonb({"required_language": required_language}),
+                ),
+            )
+            connection.execute(
+                """UPDATE validation_projects
+                   SET owner_idea_source_id=%s,updated_at=clock_timestamp()
+                   WHERE entity_id=%s AND owner_idea_source_id IS NULL""",
+                (source_id, project_uuid),
+            )
+            connection.execute(
                 "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'product_brief',%s)",
                 (brief_id, Jsonb({"schema_version": 1})),
             )
@@ -209,12 +269,11 @@ class ValidationRepository:
                 """INSERT INTO product_briefs(
                        entity_id,project_id,request_id,owner_idea_source_id,status,requested_by
                    ) VALUES(%s,%s,%s,%s,'queued',%s)""",
-                (brief_id, project_id, request_uuid, source_id, requested_by),
+                (brief_id, project_uuid, request_uuid, source_id, requested_by),
             )
             for source, relation, target, attributes in (
-                (project_id, "derived_from", source_id, {"input": "owner_idea"}),
-                (project_id, "contains", brief_id, {"member": "product_brief"}),
-                (project_id, "contains", project_skill_id, {"member": "studio_skill_snapshot"}),
+                (project_uuid, "derived_from", source_id, {"input": "owner_idea"}),
+                (project_uuid, "contains", brief_id, {"member": "product_brief"}),
                 (brief_id, "derived_from", source_id, {"input": "owner_idea"}),
             ):
                 connection.execute(

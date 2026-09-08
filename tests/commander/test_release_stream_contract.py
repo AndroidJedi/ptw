@@ -227,6 +227,29 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertLess(ssh, owner)
         self.assertIn("hosting:owner-console,hosting:public-landings", publisher)
 
+    def test_owner_console_releases_require_cross_browser_e2e_and_live_audit(self) -> None:
+        publisher = (ROOT / "scripts/publish_ptw_release_serial.sh").read_text()
+        web_deployer = (ROOT / "scripts/deploy_owner_console_web.sh").read_text()
+
+        publisher_e2e = publisher.index("npm --prefix apps/commander-web run test:e2e")
+        publisher_hosting = publisher.index("firebase deploy --only hosting:owner-console", publisher_e2e)
+        self.assertLess(publisher_e2e, publisher_hosting)
+
+        self.assertIn('"DEPLOY OWNER CONSOLE WEB"', web_deployer)
+        self.assertIn("git rev-parse origin/main", web_deployer)
+        web_check = web_deployer.index("npm --prefix apps/commander-web run check")
+        web_e2e = web_deployer.index("npm --prefix apps/commander-web run test:e2e", web_check)
+        web_skills = web_deployer.index("python3 scripts/verify_ptw_skills.py", web_e2e)
+        web_hosting = web_deployer.index("firebase deploy --only hosting:owner-console", web_skills)
+        web_audit = web_deployer.index("audit_live_owner_console.py", web_hosting)
+        self.assertLess(web_check, web_e2e)
+        self.assertLess(web_e2e, web_skills)
+        self.assertLess(web_skills, web_hosting)
+        self.assertLess(web_hosting, web_audit)
+        self.assertNotIn("ssh ", web_deployer)
+        self.assertNotIn("docker", web_deployer)
+        self.assertNotIn("reset_ptw", web_deployer)
+
 
 if __name__ == "__main__":
     unittest.main()

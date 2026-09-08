@@ -273,11 +273,13 @@ exactly one approval and one first Creative; the Creative remains a draft and
 the conflicts added no replacement. PTW revision `8c76246` fixes the client
 resolution path, adds unit and desktop/mobile/iPhone WebKit browser regressions,
 and updates the canonical Owner Console incident skill. The 67 web unit tests,
-production build, 51 pre-existing browser checks plus the three targeted
-approved-Brief browser checks, full 169-test Validation suite, 15 Commander
-tests, Commander demo, skill verification, Python compilation, and whitespace
-checks pass locally. This web-only fix is committed and pushed but not deployed;
-the protected production release still requires explicit owner authorization.
+production build, and all 54 Chromium/mobile/WebKit browser checks pass. The
+release guard now adds an incident-specific contract marker to the built/live
+audit, advances the PWA shell cache generation, makes Playwright mandatory for
+every Owner Console Hosting release, and provides a tracked clean-main web-only
+deployer that cannot touch VPS services or PostgreSQL. The 16 Commander tests
+(two dependency skips outside the image), Commander demo, skill verification,
+Python compilation, shell syntax, and whitespace checks also pass locally.
 
 Landing phone verification is recorded in `.local/landing-phone`, with
 before/after captures, three screen themes at 1280/768/360px, and iPhone WebKit.

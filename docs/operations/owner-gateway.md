@@ -68,6 +68,13 @@ irreversible, and requires the exact `RESET PTW PRODUCTION` confirmation. The
 separate data-preserving release entrypoint requires the exact
 `DEPLOY PTW IN PLACE` confirmation and cannot invoke reset.
 
+Owner Console-only fixes use
+`scripts/deploy_owner_console_web.sh --confirm "DEPLOY OWNER CONSOLE WEB"`.
+That tracked gate requires clean synchronized `main`, unit/build checks, the
+full Chromium/mobile/WebKit Playwright suite, skill validation, the named
+`owner-console` Hosting target, and the post-deploy public boundary audit. It
+does not deploy backend images, apply migrations, or touch PostgreSQL.
+
 Every API failure exposed to the owner must state what failed, explain the
 likely cause in plain language, give the next safe action, and include only
 bounded technical context such as HTTP status, method, query-free endpoint, or

@@ -269,19 +269,26 @@ test('approves a Brief through the required template picker and opens its creati
 
 test('opens an approved Brief\'s existing creative without resubmitting approval', async ({ page }) => {
   let approvalPosts = 0
+  let creativeListGets = 0
   page.on('request', (request) => {
     if (request.method() === 'POST' && request.url().endsWith(`/briefs/${briefId}/approve`)) {
       approvalPosts += 1
+    }
+    if (request.method() === 'GET' && request.url().endsWith(`/studio/projects/${projectId}/creatives`)) {
+      creativeListGets += 1
     }
   })
 
   await page.goto(`/?e2e=1&project=${projectId}`)
   await page.getByRole('button', { name: 'Змінити мову' }).click()
-  await page.getByRole('button', { name: 'Open or create its creative' }).click()
+  const openCreative = page.getByRole('button', { name: 'Open or create its creative' })
+  await expect(openCreative).toHaveAttribute('data-contract', 'approved-brief-existing-creative-v1')
+  await openCreative.click()
 
   await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('posts')
   await expect.poll(() => new URL(page.url()).searchParams.get('creative')).toBe(creativeId)
   await expect(page.getByRole('dialog', { name: 'Choose the creative template' })).toHaveCount(0)
+  expect(creativeListGets).toBeGreaterThan(0)
   expect(approvalPosts).toBe(0)
 })
 

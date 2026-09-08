@@ -88,6 +88,15 @@ before changing code or runtime state.
   with the immutable reservation. Confirm exactly one approval, one ordinal-1
   workspace, unchanged lineage/run counts, and no new mutation before changing
   code; preserve the server conflict guard and fix the client resolution path.
+  Do not close the incident merely because that fix exists in Git. Require the
+  built and live App bundle to expose the incident-specific client contract,
+  bump the PWA cache generation when stale clients must be displaced, and run
+  the cross-browser test that proves the action resolves the existing Creative,
+  navigates directly, opens no chooser, and sends zero approval POSTs. Keep the
+  exact Creative-list route assertion in the unit regression. Web-only incident
+  releases use the tracked `scripts/deploy_owner_console_web.sh` gate so
+  unit/build, Playwright, skill validation, Hosting deployment, and the public
+  live audit cannot drift.
 - When Studio composition is `failed` with a domain `ValueError` but its bridge
   job is `completed`, read only the rejected field and matching output-schema
   constraint from the provider job. Repeated failures with the same response

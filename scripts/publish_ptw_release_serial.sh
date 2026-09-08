@@ -77,6 +77,7 @@ ssh -i "$HOME/.ssh/ptw_commander" -o IdentitiesOnly=yes root@165.245.212.184 \
     < "$stream_file"
 
 npm --prefix apps/commander-web run check
+npm --prefix apps/commander-web run test:e2e
 if [[ $confirmation == "RESET PTW PRODUCTION" ]]; then
     npm --prefix apps/landing-web run check
     firebase deploy --only hosting:owner-console,hosting:public-landings

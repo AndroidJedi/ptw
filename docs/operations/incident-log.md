@@ -40,8 +40,22 @@ unit, 67 browser, two build, four-migration idempotency, syntax, compilation,
 and whitespace gates. The deployer tests cover active-work refusal, `-T`,
 failed-path authority fingerprints, full app/platform rollback verification,
 persisted-tag restoration, and refusal to bypass the backup-bearing path when a
-migration is pending. Final real canary and in-place rollout verification are
-pending the separate exact deployment confirmation.
+migration is pending. The live preserving rollout at PTW revision
+`153b1dc6417a4c26b36ca9af4f8aac5d00d8b591` completed without a migration or
+reset. Fresh jobs 514–522 all completed on attempt 1; the compact Landing
+contract was 8,444 bytes. Full-row authority was unchanged, all six services are
+healthy on `contract-budget-20260908-153b1dc`, and the exact affected Creative
+retained its ID, draft status, state digest, zero immutable versions, and five
+append-only generation runs across a controlled Validation restart.
+
+The first promotion attempt also exposed a release-control defect before any
+service cutover: `psql -c` did not expand the migration-name variable in the
+new pending-migration guard. The fail-closed preflight left production on all
+six prior images with no database change. The query now uses stdin SQL, the
+static regression forbids the broken `-c` form, and both incident skills require
+an exact-production preflight plus a new tested commit instead of an interactive
+VPS bypass. Scheduled monitoring is checked by its real transient unit,
+`ptw-validation-24h-audit.timer`, which is active/waiting for the 24-hour audit.
 
 ## 2026-09-08 — Phone Metrics replayed a completed response outside renderer bounds
 

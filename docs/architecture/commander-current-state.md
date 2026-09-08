@@ -2,7 +2,7 @@
 
 Updated: 2026-09-08
 Branch: `main`
-Deployment: path-based public Landing release `path-landings-20260908-9a5043e` is live; Meta staging is disabled until a fresh secret is configured
+Deployment: systemic contract/recovery release `contract-budget-20260908-153b1dc` is live; Meta staging is disabled until a fresh secret is configured
 
 ## Current milestone
 
@@ -289,7 +289,7 @@ The confirmation-gated production reset at PTW revision
 business tables empty. Its before/after snapshot confirmed that independent
 platform database counts did not change. The independent platform is now at
 revision `b3907db6b7dd4435fa58065dc96902e5536a9dc8`; all six application services
-run the shared `path-landings-20260908-9a5043e` release tag and are healthy. The
+run the shared `contract-budget-20260908-153b1dc` release tag and are healthy. The
 non-reset city-targeting rollout at PTW revision
 `a92fbc758d6a25cf7dff35111891ee97ed2757dc` preserved the exact Project and
 Brief IDs plus their pre-rollout row counts. Bridge, image generation,
@@ -311,6 +311,22 @@ Telegram, and 1 GB canaries passed, and the persistent follow-up audit is due
 Hosting version `185107aab38614ab` are live. Public root/lane rendering,
 noindex/robots/CSP, exact CORS, public 404s, private 401s, backup checksum, and
 all six healthy versioned services were independently rechecked.
+
+The systemic contract/recovery rollout completed at PTW revision
+`153b1dc6417a4c26b36ca9af4f8aac5d00d8b591` without a migration or reset. Its
+first preflight stopped before service cutover because `psql -c` did not expand
+the migration-name variable; the old six services, persisted tags, and database
+remained untouched. The tracked preflight was changed to stdin SQL, covered by
+a regression test, committed, and rerun from the beginning. The accepted run
+kept the full authority snapshot byte-identical and completed fresh bridge jobs
+514–522 on attempt 1. The Landing contract was 8,444 bytes, all structured/media
+and Pexels canaries passed, and dependency plus 1 GB audits passed. Creative
+`01a07f55-20a5-755c-bbec-17a3f158ef4b` remained a draft at state digest
+`b68f5ff2391aa206e4a7632c5b924be337c0e965d24e561411228c8e80872685`, with zero
+immutable versions and five append-only generation runs before and after a
+controlled Validation restart. Active mutations remained zero. The transient
+`ptw-validation-24h-audit.timer` is active/waiting for its
+2026-09-09 11:22 UTC follow-up.
 
 The Phone Metrics replay incident is closed at PTW revision
 `76110344697854085ac03676dc1d7da744f7cf82`. Pre- and post-cutover strict-schema

@@ -180,6 +180,12 @@ Its Compose one-off jobs must retain `-T`, its cleanup must roll back any
 incomplete exit even if the shell reports zero, and its full-row authority
 snapshot must match before release tags are persisted. Never substitute the
 confirmation-gated reset publisher for this preserving path.
+Run the preserving script's migration preflight against the exact production
+PostgreSQL/Compose transport before any service cutover; a source-only test does
+not prove `psql` variable/input behavior. If that preflight itself fails, stop
+the rollout, prove the old six images and persisted tags are still live, then
+fix, test, commit, and begin a new rollout from the start. Do not patch or skip
+the failing check interactively on the VPS.
 When the revision contains an additive migration, use only the separately
 confirmation-gated `publish_ptw_in_place_serial.sh` path. Its outer cleanup must
 restore and verify application plus platform images and persisted tags after
@@ -191,3 +197,6 @@ one-off in either layer uses `-T` so SSH stdin cannot be consumed.
 Before claiming Telegram works, verify authorization,
 deployed help/routing, provider readiness, persistence, restart behavior, and
 the user-facing failure path.
+For the scheduled resource follow-up, inspect the actual transient unit
+`ptw-validation-24h-audit.timer` with `systemctl is-active` and its next
+elapse time. Do not infer a monitoring outage from a guessed unit name.

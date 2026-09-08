@@ -120,6 +120,12 @@ and never calls the reset script. The destructive serial reset remains a
 separate, explicit owner-confirmed workflow. The preserving script must refuse
 when any repository migration is unapplied; do not use it to bypass the
 backup-bearing in-place confirmation.
+Exercise that migration preflight through the exact production Compose and
+PostgreSQL transport before the first service is replaced. Static assertions
+cannot validate `psql -c`/stdin interpolation. A preflight defect is a rejected
+rollout: verify the previous six images/tags remain live, correct it in source,
+add a regression test, publish a new commit, and restart the deployment from
+preflight rather than editing or bypassing the check on the server.
 
 Migration-bearing preserving releases instead require the exact
 `DEPLOY PTW IN PLACE` confirmation and
@@ -152,6 +158,9 @@ After cutover exercise create Project/Brief → approve with template → automa
 creative composition/phone image → edit → Save learning → global decision →
 Approve creative, then restart services and verify the same IDs/digests plus
 empty recovery queues. Never claim readiness from health checks alone.
+When a serial release schedules the resource follow-up, the transient systemd
+unit is `ptw-validation-24h-audit.timer`; require `active/waiting` and a concrete
+next elapse time. Checking a guessed timer name is not evidence of failure.
 
 Owner-facing error acceptance also covers failure paths: each API or persisted
 background failure shows what failed, why in plain language, the next safe

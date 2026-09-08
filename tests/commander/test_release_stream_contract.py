@@ -116,6 +116,14 @@ class ReleaseStreamContractTests(unittest.TestCase):
 
         self.assertNotIn("reset_ptw.sh", deployer)
         self.assertIn("pending migrations require the confirmation-gated in-place deployment path", deployer)
+        self.assertIn(
+            "SELECT count(*) FROM commander_schema_migrations WHERE name=:'migration_name';",
+            deployer,
+        )
+        self.assertNotIn(
+            '-c "SELECT count(*) FROM commander_schema_migrations',
+            deployer,
+        )
         self.assertIn('snapshot_ready=1', deployer)
         self.assertIn('snapshot_authority > "$after"', deployer)
         self.assertIn("Commander authority remained unchanged during rejected rollout", deployer)

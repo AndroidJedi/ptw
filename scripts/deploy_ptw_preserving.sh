@@ -51,8 +51,10 @@ for migration in "$repository"/db/migrations/*.sql; do
     migration_name=$(basename "$migration")
     applied=$("${commander_compose[@]}" exec -T commander-db \
         psql -X -qAt -v ON_ERROR_STOP=1 -v migration_name="$migration_name" \
-        -U ptw_commander -d ptw_commander \
-        -c "SELECT count(*) FROM commander_schema_migrations WHERE name=:'migration_name'")
+        -U ptw_commander -d ptw_commander <<'SQL'
+SELECT count(*) FROM commander_schema_migrations WHERE name=:'migration_name';
+SQL
+    )
     [[ $applied == 1 ]] || {
         echo "pending migrations require the confirmation-gated in-place deployment path" >&2
         exit 1

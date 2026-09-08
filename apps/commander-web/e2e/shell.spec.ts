@@ -267,6 +267,24 @@ test('approves a Brief through the required template picker and opens its creati
   await expect.poll(() => new URL(page.url()).searchParams.get('creative')).toBe(creativeId)
 })
 
+test('opens an approved Brief\'s existing creative without resubmitting approval', async ({ page }) => {
+  let approvalPosts = 0
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith(`/briefs/${briefId}/approve`)) {
+      approvalPosts += 1
+    }
+  })
+
+  await page.goto(`/?e2e=1&project=${projectId}`)
+  await page.getByRole('button', { name: 'Змінити мову' }).click()
+  await page.getByRole('button', { name: 'Open or create its creative' }).click()
+
+  await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('posts')
+  await expect.poll(() => new URL(page.url()).searchParams.get('creative')).toBe(creativeId)
+  await expect(page.getByRole('dialog', { name: 'Choose the creative template' })).toHaveCount(0)
+  expect(approvalPosts).toBe(0)
+})
+
 test('explains a persisted API-backed Brief failure without exposing raw provider text', async ({ page }) => {
   const failed = {
     ...brief, status: 'failed', document: null, document_sha256: null,

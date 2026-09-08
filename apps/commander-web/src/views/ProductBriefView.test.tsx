@@ -155,7 +155,7 @@ describe('Product Brief workspace', () => {
     expect(onCreative).toHaveBeenCalledWith('project-1', 'creative-1')
   })
 
-  it('creates a first creative from an already-approved Brief without asking for approval again', async () => {
+  it('opens the existing first creative from an already-approved Brief without resubmitting approval', async () => {
     const brief = {
       brief_id: 'brief-1', project_id: 'project-1', project_name: 'Project One',
       request_id: 'request-1', owner_idea_source_id: 'source-1', raw_idea: 'A useful product',
@@ -171,6 +171,46 @@ describe('Product Brief workspace', () => {
     const get = vi.fn(async (path: string) => {
       if (path.startsWith('/api/v1/briefs?')) return { items: [brief] }
       if (path === '/api/v1/briefs/brief-1') return brief
+      if (path === '/api/v1/studio/projects/project-1/creatives') return { items: [{
+        creative_id: 'creative-1', project_id: 'project-1', source_brief_id: 'brief-1', ordinal: 1,
+      }] }
+      throw new Error(`Unexpected GET ${path}`)
+    })
+    const post = vi.fn()
+    const onCreative = vi.fn()
+    const api = { get, post } as unknown as ApiClient
+
+    render(<ProductBriefView
+      api={api} projectId="project-1" onProjectCreated={vi.fn()}
+      onProjectBriefChanged={vi.fn()} onProjectsRefresh={vi.fn(async () => undefined)}
+      onCreative={onCreative} language="en"
+    />)
+
+    await screen.findByText('Product Brief approved')
+    fireEvent.click(screen.getByRole('button', { name: 'Open or create its creative' }))
+
+    await waitFor(() => expect(onCreative).toHaveBeenCalledWith('project-1', 'creative-1'))
+    expect(post).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('creates a missing first creative from an already-approved Brief without asking for approval again', async () => {
+    const brief = {
+      brief_id: 'brief-1', project_id: 'project-1', project_name: 'Project One',
+      request_id: 'request-1', owner_idea_source_id: 'source-1', raw_idea: 'A useful product',
+      status: 'completed', failure_count: 0, approved: true,
+      created_at: '2026-09-01T00:00:00Z', language: 'en',
+      document: {
+        schema_version: 1, language: 'en', product: 'Useful product',
+        target_audience: 'Operators', main_pain: 'Lost time', promise: 'Move faster',
+        key_benefits: ['Clear decisions', 'Less work', 'Visible progress'],
+        cta: 'Start now', trust_strategy: 'Show the workflow', offer: 'Guided setup',
+      },
+    }
+    const get = vi.fn(async (path: string) => {
+      if (path.startsWith('/api/v1/briefs?')) return { items: [brief] }
+      if (path === '/api/v1/briefs/brief-1') return brief
+      if (path === '/api/v1/studio/projects/project-1/creatives') return { items: [] }
       if (path === '/api/v1/studio/templates') return { items: [{
         template_id: 'phone_metrics', name: 'Phone Metrics', description: 'Phone creative',
         canvas: { width: 1080, height: 1080 }, template_version: 1,

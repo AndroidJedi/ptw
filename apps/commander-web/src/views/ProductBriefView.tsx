@@ -103,6 +103,21 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
       setTemplates(value.items)
     } catch (cause) { setError((cause as Error).message); setApprovalOpen(false) }
   }
+  const openOrCreateCreative = async () => {
+    if (!selected) return
+    setBusy(true); setError('')
+    try {
+      const value = await api.get<{ items: StudioCreativeSummary[] }>(
+        `/api/v1/studio/projects/${encodeURIComponent(selected.project_id)}/creatives`,
+      )
+      const existing = value.items.find((item) => item.source_brief_id === selected.brief_id && item.ordinal === 1)
+      if (existing) {
+        onCreative(selected.project_id, existing.creative_id)
+        return
+      }
+      await openApproval()
+    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+  }
   const approve = async () => {
     if (!selected || !templateId) return
     const direction = creativeDirectionFromDraft(creativeDirection)
@@ -149,7 +164,7 @@ export function ProductBriefView({ api, projectId, onProjectCreated, onProjectBr
         {activeStatuses.has(selected.status) && <p className="generation-state"><RefreshCcw className="spin" /> {tr('Generating one testable hypothesis…', 'Генерується одна перевірювана гіпотеза…')}</p>}
         {selected.status === 'failed' && <ErrorState message={operationFailureMessage({ operation: 'brief', detail: selected.error_message, code: selected.error_code, reference: selected.brief_id }, language)} retry={() => void retry()} language={language} />}
         {selected.document && <><BriefDocument value={selected.document} language={language} />
-          <div className="approval-row">{selected.approved ? <><p><Check /> {tr('Product Brief approved', 'Продуктовий бриф схвалено')}</p><button className="secondary" disabled={busy} onClick={() => void openApproval()}><Sparkles />{tr('Open or create its creative', 'Відкрити або створити креатив')}</button></> : <button className="primary" disabled={busy} onClick={() => void openApproval()}><Check />{tr('I can honor this promise and offer — approve', 'Я можу виконати цю обіцянку та пропозицію — схвалити')}</button>}</div>
+          <div className="approval-row">{selected.approved ? <><p><Check /> {tr('Product Brief approved', 'Продуктовий бриф схвалено')}</p><button className="secondary" disabled={busy} onClick={() => void openOrCreateCreative()}><Sparkles />{tr('Open or create its creative', 'Відкрити або створити креатив')}</button></> : <button className="primary" disabled={busy} onClick={() => void openApproval()}><Check />{tr('I can honor this promise and offer — approve', 'Я можу виконати цю обіцянку та пропозицію — схвалити')}</button>}</div>
           <section className="brief-correction"><h2>{tr('Correct this hypothesis', 'Виправити цю гіпотезу')}</h2><p>{tr('Creates a new immutable Brief that must be approved again.', 'Створює новий незмінний бриф, який потрібно схвалити повторно.')}</p><textarea rows={4} maxLength={2000} value={correction} onChange={(event) => setCorrection(event.target.value)} placeholder={tr('One correction for the complete Brief…', 'Одне виправлення для всього брифу…')} /><button className="secondary" disabled={busy || !correction.trim()} onClick={correct}>{tr('Create replacement', 'Створити заміну')} <Send /></button></section>
         </>}
       </div>}

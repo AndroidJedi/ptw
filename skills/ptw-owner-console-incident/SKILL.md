@@ -80,6 +80,14 @@ before changing code or runtime state.
   sanitized global proposal, explicit owner decision, and retry without rollback.
 - Restart recovery resumes queued composition/image/learning exactly once.
   PostgreSQL remains authority; per-creative renderer files are disposable cache.
+- When an already-approved Brief returns HTTP 409 from `/approve`, inspect its
+  ordinal-1 Studio workspace before retrying. Approval and first-Creative
+  reservation are transactional: one existing workspace means the owner action
+  must navigate to that Creative, not reopen a blank template/direction chooser.
+  A different submitted template or Phone Metrics direction correctly conflicts
+  with the immutable reservation. Confirm exactly one approval, one ordinal-1
+  workspace, unchanged lineage/run counts, and no new mutation before changing
+  code; preserve the server conflict guard and fix the client resolution path.
 - When Studio composition is `failed` with a domain `ValueError` but its bridge
   job is `completed`, read only the rejected field and matching output-schema
   constraint from the provider job. Repeated failures with the same response

@@ -19,6 +19,7 @@ JSON_MODES = (
 BRIDGE_JSON_MODES = JSON_MODES
 BRIDGE_MEDIA_MODES = ("content_non_human_graphic_generation",)
 BRIDGE_IDEMPOTENCY_KEY_LIMIT = 240
+BRIDGE_CONCURRENT_SLOT_LIMIT = 1
 
 
 def _validation_error(error: Exception) -> str:
@@ -87,7 +88,9 @@ class StructuredBridge:
         self.model = model or "codex-cli-default"
         self.timeout_seconds = timeout_seconds
         self.last_invocation: dict[str, Any] = {}
-        self._slots = threading.BoundedSemaphore(2)
+        # Production currently has one bounded worker. Serializing here prevents
+        # a second request from spending its client deadline waiting in that queue.
+        self._slots = threading.BoundedSemaphore(BRIDGE_CONCURRENT_SLOT_LIMIT)
 
     def capabilities(self) -> dict[str, Any]:
         value = self._request(f"{self.url}/capabilities", None, timeout=5)

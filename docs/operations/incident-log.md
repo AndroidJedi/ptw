@@ -56,6 +56,11 @@ SSH-stdin control stream: Compose one-off jobs disable TTY/stdin consumption,
 active mutations block cutover, every authoritative row is fingerprinted before
 and after, any incomplete exit rolls back images and persisted tags, and the
 destructive reset script is never called.
+The bridge client also serializes submissions to the single production worker,
+and the worker execution timeout is configurable only within a tested bound
+below the client deadline. This prevents queue wait from consuming a parallel
+request's entire timeout while still allowing the largest Landing contract to
+finish.
 
 ## 2026-09-06 — Landing reservation passed a relationship label as a UUID
 

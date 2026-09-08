@@ -81,6 +81,10 @@ into a complete compatible release, read
   change whenever any semantic dependency changes. Image generation and
   enhancement use the same fingerprint boundary. Reject a rollout that relies
   only on a manually bumped prompt version.
+- Match Validation submission slots to the deployed bridge worker count. Keep
+  the worker execution timeout explicitly bounded below the client deadline;
+  verify both values in tests so queue wait cannot silently consume a second
+  request's entire deadline.
 - Recovered entities must clear current top-level error fields while preserving
   append-only failure history. Never expose a provider HTTP body while
   diagnosing a status; keep only bounded status, job ID, and object ID.

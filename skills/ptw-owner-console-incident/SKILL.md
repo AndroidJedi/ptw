@@ -111,6 +111,11 @@ before changing code or runtime state.
   same job. Keep the final printable key within the platform's 240-character
   limit without dropping collision resistance. Media generation/enhancement
   follows the same rule.
+- Keep client submission concurrency aligned with actual worker concurrency so
+  a queued request cannot consume most of its deadline behind another job.
+  Worker execution timeout must remain bounded below the client deadline and
+  covered by a configuration-boundary test; a timeout may be extended only
+  within that verified margin, never made unbounded.
 - A retry transition must clear stale top-level error metadata while retaining
   append-only failed run records. Never show a recovered draft as failed merely
   because an earlier error remains in its current-state envelope. HTTP bridge

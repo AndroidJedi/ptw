@@ -6,7 +6,7 @@ import urllib.error
 from unittest.mock import patch
 
 from validation_pipeline.provider import (
-    BRIDGE_IDEMPOTENCY_KEY_LIMIT, StructuredBridge,
+    BRIDGE_CONCURRENT_SLOT_LIMIT, BRIDGE_IDEMPOTENCY_KEY_LIMIT, StructuredBridge,
 )
 
 
@@ -71,6 +71,9 @@ class FailedProviderBridge(StructuredBridge):
 
 
 class StructuredBridgeTests(unittest.TestCase):
+    def test_client_concurrency_matches_the_single_production_worker(self) -> None:
+        self.assertEqual(1, BRIDGE_CONCURRENT_SLOT_LIMIT)
+
     def test_product_brief_call_uses_one_stable_attempt_key(self) -> None:
         bridge = FakeBridge()
         value = bridge.generate(

@@ -108,6 +108,10 @@ completed response rejected by domain validation may receive one correction;
 transport, timeout, cancellation, CLI, and provider failures remain on their
 original attempt. Recovery clears stale current errors but retains append-only
 failure history.
+Validation serializes bridge submissions to the single production worker. The
+worker execution timeout is bounded below the client deadline, so a large
+Landing response has a verified completion margin without allowing a queued
+parallel request to exhaust its deadline before execution starts.
 
 Normal backend releases use `scripts/deploy_ptw_preserving.sh`. It refuses an
 active mutable operation, requires six matching versioned Linux/amd64 images and
@@ -207,7 +211,7 @@ are absent.
 
 Landing phone verification is recorded in `.local/landing-phone`, with
 before/after captures, three screen themes at 1280/768/360px, and iPhone WebKit.
-The 63 web unit tests, 51 browser checks, production build, full 155-test
+The 63 web unit tests, 51 browser checks, production build, full 156-test
 Validation suite, 12 Commander tests, and 4 Owner Gateway tests pass. The prior
 38 platform tests remain unchanged. The Commander demo, three-migration schema
 idempotency, canonical skill verification, Python compilation, and whitespace

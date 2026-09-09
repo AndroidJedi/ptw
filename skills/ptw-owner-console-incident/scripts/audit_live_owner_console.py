@@ -54,6 +54,32 @@ def resolve_app_bundle_url(origin: str, entry_url: str, entry_bundle: str) -> st
     return urljoin(entry_url, path)
 
 
+def load_live_app_bundle(origin: str) -> tuple[str, str, str]:
+    last_error: RuntimeError | None = None
+    for attempt in range(5):
+        try:
+            cache_bust = f"skill-audit-{time.time_ns()}"
+            status, _, document_bytes = fetch(f"{origin}/?{cache_bust}")
+            require(status == 200, f"Owner document returned HTTP {status}")
+            document = document_bytes.decode()
+            main_match = re.search(r'src="([^"]*?/assets/index-[^"]+\.js)"', document)
+            require(main_match is not None, "Unable to resolve the live entry bundle")
+            main_url = urljoin(origin, main_match.group(1))
+
+            status, _, main_bytes = fetch(main_url)
+            require(status == 200, f"Entry bundle returned HTTP {status}")
+            app_url = resolve_app_bundle_url(origin, main_url, main_bytes.decode())
+
+            status, _, app_bytes = fetch(app_url)
+            require(status == 200, f"App bundle returned HTTP {status}")
+            return main_url, app_url, app_bytes.decode()
+        except RuntimeError as error:
+            last_error = error
+            if attempt < 4:
+                time.sleep(2)
+    raise last_error or RuntimeError("Unable to load the live App bundle")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--origin", default=DEFAULT_ORIGIN)
@@ -61,21 +87,7 @@ def main() -> None:
     parser.add_argument("--site-key", default=DEFAULT_SITE_KEY)
     args = parser.parse_args()
 
-    cache_bust = f"skill-audit-{int(time.time())}"
-    status, _, document_bytes = fetch(f"{args.origin}/?{cache_bust}")
-    require(status == 200, f"Owner document returned HTTP {status}")
-    document = document_bytes.decode()
-    main_match = re.search(r'src="([^"]*?/assets/index-[^"]+\.js)"', document)
-    require(main_match is not None, "Unable to resolve the live entry bundle")
-    main_url = urljoin(args.origin, main_match.group(1))
-
-    status, _, main_bytes = fetch(main_url)
-    require(status == 200, f"Entry bundle returned HTTP {status}")
-    app_url = resolve_app_bundle_url(args.origin, main_url, main_bytes.decode())
-
-    status, _, app_bytes = fetch(app_url)
-    require(status == 200, f"App bundle returned HTTP {status}")
-    app_bundle = app_bytes.decode()
+    main_url, app_url, app_bundle = load_live_app_bundle(args.origin)
     for label, marker in {
         "Commander API origin": args.api,
         "App Check header": "X-Firebase-AppCheck",
@@ -84,6 +96,7 @@ def main() -> None:
         "Product Brief workspace": "Product Brief",
         "Post destination": "Post",
         "Landing destination": "Landing",
+        "Landing save timeout reconciliation": "Landing was already saved.",
         "ChatGPT authorization settings": "ChatGPT Authorization",
         "actionable API error guidance": "Що робити",
         "bounded API technical context": "Технічні дані",
@@ -100,7 +113,7 @@ def main() -> None:
     ):
         require(retired_label not in app_bundle, f"Live App bundle still exposes {retired_label!r}")
 
-    status, _, worker_bytes = fetch(f"{args.origin}/sw.js?{cache_bust}")
+    status, _, worker_bytes = fetch(f"{args.origin}/sw.js?skill-audit-{time.time_ns()}")
     require(status == 200, f"Service worker returned HTTP {status}")
     cache_match = re.search(r"const CACHE = '([^']+)'", worker_bytes.decode())
     require(cache_match is not None, "Unable to resolve service-worker cache")

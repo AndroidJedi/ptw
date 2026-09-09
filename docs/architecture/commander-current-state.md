@@ -2,7 +2,7 @@
 
 Updated: 2026-09-09
 Branch: `main`
-Deployment: backend release `studio-approval-20260909-59be4a3` and the existing matching Owner Console contract are live; Meta staging is disabled until a fresh secret is configured
+Deployment: backend release `studio-approval-20260909-59be4a3` and Owner Console Landing Save hotfix `d6d5b65` are live; Meta staging is disabled until a fresh secret is configured
 
 ## Landing Save conflict incident
 
@@ -14,6 +14,12 @@ browser state then correctly returned HTTP 409. The web hotfix aligns the
 client deadline with the Gateway and reads the current page once after the exact
 stale-state conflict, reconciling only an exact configuration/content match and
 preserving pending owner input whenever the server document differs.
+
+Verification passes: 70 Owner Console unit tests, production build, 60 browser
+flows across desktop/360px/iPhone WebKit, Commander release-contract tests,
+canonical skill validation, and the authenticated-free live boundary audit.
+The audit now tolerates only a bounded Firebase document/entry/lazy-bundle
+propagation window and requires the incident-specific reconciliation marker.
 
 ## Local Post and Landing visual mode milestone
 

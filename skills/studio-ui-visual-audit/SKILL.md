@@ -72,8 +72,8 @@ this audit.
 
 For in-phone visual generation controls, verify that “Enhance current image” is
 disabled without a mutable raw hero, enabled and checked by default when one
-exists, keyboard-operable at desktop and 360 CSS pixels, and sends only the
-bounded boolean mode to the authenticated route. Provider coverage must prove
+exists, keyboard-operable at desktop and 360 CSS pixels, and sends the
+bounded boolean mode to the authenticated route when no uploaded reference is selected. Provider coverage must prove
 that enhancement receives the exact raw current asset, never the composited
 phone preview, and persists its reference SHA-256 while failure preserves the
 previous asset.
@@ -86,3 +86,15 @@ selection, the selected raw bytes reach both the authoritative render and the
 next Enhance call, failure preserves current/history, and the three-column
 selector remains keyboard usable without horizontal overflow at desktop and
 360 CSS pixels.
+
+All manual image-generation prompts (Post and both Landing slots) reuse the
+shared optional Image Reference upload/preview/remove control and API decoder.
+Verify PNG/JPEG/WebP upload, keyboard removal, 360px filename wrapping, prompt
+plus image forwarding, and mutual exclusion with current-image enhancement.
+Selection must perform no upload or persistence; only Generate sends pixels.
+Completion, failure, scope change, and unmount must clear temporary file state
+and revoke preview URLs. Invalid inputs must fail before provider invocation;
+failed generation preserves current/history. Gateway forwarding and real route
+validation must accompany mocked UI coverage. The bridge must advertise ephemeral
+reference support before receiving pixels, persist only handle/digest metadata,
+and consume or expire its bounded memory input without storing bytes in jobs.

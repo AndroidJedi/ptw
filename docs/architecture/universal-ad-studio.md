@@ -95,6 +95,7 @@ afterward. Provider credentials and temporary paths never reach the browser.
 Manual generation supports:
 
 - fresh generation with no reference;
+- generation from one optional uploaded Image Reference plus the owner direction;
 - enhancement using exactly the selected raw hero PNG and its digest;
 - selection among the newest three distinct digest-checked raw heroes;
 - separate retry after automatic image failure.
@@ -170,3 +171,38 @@ complete system E2E evidence.
 files through its guarded worktree and requires explicit owner approval before
 copy-back. Runtime learning writes immutable database/local skill snapshots; it
 never rewrites Git skills or mounted read-only skill directories.
+
+## Shared Image Reference input
+
+Every manual image-generation prompt uses the shared `ImageReferenceInput` control
+and `validation_pipeline.image_reference` request/pipeline contract. This covers
+Post Phone Metrics and both Landing visual slots. Future generation surfaces must
+reuse these boundaries. An optional `reference_image` object contains only
+`mime_type` and `bytes_base64`; it is mutually exclusive with `enhance_current`.
+Without it, automatic and manual generation keep their existing behavior.
+
+PNG, JPEG, and WebP uploads are bounded to 8 MiB, one frame, 64–8192 input pixels,
+and 16 megapixels. The server applies EXIF orientation, preserves aspect ratio,
+fits within 2048 pixels, strips metadata, and supplies a PNG to the provider.
+The prompt tells the agent to interpret the image together with the owner's
+instruction; it adds no style/composition/object reference modes. Existing
+text-free destination constraints remain in force.
+
+The file is operation input, never an asset, configuration field, checkpoint,
+version, or learning attachment. Browser selection creates a local object URL
+only; the request includes pixels only on Generate. Completion or failure,
+page/creative navigation, removal, and unmount clear the reference/preview.
+Failures preserve the current generated image and require re-upload for a
+reference retry. Generated results use ordinary asset/history/version behavior.
+Only a reference SHA-256 is retained as generation provenance.
+
+The companion platform bridge must advertise
+`image_reference_retention: ephemeral` before PTW sends reference bytes. It
+replaces uploaded bytes with a server-owned handle and digest/dimension metadata
+before inserting a job. Its bounded memory pool holds at most two references
+for up to ten minutes; an authenticated worker consumes each once into its
+existing temporary directory (tmpfs in production). Completion, failure, client
+cleanup, expiry, or restart remove the input. A lost input fails explicitly
+instead of generating without it. This requires deploying the companion bridge
+and worker together with Validation; older bridges reject reference operations
+at the capability preflight without receiving the image.

@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 try:
     from PIL import Image
@@ -321,6 +321,26 @@ class LandingWorkspaceTests(unittest.TestCase):
                 base_sha256=detail["state_sha256"], configuration=detail["configuration"],
                 content=detail["content"], change_note="Cannot approve incomplete Landing",
             )
+
+    def test_uploaded_reference_for_both_slots_is_not_a_workspace_asset(self):
+        from tests.validation_pipeline.test_image_reference import upload
+        from validation_pipeline.image_reference import decode_reference
+        reference = decode_reference(upload())
+        for slot in ("hero_visual", "visual_break_visual"):
+            before = self.workspace.detail()
+            after = self.workspace.generate_visual(base_sha256=before["state_sha256"], slot=slot,
+                visual_direction="Keep the composition, change the background", prompt="Text-free artwork only",
+                reference_image=reference)
+            self.assertEqual(reference, self.images.references[-1])
+            self.assertNotIn("bytes_base64", json.dumps(after))
+            for path in self.workspace.root.rglob("*"):
+                if path.is_file():
+                    self.assertNotEqual(reference, path.read_bytes())
+            with patch.object(self.images, 'generate', side_effect=RuntimeError('unavailable')):
+                with self.assertRaises(RuntimeError):
+                    self.workspace.generate_visual(base_sha256=after["state_sha256"], slot=slot,
+                        visual_direction="Change the background again", prompt="Text-free artwork only", reference_image=reference)
+            self.assertEqual(after["state_sha256"], self.workspace.detail()["state_sha256"])
 
     def test_keeps_bounded_visual_history_and_immutable_version(self) -> None:
         detail = self.workspace.detail()

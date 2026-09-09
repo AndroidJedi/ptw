@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import uuid
 from typing import Any, Mapping
 
 import httpx
@@ -138,7 +139,7 @@ class LocalCodexPhoneScreenImageProvider:
     @staticmethod
     def _prompt(prompt: str, *, reference_path: Path | None = None) -> str:
         reference_instruction = (
-            "Use the current hero PNG at the absolute path below as the sole referenced "
+            "Use the reference PNG at the absolute path below as the sole referenced "
             "input image for the image-generation tool. Edit that image; do not merely "
             "describe it or generate without the reference.\n"
             f"CURRENT_HERO_IMAGE={reference_path}\n"
@@ -378,6 +379,9 @@ class ResultBridgePhoneScreenImageProvider:
         if self.model != "codex-cli-default":
             request_document["model"] = self.model
         if reference_image is not None:
+            capabilities = self._request("GET", f"{self.bridge_url}/capabilities").json()
+            if capabilities.get("image_reference_retention") != "ephemeral":
+                raise RuntimeError("Image references require a bridge with temporary input support")
             if len(reference_image) > 8 * 1024 * 1024:
                 raise ValueError("phone-screen reference image exceeds the 8 MB bridge limit")
             inspected_reference = inspect_media(reference_image, "image/png")
@@ -391,7 +395,7 @@ class ResultBridgePhoneScreenImageProvider:
             }]
         base_key = (
             f"phone-screen:{prompt_digest}:new" if reference_digest is None
-            else f"phone-screen:{prompt_digest}:edit:{reference_digest}"
+            else f"phone-screen:{prompt_digest}:edit:{reference_digest}:{uuid.uuid4().hex}"
         )
         request_fingerprint = bridge_request_fingerprint(
             mode=RESULT_BRIDGE_PHONE_SCREEN_MODE,
@@ -413,22 +417,29 @@ class ResultBridgePhoneScreenImageProvider:
             request_id = int(queued["request_id"])
         except (KeyError, TypeError, ValueError) as error:
             raise RuntimeError("Result media bridge did not return a request ID") from error
-        deadline = time.monotonic() + self.timeout_seconds
-        result: Mapping[str, Any] | None = None
-        while time.monotonic() < deadline:
-            state = self._request("GET", f"{self.bridge_url}/{request_id}").json()
-            status = state.get("status")
-            if status == "completed":
-                candidate = state.get("result")
-                if not isinstance(candidate, Mapping):
-                    raise RuntimeError("Result media bridge completed without a result")
-                result = candidate
-                break
-            if status in {"failed", "cancelled"}:
-                raise RuntimeError(f"Result media bridge request {request_id} {status}")
-            time.sleep(1)
-        if result is None:
-            raise TimeoutError(f"Result media bridge request {request_id} timed out")
+        try:
+            deadline = time.monotonic() + self.timeout_seconds
+            result: Mapping[str, Any] | None = None
+            while time.monotonic() < deadline:
+                state = self._request("GET", f"{self.bridge_url}/{request_id}").json()
+                status = state.get("status")
+                if status == "completed":
+                    candidate = state.get("result")
+                    if not isinstance(candidate, Mapping):
+                        raise RuntimeError("Result media bridge completed without a result")
+                    result = candidate
+                    break
+                if status in {"failed", "cancelled"}:
+                    raise RuntimeError(f"Result media bridge request {request_id} {status}")
+                time.sleep(1)
+            if result is None:
+                raise TimeoutError(f"Result media bridge request {request_id} timed out")
+        finally:
+            if reference_image is not None:
+                try:
+                    self._request("DELETE", f"{self.bridge_url}/{request_id}/input-reference")
+                except httpx.HTTPError:
+                    pass  # Single-use consumption / bounded bridge TTL also removes it.
         image = result.get("image")
         if not isinstance(image, Mapping):
             raise RuntimeError("Result media bridge returned no generated image")

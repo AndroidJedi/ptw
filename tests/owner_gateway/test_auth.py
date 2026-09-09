@@ -172,6 +172,27 @@ class OwnerClaimsTests(unittest.TestCase):
             contract(gateway.routes, "/api/v1/studio"),
         )
 
+    def test_image_references_cross_both_authenticated_gateway_routes_unchanged(self):
+        from tests.validation_pipeline.test_image_reference import upload
+        class Verifier:
+            def verify(self, token, app_check_token):
+                self_identity = OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
+                return self_identity
+        payload = {"base_sha256": "a" * 64, "visual_direction": "Keep the object, change the background", "reference_image": upload()}
+        paths = ["/api/v1/studio/projects/project/creatives/creative/phone-screen/generate",
+                 "/api/v1/landings/projects/project/pages/page/visuals/hero_visual/generate",
+                 "/api/v1/landings/projects/project/pages/page/visuals/visual_break_visual/generate"]
+        for path in paths:
+            upstream = httpx.Response(200, json={"state_sha256": "b" * 64}, request=httpx.Request("POST", "http://validation"))
+            forwarded = AsyncMock(return_value=upstream)
+            with patch("httpx.AsyncClient.request", forwarded), TestClient(create_app(self.settings, verifier=Verifier())) as client:
+                self.assertEqual(401, client.post(path, json=payload).status_code)
+                result = client.post(path, json=payload, headers={"Authorization": "Bearer test", "X-Firebase-AppCheck": "test"})
+            self.assertEqual(200, result.status_code)
+            self.assertEqual(payload, forwarded.call_args.kwargs["json"])
+            self.assertEqual("firebase:owner-uid", forwarded.call_args.kwargs["headers"]["X-PTW-Actor"])
+            self.assertNotIn("reference_image", result.json())
+
     def test_creative_direction_crosses_authenticated_gateway_with_exact_contract(self) -> None:
         class Verifier:
             def verify(self, token: str, app_check_token: str) -> OwnerIdentity:

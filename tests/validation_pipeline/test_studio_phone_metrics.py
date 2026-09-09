@@ -848,6 +848,27 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
                 bytes_base64=base64.b64encode(_screen_bytes()).decode(),
             )
 
+    def test_uploaded_reference_is_operation_only_and_failure_preserves_current(self):
+        from tests.validation_pipeline.test_image_reference import upload
+        from validation_pipeline.image_reference import decode_reference
+        provider = FakePhoneScreenImageProvider()
+        self.workspace.image_provider = provider
+        phone = self._phone()
+        reference = decode_reference(upload())
+        generated = self.workspace.generate_phone_screen(base_sha256=phone["state_sha256"],
+            visual_direction="Keep the composition and change the background", reference_image=reference)
+        self.assertEqual([reference], provider.references)
+        self.assertEqual("uploaded_reference", generated["phone_screen_history"][0]["source"]["generation_mode"])
+        self.assertNotIn("bytes_base64", json.dumps(generated))
+        for path in self.workspace.root.rglob("*"):
+            if path.is_file():
+                self.assertNotEqual(reference, path.read_bytes())
+        with patch.object(provider, "generate", side_effect=RuntimeError("unavailable")):
+            with self.assertRaisesRegex(RuntimeError, "previous visual was preserved"):
+                self.workspace.generate_phone_screen(base_sha256=generated["state_sha256"],
+                    visual_direction="Keep the composition and change the background", reference_image=reference)
+        self.assertEqual(generated["state_sha256"], self.workspace.detail()["state_sha256"])
+
     def test_owner_direction_generates_and_persists_one_text_free_phone_visual(self) -> None:
         provider = FakePhoneScreenImageProvider()
         self.workspace.image_provider = provider

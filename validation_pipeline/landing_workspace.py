@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .studio import inspect_media
+from .image_reference import generate_image
 from .landing_design import (DEFAULT_APP_FEATURE, APP_FEATURE_LIMITS, DEFAULT_PHONE_MOCKUP, PHONE_MOCKUP_OPTIONS, DEFAULT_COMPONENTS, DEFAULT_IMAGE_DIRECTIONS, COMPONENT_OPTIONS, LANDING_BACKGROUND_DIRECTIVES, PHONE_HERO_STYLE_DIRECTIVES, design_catalog)
 
 
@@ -468,7 +469,7 @@ class LandingWorkspace:
 
     def generate_visual(
         self, *, base_sha256: str, slot: str, visual_direction: str, prompt: str,
-        enhance_current: bool = False,
+        enhance_current: bool = False, reference_image: bytes | None = None,
     ) -> dict[str, Any]:
         self._assert_state(base_sha256)
         if slot not in LANDING_VISUAL_SLOTS:
@@ -477,12 +478,14 @@ class LandingWorkspace:
             raise RuntimeError("Landing image generation is unavailable")
         direction = _text(visual_direction, "visual direction", 8, 600)
         selected = self._selected(slot)
-        reference = None
+        if reference_image is not None and enhance_current:
+            raise ValueError("Choose only one image reference")
+        reference = reference_image
         if enhance_current:
             if not selected:
                 raise ValueError("select a Landing visual before enhancement")
             reference = (self.assets / f"{selected}.png").read_bytes()
-        generated = self.image_provider.generate(prompt + "\n\nVisual direction: " + direction, reference_image=reference)
+        generated = generate_image(self.image_provider, prompt + "\n\nVisual direction: " + direction, reference_image=reference, uploaded_reference=reference_image is not None)
         data = bytes(generated["bytes"])
         inspected = inspect_media(data, str(generated.get("mime_type") or "image/png"))
         if inspected["mime_type"] != "image/png":

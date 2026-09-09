@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .image_reference import generate_image
+
 import base64
 import hashlib
 import json
@@ -721,6 +723,7 @@ class UniversalStudioWorkspace:
     def generate_phone_screen(
         self, *, base_sha256: str, visual_direction: str,
         enhance_current: bool = False, skill_context: str = "",
+        reference_image: bytes | None = None,
         creative_direction: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Generate or reference-edit one mutable, text-free phone hero artwork."""
@@ -732,6 +735,8 @@ class UniversalStudioWorkspace:
             raise RuntimeError("Phone-screen image generation is unavailable in this Studio runtime")
         if not isinstance(enhance_current, bool):
             raise ValueError("enhance current phone-screen setting must be boolean")
+        if reference_image is not None and enhance_current:
+            raise ValueError("Choose only one image reference")
         current_screen = self._asset_record("phone_screen")
         if enhance_current and current_screen is None:
             raise ValueError(
@@ -743,12 +748,10 @@ class UniversalStudioWorkspace:
             skill_context=skill_context, creative_direction=creative_direction,
         )
         try:
-            generated = (
-                self.image_provider.generate(
-                    prompt, reference_image=bytes(current_screen["bytes"]),
-                )
-                if enhance_current and current_screen is not None
-                else self.image_provider.generate(prompt)
+            reference = bytes(current_screen["bytes"]) if enhance_current and current_screen else reference_image
+            generated = generate_image(
+                self.image_provider, prompt, reference_image=reference,
+                uploaded_reference=reference_image is not None,
             )
         except ValueError:
             raise
@@ -765,6 +768,7 @@ class UniversalStudioWorkspace:
                 normalized_direction.encode()
             ).hexdigest(),
             "generation_mode": (
+                "uploaded_reference" if reference_image is not None else
                 "enhance_current" if enhance_current else "generate_new"
             ),
             **({"creative_direction": dict(creative_direction)}

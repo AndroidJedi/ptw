@@ -1,0 +1,9 @@
+.image-reference-input { display: grid; gap: 8px; min-width: 0; margin-block: 12px; }
+.image-reference-input label { font-weight: 600; }
+.image-reference-input small { line-height: 1.5; }
+.image-reference-input input[type=file] { width: 100%; min-width: 0; min-height: 44px; font: inherit; }
+.image-reference-input input::file-selector-button { min-height: 44px; margin-right: 8px; cursor: pointer; }
+.image-reference-preview { display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; }
+.image-reference-preview img { width: 72px; height: 72px; object-fit: contain; border-radius: 8px; }
+.image-reference-preview span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.image-reference-preview button { grid-column: 1 / -1; justify-self: start; min-height: 44px; }

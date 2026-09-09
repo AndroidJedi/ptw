@@ -214,6 +214,11 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
         seen: dict[str, object] = {}
 
         def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/capabilities"):
+                return httpx.Response(200, json={"image_reference_retention": "ephemeral"})
+            if request.method == "DELETE":
+                seen["discarded"] = True
+                return httpx.Response(200, json={})
             if request.method == "POST":
                 seen["payload"] = json.loads(request.content)
                 return httpx.Response(200, json={"request_id": 72})
@@ -234,10 +239,11 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
                 reference_image=reference,
             )
 
+        self.assertTrue(seen["discarded"])
         attached = seen["payload"]["input_images"][0]
         self.assertRegex(
             seen["payload"]["idempotency_key"],
-            r"^phone-screen:[0-9a-f]{64}:edit:[0-9a-f]{64}:request:[0-9a-f]{64}:attempt:1$",
+            r"^phone-screen:.*:request:[0-9a-f]{64}:attempt:1$",
         )
         self.assertEqual(reference, base64.b64decode(attached["bytes_base64"]))
         self.assertEqual(
@@ -247,6 +253,33 @@ class OpenAIPhoneScreenImageProviderTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(reference).hexdigest(), attached["digest"])
         self.assertEqual("image_edit", result["source"]["operation"])
         self.assertEqual(attached["digest"], result["source"]["reference_image_sha256"])
+
+    def test_reference_never_reaches_a_bridge_without_ephemeral_capability(self):
+        requests = []
+        def handler(request):
+            requests.append(request)
+            return httpx.Response(200, json={"media_modes": ["content_non_human_graphic_generation"]})
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            provider = ResultBridgePhoneScreenImageProvider("http://bridge/internal/llm/structured", "test", client=client)
+            with self.assertRaisesRegex(RuntimeError, "temporary input"):
+                provider.generate("Change the background and keep the object", reference_image=self._png())
+        self.assertEqual(["GET"], [request.method for request in requests])
+
+    def test_reference_is_discarded_when_bridge_generation_fails(self):
+        requests = []
+        def handler(request):
+            requests.append(request)
+            if request.url.path.endswith("/capabilities"):
+                return httpx.Response(200, json={"image_reference_retention": "ephemeral"})
+            if request.method == "POST":
+                return httpx.Response(200, json={"request_id": 73})
+            return httpx.Response(200, json={"status": "failed"})
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            provider = ResultBridgePhoneScreenImageProvider("http://bridge/internal/llm/structured", "test", client=client)
+            with self.assertRaisesRegex(RuntimeError, "failed"):
+                provider.generate("Change the background and keep the object", reference_image=self._png())
+        self.assertEqual("DELETE", requests[-1].method)
+        self.assertTrue(requests[-1].url.path.endswith("/73/input-reference"))
 
     def test_authenticated_codex_provider_rejects_output_outside_generated_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

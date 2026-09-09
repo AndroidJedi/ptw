@@ -14,7 +14,8 @@ inside the fixed `phone_metrics` app screen.
 - When the creative supplies a saved image direction, treat its selected style
   and background treatment as the visual authority for that generation. The
   Brief-derived or owner-entered description says only **what** to show; it
-  must not replace the style. A `scene` may use one restrained contextual backdrop. An
+  must not replace the style unless this operation includes an uploaded Image
+  Reference and an explicit owner request to use or change its style. A `scene` may use one restrained contextual backdrop. An
   `isolated_key_element` must show one focal object on a clean tonal field with
   no extra objects or scenery and no transparent output.
 - Keep all generated pixels free of readable text, letters, numbers, logos,
@@ -30,5 +31,11 @@ inside the fixed `phone_metrics` app screen.
   selected raw hero PNG as its sole image reference and preserve its
   recognizable subject, material character, palette, and spatial arrangement
   unless the owner explicitly asks to change them.
+- An uploaded Image Reference is an optional, operation-only alternative to
+  enhancing the current hero. Interpret its pixels with the owner's instruction
+  to determine what to preserve or change, without extra reference-type controls.
+  Explicit requested changes override default style; all text-free output and
+  fixed renderer boundaries still apply. Never save the upload as a Project
+  asset, learning input, or reusable reference; keep only its digest provenance.
 - Return one image only. Provider or validation failure must preserve the
   current creative and its three-item history.

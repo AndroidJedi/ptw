@@ -916,6 +916,7 @@ class LandingService:
         self.detail(project_id, landing_id)
         workspace = self._workspace(landing_id)
         before = workspace.detail()
+        reference_digest = hashlib.sha256(kwargs["reference_image"]).hexdigest() if kwargs.get("reference_image") is not None else None
         if method == "generate_visual":
             # Build from the same persisted configuration used by the digest guard.
             kwargs["prompt"] = self._image_prompt(self.authority.get_page(landing_id), kwargs["slot"], kwargs["visual_direction"], before["configuration"])
@@ -923,10 +924,10 @@ class LandingService:
             result = getattr(workspace, method)(**kwargs)
         except Exception as error:
             if method == "generate_visual" and kwargs.get("slot") in LANDING_VISUAL_SLOTS:
-                self._record_generation(landing_id=landing_id, stage=str(kwargs.get("slot")), status="failed", input_sha256=sha256_json({"base_sha256": before["state_sha256"], "slot": kwargs.get("slot"), "visual_direction": kwargs.get("visual_direction"), "prompt": kwargs.get("prompt")}), output_sha256=None, prompt_version="landing-visual-generator-v2", invocation={"enhance_current": bool(kwargs.get("enhance_current", False))}, error=error)
+                self._record_generation(landing_id=landing_id, stage=str(kwargs.get("slot")), status="failed", input_sha256=sha256_json({"base_sha256": before["state_sha256"], "slot": kwargs.get("slot"), "visual_direction": kwargs.get("visual_direction"), "prompt": kwargs.get("prompt"), "reference_image_sha256": reference_digest}), output_sha256=None, prompt_version="landing-visual-generator-v2", invocation={"enhance_current": bool(kwargs.get("enhance_current", False)), **({"reference_image_sha256": reference_digest} if reference_digest else {})}, error=error)
             raise
         if method == "generate_visual" and kwargs.get("slot") in LANDING_VISUAL_SLOTS:
-            self._record_generation(landing_id=landing_id, stage=str(kwargs["slot"]), status="completed", input_sha256=sha256_json({"base_sha256": before["state_sha256"], "slot": kwargs["slot"], "visual_direction": kwargs["visual_direction"], "prompt": kwargs["prompt"]}), output_sha256=result["state_sha256"], prompt_version="landing-visual-generator-v2", invocation={"enhance_current": bool(kwargs.get("enhance_current", False))})
+            self._record_generation(landing_id=landing_id, stage=str(kwargs["slot"]), status="completed", input_sha256=sha256_json({"base_sha256": before["state_sha256"], "slot": kwargs["slot"], "visual_direction": kwargs["visual_direction"], "prompt": kwargs["prompt"], "reference_image_sha256": reference_digest}), output_sha256=result["state_sha256"], prompt_version="landing-visual-generator-v2", invocation={"enhance_current": bool(kwargs.get("enhance_current", False)), **({"reference_image_sha256": reference_digest} if reference_digest else {})})
         self._synchronize_workspace(landing_id, workspace)
         self.authority.update_page(landing_id, state_sha256=result["state_sha256"])
         return {**result, **self.summary(landing_id)}

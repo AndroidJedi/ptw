@@ -1,4 +1,5 @@
 import { ImagePlus, RefreshCcw, Trash2 } from 'lucide-react'
+import { ImageReferenceInput } from '../components/ImageReferenceInput'
 import { useId, type CSSProperties } from 'react'
 import type { LandingAppFeature, LandingPhoneMockup, LandingComponents, LandingConfiguration, LandingContent, LandingDetail, LandingPresentation } from '../types'
 import { PhoneHeroDirectionPicker, styles as imageStyles, backgrounds as imageBackgrounds } from '../components/studio/PhoneHeroDirectionPicker'
@@ -8,10 +9,11 @@ type Props = {
   section: Section; configuration: LandingConfiguration; content: LandingContent; detail: LandingDetail
   onConfiguration: (value: LandingConfiguration) => void; onContent: (value: LandingContent) => void
   language: 'en' | 'uk'; busy: boolean; issues: Issue[]; imageUrls: Record<string, string>
+  referenceImage: File | null; onReferenceImage: (file: File | null) => void
   onGenerate: (slot: 'hero_visual' | 'visual_break_visual', enhance?: boolean) => void
   onSelectImage: (slot: 'hero_visual' | 'visual_break_visual', sha: string) => void
 }
-export function LandingInspector({ section, configuration: c, content: v, detail, onConfiguration, onContent, language, busy, issues, imageUrls, onGenerate, onSelectImage }: Props) {
+export function LandingInspector({ section, configuration: c, content: v, detail, onConfiguration, onContent, language, busy, issues, imageUrls, onGenerate, onSelectImage, referenceImage, onReferenceImage }: Props) {
   const tr = (en: string, uk: string) => language === 'uk' ? uk : en
   const phone = c.phone_mockup || phoneDefaults
   const feature = resolvedAppFeature(v, c.presentation?.language || 'uk')
@@ -48,7 +50,8 @@ export function LandingInspector({ section, configuration: c, content: v, detail
       <p className="landing-field-hint">{tr('The selected style is saved with this image slot and used by Generate and Enhance. Existing artwork changes only after generation.', 'Обраний стиль зберігається для цієї секції та використовується для створення й покращення. Поточне зображення зміниться лише після генерації.')}</p>
       {field(tr('Visual direction', 'Напрям зображення'), direction, 600, value => onContent(hero ? { ...v, hero: { ...v.hero, visual_direction: value } } : { ...v, visual_break: { visual_direction: value } }), undefined, true)}
       {direction.length > 0 && direction.trim().length < 8 && <p className="landing-field-error">{tr('Use at least 8 characters.', 'Введіть щонайменше 8 символів.')}</p>}
-      <div className="landing-visual-actions"><button className="secondary" disabled={busy || !detail.image_generation_available || direction.trim().length < 8} onClick={() => onGenerate(slot)}><ImagePlus />{tr('Generate', 'Створити')}</button><button className="secondary" disabled={busy || !detail.image_generation_available || !asset?.available || direction.trim().length < 8} onClick={() => onGenerate(slot, true)}><RefreshCcw />{tr('Enhance', 'Покращити')}</button></div>
+      <ImageReferenceInput value={referenceImage} onChange={onReferenceImage} language={language} disabled={busy || !detail.image_generation_available} />
+      <div className="landing-visual-actions"><button className="secondary" disabled={busy || !detail.image_generation_available || direction.trim().length < 8} onClick={() => onGenerate(slot)}><ImagePlus />{tr('Generate', 'Створити')}</button><button className="secondary" disabled={busy || Boolean(referenceImage) || !detail.image_generation_available || !asset?.available || direction.trim().length < 8} onClick={() => onGenerate(slot, true)}><RefreshCcw />{tr('Enhance', 'Покращити')}</button></div>
       {!detail.image_generation_available && <p className="landing-field-hint">{tr('Image generation is unavailable.', 'Генерація зображень недоступна.')}</p>}
       {asset && asset.history.length > 0 && <div className="landing-image-history" aria-label={tr('Image history', 'Історія зображень')}>{asset.history.map((item, index) => <button key={item.sha256} className={item.selected ? 'active' : ''} disabled={busy || item.selected} aria-label={`${tr('Select image', 'Обрати зображення')} ${index + 1}`} aria-pressed={item.selected} onClick={() => onSelectImage(slot, item.sha256)}>{imageUrls[item.sha256] && <img src={imageUrls[item.sha256]} alt="" />}<span>{item.selected ? tr('Selected', 'Обрано') : index + 1}</span></button>)}</div>}
       <h3>{tr('Crop focus', 'Центр кадрування')}</h3>

@@ -8,6 +8,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.params import Depends as DependsParameter
 from fastapi.responses import Response
 
+from .image_reference import generation_request
+
 
 def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[DependsParameter] = ()) -> APIRouter:
     router = APIRouter(prefix=prefix, dependencies=list(dependencies))
@@ -89,10 +91,9 @@ def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[Dep
 
     @router.post("/projects/{project_id}/pages/{landing_id}/visuals/{slot}/generate")
     def generate_visual(project_id: str, landing_id: str, slot: str, request: Mapping[str, Any]) -> dict[str, Any]:
-        if set(request) not in ({"base_sha256", "visual_direction"}, {"base_sha256", "visual_direction", "enhance_current"}) or not isinstance(request.get("enhance_current", False), bool):
-            raise HTTPException(status_code=400, detail="Landing visual generation fields are invalid")
         try:
-            return service.mutate(project_id, landing_id, "generate_visual", base_sha256=str(request["base_sha256"]), slot=slot, visual_direction=str(request["visual_direction"]), enhance_current=bool(request.get("enhance_current", False)))
+            options = generation_request(request)
+            return service.mutate(project_id, landing_id, "generate_visual", slot=slot, **options)
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
 

@@ -293,3 +293,33 @@ test('keeps long app UI inside the canonical phone at all preview widths', async
     await expect(dialog.locator('.lp-phone-row').last()).toBeInViewport()
   }
 })
+
+
+test('uses a temporary reference in either image slot, clears on completion, error and navigation', async ({ page }) => {
+  await setup(page)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const upload = () => page.getByLabel(/Upload reference image/).setInputFiles({ name: 'reference.png', mimeType: 'image/png', buffer: bytes })
+  await upload()
+  await expect(page.getByRole('button', { name: 'Enhance', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: 'Remove reference' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('button', { name: 'Remove reference' })).toHaveCount(0)
+  for (const [section, slot] of [['Hero', 'hero_visual'], ['Visual story', 'visual_break_visual']]) {
+    if (slot === 'visual_break_visual') await editorSection(page, section).click()
+    await upload()
+    await page.locator(".landing-image-editor").screenshot({ path: `.local/image-reference-landing-${slot}-${test.info().project.name}.png` })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    const request = page.waitForRequest(request => request.url().endsWith(`/${slot}/generate`))
+    await page.getByRole('button', { name: 'Generate', exact: true }).click()
+    expect((await request).postDataJSON()).toMatchObject({ reference_image: { mime_type: 'image/png', bytes_base64: bytes.toString('base64') } })
+    await expect(page.getByRole('button', { name: 'Remove reference' })).toHaveCount(0)
+  }
+  await upload()
+  await editorSection(page, 'Hero').click()
+  await expect(page.getByRole('button', { name: 'Remove reference' })).toHaveCount(0)
+  await upload()
+  await page.route('**/hero_visual/generate', route => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ detail: 'Generation failed; previous image preserved' }) }))
+  await page.getByRole('button', { name: 'Generate', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Remove reference' })).toHaveCount(0)
+  await expect(page.getByText(/Generation failed; previous image preserved/)).toBeVisible()
+})

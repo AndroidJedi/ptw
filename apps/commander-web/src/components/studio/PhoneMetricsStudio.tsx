@@ -1,5 +1,6 @@
 import { Bold, Check, Highlighter, ImagePlus, RefreshCcw, Save, Sparkles, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { ImageReferenceInput, imageReferencePayload } from '../ImageReferenceInput'
 import type { ApiClient } from '../../api'
 import { ErrorState } from '../../components/State'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from './PhoneHeroDirectionPicker'
@@ -74,6 +75,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     const source = initialScreenAsset?.source
     return typeof source?.visual_direction === 'string' ? source.visual_direction : ''
   })
+  const [referenceImage, setReferenceImage] = useState<File | null>(null)
+  useEffect(() => { setReferenceImage(null) }, [basePath])
   const [enhanceCurrent, setEnhanceCurrent] = useState(Boolean(initialScreenAsset?.available))
   const [legacyDirection, setLegacyDirection] = useState<PhoneHeroDirectionDraft>({ style: '', background: '' })
   const [editingCreativeDirection, setEditingCreativeDirection] = useState(false)
@@ -186,7 +189,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     if (!canGenerateWithDirection) return
     setBusy(true); setError(''); setNotice('')
     try {
-      const useCurrentAsReference = enhanceCurrent && hasCurrentPhoneScreen
+      const useCurrentAsReference = !referenceImage && enhanceCurrent && hasCurrentPhoneScreen
+      const reference = referenceImage ? await imageReferencePayload(referenceImage) : null
       let saved = detail
       if (
         JSON.stringify(configuration) !== JSON.stringify(detail.configuration)
@@ -200,12 +204,13 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       const next = await api.post<StudioPhoneMetricsDetail>(`${basePath}/phone-screen/generate`, {
         base_sha256: saved.state_sha256, visual_direction: screenDirection.trim(),
         enhance_current: useCurrentAsReference,
+        ...(reference ? { reference_image: reference } : {}),
       }, { deadlineMs: 360_000 })
       applyDetail(next); setEnhanceCurrent(true); await render(next)
       setNotice(useCurrentAsReference
         ? tr('Current iPhone hero visual enhanced and applied.', 'Поточний герой-візуал iPhone покращено й застосовано.')
         : tr('New iPhone hero visual generated and applied.', 'Новий герой-візуал для iPhone згенеровано й застосовано.'))
-    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+    } catch (cause) { setError((cause as Error).message) } finally { setReferenceImage(null); setBusy(false) }
   }
   const saveCreativeDirection = async () => {
     const direction = creativeDirectionFromDraft(legacyDirection)
@@ -485,6 +490,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             placeholder={tr('Example: translucent glass steps rising through soft blue light with one lime accent', 'Наприклад: прозорі скляні сходи в м’якому блакитному світлі з одним лаймовим акцентом')}
             onChange={(event) => setScreenDirection(event.target.value)}
           /></label>
+          <ImageReferenceInput value={referenceImage} onChange={setReferenceImage} language={language}
+            disabled={busy || !canGenerateWithDirection || !detail.phone_screen_generation_available} />
           {detail.phone_screen_history.length > 0 && <div className="phone-screen-history">
             <div><strong>{tr('Last 3 images', 'Останні 3 зображення')}</strong><small>{tr('Choose one to apply or enhance', 'Виберіть для застосування або покращення')}</small></div>
             <div className="phone-screen-history-options" role="radiogroup" aria-label={tr('Recent iPhone images', 'Останні зображення iPhone')}>
@@ -501,8 +508,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           <label className={`universal-toggle phone-screen-enhance ${hasCurrentPhoneScreen ? '' : 'is-disabled'}`}>
             <input
               aria-label={tr('Enhance current image', 'Покращити поточне зображення')}
-              type="checkbox" checked={enhanceCurrent && hasCurrentPhoneScreen}
-              disabled={busy || !canGenerateWithDirection || !detail.phone_screen_generation_available || !hasCurrentPhoneScreen}
+              type="checkbox" checked={!referenceImage && enhanceCurrent && hasCurrentPhoneScreen}
+              disabled={busy || Boolean(referenceImage) || !canGenerateWithDirection || !detail.phone_screen_generation_available || !hasCurrentPhoneScreen}
               onChange={(event) => setEnhanceCurrent(event.target.checked)}
             />
             <span><strong>{tr('Enhance current image', 'Покращити поточне зображення')}</strong><small>{hasCurrentPhoneScreen

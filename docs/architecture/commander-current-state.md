@@ -1,8 +1,35 @@
 # Commander current state
 
-Updated: 2026-09-08
+Updated: 2026-09-09
 Branch: `main`
-Deployment: backend release `creative-direction-20260908-0ec8445` and Owner Console Hosting version `a7a47a45ede67c7e` are live; Meta staging is disabled until a fresh secret is configured
+Deployment: backend release `image-reference-20260909-1` and the matching Owner Console release are live; Meta staging is disabled until a fresh secret is configured
+
+## Image Reference milestone
+
+The Owner Console now exposes one optional upload/preview/remove control next
+to Post Phone Metrics and both Landing image prompts. All three reuse the shared
+image-generation request/pipeline contract, with bounded PNG/JPEG/WebP decoding,
+metadata removal, text-plus-image provider input, and digest-only provenance.
+References never become Project assets or checkpoint/learning inputs and clear
+after the operation or navigation. Existing image/history survive failed work.
+
+Companion bridge changes store
+only an ephemeral handle in job parameters, the worker consumes pixels once from
+a bounded in-memory store, and its temporary files use production tmpfs. PTW
+requires the advertised ephemeral capability before transmitting any reference.
+The repositories retain their separate histories and deploy under one matched
+versioned release tag.
+See the [shared contract](universal-ad-studio.md#shared-image-reference-input)
+for limits, expiry, and release ordering.
+
+Release checks pass: the 179-test Validation suite, 9 Gateway tests, 68 web unit
+tests, 33 focused browser
+checks across desktop/360px/iPhone WebKit, 43 companion platform tests, 16
+Commander tests in the built Validation image and demo, the deterministic Studio
+visual audit, production web build, and canonical skill verification. Browser
+traffic is mocked; provider/HTTP/database-write boundaries have separate tests.
+The preserving rollout additionally runs fresh real structured/media and Pexels
+canaries and rejects the release with image rollback if any one fails.
 
 ## Current milestone
 
@@ -418,10 +445,10 @@ and no approved version. No reset ran.
 
 ## Next work
 
-After explicit owner authorization, deploy the owner-console web-only revision
-`8c76246`, audit the hashed bundle/service-worker and authenticated boundaries,
-then use the production Brief action once and require direct navigation to the
-existing Creative with no `/approve` POST or new database rows.
+Exercise an owner-directed Post or Landing generation with a temporary reference
+image, verify the requested visual change, and confirm that navigation or
+completion clears the upload while the generated result remains an ordinary
+Project image.
 
 Production now contains Project `Natal Service`
 (`01a07c66-b00a-7364-8fda-7de87c12a907`), approved Brief

@@ -1,3 +1,4 @@
+import { imageReferencePayload } from '../components/ImageReferenceInput'
 import { Check, ExternalLink, Globe2, Maximize2, Monitor, Plus, RefreshCcw, Save, Smartphone, Sparkles, Tablet } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
@@ -22,6 +23,7 @@ function suggestedSlug(name: string) {
 }
 
 export function LandingView({ api, language, projectId = null, projectName = '', landingId = null, onLanding = () => {} }: { api: ApiClient; language: Language; projectId?: string | null; projectName?: string; landingId?: string | null; onLanding?: (landingId: string) => void }) {
+  const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const [pages, setPages] = useState<LandingSummary[] | null>(null)
   const [sources, setSources] = useState<SourcePost[] | null>(null)
   const [detail, setDetail] = useState<LandingDetail | null>(null)
@@ -160,15 +162,17 @@ export function LandingView({ api, language, projectId = null, projectName = '',
       if (value.checkpoint) setLearning(value)
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
   }
+  useEffect(() => { setReferenceImage(null) }, [detail?.landing_id, section, projectId])
   const generate = async (slot: 'hero_visual' | 'visual_break_visual', enhance = false) => {
     if (!detail || !content) return
     setBusy(true); setError('')
     try {
+      const reference = referenceImage ? await imageReferencePayload(referenceImage) : null
       const saved = await persist()
       const direction = slot === 'hero_visual' ? content.hero.visual_direction : content.visual_break.visual_direction
-      const value = await api.post<LandingDetail>(`${base}/pages/${detail.landing_id}/visuals/${slot}/generate`, { base_sha256: saved.state_sha256, visual_direction: direction, ...(enhance ? { enhance_current: true } : {}) }, { deadlineMs: 480_000 })
+      const value = await api.post<LandingDetail>(`${base}/pages/${detail.landing_id}/visuals/${slot}/generate`, { base_sha256: saved.state_sha256, visual_direction: direction, ...(reference ? { reference_image: reference } : enhance ? { enhance_current: true } : {}) }, { deadlineMs: 480_000 })
       applyDetail(value)
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setReferenceImage(null); setBusy(false) }
   }
   const selectVisual = async (slot: 'hero_visual' | 'visual_break_visual', sha256: string) => {
     if (!detail) return
@@ -287,7 +291,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
     <div className={`landing-workbench is-${mode}`}>
       <aside className="landing-editor"><nav className="landing-section-nav" aria-label={tr('Page sections', 'Секції сторінки')}>{sections.map(key => <button key={key} aria-label={labels[language][key]} className={section === key ? 'active' : ''} aria-current={section === key ? 'true' : undefined} onClick={() => setSection(key)}>{labels[language][key]}{issues.some(issue => issue.section === key) && <span aria-label={tr('Needs attention', 'Потребує уваги')}>·</span>}</button>)}</nav>
         <div className="landing-inspector"><header><small>{tr('SECTION EDITOR', 'РЕДАКТОР СЕКЦІЇ')}</small><h2>{labels[language][section]}</h2></header>
-          <LandingInspector section={section} configuration={configuration} content={content} detail={detail} onConfiguration={setConfiguration} onContent={setContent} language={language} busy={busy} issues={issues} imageUrls={images} onGenerate={(slot, enhance) => void generate(slot, enhance)} onSelectImage={(slot, sha) => void selectVisual(slot, sha)} />
+          <LandingInspector referenceImage={referenceImage} onReferenceImage={setReferenceImage} section={section} configuration={configuration} content={content} detail={detail} onConfiguration={setConfiguration} onContent={setContent} language={language} busy={busy} issues={issues} imageUrls={images} onGenerate={(slot, enhance) => void generate(slot, enhance)} onSelectImage={(slot, sha) => void selectVisual(slot, sha)} />
           <details className="landing-readiness"><summary>{issues.length ? tr(`${issues.length} items before approval`, `${issues.length} пунктів до затвердження`) : tr('Ready for approval', 'Готово до затвердження')}</summary>{issues.map(issue => <button key={issue.path} onClick={() => setSection(issue.section)}>{issue[language]}</button>)}<LandingField label={tr('Approval note', 'Нотатка затвердження')} value={note} max={240} onChange={setNote} /></details>
         </div>
       </aside>

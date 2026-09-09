@@ -440,6 +440,21 @@ describe('Phone & metrics Studio', () => {
     ))
   })
 
+  it('sends an uploaded reference only with generation and clears it afterwards', async () => {
+    const { api, post } = studioApi()
+    render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} />)
+    const file = new File(['reference-pixels'], 'reference.png', { type: 'image/png' })
+    fireEvent.change(screen.getByLabelText(/Upload reference image/), { target: { files: [file] } })
+    expect(post).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Enhance current image')).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('iPhone visual direction'), { target: { value: 'Keep the shape and change the background' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Generate & apply' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`${basePath}/phone-screen/generate`, expect.objectContaining({
+      enhance_current: false, reference_image: { mime_type: 'image/png', bytes_base64: btoa('reference-pixels') },
+    }), expect.anything()))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove reference' })).not.toBeInTheDocument())
+  })
+
   it('saves draft copy before generating and applying a new iPhone visual', async () => {
     const { api, post } = studioApi()
     render(<PhoneMetricsStudio

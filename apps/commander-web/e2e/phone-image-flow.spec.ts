@@ -5,7 +5,7 @@ const projectId = '018f07ea-7f20-7000-8000-000000000101'
 const briefId = '018f07ea-7f20-7000-8000-000000000102'
 const creativeId = '018f07ea-7f20-7000-8000-000000000103'
 const creativePath = `/api/v1/studio/projects/${projectId}/creatives/${creativeId}`
-const imageBytes = [Buffer.from('phone-image-one'), Buffer.from('phone-image-two'), Buffer.from('phone-image-three')]
+const imageBytes = [Buffer.from('phone-image-one'), Buffer.from('phone-image-two'), Buffer.from('phone-image-three'), Buffer.from('phone-image-four')]
 const imageDigests = imageBytes.map((value) => createHash('sha256').update(value).digest('hex'))
 const previewBytes = Buffer.from('phone-preview')
 const previewDigest = createHash('sha256').update(previewBytes).digest('hex')
@@ -216,4 +216,16 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   expect(selectionRequests).toHaveLength(1)
   expect(selectionRequests[0].sha256).toBe(imageDigests[0])
   await expect(page.getByRole('radio', { name: 'iPhone image 3, current' })).toHaveAttribute('aria-checked', 'true')
+  const reference = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
+  await page.getByLabel(/Upload reference image/).setInputFiles({ name: 'my-reference.png', mimeType: 'image/png', buffer: reference })
+  await expect(page.getByRole('img', { name: 'Reference preview' })).toBeVisible()
+  await expect(page.getByLabel('Enhance current image')).toBeDisabled()
+  await page.getByRole('button', { name: 'Remove reference' }).focus()
+  await expect(page.getByRole('button', { name: 'Remove reference' })).toBeFocused()
+  await page.locator(".phone-screen-rule").screenshot({ path: `.local/image-reference-post-${test.info().project.name}.png` })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.getByRole('button', { name: 'Generate & apply' }).click()
+  await expect(page.getByRole('button', { name: 'Remove reference' })).toHaveCount(0)
+  expect(generationRequests.at(-1)).toMatchObject({ enhance_current: false, reference_image: { mime_type: 'image/png', bytes_base64: reference.toString('base64') } })
+
 })

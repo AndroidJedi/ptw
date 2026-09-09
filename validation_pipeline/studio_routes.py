@@ -8,6 +8,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.params import Depends as DependsParameter
 from fastapi.responses import Response
 
+from .image_reference import generation_request
+
 def studio_creative_router(
     service: Any, *, prefix: str,
     dependencies: Sequence[DependsParameter] = (),
@@ -185,18 +187,9 @@ def studio_creative_router(
 
     @router.post("/projects/{project_id}/creatives/{creative_id}/phone-screen/generate")
     def generate_phone(project_id: str, creative_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
-        if set(request) not in (
-            {"base_sha256", "visual_direction"},
-            {"base_sha256", "visual_direction", "enhance_current"},
-        ) or not isinstance(request.get("enhance_current", False), bool):
-            raise HTTPException(status_code=400, detail="Studio phone generation fields are invalid")
         try:
-            return service.mutate(
-                project_id, creative_id, "generate_phone_screen",
-                base_sha256=str(request["base_sha256"]),
-                visual_direction=str(request["visual_direction"]),
-                enhance_current=bool(request.get("enhance_current", False)),
-            )
+            options = generation_request(request)
+            return service.mutate(project_id, creative_id, "generate_phone_screen", **options)
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
 

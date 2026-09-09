@@ -15,6 +15,8 @@ edit bounded content and theme/layout controls but cannot add HTML, CSS,
 scripts, arbitrary sections, or reorder the composition. Hero and visual-break
 art are independently generated text-free PNGs; each retains its newest three
 digest-checked raw images and supports exact-image enhancement and selection.
+Both image prompts also accept the shared optional [Image Reference input](universal-ad-studio.md#shared-image-reference-input). Uploaded references are temporary
+operation inputs, never Landing assets or saved page state.
 
 Initial AI composition receives the approved Brief, the frozen Post version’s
 design snapshot, the live Landing catalog, and Landing-only global/Project

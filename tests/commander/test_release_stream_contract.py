@@ -241,7 +241,9 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertLess(publisher_e2e, publisher_hosting)
 
         self.assertIn('"DEPLOY OWNER CONSOLE WEB"', web_deployer)
-        self.assertIn("git rev-parse origin/main", web_deployer)
+        self.assertIn('main|incident/*', web_deployer)
+        self.assertIn('git fetch origin "$branch"', web_deployer)
+        self.assertIn('git rev-parse "origin/$branch"', web_deployer)
         web_check = web_deployer.index("npm --prefix apps/commander-web run check")
         web_e2e = web_deployer.index("npm --prefix apps/commander-web run test:e2e", web_check)
         web_skills = web_deployer.index("python3 scripts/verify_ptw_skills.py", web_e2e)

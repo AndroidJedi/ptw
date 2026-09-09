@@ -198,6 +198,19 @@ before changing code or runtime state.
   `UUID()` even though every owner-supplied ID is valid. Require a database-path
   regression test for the Project `contains` edge plus Brief and Post-version
   `derived_from` edges; the loopback path alone cannot cover this failure.
+- When Landing Save returns repeated `Landing changed; reload before saving`
+  conflicts, correlate the request window with the page digest and Landing
+  checkpoint rows before asking the owner to re-enter anything. Landing Save
+  performs synchronous learning behind a 480-second Gateway boundary; the web
+  client must use that same bounded deadline rather than its generic 15-second
+  deadline. An early client timeout can leave a completed checkpoint on the
+  server and a stale digest in the browser. On the exact stale-state 409, fetch
+  the current page once: treat it as reconciled only when its complete
+  configuration and content exactly equal the owner's pending document. If any
+  field differs, retain the pending input and show the conflict; never overwrite
+  either side automatically. Acceptance requires one completed checkpoint,
+  zero duplicate versions/checkpoints, a successful equivalent-response
+  reconciliation, and a divergent-state regression that preserves owner input.
 - Bare Studio routes, `/api/v1/posts`, candidate/critic modes, singleton rows,
   assignment UX, and historical schema adapters must remain absent.
 

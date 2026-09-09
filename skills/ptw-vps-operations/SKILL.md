@@ -121,6 +121,15 @@ into a complete compatible release, read
   `landing_workspaces` row nor relationship rows, inspect the deployed
   `DatabaseLandingAuthority._edge` call order, and preserve the Project for one
   post-fix retry. This incident does not justify a production reset.
+- A repeated Landing Save 409 can be the aftermath of a successful server-side
+  checkpoint whose response outlived the browser's generic request deadline.
+  Compare the page `state_sha256`, `landing_workspace_files.updated_at`,
+  `landing_checkpoints`, versions, and Gateway request statuses before retrying.
+  Landing Save/Approve clients must share the existing bounded 480-second
+  Gateway deadline because synchronous Landing learning may legitimately exceed
+  15 seconds. Reconcile only an exact configuration/content match; otherwise
+  preserve both the newer server state and the owner's pending browser input.
+  Do not delete the completed checkpoint or reset the Project.
 
 ## Canaries and reset acceptance
 

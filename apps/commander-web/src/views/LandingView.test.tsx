@@ -119,6 +119,60 @@ it('keeps pending copy when Save fails and displays an inline error', async () =
   expect(screen.getByLabelText('Hero title')).toHaveValue('My unsaved headline')
 })
 
+it('waits for bounded Landing learning and reconciles an equivalent completed save after a stale-state response', async () => {
+  const detail = landingDetail()
+  const saved = {
+    ...detail, state_sha256: 'd'.repeat(64),
+    content: { ...detail.content, hero: { ...detail.content.hero, title: 'Saved despite an uncertain response' } },
+  }
+  const api = landingApi(detail)
+  vi.mocked(api.get).mockImplementation(async (path: string) => {
+    if (path.endsWith('/pages')) return { items: [detail] } as never
+    if (path.endsWith('/source-posts')) return { items: [] } as never
+    if (path.endsWith(`/pages/${landingId}`)) return saved as never
+    throw new Error(`unexpected GET ${path}`)
+  })
+  vi.mocked(api.post).mockRejectedValue(Object.assign(new Error('The server data has already changed'), {
+    details: { status: 409, detail: 'Landing changed; reload before saving' },
+  }))
+  render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} />)
+  const input = await screen.findByLabelText('Hero title')
+  fireEvent.change(input, { target: { value: saved.content.hero.title } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save Landing' }))
+
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+    expect.stringContaining('/save'), expect.any(Object), { deadlineMs: 480_000 },
+  ))
+  expect(await screen.findByRole('status')).toHaveTextContent('Landing was already saved')
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(input).toHaveValue(saved.content.hero.title)
+})
+
+it('keeps owner input and the original conflict when the latest Landing differs', async () => {
+  const detail = landingDetail()
+  const api = landingApi(detail)
+  const conflict = Object.assign(new Error('The server data has already changed'), {
+    details: { status: 409, detail: 'Landing changed; reload before saving' },
+  })
+  vi.mocked(api.post).mockRejectedValue(conflict)
+  vi.mocked(api.get).mockImplementation(async (path: string) => {
+    if (path.endsWith('/pages')) return { items: [detail] } as never
+    if (path.endsWith('/source-posts')) return { items: [] } as never
+    if (path.endsWith(`/pages/${landingId}`)) return {
+      ...detail, state_sha256: 'd'.repeat(64),
+      content: { ...detail.content, contacts: { ...detail.content.contacts, email: 'newer@example.test' } },
+    } as never
+    throw new Error(`unexpected GET ${path}`)
+  })
+  render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} />)
+  const input = await screen.findByLabelText('Hero title')
+  fireEvent.change(input, { target: { value: 'Keep this pending headline' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save Landing' }))
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('The server data has already changed')
+  expect(input).toHaveValue('Keep this pending headline')
+})
+
 it('persists pending content before selecting another raw image', async () => {
   const detail = landingDetail()
   const sha = 'c'.repeat(64)

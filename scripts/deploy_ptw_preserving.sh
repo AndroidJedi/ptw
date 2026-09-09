@@ -227,5 +227,7 @@ sed -i "s/^PTW_PLATFORM_IMAGE_TAG=.*/PTW_PLATFORM_IMAGE_TAG=$release_tag/" "$pla
 sed -i "s/^PTW_IMAGE_TAG=.*/PTW_IMAGE_TAG=$release_tag/" "$repository/.env.commander"
 grep -qx "PTW_PLATFORM_IMAGE_TAG=$release_tag" "$platform/.env"
 grep -qx "PTW_IMAGE_TAG=$release_tag" "$repository/.env.commander"
+"${validation_compose[@]}" exec -T validation-api python -m validation_pipeline.verify_approved_post_access
+
 rollback_needed=0
 echo "PTW preserving rollout complete at $git_revision"

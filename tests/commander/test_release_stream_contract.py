@@ -65,6 +65,19 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("time.sleep(2)", auditor)
         self.assertIn("Landing was already saved.", auditor)
 
+    def test_public_auditor_retries_spa_fallback_for_javascript(self):
+        from unittest.mock import patch
+        spec = importlib.util.spec_from_file_location("live_audit", ROOT / "skills/ptw-owner-console-incident/scripts/audit_live_owner_console.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        document = (200, {"Content-Type": "text/html"}, b'<script src="/assets/index-123.js"></script>')
+        entry = (200, {"Content-Type": "text/javascript"}, b'import("./App-123.js")')
+        fallback = (200, {"Content-Type": "text/html"}, b'<html>SPA fallback</html>')
+        app = (200, {"Content-Type": "application/javascript"}, b'const app="ready"')
+        with patch.object(module, "fetch", side_effect=[document, entry, fallback, document, entry, app]), patch.object(module.time, "sleep") as sleep:
+            self.assertEqual('const app="ready"', module.load_live_app_bundle("https://owner.example")[2])
+        sleep.assert_called_once_with(2)
+
     def test_dependency_audit_exercises_schema_bound_worker_auth(self) -> None:
         audit = (
             ROOT

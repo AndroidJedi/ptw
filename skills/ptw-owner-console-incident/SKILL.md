@@ -26,7 +26,7 @@ before changing code or runtime state.
   DENY`. Google Identity/reCAPTCHA response policies are third-party diagnostics
   and cannot be repaired by weakening PTW's enforcing policy.
 - The app exposes only Brief / Бриф, Post / Допис, Landing / Лендінг,
-  and Settings. Brief, Post, and Landing retain their required Project scope;
+  Ads / Реклама, and Settings. Brief, Post, and Landing retain their required Project scope;
   every Studio mutation is Project/creative-scoped.
 - Preview, history, and immutable-version renders are authenticated,
   digest-checked, and private/no-store. The browser receives no provider path,
@@ -311,3 +311,18 @@ the user-facing failure path.
 For the scheduled resource follow-up, inspect the actual transient unit
 `ptw-validation-24h-audit.timer` with `systemctl is-active` and its next
 elapse time. Do not infer a monitoring outage from a guessed unit name.
+
+## Renderer compatibility during release
+
+- A Post/Ads/Instagram workspace 409 reporting a restored state-digest mismatch
+  can come from normalizing a persisted phone configuration v8 to the current
+  editor schema before verifying its original snapshot. Compare the stored
+  digest with both current and bounded legacy snapshot digests; never skip
+  verification or rewrite the database to make it match. Restore through the
+  existing state validator and persist only on an owner mutation. Acceptance
+  requires repeated database-backed reads and restart with unchanged source
+  files, immutable PNG bytes, IDs, and stored digest, plus rejection of tampering.
+- Firebase can briefly return the SPA HTML fallback with HTTP 200 at a newly
+  released hashed JavaScript URL. The live auditor must require JavaScript MIME
+  for both entry and lazy App assets within its bounded propagation retry;
+  HTTP 200 alone is not sufficient before checking application markers.

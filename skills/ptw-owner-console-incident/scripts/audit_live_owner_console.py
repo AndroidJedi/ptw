@@ -66,12 +66,16 @@ def load_live_app_bundle(origin: str) -> tuple[str, str, str, dict[str, str]]:
             require(main_match is not None, "Unable to resolve the live entry bundle")
             main_url = urljoin(origin, main_match.group(1))
 
-            status, _, main_bytes = fetch(main_url)
+            status, main_headers, main_bytes = fetch(main_url)
             require(status == 200, f"Entry bundle returned HTTP {status}")
+            require(any(name.lower() == "content-type" and "javascript" in value.lower()
+                        for name, value in main_headers.items()), "Entry bundle is not JavaScript yet")
             app_url = resolve_app_bundle_url(origin, main_url, main_bytes.decode())
 
-            status, _, app_bytes = fetch(app_url)
+            status, app_headers, app_bytes = fetch(app_url)
             require(status == 200, f"App bundle returned HTTP {status}")
+            require(any(name.lower() == "content-type" and "javascript" in value.lower()
+                        for name, value in app_headers.items()), "App bundle is not JavaScript yet")
             return main_url, app_url, app_bytes.decode(), document_headers
         except RuntimeError as error:
             last_error = error

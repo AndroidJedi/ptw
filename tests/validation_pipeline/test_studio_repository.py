@@ -79,6 +79,38 @@ class Provider:
 
 
 class DatabaseCreativeWorkspaceTests(unittest.TestCase):
+    def test_legacy_phone_restore_is_read_only_and_preserves_approved_png(self):
+        repository = MemoryStudioRepository()
+        with tempfile.TemporaryDirectory() as original, tempfile.TemporaryDirectory() as restored_root:
+            workspace = UniversalStudioWorkspace(original, image_provider=Provider())
+            phone = workspace.apply_template(base_sha256=workspace.detail()["state_sha256"], template_id="phone_metrics")
+            generated = workspace.generate_phone_screen(base_sha256=phone["state_sha256"], visual_direction="A glass sculpture.")
+            workspace.approve_version(state_sha256=generated["state_sha256"], change_note="Historical image")
+            png = workspace.version_render(1)["bytes"]
+            config_path = Path(original) / "configuration.json"
+            config = workspace._configuration()
+            (Path(original) / "content.json").write_text(json.dumps(workspace._content()))
+            config["schema"] = "ptw.studio.phone-metrics-config.v8"
+            config.pop("logo")
+            config["phone_screen"].pop("logo_enabled")
+            config_path.write_text(json.dumps(config))
+            old_digest = workspace._legacy_phone_state_sha256()
+            repository.persist_creative(Path(original), workspace_id=repository.workspace_id,
+                state_sha256=old_digest, template_id="phone_metrics", template_version=22, template_sha256="a"*64)
+            original_files = dict(repository.files)
+            for _ in range(2):
+                restored = DatabaseCreativeWorkspace(UniversalStudioWorkspace(restored_root), repository, repository.workspace_id)
+                self.assertNotEqual(old_digest, restored.detail()["state_sha256"])
+                self.assertEqual(png, restored.version_render(1)["bytes"])
+                self.assertEqual(original_files, repository.files)
+                self.assertEqual(old_digest, repository.state_sha256)
+            content = json.loads(repository.files["content.json"])
+            content["hero_title"] = "Unapproved changed content"
+            repository.files["content.json"] = json.dumps(content).encode()
+            corrupt = DatabaseCreativeWorkspace(UniversalStudioWorkspace(restored_root), repository, repository.workspace_id)
+            with self.assertRaisesRegex(RuntimeError, "state digest"):
+                corrupt.detail()
+
     def test_database_authority_accepts_derived_version_count_during_checkpoint_finalize(self) -> None:
         workspace_id = "01900000-0000-7000-8000-000000000501"
 

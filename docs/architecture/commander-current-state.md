@@ -2,7 +2,20 @@
 
 Updated: 2026-09-09
 Branch: `main`
-Deployment: backend release `studio-approval-20260909-59be4a3` and Owner Console Landing Save hotfix `d6d5b65` are live; Meta staging is disabled until a fresh secret is configured
+Deployment: `instagram-publishing-20260909-7ab10d1` and schema 005 are live; legacy Post restore compatibility hotfix is pending. Meta credentials remain unconfigured.
+
+## Pending legacy Post restore compatibility hotfix
+
+The full release passed provider, migration-preservation, resource and Hosting
+checks, but authenticated Ads/Instagram source reads exposed a v8-to-v9 Post
+configuration digest mismatch. The old snapshot digest still matches exactly;
+no stored image or owner record was lost. The database adapter now verifies via
+the existing legacy-aware validator and avoids persistence on read-only restore.
+The new release canary checks actual project sources and immutable PNG digests
+against PostgreSQL before either preserving deployer reports completion. Tests
+cover repeated restores, original bytes/digest preservation, and tampering.
+The Hosting audit also retries HTTP-200 HTML fallback responses until the entry
+and App assets have JavaScript MIME. See the incident log for diagnostics.
 
 ## Local Instagram publishing and website Ads milestone
 

@@ -346,9 +346,14 @@ class DatabaseCreativeWorkspace:
         if stored is not None:
             expected, files = stored
             self._restore(files)
-            if self.workspace.detail()["state_sha256"] != expected:
-                raise RuntimeError("Studio database state digest does not match its restored files")
-        self._persist()
+            try:
+                # Validate the exact persisted v8 snapshot before exposing its
+                # normalized editor view. Reads never migrate authoritative bytes.
+                self.workspace._assert_state(expected)
+            except RuntimeError:
+                raise RuntimeError("Studio database state digest does not match its restored files") from None
+        else:
+            self._persist()
         self._loaded = True
 
     def _enrich(self, value: Any) -> Any:

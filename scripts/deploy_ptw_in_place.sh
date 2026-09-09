@@ -207,5 +207,7 @@ curl --fail --silent --max-time 3 http://127.0.0.1:8093/readyz >/dev/null
 "${commander_compose[@]}" up -d --no-deps --no-build --wait --force-recreate owner-gateway >/dev/null
 curl --fail --silent --max-time 3 http://127.0.0.1:8092/healthz >/dev/null
 
+"${validation_compose[@]}" exec -T validation-api python -m validation_pipeline.verify_approved_post_access
+
 rollback_needed=0
 echo "in-place migration and serial service cutover preserved every pre-existing Commander business row; root-only backup: $backup_file"

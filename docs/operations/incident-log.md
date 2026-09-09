@@ -1,6 +1,27 @@
 # PTW incident log
 
-Updated: 2026-09-08
+Updated: 2026-09-09
+
+## 2026-09-09 — Legacy Post reads failed after renderer schema uplift
+
+The first full Instagram release preserved all prior database rows and PNGs,
+but its authenticated Post-derived workspaces returned HTTP 409. The stored
+Phone Metrics configuration was v8; normalization to the current editor schema
+changed the computed state hash before the database adapter verified the
+original snapshot. The bounded legacy hash matched the stored digest exactly.
+
+The database restore now uses the existing legacy-aware state validator and
+never persists an existing workspace during reads. Only explicit owner mutations
+write the normalized state. Regression coverage checks repeated restores,
+unchanged stored files/digest/approved PNG, and rejection of changed content.
+Both preserving deployers now require authenticated Ads/Instagram source reads
+and PNG digests to match PostgreSQL before reporting success. The new canary is
+read-only and does not require Meta credentials.
+
+The final Hosting audit also observed a transient HTTP-200 HTML SPA fallback at
+a newly published hashed App URL. It passed once assets propagated; the auditor
+now requires JavaScript MIME inside its existing bounded retry window, covered
+by a fallback-then-JavaScript regression. Security marker checks remain required.
 
 ## 2026-09-08 — Monolithic Landing composition repeatedly exhausted the worker deadline
 

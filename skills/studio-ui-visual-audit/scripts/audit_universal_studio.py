@@ -534,7 +534,7 @@ def audit_phone_metrics(
         None, detail["content"]["phone_hero_title"], detail["content"]["cta"],
         detail["configuration"]["phone_screen"]["texture"],
         list(phone_button_text), copy.deepcopy(phone_button_config),
-        typography_config,
+        typography_config, detail["configuration"]["phone_screen"]["logo_enabled"],
     )
     with Image.open(BytesIO(composed_device["bytes"])) as image:
         device_pixels = image.convert("RGBA")
@@ -562,7 +562,7 @@ def audit_phone_metrics(
         detail["content"]["cta"],
         detail["configuration"]["phone_screen"]["texture"],
         list(phone_button_text), copy.deepcopy(phone_button_config),
-        typography_config,
+        typography_config, detail["configuration"]["phone_screen"]["logo_enabled"],
     )
     with Image.open(BytesIO(full_bleed_device["bytes"])) as image:
         device_pixels = image.convert("RGB")
@@ -603,11 +603,13 @@ def audit_phone_metrics(
         "device_visible_bounds": visible_device, "metric_row_y": cards[0]["y"],
         "metric_buttons": copy.deepcopy(metric_card_config),
         "phone_buttons": copy.deepcopy(phone_button_config),
+        "post_logo_enabled": post_logo_enabled,
+        "phone_logo_enabled": detail["configuration"]["phone_screen"]["logo_enabled"],
         "cta_y": cta["y"], "checks": [
             "optional_background_texture", "optional_left_copy_texture",
-            "natal_upper_left", "left_safe_copy", "front_facing_phone",
+            "optional_post_logo", "optional_phone_logo", "left_safe_copy", "front_facing_phone",
             "three_equal_tunable_metric_buttons", "cobalt_cta_band", "no_clipping_or_overlap",
-            "crisp_upright_natal_app_shell", "sealed_upper_screen_corners",
+            "crisp_upright_app_shell", "sealed_upper_screen_corners",
             "complete_status_network_signal",
             "three_tunable_in_phone_actions",
             "full_bleed_phone_hero", "continuous_header_phone_hero",

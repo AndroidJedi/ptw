@@ -89,7 +89,7 @@ PHONE_ASSET_SLOTS: dict[str, dict[str, Any]] = {
     "phone_screen": {
         "role": "device_screen",
         "allowed_mime_types": ("image/png", "image/webp", "image/jpeg"),
-        "description": "Server-generated text-free hero artwork inside the fixed Natal app screen and phone frame.",
+        "description": "Server-generated text-free hero artwork inside the fixed app screen and phone frame.",
     },
 }
 
@@ -554,7 +554,7 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
             **({
                 "logo": {"kind": "image", "allowed_mime_types": ["image/png"], "required": True, "provenance": "Canonical Natal brand lock-up."},
             } if config["logo"]["enabled"] else {}),
-            "phone_device": {"kind": "image", "allowed_mime_types": ["image/png"], "required": True, "provenance": "Server-composited fixed front-facing black iPhone, crisp Natal app shell, and server-generated or deterministic fallback text-free hero artwork."},
+            "phone_device": {"kind": "image", "allowed_mime_types": ["image/png"], "required": True, "provenance": "Server-composited fixed front-facing black iPhone, crisp app shell with optional canonical Natal lock-up, and server-generated or deterministic fallback text-free hero artwork."},
             **({
                 "background_texture": {
                     "kind": "image", "allowed_mime_types": ["image/png"],
@@ -1050,7 +1050,7 @@ def _fixed_screen_shell(
     typography: Mapping[str, Mapping[str, Any]] | None = None,
     logo_enabled: bool = True,
 ) -> Any:
-    """Place visual-only art inside the deterministic Natal app screen."""
+    """Place visual-only art inside the deterministic app screen."""
 
     from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
@@ -1165,7 +1165,7 @@ def compose_phone_device_asset(
 
     The fuse is deliberately server-side: a mutable screen image cannot be
     moved independently from the checked-in frame. Generated pixels remain a
-    text-free hero layer; Natal, the owner title, and CTA are renderer-owned.
+    text-free hero layer; the optional Natal mark, owner title, and actions are renderer-owned.
     """
     from PIL import Image, ImageDraw, ImageOps
 

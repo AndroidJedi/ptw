@@ -17,7 +17,7 @@ from validation_pipeline.studio_phone_metrics import (
     PHONE_ACTION_BUTTON_STYLES, PHONE_COPY_BACKGROUND_TEXTURES,
     PHONE_METRIC_CARD_RADII,
     PHONE_METRIC_CARD_SHAPES, PHONE_METRIC_CARD_STYLES,
-    PHONE_HERO_ART_OFFSET_Y, PHONE_METRICS_TEMPLATE_ID,
+    PHONE_HERO_ART_OFFSET_Y, PHONE_METRICS_CONFIG_SCHEMA, PHONE_METRICS_TEMPLATE_ID,
     PHONE_SCREEN_ART_SIZE, PHONE_SCREEN_TEXTURES, PHONE_TYPOGRAPHY_BOUNDS,
     _clear_phone_hero_edge_matte,
     _draw_status_network_icons,
@@ -566,7 +566,10 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             hidden_nodes["hero_title"]["props"]["y"],
             visible_nodes["hero_title"]["props"]["y"],
         )
-        self.assertEqual(["offer"], phone_metrics_catalog()["variation"]["optional_elements"])
+        self.assertEqual(
+            ["offer", "post_logo", "phone_logo"],
+            phone_metrics_catalog()["variation"]["optional_elements"],
+        )
 
         phone = self._phone()
         preview = self.workspace.render_preview(
@@ -634,6 +637,24 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         legacy["phone_screen"].pop("logo_enabled")
         upgraded = normalize_phone_metrics_config(legacy)
         self.assertEqual(DEFAULT_PHONE_CONFIG, upgraded)
+
+        phone = self._phone()
+        self.workspace._atomic_json(  # pylint: disable=protected-access
+            self.workspace.root / "configuration.json", legacy,
+        )
+        legacy_state_sha256 = self.workspace._legacy_phone_state_sha256()  # pylint: disable=protected-access
+        self.assertIsNotNone(legacy_state_sha256)
+        self.assertNotEqual(legacy_state_sha256, self.workspace.state_sha256())
+        preview = self.workspace.render_preview(
+            state_sha256=legacy_state_sha256,
+        )
+        self.assertEqual((1080, 1350), (preview["width"], preview["height"]))
+        saved = self.workspace.save_configuration(
+            base_sha256=legacy_state_sha256,
+            configuration=phone["configuration"], content=phone["content"],
+        )
+        self.assertEqual(PHONE_METRICS_CONFIG_SCHEMA, saved["configuration"]["schema"])
+        self.assertIsNone(self.workspace._legacy_phone_state_sha256())  # pylint: disable=protected-access
 
         for path in (("logo", "enabled"), ("phone_screen", "logo_enabled")):
             invalid = deepcopy(DEFAULT_PHONE_CONFIG)

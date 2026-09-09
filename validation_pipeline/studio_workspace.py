@@ -422,9 +422,36 @@ class UniversalStudioWorkspace:
     def state_sha256(self) -> str:
         return _canonical(self._snapshot())[1]
 
+    def _legacy_phone_state_sha256(self) -> str | None:
+        """Reproduce an untouched v8 draft digest during its one-save uplift."""
+
+        if self._selected_template_id() != PHONE_METRICS_TEMPLATE_ID:
+            return None
+        path = self.root / "configuration.json"
+        if not path.is_file():
+            return None
+        try:
+            raw_config = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+        if (
+            not isinstance(raw_config, Mapping)
+            or raw_config.get("schema") != "ptw.studio.phone-metrics-config.v8"
+        ):
+            return None
+        snapshot = self._snapshot()
+        snapshot["configuration"] = raw_config
+        return _canonical(snapshot)[1]
+
     def _assert_state(self, base_sha256: str) -> None:
-        if not re.fullmatch(r"[0-9a-f]{64}", str(base_sha256)) or self.state_sha256() != base_sha256:
+        if not re.fullmatch(r"[0-9a-f]{64}", str(base_sha256)):
             raise RuntimeError("Studio state changed; reload before saving")
+        current_sha256 = self.state_sha256()
+        if current_sha256 == base_sha256:
+            return
+        if self._legacy_phone_state_sha256() == base_sha256:
+            return
+        raise RuntimeError("Studio state changed; reload before saving")
 
     def _version_records(self) -> list[dict[str, Any]]:
         versions: list[dict[str, Any]] = []

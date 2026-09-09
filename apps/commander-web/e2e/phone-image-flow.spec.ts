@@ -101,6 +101,7 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   const directionRequests: any[] = []
   const generationRequests: any[] = []
   const selectionRequests: any[] = []
+  const previewRequests: any[] = []
   let generated = 0
 
   await page.route('**/api/v1/**', async (route) => {
@@ -119,10 +120,13 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
       return json({ items: [current], next_cursor: null })
     }
     if (url.pathname === creativePath && method === 'GET') return json(current)
-    if (url.pathname === `${creativePath}/preview` && method === 'POST') return route.fulfill({
-      status: 200, contentType: 'image/png', body: previewBytes,
-      headers: { 'X-PTW-Content-SHA256': previewDigest, 'Cache-Control': 'private, no-store' },
-    })
+    if (url.pathname === `${creativePath}/preview` && method === 'POST') {
+      previewRequests.push(route.request().postDataJSON())
+      return route.fulfill({
+        status: 200, contentType: 'image/png', body: previewBytes,
+        headers: { 'X-PTW-Content-SHA256': previewDigest, 'Cache-Control': 'private, no-store' },
+      })
+    }
     if (url.pathname.startsWith(`${creativePath}/phone-screen/history/`) && method === 'GET') {
       const digest = url.pathname.split('/').at(-1) || ''
       const index = imageDigests.indexOf(digest)
@@ -183,6 +187,28 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   await page.goto(`/?e2e=1&page=posts&project=${projectId}&creative=${creativeId}`)
   await page.getByRole('button', { name: 'Змінити мову' }).click()
   await expect(page.getByRole('heading', { name: 'Generate or enhance hero artwork' })).toBeVisible()
+
+  const postLogo = page.getByLabel('Show post logo')
+  const phoneLogo = page.getByLabel('Show in-phone logo')
+  await expect(postLogo).toBeChecked()
+  await expect(phoneLogo).toBeChecked()
+  await postLogo.focus()
+  await page.keyboard.press('Space')
+  await phoneLogo.focus()
+  await page.keyboard.press('Space')
+  await expect(postLogo).not.toBeChecked()
+  await expect(phoneLogo).not.toBeChecked()
+  await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({
+    logo: { enabled: false },
+    phone_screen: { logo_enabled: false },
+  })
+  await expect(page.getByText('Hidden from the post canvas')).toBeVisible()
+  await expect(page.getByText('Hidden from the app screen')).toBeVisible()
+  await postLogo.check()
+  await phoneLogo.check()
+  await expect(postLogo).toBeChecked()
+  await expect(phoneLogo).toBeChecked()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 
   await page.getByRole('button', { name: 'Reset image direction' }).click()
   await expect(page.getByRole('button', { name: 'Generate & apply' })).toBeDisabled()

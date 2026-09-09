@@ -252,7 +252,8 @@ Both templates expose an independent bounded font-family and font-size control
 for every editable semantic text role. The catalog provides Inter, Roboto
 Condensed, Manrope, Montserrat, Source Sans 3, Oswald, Cormorant Garamond,
 Cormorant Garamond Italic, Lora, and Lora Italic. Renderer-owned phone chrome,
-the Natal identity, and system UI text remain fixed.
+Natal artwork, and system UI text remain fixed; only the two Phone Metrics logo
+visibility states are owner-tunable.
 
 Each creative stores Project and approved-Brief lineage, ordinal, selected
 template version/digest, current bounded state, generation provenance, assets,

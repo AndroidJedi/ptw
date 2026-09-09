@@ -38,8 +38,11 @@ description: Populate one fixed private PTW Landing page from an approved Produc
   what the artwork should show, never a replacement style, layout, UI, or brand.
 - Social proof is owner evidence. Return its heading and an empty `items` array; never
   invent quotes, customers, ratings, logos, results, credentials, or measurements.
-- Contacts are owner evidence. Return heading/supporting copy only and empty email,
-  phone, and URL fields.
+- Contacts are owner evidence. Return heading/supporting copy only and empty
+  email, phone, and Telegram bot-link (`url`) fields. If the supplied schema
+  contains an Instagram profile field, leave it empty too. Never invent a bot
+  username or social profile, and never route visitors to Commander's emergency
+  Telegram bot.
 - Supply distinct 8-600-character subject directions for the hero and visual-break
   artwork. They describe what to show, not the inherited visual style. Keep the Hero
   subject safe within a square or 4:3 crop; keep visual-break subjects within the

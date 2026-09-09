@@ -1,7 +1,7 @@
-import { ArrowDown, ArrowRight, ArrowUpRight, Check, ChevronDown, Layers, Pencil, ScanLine } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUpRight, Check, ChevronDown, Instagram, Layers, Pencil, ScanLine } from 'lucide-react'
 import { useId, useRef, type CSSProperties, type ReactNode } from 'react'
 import type { LandingConfiguration, LandingContent } from '../types'
-import { contactHref, defaults, componentDefaults, labels, type Section } from './model'
+import { contactHref, defaults, componentDefaults, instagramUsername, labels, telegramBotUsername, type Section } from './model'
 import natalLogo from '../../../../natal/assets/logo-natal.png'
 import { LandingPhone } from './LandingPhone'
 import { phoneDefaults, resolvedAppFeature } from './model'
@@ -58,14 +58,14 @@ export function LandingPage({ configuration, content, imageUrls, editing = false
       </nav>
       {section('hero', `lp-hero lp-image-${configuration.hero.image_position} lp-align-${configuration.hero.alignment}`, <>
         <div className="lp-hero-copy"><h1>{content.hero.title}</h1><p>{content.hero.supporting_text}</p><div className="lp-hero-actions">{cta()}{anchor('features', t.explore, 'lp-secondary-link', <ArrowDown aria-hidden="true" />)}</div></div>
-        <div className="lp-hero-art">{imageUrls.hero_visual && <img src={imageUrls.hero_visual} alt="" style={{ objectPosition: `${p.hero_focus.x}% ${p.hero_focus.y}%` }} />}<LandingPhone feature={resolvedAppFeature(content, p.language)} appearance={configuration.phone_mockup || phoneDefaults} language={p.language} editing={editing} selected={selected === 'app_feature'} onSelect={() => onSelect?.('app_feature')} actionHref={href} external={target === 'url'} onAction={event => { if (target === 'contacts') { event.preventDefault(); scroll('contacts') } else if (!href) event.preventDefault() }} /></div>
+        <div className="lp-hero-art">{imageUrls.hero_visual && <img src={imageUrls.hero_visual} alt="" style={{ objectPosition: `${p.hero_focus.x}% ${p.hero_focus.y}%` }} />}{configuration.visual_mode !== 'image' && <LandingPhone feature={resolvedAppFeature(content, p.language)} appearance={configuration.phone_mockup || phoneDefaults} language={p.language} editing={editing} selected={selected === 'app_feature'} onSelect={() => onSelect?.('app_feature')} actionHref={href} external={target === 'url'} onAction={event => { if (target === 'contacts') { event.preventDefault(); scroll('contacts') } else if (!href) event.preventDefault() }} />}</div>
       </>)}
       {section('features', `lp-features lp-features-${configuration.features.layout}`, <><div className="lp-section-heading"><span className="lp-eyebrow">01 / {t.features}</span><h2>{t.features}</h2></div><div className="lp-feature-grid">{content.features.map((feature, index) => { const Icon = featureIcons[index]; return <article key={index}><span className="lp-feature-icon"><Icon aria-hidden="true" /></span><h3>{feature.title}</h3><p>{feature.description}</p></article> })}</div></>)}
       {proof.length > 0 && section('social_proof', `lp-proof lp-proof-${configuration.social_proof.layout}`, <><h2>{content.social_proof.heading}</h2><div className="lp-proof-grid">{proof.map((item, index) => <blockquote key={index}><p>“{item.statement}”</p><footer>{item.attribution}</footer></blockquote>)}</div></>)}
       {section('visual_break', `lp-visual lp-visual-${configuration.visual_break.height}`, <div className="lp-visual-frame">{imageUrls.visual_break_visual && <img src={imageUrls.visual_break_visual} alt="" loading="lazy" style={{ objectPosition: `${p.visual_break_focus.x}% ${p.visual_break_focus.y}%` }} />}</div>)}
-      {section('contacts', `lp-contacts lp-align-${configuration.contacts.alignment}`, <div className="lp-contact-panel"><div><span className="lp-eyebrow">{t.contact}</span><h2>{content.contacts.heading}</h2><p>{content.contacts.supporting_text}</p></div><div className="lp-contact-links">{(['url', 'email', 'phone'] as const).map(field => {
-        const value = content.contacts[field]; const link = contactHref(field, value)
-        return link && <a key={field} href={link} {...(field === 'url' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}><span><small>{field === 'url' ? t.visit : t[field]}</small>{field === 'url' ? new URL(value).hostname : value}</span><ArrowUpRight aria-hidden="true" /></a>
+      {section('contacts', `lp-contacts lp-align-${configuration.contacts.alignment}`, <div className="lp-contact-panel"><div><span className="lp-eyebrow">{t.contact}</span><h2>{content.contacts.heading}</h2><p>{content.contacts.supporting_text}</p></div><div className="lp-contact-links">{(['url', 'instagram', 'email', 'phone'] as const).map(field => {
+        const value = content.contacts[field] || ''; const link = contactHref(field, value)
+        return link && <a key={field} href={link} {...(field === 'url' || field === 'instagram' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}><span><small>{field === 'url' ? t.visit : t[field]}</small>{field === 'url' ? `@${telegramBotUsername(value)}` : field === 'instagram' ? `@${instagramUsername(value)}` : value}</span>{field === 'instagram' ? <Instagram aria-hidden="true" /> : <ArrowUpRight aria-hidden="true" />}</a>
       })}</div></div>)}
       {section('faq', `lp-faq lp-faq-${configuration.faq.style}`, <><div className="lp-section-heading"><span className="lp-eyebrow">FAQ</span><h2>{t.faq}</h2></div><div>{content.faq.map((item, index) => <details key={index}><summary>{item.question}<ChevronDown aria-hidden="true" /></summary><p>{item.answer}</p></details>)}</div></>)}
       <footer className="lp-footer">{anchor('hero', t.top, undefined, <ArrowRight aria-hidden="true" />)}</footer>

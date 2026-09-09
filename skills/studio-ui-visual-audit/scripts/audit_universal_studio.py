@@ -201,11 +201,16 @@ def audit_phone_metrics(
         ).document["root"]["children"]
     }
     required = {
-        "logo", "hero_title", "supporting_text", "phone_device",
+        "hero_title", "supporting_text", "phone_device",
         "metric_card_1", "metric_card_2", "metric_card_3", "metric_value_1", "metric_value_2",
         "metric_value_3", "metric_label_1", "metric_label_2", "metric_label_3", "cta",
     }
     require(required <= set(nodes), "phone: required reference nodes are missing")
+    post_logo_enabled = detail["configuration"]["logo"]["enabled"]
+    require(
+        ("logo" in nodes) == post_logo_enabled,
+        "phone: optional post logo node does not match its visibility control",
+    )
     background_texture = detail["configuration"]["background"]["texture"]
     copy_background_texture = detail["configuration"]["copy_background"]["texture"]
     require(
@@ -232,11 +237,12 @@ def audit_phone_metrics(
     # drift apart through an editor transform.
     require([node_id for node_id in nodes if node_id == "phone_device"] == ["phone_device"], "phone: device is not one grouped layer")
 
-    logo = nodes["logo"]["visible_bounds"]
     hero = nodes["hero_title"]
     support = nodes["supporting_text"]
     device = nodes["phone_device"]
-    require(logo is not None and logo["x"] < .1 and logo["y"] < .12, "phone: Natal lock-up left safe area drift")
+    if post_logo_enabled:
+        logo = nodes["logo"]["visible_bounds"]
+        require(logo is not None and logo["x"] < .1 and logo["y"] < .12, "phone: Natal lock-up left safe area drift")
     require(hero["visible_bounds"] is not None and support["visible_bounds"] is not None, "phone: dark copy is not visible")
     require(hero["box"]["x"] < .1 and hero["box"]["x"] + hero["box"]["width"] <= .5, "phone: headline leaves the left safe area")
     require(support["box"]["x"] < .1 and support["box"]["x"] + support["box"]["width"] <= .5, "phone: supporting text leaves the left safe area")
@@ -528,7 +534,7 @@ def audit_phone_metrics(
         None, detail["content"]["phone_hero_title"], detail["content"]["cta"],
         detail["configuration"]["phone_screen"]["texture"],
         list(phone_button_text), copy.deepcopy(phone_button_config),
-        typography_config,
+        typography_config, detail["configuration"]["phone_screen"]["logo_enabled"],
     )
     with Image.open(BytesIO(composed_device["bytes"])) as image:
         device_pixels = image.convert("RGBA")
@@ -556,7 +562,7 @@ def audit_phone_metrics(
         detail["content"]["cta"],
         detail["configuration"]["phone_screen"]["texture"],
         list(phone_button_text), copy.deepcopy(phone_button_config),
-        typography_config,
+        typography_config, detail["configuration"]["phone_screen"]["logo_enabled"],
     )
     with Image.open(BytesIO(full_bleed_device["bytes"])) as image:
         device_pixels = image.convert("RGB")
@@ -597,11 +603,13 @@ def audit_phone_metrics(
         "device_visible_bounds": visible_device, "metric_row_y": cards[0]["y"],
         "metric_buttons": copy.deepcopy(metric_card_config),
         "phone_buttons": copy.deepcopy(phone_button_config),
+        "post_logo_enabled": post_logo_enabled,
+        "phone_logo_enabled": detail["configuration"]["phone_screen"]["logo_enabled"],
         "cta_y": cta["y"], "checks": [
             "optional_background_texture", "optional_left_copy_texture",
-            "natal_upper_left", "left_safe_copy", "front_facing_phone",
+            "optional_post_logo", "optional_phone_logo", "left_safe_copy", "front_facing_phone",
             "three_equal_tunable_metric_buttons", "cobalt_cta_band", "no_clipping_or_overlap",
-            "crisp_upright_natal_app_shell", "sealed_upper_screen_corners",
+            "crisp_upright_app_shell", "sealed_upper_screen_corners",
             "complete_status_network_signal",
             "three_tunable_in_phone_actions",
             "full_bleed_phone_hero", "continuous_header_phone_hero",
@@ -715,6 +723,38 @@ def main() -> None:
             phone_path.write_bytes(phone_preview["bytes"])
             phone_report["preview_path"] = str(phone_path.resolve())
         reports.append(phone_report)
+        no_logo_config = copy.deepcopy(reference_phone_config)
+        no_logo_config["logo"]["enabled"] = False
+        no_logo_config["phone_screen"]["logo_enabled"] = False
+        no_logo_preview = phone_workspace.render_preview(
+            state_sha256=phone["state_sha256"], configuration=no_logo_config,
+            content=phone_content,
+        )
+        no_logo_detail = copy.deepcopy(phone)
+        no_logo_detail["configuration"] = no_logo_config
+        no_logo_report = audit_phone_metrics(
+            no_logo_preview, no_logo_detail, name="phone_metrics_without_logos",
+        )
+        from io import BytesIO
+        from PIL import Image, ImageChops
+
+        with Image.open(BytesIO(phone_preview["bytes"])) as visible_image, Image.open(
+            BytesIO(no_logo_preview["bytes"])
+        ) as hidden_image:
+            phone_logo_difference = ImageChops.difference(
+                visible_image.convert("RGB").crop((700, 105, 960, 230)),
+                hidden_image.convert("RGB").crop((700, 105, 960, 230)),
+            )
+            require(
+                phone_logo_difference.getbbox() is not None,
+                "phone: hiding the in-phone logo did not change its rendered pixels",
+            )
+        no_logo_report["checks"].append("post_and_phone_logos_removed_independently")
+        if output_dir is not None:
+            no_logo_path = output_dir / "phone_metrics_without_logos.png"
+            no_logo_path.write_bytes(no_logo_preview["bytes"])
+            no_logo_report["preview_path"] = str(no_logo_path.resolve())
+        reports.append(no_logo_report)
         hidden_phone_config = copy.deepcopy(DEFAULT_PHONE_CONFIG)
         hidden_phone_config["offer"]["enabled"] = False
         hidden_phone_config["background"]["texture"] = "grain"

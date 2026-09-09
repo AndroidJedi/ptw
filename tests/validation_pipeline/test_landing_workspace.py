@@ -194,7 +194,7 @@ class LandingAuthorityTests(unittest.TestCase):
         generated["social_proof"]["items"] = []
         generated["contacts"]["email"] = ""
         self.assertEqual([], normalize_composed_content(generated)["social_proof"]["items"])
-        generated["contacts"]["url"] = "https://invented.example"
+        generated["contacts"]["url"] = "https://t.me/invented_helper_bot"
         with self.assertRaisesRegex(ValueError, "contact endpoints"):
             normalize_composed_content(generated)
         generated["contacts"]["url"] = ""
@@ -244,6 +244,21 @@ class LandingAuthorityTests(unittest.TestCase):
 
 @unittest.skipUnless(Image is not None, "Pillow is required for Landing visual workspace tests")
 class LandingWorkspaceTests(unittest.TestCase):
+    def test_visual_mode_survives_save_restart_and_immutable_approval(self):
+        detail = self.prepared(configuration={**DEFAULT_CONFIGURATION, "visual_mode": "image"})
+        approved = self.workspace.approve_configuration(base_sha256=detail["state_sha256"], configuration=detail["configuration"], content=detail["content"], change_note="Image hero")
+        version = self.workspace.version_detail(1)
+        self.assertEqual("image", version["configuration"]["visual_mode"])
+        reopened = LandingWorkspace(Path(self.temporary.name), image_provider=self.images)
+        self.assertEqual("image", reopened.detail()["configuration"]["visual_mode"])
+        restored = reopened.save_configuration(base_sha256=approved["state_sha256"], configuration={**approved["configuration"], "visual_mode": "phone"}, content=approved["content"])
+        self.assertEqual(detail["content"], restored["content"])
+        self.assertEqual(detail["assets"], restored["assets"])
+        self.assertEqual(version, reopened.version_detail(1))
+        self.assertNotIn("visual_mode", normalize_configuration(DEFAULT_CONFIGURATION))
+        with self.assertRaisesRegex(ValueError, "visual_mode"):
+            normalize_configuration({**DEFAULT_CONFIGURATION, "visual_mode": "invalid"})
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.images = FakeImages()
@@ -411,7 +426,7 @@ class LandingWorkspaceTests(unittest.TestCase):
 
     def test_every_cta_destination_requires_its_valid_endpoint(self):
         detail = self.prepared()
-        for target, endpoint in (('contacts', ''), ('url', 'https://example.test/book'), ('email', 'owner@example.test'), ('phone', '+380 (50) 123-45-67')):
+        for target, endpoint in (('contacts', ''), ('url', 'https://t.me/natal_helper_bot'), ('email', 'owner@example.test'), ('phone', '+380 (50) 123-45-67')):
             candidate = deepcopy(detail)
             candidate['configuration']['presentation'] = {**deepcopy(DEFAULT_PRESENTATION), 'cta_target': target}
             if target != 'contacts':
@@ -420,7 +435,13 @@ class LandingWorkspaceTests(unittest.TestCase):
                     self.workspace.approval_ready(candidate)
                 candidate['content']['contacts'][target] = endpoint
             self.workspace.approval_ready(candidate)
-        for field, values in {'url': ['https://', 'https://user:pass@example.test', 'http://example.test'], 'phone': ['call us', '++12345'], 'email': ['a@', 'a b@example.test']}.items():
+        instagram = complete_content()
+        instagram['contacts'] = {**instagram['contacts'], 'email': '', 'instagram': 'https://www.instagram.com/natal_service/'}
+        normalized = normalize_content(instagram)
+        self.assertEqual('https://www.instagram.com/natal_service/', normalized['contacts']['instagram'])
+        self.workspace.approval_ready(self.prepared(normalized))
+        self.assertNotIn('instagram', normalize_content(complete_content())['contacts'])
+        for field, values in {'url': ['https://', 'https://example.test/book', 'https://t.me/not_a_bot_user', 'https://t.me/natal_helper_bot?start=landing', 'http://t.me/natal_helper_bot'], 'instagram': ['https://instagram.com/', 'https://instagram.com/natal/service', 'https://evil.test/natal_service', 'http://instagram.com/natal_service'], 'phone': ['call us', '++12345'], 'email': ['a@', 'a b@example.test']}.items():
             for value in values:
                 candidate = complete_content()
                 candidate['contacts'][field] = value
@@ -457,6 +478,27 @@ class LandingDesignTests(unittest.TestCase):
                 normalize_configuration({**deepcopy(DEFAULT_CONFIGURATION), 'components': {**DEFAULT_COMPONENTS, key: choice}})
             with self.assertRaises(ValueError):
                 normalize_configuration({**deepcopy(DEFAULT_CONFIGURATION), 'components': {**DEFAULT_COMPONENTS, key: 'arbitrary-css'}})
+
+    def test_instagram_contact_is_optional_bounded_owner_evidence(self):
+        legacy = complete_content()
+        self.assertNotIn('instagram', normalize_content(legacy)['contacts'])
+        supplied = deepcopy(legacy)
+        supplied['contacts']['instagram'] = 'https://www.instagram.com/natal_service/'
+        self.assertEqual(
+            'https://www.instagram.com/natal_service/',
+            normalize_content(supplied)['contacts']['instagram'],
+        )
+        for value in (
+            'http://www.instagram.com/natal_service/',
+            'https://www.instagram.com/',
+            'https://www.instagram.com/natal/service',
+            'https://www.instagram.com/natal_service//',
+            'https://example.test/natal_service',
+        ):
+            invalid = deepcopy(legacy)
+            invalid['contacts']['instagram'] = value
+            with self.assertRaisesRegex(ValueError, 'instagram'):
+                normalize_content(invalid)
 
     @unittest.skipUnless(LocalLandingAuthority is not None and Image is not None, 'Landing runtime dependencies required')
     def test_generation_preserves_server_configuration_and_accepts_content_only(self):

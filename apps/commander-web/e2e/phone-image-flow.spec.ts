@@ -27,10 +27,10 @@ function phoneDetail() {
     }],
     catalog: {
       schema: 'ptw.studio.phone-metrics-catalog.v2', template_id: 'phone_metrics',
-      template_version: 22, canvas: { width: 1080, height: 1350 },
+      template_version: 23, canvas: { width: 1080, height: 1350 },
       semantic_roles: [], components: [], asset_slots: {}, sha256: 'b'.repeat(64),
       variation: {
-        optional_elements: ['offer'], brand: 'Natal', device_pose: 'front_facing_upright',
+        optional_elements: ['offer', 'post_logo', 'phone_logo'], brand: 'Natal', device_pose: 'front_facing_upright',
         device_rotation_degrees: 0,
         background_textures: ['none', 'grain', 'concrete', 'travertine'],
         copy_background_textures: ['none', 'grain', 'concrete', 'travertine'],
@@ -53,15 +53,15 @@ function phoneDetail() {
     },
     state_sha256: 'a'.repeat(64), template_sha256: 'c'.repeat(64),
     configuration: {
-      schema: 'ptw.studio.phone-metrics-config.v8',
+      schema: 'ptw.studio.phone-metrics-config.v9',
       background: { color: '#F4F5F2', texture: 'concrete', texture_intensity: 0.13 },
-      copy_background: { texture: 'none' }, offer: { enabled: true },
+      copy_background: { texture: 'none' }, logo: { enabled: true }, offer: { enabled: true },
       supporting_text: { highlight_color: '#1675F8' },
       typography: Object.fromEntries([
         'offer', 'hero_title', 'supporting_text', 'cta', 'metric_value', 'metric_label',
         'phone_title', 'phone_buttons',
       ].map((role) => [role, { font_family: 'Manrope', font_size: 28 }])),
-      phone_screen: { texture: 'grain' },
+      phone_screen: { texture: 'grain', logo_enabled: true },
       metric_cards: [1, 2, 3].map(() => ({
         style: 'filled', text_color: '#FFFFFF', background_color: '#2457C8', shape: 'rounded',
       })),
@@ -101,6 +101,7 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   const directionRequests: any[] = []
   const generationRequests: any[] = []
   const selectionRequests: any[] = []
+  const previewRequests: any[] = []
   let generated = 0
 
   await page.route('**/api/v1/**', async (route) => {
@@ -119,10 +120,13 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
       return json({ items: [current], next_cursor: null })
     }
     if (url.pathname === creativePath && method === 'GET') return json(current)
-    if (url.pathname === `${creativePath}/preview` && method === 'POST') return route.fulfill({
-      status: 200, contentType: 'image/png', body: previewBytes,
-      headers: { 'X-PTW-Content-SHA256': previewDigest, 'Cache-Control': 'private, no-store' },
-    })
+    if (url.pathname === `${creativePath}/preview` && method === 'POST') {
+      previewRequests.push(route.request().postDataJSON())
+      return route.fulfill({
+        status: 200, contentType: 'image/png', body: previewBytes,
+        headers: { 'X-PTW-Content-SHA256': previewDigest, 'Cache-Control': 'private, no-store' },
+      })
+    }
     if (url.pathname.startsWith(`${creativePath}/phone-screen/history/`) && method === 'GET') {
       const digest = url.pathname.split('/').at(-1) || ''
       const index = imageDigests.indexOf(digest)
@@ -181,8 +185,42 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   })
 
   await page.goto(`/?e2e=1&page=posts&project=${projectId}&creative=${creativeId}`)
-  await page.getByRole('button', { name: 'Змінити мову' }).click()
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.reload()
   await expect(page.getByRole('heading', { name: 'Generate or enhance hero artwork' })).toBeVisible()
+
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const visualMode = page.getByRole('combobox', { name: 'Visual mode' })
+  await visualMode.focus()
+  await expect(visualMode).toBeFocused()
+  await visualMode.selectOption('image')
+  await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({ visual_mode: 'image' })
+  await visualMode.screenshot({ path: `.local/post-visual-mode-${test.info().project.name}.png` })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await visualMode.selectOption('phone')
+  await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({ visual_mode: 'phone' })
+
+  const postLogo = page.getByLabel('Show post logo')
+  const phoneLogo = page.getByLabel('Show in-phone logo')
+  await expect(postLogo).toBeChecked()
+  await expect(phoneLogo).toBeChecked()
+  await postLogo.focus()
+  await page.keyboard.press('Space')
+  await phoneLogo.focus()
+  await page.keyboard.press('Space')
+  await expect(postLogo).not.toBeChecked()
+  await expect(phoneLogo).not.toBeChecked()
+  await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({
+    logo: { enabled: false },
+    phone_screen: { logo_enabled: false },
+  })
+  await expect(page.getByText('Hidden from the post canvas')).toBeVisible()
+  await expect(page.getByText('Hidden from the app screen')).toBeVisible()
+  await postLogo.check()
+  await phoneLogo.check()
+  await expect(postLogo).toBeChecked()
+  await expect(phoneLogo).toBeChecked()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 
   await page.getByRole('button', { name: 'Reset image direction' }).click()
   await expect(page.getByRole('button', { name: 'Generate & apply' })).toBeDisabled()

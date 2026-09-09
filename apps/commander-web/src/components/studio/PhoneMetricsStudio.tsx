@@ -1,6 +1,7 @@
 import { Bold, Check, Highlighter, ImagePlus, RefreshCcw, Save, Sparkles, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ImageReferenceInput, imageReferencePayload } from '../ImageReferenceInput'
+import { VisualModeSelect } from '../VisualModeSelect'
 import type { ApiClient } from '../../api'
 import { ErrorState } from '../../components/State'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from './PhoneHeroDirectionPicker'
@@ -28,7 +29,9 @@ function PhoneScreenHistoryOption({
   useEffect(() => {
     let disposed = false
     let objectUrl = ''
-    void api.media(
+    let retry = 0
+    let retryTimer = 0
+    const load = () => void api.media(
       `${basePath}/phone-screen/history/${item.sha256}`,
       item.mime_type, item.sha256,
     ).then((blob) => {
@@ -36,10 +39,14 @@ function PhoneScreenHistoryOption({
       if (disposed) URL.revokeObjectURL(objectUrl)
       else setUrl(objectUrl)
     }).catch(() => {
-      if (!disposed) setUrl('')
+      if (disposed) return
+      setUrl('')
+      if (retry++ === 0) retryTimer = window.setTimeout(load, 750)
     })
+    load()
     return () => {
       disposed = true
+      window.clearTimeout(retryTimer)
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [api, basePath, item.mime_type, item.sha256])
@@ -68,6 +75,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   const [configuration, setConfiguration] = useState<StudioPhoneMetricsConfiguration>(structuredClone(initialDetail.configuration))
   const [content, setContent] = useState<StudioPhoneMetricsContent>(structuredClone(initialDetail.content))
   const [previewUrl, setPreviewUrl] = useState('')
+  const [previewState, setPreviewState] = useState('')
   const [busy, setBusy] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
   const initialScreenAsset = initialDetail.assets.find((asset) => asset.slot === 'phone_screen')
@@ -131,21 +139,35 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   }, [initialDetail.state_sha256])
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
 
-  const replacePreview = (blob: Blob) => setPreviewUrl((current) => {
-    if (current) URL.revokeObjectURL(current)
-    return URL.createObjectURL(blob)
-  })
+  const previewStateFor = (
+    saved: StudioPhoneMetricsDetail,
+    nextConfiguration: StudioPhoneMetricsConfiguration,
+    nextContent: StudioPhoneMetricsContent,
+  ) => JSON.stringify([saved.state_sha256, nextConfiguration, nextContent])
+  const currentPreviewState = previewStateFor(detail, configuration, content)
+  const replacePreview = (blob: Blob, state: string) => {
+    setPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current)
+      return URL.createObjectURL(blob)
+    })
+    setPreviewState(state)
+  }
   const render = async (
     saved: StudioPhoneMetricsDetail, draft = false,
     nextConfiguration = configuration, nextContent = content,
   ) => {
     const generation = ++previewGeneration.current
+    const requestedPreviewState = previewStateFor(
+      saved,
+      draft ? nextConfiguration : saved.configuration,
+      draft ? nextContent : saved.content,
+    )
     setPreviewBusy(true)
     try {
       const blob = await api.postMedia(`${basePath}/preview`, draft ? {
         state_sha256: saved.state_sha256, configuration: nextConfiguration, content: nextContent,
       } : { state_sha256: saved.state_sha256 }, 'image/png', { deadlineMs: 90_000 })
-      if (generation === previewGeneration.current) replacePreview(blob)
+      if (generation === previewGeneration.current) replacePreview(blob, requestedPreviewState)
     } catch (cause) {
       if (generation === previewGeneration.current) setError((cause as Error).message)
     } finally {
@@ -339,16 +361,21 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       </button>)}</div>
     </section>
     <section className="studio-commandbar phone-metrics-commandbar">
-      <div><small>{tr('FIXED NATAL TEMPLATE', 'ФІКСОВАНИЙ ШАБЛОН NATAL')}</small><strong>phone_metrics · v{detail.catalog.template_version}</strong></div>
+      <div><small>{tr('NATAL TEMPLATE', 'ШАБЛОН NATAL')}</small><strong>phone_metrics · v{detail.catalog.template_version}</strong></div>
       <button className="secondary" disabled={busy} onClick={() => void approve()}><Check />{tr('Approve creative', 'Схвалити креатив')}</button>
       <button className="primary" disabled={busy} onClick={() => void save()}><Save />{tr('Save creative', 'Зберегти креатив')}</button>
     </section>
     <section className="phone-metrics-workspace">
       <main className="studio-canvas-panel phone-metrics-canvas-panel">
         <header><div><small>{tr('LIVE 4:5 RENDER', 'ЖИВИЙ РЕНДЕР 4:5')}</small><h2>{tr('Natal phone & metrics', 'Natal: телефон і метрики')}</h2></div>{(busy || previewBusy) && <RefreshCcw className="spin" />}</header>
-        <figure aria-busy={previewBusy}>{previewUrl ? <img src={previewUrl} alt={tr('Natal phone and metrics creative', 'Креатив Natal із телефоном і метриками')} /> : <div className="studio-preview-empty"><ImagePlus /><span>{tr('Render unavailable', 'Рендер недоступний')}</span></div>}</figure>
+        <figure aria-busy={previewBusy}>{previewUrl && previewState === currentPreviewState ? <img src={previewUrl} alt={tr('Natal phone and metrics creative', 'Креатив Natal із телефоном і метриками')} /> : <div className="studio-preview-empty">{previewBusy || previewUrl ? <RefreshCcw className="spin" /> : <ImagePlus />}<span>{previewBusy || previewUrl ? tr('Updating preview…', 'Оновлення прев’ю…') : tr('Render unavailable', 'Рендер недоступний')}</span></div>}</figure>
       </main>
       <aside className="universal-controls phone-metrics-controls">
+        <section className="panel universal-section">
+          <VisualModeSelect language={language} value={configuration.visual_mode} disabled={busy}
+            onChange={visual_mode => setConfiguration(current => ({ ...current, visual_mode }))} />
+          <p className="universal-section-note">{tr('Image only shows the selected artwork without the phone or its interface. Phone settings are kept when you switch back.', 'Лише зображення показує обрану ілюстрацію без телефону та його інтерфейсу. Налаштування телефону збережуться для повернення.')}</p>
+        </section>
         <section className="panel universal-section"><small>{tr('OWNER COPY', 'ТЕКСТ ВЛАСНИКА')}</small><h2>{tr('Visible content', 'Видимий вміст')}</h2>
           <label className="universal-toggle"><input
             aria-label={tr('Show eyebrow', 'Показувати надзаголовок')}
@@ -376,6 +403,28 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           <label><span>CTA</span><input value={content.cta} maxLength={60} onChange={(event) => setContent({ ...content, cta: event.target.value })} /></label>
           <label><span>{tr('Optional in-phone title', 'Необов’язковий заголовок у телефоні')}</span><input value={content.phone_hero_title} maxLength={72} onChange={(event) => setContent({ ...content, phone_hero_title: event.target.value })} /></label>
         </section>
+        <section className="panel universal-section"><small>{tr('BRAND VISIBILITY', 'ВИДИМІСТЬ БРЕНДУ')}</small><h2>{tr('Natal logos', 'Логотипи Natal')}</h2>
+          <label className="universal-toggle"><input
+            aria-label={tr('Show post logo', 'Показувати логотип допису')}
+            type="checkbox" checked={configuration.logo.enabled}
+            onChange={(event) => setConfiguration({
+              ...configuration, logo: { enabled: event.target.checked },
+            })}
+          /><span><strong>{tr('Upper-left post logo', 'Логотип угорі ліворуч')}</strong><small>{configuration.logo.enabled
+            ? tr('Visible on the post canvas', 'Видимий на полотні допису')
+            : tr('Hidden from the post canvas', 'Прихований із полотна допису')}</small></span></label>
+          <label className="universal-toggle"><input
+            aria-label={tr('Show in-phone logo', 'Показувати логотип у телефоні')}
+            type="checkbox" checked={configuration.phone_screen.logo_enabled}
+            onChange={(event) => setConfiguration({
+              ...configuration,
+              phone_screen: { ...configuration.phone_screen, logo_enabled: event.target.checked },
+            })}
+          /><span><strong>{tr('Logo inside iPhone', 'Логотип усередині iPhone')}</strong><small>{configuration.phone_screen.logo_enabled
+            ? tr('Visible in the app screen', 'Видимий на екрані застосунку')
+            : tr('Hidden from the app screen', 'Прихований з екрана застосунку')}</small></span></label>
+          <p className="universal-section-note">{tr('Each logo can be shown or hidden independently. The canonical artwork itself cannot be replaced.', 'Кожен логотип можна показати або приховати незалежно. Сам канонічний знак не можна замінити.')}</p>
+        </section>
         <section className="panel universal-section"><small>{tr('TYPOGRAPHY', 'ТИПОГРАФІКА')}</small><h2>{tr('Font and size for every text role', 'Шрифт і розмір для кожної ролі')}</h2>
           <div className="phone-typography-list">
             {typographyRoles.map(({ role, en, uk }) => {
@@ -400,7 +449,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               </div>
             })}
           </div>
-          <p className="universal-section-note">{tr('Typography changes only editable creative copy. Natal identity and iPhone system chrome remain fixed.', 'Типографіка змінює лише редагований текст креативу. Айдентика Natal і системні елементи iPhone залишаються фіксованими.')}</p>
+          <p className="universal-section-note">{tr('Typography changes only editable creative copy. Logo artwork and iPhone system chrome keep their renderer-owned typography.', 'Типографіка змінює лише редагований текст креативу. Типографіка логотипів і системних елементів iPhone залишається під контролем рендерера.')}</p>
         </section>
         <section className="panel universal-section"><small>{tr('OPTIONAL TEXTURES', 'НЕОБОВ’ЯЗКОВІ ТЕКСТУРИ')}</small><h2>{tr('Material finish', 'Фактура поверхні')}</h2>
           <label><span>{tr('Full post background', 'Повний фон допису')}</span><select aria-label={tr('Full post background texture', 'Текстура повного фону допису')} value={configuration.background.texture} onChange={(event) => setConfiguration({ ...configuration, background: { ...configuration.background, texture: event.target.value as StudioPhoneMetricsConfiguration['background']['texture'] } })}>
@@ -409,7 +458,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           <label><span>{tr('Left copy area', 'Ліва текстова зона')}</span><select aria-label={tr('Left copy area texture', 'Текстура лівої текстової зони')} value={configuration.copy_background.texture} onChange={(event) => setConfiguration({ ...configuration, copy_background: { texture: event.target.value as StudioPhoneMetricsConfiguration['copy_background']['texture'] } })}>
             {detail.catalog.variation.copy_background_textures.map((texture) => <option key={texture} value={texture}>{textureLabel(texture)}</option>)}
           </select></label>
-          <label><span>{tr('Inside iPhone screen', 'Усередині екрана iPhone')}</span><select aria-label={tr('iPhone screen texture', 'Текстура екрана iPhone')} value={configuration.phone_screen.texture} onChange={(event) => setConfiguration({ ...configuration, phone_screen: { texture: event.target.value as StudioPhoneMetricsConfiguration['phone_screen']['texture'] } })}>
+          <label><span>{tr('Inside iPhone screen', 'Усередині екрана iPhone')}</span><select aria-label={tr('iPhone screen texture', 'Текстура екрана iPhone')} value={configuration.phone_screen.texture} onChange={(event) => setConfiguration({ ...configuration, phone_screen: { ...configuration.phone_screen, texture: event.target.value as StudioPhoneMetricsConfiguration['phone_screen']['texture'] } })}>
             {detail.catalog.variation.phone_screen_textures.map((texture) => <option key={texture} value={texture}>{textureLabel(texture)}</option>)}
           </select></label>
           <p className="universal-section-note">{tr('Each menu has Off plus three deterministic finishes. The left-area finish is bounded behind Natal and the copy only; every texture stays beneath text and interface details.', 'Кожне меню має вимкнений стан і три детерміновані фактури. Фактура лівої зони обмежена лише тлом під Natal і текстом; усі текстури залишаються під текстом та елементами інтерфейсу.')}</p>
@@ -494,7 +543,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             disabled={busy || !canGenerateWithDirection || !detail.phone_screen_generation_available} />
           {detail.phone_screen_history.length > 0 && <div className="phone-screen-history">
             <div><strong>{tr('Last 3 images', 'Останні 3 зображення')}</strong><small>{tr('Choose one to apply or enhance', 'Виберіть для застосування або покращення')}</small></div>
-            <div className="phone-screen-history-options" role="radiogroup" aria-label={tr('Recent iPhone images', 'Останні зображення iPhone')}>
+            <div className="phone-screen-history-options" data-recent-image-contract="firebase-token-coalescing-v1" role="radiogroup" aria-label={tr('Recent iPhone images', 'Останні зображення iPhone')}>
               {detail.phone_screen_history.map((item, index) => <PhoneScreenHistoryOption
                 key={item.sha256} api={api} basePath={basePath} item={item} index={index} busy={busy}
                 currentLabel={tr('CURRENT', 'ПОТОЧНЕ')}
@@ -520,7 +569,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             disabled={busy || !canGenerateWithDirection || !detail.phone_screen_generation_available || screenDirection.trim().length < 8}
             onClick={() => void generatePhoneScreen()}><Sparkles />{tr('Generate & apply', 'Згенерувати й застосувати')}</button>
           <p>{detail.phone_screen_generation_available
-            ? tr('Enhance sends the current raw hero image with your direction; turning it off generates from scratch. The Natal logo, UI, title, action buttons, and device stay crisp, and the current visual is preserved if generation fails.', 'Режим покращення надсилає поточний вихідний герой-візуал разом з описом; якщо вимкнути його, зображення генерується з нуля. Логотип Natal, інтерфейс, заголовок, кнопки дій і пристрій залишаються чіткими, а в разі помилки поточний візуал зберігається.')
+            ? tr('Enhance sends the current raw hero image with your direction; turning it off generates from scratch. The UI, title, action buttons, device, and any shown Natal logo stay crisp, and the current visual is preserved if generation fails.', 'Режим покращення надсилає поточний вихідний герой-візуал разом з описом; якщо вимкнути його, зображення генерується з нуля. Інтерфейс, заголовок, кнопки дій, пристрій і кожен показаний логотип Natal залишаються чіткими, а в разі помилки поточний візуал зберігається.')
             : tr('Codex image generation is unavailable in this local Post editor. Sign in to Codex and restart the Post editor; the circles remain as the deterministic fallback.', 'Генерація зображень Codex недоступна в цьому локальному редакторі допису. Увійдіть у Codex і перезапустіть редактор; кола залишаються детермінованим резервним варіантом.')}
           </p>
         </section>

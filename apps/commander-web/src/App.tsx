@@ -211,7 +211,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     setCreativeId(null)
     writeConsoleLocation('landing', projectId, null, nextLandingId, true)
   }
-  return <Shell page={page} onPage={navigate} language={language} onLanguage={changeLanguage}>
+  return <Shell page={page} onPage={navigate} language={language}>
     {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Створення та виправлення брифів запускають реальних провайдерів.' : 'Brief creation and correction invoke real providers.'}</span></div>}
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label={language === 'uk' ? 'Вийти' : 'Sign out'}><LogOut /></button></div>
     {page !== 'settings' && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
@@ -220,7 +220,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     {page === 'posts' && <StudioView api={api} language={language} tuneMode={localApp} projectId={validatedProjectId} creativeId={creativeId} onCreative={selectCreative} />}
     {page === 'landing' && <LandingView api={api} language={language} projectId={validatedProjectId} projectName={projects?.find(item => item.project_id === validatedProjectId)?.name || ''} landingId={landingId} onLanding={selectLanding} />}
     {page === 'ads' && <AdsView api={api} language={language} projectId={validatedProjectId} />}
-    {page === 'settings' && <SettingsView api={api} language={language} />}
+    {page === 'settings' && <SettingsView api={api} language={language} localMode={localApp && !liveProduction} onLanguage={changeLanguage} />}
   </Shell>
 }
 

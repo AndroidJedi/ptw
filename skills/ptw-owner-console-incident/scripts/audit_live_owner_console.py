@@ -54,12 +54,12 @@ def resolve_app_bundle_url(origin: str, entry_url: str, entry_bundle: str) -> st
     return urljoin(entry_url, path)
 
 
-def load_live_app_bundle(origin: str) -> tuple[str, str, str]:
+def load_live_app_bundle(origin: str) -> tuple[str, str, str, dict[str, str]]:
     last_error: RuntimeError | None = None
     for attempt in range(5):
         try:
             cache_bust = f"skill-audit-{time.time_ns()}"
-            status, _, document_bytes = fetch(f"{origin}/?{cache_bust}")
+            status, document_headers, document_bytes = fetch(f"{origin}/?{cache_bust}")
             require(status == 200, f"Owner document returned HTTP {status}")
             document = document_bytes.decode()
             main_match = re.search(r'src="([^"]*?/assets/index-[^"]+\.js)"', document)
@@ -72,7 +72,7 @@ def load_live_app_bundle(origin: str) -> tuple[str, str, str]:
 
             status, _, app_bytes = fetch(app_url)
             require(status == 200, f"App bundle returned HTTP {status}")
-            return main_url, app_url, app_bytes.decode()
+            return main_url, app_url, app_bytes.decode(), document_headers
         except RuntimeError as error:
             last_error = error
             if attempt < 4:
@@ -87,7 +87,12 @@ def main() -> None:
     parser.add_argument("--site-key", default=DEFAULT_SITE_KEY)
     args = parser.parse_args()
 
-    main_url, app_url, app_bundle = load_live_app_bundle(args.origin)
+    main_url, app_url, app_bundle, document_headers = load_live_app_bundle(args.origin)
+    lower_headers = {name.lower(): value for name, value in document_headers.items()}
+    csp = lower_headers.get("content-security-policy", "")
+    require("frame-ancestors 'none'" in csp, "Owner document does not enforce frame-ancestors 'none'")
+    require("content-security-policy-report-only" not in lower_headers, "Owner document unexpectedly uses report-only CSP")
+    require(lower_headers.get("x-frame-options", "").casefold() == "deny", "Owner document X-Frame-Options is not DENY")
     for label, marker in {
         "Commander API origin": args.api,
         "App Check header": "X-Firebase-AppCheck",
@@ -96,11 +101,15 @@ def main() -> None:
         "Product Brief workspace": "Product Brief",
         "Post destination": "Post",
         "Landing destination": "Landing",
+        "Landing publication control": "PUBLIC NATAL PAGE",
         "Landing save timeout reconciliation": "Landing was already saved.",
         "ChatGPT authorization settings": "ChatGPT Authorization",
         "actionable API error guidance": "Що робити",
         "bounded API technical context": "Технічні дані",
         "approved Brief existing-Creative resolution": "approved-brief-existing-creative-v1",
+        "draft-bound phone preview state": "Updating preview…",
+        "recent-image credential coalescing": "firebase-token-coalescing-v1",
+        "optional Landing Instagram contact": "Instagram profile link",
     }.items():
         require(marker in app_bundle, f"Live App bundle is missing {label}")
     for retired_label in (
@@ -144,6 +153,19 @@ def main() -> None:
         "Unexpected creative-direction auth failure body",
     )
 
+    publication_route_status, _, publication_route_bytes = fetch(
+        f"{args.api}/api/v1/landings/projects/"
+        "00000000-0000-0000-0000-000000000001/publication",
+    )
+    require(
+        publication_route_status == 401,
+        f"Landing publication route registration returned HTTP {publication_route_status}",
+    )
+    require(
+        "Bearer token is required" in publication_route_bytes.decode(),
+        "Unexpected Landing publication auth failure body",
+    )
+
     for retired_path in (
         "/api/v1/ideas", "/api/v1/branding", "/api/v1/posts",
         "/api/v1/content-runs", "/api/v1/project-assets",
@@ -174,6 +196,7 @@ def main() -> None:
         "service_worker_cache": cache_match.group(1), "gateway_health": health_status,
         "unauthenticated_overview": auth_status,
         "creative_direction_route": private_route_status,
+        "landing_publication_route": publication_route_status,
         "cors_preflight": cors_status,
     }, indent=2))
 

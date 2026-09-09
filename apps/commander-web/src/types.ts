@@ -384,17 +384,19 @@ export interface StudioPhoneActionButtonConfiguration {
 }
 
 export interface StudioPhoneMetricsConfiguration {
-  schema: 'ptw.studio.phone-metrics-config.v8'
+  visual_mode?: 'phone' | 'image'
+  schema: 'ptw.studio.phone-metrics-config.v9'
   background: {
     color: string
     texture: StudioPhoneBackgroundTexture
     texture_intensity: number
   }
   copy_background: { texture: StudioPhoneBackgroundTexture }
+  logo: { enabled: boolean }
   offer: { enabled: boolean }
   supporting_text: { highlight_color: string }
   typography: Record<StudioPhoneTypographyRole, StudioPhoneTypographyConfiguration>
-  phone_screen: { texture: StudioPhoneScreenTexture }
+  phone_screen: { texture: StudioPhoneScreenTexture; logo_enabled: boolean }
   metric_cards: StudioPhoneMetricCardConfiguration[]
   phone_buttons: StudioPhoneActionButtonConfiguration[]
   device: { x: number; y: number; width: number; rotation: number }
@@ -648,6 +650,7 @@ export interface LandingPhoneMockup { theme: 'light' | 'dark' | 'glass'; layout:
 export interface LandingAppFeature { title: string; description: string; action_label: string; items: Array<{ label: string; value: string }> }
 
 export interface LandingConfiguration {
+  visual_mode?: 'phone' | 'image'
   phone_mockup?: LandingPhoneMockup
   components?: LandingComponents
   image_directions?: LandingImageDirections
@@ -677,7 +680,7 @@ export interface LandingContent {
   features: Array<{ title: string; description: string }>
   social_proof: { heading: string; items: Array<{ statement: string; attribution: string }> }
   visual_break: { visual_direction: string }
-  contacts: { heading: string; supporting_text: string; email: string; phone: string; url: string }
+  contacts: { heading: string; supporting_text: string; email: string; phone: string; url: string; instagram?: string }
   faq: Array<{ question: string; answer: string }>
 }
 

@@ -253,7 +253,20 @@ export async function validateImageResponse(
 }
 
 export class ApiClient {
+  private credentialRequest: Promise<[string, string]> | null = null
+
   constructor(private readonly user: User, private readonly language: Language = 'uk') {}
+
+  private async firebaseTokens(): Promise<[string, string]> {
+    if (!this.credentialRequest) {
+      const request = resolveFirebaseTokens(this.user.getIdToken(), getToken(appCheck, false))
+      this.credentialRequest = request
+      void request.finally(() => {
+        if (this.credentialRequest === request) this.credentialRequest = null
+      }).catch(() => undefined)
+    }
+    return this.credentialRequest
+  }
 
   private async response(path: string, init: RequestInit, options: ApiRequestOptions): Promise<Response> {
     const method = (init.method || 'GET').toUpperCase()
@@ -274,7 +287,7 @@ export class ApiClient {
     const localStudio = localStudioMode && (path.startsWith('/api/v1/studio') || path.startsWith('/api/v1/landings') || path.startsWith('/api/v1/ads'))
     const [token, appCheckToken] = e2eMode || localStudio
       ? [await this.user.getIdToken(), 'e2e-app-check']
-      : await resolveFirebaseTokens(this.user.getIdToken(), getToken(appCheck, false))
+      : await this.firebaseTokens()
     const ownerToken = localStudio ? 'e2e-owner-token' : token
     const headers: Record<string, string> = { Authorization: `Bearer ${ownerToken}` }
     if (json) headers['Content-Type'] = 'application/json'

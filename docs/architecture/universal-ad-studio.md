@@ -49,18 +49,33 @@ while their copy and visual surfaces remain independently editable. Natal
 identity and iPhone system chrome keep their fixed renderer-owned typography.
 
 `phone_metrics` is a 1080×1350 composition with an off-white material
-background, fixed Natal lock-up, left-safe copy, a front-facing black iPhone,
+background, an optional canonical Natal lock-up, left-safe copy, a front-facing black iPhone,
 three equal metric controls, and a full-width CTA band. Every metric exposes
 bounded value/label, Filled or Outlined style, text and surface colours, and
 Square, Rounded, or Pill shape.
 
 The phone app screen has a fixed status bar, complete cellular and Wi-Fi
-signals, battery, Natal lock-up, optional eyebrow/title, generated hero,
+signals, battery, an independently optional canonical Natal lock-up, optional eyebrow/title, generated hero,
 supporting copy, three owner-tunable app actions, and home indicator. The three
 actions expose bounded text, Filled/Elevated/Outlined/Text-only style, text and
 surface colours, and Square/Rounded/Pill shape. Their defaults match the
 approved screenshot: cobalt primary, elevated white secondary, and blue
 text-only tertiary.
+
+The post-level and in-phone Natal lock-ups each have an independent visibility
+toggle. Both remain visible by default, use only the canonical renderer-owned
+asset, and cannot be uploaded or replaced. Existing mutable v8 drafts inherit
+that previously implicit visible state when read and persist the v9 contract on
+their next owner save; immutable approved versions remain untouched.
+
+Local template v24 adds **Visual mode: Phone frame & buttons / Image only**.
+The optional `configuration.visual_mode` accepts `phone` or `image`; omitted
+values retain the phone view without rewriting stored configuration. Image mode
+contains the selected raw artwork in the existing device area, preserving its
+aspect ratio and transparency with no hardware, app UI, fade, or screen texture.
+Surrounding Post copy, metrics, and CTA remain. Switching back restores the saved
+phone settings; image generation/history and immutable Save/Approve paths remain
+shared. This change is local only.
 
 The phone frame is a checked-in, SHA-256-verified WithFrame asset and is never
 fetched at runtime. The screen, UI, and frame are composited as one deterministic

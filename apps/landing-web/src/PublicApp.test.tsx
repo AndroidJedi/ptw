@@ -17,7 +17,7 @@ const snapshot: PublicLanding = {
     schema: 'ptw.landing.content.v1', hero: { title: 'A public promise', supporting_text: 'Public supporting copy', cta_label: 'Contact us', visual_direction: '' },
     features: [{ title: 'One', description: 'First' }, { title: 'Two', description: 'Second' }, { title: 'Three', description: 'Third' }],
     social_proof: { heading: '', items: [] }, visual_break: { visual_direction: '' },
-    contacts: { heading: 'Contact', supporting_text: 'Talk to us', email: 'hello@example.com', phone: '', url: '' },
+    contacts: { heading: 'Contact', supporting_text: 'Talk to us', email: 'hello@example.com', phone: '', url: '', instagram: 'https://www.instagram.com/natal_service/' },
     faq: [{ question: 'Question?', answer: 'Answer.' }],
   },
   assets: {
@@ -43,6 +43,7 @@ it.each(['ai', 'la', 'wa'])('fetches and renders a published %s lane with the sh
 
   expect(await screen.findByRole('heading', { name: 'A public promise' })).toBeVisible()
   expect(screen.getByLabelText('Landing live preview')).toBeVisible()
+  expect(screen.getByRole('link', { name: /Instagram @natal_service/ })).toHaveAttribute('href', 'https://www.instagram.com/natal_service/')
   expect(fetch).toHaveBeenCalledWith(`https://api.example/api/v1/public/landings/${lane}/sample-project`, expect.objectContaining({ credentials: 'omit', cache: 'no-store' }))
   expect(document.title).toBe('Sample Project — Natal')
 })

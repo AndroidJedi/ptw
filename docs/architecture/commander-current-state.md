@@ -4,6 +4,37 @@ Updated: 2026-09-09
 Branch: `main`
 Deployment: backend release `studio-approval-20260909-59be4a3` and Owner Console Landing Save hotfix `d6d5b65` are live; Meta staging is disabled until a fresh secret is configured
 
+## Pending production incident release
+
+The next preserving release fixes three owner-reported Post/Owner Console
+symptoms. Phone Metrics now binds each PNG preview to the exact draft state and
+hides stale pixels while a changed in-phone title is rendering. Recent iPhone
+thumbnail loads coalesce concurrent Firebase ID/App Check acquisition and retry
+one read once; live diagnosis proved all three PostgreSQL-backed PNGs and their
+Validation digests were intact while no browser history GET reached the Gateway.
+The Owner Hosting boundary adds `X-Frame-Options: DENY`, and its live audit now
+requires enforcing `frame-ancestors 'none'`, no PTW-owned report-only CSP, and
+the independent frame guard. Owner cache generation
+`ptw-shell-brief-studio-landing-ads-v3` displaces the affected client bundle.
+Google Identity/reCAPTCHA report-only diagnostics
+remain third-party and are not grounds to weaken PTW security headers.
+
+Landing renderer v5 adds an optional, owner-supplied direct Instagram profile
+link and renders its handle with an Instagram icon. The supplied
+`https://www.instagram.com/natal_service/` form is accepted; arbitrary hosts,
+non-HTTPS URLs, nested paths, query strings, and fragments remain rejected.
+Older Landing documents omit the field without changing their digest, and the
+AI composer continues to leave every owner contact endpoint empty.
+
+Release-candidate verification passes: 81 Owner Console unit tests and its
+production build, 69 browser flows across desktop/360px/iPhone WebKit, six
+public Landing tests and its production build, 193 built-image Validation tests
+plus seven git-dependent local tests, nine built-image Owner Gateway tests, 16
+Commander tests plus demo, the deterministic Studio visual audit, canonical
+skill validation, and whitespace checks. The seven Validation-image failures
+were limited to the image not containing the `git` executable and passed in the
+repository virtual environment.
+
 ## Landing Save conflict incident
 
 Production diagnosis found that Landing Save/Approve used the generic
@@ -21,6 +52,66 @@ canonical skill validation, and the authenticated-free live boundary audit.
 The audit now tolerates only a bounded Firebase document/entry/lazy-bundle
 propagation window and requires the incident-specific reconciliation marker.
 
+## Local Post and Landing visual mode milestone
+
+Post Phone Metrics v24 and Landing now offer **Visual mode: Phone frame &
+buttons / Image only**. The optional saved `visual_mode` defaults to the existing
+phone view. Post contains the complete raw artwork in the device area, keeping
+surrounding copy, metrics, and CTA. Landing removes its app phone overlay and
+shows the hero artwork with existing crop/placement controls. Phone settings,
+content, assets, history, and immutable versions survive toggling. No generation
+is needed to switch. This milestone is local only and has not been deployed.
+
+Landing's generic HTTPS/booking contact option is also replaced locally by a
+bounded direct Telegram bot link. The persisted `url` key remains unchanged for
+contract compatibility, but new validation accepts only
+`https://t.me/<bot_username>` with a username ending in `bot`; the editor and
+shared private/public renderer label and display it as Telegram. Email and phone
+remain available, no bot handle is fabricated, and Commander's emergency
+Telegram bot is not reused. This change has not been deployed.
+
+Verification passes: 85 focused Studio and 21 Landing Python tests, 77 web
+unit tests, six browser flows across desktop/360px/iPhone WebKit, deterministic
+Studio geometry audit, Owner Console and public Landing builds, 16 Commander
+tests in the built Validation image plus demo, skills, and whitespace checks.
+The local launcher was refreshed; authenticated reads confirmed v24 and fresh
+phone/image previews of the same existing Creative without changing saved state.
+
+## Local Commander GOD-mode milestone
+
+Local Settings retains ChatGPT Authorization, adds the English/Ukrainian
+language switcher moved from navigation, and includes a repository-wide Commander
+coding chat. The local authorization endpoints read CLI sign-in status and
+support owner-initiated device login without exposing CLI output or credentials;
+local status does not claim a provider test passed. The owner
+can request features, fixes, new tabs, Telegram code changes, and skill updates.
+It invokes local Codex against this checkout, retains conversations and turns in
+`.local/commander-chat`, supports follow-up messages and Stop, and reconciles
+duplicate message UUIDs. Only one coding turn runs at a time. Stop, timeout, and
+API disappearance terminate the worker group; restart marks unfinished turns
+interrupted without replaying edits. Already-applied edits remain reviewable.
+
+Every turn loads the current canonical `skills/commander-god-mode/SKILL.md`
+and records its digest. The agent maintains the narrowest relevant PTW skills
+after verified reusable lessons, with canonical sync/validation and separation
+from Product Brief, Post, and Landing learning. Missing skill disables execution.
+
+This milestone is local only and has not been deployed. The launcher enables
+`PTW_COMMANDER_CHAT_MODE=1` and the corrected `VITE_LOCAL_APP=true` flag. The
+runner uses a workspace-write sandbox with shell network access disabled and
+does not inherit user MCP/config or provider-secret environment variables.
+Local credentials plus loopback host/client/origin checks protect the routes;
+neither production API mounts them. VPS execution remains future work requiring
+an authenticated host runner and an explicit operational release.
+
+Local verification passes: 11 chat runtime/HTTP tests (also in the built Linux
+image), seven existing Tune tests, 72 web unit tests, production web build,
+three mocked browser checks across desktop/360px/WebKit, 16 Commander tests in
+the built image plus demo, skill validation, and whitespace checks. A real
+Codex canary created and byte-verified a file in a disposable checkout. The
+refreshed local app reports the chat and canonical skill ready through real
+browser/HTTP reads. Existing production release verification below applies to
+the already-deployed Image Reference milestone.
 ## Image Reference milestone
 
 The Owner Console now exposes one optional upload/preview/remove control next
@@ -151,7 +242,8 @@ and the production Meta secret file is absent, so both connections report the
 intended safe disabled state. The real PAUSED canary has not run and no Meta
 objects were created.
 
-The lower owner navigation includes a compact Settings control next to language.
+The lower owner navigation includes a compact Settings control; language selection
+now lives inside Settings.
 It opens a dedicated `?page=settings` destination rather than a dialog over the
 Brief. Its ChatGPT Authorization card returns only an authorization status and, during
 an owner-initiated device login, the official device URL/code. A private
@@ -229,11 +321,16 @@ The common versioned template catalog contains:
 - `universal_ad` at 1080×1080;
 - `phone_metrics` at 1080×1350.
 
+Phone Metrics exposes independent visibility toggles for its canonical
+upper-left and in-phone Natal lock-ups. Both are shown by default and remain
+renderer-owned, so owners can omit either mark without replacing its artwork.
+
 Both templates expose an independent bounded font-family and font-size control
 for every editable semantic text role. The catalog provides Inter, Roboto
 Condensed, Manrope, Montserrat, Source Sans 3, Oswald, Cormorant Garamond,
 Cormorant Garamond Italic, Lora, and Lora Italic. Renderer-owned phone chrome,
-the Natal identity, and system UI text remain fixed.
+Natal artwork, and system UI text remain fixed; only the two Phone Metrics logo
+visibility states are owner-tunable.
 
 Each creative stores Project and approved-Brief lineage, ordinal, selected
 template version/digest, current bounded state, generation provenance, assets,

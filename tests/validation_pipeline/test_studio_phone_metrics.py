@@ -17,7 +17,7 @@ from validation_pipeline.studio_phone_metrics import (
     PHONE_ACTION_BUTTON_STYLES, PHONE_COPY_BACKGROUND_TEXTURES,
     PHONE_METRIC_CARD_RADII,
     PHONE_METRIC_CARD_SHAPES, PHONE_METRIC_CARD_STYLES,
-    PHONE_HERO_ART_OFFSET_Y, PHONE_METRICS_TEMPLATE_ID,
+    PHONE_HERO_ART_OFFSET_Y, PHONE_METRICS_CONFIG_SCHEMA, PHONE_METRICS_TEMPLATE_ID,
     PHONE_SCREEN_ART_SIZE, PHONE_SCREEN_TEXTURES, PHONE_TYPOGRAPHY_BOUNDS,
     _clear_phone_hero_edge_matte,
     _draw_status_network_icons,
@@ -62,6 +62,42 @@ class FakePhoneScreenImageProvider:
 
 @unittest.skipUnless(__import__("importlib").util.find_spec("PIL") is not None, "Pillow is required")
 class PhoneMetricsTemplateTests(unittest.TestCase):
+    def test_image_mode_preserves_raw_pixels_and_saved_phone_settings(self):
+        from PIL import Image
+
+        raw = _screen_bytes("#6AAFC8")
+        with patch("validation_pipeline.studio_phone_metrics.iphone_frame_bytes", side_effect=AssertionError("frame loaded")):
+            image = compose_phone_device_asset(raw, "Hidden title", visual_mode="image")
+        with Image.open(BytesIO(raw)) as original, Image.open(BytesIO(image["bytes"])) as result:
+            self.assertEqual(original.size, result.size)
+            self.assertEqual(original.convert("RGBA").tobytes(), result.tobytes())
+        detail = self._phone()
+        detail = self.workspace.store_generated_phone_screen(
+            base_sha256=detail["state_sha256"], data=raw,
+            source={"origin": "codex_builtin_image_generation", "text_in_screen": "prohibited_by_prompt"},
+        )
+        config = {**detail["configuration"], "visual_mode": "image"}
+        preview = self.workspace.render_preview(state_sha256=detail["state_sha256"], configuration=config, content=detail["content"])
+        self.assertEqual((1080, 1350), (preview["width"], preview["height"]))
+        with Image.open(BytesIO(preview["bytes"])) as rendered:
+            # Bare artwork occupies the former device slot, with no status UI,
+            # white app shell, blue buttons, fade, or bezel over these pixels.
+            for point in ((630, 150), (630, 850), (1000, 850)):
+                self.assertEqual((106, 175, 200), rendered.convert("RGB").getpixel(point))
+        self.workspace.approve_configuration(base_sha256=detail["state_sha256"], configuration=config, content=detail["content"], change_note="Image mode")
+        version = self.workspace.version_detail(1)
+        self.assertEqual("image", version["configuration"]["visual_mode"])
+        reopened = UniversalStudioWorkspace(self.workspace.root)
+        saved = reopened.detail()
+        self.assertEqual("image", saved["configuration"]["visual_mode"])
+        restored = reopened.save_configuration(base_sha256=saved["state_sha256"], configuration={**config, "visual_mode": "phone"}, content=saved["content"])
+        self.assertEqual(detail["content"], restored["content"])
+        self.assertEqual(detail["phone_screen_history"], restored["phone_screen_history"])
+        self.assertEqual(version, reopened.version_detail(1))
+        self.assertNotIn("visual_mode", normalize_phone_metrics_config(DEFAULT_PHONE_CONFIG))
+        with self.assertRaisesRegex(ValueError, "visual_mode"):
+            normalize_phone_metrics_config({**config, "visual_mode": "invalid"})
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.workspace = UniversalStudioWorkspace(Path(self.temporary.name))
@@ -108,11 +144,12 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         )
         self.assertEqual(IPHONE_FRAME_SHA256, composite["source"]["frame_sha256"])
         self.assertEqual(
-            "front_natal_app_shell_v18", composite["source"]["screen_composition"],
+            "front_app_shell_v19", composite["source"]["screen_composition"],
         )
         self.assertEqual(
             "deterministic_material_grain_v1", composite["source"]["hero_texture"],
         )
+
         from PIL import Image
         with Image.open(BytesIO(composite["bytes"])) as device_image:
             device_image = device_image.convert("RGBA")
@@ -208,6 +245,17 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
                 for x in range(300, 1000, 19) for y in range(1200, 1370, 17)
             }
             self.assertGreaterEqual(len(grain_colours), 6)
+
+    def test_draft_in_phone_title_changes_preview_without_persisting(self) -> None:
+        detail = self._phone()
+        before = self.workspace.render_preview(state_sha256=detail["state_sha256"])
+        content = {**detail["content"], "phone_hero_title": "Перша година БЕЗКОШТОВНО"}
+        after = self.workspace.render_preview(
+            state_sha256=detail["state_sha256"],
+            configuration=detail["configuration"], content=content,
+        )
+        self.assertNotEqual(before["bytes_sha256"], after["bytes_sha256"])
+        self.assertEqual("", self.workspace.detail()["content"]["phone_hero_title"])
 
     def test_phone_hero_subject_is_lowered_but_artwork_still_reaches_the_top(self) -> None:
         from PIL import Image, ImageDraw
@@ -566,7 +614,10 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             hidden_nodes["hero_title"]["props"]["y"],
             visible_nodes["hero_title"]["props"]["y"],
         )
-        self.assertEqual(["offer"], phone_metrics_catalog()["variation"]["optional_elements"])
+        self.assertEqual(
+            ["offer", "post_logo", "phone_logo"],
+            phone_metrics_catalog()["variation"]["optional_elements"],
+        )
 
         phone = self._phone()
         preview = self.workspace.render_preview(
@@ -574,6 +625,90 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             content=DEFAULT_PHONE_CONTENT,
         )
         self.assertNotIn("offer", preview["resolved"]["nodes"])
+
+    def test_logo_toggles_are_independent_and_existing_v8_drafts_stay_visible(self) -> None:
+        from PIL import Image
+
+        visible = build_phone_metrics_template(DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT)
+        visible_nodes = {
+            item["id"]: item for item in visible.document["root"]["children"]
+        }
+        self.assertIn("logo", visible_nodes)
+        self.assertIn("brand", visible.document["semantic_roles"])
+        self.assertIn("logo", visible.document["assets"])
+
+        hidden_config = deepcopy(DEFAULT_PHONE_CONFIG)
+        hidden_config["logo"]["enabled"] = False
+        hidden_config["phone_screen"]["logo_enabled"] = False
+        hidden = build_phone_metrics_template(hidden_config, DEFAULT_PHONE_CONTENT)
+        hidden_nodes = {
+            item["id"]: item for item in hidden.document["root"]["children"]
+        }
+        self.assertNotIn("logo", hidden_nodes)
+        self.assertNotIn("brand", hidden.document["semantic_roles"])
+        self.assertNotIn("logo", hidden.document["assets"])
+
+        source = Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#F9FAFA")
+        with_logo = _fixed_screen_shell(
+            source, "", "", "none", logo_enabled=True,
+        ).convert("RGBA")
+        without_logo = _fixed_screen_shell(
+            source, "", "", "none", logo_enabled=False,
+        ).convert("RGBA")
+        logo_region = (210, 95, 622, 255)
+        self.assertNotEqual(
+            with_logo.crop(logo_region).tobytes(),
+            without_logo.crop(logo_region).tobytes(),
+        )
+        self.assertEqual(
+            with_logo.crop((0, 0, 180, 90)).tobytes(),
+            without_logo.crop((0, 0, 180, 90)).tobytes(),
+        )
+
+        settings = {
+            setting["setting_id"]: setting["value"]
+            for component in phone_metrics_component_settings(
+                hidden_config, DEFAULT_PHONE_CONTENT,
+            )["components"]
+            for setting in component["settings"]
+        }
+        self.assertFalse(settings["configuration.logo.enabled"])
+        self.assertFalse(settings["configuration.phone_screen.logo_enabled"])
+        self.assertEqual(
+            ["offer", "post_logo", "phone_logo"],
+            phone_metrics_catalog()["variation"]["optional_elements"],
+        )
+
+        legacy = deepcopy(DEFAULT_PHONE_CONFIG)
+        legacy["schema"] = "ptw.studio.phone-metrics-config.v8"
+        legacy.pop("logo")
+        legacy["phone_screen"].pop("logo_enabled")
+        upgraded = normalize_phone_metrics_config(legacy)
+        self.assertEqual(DEFAULT_PHONE_CONFIG, upgraded)
+
+        phone = self._phone()
+        self.workspace._atomic_json(  # pylint: disable=protected-access
+            self.workspace.root / "configuration.json", legacy,
+        )
+        legacy_state_sha256 = self.workspace._legacy_phone_state_sha256()  # pylint: disable=protected-access
+        self.assertIsNotNone(legacy_state_sha256)
+        self.assertNotEqual(legacy_state_sha256, self.workspace.state_sha256())
+        preview = self.workspace.render_preview(
+            state_sha256=legacy_state_sha256,
+        )
+        self.assertEqual((1080, 1350), (preview["width"], preview["height"]))
+        saved = self.workspace.save_configuration(
+            base_sha256=legacy_state_sha256,
+            configuration=phone["configuration"], content=phone["content"],
+        )
+        self.assertEqual(PHONE_METRICS_CONFIG_SCHEMA, saved["configuration"]["schema"])
+        self.assertIsNone(self.workspace._legacy_phone_state_sha256())  # pylint: disable=protected-access
+
+        for path in (("logo", "enabled"), ("phone_screen", "logo_enabled")):
+            invalid = deepcopy(DEFAULT_PHONE_CONFIG)
+            invalid[path[0]][path[1]] = "yes"
+            with self.assertRaisesRegex(ValueError, "must be boolean"):
+                normalize_phone_metrics_config(invalid)
 
     def test_three_optional_textures_change_each_bounded_surface(self) -> None:
         from PIL import Image

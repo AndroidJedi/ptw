@@ -42,7 +42,7 @@ THEME_PRESETS = [
 
 
 def design_catalog():
-    return {"phone_mockup_defaults": DEFAULT_PHONE_MOCKUP, "phone_mockup_options": PHONE_MOCKUP_OPTIONS, "app_feature_limits": APP_FEATURE_LIMITS, "brand": "Natal", "component_defaults": DEFAULT_COMPONENTS,
+    return {"visual_modes": ["phone", "image"], "phone_mockup_defaults": DEFAULT_PHONE_MOCKUP, "phone_mockup_options": PHONE_MOCKUP_OPTIONS, "app_feature_limits": APP_FEATURE_LIMITS, "brand": "Natal", "component_defaults": DEFAULT_COMPONENTS,
             "component_options": COMPONENT_OPTIONS, "theme_presets": THEME_PRESETS,
             "image_direction_defaults": DEFAULT_IMAGE_DIRECTIONS,
             "image_direction_options": {"styles": list(PHONE_HERO_STYLE_DIRECTIVES), "backgrounds": list(LANDING_BACKGROUND_DIRECTIVES)}}

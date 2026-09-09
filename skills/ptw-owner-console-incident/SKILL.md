@@ -31,6 +31,15 @@ before changing code or runtime state.
 - Preview, history, and immutable-version renders are authenticated,
   digest-checked, and private/no-store. The browser receives no provider path,
   prompt credential, database secret, or raw token.
+- Before releasing Hosting after a backend rollout, read the exact affected
+  production creative through the authenticated internal boundary and fetch
+  each retained history digest. Generic health, ephemeral release canaries, and
+  an unchanged database snapshot do not prove that a current template can
+  restore an older stored creative. Treat a restored-file/state-digest mismatch
+  as release incompatibility, restore the prior complete application image set,
+  and rebuild the release from the production lineage without local-only
+  milestones. A Git fast-forward requirement is not permission to merge pending
+  development work into the production tree.
 - When Recent iPhone Images has metadata but blank thumbnails, first verify the
   exact history bytes and digest through Validation, then check whether any
   history GET reached the Gateway. Zero Gateway requests while ordinary preview

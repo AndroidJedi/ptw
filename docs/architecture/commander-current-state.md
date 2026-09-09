@@ -2,11 +2,11 @@
 
 Updated: 2026-09-09
 Branch: `main`
-Deployment: backend release `studio-approval-20260909-59be4a3` and Owner Console Landing Save hotfix `d6d5b65` are live; Meta staging is disabled until a fresh secret is configured
+Deployment: narrow backend/Owner/Public release `preview-instagram-narrow-20260909-ced6ced` at `4d66374` is live; Meta staging is disabled until a fresh secret is configured
 
-## Pending production incident release
+## Phone preview, recent images, CSP, and Landing Instagram incident
 
-The next preserving release fixes three owner-reported Post/Owner Console
+The preserving release fixes three owner-reported Post/Owner Console
 symptoms. Phone Metrics now binds each PNG preview to the exact draft state and
 hides stale pixels while a changed in-phone title is rendering. Recent iPhone
 thumbnail loads coalesce concurrent Firebase ID/App Check acquisition and retry
@@ -26,14 +26,24 @@ non-HTTPS URLs, nested paths, query strings, and fragments remain rejected.
 Older Landing documents omit the field without changing their digest, and the
 AI composer continues to leave every owner contact endpoint empty.
 
-Release-candidate verification passes: 81 Owner Console unit tests and its
-production build, 69 browser flows across desktop/360px/iPhone WebKit, six
-public Landing tests and its production build, 193 built-image Validation tests
-plus seven git-dependent local tests, nine built-image Owner Gateway tests, 16
-Commander tests plus demo, the deterministic Studio visual audit, canonical
-skill validation, and whitespace checks. The seven Validation-image failures
-were limited to the image not containing the `git` executable and passed in the
-repository virtual environment.
+Release verification passes: 72 Owner Console unit tests and its production
+build, 60 browser flows across desktop/360px/iPhone WebKit, six public Landing
+tests and its production build, 42 focused Landing/Phone Metrics backend tests,
+nine built-image Owner Gateway tests, 16 Commander tests plus demo, canonical
+skill validation, and whitespace checks. The preserving rollout passed its real
+bridge/image/Pexels canaries, unchanged-authority comparison, dependency audit,
+and 1 GB host audit. Live checks confirm all six services healthy on the narrow
+tag, the intended hashed bundles and cache v3, enforcing CSP with independent
+frame protection, and all three affected production PNGs returning 200 with
+matching declared/computed SHA-256 digests.
+
+An intermediate integration revision was removed before acceptance after the
+object-specific creative read detected that it also contained a local-only
+Phone Metrics template revision and could not restore the existing creative's
+stored digest. The first narrow rollout attempt was then safely rejected and
+rolled back on a bounded Landing bridge `TimeoutExpired`; a fresh full canary
+passed before the final narrow promotion. No database authority changed during
+either rejected rollout.
 
 ## Landing Save conflict incident
 

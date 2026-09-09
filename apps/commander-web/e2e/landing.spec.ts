@@ -108,16 +108,19 @@ test('validates all CTA destinations and approves without evidence', async ({ pa
   await setup(page)
   await expect(page.getByRole('button', { name: 'Approve Landing' })).toBeDisabled()
   await editorSection(page, 'Get in touch').click()
-  await page.getByLabel('HTTPS contact URL').fill('https://example.test/book')
+  await page.getByLabel('Telegram bot link').fill('https://example.test/book')
+  await expect(page.getByRole('button', { name: 'Approve Landing' })).toBeDisabled()
+  await page.getByLabel('Telegram bot link').fill('https://t.me/natal_helper_bot')
   await page.getByLabel('Email', { exact: true }).fill('owner@example.test')
   await page.getByLabel('Phone', { exact: true }).fill('+380 (50) 123-45-67')
   await editorSection(page, 'Hero').click()
-  for (const [target, href] of [['url', 'https://example.test/book'], ['email', 'mailto:owner@example.test'], ['phone', 'tel:+380501234567']]) {
+  for (const [target, href] of [['url', 'https://t.me/natal_helper_bot'], ['email', 'mailto:owner@example.test'], ['phone', 'tel:+380501234567']]) {
     await page.getByLabel('Button destination').selectOption(target)
     await page.getByRole('button', { name: 'View Landing' }).click()
     await expect(page.getByRole('dialog').locator('.lp-cta')).toHaveAttribute('href', href)
     await expect(page.getByRole('dialog').locator('.lp-phone-action')).toHaveAttribute('href', href)
     await expect(page.getByRole('dialog').locator(`.lp-contact-links a[href="${href}"]`)).toHaveCount(1)
+    if (target === 'url') await expect(page.getByRole('dialog').locator(`.lp-contact-links a[href="${href}"]`)).toContainText('@natal_helper_bot')
     await page.keyboard.press('Escape')
   }
   await expect(page.getByRole('button', { name: 'Approve Landing' })).toBeEnabled()

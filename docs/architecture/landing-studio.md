@@ -22,7 +22,8 @@ Initial AI composition receives the approved Brief, the frozen Post version’s
 design snapshot, the live Landing catalog, and Landing-only global/Project
 skills. It must not invent social proof or contact endpoints. Evidence is optional:
 zero entries hide the entire section, while supplied entries require a heading,
-statement, and attribution. One validated email, phone, or HTTPS URL is required
+statement, and attribution. One validated email, phone, or direct Telegram bot
+link is required
 before approval, together with both visuals, essential copy, all three features,
 and all three FAQs. A direct CTA also requires its selected endpoint. Approval
 validates pending content and its note before writing workspace files or a version.
@@ -78,7 +79,8 @@ Mobile opens at 360px and switches between editor and preview surfaces.
 
 The section navigator and clickable preview select a focused inspector. Existing
 bounded theme and layout controls are exposed alongside a `presentation` block:
-`language` (uk/en), `cta_target` (contacts/url/email/phone), `heading_scale`
+`language` (uk/en), `cta_target` (contacts/url/email/phone, where `url` is the
+backward-compatible stored key for a direct Telegram bot link), `heading_scale`
 (0.85–1.15), `spacing` (compact/comfortable/airy), and `hero_focus` /
 `visual_break_focus` (x/y, 0–100). Its display defaults are Ukrainian, the contacts
 section, scale 1, comfortable spacing, and centered crops. The block is optional
@@ -86,8 +88,9 @@ in stored v1 configuration; reading a document never inserts it. No migration is
 required. New AI composition includes it and derives language from the Brief.
 
 Page labels have their own language; console language changes do not translate
-saved copy. Contacts use validated HTTPS, mailto, and tel links. External HTTPS
-links open separately. Empty proof and editor placeholders never reach Preview.
+saved copy. Contacts use validated direct `https://t.me/<bot_username>`, mailto,
+and tel links. Telegram links open separately and the username must end in
+`bot`. Empty proof and editor placeholders never reach Preview.
 Long copy wraps within the page; section text fields expose backend limits.
 
 Save feedback shows an immutable checkpoint's edit summary, Project lesson, and

@@ -31,6 +31,14 @@ shows the hero artwork with existing crop/placement controls. Phone settings,
 content, assets, history, and immutable versions survive toggling. No generation
 is needed to switch. This milestone is local only and has not been deployed.
 
+Landing's generic HTTPS/booking contact option is also replaced locally by a
+bounded direct Telegram bot link. The persisted `url` key remains unchanged for
+contract compatibility, but new validation accepts only
+`https://t.me/<bot_username>` with a username ending in `bot`; the editor and
+shared private/public renderer label and display it as Telegram. Email and phone
+remain available, no bot handle is fabricated, and Commander's emergency
+Telegram bot is not reused. This change has not been deployed.
+
 Verification passes: 85 focused Studio and 21 Landing Python tests, 77 web
 unit tests, six browser flows across desktop/360px/iPhone WebKit, deterministic
 Studio geometry audit, Owner Console and public Landing builds, 16 Commander

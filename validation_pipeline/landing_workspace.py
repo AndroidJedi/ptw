@@ -127,7 +127,18 @@ def valid_contact(field: str, value: str) -> bool:
         return re.fullmatch(r"\+?[0-9 ()\-]+", value) is not None and 3 <= sum(c.isdigit() for c in value) <= 15
     try:
         parsed = urlsplit(value)
-        return parsed.scheme == "https" and bool(parsed.hostname) and parsed.username is None and parsed.password is None and not any(c.isspace() for c in value) and "\\" not in value and (parsed.port is None or 0 < parsed.port <= 65535)
+        username = parsed.path.removeprefix("/")
+        return (
+            parsed.scheme == "https"
+            and (parsed.hostname or "").casefold() == "t.me"
+            and parsed.username is None
+            and parsed.password is None
+            and parsed.port is None
+            and parsed.path == f"/{username}"
+            and parsed.query == ""
+            and parsed.fragment == ""
+            and re.fullmatch(r"[A-Za-z0-9_]{2,29}[Bb][Oo][Tt]", username) is not None
+        )
     except ValueError:
         return False
 
@@ -304,7 +315,7 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
     url = bounded(contacts["url"], "contacts.url", "contact URL")
     for field, contact in (("email", email), ("phone", phone), ("url", url)):
         if contact and not valid_contact(field, contact):
-            raise ValueError(f"Landing contact {field} is invalid" + ("; URL must use HTTPS" if field == "url" else ""))
+            raise ValueError(f"Landing contact {field} is invalid" + ("; use a direct https://t.me/<bot_username> link" if field == "url" else ""))
     result["contacts"] = {
         "heading": bounded(contacts["heading"], "contacts.heading", "contact heading"),
         "supporting_text": bounded(contacts["supporting_text"], "contacts.supporting_text", "contact supporting text"),
@@ -542,7 +553,7 @@ class LandingWorkspace:
         if target != "contacts" and not content["contacts"][target]:
             raise ValueError("Landing CTA destination requires its contact endpoint")
         if not any(content["contacts"][field] for field in ("email", "phone", "url")):
-            raise ValueError("Landing requires an email, phone, or HTTPS contact URL before approval")
+            raise ValueError("Landing requires an email, phone, or Telegram bot link before approval")
         if any(not item["title"] or not item["description"] for item in content["features"]):
             raise ValueError("Landing features must be completed before approval")
         if any(not item["question"] or not item["answer"] for item in content["faq"]):

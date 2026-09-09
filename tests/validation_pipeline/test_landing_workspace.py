@@ -194,7 +194,7 @@ class LandingAuthorityTests(unittest.TestCase):
         generated["social_proof"]["items"] = []
         generated["contacts"]["email"] = ""
         self.assertEqual([], normalize_composed_content(generated)["social_proof"]["items"])
-        generated["contacts"]["url"] = "https://invented.example"
+        generated["contacts"]["url"] = "https://t.me/invented_helper_bot"
         with self.assertRaisesRegex(ValueError, "contact endpoints"):
             normalize_composed_content(generated)
         generated["contacts"]["url"] = ""
@@ -426,7 +426,7 @@ class LandingWorkspaceTests(unittest.TestCase):
 
     def test_every_cta_destination_requires_its_valid_endpoint(self):
         detail = self.prepared()
-        for target, endpoint in (('contacts', ''), ('url', 'https://example.test/book'), ('email', 'owner@example.test'), ('phone', '+380 (50) 123-45-67')):
+        for target, endpoint in (('contacts', ''), ('url', 'https://t.me/natal_helper_bot'), ('email', 'owner@example.test'), ('phone', '+380 (50) 123-45-67')):
             candidate = deepcopy(detail)
             candidate['configuration']['presentation'] = {**deepcopy(DEFAULT_PRESENTATION), 'cta_target': target}
             if target != 'contacts':
@@ -435,7 +435,7 @@ class LandingWorkspaceTests(unittest.TestCase):
                     self.workspace.approval_ready(candidate)
                 candidate['content']['contacts'][target] = endpoint
             self.workspace.approval_ready(candidate)
-        for field, values in {'url': ['https://', 'https://user:pass@example.test', 'http://example.test'], 'phone': ['call us', '++12345'], 'email': ['a@', 'a b@example.test']}.items():
+        for field, values in {'url': ['https://', 'https://example.test/book', 'https://t.me/not_a_bot_user', 'https://t.me/natal_helper_bot?start=landing', 'http://t.me/natal_helper_bot'], 'phone': ['call us', '++12345'], 'email': ['a@', 'a b@example.test']}.items():
             for value in values:
                 candidate = complete_content()
                 candidate['contacts'][field] = value

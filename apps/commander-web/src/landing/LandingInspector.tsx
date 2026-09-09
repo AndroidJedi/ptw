@@ -87,7 +87,7 @@ export function LandingInspector({ section, configuration: c, content: v, detail
       {field(tr('Supporting text', 'Підтримувальний текст'), v.hero.supporting_text, 360, value => onContent({ ...v, hero: { ...v.hero, supporting_text: value } }), 'hero.supporting_text', true)}
       {field(tr('CTA label', 'Текст кнопки'), v.hero.cta_label, 60, value => onContent({ ...v, hero: { ...v.hero, cta_label: value } }), 'hero.cta_label')}
       <p className="landing-field-hint">{tr('Keep the button short. Put offer details in supporting copy.', 'Коротка дія на кнопці. Деталі пропозиції — в описі.')}</p>
-      {select(tr('Button destination', 'Дія кнопки'), presentation.cta_target, [['contacts', tr('Contact section', 'Секція контактів')], ['url', tr('HTTPS / booking URL', 'HTTPS / запис на зустріч')], ['email', 'Email'], ['phone', tr('Phone', 'Телефон')]], value => setP('cta_target', value as LandingPresentation['cta_target']))}
+      {select(tr('Button destination', 'Дія кнопки'), presentation.cta_target, [['contacts', tr('Contact section', 'Секція контактів')], ['url', tr('Telegram bot', 'Telegram-бот')], ['email', 'Email'], ['phone', tr('Phone', 'Телефон')]], value => setP('cta_target', value as LandingPresentation['cta_target']))}
       {error('hero.cta_target') && <p className="landing-field-error">{error('hero.cta_target')}</p>}
       {buttonControls()}
       {alignment('hero')}
@@ -125,7 +125,8 @@ export function LandingInspector({ section, configuration: c, content: v, detail
       {componentSelect('contact_style', tr('Panel style', 'Стиль панелі'), [['contrast', tr('Contrast', 'Контрастний')], ['surface', tr('Light surface', 'Світла поверхня')], ['accent', tr('Accent', 'Акцентний')]])}
       {field(tr('Contact heading', 'Заголовок контактів'), v.contacts.heading, 120, value => onContent({ ...v, contacts: { ...v.contacts, heading: value } }), 'contacts.heading')}
       {field(tr('Next step', 'Наступний крок'), v.contacts.supporting_text, 300, value => onContent({ ...v, contacts: { ...v.contacts, supporting_text: value } }), 'contacts.supporting_text', true)}
-      {(['url', 'email', 'phone'] as const).map(key => <div key={key}>{field(key === 'url' ? tr('HTTPS contact URL', 'HTTPS-адреса контакту') : key === 'email' ? 'Email' : tr('Phone', 'Телефон'), v.contacts[key], key === 'url' ? 2048 : key === 'email' ? 254 : 60, value => onContent({ ...v, contacts: { ...v.contacts, [key]: value } }), `contacts.${key}`)}</div>)}
+      {(['url', 'email', 'phone'] as const).map(key => <div key={key}>{field(key === 'url' ? tr('Telegram bot link', 'Посилання на Telegram-бота') : key === 'email' ? 'Email' : tr('Phone', 'Телефон'), v.contacts[key], key === 'url' ? 2048 : key === 'email' ? 254 : 60, value => onContent({ ...v, contacts: { ...v.contacts, [key]: value } }), `contacts.${key}`)}</div>)}
+      <p className="landing-field-hint">{tr('Use a direct link such as https://t.me/your_bot. The bot username must end in “bot”.', 'Використовуйте пряме посилання, наприклад https://t.me/your_bot. Ім’я бота має закінчуватися на «bot».')}</p>
       {error('contacts.endpoint') && <p className="landing-field-error">{error('contacts.endpoint')}</p>}
       {alignment('contacts')}
     </>}

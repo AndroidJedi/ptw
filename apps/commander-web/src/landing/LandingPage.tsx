@@ -1,7 +1,7 @@
 import { ArrowDown, ArrowRight, ArrowUpRight, Check, ChevronDown, Layers, Pencil, ScanLine } from 'lucide-react'
 import { useId, useRef, type CSSProperties, type ReactNode } from 'react'
 import type { LandingConfiguration, LandingContent } from '../types'
-import { contactHref, defaults, componentDefaults, labels, type Section } from './model'
+import { contactHref, defaults, componentDefaults, labels, telegramBotUsername, type Section } from './model'
 import natalLogo from '../../../../natal/assets/logo-natal.png'
 import { LandingPhone } from './LandingPhone'
 import { phoneDefaults, resolvedAppFeature } from './model'
@@ -65,7 +65,7 @@ export function LandingPage({ configuration, content, imageUrls, editing = false
       {section('visual_break', `lp-visual lp-visual-${configuration.visual_break.height}`, <div className="lp-visual-frame">{imageUrls.visual_break_visual && <img src={imageUrls.visual_break_visual} alt="" loading="lazy" style={{ objectPosition: `${p.visual_break_focus.x}% ${p.visual_break_focus.y}%` }} />}</div>)}
       {section('contacts', `lp-contacts lp-align-${configuration.contacts.alignment}`, <div className="lp-contact-panel"><div><span className="lp-eyebrow">{t.contact}</span><h2>{content.contacts.heading}</h2><p>{content.contacts.supporting_text}</p></div><div className="lp-contact-links">{(['url', 'email', 'phone'] as const).map(field => {
         const value = content.contacts[field]; const link = contactHref(field, value)
-        return link && <a key={field} href={link} {...(field === 'url' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}><span><small>{field === 'url' ? t.visit : t[field]}</small>{field === 'url' ? new URL(value).hostname : value}</span><ArrowUpRight aria-hidden="true" /></a>
+        return link && <a key={field} href={link} {...(field === 'url' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}><span><small>{field === 'url' ? t.visit : t[field]}</small>{field === 'url' ? `@${telegramBotUsername(value)}` : value}</span><ArrowUpRight aria-hidden="true" /></a>
       })}</div></div>)}
       {section('faq', `lp-faq lp-faq-${configuration.faq.style}`, <><div className="lp-section-heading"><span className="lp-eyebrow">FAQ</span><h2>{t.faq}</h2></div><div>{content.faq.map((item, index) => <details key={index}><summary>{item.question}<ChevronDown aria-hidden="true" /></summary><p>{item.answer}</p></details>)}</div></>)}
       <footer className="lp-footer">{anchor('hero', t.top, undefined, <ArrowRight aria-hidden="true" />)}</footer>

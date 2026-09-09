@@ -96,6 +96,7 @@ def main() -> None:
         "Product Brief workspace": "Product Brief",
         "Post destination": "Post",
         "Landing destination": "Landing",
+        "Landing publication control": "PUBLIC NATAL PAGE",
         "Landing save timeout reconciliation": "Landing was already saved.",
         "ChatGPT authorization settings": "ChatGPT Authorization",
         "actionable API error guidance": "Що робити",
@@ -144,6 +145,19 @@ def main() -> None:
         "Unexpected creative-direction auth failure body",
     )
 
+    publication_route_status, _, publication_route_bytes = fetch(
+        f"{args.api}/api/v1/landings/projects/"
+        "00000000-0000-0000-0000-000000000001/publication",
+    )
+    require(
+        publication_route_status == 401,
+        f"Landing publication route registration returned HTTP {publication_route_status}",
+    )
+    require(
+        "Bearer token is required" in publication_route_bytes.decode(),
+        "Unexpected Landing publication auth failure body",
+    )
+
     for retired_path in (
         "/api/v1/ideas", "/api/v1/branding", "/api/v1/posts",
         "/api/v1/content-runs", "/api/v1/project-assets",
@@ -174,6 +188,7 @@ def main() -> None:
         "service_worker_cache": cache_match.group(1), "gateway_health": health_status,
         "unauthenticated_overview": auth_status,
         "creative_direction_route": private_route_status,
+        "landing_publication_route": publication_route_status,
         "cors_preflight": cors_status,
     }, indent=2))
 

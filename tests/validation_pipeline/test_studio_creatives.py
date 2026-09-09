@@ -547,6 +547,31 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertEqual("ptw.studio.template-version.v1", version["schema"])
         self.assertEqual("The exact owner-approved headline", version["content"]["hero_title"])
 
+    def test_repeated_semantically_identical_approval_does_not_duplicate_version(self) -> None:
+        project_id, _brief_id, detail = self.generate_creative()
+        content = deepcopy(detail["content"])
+        content["hero_title"] = f"  {content['hero_title']}  "
+
+        first = self.service.checkpoint(
+            project_id, detail["creative_id"], kind="approve",
+            base_sha256=detail["state_sha256"], configuration=detail["configuration"],
+            content=content, change_note="First semantic approval",
+        )
+        repeated = self.service.checkpoint(
+            project_id, detail["creative_id"], kind="approve",
+            base_sha256=first["creative"]["state_sha256"],
+            configuration=detail["configuration"], content=content,
+            change_note="Repeated semantic approval",
+        )
+
+        self.assertTrue(first["version_created"])
+        self.assertFalse(repeated["version_created"])
+        self.assertEqual(1, repeated["creative"]["approved_version_count"])
+        self.assertEqual(
+            [1],
+            [item["version"] for item in self.service._workspace(detail["creative_id"]).detail()["versions"]],
+        )
+
     def test_failed_learning_is_queued_and_restart_safe_to_retry(self) -> None:
         project_id, _brief_id, detail = self.generate_creative()
         self.provider.learning_failures = 1

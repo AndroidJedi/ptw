@@ -33,10 +33,14 @@ from .studio_phone_metrics import (
     PHONE_SCREEN_TEXTURES,
     PHONE_TEXTURE_INTENSITY_BOUNDS,
     PHONE_TYPOGRAPHY_BOUNDS,
+    normalize_phone_metrics_config,
+    normalize_phone_metrics_content,
 )
 from .studio_universal import (
     UNIVERSAL_AD_TEMPLATE_ID,
     UNIVERSAL_SETTING_DEFINITIONS,
+    normalize_universal_config,
+    normalize_universal_content,
 )
 from .studio_workspace import UniversalStudioWorkspace
 
@@ -1254,23 +1258,31 @@ class StudioCreativeService:
         current = workspace.detail()
         if base_sha256 != current["state_sha256"]:
             raise RuntimeError("Studio state changed; reload before saving")
+
+        if self._template_id(current) == PHONE_METRICS_TEMPLATE_ID:
+            candidate_configuration = normalize_phone_metrics_config(configuration)
+            candidate_content = normalize_phone_metrics_content(content)
+        else:
+            candidate_configuration = normalize_universal_config(configuration)
+            candidate_content = normalize_universal_content(content)
         pending_changes = (
-            _canonical(configuration) != _canonical(current["configuration"])
-            or _canonical(content) != _canonical(current["content"])
+            _canonical(candidate_configuration) != _canonical(current["configuration"])
+            or _canonical(candidate_content) != _canonical(current["content"])
         )
         version_created = False
         if kind == "approve":
             versions = current.get("versions", [])
             if pending_changes or not versions or versions[-1]["state_sha256"] != current["state_sha256"]:
                 current = workspace.approve_configuration(
-                    base_sha256=base_sha256, configuration=configuration,
-                    content=content,
+                    base_sha256=base_sha256, configuration=candidate_configuration,
+                    content=candidate_content,
                     change_note=_compact(change_note, "change_note", 1, 240),
                 )
                 version_created = True
         elif pending_changes:
             current = workspace.save_configuration(
-                base_sha256=base_sha256, configuration=configuration, content=content,
+                base_sha256=base_sha256, configuration=candidate_configuration,
+                content=candidate_content,
             )
         after = _state_snapshot(current)
         after_sha = sha256_json(after)

@@ -99,6 +99,15 @@ into a complete compatible release, read
 - Recovered entities must clear current top-level error fields while preserving
   append-only failure history. Never expose a provider HTTP body while
   diagnosing a status; keep only bounded status, job ID, and object ID.
+- A Studio Save/Approve 400 is not non-mutating evidence. Compare the exact
+  request time with immutable version/checkpoint counts and workspace-file
+  digests before retrying. PostgreSQL derives `approved_version_count` from
+  `universal_studio_versions`; its authority adapter must accept that service
+  patch without attempting a nonexistent workspace-column update. Promotion
+  requires both the loopback workflow and the database-adapter finalization
+  regression. Reconcile the affected action once after rollout, require HTTP
+  200 with no new version, then restart Validation and prove the version IDs,
+  state/render digests, latest checkpoint, and recovery queues are unchanged.
 - Telegram accepts only `/help`, `/status`, and `/stop`.
 - A Landing create failure containing `badly formed hexadecimal UUID string`
   can originate from an internal graph-edge argument inversion rather than an

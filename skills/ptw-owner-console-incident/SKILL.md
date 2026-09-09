@@ -129,6 +129,24 @@ before changing code or runtime state.
   and restart recovery. The release is blocked if the browser, Gateway,
   Validation, persistence, or provider boundary is only mocked at the point
   whose compatibility is being claimed.
+- When Studio Save or Approve returns HTTP 400 but PostgreSQL version or
+  checkpoint counts increase, stop retries: the mutation crossed its durable
+  boundary and the response failed during metadata finalization. Correlate the
+  exact request time with `universal_studio_versions`,
+  `studio_edit_checkpoints`, the workspace row, and the persisted workspace
+  files before changing data. In particular, keep derived fields such as
+  `approved_version_count` accepted by every authority adapter while persisting
+  them only where authoritative; the PostgreSQL adapter derives this count from
+  immutable version rows and must ignore it as a workspace-column update.
+  Require a production-adapter regression in addition to the loopback workflow.
+  Approval retry comparison must use the same normalized configuration/content
+  as save and preview, so semantically equivalent whitespace cannot append a
+  duplicate immutable version after an uncertain response. Preserve any
+  already-created versions and checkpoints as incident evidence; do not delete
+  append-only authority to make counts look tidy. After deployment, reconcile
+  the original action once, require HTTP 200 with no additional version, and
+  prove a service restart retains the same IDs, digests, version count, and
+  empty recovery queues.
 - Treat that Studio failure as one example of a general contract-drift class,
   not a field-specific exception. Every structured Product Brief, revision,
   Universal Post, Phone Metrics, Landing composition, Studio-learning, and

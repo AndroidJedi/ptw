@@ -59,7 +59,7 @@ export function AuthorizationSettings({ api, language }: {
         {value.device_code && <code aria-label={tr('Device code', 'Код пристрою')}>{value.device_code}</code>}
         {(!value.authorization_url || !value.device_code) && <p className="authorization-wait"><LoaderCircle className="spin" />{tr('Preparing secure device prompt…', 'Готується захищене запрошення…')}</p>}
       </div>}
-      {value?.status === 'failed' && <p>{tr('Authorization could not be completed or verified. Check the status or start authorization again.', 'Не вдалося завершити або перевірити авторизацію. Перевірте стан або запустіть авторизацію ще раз.')}</p>}
+      {value?.status === 'failed' && <p>{tr('The credentials were saved, but the required working test did not pass. Start authorization again.', 'Дані авторизації збережено, але обов’язковий робочий тест не пройшов. Запустіть авторизацію ще раз.')}</p>}
       {error && <p className="settings-error" role="alert">{error}</p>}
       <footer><button className="primary" disabled={refreshing || status === 'authorizing' || status === 'verifying'} onClick={() => void refresh()}>{refreshing ? <LoaderCircle className="spin" /> : <RefreshCcw />}{tr('Refresh authorization', 'Оновити авторизацію')}</button><button className="secondary" onClick={() => void load()}>{tr('Check status', 'Перевірити статус')}</button></footer>
   </section>

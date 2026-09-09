@@ -22,8 +22,7 @@ Initial AI composition receives the approved Brief, the frozen Post version’s
 design snapshot, the live Landing catalog, and Landing-only global/Project
 skills. It must not invent social proof or contact endpoints. Evidence is optional:
 zero entries hide the entire section, while supplied entries require a heading,
-statement, and attribution. One validated email, phone, or direct Telegram bot
-link is required
+statement, and attribution. One validated email, phone, or HTTPS URL is required
 before approval, together with both visuals, essential copy, all three features,
 and all three FAQs. A direct CTA also requires its selected endpoint. Approval
 validates pending content and its note before writing workspace files or a version.
@@ -79,8 +78,7 @@ Mobile opens at 360px and switches between editor and preview surfaces.
 
 The section navigator and clickable preview select a focused inspector. Existing
 bounded theme and layout controls are exposed alongside a `presentation` block:
-`language` (uk/en), `cta_target` (contacts/url/email/phone, where `url` is the
-backward-compatible stored key for a direct Telegram bot link), `heading_scale`
+`language` (uk/en), `cta_target` (contacts/url/email/phone), `heading_scale`
 (0.85–1.15), `spacing` (compact/comfortable/airy), and `hero_focus` /
 `visual_break_focus` (x/y, 0–100). Its display defaults are Ukrainian, the contacts
 section, scale 1, comfortable spacing, and centered crops. The block is optional
@@ -88,10 +86,10 @@ in stored v1 configuration; reading a document never inserts it. No migration is
 required. New AI composition includes it and derives language from the Brief.
 
 Page labels have their own language; console language changes do not translate
-saved copy. Contacts use validated direct `https://t.me/<bot_username>`,
-Instagram profile, mailto, and tel links. Telegram usernames must end in `bot`;
-Instagram accepts only one direct HTTPS profile path and renders the profile
-handle with the Instagram icon. Both social links open separately. The optional
+saved copy. Contacts use validated HTTPS, Instagram profile, mailto, and tel
+links. Instagram accepts only one direct HTTPS profile path and renders the
+profile handle with the Instagram icon. External HTTPS and Instagram links open
+separately. The optional
 Instagram field is absent from older v1 content until the owner supplies it, so
 reading an existing Landing does not rewrite its state digest. Empty proof and
 editor placeholders never reach Preview.
@@ -145,16 +143,7 @@ over approved versions and never influences Landing or Post generation.
 
 ## App feature phone
 
-The local Hero and App feature inspectors offer **Visual mode: Phone frame &
-buttons / Image only**. Optional `configuration.visual_mode` accepts `phone` or
-`image`, defaulting to the existing phone view when omitted. Image mode removes
-the phone and all of its UI, showing the selected hero artwork at full opacity
-with the existing placement and crop controls. Screen settings and content are
-preserved and return when toggled back. Save, approval, and the shared
-inline/fullscreen/public renderer retain the mode. No deployment or publication
-is part of this local milestone.
-
-Every service is presented as a Natal app by default. The hero uses Post Studio's bundled,
+Every service is presented as a Natal app. The hero uses Post Studio's bundled,
 digest-checked iPhone 15 Pro front frame, with a responsive HTML screen behind its
 original aperture. Generated hero art is atmospheric context behind the phone;
 text, controls, identity, and hardware are never generated into those pixels.

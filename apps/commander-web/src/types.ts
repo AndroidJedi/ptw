@@ -384,19 +384,17 @@ export interface StudioPhoneActionButtonConfiguration {
 }
 
 export interface StudioPhoneMetricsConfiguration {
-  visual_mode?: 'phone' | 'image'
-  schema: 'ptw.studio.phone-metrics-config.v9'
+  schema: 'ptw.studio.phone-metrics-config.v8'
   background: {
     color: string
     texture: StudioPhoneBackgroundTexture
     texture_intensity: number
   }
   copy_background: { texture: StudioPhoneBackgroundTexture }
-  logo: { enabled: boolean }
   offer: { enabled: boolean }
   supporting_text: { highlight_color: string }
   typography: Record<StudioPhoneTypographyRole, StudioPhoneTypographyConfiguration>
-  phone_screen: { texture: StudioPhoneScreenTexture; logo_enabled: boolean }
+  phone_screen: { texture: StudioPhoneScreenTexture }
   metric_cards: StudioPhoneMetricCardConfiguration[]
   phone_buttons: StudioPhoneActionButtonConfiguration[]
   device: { x: number; y: number; width: number; rotation: number }
@@ -650,7 +648,6 @@ export interface LandingPhoneMockup { theme: 'light' | 'dark' | 'glass'; layout:
 export interface LandingAppFeature { title: string; description: string; action_label: string; items: Array<{ label: string; value: string }> }
 
 export interface LandingConfiguration {
-  visual_mode?: 'phone' | 'image'
   phone_mockup?: LandingPhoneMockup
   components?: LandingComponents
   image_directions?: LandingImageDirections

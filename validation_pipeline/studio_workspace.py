@@ -331,17 +331,14 @@ class UniversalStudioWorkspace:
                 list(normalized_content["phone_buttons"]),
                 list(config["phone_buttons"]),
                 config["typography"],
-                bool(config["phone_screen"]["logo_enabled"]),
-                visual_mode=str(config.get("visual_mode", "phone")),
             )
+            logo = self._asset_record("logo")
+            if logo is None:
+                raise RuntimeError("Canonical Natal logo is unavailable")
             records = {
+                "logo": {"bytes": logo["bytes"], "mime_type": logo["mime_type"]},
                 "phone_device": {"bytes": device["bytes"], "mime_type": device["mime_type"]},
             }
-            if config["logo"]["enabled"]:
-                logo = self._asset_record("logo")
-                if logo is None:
-                    raise RuntimeError("Canonical Natal logo is unavailable")
-                records["logo"] = {"bytes": logo["bytes"], "mime_type": logo["mime_type"]}
             if config["background"]["texture"] != "none":
                 records["background_texture"] = texture_asset(
                     str(config["background"]["texture"]),
@@ -423,36 +420,9 @@ class UniversalStudioWorkspace:
     def state_sha256(self) -> str:
         return _canonical(self._snapshot())[1]
 
-    def _legacy_phone_state_sha256(self) -> str | None:
-        """Reproduce an untouched v8 draft digest during its one-save uplift."""
-
-        if self._selected_template_id() != PHONE_METRICS_TEMPLATE_ID:
-            return None
-        path = self.root / "configuration.json"
-        if not path.is_file():
-            return None
-        try:
-            raw_config = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
-            return None
-        if (
-            not isinstance(raw_config, Mapping)
-            or raw_config.get("schema") != "ptw.studio.phone-metrics-config.v8"
-        ):
-            return None
-        snapshot = self._snapshot()
-        snapshot["configuration"] = raw_config
-        return _canonical(snapshot)[1]
-
     def _assert_state(self, base_sha256: str) -> None:
-        if not re.fullmatch(r"[0-9a-f]{64}", str(base_sha256)):
+        if not re.fullmatch(r"[0-9a-f]{64}", str(base_sha256)) or self.state_sha256() != base_sha256:
             raise RuntimeError("Studio state changed; reload before saving")
-        current_sha256 = self.state_sha256()
-        if current_sha256 == base_sha256:
-            return
-        if self._legacy_phone_state_sha256() == base_sha256:
-            return
-        raise RuntimeError("Studio state changed; reload before saving")
 
     def _version_records(self) -> list[dict[str, Any]]:
         versions: list[dict[str, Any]] = []

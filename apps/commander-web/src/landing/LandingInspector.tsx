@@ -1,6 +1,5 @@
 import { ImagePlus, RefreshCcw, Trash2 } from 'lucide-react'
 import { ImageReferenceInput } from '../components/ImageReferenceInput'
-import { VisualModeSelect } from '../components/VisualModeSelect'
 import { useId, type CSSProperties } from 'react'
 import type { LandingAppFeature, LandingPhoneMockup, LandingComponents, LandingConfiguration, LandingContent, LandingDetail, LandingPresentation } from '../types'
 import { PhoneHeroDirectionPicker, styles as imageStyles, backgrounds as imageBackgrounds } from '../components/studio/PhoneHeroDirectionPicker'
@@ -61,10 +60,6 @@ export function LandingInspector({ section, configuration: c, content: v, detail
     </div>
   }
   return <fieldset className="landing-inspector-fields" disabled={busy}>
-    {(section === 'hero' || section === 'app_feature') && <>
-      <VisualModeSelect language={language} value={c.visual_mode} onChange={visual_mode => onConfiguration({ ...c, visual_mode })} />
-      {c.visual_mode === 'image' && <p className="landing-field-hint">{tr('The hero shows only the selected image. App screen settings are kept for switching back.', 'Перший екран показує лише обране зображення. Налаштування екрана застосунку зберігаються для повернення.')}</p>}
-    </>}
     {section === 'theme' && <>
       <p className="landing-field-hint">{tr('All apps use the canonical Natal logo and name. Themes style the page components.', 'Усі застосунки використовують канонічний логотип і назву Natal. Теми змінюють вигляд компонентів сторінки.')}</p>
       <div className="landing-theme-presets" aria-label={tr('Page themes', 'Теми сторінки')}>
@@ -87,7 +82,7 @@ export function LandingInspector({ section, configuration: c, content: v, detail
       {field(tr('Supporting text', 'Підтримувальний текст'), v.hero.supporting_text, 360, value => onContent({ ...v, hero: { ...v.hero, supporting_text: value } }), 'hero.supporting_text', true)}
       {field(tr('CTA label', 'Текст кнопки'), v.hero.cta_label, 60, value => onContent({ ...v, hero: { ...v.hero, cta_label: value } }), 'hero.cta_label')}
       <p className="landing-field-hint">{tr('Keep the button short. Put offer details in supporting copy.', 'Коротка дія на кнопці. Деталі пропозиції — в описі.')}</p>
-      {select(tr('Button destination', 'Дія кнопки'), presentation.cta_target, [['contacts', tr('Contact section', 'Секція контактів')], ['url', tr('Telegram bot', 'Telegram-бот')], ['email', 'Email'], ['phone', tr('Phone', 'Телефон')]], value => setP('cta_target', value as LandingPresentation['cta_target']))}
+      {select(tr('Button destination', 'Дія кнопки'), presentation.cta_target, [['contacts', tr('Contact section', 'Секція контактів')], ['url', tr('HTTPS / booking URL', 'HTTPS / запис на зустріч')], ['email', 'Email'], ['phone', tr('Phone', 'Телефон')]], value => setP('cta_target', value as LandingPresentation['cta_target']))}
       {error('hero.cta_target') && <p className="landing-field-error">{error('hero.cta_target')}</p>}
       {buttonControls()}
       {alignment('hero')}
@@ -125,8 +120,7 @@ export function LandingInspector({ section, configuration: c, content: v, detail
       {componentSelect('contact_style', tr('Panel style', 'Стиль панелі'), [['contrast', tr('Contrast', 'Контрастний')], ['surface', tr('Light surface', 'Світла поверхня')], ['accent', tr('Accent', 'Акцентний')]])}
       {field(tr('Contact heading', 'Заголовок контактів'), v.contacts.heading, 120, value => onContent({ ...v, contacts: { ...v.contacts, heading: value } }), 'contacts.heading')}
       {field(tr('Next step', 'Наступний крок'), v.contacts.supporting_text, 300, value => onContent({ ...v, contacts: { ...v.contacts, supporting_text: value } }), 'contacts.supporting_text', true)}
-      {(['url', 'instagram', 'email', 'phone'] as const).map(key => <div key={key}>{field(key === 'url' ? tr('Telegram bot link', 'Посилання на Telegram-бота') : key === 'instagram' ? tr('Instagram profile link', 'Посилання на профіль Instagram') : key === 'email' ? 'Email' : tr('Phone', 'Телефон'), v.contacts[key] || '', key === 'url' || key === 'instagram' ? 2048 : key === 'email' ? 254 : 60, value => onContent({ ...v, contacts: { ...v.contacts, [key]: value } }), `contacts.${key}`)}</div>)}
-      <p className="landing-field-hint">{tr('Use a direct link such as https://t.me/your_bot. The bot username must end in “bot”.', 'Використовуйте пряме посилання, наприклад https://t.me/your_bot. Ім’я бота має закінчуватися на «bot».')}</p>
+      {(['url', 'instagram', 'email', 'phone'] as const).map(key => <div key={key}>{field(key === 'url' ? tr('HTTPS contact URL', 'HTTPS-адреса контакту') : key === 'instagram' ? tr('Instagram profile link', 'Посилання на профіль Instagram') : key === 'email' ? 'Email' : tr('Phone', 'Телефон'), v.contacts[key] || '', key === 'url' || key === 'instagram' ? 2048 : key === 'email' ? 254 : 60, value => onContent({ ...v, contacts: { ...v.contacts, [key]: value } }), `contacts.${key}`)}</div>)}
       <p className="landing-field-hint">{tr('Instagram accepts a direct profile link such as https://www.instagram.com/natal_service/.', 'Для Instagram використовуйте пряме посилання на профіль, наприклад https://www.instagram.com/natal_service/.')}</p>
       {error('contacts.endpoint') && <p className="landing-field-error">{error('contacts.endpoint')}</p>}
       {alignment('contacts')}

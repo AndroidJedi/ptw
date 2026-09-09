@@ -212,21 +212,6 @@ before changing code or runtime state.
   `UUID()` even though every owner-supplied ID is valid. Require a database-path
   regression test for the Project `contains` edge plus Brief and Post-version
   `derived_from` edges; the loopback path alone cannot cover this failure.
-- When the owner cannot find Landing Publish controls, inspect the lazy-loaded
-  App bundle rather than only the small entry bundle and require the
-  `PUBLIC NATAL PAGE` marker. Then distinguish release absence from intentional
-  workflow gating: the publication panel appears only after the selected
-  Landing has an immutable approved version (or the Project already has a
-  publication). Read the selected Landing's version count and run its
-  `approval_ready` check without mutating it. A draft with generated visuals but
-  no contact endpoint needs one real owner-supplied email, phone, or direct
-  `https://t.me/<bot_username>` link,
-  followed by **Approve Landing**; it does not need a backend rollout, reset, or
-  fabricated contact. After approval, the owner chooses the permanent lane and
-  slug, confirms the complete URL, and uses **Publish approved version**.
-  Public-boundary acceptance must verify both the lazy App marker and an
-  unauthenticated 401 on the Project publication route so a UI/API mismatch is
-  not mistaken for state gating.
 - When Landing Save returns repeated `Landing changed; reload before saving`
   conflicts, correlate the request window with the page digest and Landing
   checkpoint rows before asking the owner to re-enter anything. Landing Save

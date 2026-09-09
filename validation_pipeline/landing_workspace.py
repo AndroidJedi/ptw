@@ -142,18 +142,7 @@ def valid_contact(field: str, value: str) -> bool:
                 and parsed.path in {f"/{parts[0]}", f"/{parts[0]}/"}
                 and re.fullmatch(r"[A-Za-z0-9._]{1,30}", parts[0]) is not None
             )
-        username = parsed.path.removeprefix("/")
-        return (
-            parsed.scheme == "https"
-            and (parsed.hostname or "").casefold() == "t.me"
-            and parsed.username is None
-            and parsed.password is None
-            and parsed.port is None
-            and parsed.path == f"/{username}"
-            and parsed.query == ""
-            and parsed.fragment == ""
-            and re.fullmatch(r"[A-Za-z0-9_]{2,29}[Bb][Oo][Tt]", username) is not None
-        )
+        return parsed.scheme == "https" and bool(parsed.hostname) and parsed.username is None and parsed.password is None and not any(c.isspace() for c in value) and "\\" not in value and (parsed.port is None or 0 < parsed.port <= 65535)
     except ValueError:
         return False
 
@@ -212,7 +201,7 @@ def _color(value: Any, field: str) -> str:
 
 
 def normalize_configuration(value: Mapping[str, Any]) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or set(value) - {"presentation", "components", "image_directions", "phone_mockup", "visual_mode"} != set(DEFAULT_CONFIGURATION):
+    if not isinstance(value, Mapping) or set(value) - {"presentation", "components", "image_directions", "phone_mockup"} != set(DEFAULT_CONFIGURATION):
         raise ValueError("Landing configuration fields are invalid")
     root = value
     if root.get("schema") != LANDING_CONFIGURATION_SCHEMA:
@@ -220,10 +209,6 @@ def normalize_configuration(value: Mapping[str, Any]) -> dict[str, Any]:
     theme = _object(root["theme"], set(DEFAULT_CONFIGURATION["theme"]), "theme")
     fonts = {"font_family", "heading_font_family"}
     result = _copy(DEFAULT_CONFIGURATION)
-    if "visual_mode" in root:
-        if root["visual_mode"] not in ("phone", "image"):
-            raise ValueError("Landing visual_mode is invalid")
-        result["visual_mode"] = root["visual_mode"]
     result["theme"] = {
         key: (str(theme[key]) if key in fonts else _color(theme[key], f"theme.{key}"))
         for key in ("background_color", "surface_color", "text_color", "accent_color", "font_family", "heading_font_family")
@@ -334,7 +319,7 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
     instagram = bounded(contacts.get("instagram", ""), "contacts.instagram", "contact Instagram URL")
     for field, contact in (("email", email), ("phone", phone), ("url", url), ("instagram", instagram)):
         if contact and not valid_contact(field, contact):
-            hint = "; use a direct https://t.me/<bot_username> link" if field == "url" else "; use a direct https://www.instagram.com/<username>/ link" if field == "instagram" else ""
+            hint = "; URL must use HTTPS" if field == "url" else "; use a direct https://www.instagram.com/<username>/ link" if field == "instagram" else ""
             raise ValueError(f"Landing contact {field} is invalid" + hint)
     result["contacts"] = {
         "heading": bounded(contacts["heading"], "contacts.heading", "contact heading"),
@@ -575,7 +560,7 @@ class LandingWorkspace:
         if target != "contacts" and not content["contacts"][target]:
             raise ValueError("Landing CTA destination requires its contact endpoint")
         if not any(content["contacts"].get(field, "") for field in ("email", "phone", "url", "instagram")):
-            raise ValueError("Landing requires an email, phone, Telegram bot, or Instagram link before approval")
+            raise ValueError("Landing requires an email, phone, HTTPS contact URL, or Instagram link before approval")
         if any(not item["title"] or not item["description"] for item in content["features"]):
             raise ValueError("Landing features must be completed before approval")
         if any(not item["question"] or not item["answer"] for item in content["faq"]):

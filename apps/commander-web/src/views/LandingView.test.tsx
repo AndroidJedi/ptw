@@ -3,36 +3,10 @@ import { expect, it, vi } from 'vitest'
 import type { ApiClient } from '../api'
 import type { LandingDetail, LandingPublication } from '../types'
 import { LandingView } from './LandingView'
-import { LandingPage } from '../landing/LandingPage'
 
 const projectId = '11111111-1111-4111-8111-111111111111'
 const creativeId = '22222222-2222-4222-8222-222222222222'
 const landingId = '33333333-3333-4333-8333-333333333333'
-
-it('renders the hero image without phone controls in both editor and public image mode', () => {
-  const detail = landingDetail()
-  for (const editing of [true, false]) {
-    const props = { configuration: { ...detail.configuration, visual_mode: 'image' as const }, content: detail.content, imageUrls: { hero_visual: '/hero.png' }, editing }
-    const view = render(<LandingPage {...props} />)
-    expect(view.container.querySelector('.lp-phone')).toBeNull()
-    expect(view.container.querySelector('.lp-hero-art > img')).toHaveAttribute('src', '/hero.png')
-    view.rerender(<LandingPage {...props} configuration={{ ...detail.configuration, visual_mode: 'phone' }} />)
-    expect(view.container.querySelector('.lp-phone')).not.toBeNull()
-    view.unmount()
-  }
-})
-
-it('saves the selected Landing visual mode together with the existing screen settings', async () => {
-  const detail = landingDetail()
-  const api = landingApi(detail)
-  vi.mocked(api.post).mockImplementation(async (_path, body) => ({ landing: { ...detail, ...(body as object) }, checkpoint: null }) as never)
-  render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} />)
-  fireEvent.change(await screen.findByRole('combobox', { name: 'Visual mode' }), { target: { value: 'image' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Save Landing' }))
-  await waitFor(() => expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/save'), expect.objectContaining({
-    configuration: { ...detail.configuration, visual_mode: 'image' }, content: detail.content,
-  }), { deadlineMs: 480_000 }))
-})
 
 function landingDetail(status: LandingDetail['status'] = 'draft'): LandingDetail {
   return {

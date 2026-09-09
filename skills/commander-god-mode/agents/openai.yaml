@@ -1,4 +1,0 @@
-interface:
-  display_name: "Commander GOD Mode"
-  short_description: "Build PTW features and maintain Commander development skills"
-  default_prompt: "Use $commander-god-mode to implement this PTW change locally and maintain the relevant canonical skills."

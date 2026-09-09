@@ -7,17 +7,8 @@ export const defaults: LandingPresentation = {
   hero_focus: { x: 50, y: 50 }, visual_break_focus: { x: 50, y: 50 },
 }
 export const labels = {
-  en: { app_feature: 'App feature', theme: 'Page design', hero: 'Hero', features: 'Features', social_proof: 'Evidence', visual_break: 'Visual story', contacts: 'Get in touch', faq: 'Questions', explore: 'Discover the details', contact: 'Get in touch', visit: 'Open Telegram bot', instagram: 'Instagram', email: 'Email us', phone: 'Call us', top: 'Back to top', private: 'Private preview' },
-  uk: { app_feature: 'Функція застосунку', theme: 'Дизайн сторінки', hero: 'Перший екран', features: 'Можливості', social_proof: 'Досвід користувачів', visual_break: 'Візуальна історія', contacts: 'Зв’язатися', faq: 'Запитання', explore: 'Дізнатися більше', contact: 'Зв’язатися', visit: 'Відкрити Telegram-бота', instagram: 'Instagram', email: 'Написати нам', phone: 'Зателефонувати', top: 'На початок', private: 'Приватне прев’ю' },
-}
-export function telegramBotUsername(value: string) {
-  try {
-    const url = new URL(value)
-    const username = url.pathname.startsWith('/') ? url.pathname.slice(1) : ''
-    return url.protocol === 'https:' && url.hostname.toLowerCase() === 't.me' && !url.username && !url.password && !url.port
-      && url.pathname === `/${username}` && !url.search && !url.hash
-      && /^[A-Za-z0-9_]{2,29}bot$/i.test(username) ? username : null
-  } catch { return null }
+  en: { app_feature: 'App feature', theme: 'Page design', hero: 'Hero', features: 'Features', social_proof: 'Evidence', visual_break: 'Visual story', contacts: 'Get in touch', faq: 'Questions', explore: 'Discover the details', contact: 'Get in touch', visit: 'Open website', instagram: 'Instagram', email: 'Email us', phone: 'Call us', top: 'Back to top', private: 'Private preview' },
+  uk: { app_feature: 'Функція застосунку', theme: 'Дизайн сторінки', hero: 'Перший екран', features: 'Можливості', social_proof: 'Досвід користувачів', visual_break: 'Візуальна історія', contacts: 'Зв’язатися', faq: 'Запитання', explore: 'Дізнатися більше', contact: 'Зв’язатися', visit: 'Відкрити сайт', instagram: 'Instagram', email: 'Написати нам', phone: 'Зателефонувати', top: 'На початок', private: 'Приватне прев’ю' },
 }
 export function instagramUsername(value: string) {
   try {
@@ -34,11 +25,11 @@ export function validContact(field: 'email' | 'phone' | 'url' | 'instagram', val
   if (field === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
   if (field === 'phone') return /^\+?[0-9 ()-]+$/.test(value) && value.replace(/\D/g, '').length >= 3 && value.replace(/\D/g, '').length <= 15
   if (field === 'instagram') return instagramUsername(value) !== null
-  return telegramBotUsername(value) !== null
+  try { const url = new URL(value); return value.startsWith('https://') && Boolean(url.hostname) && !url.username && !url.password && !/[\s\\]/.test(value) } catch { return false }
 }
 export function contactHref(field: 'email' | 'phone' | 'url' | 'instagram', value: string) {
   if (!validContact(field, value)) return undefined
-  return field === 'email' ? `mailto:${value}` : field === 'phone' ? `tel:${value.replace(/[ ()-]/g, '')}` : field === 'instagram' ? `https://www.instagram.com/${instagramUsername(value)}/` : `https://t.me/${telegramBotUsername(value)}`
+  return field === 'email' ? `mailto:${value}` : field === 'phone' ? `tel:${value.replace(/[ ()-]/g, '')}` : field === 'instagram' ? `https://www.instagram.com/${instagramUsername(value)}/` : value
 }
 export type Issue = { section: Section; path: string; en: string; uk: string }
 export function landingIssues(configuration: LandingConfiguration, content: LandingContent, assets: LandingVisualSummary[]): Issue[] {
@@ -56,7 +47,7 @@ export function landingIssues(configuration: LandingConfiguration, content: Land
   required('contacts', 'contacts.supporting_text', content.contacts.supporting_text, 'Explain the next step', 'Опишіть наступний крок')
   const contacts = { ...content.contacts, instagram: content.contacts.instagram || '' }
   const fields = ['email', 'phone', 'url', 'instagram'] as const
-  if (!fields.some(f => validContact(f, contacts[f]))) issues.push({ section: 'contacts', path: 'contacts.endpoint', en: 'Add an email, phone, Telegram bot, or Instagram link', uk: 'Додайте email, телефон, посилання на Telegram-бота або Instagram' })
+  if (!fields.some(f => validContact(f, contacts[f]))) issues.push({ section: 'contacts', path: 'contacts.endpoint', en: 'Add an email, phone, HTTPS destination, or Instagram link', uk: 'Додайте email, телефон, HTTPS-адресу або Instagram' })
   fields.forEach(f => { if (contacts[f] && !validContact(f, contacts[f])) issues.push({ section: 'contacts', path: `contacts.${f}`, en: `Check the ${f} destination`, uk: `Перевірте контакт: ${f}` }) })
   const target = configuration.presentation?.cta_target || 'contacts'
   if (target !== 'contacts' && !validContact(target, content.contacts[target])) issues.push({ section: 'hero', path: 'hero.cta_target', en: 'Configure the selected button destination in Contacts', uk: 'Налаштуйте обрану адресу кнопки в Контактах' })

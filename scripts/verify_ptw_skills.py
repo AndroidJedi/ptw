@@ -10,7 +10,6 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = (
-    "commander-god-mode",
     "product-brief-generator",
     "studio-creative-composer",
     "studio-edit-learner",

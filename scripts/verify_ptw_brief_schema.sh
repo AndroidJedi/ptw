@@ -43,7 +43,7 @@ apply_pre_public_migrations() {
     psql $args -c "CREATE TABLE IF NOT EXISTS commander_schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT clock_timestamp())" >/dev/null
     for migration in /migrations/*.sql; do
       name=$(basename "$migration")
-      [ "$name" = 004_public_landing_v1.sql ] && continue
+      case "$name" in 001_*|002_*|003_*) ;; *) continue ;; esac
       applied=$(psql $args -qAtc "SELECT count(*) FROM commander_schema_migrations WHERE name='"'"'$name'"'"'")
       if [ "$applied" = 0 ]; then
         psql $args -f "$migration" >/dev/null
@@ -84,6 +84,8 @@ commander_relationships
 commander_schema_migrations
 commander_sources
 commander_weight_updates
+instagram_publication_attempts
+instagram_publications
 landing_assets
 landing_checkpoints
 landing_generation_runs
@@ -127,7 +129,7 @@ docker exec "$database_container" psql -X -qAt -v ON_ERROR_STOP=1 \
   -U ptw_brief_test -d ptw_brief_test <<'SQL'
 DO $$
 BEGIN
-  IF (SELECT count(*) FROM commander_schema_migrations) <> 4
+  IF (SELECT count(*) FROM commander_schema_migrations) <> 5
      OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='001_ptw_brief_v1.sql'
      ) OR NOT EXISTS (
@@ -136,6 +138,8 @@ BEGIN
        SELECT 1 FROM commander_schema_migrations WHERE name='003_ptw_meta_ads_v1.sql'
      ) OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='004_public_landing_v1.sql'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM commander_schema_migrations WHERE name='005_instagram_publication_v1.sql'
      ) THEN
     RAISE EXCEPTION 'the database must contain the Product Brief, Studio, Landing, and Meta Ads migrations';
   END IF;

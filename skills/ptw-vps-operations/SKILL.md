@@ -115,6 +115,9 @@ into a complete compatible release, read
   let recovery finish on the current release, verify the queue is empty, and
   restart the candidate rollout from preflight.
 - Telegram accepts only `/help`, `/status`, and `/stop`.
+  Deployment verifies the existing bot identity with the read-only canary.
+  Sending a test message requires explicit messaging authorization; deployment
+  authorization alone does not enable outbound chat messages.
 - A Landing create failure containing `badly formed hexadecimal UUID string`
   can originate from an internal graph-edge argument inversion rather than an
   invalid Project or Post ID. Check that the failed transaction added neither a
@@ -189,3 +192,27 @@ next elapse time. Checking a guessed timer name is not evidence of failure.
 Owner-facing error acceptance also covers failure paths: each API or persisted
 background failure shows what failed, why in plain language, the next safe
 action, and bounded technical context without raw provider/5xx output.
+
+## Instagram publishing and website Ads
+
+- Consult `docs/architecture/meta-ads.md`. Verify publishing permissions and
+  advertising permissions independently; workspace/export reads must not wait
+  for remote verification. Real acceptance needs a selected approved version,
+  an Instagram permalink, and a website ad verified PAUSED in Meta.
+- Configure secrets only through `scripts/configure_meta_ads.sh` hidden prompts.
+  Keep the production secret file's six-key contract compatible with rollback
+  images. `META_INSTAGRAM_MEDIA_ORIGIN` is a nonsecret Validation Compose setting,
+  not an additional production secret-file key. Loopback publishing requires an
+  explicitly configured public HTTPS origin reaching the same local authority.
+- Expose only the bounded opaque temporary JPEG route, never Studio files or
+  metadata. Disable HTTP access logs that could retain bearer media URLs. Test
+  expiry after completion and timeout through Gateway and Validation.
+- Before a schema-five rollout, refuse active Instagram work and preserve all
+  prior business tables, including Landing. Fingerprint the baseline column
+  projection so an additive defaulted campaign objective does not look like a
+  prior-row mutation. Exercise the exact SQL/psql transport against disposable
+  PostgreSQL; do not weaken preservation checks or the in-place confirmation.
+- A saved publish-start flag requires reconciliation, never automatic replay or
+  a replacement post. Retain attempts and existing container/media IDs. Read
+  externally activated ad parents without changing their status; new ads remain
+  PAUSED and campaign identity includes project, objective, and categories.

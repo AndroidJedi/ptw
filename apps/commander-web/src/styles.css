@@ -651,3 +651,18 @@ button svg { width: 17px; height: 17px; }
   .spin, .studio-tune-progress::after { animation: none; }
   .universal-component-card.is-toggle, .universal-component-switch i { transition: none; }
 }
+
+/* Approved-post publishing controls are independent of the editable artwork. */
+.post-publishing { margin-block: 24px; }
+.post-publishing label { display: grid; gap: 8px; margin-block: 16px; }
+.post-publishing textarea { width: 100%; min-height: 140px; }
+.post-publishing a, .post-publishing code, .ads-fields a { overflow-wrap: anywhere; }
+.post-publishing-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-block: 16px; }
+.post-publishing-actions > * { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.post-publications article { padding-block: 16px; border-top: 1px solid var(--border, #333); }
+.post-publications code { display: block; }
+@media (max-width: 600px) { .post-publishing-actions > * { flex: 1 1 100%; } }
+
+.ads-website-destination { display: grid; gap: 8px; min-width: 0; }
+.ads-website-destination a, .post-publishing > a, .post-publications a { color: inherit; overflow-wrap: anywhere; }
+.post-publishing-actions a { text-decoration: none; }

@@ -267,3 +267,82 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   expect(generationRequests.at(-1)).toMatchObject({ enhance_current: false, reference_image: { mime_type: 'image/png', bytes_base64: reference.toString('base64') } })
 
 })
+
+for (const configured of [true, false]) {
+test(`approved Instagram Post and exact website Ads handoff (${configured ? 'mocked Meta' : 'offline export'})`, async ({ page }) => {
+  const current: any = phoneDetail()
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64')
+  const digest = createHash('sha256').update(png).digest('hex')
+  current.versions = [1, 2].map(version => ({ version, change_note: `Approved ${version}`, render_sha256: digest }))
+  current.approved_version_count = 2
+  const sources = current.versions.map((item: any) => ({ ...item, creative_id: creativeId, creative_ordinal: 1, template_id: 'phone_metrics', version_sha256: digest, defaults: { headline: `Approved title ${item.version}`, primary_text: 'Approved body', welcome_message: 'Hello' } }))
+  const landing = { publication_id: projectId, event_id: briefId, landing_version: 1, landing_version_sha256: digest, canonical_url: 'https://natal-service.com/la/example' }
+  const publications: any[] = []
+  const adRequests: any[] = []
+  await page.route('**/api/v1/**', async route => {
+    const path = new URL(route.request().url()).pathname
+    const method = route.request().method()
+    const json = (value: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) })
+    if (path === '/api/v1/projects') return json({ items: [{ project_id: projectId, name: 'Publishing test', name_source: 'owner', brief_count: 1 }] })
+    if (path === `/api/v1/studio/projects/${projectId}/creatives`) return json({ items: [current] })
+    if (path === creativePath) return json(current)
+    if (path.startsWith(creativePath) && (path.endsWith('/render') || path.endsWith('/preview') || path.includes('/history/'))) return route.fulfill({ contentType: 'image/png', body: png, headers: { 'X-PTW-Content-SHA256': digest } })
+    if (path === `/api/v1/instagram/projects/${projectId}`) return json({ connection: { configured, verified: configured, media_ready: configured, graph_version: 'v26.0', instagram: { id: '789', username: 'example' } }, sources, landing, publications })
+    if (path === `/api/v1/instagram/projects/${projectId}/publications`) {
+      if (method === 'GET') return json({ items: publications })
+      const request = route.request().postDataJSON()
+      expect(request.version).toBe(1)
+      expect(request.caption).toBe('Reviewed Instagram caption')
+      publications.push({ publication_id: projectId, request_id: request.request_id, specification: { ...request }, status: 'published', publish_started: true, media_id: 'media-1', permalink: 'https://www.instagram.com/p/example/' })
+      return json({ publication: publications[0], created: true }, 202)
+    }
+    if (path === `/api/v1/ads/projects/${projectId}`) return json({ schema: 'ptw.meta-ads.workspace.v1', project_id: projectId, project_name: 'Publishing test', connection: { configured, verified: configured, graph_version: 'v26.0', account: { id: '123', currency: 'USD' }, instagram: { id: '789', username: 'example' } }, sources, landing, deployments: [], experiment: null, presets: [{ preset_id: briefId, version: 1, specification_sha256: digest, specification: { name: 'Local audience', countries: ['UA'], age_min: 25, age_max: 44, gender: 'all', daily_budget_minor: 500 } }] })
+    if (path.endsWith('/deployments') && method === 'POST') { adRequests.push(route.request().postDataJSON()); return json({ deployment: {}, created: true }, 202) }
+    return json({ detail: 'not found' }, 404)
+  })
+  await page.goto(`/?e2e=1&page=posts&project=${projectId}&creative=${creativeId}`)
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Publish approved Post' })).toBeVisible()
+  await expect(page.getByLabel('CTA', { exact: true })).toHaveValue('START NOW')
+  await page.getByLabel('Approved version').selectOption('1')
+  await page.getByRole('button', { name: 'Publish to Instagram', exact: true }).click()
+  await expect(page.getByLabel('Instagram caption')).toHaveValue('Approved title 1\n\nApproved body')
+  await page.getByLabel('Instagram caption').fill('Reviewed Instagram caption')
+  if (configured) {
+    await page.getByRole('button', { name: 'Publish now', exact: true }).click()
+    await expect(page.getByRole('link', { name: 'View published post' })).toHaveAttribute('href', 'https://www.instagram.com/p/example/')
+  } else {
+    await expect(page.getByRole('button', { name: 'Publish now', exact: true })).toBeDisabled()
+    const downloadEvent = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Download image', exact: true }).click()
+    const download = await downloadEvent
+    expect(download.suggestedFilename()).toBe('post-v1.png')
+    const stream = await download.createReadStream()
+    const bytes: Buffer[] = []
+    for await (const chunk of stream!) bytes.push(Buffer.from(chunk))
+    expect(Buffer.concat(bytes)).toEqual(png)
+    await expect(page.getByRole('status')).toContainText('Exported')
+    await expect(page.getByRole('link', { name: 'View published post' })).toHaveCount(0)
+  }
+  await expect(page.getByRole('button', { name: 'Download image', exact: true })).toBeEnabled()
+  await page.getByRole('link', { name: 'Create Instagram ad', exact: true }).click()
+  await expect(page.getByLabel('Destination')).toHaveValue('WEBSITE')
+  await expect(page.getByLabel('Headline')).toHaveValue('Approved title 1')
+  await expect(page.getByLabel('Initial Direct message')).toHaveCount(0)
+  await expect(page.getByRole('link', { name: landing.canonical_url, exact: true })).toBeVisible()
+  if (configured) {
+    await page.getByRole('button', { name: 'Create PAUSED campaign structure' }).click()
+    await expect.poll(() => adRequests.length).toBe(1)
+    expect(adRequests[0]).toMatchObject({ creative_id: creativeId, version: 1, destination_type: 'WEBSITE', landing_event_id: briefId })
+    expect(adRequests[0]).not.toHaveProperty('welcome_message')
+  } else {
+    await expect(page.getByRole('button', { name: 'Create PAUSED campaign structure' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Download image', exact: true })).toBeEnabled()
+    expect(adRequests).toHaveLength(0)
+  }
+  await page.screenshot({ path: `.local/publishing-${configured ? 'ready' : 'offline'}-${test.info().project.name}.png`, fullPage: true })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+})
+
+}

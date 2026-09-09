@@ -171,6 +171,7 @@ class MetaAdsConfiguration:
     instagram_actor_id: str = ""
     graph_version: str = GRAPH_VERSION
     name_prefix: str = "[PTW LOCAL]"
+    instagram_media_origin: str = ""
 
     @property
     def configured(self) -> bool:
@@ -194,6 +195,7 @@ class MetaAdsConfiguration:
             instagram_actor_id=value("META_INSTAGRAM_ACTOR_ID"),
             graph_version=version,
             name_prefix=prefix,
+            instagram_media_origin=value("META_INSTAGRAM_MEDIA_ORIGIN"),
         )
 
 
@@ -233,8 +235,8 @@ class MetaAdsAdapter:
     def __init__(
         self, configuration: MetaAdsConfiguration, *, client: httpx.Client | None = None,
     ) -> None:
-        if not configuration.configured:
-            raise RuntimeError("Meta Ads credentials are not configured")
+        if not configuration.access_token:
+            raise RuntimeError("Meta credentials are not configured")
         self.configuration = configuration
         self._client = client
         self._base = f"https://graph.facebook.com/{configuration.graph_version}"
@@ -285,6 +287,10 @@ class MetaAdsAdapter:
         }
 
     def connection(self) -> dict[str, Any]:
+        permission_result = self._call("GET", "me/permissions", outcome="Meta advertising permissions could not be verified")
+        granted = {item.get("permission") for item in permission_result.get("data", []) if item.get("status") == "granted"}
+        if not {"ads_read", "ads_management"} <= granted:
+            raise MetaAdsProviderError("Meta advertising permissions are missing")
         accounts_value = self._call(
             "GET", "me/adaccounts",
             params={"fields": "id,name,currency,timezone_name,account_status", "limit": 100},
@@ -373,28 +379,31 @@ class MetaAdsAdapter:
             raise MetaAdsProviderError(f"Meta {edge} reconciliation found duplicate PTW names")
         return matches[0] if matches else None
 
-    def ensure_campaign(self, name: str, categories: list[str]) -> dict[str, Any]:
+    def ensure_campaign(self, name: str, categories: list[str], objective: str = "OUTCOME_ENGAGEMENT") -> dict[str, Any]:
         existing = self._find("campaigns", name, fields="id,name,status,effective_status,objective,special_ad_categories")
         if existing is not None:
-            if existing.get("status") != "PAUSED":
-                raise MetaAdsProviderError("Existing PTW campaign is not PAUSED")
+            if (existing.get("status") not in {"PAUSED", "ACTIVE"}
+                    or existing.get("objective") != objective
+                    or sorted(existing.get("special_ad_categories") or []) != ([] if categories == ["NONE"] else categories)):
+                raise MetaAdsProviderError("Existing PTW campaign does not match its objective and categories")
             return existing
         payload = self._call(
             "POST", f"{self.account_node}/campaigns",
             data=self._data(
-                name=name, objective="OUTCOME_ENGAGEMENT", buying_type="AUCTION", status="PAUSED",
+                name=name, objective=objective, buying_type="AUCTION", status="PAUSED",
                 special_ad_categories=[] if categories == ["NONE"] else categories,
             ), outcome="Meta campaign creation failed",
         )
         return {"id": str(payload["id"]), "name": name, "status": "PAUSED"}
 
     def ensure_ad_set(
-        self, name: str, *, campaign_id: str, preset: Mapping[str, Any],
+        self, name: str, *, campaign_id: str, preset: Mapping[str, Any], destination: str = "INSTAGRAM_DIRECT",
     ) -> dict[str, Any]:
-        existing = self._find("adsets", name, fields="id,name,status,effective_status,campaign_id")
+        existing = self._find("adsets", name, fields="id,name,status,effective_status,campaign_id,destination_type,optimization_goal,billing_event,daily_budget,targeting")
         if existing is not None:
-            if str(existing.get("campaign_id")) != str(campaign_id) or existing.get("status") != "PAUSED":
-                raise MetaAdsProviderError("Existing PTW ad set does not match its PAUSED campaign")
+            if str(existing.get("campaign_id")) != str(campaign_id) or existing.get("status") not in {"PAUSED", "ACTIVE"}:
+                raise MetaAdsProviderError("Existing PTW ad set does not match its campaign")
+            self._verify_ad_set(existing, campaign_id, preset, destination)
             return existing
         genders = None if preset["gender"] == "all" else [1 if preset["gender"] == "men" else 2]
         cities = preset.get("cities") or []
@@ -420,13 +429,13 @@ class MetaAdsAdapter:
             "POST", f"{self.account_node}/adsets",
             data=self._data(
                 name=name, campaign_id=campaign_id, status="PAUSED",
-                optimization_goal="CONVERSATIONS", billing_event="IMPRESSIONS",
-                bid_strategy="LOWEST_COST_WITHOUT_CAP", destination_type="INSTAGRAM_DIRECT",
+                optimization_goal="LINK_CLICKS" if destination == "WEBSITE" else "CONVERSATIONS", billing_event="IMPRESSIONS",
+                bid_strategy="LOWEST_COST_WITHOUT_CAP", destination_type=destination,
                 daily_budget=preset["daily_budget_minor"], targeting=targeting,
                 promoted_object={
                     "page_id": self.configuration.page_id,
                     "instagram_user_id": self.configuration.instagram_actor_id,
-                },
+                } if destination != "WEBSITE" else None,
             ), outcome="Meta ad set creation failed",
         )
         return {"id": str(payload["id"]), "name": name, "status": "PAUSED", "campaign_id": campaign_id}
@@ -448,12 +457,10 @@ class MetaAdsAdapter:
         return str(result["hash"])
 
     def ensure_creative(self, name: str, *, image_hash: str, specification: Mapping[str, Any]) -> dict[str, Any]:
-        existing = self._find("adcreatives", name, fields="id,name")
-        if existing is not None:
-            return existing
+        existing = self._find("adcreatives", name, fields="id,name,object_story_spec")
         story = {
             "page_id": self.configuration.page_id,
-            "instagram_actor_id": self.configuration.instagram_actor_id,
+            "instagram_user_id": self.configuration.instagram_actor_id,
             "link_data": {
                 "image_hash": image_hash, "message": specification["primary_text"],
                 "name": specification["headline"],
@@ -462,11 +469,26 @@ class MetaAdsAdapter:
                 },
             },
         }
+        website = specification.get("destination_type") == "WEBSITE"
+        if website:
+            story["link_data"]["link"] = specification["landing"]["canonical_url"]
+            story["link_data"]["call_to_action"] = {
+                "type": "LEARN_MORE", "value": {"link": specification["landing"]["canonical_url"]},
+            }
+        if existing is not None:
+            actual = existing.get("object_story_spec") or {}
+            link = actual.get("link_data") or {}
+            expected_link = story["link_data"]
+            if (str(actual.get("page_id")) != self.configuration.page_id
+                    or str(actual.get("instagram_user_id")) != self.configuration.instagram_actor_id
+                    or any(link.get(key) != val for key, val in expected_link.items())):
+                raise MetaAdsProviderError("Existing creative does not match the approved image and destination")
+            return existing
         payload = self._call(
             "POST", f"{self.account_node}/adcreatives",
             data=self._data(
                 name=name, object_story_spec=story,
-                page_welcome_message=specification["welcome_message"],
+                page_welcome_message=None if website else specification["welcome_message"],
                 degrees_of_freedom_spec={
                     "creative_features_spec": {
                         "standard_enhancements": {"enroll_status": "OPT_OUT"},
@@ -477,9 +499,9 @@ class MetaAdsAdapter:
         return {"id": str(payload["id"]), "name": name}
 
     def ensure_ad(self, name: str, *, ad_set_id: str, creative_id: str) -> dict[str, Any]:
-        existing = self._find("ads", name, fields="id,name,status,effective_status,adset_id")
+        existing = self._find("ads", name, fields="id,name,status,effective_status,adset_id,creative")
         if existing is not None:
-            if str(existing.get("adset_id")) != str(ad_set_id) or existing.get("status") != "PAUSED":
+            if str(existing.get("adset_id")) != str(ad_set_id) or str((existing.get("creative") or {}).get("id")) != creative_id or existing.get("status") != "PAUSED":
                 raise MetaAdsProviderError("Existing PTW ad does not match its PAUSED ad set")
             return existing
         payload = self._call(
@@ -488,6 +510,40 @@ class MetaAdsAdapter:
             outcome="Meta ad creation failed",
         )
         return {"id": str(payload["id"]), "name": name, "status": "PAUSED", "adset_id": ad_set_id}
+
+    def verify_parents(self, campaign_id: str, ad_set_id: str | None, specification: Mapping[str, Any]) -> None:
+        campaign = self._call("GET", campaign_id,
+            params={"fields": "id,account_id,objective,special_ad_categories,status"}, outcome="Meta campaign verification failed")
+        categories = specification["special_ad_categories"]
+        if (str(campaign.get("account_id")) != self.configuration.ad_account_id
+                or campaign.get("objective") != specification["objective"]
+                or sorted(campaign.get("special_ad_categories") or []) != ([] if categories == ["NONE"] else categories)
+                or campaign.get("status") not in {"PAUSED", "ACTIVE"}):
+            raise MetaAdsProviderError("Existing campaign no longer matches the reviewed ad")
+        if ad_set_id:
+            ad_set = self._call("GET", ad_set_id,
+                params={"fields": "id,campaign_id,destination_type,optimization_goal,billing_event,daily_budget,targeting,status"},
+                outcome="Meta ad set verification failed")
+            self._verify_ad_set(ad_set, campaign_id, specification["preset"], specification["destination_type"])
+
+    @staticmethod
+    def _verify_ad_set(value: Mapping[str, Any], campaign_id: str, preset: Mapping[str, Any], destination: str) -> None:
+        targeting = value.get("targeting") or {}
+        geo = targeting.get("geo_locations") or {}
+        expected_cities = preset.get("cities") or []
+        actual_cities = geo.get("cities") or []
+        cities_match = sorted((str(item.get("key")), item.get("radius"), item.get("distance_unit")) for item in actual_cities) == sorted((item["key"], item["radius_km"], "kilometer") for item in expected_cities)
+        if (str(value.get("campaign_id")) != campaign_id or value.get("status") not in {"PAUSED", "ACTIVE"}
+                or value.get("destination_type") != destination
+                or value.get("optimization_goal") != ("LINK_CLICKS" if destination == "WEBSITE" else "CONVERSATIONS")
+                or value.get("billing_event") != "IMPRESSIONS"
+                or str(value.get("daily_budget")) != str(preset["daily_budget_minor"])
+                or targeting.get("publisher_platforms") != ["instagram"] or targeting.get("instagram_positions") != ["stream"]
+                or targeting.get("age_min") != preset["age_min"] or targeting.get("age_max") != preset["age_max"]
+                or (targeting.get("genders") or []) != ([] if preset["gender"] == "all" else [1 if preset["gender"] == "men" else 2])
+                or sorted(geo.get("countries") or []) != sorted(preset["countries"])
+                or not cities_match):
+            raise MetaAdsProviderError("Existing ad set no longer matches the reviewed audience and destination")
 
     def status(self, object_id: str, kind: str) -> dict[str, Any]:
         fields = "id,name,status,effective_status,issues_info"
@@ -505,6 +561,18 @@ class LocalMetaAdsAuthority:
     def __init__(self, store: LocalBriefStore) -> None:
         self.store = store
         self._lock = threading.RLock()
+
+    @contextmanager
+    def execution_lock(self, project_id: str) -> Iterator[None]:
+        import fcntl
+        directory = self.store.root / "meta-ads-locks"
+        directory.mkdir(exist_ok=True)
+        with (directory / _uuid(project_id, "project_id")).open("a") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle, fcntl.LOCK_UN)
 
     def list_presets(self) -> list[dict[str, Any]]:
         return sorted(self.store.list("meta_ads_presets"), key=lambda item: int(item["version"]), reverse=True)
@@ -526,21 +594,21 @@ class LocalMetaAdsAuthority:
     def project(self, project_id: str) -> dict[str, Any]:
         return self.store.get("projects", _uuid(project_id, "project_id"))
 
-    def get_experiment(self, project_id: str) -> dict[str, Any] | None:
+    def get_experiment(self, project_id: str, experiment_id: str | None = None) -> dict[str, Any] | None:
         project_id = _uuid(project_id, "project_id")
-        return next((item for item in self.store.list("meta_ads_experiments") if item["project_id"] == project_id), None)
+        return next((item for item in self.store.list("meta_ads_experiments") if item["project_id"] == project_id and (experiment_id is None or item["experiment_id"] == experiment_id)), None)
 
-    def ensure_experiment(self, project_id: str, name: str, categories: list[str]) -> dict[str, Any]:
+    def ensure_experiment(self, project_id: str, name: str, categories: list[str], objective: str = "OUTCOME_ENGAGEMENT") -> dict[str, Any]:
         with self._lock:
-            existing = self.get_experiment(project_id)
+            existing = next((item for item in self.store.list("meta_ads_experiments") if
+                item["project_id"] == project_id and item.get("objective", "OUTCOME_ENGAGEMENT") == objective
+                and item["special_ad_categories"] == categories), None)
             if existing is not None:
-                if existing["special_ad_categories"] != categories:
-                    raise ValueError("This Project campaign already has different special ad categories")
                 return existing
             experiment_id = new_uuid7()
             value = {
                 "experiment_id": experiment_id, "project_id": _uuid(project_id, "project_id"),
-                "campaign_name": name, "special_ad_categories": categories,
+                "campaign_name": name, "special_ad_categories": categories, "objective": objective,
                 "meta_campaign_id": None, "status": "reserved", "error": None,
                 "created_at": utc_now(), "updated_at": utc_now(),
             }
@@ -581,6 +649,9 @@ class LocalMetaAdsAuthority:
     def get_audience(self, audience_id: str) -> dict[str, Any]:
         return self.store.get("meta_ads_audiences", _uuid(audience_id, "audience_id"))
 
+    def request_deployment(self, request_id: str) -> dict[str, Any] | None:
+        return next((item for item in self.store.list("meta_ads_deployments") if item["request_id"] == request_id), None)
+
     def reserve_deployment(self, value: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
         fingerprint = {"request_sha256": value["request_sha256"]}
         target, created = self.store.reserve_request(
@@ -605,6 +676,9 @@ class LocalMetaAdsAuthority:
                 })
         self.store.edge(source_id=record["experiment_id"], relation="contains", target_id=target, evidence={"member": "meta_ads_deployment"})
         self.store.edge(source_id=target, relation="derived_from", target_id=source_version_id, evidence={"input": "approved_studio_version"})
+        landing = record["specification"].get("landing")
+        if landing:
+            self.store.edge(source_id=target, relation="derived_from", target_id=landing["event_id"], evidence={"input": "published_landing"})
         return record, True
 
     def get_deployment(self, deployment_id: str) -> dict[str, Any]:
@@ -659,6 +733,17 @@ class DatabaseMetaAdsAuthority:
             with connection.transaction():
                 yield connection
 
+    @contextmanager
+    def execution_lock(self, project_id: str) -> Iterator[None]:
+        import psycopg
+        key = "meta-ads-execute:" + _uuid(project_id, "project_id")
+        with psycopg.connect(self.database_url, autocommit=True) as connection:
+            connection.execute("SELECT pg_advisory_lock(hashtextextended(%s,0))", (key,))
+            try:
+                yield
+            finally:
+                connection.execute("SELECT pg_advisory_unlock(hashtextextended(%s,0))", (key,))
+
     @staticmethod
     def _edge(connection: Any, source_id: str, relation: str, target_id: str, attributes: Mapping[str, Any]) -> None:
         from psycopg.types.json import Jsonb
@@ -703,30 +788,28 @@ class DatabaseMetaAdsAuthority:
         return {
             "experiment_id": str(row[0]), "project_id": str(row[1]), "campaign_name": row[2],
             "special_ad_categories": list(row[3]), "meta_campaign_id": row[4], "status": row[5],
-            "error": None if row[6] is None else dict(row[6]), "created_at": row[7].isoformat(), "updated_at": row[8].isoformat(),
+            "error": None if row[6] is None else dict(row[6]), "created_at": row[7].isoformat(), "updated_at": row[8].isoformat(), "objective": row[9],
         }
 
-    def get_experiment(self, project_id: str) -> dict[str, Any] | None:
+    def get_experiment(self, project_id: str, experiment_id: str | None = None) -> dict[str, Any] | None:
         with self.connection() as connection:
-            row = connection.execute("SELECT entity_id,project_id,campaign_name,special_ad_categories,meta_campaign_id,status,error,created_at,updated_at FROM meta_ads_workspaces WHERE project_id=%s", (UUID(project_id),)).fetchone()
+            row = connection.execute("SELECT entity_id,project_id,campaign_name,special_ad_categories,meta_campaign_id,status,error,created_at,updated_at,objective FROM meta_ads_workspaces WHERE project_id=%s AND (%s::uuid IS NULL OR entity_id=%s::uuid) ORDER BY created_at LIMIT 1", (UUID(project_id), experiment_id, experiment_id)).fetchone()
         return None if row is None else self._experiment(row)
 
-    def ensure_experiment(self, project_id: str, name: str, categories: list[str]) -> dict[str, Any]:
+    def ensure_experiment(self, project_id: str, name: str, categories: list[str], objective: str = "OUTCOME_ENGAGEMENT") -> dict[str, Any]:
         from psycopg.types.json import Jsonb
         project_id = _uuid(project_id, "project_id")
         with self.connection() as connection:
             connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (f"meta-ads-project:{project_id}",))
-            row = connection.execute("SELECT entity_id,project_id,campaign_name,special_ad_categories,meta_campaign_id,status,error,created_at,updated_at FROM meta_ads_workspaces WHERE project_id=%s", (UUID(project_id),)).fetchone()
+            row = connection.execute("SELECT entity_id,project_id,campaign_name,special_ad_categories,meta_campaign_id,status,error,created_at,updated_at,objective FROM meta_ads_workspaces WHERE project_id=%s AND objective=%s AND special_ad_categories=%s", (UUID(project_id), objective, Jsonb(categories))).fetchone()
             if row is not None:
                 value = self._experiment(row)
-                if value["special_ad_categories"] != categories:
-                    raise ValueError("This Project campaign already has different special ad categories")
                 return value
             experiment_id = UUID(new_uuid7())
             connection.execute("INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'meta_ads_experiment',%s)", (experiment_id, Jsonb({"schema_version": 1, "project_id": project_id})))
-            connection.execute("INSERT INTO meta_ads_workspaces(entity_id,project_id,campaign_name,special_ad_categories,status) VALUES(%s,%s,%s,%s,'reserved')", (experiment_id, UUID(project_id), name, Jsonb(categories)))
+            connection.execute("INSERT INTO meta_ads_workspaces(entity_id,project_id,campaign_name,special_ad_categories,objective,status) VALUES(%s,%s,%s,%s,%s,'reserved')", (experiment_id, UUID(project_id), name, Jsonb(categories), objective))
             self._edge(connection, project_id, "contains", str(experiment_id), {"member": "meta_ads_experiment"})
-        return self.get_experiment(project_id) or {}
+        return self.get_experiment(project_id, str(experiment_id)) or {}
 
     def update_experiment(self, experiment_id: str, **patch: Any) -> dict[str, Any]:
         from psycopg.types.json import Jsonb
@@ -740,7 +823,7 @@ class DatabaseMetaAdsAuthority:
         with self.connection() as connection:
             connection.execute(f"UPDATE meta_ads_workspaces SET {','.join(assignments)},updated_at=clock_timestamp() WHERE entity_id=%s", (*values, UUID(experiment_id)))
             project_id = str(connection.execute("SELECT project_id FROM meta_ads_workspaces WHERE entity_id=%s", (UUID(experiment_id),)).fetchone()[0])
-        return self.get_experiment(project_id) or {}
+        return self.get_experiment(project_id, str(experiment_id)) or {}
 
     @staticmethod
     def _audience(row: Any) -> dict[str, Any]:
@@ -816,6 +899,11 @@ class DatabaseMetaAdsAuthority:
             raise KeyError("Meta Ads deployment was not found")
         return self._deployment(row)
 
+    def request_deployment(self, request_id: str) -> dict[str, Any] | None:
+        with self.connection() as connection:
+            row = connection.execute(self._deployment_select() + " WHERE request_id=%s", (UUID(request_id),)).fetchone()
+        return None if row is None else self._deployment(row)
+
     def reserve_deployment(self, value: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
         from psycopg.types.json import Jsonb
         request_id = UUID(str(value["request_id"]))
@@ -845,6 +933,9 @@ class DatabaseMetaAdsAuthority:
             )
             self._edge(connection, str(value["experiment_id"]), "contains", str(deployment_id), {"member": "meta_ads_deployment"})
             self._edge(connection, str(deployment_id), "derived_from", str(value["source_version_id"]), {"input": "approved_studio_version"})
+            landing = value["specification"].get("landing")
+            if landing:
+                self._edge(connection, str(deployment_id), "derived_from", landing["event_id"], {"input": "published_landing"})
         return self.get_deployment(str(deployment_id)), True
 
     def update_deployment(self, deployment_id: str, **patch: Any) -> dict[str, Any]:
@@ -895,20 +986,35 @@ class DatabaseMetaAdsAuthority:
 class MetaAdsService:
     """Orchestrate immutable approved Studio renders into PAUSED Meta ads."""
 
-    def __init__(self, authority: Any, studio: Any, configuration: MetaAdsConfiguration, adapter: MetaAdsAdapter | None = None) -> None:
+    def __init__(self, authority: Any, studio: Any, configuration: MetaAdsConfiguration, adapter: MetaAdsAdapter | None = None, landing_publications: Any = None) -> None:
         self.authority = authority
         self.studio = studio
         self.configuration = configuration
         self.adapter = adapter
+        self.landing_publications = landing_publications
         self._lock = threading.RLock()
 
-    def connection(self) -> dict[str, Any]:
+    def landing(self, project_id: str) -> dict[str, Any] | None:
+        publication = self.landing_publications.get(project_id) if self.landing_publications else None
+        if not publication or publication["status"] != "published":
+            return None
+        event = next((item for item in publication["events"] if item["event_id"] == publication["current_event_id"]), None)
+        if not event:
+            return None
+        return {"publication_id": publication["publication_id"], "event_id": event["event_id"],
+                "landing_version_id": event.get("landing_version_id"),
+                "landing_version": event["landing_version"], "landing_version_sha256": event["landing_version_sha256"],
+                "canonical_url": publication["canonical_url"]}
+
+    def connection(self, *, verify: bool = True) -> dict[str, Any]:
         if not self.configuration.configured or self.adapter is None:
             return {
                 "configured": False, "verified": False, "graph_version": self.configuration.graph_version,
                 "explanation": "Add the Meta system-user token and assigned asset IDs to the local secrets file.",
                 "required_permissions": ["ads_management", "ads_read"],
             }
+        if not verify:
+            return {"configured": True, "verified": False, "graph_version": self.configuration.graph_version, "required_permissions": ["ads_management", "ads_read"]}
         try:
             return self.adapter.connection()
         except MetaAdsProviderError as error:
@@ -985,6 +1091,8 @@ class MetaAdsService:
             {
                 **item,
                 "meta_ad_set_id": self.authority.get_audience(item["audience_id"]).get("meta_ad_set_id"),
+                "meta_campaign_id": (self.authority.get_experiment(project_id, item["experiment_id"]) or {}).get("meta_campaign_id"),
+                "ads_manager_url": self.adapter.ads_manager_url((self.authority.get_experiment(project_id, item["experiment_id"]) or {}).get("meta_campaign_id")) if self.adapter else None,
             }
             for item in self.authority.list_deployments(project_id)
         ]
@@ -994,18 +1102,47 @@ class MetaAdsService:
             manager_url = None
         return {
             "schema": "ptw.meta-ads.workspace.v1", "project_id": project_id,
-            "project_name": project["name"], "connection": self.connection(),
+            "project_name": project["name"], "connection": self.connection(verify=False),
             "presets": self.authority.list_presets(), "sources": self._sources(project_id),
             "experiment": experiment, "deployments": deployments, "ads_manager_url": manager_url,
+            "landing": self.landing(project_id),
         }
 
     def reserve(self, project_id: str, request: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
+        with self._lock:
+            return self._reserve(project_id, request)
+
+    def _reserve(self, project_id: str, request: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
         expected = {
             "request_id", "creative_id", "version", "preset_id", "primary_text",
             "headline", "welcome_message", "special_ad_categories",
         }
+        website = request.get("destination_type") == "WEBSITE"
+        if "destination_type" in request:
+            expected.add("destination_type")
+            if request["destination_type"] not in {"WEBSITE", "INSTAGRAM_DIRECT"}:
+                raise ValueError("Meta Ads destination is invalid")
+        if website:
+            expected.remove("welcome_message")
+            expected.add("landing_event_id")
         if set(request) != expected:
             raise ValueError("Meta Ads deployment fields are invalid")
+        previous = self.authority.request_deployment(_uuid(request["request_id"], "request_id"))
+        if previous:
+            spec = previous["specification"]
+            matches = (previous["project_id"] == _uuid(project_id, "project_id")
+                and previous["source_creative_id"] == _uuid(request["creative_id"], "creative_id")
+                and previous["source_version"] == request["version"] and not isinstance(request["version"], bool)
+                and self.authority.get_audience(previous["audience_id"])["preset_id"] == request["preset_id"]
+                and spec["headline"] == _single_line(request["headline"], "headline", 1, 255)
+                and spec["primary_text"] == _text(request["primary_text"], "primary text", 1, 2200)
+                and spec["special_ad_categories"] == _categories(request["special_ad_categories"])
+                and spec["destination_type"] == ("WEBSITE" if website else "INSTAGRAM_DIRECT")
+                and (spec["landing"]["event_id"] == request["landing_event_id"] if website else
+                     spec["welcome_message"] == _text(request["welcome_message"], "welcome message", 1, 1000)))
+            if not matches:
+                raise ValueError("idempotency request ID was reused with different input")
+            return previous, False
         if not self.configuration.configured or self.adapter is None:
             raise RuntimeError("Meta Ads staging is disabled until the local credentials and asset IDs are configured")
         connection = self.connection()
@@ -1024,9 +1161,11 @@ class MetaAdsService:
         categories = _categories(request["special_ad_categories"])
         specification = {
             "schema": "ptw.meta-ads.deployment-spec.v1",
+            "identity": {"ad_account_id": self.configuration.ad_account_id, "page_id": self.configuration.page_id,
+                         "instagram_actor_id": self.configuration.instagram_actor_id},
             "primary_text": _text(request["primary_text"], "primary text", 1, 2200),
             "headline": _single_line(request["headline"], "headline", 1, 255),
-            "welcome_message": _text(request["welcome_message"], "welcome message", 1, 1000),
+            **({} if website else {"welcome_message": _text(request["welcome_message"], "welcome message", 1, 1000)}),
             "special_ad_categories": categories,
             "objective": "OUTCOME_ENGAGEMENT", "optimization_goal": "CONVERSATIONS",
             "destination_type": "INSTAGRAM_DIRECT", "billing_event": "IMPRESSIONS",
@@ -1034,12 +1173,20 @@ class MetaAdsService:
             "publisher_platforms": ["instagram"], "instagram_positions": ["stream"],
             "creative_enhancements": "OPT_OUT", "preset": deepcopy(preset["specification"]),
         }
+        if website:
+            landing = self.landing(project_id)
+            if not landing or landing["event_id"] != request["landing_event_id"]:
+                raise RuntimeError("Published Landing changed or is unavailable. Refresh and review the destination.")
+            specification.update(schema="ptw.meta-ads.deployment-spec.v2", objective="OUTCOME_TRAFFIC",
+                                 optimization_goal="LINK_CLICKS", destination_type="WEBSITE",
+                                 call_to_action="LEARN_MORE", landing=landing)
         specification_sha = _sha(specification)
         project = self.authority.project(project_id)
-        campaign_name = f"{self.configuration.name_prefix} [project:{project_id}] {project['name']}"[:255]
-        experiment = self.authority.ensure_experiment(project_id, campaign_name, categories)
+        campaign_key = _sha({"objective": specification["objective"], "categories": categories})[:16]
+        campaign_name = f"{self.configuration.name_prefix} [project:{project_id}] [{campaign_key}] {project['name']}"[:255]
+        experiment = self.authority.ensure_experiment(project_id, campaign_name, categories, specification["objective"])
         campaign_name = experiment["campaign_name"]
-        ad_set_name = f"{self.configuration.name_prefix} [project:{project_id}] [preset:{preset['specification_sha256']}] Instagram Direct"[:255]
+        ad_set_name = f"{self.configuration.name_prefix} [campaign:{experiment['experiment_id']}] [preset:{preset['specification_sha256']}]"[:255]
         audience = self.authority.ensure_audience(experiment["experiment_id"], preset, ad_set_name)
         deployment_id = new_uuid7()
         fingerprint = {
@@ -1082,19 +1229,31 @@ class MetaAdsService:
             record = self._error(error)
             self.authority.record_run(deployment_id, "connection", "failed", record)
             return self.authority.update_deployment(deployment_id, status="failed", error=record)
-        with self._lock:
+        project_id = self.authority.get_deployment(deployment_id)["project_id"]
+        with self._lock, self.authority.execution_lock(project_id):
             deployment = self.authority.get_deployment(deployment_id)
             if deployment["status"] == "staged":
                 return deployment
-            experiment = self.authority.get_experiment(deployment["project_id"])
+            experiment = self.authority.get_experiment(deployment["project_id"], deployment["experiment_id"])
             if experiment is None:
                 raise RuntimeError("Meta Ads experiment was not found")
             audience = self.authority.get_audience(deployment["audience_id"])
             try:
+                spec = deployment["specification"]
+                identity = spec.get("identity")
+                if identity and identity != {"ad_account_id": self.configuration.ad_account_id,
+                        "page_id": self.configuration.page_id, "instagram_actor_id": self.configuration.instagram_actor_id}:
+                    raise RuntimeError("Configured Meta assets changed after review; create a new reviewed ad")
                 self.adapter.connection()
+                if spec.get("destination_type") == "WEBSITE":
+                    landing = self.landing(deployment["project_id"])
+                    if not landing or landing["event_id"] != spec["landing"]["event_id"]:
+                        raise RuntimeError("Published Landing changed or is unavailable; create a new reviewed ad.")
+                if experiment.get("meta_campaign_id") and isinstance(self.adapter, MetaAdsAdapter):
+                    self.adapter.verify_parents(experiment["meta_campaign_id"], audience.get("meta_ad_set_id"), spec)
                 if not experiment.get("meta_campaign_id"):
                     self.authority.update_deployment(deployment_id, status="creating_campaign", error=None)
-                    campaign = self.adapter.ensure_campaign(deployment["campaign_name"], experiment["special_ad_categories"])
+                    campaign = self.adapter.ensure_campaign(deployment["campaign_name"], experiment["special_ad_categories"], **({"objective": "OUTCOME_TRAFFIC"} if spec.get("destination_type") == "WEBSITE" else {}))
                     experiment = self.authority.update_experiment(experiment["experiment_id"], meta_campaign_id=campaign["id"], status="staged", error=None)
                     self.authority.record_run(deployment_id, "campaign", "completed")
                 if not audience.get("meta_ad_set_id"):
@@ -1102,6 +1261,7 @@ class MetaAdsService:
                     ad_set = self.adapter.ensure_ad_set(
                         deployment["ad_set_name"], campaign_id=experiment["meta_campaign_id"],
                         preset=deployment["specification"]["preset"],
+                        **({"destination": "WEBSITE"} if spec.get("destination_type") == "WEBSITE" else {}),
                     )
                     audience = self.authority.update_audience(audience["audience_id"], meta_ad_set_id=ad_set["id"], status="staged", error=None)
                     self.authority.record_run(deployment_id, "ad_set", "completed")
@@ -1154,7 +1314,7 @@ class MetaAdsService:
         deployment = self.authority.get_deployment(_uuid(deployment_id, "deployment_id"))
         if deployment["project_id"] != _uuid(project_id, "project_id"):
             raise KeyError("Meta Ads deployment was not found in this Project")
-        experiment = self.authority.get_experiment(project_id)
+        experiment = self.authority.get_experiment(project_id, deployment["experiment_id"])
         audience = self.authority.get_audience(deployment["audience_id"])
         objects: dict[str, Any] = {}
         for kind, identifier in (

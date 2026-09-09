@@ -254,7 +254,7 @@ grep -qx "PTW_IMAGE_TAG=$release_tag" "$repository/.env.commander" || {
 "$repository/skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh"
 (set -a; . "$platform/.env"; . "$repository/.env.commander"; \
   . "$repository/.env.owner-gateway"; set +a; \
-  python3 "$repository/scripts/send_ptw_bot_canary.py")
+  python3 "$repository/scripts/send_ptw_bot_canary.py" --read-only)
 PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/audit_ptw_1gb.sh"
 
 commander_postgres=$("${commander_compose[@]}" ps -q commander-db)

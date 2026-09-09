@@ -28,6 +28,7 @@ def main() -> None:
         "landing_checkpoints", "landing_skill_snapshots", "landing_learning_proposals",
         "meta_ads_preset_versions", "meta_ads_workspaces", "meta_ads_audience_versions",
         "meta_ads_deployments", "meta_ads_stage_runs", "meta_ads_status_snapshots",
+        "instagram_publications", "instagram_publication_attempts",
     }
     forbidden = {
         "project_assets", "project_brand_kits", "studio_recipes", "studio_renders",

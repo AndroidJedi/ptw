@@ -68,8 +68,9 @@ Updated: 2026-09-04
 - A Landing belongs to the selected Project, its approved Brief, and one immutable
   approved Post version. It captures Post style once and does not synchronize later edits.
 - Its fixed order is Hero, three features, optional owner evidence social proof, one generated
-  visual break, contacts, and three FAQs. Each has bounded editable controls; no page builder,
-  public URL, publishing, form submission, or lead storage exists.
+  visual break, contacts, and three FAQs. Each has bounded editable controls.
+  Approved versions have an explicit publication action; private drafts remain protected.
+  No page builder, form submission, or lead storage exists.
 - Hero and visual-break artwork inherit the frozen Post visual profile, are text-free,
   digest-checked, private/no-store, and retain at most three selected raw images per slot.
 - Approval requires both visuals, essential section copy, all FAQs/features, and at least
@@ -85,9 +86,14 @@ Updated: 2026-09-04
 
 ## Removed surfaces
 
-- There is no separate Studio page, owner-wide workspace, Social Post workflow,
-  review grid, export, notification, publishing, campaign, traffic, UTM,
-  analytics, or optimization action.
+- There is no separate Studio page, owner-wide workspace, retired Social Post
+  workflow, review grid, notification, analytics, or automatic optimization action.
+- Approved Post versions support single-image Instagram publication and export.
+  Website and Direct ads stay in Ads; all new Meta objects are PAUSED. Launch and
+  schedule changes happen in Ads Manager. Export never implies publication.
+- Retain the promotional CTA inside both Post renderers and its editor controls.
+  The website ad’s native Learn more CTA is separate and links to the server-resolved
+  published Landing. Organic images do not gain clickable buttons.
 - Bare Studio mutations, `/api/v1/posts`, historical payload adapters, and
   migration/assignment UX do not exist.
 

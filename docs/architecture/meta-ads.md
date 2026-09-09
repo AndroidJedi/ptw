@@ -1,129 +1,151 @@
-# Project-scoped Meta Ads staging
+# Instagram publishing and project-scoped Meta Ads
 
-Ads / Реклама is a separate Project workspace. It stages an immutable approved
-Post Studio render as `Campaign → Ad Set → Ad Creative → Ad` through Meta
-Marketing API `v26.0`. It does not change the Studio renderer or its learning
-architecture.
+Post keeps its promotional CTA artwork and editor controls. Approved Post versions
+have separate **Publish to Instagram** and **Create Instagram ad** actions.
+An organic image's drawn CTA is not a native clickable website button. The
+website ad configures a separate Meta **Learn more** button.
 
-## Safety boundary
+## Approved sources and export
 
-- Campaign, Ad Set, and Ad are server-owned `PAUSED`; no request can select
-  `ACTIVE`.
-- Delivery is fixed to Instagram Feed, `OUTCOME_ENGAGEMENT`, Instagram Direct,
-  `CONVERSATIONS`, `IMPRESSIONS`, and lowest cost without a bid cap.
-- Creative standard enhancements are opted out. The uploaded PNG is read from
-  the approved Studio version and must match its saved SHA-256.
-- v1 has no activation, spend execution, organic publishing, insights,
-  stop-rules, or batch launch.
-- PTW does not create a Facebook Page or Ad Account. Create those manually,
-  assign them to the Business Portfolio/system user, connect a professional
-  Instagram account, and then configure their IDs.
+Both workflows consume exact immutable approved Post versions, with the selected
+version and digest-verified PNG preview visible before submission. Draft edits
+require the normal approval checkpoint; publishing never approves implicitly,
+rerenders historical PNGs, or teaches Post/Brief/Landing lessons.
 
-The official references for the supported object creation and onboarding
-boundaries are the [Meta Marketing API collection](https://www.postman.com/meta/facebook-marketing-api/documentation/0zr4mes/facebook-marketing-api-mapi),
-[Marketing API onboarding](https://www.postman.com/meta/facebook-marketing-api/documentation/9jo4f5y/mapi-onboarding),
-and [Pages API collection](https://www.postman.com/meta/facebook/documentation/r56bjfd/facebook-api).
+Post opens Ads using project, `ad_creative`, `ad_version`, and `destination=WEBSITE`
+query parameters. The receiving workspace resolves only that Project's approved
+source; an unavailable explicit version does not silently select another.
+Workspace reads load sources, history, and the current landing without Meta calls.
+Separate connection checks verify each capability, so unavailable or slow Meta
+permissions do not block image download, copy, or landing-link export.
 
-## Local and VPS configuration
+Export downloads the approved PNG and offers Copy caption/ad text, Copy landing
+URL, Open Instagram, and Open in Ads Manager. These external links do not populate
+Meta forms. **Exported**, **Created in Meta**, and **Published** are distinct;
+manual export never creates a successful Meta publication record.
 
-Store only these values in `.local/local-studio.env`, with file mode `600` or
-`400`:
+## Organic Instagram publishing
 
-```dotenv
-META_SYSTEM_USER_ACCESS_TOKEN=...
-META_AD_ACCOUNT_ID=...
-META_PAGE_ID=...
-META_INSTAGRAM_ACTOR_ID=...
-META_GRAPH_API_VERSION=v26.0
-META_ADS_NAME_PREFIX=[PTW LOCAL]
-```
+The owner reviews one image, an editable caption up to 2,200 characters, and the
+configured professional Instagram account, then selects **Publish now**. Optional
+link-in-bio guidance is editable. Profile changes, Facebook organic posts,
+Stories, Reels, scheduling, and native organic website CTA buttons are absent.
 
-The token is sent to Meta only in the server-side Authorization header. It is
-never persisted, returned by an API, sent to the browser, or included in an
-error/log payload. Missing credentials or assets that fail verification disable
-staging and leave the rest of the local owner app usable. The system user needs
-`ads_management` and `ads_read` for its assigned assets.
+Publishing uses the Facebook-linked Instagram API and independently verifies
+`instagram_basic`, `instagram_content_publish`, and `pages_read_engagement`,
+the Page/account binding, and the publishing quota. Advertising permissions and
+an Ad Account are not prerequisites for organic publishing.
 
-On the VPS, store the same six literal assignments in
-`/opt/ptw/secrets/meta-ads/config.env`, owned by `root:10001` with mode `440`.
-The Validation container receives only that read-only file at
-`/run/ptw-meta-ads/config.env`; the token is not placed in Compose interpolation,
-container environment metadata, PostgreSQL, or the Owner Gateway. Use a distinct
-production prefix such as `[PTW VPS]`. A missing file leaves Ads safely disabled.
-The checked-in `deploy/meta-ads/config.env.example` is a value-name template
-only and must never receive a real token.
+The approved PNG is converted deterministically to RGB JPEG (quality 95, no
+subsampling, no metadata, white under transparency), retaining source and delivery
+digests. Only that approved derivative is exposed through an unguessable
+43-character temporary media capability. Public reads expose bytes only, are
+GET/HEAD-only, no-store/noindex, and expire after one hour or terminal completion.
+The professional account API requires externally reachable JPEG media; loopback
+alone is insufficient. See [Meta's publishing collection](https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api).
 
-Start the loopback app with `scripts/run_local_studio.sh`. The Ads connection
-card lists the system user's available ad accounts and the Page/Instagram assets
-assigned to the selected account. It identifies the configured selection without
-exposing credentials.
+The server reserves an immutable request before creating a media container.
+It persists container ID, waits for readiness, persists `publish_started` **before**
+calling `media_publish`, and stores the returned media ID before retrieving its
+permalink. Per-publication process/database locks serialize execution. Requests
+retain UUIDs across browser transport failures; changed input with the same UUID
+is rejected. Restart recovery resumes incomplete work using the saved identity.
+A lost publish response becomes **Outcome uncertain**; Sync reads the same
+container and never repeats publication. If Meta reports PUBLISHED but its media
+ID was lost, **Published · link pending** remains explicit. PTW does not guess a
+permalink by caption matching. A saved media ID allows later permalink recovery.
 
-To avoid putting a token in chat, shell history, or process arguments, configure
-and verify the currently selected assets through the hidden prompt:
+## Paid ads
 
-```sh
-scripts/configure_meta_ads.sh local AD_ACCOUNT_ID PAGE_ID INSTAGRAM_USERNAME
-```
+Ads supports **Instagram Direct** and **Website**. Direct retains engagement,
+conversations, and SEND_MESSAGE. Website uses OUTCOME_TRAFFIC, LINK_CLICKS,
+WEBSITE, and LEARN_MORE with the current Project landing's canonical HTTPS URL;
+it omits welcome-message and messaging promoted-object fields. Both use
+Instagram Feed, impressions billing, lowest-cost bidding, and opted-out standard
+creative enhancements. The current [Meta SDK story specification](https://github.com/facebook/facebook-python-business-sdk/blob/main/facebook_business/adobjects/adcreativeobjectstoryspec.py)
+uses `instagram_user_id`; PTW retains its existing `META_INSTAGRAM_ACTOR_ID`
+configuration name.
 
-Run the same script as root with `vps` on the server to create the isolated VPS
-file. The helper makes only read-only discovery calls; it never creates ads.
+Website requests name the reviewed `landing_event_id`; the server resolves its
+publication/version/URL, saves that lineage in the immutable specification, and
+rechecks the event before execution. An unpublished or replaced event rejects
+new execution with a refresh/review path. Completed request reconciliation still
+returns its original record. Republish retains the permanent public URL.
 
-## Immutable input and naming
+Campaign identity is `(Project, objective, special-ad categories)`. Audience
+identity remains `(Campaign, preset digest)`. Old Direct requests/specifications
+and Meta IDs remain readable. Existing audience preset versions retain their
+original country or verified city-radius semantics. City targets contain no
+country-wide fallback. Meta names include campaign/deployment identity markers.
 
-The source list contains only approved Studio versions. Headline defaults to
-`hero_title`; primary text defaults to `supporting_text` followed by `offer`;
-CTA is fixed to `SEND_MESSAGE`; the welcome message defaults to localized
-“Вітаю! Хочу дізнатися більше.” The owner may edit the three text fields before
-staging. The normalized final specification is then immutable.
+New Campaign, Ad Set, and Ad objects are PAUSED. Reconciliation verifies
+campaign objective/categories, audience/destination/budget, creative image/copy,
+and Ad associations. Existing externally activated parent campaigns/ad sets are
+read without changing their status; new child ads stay paused. IDs are saved
+immediately after each successful creation. Project execution locks prevent
+concurrent workers from racing Meta creation. Sync appends current statuses and
+issues. The owner opens Ads Manager to review, set schedules, launch, or pause
+paid delivery; PTW exposes no ACTIVE mutation, spend execution, insights,
+conversion tracking, or batch launch.
 
-Presets are append-only versions containing name, either whole countries or up
-to five Meta city keys with a 17–80 km radius, age range, gender, and daily
-budget in the ad account's minor currency units. City keys are selected through
-the authenticated Meta `adgeolocation` search in Ads; PTW never accepts a city
-name as sufficient targeting authority. A city Ad Set sends `cities` without
-`countries`, preventing accidental country-wide broadening. One Project owns one
-Meta experiment/campaign. One unique preset specification SHA-256 within that
-experiment owns one Ad Set. Every deployment owns one Creative and one Ad.
-Changing targeting or budget creates another immutable preset snapshot and Ad
-Set; it never rewrites the prior Ad Set.
+## Persistence and APIs
 
-Meta object names include the `[PTW LOCAL]` prefix and deterministic PTW UUID or
-digest markers. A deployment request has a UUID `request_id`. Replaying the same
-ID and normalized payload returns the existing deployment; changing the payload
-for the same ID is rejected.
+Migration `005_instagram_publication_v1.sql` adds the immutable campaign objective,
+replaces the one-campaign-per-Project constraint, and adds `instagram_publications`
+and append-only `instagram_publication_attempts`. PostgreSQL retains approved
+source foreign keys, JPEG bytes, frozen specification, mutable execution state,
+and explicit Project/Post/Landing graph lineage. Local authority provides the
+same digest-chained records. Media capabilities never enter owner API responses.
 
-## Recovery, persistence, and API
+Owner-authenticated organic routes are under `/api/v1/instagram`:
 
-The adapter saves each returned Meta ID immediately. After a timeout it first
-searches the relevant Meta edge for the exact saved PTW marker and resumes at the
-first missing step. Re-uploading identical approved bytes resolves to the same
-account image hash. Interrupted local and PostgreSQL deployments are recovered
-on service restart. Failed runs remain explicit and retryable.
+- `GET /connection` and `GET /projects/{project_id}`;
+- `GET|POST /projects/{project_id}/publications`;
+- `GET /projects/{project_id}/publications/{publication_id}`;
+- `POST .../{publication_id}/retry` and `POST .../{publication_id}/sync`.
 
-Migration `003_ptw_meta_ads_v1.sql` adds preset versions, one Project workspace,
-audience snapshots, deployments, append-only stage runs, and append-only status
-snapshots. Graph lineage is explicit: Project `contains` experiment; experiment
-`contains` audiences/deployments/runs; deployment `derived_from` the exact
-approved Studio version. `.local/owner-briefs` retains the equivalent digest-
-chained append-only records.
+The public delivery route is `GET|HEAD /api/v1/public/instagram-media/{token}.jpg`.
+Production Validation mirrors routes under `/internal/v1` and requires the
+Gateway bridge token even for media; only the Gateway exposes public byte reads.
 
-Owner routes are:
+Existing Ads connection/preset/location/workspace/deployment/retry/sync routes
+remain. Website deployment adds `destination_type=WEBSITE` and `landing_event_id`
+and omits `welcome_message`. Direct v1 requests remain supported. Workspace
+responses add `landing`; deployment cards include their own campaign ID and
+Ads Manager URL. Permission checks and publication reservation use a bounded
+120-second browser/Gateway deadline; waiting for media happens in background.
 
-- `GET /api/v1/ads/connection`;
-- `GET /api/v1/ads/locations?query=...&country_code=...`;
-- `GET|POST /api/v1/ads/presets`;
-- `GET /api/v1/ads/projects/{project_id}`;
-- `POST /api/v1/ads/projects/{project_id}/deployments`;
-- `POST /api/v1/ads/projects/{project_id}/deployments/{deployment_id}/retry`;
-- `POST /api/v1/ads/projects/{project_id}/deployments/{deployment_id}/sync`.
+## Configuration and verification
 
-All are owner-authenticated. Project/deployment/source IDs fail closed across
-Projects. Sync reads Campaign, Ad Set, and Ad status/issues and appends a local
-snapshot; it never activates an object.
+Local credentials load from mode-600/400 `.local/local-studio.env`. Production
+retains the six-key root-owned mode-440 `/opt/ptw/secrets/meta-ads/config.env`
+mounted read-only only into Validation. Tokens are sent only in server-side
+Authorization headers, never browser responses or provider-error bodies.
 
-## Real local canary
+Use `scripts/configure_meta_ads.sh local|vps AD_ACCOUNT_ID PAGE_ID INSTAGRAM_USERNAME`
+with its hidden token prompt. Pass `-` for AD_ACCOUNT_ID for an organic-only setup;
+that path resolves the linked professional account through the Page without
+advertising calls. Advertising requires `ads_management` and
+`ads_read`; grant the organic permissions above for publishing too. The helper
+verifies the selected assets; the separate in-app publishing check verifies
+organic capability. No token belongs in chat, Git, shell history, or arguments.
 
-After the owner manually creates the Meta App/system user and saves the four
-credentials, create one `[PTW LOCAL]` deployment from Ads. Open its Ads Manager
-link, use Sync, and verify Campaign, Ad Set, and Ad each report `PAUSED`. Do not
-turn any object on as part of this canary.
+`META_INSTAGRAM_MEDIA_ORIGIN` is a non-secret, public HTTPS Gateway origin with
+no path. Production Compose defaults to `https://commander.proove-them-wrong.com`;
+it stays outside the strict six-key secret file so old images can still read
+that file during rollback. For local publishing, supply a deliberately configured
+public Gateway origin; blank keeps organic API publication unavailable while
+export and paid staging remain usable. Do not expose the complete loopback Owner
+API through a tunnel merely to serve images.
+
+Run focused backend/Gateway tests, UI unit/build and desktop/360px/WebKit checks,
+`scripts/verify_ptw_brief_schema.sh`, and
+`.venv/bin/python scripts/verify_instagram_schema.py`. The latter always creates
+and destroys its own PostgreSQL container and verifies preservation, both campaign
+identities, publication/JPEG persistence, immutable guards, graph edges, and replay.
+
+Real readiness additionally requires an owner-selected organic post with a
+verified permalink and a website ad verified PAUSED in Meta. Mocked browser/API
+checks do not establish provider readiness. No real canary has run for this
+local milestone. Migration-bearing production release uses the confirmation-gated
+in-place preserving procedure; it does not run a production reset.

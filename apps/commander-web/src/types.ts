@@ -75,10 +75,14 @@ export interface MetaAdsDeployment {
   specification: {
     primary_text: string
     headline: string
-    welcome_message: string
+    welcome_message?: string
+    destination_type?: 'WEBSITE' | 'INSTAGRAM_DIRECT'
+    landing?: PublishedLandingReference
     special_ad_categories: string[]
     preset: MetaAdsPresetVersion['specification']
   }
+  meta_campaign_id?: string | null
+  ads_manager_url?: string | null
   meta_image_hash?: string | null
   meta_ad_set_id?: string | null
   meta_creative_id?: string | null
@@ -96,6 +100,7 @@ export interface MetaAdsProjectWorkspace {
   connection: MetaAdsConnection
   presets: MetaAdsPresetVersion[]
   sources: MetaAdsSourceVersion[]
+  landing?: PublishedLandingReference | null
   experiment?: { meta_campaign_id?: string | null; status: string; special_ad_categories: string[] } | null
   deployments: MetaAdsDeployment[]
   ads_manager_url?: string | null
@@ -747,4 +752,36 @@ export interface LandingPublication {
   requested_by: string
   created_at: string
   updated_at: string
+}
+
+export interface PublishedLandingReference {
+  publication_id: string
+  event_id: string
+  landing_version_id?: string | null
+  landing_version: number
+  landing_version_sha256: string
+  canonical_url: string
+}
+export interface InstagramPublication {
+  publication_id: string
+  project_id: string
+  request_id: string
+  specification: {
+    creative_id: string; version: number; caption: string
+    render_sha256: string; delivery_sha256: string
+    instagram_actor_id: string; landing?: PublishedLandingReference | null
+  }
+  status: 'queued' | 'creating_container' | 'preparing' | 'publishing' | 'published' | 'published_unresolved' | 'uncertain' | 'failed'
+  publish_started: boolean
+  container_id?: string | null
+  media_id?: string | null
+  permalink?: string | null
+  error?: string | null
+  created_at: string
+}
+export interface InstagramWorkspace {
+  connection: MetaAdsConnection & { media_ready: boolean }
+  sources: MetaAdsSourceVersion[]
+  landing?: PublishedLandingReference | null
+  publications: InstagramPublication[]
 }

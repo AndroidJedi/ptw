@@ -7,6 +7,29 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class ReleaseStreamContractTests(unittest.TestCase):
+    def test_deployment_bot_canary_is_read_only(self):
+        import json
+        import os
+        import sys
+        from unittest.mock import MagicMock, patch
+        spec = importlib.util.spec_from_file_location("bot_canary", ROOT / "scripts/send_ptw_bot_canary.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = json.dumps({
+            "ok": True, "result": {"is_bot": True, "username": "ptw_commander_bot"},
+        }).encode()
+        with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "test-only"}), patch.object(
+            sys, "argv", ["canary", "--read-only"]
+        ), patch.object(module.urllib.request, "urlopen", return_value=response) as call:
+            module.main()
+        request = call.call_args.args[0]
+        self.assertEqual("GET", request.get_method())
+        self.assertTrue(request.full_url.endswith("/getMe"))
+        self.assertIsNone(request.data)
+        deployer = (ROOT / "scripts/deploy_ptw_serial.sh").read_text()
+        self.assertIn('send_ptw_bot_canary.py" --read-only', deployer)
+
     def test_skill_verifier_ignores_generated_python_cache_artifacts(self) -> None:
         script = ROOT / "scripts/verify_ptw_skills.py"
         spec = importlib.util.spec_from_file_location("verify_ptw_skills", script)

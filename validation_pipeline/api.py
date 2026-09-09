@@ -30,6 +30,8 @@ from .meta_ads import (
     DatabaseMetaAdsAuthority, MetaAdsAdapter, MetaAdsConfiguration, MetaAdsService,
 )
 from .meta_ads_routes import meta_ads_router
+from .instagram_publication import InstagramAdapter, InstagramPublicationService, DatabaseInstagramAuthority
+from .instagram_publication_routes import instagram_router, instagram_media_router
 from .studio_creatives import StudioCreativeService
 from .studio_repository import DatabaseCreativeWorkspace, DatabaseStudioAuthority
 from .studio_routes import studio_creative_router
@@ -47,6 +49,7 @@ def create_app(
     landing_page_service: LandingService | None = None,
     landing_publication_service: Any | None = None,
     meta_ads_service: MetaAdsService | None = None,
+    instagram_service: Any | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_environment()
     repository = repository or ValidationRepository(settings.database_url)
@@ -102,6 +105,13 @@ def create_app(
     landing_publications = landing_publication_service or DatabaseLandingPublicationAuthority(
         settings.database_url
     )
+    meta_ads_service.landing_publications = landing_publications
+    if instagram_service is None:
+        ig_configuration = meta_ads_service.configuration
+        instagram_service = InstagramPublicationService(
+            DatabaseInstagramAuthority(settings.database_url), meta_ads_service,
+            InstagramAdapter(ig_configuration) if ig_configuration.access_token else None,
+        )
     runner_error: Exception | None = None
     if runner is None:
         try:
@@ -123,6 +133,10 @@ def create_app(
             task.add_done_callback(tasks.discard)
         for landing_id in await asyncio.to_thread(landing_pages.recover_interrupted):
             task = asyncio.create_task(asyncio.to_thread(landing_pages.generate, landing_id))
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
+        for publication_id in await asyncio.to_thread(instagram_service.recover_interrupted):
+            task = asyncio.create_task(asyncio.to_thread(instagram_service.execute, publication_id))
             tasks.add(task)
             task.add_done_callback(tasks.discard)
         for deployment_id in await asyncio.to_thread(meta_ads_service.recover_interrupted):
@@ -161,6 +175,12 @@ def create_app(
     app.include_router(landing_publication_read_router(
         landing_publications, prefix="/internal/v1/public/landings",
         dependencies=[Depends(authorize)],
+    ))
+    app.include_router(instagram_router(
+        instagram_service, prefix="/internal/v1/instagram", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(instagram_media_router(
+        instagram_service, prefix="/internal/v1/public/instagram-media", dependencies=[Depends(authorize)],
     ))
     app.include_router(meta_ads_router(
         meta_ads_service, prefix="/internal/v1/ads", dependencies=[Depends(authorize)],

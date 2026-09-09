@@ -4,6 +4,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { StudioTuneWizard } from '../components/studio/StudioTuneWizard'
+import { PostPublishing } from '../components/PostPublishing'
 import { PhoneMetricsStudio } from '../components/studio/PhoneMetricsStudio'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from '../components/studio/PhoneHeroDirectionPicker'
 import { Empty, ErrorState, Loading } from '../components/State'
@@ -661,7 +662,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
           projectLesson: result.checkpoint.project_lesson || '',
         })
       }}
-    />{variantDirectionOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-label={tr('Choose a direction for the new creative', 'Оберіть напрям нового креативу')}><header><div><small>{tr('NEW PHONE METRICS CREATIVE', 'НОВИЙ КРЕАТИВ PHONE METRICS')}</small><h2>{tr('Choose image direction', 'Оберіть напрям зображення')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setVariantDirectionOpen(false)}><X /></button></header><PhoneHeroDirectionPicker language={language} value={variantDirection} onChange={setVariantDirection} disabled={busy} idPrefix="variant-creative-direction" /><button className="primary large" disabled={busy || !creativeDirectionFromDraft(variantDirection)} onClick={() => void createVariant()}><Plus />{tr('Create creative', 'Створити креатив')}</button></section></div>}{learning && <LearningDialog proposal={learning.proposal} summary={learning.summary} projectLesson={learning.projectLesson} busy={busy} language={language} onDecision={(decision) => void decideLearning(decision)} />}</>
+    /><PostPublishing key={`${projectId}:${detail.creative_id}:${detail.versions.length}`} api={api} language={language} projectId={projectId} creativeId={detail.creative_id!} versions={detail.versions} />{variantDirectionOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-label={tr('Choose a direction for the new creative', 'Оберіть напрям нового креативу')}><header><div><small>{tr('NEW PHONE METRICS CREATIVE', 'НОВИЙ КРЕАТИВ PHONE METRICS')}</small><h2>{tr('Choose image direction', 'Оберіть напрям зображення')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setVariantDirectionOpen(false)}><X /></button></header><PhoneHeroDirectionPicker language={language} value={variantDirection} onChange={setVariantDirection} disabled={busy} idPrefix="variant-creative-direction" /><button className="primary large" disabled={busy || !creativeDirectionFromDraft(variantDirection)} onClick={() => void createVariant()}><Plus />{tr('Create creative', 'Створити креатив')}</button></section></div>}{learning && <LearningDialog proposal={learning.proposal} summary={learning.summary} projectLesson={learning.projectLesson} busy={busy} language={language} onDecision={(decision) => void decideLearning(decision)} />}</>
   }
 
   const setBullet = (index: number, value: string) => setContent((current) => {
@@ -907,6 +908,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       <button className="primary large" disabled={busy || !changeNote.trim()} onClick={() => void approve()}><Check />{tr('Approve creative', 'Схвалити креатив')}</button>
       {detail.versions.length > 0 && <ol className="universal-version-list">{detail.versions.map((version) => <li key={version.version}><strong>v{version.version}</strong><span>{version.change_note}</span><button className="secondary" onClick={() => void showVersion(version.version, version.render_sha256)}>{tr('View', 'Переглянути')}</button></li>)}</ol>}
     </section>
+    <PostPublishing key={`${projectId}:${detail.creative_id}:${detail.versions.length}`} api={api} language={language} projectId={projectId} creativeId={detail.creative_id!} versions={detail.versions} />
     {tuneMode && <StudioTuneWizard api={api} language={language} open={tuneOpen} studioPreviewUrl={previewUrl} onClose={() => setTuneOpen(false)} />}
     {learning && <LearningDialog proposal={learning.proposal} summary={learning.summary} projectLesson={learning.projectLesson} busy={busy} language={language} onDecision={(decision) => void decideLearning(decision)} />}
   </div>

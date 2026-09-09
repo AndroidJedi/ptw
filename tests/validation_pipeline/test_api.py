@@ -57,7 +57,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             runner=object(),
             studio_creative_service=self.Studio(),
             landing_page_service=self.Landing(),
-            meta_ads_service=self.MetaAds(),
+            meta_ads_service=self.MetaAds(), instagram_service=self.Landing(),
         )
         background_routes = {
             ("POST", "/internal/v1/projects/{project_id}/briefs"),
@@ -97,7 +97,7 @@ class ValidationApiRouteTests(unittest.TestCase):
         app = create_app(
             self.settings(), repository=Repository(), runner=object(),
             studio_creative_service=self.Studio(), landing_page_service=self.Landing(),
-            meta_ads_service=meta,
+            meta_ads_service=meta, instagram_service=self.Landing(),
         )
         request = {
             "request_id": "01900000-0000-7000-8000-000000000011",
@@ -128,7 +128,7 @@ class ValidationApiRouteTests(unittest.TestCase):
         app = create_app(
             self.settings(), repository=Repository(), runner=object(),
             studio_creative_service=self.Studio(), landing_page_service=self.Landing(),
-            meta_ads_service=self.MetaAds(),
+            meta_ads_service=self.MetaAds(), instagram_service=self.Landing(),
         )
         with TestClient(app) as client:
             path = "/internal/v1/ads/locations?query=Kyiv&country_code=UA"
@@ -158,7 +158,7 @@ class ValidationApiRouteTests(unittest.TestCase):
         app = create_app(
             self.settings(), repository=Repository(), runner=object(),
             studio_creative_service=self.Studio(), landing_page_service=self.Landing(),
-            landing_publication_service=Publication(), meta_ads_service=self.MetaAds(),
+            landing_publication_service=Publication(), meta_ads_service=self.MetaAds(), instagram_service=self.Landing(),
         )
         path = "/internal/v1/public/landings/ai/example"
         with TestClient(app) as client:
@@ -208,7 +208,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             self.settings(), repository=repository, runner=runner,
             studio_creative_service=self.Studio(),
             landing_page_service=self.Landing(),
-            meta_ads_service=self.MetaAds(),
+            meta_ads_service=self.MetaAds(), instagram_service=self.Landing(),
         )
 
         with TestClient(app) as client:
@@ -248,7 +248,7 @@ class ValidationApiRouteTests(unittest.TestCase):
         app = create_app(
             self.settings(), repository=repository, runner=object(),
             studio_creative_service=self.Studio(), landing_page_service=self.Landing(),
-            meta_ads_service=self.MetaAds(),
+            meta_ads_service=self.MetaAds(), instagram_service=self.Landing(),
         )
         with TestClient(app) as client:
             response = client.post(
@@ -277,7 +277,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             self.settings(), repository=Repository(), runner=object(),
             studio_creative_service=self.Studio(),
             landing_page_service=self.Landing(),
-            meta_ads_service=self.MetaAds(),
+            meta_ads_service=self.MetaAds(), instagram_service=self.Landing(),
         )
 
         with TestClient(app) as client:
@@ -328,7 +328,7 @@ class ValidationApiRouteTests(unittest.TestCase):
             self.settings(), repository=Repository(), runner=object(),
             studio_creative_service=studio,
             landing_page_service=self.Landing(),
-            meta_ads_service=self.MetaAds(),
+            meta_ads_service=self.MetaAds(), instagram_service=self.Landing(),
         )
         headers = {"X-PTW-Owner-Gateway-Token": "owner-token"}
         with TestClient(app) as client:

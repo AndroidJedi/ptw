@@ -8,7 +8,7 @@ needed for the task.
 | Current checkpoint | [`architecture/commander-current-state.md`](architecture/commander-current-state.md) |
 | Product Brief | [`architecture/simplified-validation-pipeline.md`](architecture/simplified-validation-pipeline.md) and `skills/product-brief-generator/SKILL.md` |
 | Project Post and Landing Studio | [`architecture/universal-ad-studio.md`](architecture/universal-ad-studio.md) and [`architecture/landing-studio.md`](architecture/landing-studio.md), plus their composer/learner, phone-hero, Tune, and visual-audit skills |
-| Local PAUSED Meta Ads staging | [`architecture/meta-ads.md`](architecture/meta-ads.md) |
+| Instagram publishing and landing-linked Meta Ads | [`architecture/meta-ads.md`](architecture/meta-ads.md) |
 | Owner UI and authentication | [`operations/owner-gateway.md`](operations/owner-gateway.md) and [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
 | Deployment and reset | [`operations/commander.md`](operations/commander.md), [`operations/natal-domain-cutover.md`](operations/natal-domain-cutover.md), and [`operations/disaster-recovery.md`](operations/disaster-recovery.md) |
 | Telegram emergency boundary | [`operations/telegram-runtime.md`](operations/telegram-runtime.md) |
@@ -17,7 +17,7 @@ needed for the task.
 
 - `ptw_commander.public` owns Product Brief validation and project-scoped
   Studio creatives, files/PNG bytes, runs, checkpoints, proposals, decisions,
-  skill snapshots, immutable versions, Meta Ads staging records, and graph lineage.
+  skill snapshots, immutable versions, Instagram publications/attempts, Meta Ads records, and graph lineage.
 - `.local/owner-briefs` is the loopback append-only metadata authority;
   `.local/studio-workspace/creatives` holds per-creative renderer files.
 - `/opt/ptw/platform` has unrelated Git and PostgreSQL histories. Its

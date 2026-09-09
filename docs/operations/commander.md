@@ -19,7 +19,7 @@ and accepts only `RESET PTW PRODUCTION`. Data-preserving releases enter through
 requires matched versioned images and exact PTW/platform revisions, deploys and
 audits the public Firebase shell first, stops Commander-database writers,
 creates a root-only checksummed PostgreSQL custom-format backup, fingerprints
-every pre-existing business row, applies additive migration 004, proves all
+every pre-existing business row, applies pending additive migrations through 005, proves all
 fingerprints unchanged, and cuts Commander, Validation, then Owner Gateway over
 serially. Failure restores prior service images without reversing the additive
 migration. Dependency/resource canaries and the persistent 24-hour audit remain
@@ -41,3 +41,6 @@ failure/retry paths, restart recovery, the PWA cache, schema/skill checks, and
 dependency/resource audits. Never log prompts, credentials, image bytes, or
 Telegram tokens. Never deploy or reset without the owner’s separate explicit
 instruction and exact confirmation.
+
+Deployment uses the existing bot canary in `--read-only` mode. It verifies bot
+identity without sending an unsolicited owner-chat message.

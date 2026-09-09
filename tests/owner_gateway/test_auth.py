@@ -79,7 +79,7 @@ class OwnerClaimsTests(unittest.TestCase):
             if not path.startswith("/api/v1/"):
                 continue
             methods = set(getattr(route, "methods", set()))
-            if path.startswith("/api/v1/public/landings/"):
+            if path.startswith(("/api/v1/public/landings/", "/api/v1/public/instagram-media/")):
                 public_methods[path] = methods
                 continue
             dependencies = getattr(getattr(route, "dependant", None), "dependencies", [])
@@ -192,6 +192,38 @@ class OwnerClaimsTests(unittest.TestCase):
             self.assertEqual(payload, forwarded.call_args.kwargs["json"])
             self.assertEqual("firebase:owner-uid", forwarded.call_args.kwargs["headers"]["X-PTW-Actor"])
             self.assertNotIn("reference_image", result.json())
+
+    def test_instagram_routes_match_validation_and_forward_owner_and_media_boundaries(self):
+        from validation_pipeline.instagram_publication_routes import instagram_router, instagram_media_router
+        class Verifier:
+            def verify(self, token, app_check_token):
+                return OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
+        gateway = create_app(self.settings, verifier=Verifier())
+        def routes(items, prefix):
+            return {(method, route.path.replace(prefix, "", 1)) for route in items
+                    if getattr(route, "path", "").startswith(prefix) for method in route.methods}
+        self.assertEqual(routes(gateway.routes, "/api/v1/instagram"),
+                         routes(instagram_router(object(), prefix="/internal/v1/instagram").routes, "/internal/v1/instagram"))
+        self.assertEqual(routes(gateway.routes, "/api/v1/public/instagram-media"),
+                         routes(instagram_media_router(object(), prefix="/internal/v1/public/instagram-media").routes, "/internal/v1/public/instagram-media"))
+        payload = {"request_id": "request", "creative_id": "creative", "version": 2, "caption": "Reviewed"}
+        forwarded = AsyncMock(return_value=httpx.Response(202, json={"publication": {"publication_id": "pub"}}))
+        path = "/api/v1/instagram/projects/project/publications"
+        with patch("httpx.AsyncClient.request", forwarded), TestClient(gateway) as client:
+            self.assertEqual(401, client.post(path, json=payload).status_code)
+            self.assertEqual(202, client.post(path, json=payload, headers={"Authorization":"Bearer test", "X-Firebase-AppCheck":"test"}).status_code)
+        self.assertEqual(payload, forwarded.call_args.kwargs["json"])
+        self.assertEqual("firebase:owner-uid", forwarded.call_args.kwargs["headers"]["X-PTW-Actor"])
+        forwarded = AsyncMock(return_value=httpx.Response(200, content=b"jpeg"))
+        path = "/api/v1/public/instagram-media/" + "a" * 43 + ".jpg"
+        with patch("httpx.AsyncClient.request", forwarded), TestClient(gateway) as client:
+            response = client.get(path)
+            self.assertEqual(200, response.status_code)
+            self.assertEqual("no-store", response.headers["cache-control"])
+            self.assertEqual("image/jpeg", response.headers["content-type"])
+            self.assertEqual(405, client.post(path, json={}).status_code)
+            self.assertEqual(404, client.get("/api/v1/public/instagram-media/bad.jpg").status_code)
+        self.assertEqual("bridge", forwarded.call_args.kwargs["headers"]["X-PTW-Owner-Gateway-Token"])
 
     def test_creative_direction_crosses_authenticated_gateway_with_exact_contract(self) -> None:
         class Verifier:

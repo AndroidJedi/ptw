@@ -27,6 +27,8 @@ from .meta_ads import (
     LocalMetaAdsAuthority, MetaAdsAdapter, MetaAdsConfiguration, MetaAdsService,
 )
 from .meta_ads_routes import meta_ads_router
+from .instagram_publication import InstagramAdapter, InstagramPublicationService, LocalInstagramAuthority
+from .instagram_publication_routes import instagram_router, instagram_media_router
 from .openai_images import (
     LocalCodexPhoneScreenImageProvider, OpenAIPhoneScreenImageProvider,
 )
@@ -47,6 +49,7 @@ def create_app(
     brief_service: LocalBriefService | None = None,
     phone_screen_image_provider: Any | None = None,
     meta_ads_service: MetaAdsService | None = None,
+    instagram_service: Any | None = None,
     commander_chat_service: CommanderChatService | None = None,
 ) -> FastAPI:
     tune_enabled = os.environ.get("STUDIO_TUNE_MODE", "").strip() == "1"
@@ -126,6 +129,13 @@ def create_app(
             LocalMetaAdsAuthority(local_store), studio_creatives,
             meta_configuration, meta_adapter,
         )
+    meta_ads_service.landing_publications = landing_publications
+    if instagram_service is None:
+        ig_configuration = meta_ads_service.configuration
+        instagram_service = InstagramPublicationService(
+            LocalInstagramAuthority(local_store), meta_ads_service,
+            InstagramAdapter(ig_configuration) if ig_configuration.access_token else None,
+        )
     recovery_tasks: set[asyncio.Task[Any]] = set()
     local_authorization = LocalAuthorization(codex_binary)
     commander_chat = commander_chat_service
@@ -147,6 +157,10 @@ def create_app(
             task.add_done_callback(recovery_tasks.discard)
         for landing_id in landing_pages.recover_interrupted():
             task = asyncio.create_task(asyncio.to_thread(landing_pages.generate, landing_id))
+            recovery_tasks.add(task)
+            task.add_done_callback(recovery_tasks.discard)
+        for publication_id in await asyncio.to_thread(instagram_service.recover_interrupted):
+            task = asyncio.create_task(asyncio.to_thread(instagram_service.execute, publication_id))
             recovery_tasks.add(task)
             task.add_done_callback(recovery_tasks.discard)
         for deployment_id in meta_ads_service.recover_interrupted():
@@ -198,6 +212,12 @@ def create_app(
     ))
     app.include_router(landing_publication_read_router(
         landing_publications, prefix="/api/v1/public/landings",
+    ))
+    app.include_router(instagram_router(
+        instagram_service, prefix="/api/v1/instagram", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(instagram_media_router(
+        instagram_service, prefix="/api/v1/public/instagram-media",
     ))
     app.include_router(meta_ads_router(
         meta_ads_service, prefix="/api/v1/ads", dependencies=[Depends(authorize)],

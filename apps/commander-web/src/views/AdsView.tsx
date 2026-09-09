@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, ExternalLink, MapPin, Megaphone, RefreshCcw, RotateCcw, Search, ShieldCheck, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { downloadBlob } from '../components/PostPublishing'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading } from '../components/State'
 import { translate, type Language } from '../i18n'
@@ -55,6 +56,8 @@ export function AdsView({ api, language, projectId = null }: {
   const [headline, setHeadline] = useState('')
   const [primaryText, setPrimaryText] = useState('')
   const [welcomeMessage, setWelcomeMessage] = useState('')
+  const [destination, setDestination] = useState<'WEBSITE' | 'INSTAGRAM_DIRECT'>(() => new URLSearchParams(window.location.search).get('destination') === 'WEBSITE' ? 'WEBSITE' : 'INSTAGRAM_DIRECT')
+  const initialSource = useRef({ creative: new URLSearchParams(window.location.search).get('ad_creative'), version: Number(new URLSearchParams(window.location.search).get('ad_version')) })
   const [category, setCategory] = useState('NONE')
   const [previewUrl, setPreviewUrl] = useState('')
   const [error, setError] = useState('')
@@ -76,7 +79,7 @@ export function AdsView({ api, language, projectId = null }: {
   const applyWorkspace = (value: MetaAdsProjectWorkspace) => {
     setWorkspace(value)
     setSelectedPresetId(current => value.presets.some(item => item.preset_id === current) ? current : value.presets[0]?.preset_id || '')
-    setSelectedSource(current => value.sources.find(item => item.creative_id === current?.creative_id && item.version === current.version) || value.sources[0] || null)
+    setSelectedSource(current => value.sources.find(item => item.creative_id === current?.creative_id && item.version === current.version) || value.sources.find(item => item.creative_id === initialSource.current.creative && item.version === initialSource.current.version) || (initialSource.current.creative ? null : value.sources[0]) || null)
     setError('')
   }
 
@@ -87,6 +90,10 @@ export function AdsView({ api, language, projectId = null }: {
     try {
       const value = await api.get<MetaAdsProjectWorkspace>(base)
       if (current === epoch.current) applyWorkspace(value)
+      if (value.connection.configured && !value.connection.verified) {
+        const connection = await api.get<MetaAdsProjectWorkspace['connection']>('/api/v1/ads/connection', { deadlineMs: 120_000 })
+        if (current === epoch.current) setWorkspace(existing => existing ? { ...existing, connection } : existing)
+      }
     } catch (cause) {
       if (current === epoch.current) setError(cause instanceof Error ? cause.message : String(cause))
     }
@@ -177,15 +184,37 @@ export function AdsView({ api, language, projectId = null }: {
     if (!selectedSource || !selectedPreset) return
     setBusy(true); setError(''); setNotice('')
     try {
-      await api.post(`${base}/deployments`, {
-        request_id: crypto.randomUUID(), creative_id: selectedSource.creative_id,
+      const payload = {
+        creative_id: selectedSource.creative_id,
         version: selectedSource.version, preset_id: selectedPreset.preset_id,
-        headline, primary_text: primaryText, welcome_message: welcomeMessage,
+        headline, primary_text: primaryText,
+        ...(destination === 'WEBSITE' ? { destination_type: destination, landing_event_id: workspace?.landing?.event_id } : { welcome_message: welcomeMessage }),
         special_ad_categories: [category],
-      })
+      }
+      const storageKey = `ptw-ad-request:${projectId}`
+      const fingerprint = JSON.stringify(payload)
+      const saved = sessionStorage.getItem(storageKey)
+      const previous = saved ? JSON.parse(saved) as { fingerprint: string; request_id: string } : null
+      const requestId = previous?.fingerprint === fingerprint ? previous.request_id : crypto.randomUUID()
+      sessionStorage.setItem(storageKey, JSON.stringify({ fingerprint, request_id: requestId }))
+      await api.post(`${base}/deployments`, { ...payload, request_id: requestId }, { deadlineMs: 120_000 })
       setNotice(tr('Staging reserved. PTW is creating PAUSED Meta objects.', 'Staging зарезервовано. PTW створює об’єкти Meta зі статусом PAUSED.'))
       await reload(true)
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
+  }
+
+  const exportImage = async () => {
+    if (!selectedSource || !projectId) return
+    setBusy(true); setError('')
+    try {
+      const blob = await api.image(`/api/v1/studio/projects/${projectId}/creatives/${selectedSource.creative_id}/versions/${selectedSource.version}/render`, 'image/png', selectedSource.render_sha256)
+      downloadBlob(blob, `instagram-ad-v${selectedSource.version}.png`)
+      setNotice(tr('Exported. Upload this image in Ads Manager, paste the text and website URL, then review and publish there.', 'Експортовано. Завантажте зображення в Ads Manager, вставте текст і URL сайту, перевірте та опублікуйте там.'))
+    } catch (cause) { setError(String(cause)) } finally { setBusy(false) }
+  }
+  const copy = async (value: string) => {
+    try { await navigator.clipboard.writeText(value); setNotice(tr('Copied', 'Скопійовано')) }
+    catch { setError(tr('Clipboard unavailable. Select and copy the displayed text.', 'Буфер обміну недоступний. Виділіть і скопіюйте показаний текст.')) }
   }
 
   const deploymentAction = async (deployment: MetaAdsDeployment, action: 'retry' | 'sync') => {
@@ -283,15 +312,20 @@ export function AdsView({ api, language, projectId = null }: {
         {selectedSource ? <>
           <figure className="ads-preview">{previewUrl ? <img src={previewUrl} alt={tr('Approved Post selected for Meta Ads', 'Затверджений допис, вибраний для Meta Ads')} /> : <span>{tr('Verifying PNG…', 'Перевірка PNG…')}</span>}<figcaption>SHA-256 {short(selectedSource.render_sha256)}</figcaption></figure>
           <div className="ads-fields">
+            <label>{tr('Destination', 'Призначення')}<select value={destination} onChange={event => setDestination(event.target.value as 'WEBSITE' | 'INSTAGRAM_DIRECT')}><option value="WEBSITE">{tr('Website · deployed landing', 'Сайт · опублікований лендінг')}</option><option value="INSTAGRAM_DIRECT">Instagram Direct</option></select></label>
+            {destination === 'WEBSITE' && <div className="ads-website-destination"><strong>{tr('Learn more → Website', 'Дізнатися більше → Сайт')}</strong>{workspace.landing ? <a href={workspace.landing.canonical_url} target="_blank" rel="noreferrer">{workspace.landing.canonical_url}</a> : <p>{tr('Publish a Landing in this Project first.', 'Спочатку опублікуйте лендінг цього проєкту.')} <a href={`?page=landing&project=${projectId}`}>{tr('Open Landing', 'Відкрити лендінг')}</a></p>}</div>}
+
             <label>{tr('Headline', 'Заголовок')}<input value={headline} maxLength={255} onChange={event => setHeadline(event.target.value)} /></label>
             <label>{tr('Primary text', 'Основний текст')}<textarea rows={5} value={primaryText} maxLength={2200} onChange={event => setPrimaryText(event.target.value)} /></label>
-            <label>{tr('Initial Direct message', 'Початкове повідомлення Direct')}<textarea rows={2} value={welcomeMessage} maxLength={1000} onChange={event => setWelcomeMessage(event.target.value)} /></label>
+            {destination === 'INSTAGRAM_DIRECT' && <label>{tr('Initial Direct message', 'Початкове повідомлення Direct')}<textarea rows={2} value={welcomeMessage} maxLength={1000} onChange={event => setWelcomeMessage(event.target.value)} /></label>}
             <label>{tr('Audience preset version', 'Версія пресета аудиторії')}<select value={selectedPresetId} onChange={event => setSelectedPresetId(event.target.value)}><option value="">{tr('Create a preset first', 'Спочатку створіть пресет')}</option>{workspace.presets.map(item => <option key={item.preset_id} value={item.preset_id}>v{item.version} · {item.specification.name} · {item.specification.daily_budget_minor} {workspace.connection.account?.currency || tr('minor units', 'мін. од.')}</option>)}</select></label>
             <label>{tr('Special ad category', 'Спеціальна категорія реклами')}<select value={category} onChange={event => setCategory(event.target.value)}>{categories.map(item => <option key={item}>{item}</option>)}</select></label>
           </div>
-          <div className="ads-fixed"><span>Instagram Feed</span><span>OUTCOME_ENGAGEMENT</span><span>Instagram Direct</span><span>CONVERSATIONS</span><span>IMPRESSIONS</span><span>Lowest cost</span><span>Enhancements: OFF</span></div>
-          <button className="primary large" disabled={!connected || !selectedPreset || busy || !headline.trim() || !primaryText.trim() || !welcomeMessage.trim()} onClick={() => void stage()}><Megaphone />{busy ? tr('Working…', 'Виконується…') : tr('Create PAUSED campaign structure', 'Створити PAUSED-структуру кампанії')}</button>
-        </> : <p>{tr('Select an approved Post version.', 'Виберіть затверджену версію допису.')}</p>}
+          <div className="ads-fixed"><span>Instagram Feed</span><span>{destination === 'WEBSITE' ? 'OUTCOME_TRAFFIC' : 'OUTCOME_ENGAGEMENT'}</span><span>{destination === 'WEBSITE' ? 'Website · Learn more' : 'Instagram Direct'}</span><span>{destination === 'WEBSITE' ? 'LINK_CLICKS' : 'CONVERSATIONS'}</span><span>IMPRESSIONS</span><span>Lowest cost</span><span>Enhancements: OFF</span></div>
+          <button className="primary large" disabled={!connected || !selectedPreset || busy || !headline.trim() || !primaryText.trim() || !previewUrl || (destination === 'WEBSITE' ? !workspace.landing : !welcomeMessage.trim())} onClick={() => void stage()}><Megaphone />{busy ? tr('Working…', 'Виконується…') : tr('Create PAUSED campaign structure', 'Створити PAUSED-структуру кампанії')}</button>
+          <div className="post-publishing-actions"><button className="secondary" disabled={busy} onClick={() => void exportImage()}>{tr('Download image', 'Завантажити зображення')}</button><button className="secondary" onClick={() => void copy([headline, primaryText].filter(Boolean).join('\n\n'))}>{tr('Copy ad text', 'Копіювати текст реклами')}</button>{workspace.landing && <button className="secondary" onClick={() => void copy(workspace.landing!.canonical_url)}>{tr('Copy landing URL', 'Копіювати URL лендінгу')}</button>}<a className="secondary" href={adsManagerUrl} target="_blank" rel="noreferrer">{tr('Open in Ads Manager', 'Відкрити в Ads Manager')}</a></div>
+          <p>{tr('Export is available without Meta access. Create or review the ad and start paid delivery in Ads Manager. These links open Meta; they do not fill its forms.', 'Експорт доступний без підключення Meta. Створіть або перевірте рекламу та запустіть покази в Ads Manager. Посилання відкривають Meta, але не заповнюють форми.')}</p>
+        </> : <p>{tr('Select an approved Post version.' , 'Виберіть затверджену версію допису.')}</p>}
       </div>
     </section>
 
@@ -322,7 +356,7 @@ export function AdsView({ api, language, projectId = null }: {
 
     <section className="panel ads-history">
       <div className="ads-section-title"><div><small>{tr('APPEND-ONLY HISTORY', 'APPEND-ONLY ІСТОРІЯ')}</small><h2>{tr('Staging deployments', 'Staging deployments')}</h2></div>{workspace.ads_manager_url && <a className="secondary" href={workspace.ads_manager_url} target="_blank" rel="noreferrer">Ads Manager <ExternalLink /></a>}</div>
-      {workspace.deployments.length === 0 ? <p>{tr('No deployment has been staged for this Project.', 'Для цього Project ще немає staging deployment.')}</p> : <div className="ads-deployment-list">{workspace.deployments.map(item => <article key={item.deployment_id} className={`ads-deployment is-${item.status}`}><header><div><strong>Post v{item.source_version}</strong><code>{short(item.deployment_id)}</code></div><span>{runningStates.has(item.status) && <RefreshCcw className="spin" />}{item.status}</span></header><dl><div><dt>Campaign</dt><dd>{short(workspace.experiment?.meta_campaign_id)} · {objectStatus(item.status_snapshot?.campaign)}</dd></div><div><dt>Ad Set</dt><dd>{short(item.meta_ad_set_id)} · {objectStatus(item.status_snapshot?.ad_set)}</dd></div><div><dt>Creative</dt><dd>{short(item.meta_creative_id)}</dd></div><div><dt>Ad</dt><dd>{short(item.meta_ad_id)} · {objectStatus(item.status_snapshot?.ad)}</dd></div></dl>{item.error?.error_message && <p role="alert">{item.error.error_message}</p>}<footer>{item.status === 'failed' && <button className="secondary" disabled={busy} onClick={() => void deploymentAction(item, 'retry')}><RotateCcw />{tr('Retry safely', 'Безпечно повторити')}</button>}{item.status === 'staged' && <button className="secondary" disabled={busy} onClick={() => void deploymentAction(item, 'sync')}><RefreshCcw />{tr('Sync status', 'Синхронізувати статус')}</button>}</footer></article>)}</div>}
+      {workspace.deployments.length === 0 ? <p>{tr('No deployment has been staged for this Project.', 'Для цього Project ще немає staging deployment.')}</p> : <div className="ads-deployment-list">{workspace.deployments.map(item => <article key={item.deployment_id} className={`ads-deployment is-${item.status}`}><header><div><strong>Post v{item.source_version}</strong><code>{short(item.deployment_id)}</code></div><span>{runningStates.has(item.status) && <RefreshCcw className="spin" />}{item.status === 'staged' ? tr('Created in Meta', 'Створено в Meta') : item.status}</span></header><dl><div><dt>Campaign</dt><dd>{short(item.meta_campaign_id)} · {objectStatus(item.status_snapshot?.campaign)}</dd></div><div><dt>Ad Set</dt><dd>{short(item.meta_ad_set_id)} · {objectStatus(item.status_snapshot?.ad_set)}</dd></div><div><dt>Creative</dt><dd>{short(item.meta_creative_id)}</dd></div><div><dt>Ad</dt><dd>{short(item.meta_ad_id)} · {objectStatus(item.status_snapshot?.ad)}</dd></div></dl>{item.error?.error_message && <p role="alert">{item.error.error_message}</p>}<footer>{item.ads_manager_url && <a className="secondary" href={item.ads_manager_url} target="_blank" rel="noreferrer">{tr('Open in Ads Manager', 'Відкрити в Ads Manager')}</a>}{item.status === 'failed' && <button className="secondary" disabled={busy} onClick={() => void deploymentAction(item, 'retry')}><RotateCcw />{tr('Retry safely', 'Безпечно повторити')}</button>}{item.status === 'staged' && <button className="secondary" disabled={busy} onClick={() => void deploymentAction(item, 'sync')}><RefreshCcw />{tr('Sync status', 'Синхронізувати статус')}</button>}</footer></article>)}</div>}
     </section>
   </div>
 }

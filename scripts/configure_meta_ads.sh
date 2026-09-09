@@ -2,19 +2,21 @@
 set -Eeuo pipefail
 
 if [[ $# -ne 4 || ( $1 != local && $1 != vps ) ]]; then
-  echo "usage: $0 local|vps AD_ACCOUNT_ID PAGE_ID INSTAGRAM_USERNAME" >&2
+  echo "usage: $0 local|vps AD_ACCOUNT_ID_OR_DASH PAGE_ID INSTAGRAM_USERNAME" >&2
   exit 2
 fi
 
 mode=$1
 ad_account_id=${2#act_}
+[[ $ad_account_id != - ]] || ad_account_id=
 page_id=$3
 instagram_username=${4#@}
 graph_version=v26.0
+instagram_media_origin=${META_INSTAGRAM_MEDIA_ORIGIN:-}
 repository=$(git rev-parse --show-toplevel)
 python=${PYTHON_BIN:-$repository/.venv/bin/python}
 
-[[ $ad_account_id =~ ^[0-9]+$ ]] || { echo "Ad Account ID must contain digits only" >&2; exit 2; }
+[[ -z $ad_account_id || $ad_account_id =~ ^[0-9]+$ ]] || { echo "Ad Account ID must contain digits only" >&2; exit 2; }
 [[ $page_id =~ ^[0-9]+$ ]] || { echo "Page ID must contain digits only" >&2; exit 2; }
 [[ $instagram_username =~ ^[A-Za-z0-9._]+$ ]] || { echo "Instagram username is invalid" >&2; exit 2; }
 [[ -x $python ]] || python=python3
@@ -65,6 +67,7 @@ accounts_json=$temporary_directory/accounts.json
 page_json=$temporary_directory/page.json
 instagram_json=$temporary_directory/instagram.json
 base=https://graph.facebook.com/$graph_version
+if [[ -n $ad_account_id ]]; then
 graph_get "$base/me/adaccounts?fields=id,name,currency,account_status&limit=100" "$accounts_json"
 graph_get "$base/act_$ad_account_id?fields=id,name,promote_pages" "$page_json"
 graph_get "$base/act_$ad_account_id/instagram_accounts?fields=id,username&limit=100" "$instagram_json"
@@ -95,12 +98,27 @@ print(matches[0]["id"])
 PY
 )
 
+else
+  # An organic-only account must not depend on advertising permissions.
+  graph_get "$base/$page_id?fields=instagram_business_account{id,username}" "$instagram_json"
+  instagram_actor_id=$("$python" - "$instagram_json" "$instagram_username" <<'PYACCOUNT'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as source:
+    account = json.load(source).get("instagram_business_account") or {}
+if not account.get("id") or str(account.get("username", "")).lower() != sys.argv[2].lower():
+    raise SystemExit("The requested professional Instagram account is not linked to this Page.")
+print(account["id"])
+PYACCOUNT
+)
+fi
+
 umask 077
 output_file=$(mktemp "${target}.tmp.XXXXXX")
 if [[ $mode == local && -f $target ]]; then
   awk '!/^META_SYSTEM_USER_ACCESS_TOKEN=/ && !/^META_AD_ACCOUNT_ID=/ && \
        !/^META_PAGE_ID=/ && !/^META_INSTAGRAM_ACTOR_ID=/ && \
-       !/^META_GRAPH_API_VERSION=/ && !/^META_ADS_NAME_PREFIX=/' \
+       !/^META_GRAPH_API_VERSION=/ && !/^META_ADS_NAME_PREFIX=/ && !/^META_INSTAGRAM_MEDIA_ORIGIN=/' \
     "$target" > "$output_file"
 fi
 printf '%s\n' \
@@ -110,6 +128,9 @@ printf '%s\n' \
   "META_INSTAGRAM_ACTOR_ID=$instagram_actor_id" \
   "META_GRAPH_API_VERSION=$graph_version" \
   "META_ADS_NAME_PREFIX=$name_prefix" >> "$output_file"
+if [[ $mode == local ]]; then
+  printf 'META_INSTAGRAM_MEDIA_ORIGIN=%s\n' "$instagram_media_origin" >> "$output_file"
+fi
 
 if [[ $mode == vps ]]; then
   chown root:10001 "$output_file"
@@ -121,5 +142,8 @@ mv -f -- "$output_file" "$target"
 output_file=
 unset access_token
 
-echo "Meta Ads assets verified and the locked $mode configuration was saved."
-echo "Restart the PTW API process before checking Ads / Реклама."
+echo "Selected Meta assets verified and the locked $mode configuration was saved."
+echo "Restart the PTW API process before checking Ads / Реклама and Instagram publishing."
+echo "Organic publishing additionally needs instagram_basic, instagram_content_publish and pages_read_engagement."
+echo "For local publishing, set META_INSTAGRAM_MEDIA_ORIGIN to a public HTTPS origin reaching this API before configuration."
+echo "For VPS publishing, set that nonsecret origin in Validation Compose; do not add it to the strict secret file."

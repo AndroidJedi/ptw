@@ -520,9 +520,46 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             },
         )
 
+    @app.get("/api/v1/instagram/connection")
+    async def instagram_connection(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", "/internal/v1/instagram/connection", timeout=120)).json()
+
+    @app.get("/api/v1/instagram/projects/{project_id}")
+    async def instagram_workspace(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", f"/internal/v1/instagram/projects/{project_id}", timeout=60)).json()
+
+    @app.get("/api/v1/instagram/projects/{project_id}/publications")
+    async def instagram_publications(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", f"/internal/v1/instagram/projects/{project_id}/publications", timeout=60)).json()
+
+    @app.get("/api/v1/instagram/projects/{project_id}/publications/{publication_id}")
+    async def instagram_publication(project_id: str, publication_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", f"/internal/v1/instagram/projects/{project_id}/publications/{publication_id}", timeout=60)).json()
+
+    @app.post("/api/v1/instagram/projects/{project_id}/publications", status_code=202)
+    async def instagram_publish(project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/instagram/projects/{project_id}/publications", body=request, actor=actor(identity), timeout=120)).json()
+
+    @app.post("/api/v1/instagram/projects/{project_id}/publications/{publication_id}/retry", status_code=202)
+    async def instagram_retry(project_id: str, publication_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/instagram/projects/{project_id}/publications/{publication_id}/retry", body=request, actor=actor(identity), timeout=60)).json()
+
+    @app.post("/api/v1/instagram/projects/{project_id}/publications/{publication_id}/sync")
+    async def instagram_sync(project_id: str, publication_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/instagram/projects/{project_id}/publications/{publication_id}/sync", body=request, actor=actor(identity), timeout=60)).json()
+
+    @app.api_route("/api/v1/public/instagram-media/{token}.jpg", methods=["GET", "HEAD"])
+    async def instagram_media(token: str) -> Response:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
+            raise HTTPException(404, "Media unavailable")
+        response = await validation_bridge("GET", f"/internal/v1/public/instagram-media/{token}.jpg", timeout=60)
+        return Response(response.content, media_type="image/jpeg", headers={
+            "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, noarchive",
+        })
+
     @app.get("/api/v1/ads/connection")
     async def meta_ads_connection(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("GET", "/internal/v1/ads/connection", timeout=60)).json()
+        return (await validation_bridge("GET", "/internal/v1/ads/connection", timeout=120)).json()
 
     @app.get("/api/v1/ads/presets")
     async def meta_ads_presets(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
@@ -563,7 +600,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     ) -> dict[str, Any]:
         return (await validation_bridge(
             "POST", f"/internal/v1/ads/projects/{project_id}/deployments",
-            body=request, actor=actor(identity), timeout=60,
+            body=request, actor=actor(identity), timeout=120,
         )).json()
 
     @app.post("/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/retry", status_code=202)

@@ -4,6 +4,46 @@ Updated: 2026-09-09
 Branch: `main`
 Deployment: backend release `studio-approval-20260909-59be4a3` and Owner Console Landing Save hotfix `d6d5b65` are live; Meta staging is disabled until a fresh secret is configured
 
+## Local Instagram publishing and website Ads milestone
+
+Approved Posts now expose a version selector, verified approved PNG preview,
+editable caption, organic Instagram publication/history, and an exact-version
+handoff to Website Ads. Both renderers and their promotional CTA/editor controls
+are unchanged. Website ads freeze the current published Landing event/version/URL,
+use Traffic / LINK_CLICKS / IMPRESSIONS / native Learn more, and create PAUSED
+objects. Direct remains available with separate project/objective/category
+campaign identity. Paid launch and schedules belong to Ads Manager.
+
+Organic publishing stores a deterministic JPEG and its source/delivery digests,
+serves only an expiring opaque media URL, and persists container/media identity
+plus append-only attempts. Restart and uncertain publish responses never replay
+media_publish. Publishing permissions are independent of advertising; approved
+PNG download, copy, and external-tool handoff remain available without Meta.
+Schema 005 adds PostgreSQL publication records and preserves existing Direct
+records. The migration deployer now fingerprints baseline columns for every old
+business table, including Landing, and rejects active publication workers.
+Canonical behavior and routes: [`meta-ads.md`](meta-ads.md).
+
+Local verification passes: 86 Owner Console unit tests and production build,
+75 browser flows across desktop/360px/iPhone WebKit (Meta mocked), 216 Validation
+tests in a disposable runtime container, 10 Gateway tests, 16 Commander tests
+and demo, deterministic Studio geometry/colour audit, canonical
+skills, and disposable migration/persistence checks. The latter exercise the
+actual deployment SQL with psql variables/stdin, preserve old rows and image
+bytes, and verify Direct/Website identities, publication recovery, immutable
+attempts, and graph lineage. The initial runtime-image suite lacked git; its
+seven git-dependent tests passed locally. The complete 216-test runtime suite
+then passed with git/bash installed only in the disposable test container.
+Owner cache generation is now
+`ptw-shell-brief-studio-landing-ads-v4`.
+
+This milestone is local only. Local API and web launch successfully; Meta
+credentials and a public local media origin are absent, and the inspected local
+Project has no published Landing. No real Instagram publication/permalink or
+paused website ad has been accepted in Meta. Production release requires the
+established migration-bearing preserving procedure and hidden-prompt credential
+configuration; no production reset or release was performed.
+
 ## Pending production incident release
 
 The next preserving release fixes three owner-reported Post/Owner Console
@@ -15,7 +55,7 @@ Validation digests were intact while no browser history GET reached the Gateway.
 The Owner Hosting boundary adds `X-Frame-Options: DENY`, and its live audit now
 requires enforcing `frame-ancestors 'none'`, no PTW-owned report-only CSP, and
 the independent frame guard. Owner cache generation
-`ptw-shell-brief-studio-landing-ads-v3` displaces the affected client bundle.
+`ptw-shell-brief-studio-landing-ads-v4` displaces the affected client bundle.
 Google Identity/reCAPTCHA report-only diagnostics
 remain third-party and are not grounds to weaken PTW security headers.
 

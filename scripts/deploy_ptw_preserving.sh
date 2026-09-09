@@ -135,7 +135,14 @@ trap cleanup EXIT
 "${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 \
     -U ptw_commander -d ptw_commander <<'SQL'
 DO $$
+DECLARE instagram_active boolean;
 BEGIN
+  IF to_regclass('public.instagram_publications') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS(SELECT 1 FROM instagram_publications WHERE state->>''status'' NOT IN (''published'',''published_unresolved'',''uncertain'',''failed''))' INTO instagram_active;
+    IF instagram_active THEN
+      RAISE EXCEPTION 'an Instagram publication is active; deployment refused';
+    END IF;
+  END IF;
   IF EXISTS (SELECT 1 FROM product_briefs WHERE status='generating')
      OR EXISTS (SELECT 1 FROM universal_studio_workspaces WHERE status IN ('queued','composing','generating_image'))
      OR EXISTS (

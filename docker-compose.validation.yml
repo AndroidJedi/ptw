@@ -17,6 +17,7 @@ services:
       PRODUCT_BRIEF_SKILL_PATH: /run/ptw-auth/skills/product-brief-generator/SKILL.md
       PEXELS_API_KEY: ${PEXELS_API_KEY:?set PEXELS_API_KEY in the root-owned runtime environment}
       META_ADS_SECRETS_PATH: /run/ptw-meta-ads/config.env
+      META_INSTAGRAM_MEDIA_ORIGIN: ${META_INSTAGRAM_MEDIA_ORIGIN:-https://commander.proove-them-wrong.com}
     volumes:
       - ./skills:/run/ptw-auth/skills:ro
       - /opt/ptw/secrets/meta-ads:/run/ptw-meta-ads:ro

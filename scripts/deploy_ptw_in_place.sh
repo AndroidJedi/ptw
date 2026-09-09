@@ -38,6 +38,7 @@ case "$old_commander_image" in ptw-commander:*) old_tag=${old_commander_image#pt
 
 before_snapshot=$(mktemp /run/ptw-in-place-before.XXXXXX)
 after_snapshot=$(mktemp /run/ptw-in-place-after.XXXXXX)
+baseline_schema=$(mktemp /run/ptw-in-place-schema.XXXXXX)
 rollback_needed=1
 snapshot_ready=0
 
@@ -80,29 +81,42 @@ cleanup() {
         rollback || status=1
         [[ $status -ne 0 ]] || status=1
     fi
-    rm -f -- "$before_snapshot" "$after_snapshot"
+    rm -f -- "$before_snapshot" "$after_snapshot" "$baseline_schema"
     exit "$status"
 }
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
 snapshot_database() {
-    "${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander <<'SQL'
+    # Capture all pre-existing business tables and columns once. Additive columns
+    # do not alter old rows; every previously present column remains protected.
+    if [[ ! -s $baseline_schema ]]; then
+        "${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander > "$baseline_schema" <<'SQL'
+SELECT jsonb_object_agg(table_name,columns) FROM (
+ SELECT table_name,jsonb_agg(column_name ORDER BY ordinal_position) AS columns
+ FROM information_schema.columns
+ WHERE table_schema='public' AND table_name <> 'commander_schema_migrations'
+ GROUP BY table_name
+) schema;
+SQL
+    fi
+    "${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 \
+        -v baseline_schema="$(cat "$baseline_schema")" -U ptw_commander -d ptw_commander <<'SQL'
+CREATE TEMP TABLE ptw_baseline_schema AS SELECT :'baseline_schema'::jsonb AS document;
 CREATE OR REPLACE FUNCTION pg_temp.ptw_business_fingerprints()
 RETURNS TABLE(table_name text, row_count bigint, row_fingerprint numeric)
 LANGUAGE plpgsql AS $$
 DECLARE item record;
+DECLARE projection text;
 BEGIN
-  FOR item IN
-    SELECT schemaname, tablename FROM pg_tables
-    WHERE schemaname='public'
-      AND tablename NOT IN ('commander_schema_migrations','landing_publications','landing_publication_events')
-    ORDER BY tablename
+  FOR item IN SELECT key,value FROM ptw_baseline_schema,jsonb_each(document) ORDER BY key
   LOOP
-    table_name := item.tablename;
+    table_name := item.key;
+    SELECT string_agg(quote_ident(column_name),',') INTO projection
+      FROM jsonb_array_elements_text(item.value) AS fields(column_name);
     EXECUTE format(
-      'SELECT count(*),coalesce(sum(hashtextextended(to_jsonb(value)::text,0)::numeric),0) FROM %I.%I value',
-      item.schemaname,item.tablename
+      'SELECT count(*),coalesce(sum(hashtextextended(to_jsonb(value)::text,0)::numeric),0) FROM (SELECT %s FROM public.%I) value',
+      projection,item.key
     ) INTO row_count,row_fingerprint;
     RETURN NEXT;
   END LOOP;
@@ -116,7 +130,14 @@ SQL
 "${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 \
     -U ptw_commander -d ptw_commander <<'SQL'
 DO $$
+DECLARE instagram_active boolean;
 BEGIN
+  IF to_regclass('public.instagram_publications') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS(SELECT 1 FROM instagram_publications WHERE state->>''status'' NOT IN (''published'',''published_unresolved'',''uncertain'',''failed''))' INTO instagram_active;
+    IF instagram_active THEN
+      RAISE EXCEPTION 'an Instagram publication is active; deployment refused';
+    END IF;
+  END IF;
   IF EXISTS (SELECT 1 FROM product_briefs WHERE status='generating')
      OR EXISTS (SELECT 1 FROM universal_studio_workspaces WHERE status IN ('queued','composing','generating_image'))
      OR EXISTS (
@@ -158,12 +179,15 @@ export PTW_IMAGE_TAG=$release_tag
 "${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander <<'SQL'
 DO $$
 BEGIN
-  IF (SELECT count(*) FROM commander_schema_migrations) <> 4
+  IF (SELECT count(*) FROM commander_schema_migrations) <> 5
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='004_public_landing_v1.sql')
+     OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='005_instagram_publication_v1.sql')
+     OR to_regclass('public.instagram_publications') IS NULL
+     OR to_regclass('public.instagram_publication_attempts') IS NULL
      OR NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='landing_publications')
      OR NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='landing_publication_events')
      OR (SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='validation_projects' AND column_name='owner_idea_source_id') <> 'YES' THEN
-    RAISE EXCEPTION 'public Landing migration 004 is incomplete';
+    RAISE EXCEPTION 'Landing and Instagram publication migrations are incomplete';
   END IF;
 END $$;
 SQL

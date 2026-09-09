@@ -83,3 +83,14 @@ Post, or Landing learning entities or cross their lesson namespaces.
 - Readiness means the CLI and canonical skill are present. It does not prove
   model authorization. A failed execution needs a local Codex sign-in/runtime
   check; never expose raw CLI output or credentials as a diagnostic.
+
+- Post publishing is an approved-artifact boundary. Keep renderer/editor CTA
+  controls, pending edits, historical PNGs, and learning namespaces unchanged.
+  Verify the selected approved digest for preview/export; a website ad's native
+  CTA is independent. Load export sources before remote capability checks so
+  missing advertising permissions cannot block organic publishing or export.
+- Instagram publish timeouts are ambiguous external mutations. Persist the
+  request and container, then persist the publish-start flag before the POST.
+  Restart/sync must reuse that container without replaying media_publish. Save
+  the returned media ID before requesting its permalink. Exercise response loss,
+  restart, duplicate input, account changes, and media expiry in regression tests.

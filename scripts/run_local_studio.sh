@@ -32,7 +32,7 @@ load_local_secret() {
 
 for local_secret_name in \
   PEXELS_API_KEY OPENAI_API_KEY META_SYSTEM_USER_ACCESS_TOKEN META_AD_ACCOUNT_ID \
-  META_PAGE_ID META_INSTAGRAM_ACTOR_ID META_GRAPH_API_VERSION META_ADS_NAME_PREFIX
+  META_PAGE_ID META_INSTAGRAM_ACTOR_ID META_GRAPH_API_VERSION META_ADS_NAME_PREFIX META_INSTAGRAM_MEDIA_ORIGIN
 do
   load_local_secret "$local_secret_name"
 done
@@ -86,7 +86,7 @@ STUDIO_TUNE_STATE_PATH="$repository/.local/studio-tune" \
 LOCAL_BRIEF_PATH="$repository/.local/owner-briefs" \
 "$python" -m uvicorn \
   validation_pipeline.studio_local_api:create_app --factory \
-  --host 127.0.0.1 --port 8088 &
+  --host 127.0.0.1 --port 8088 --no-access-log &
 studio_api_pid=$!
 
 for _attempt in {1..50}; do
@@ -114,7 +114,7 @@ curl --fail --silent \
 # The API child already inherited these values. Remove them before starting
 # Vite so Meta credentials and asset IDs do not enter the frontend process.
 unset META_SYSTEM_USER_ACCESS_TOKEN META_AD_ACCOUNT_ID META_PAGE_ID \
-  META_INSTAGRAM_ACTOR_ID META_GRAPH_API_VERSION META_ADS_NAME_PREFIX
+  META_INSTAGRAM_ACTOR_ID META_GRAPH_API_VERSION META_ADS_NAME_PREFIX META_INSTAGRAM_MEDIA_ORIGIN
 
 echo "PTW local app: http://127.0.0.1:5173/?e2e=1"
 VITE_E2E=true VITE_LOCAL_APP=true npm --prefix apps/commander-web run dev -- --host 127.0.0.1 --strictPort

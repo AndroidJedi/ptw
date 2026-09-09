@@ -1,15 +1,16 @@
 # Project-scoped Post Studio
 
 The owner sees Studio as **Post / Допис**. Every creative belongs to one Project
-and derives from one approved Product Brief. Studio has no owner-wide singleton,
-separate Studio page, Social Post workflow, publishing, campaign, traffic,
-analytics, or optimization surface. PAUSED campaign staging is isolated in the
-separate [`Ads / Реклама`](meta-ads.md) workspace and consumes only immutable
-approved Post versions.
+and derives from one approved Product Brief. Studio has no owner-wide singleton
+or separate Studio page. Approved versions expose an Instagram publishing/export
+panel and an exact-version handoff to the separate **Ads / Реклама** workspace.
+[Publishing and Ads](meta-ads.md) records are separate from editing and learning.
+Both renderers and their promotional image CTA controls remain unchanged; a paid
+ad's native clickable CTA is configured separately in Ads.
 
-Landing / Лендінг is a separate private page workspace documented in
-[`landing-studio.md`](landing-studio.md). It may derive from an immutable Post
-version, but it does not turn Post Studio into a public landing or publishing surface.
+Landing / Лендінг is a separate page workspace documented in
+[`landing-studio.md`](landing-studio.md). Its explicit publication checkpoint
+provides the canonical website URL used by Ads. Private draft routes remain protected.
 
 ## Brief-to-creative workflow
 

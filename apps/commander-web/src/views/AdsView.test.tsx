@@ -77,7 +77,7 @@ it('stages the selected approved artifact with deterministic defaults and a fres
     version: 2, preset_id: presetId, headline: 'Natal headline',
     primary_text: 'Guidance\n\nOffer', welcome_message: 'Вітаю! Хочу дізнатися більше.',
     special_ad_categories: ['NONE'],
-  }))
+  }, { deadlineMs: 120_000 }))
 })
 
 it('disables staging and explains safe local configuration when Meta is missing', async () => {
@@ -148,4 +148,31 @@ it('searches Meta and saves an immutable city-radius preset without country broa
     }],
     age_min: 25, age_max: 55, gender: 'all', daily_budget_minor: 500,
   }))
+})
+
+it('creates a website ad using the published landing and omits Direct copy', async () => {
+  sessionStorage.clear()
+  const value = fixture()
+  value.landing = { publication_id: 'landing', event_id: 'event', landing_version: 1, landing_version_sha256: 'd'.repeat(64), canonical_url: 'https://natal-service.com/la/example' }
+  const { api, post } = apiFor(value)
+  render(<AdsView api={api} language="en" projectId={projectId} />)
+  await screen.findByText('Meta assets verified')
+  fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'WEBSITE' } })
+  expect(screen.queryByLabelText('Initial Direct message')).not.toBeInTheDocument()
+  expect(screen.getByRole('link', { name: value.landing.canonical_url })).toHaveAttribute('href', value.landing.canonical_url)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Create PAUSED campaign structure' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: 'Create PAUSED campaign structure' }))
+  await waitFor(() => expect(post).toHaveBeenCalled())
+  expect((post.mock.calls as unknown[][])[0]?.[1]).toEqual(expect.objectContaining({ destination_type: 'WEBSITE', landing_event_id: 'event', version: 2 }))
+  expect((post.mock.calls as unknown[][])[0]?.[1]).not.toHaveProperty('welcome_message')
+})
+
+it('blocks website staging without a published landing while keeping export available', async () => {
+  const { api, post } = apiFor(fixture(false))
+  render(<AdsView api={api} language="en" projectId={projectId} />)
+  await screen.findByText('Meta staging disabled')
+  fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'WEBSITE' } })
+  expect(screen.getByRole('button', { name: 'Create PAUSED campaign structure' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Download image' })).toBeEnabled()
+  expect(post).not.toHaveBeenCalled()
 })

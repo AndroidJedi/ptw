@@ -36,6 +36,8 @@ class MetaAdsAdapterTests(unittest.TestCase):
         def handler(request: httpx.Request) -> httpx.Response:
             self.requests.append(request)
             path = request.url.path
+            if path.endswith("/me/permissions"):
+                return httpx.Response(200, json={"data": [{"permission": p, "status": "granted"} for p in ["ads_read", "ads_management"]]})
             if request.method == "GET" and path.endswith("/me/adaccounts"):
                 return httpx.Response(200, json={"data": [{
                     "id": "act_123", "name": "Local test", "currency": "USD", "account_status": 1,
@@ -110,7 +112,7 @@ class MetaAdsAdapterTests(unittest.TestCase):
         creative_payload = form(posts["adcreatives"])
         story = json.loads(creative_payload["object_story_spec"])
         self.assertEqual("456", story["page_id"])
-        self.assertEqual("789", story["instagram_actor_id"])
+        self.assertEqual("789", story["instagram_user_id"])
         self.assertEqual("SEND_MESSAGE", story["link_data"]["call_to_action"]["type"])
         enhancements = json.loads(creative_payload["degrees_of_freedom_spec"])
         self.assertEqual("OPT_OUT", enhancements["creative_features_spec"]["standard_enhancements"]["enroll_status"])
@@ -120,6 +122,34 @@ class MetaAdsAdapterTests(unittest.TestCase):
             self.assertNotIn(b"secret-system-token", request.content)
             self.assertNotIn("secret-system-token", str(request.url))
             self.assertNotIn(b"ACTIVE", request.content)
+
+    def test_website_payload_has_real_link_and_no_direct_message(self) -> None:
+        self.adapter.ensure_campaign("website", ["NONE"], "OUTCOME_TRAFFIC")
+        self.adapter.ensure_ad_set("website audience", campaign_id="campaign-1", destination="WEBSITE", preset={
+            "countries": ["UA"], "age_min": 25, "age_max": 55, "gender": "all", "daily_budget_minor": 500,
+        })
+        url = "https://natal-service.com/la/example"
+        self.adapter.ensure_creative("website creative", image_hash="hash", specification={
+            "headline": "Headline", "primary_text": "Primary", "destination_type": "WEBSITE", "landing": {"canonical_url": url},
+        })
+        posts = {request.url.path.rsplit("/", 1)[-1]: form(request) for request in self.requests if request.method == "POST"}
+        self.assertEqual("OUTCOME_TRAFFIC", posts["campaigns"]["objective"])
+        self.assertEqual("LINK_CLICKS", posts["adsets"]["optimization_goal"])
+        self.assertEqual("WEBSITE", posts["adsets"]["destination_type"])
+        self.assertNotIn("promoted_object", posts["adsets"])
+        creative = posts["adcreatives"]
+        self.assertNotIn("page_welcome_message", creative)
+        link = json.loads(creative["object_story_spec"])["link_data"]
+        self.assertEqual(url, link["link"])
+        self.assertEqual({"type": "LEARN_MORE", "value": {"link": url}}, link["call_to_action"])
+        self.assertEqual("PAUSED", posts["campaigns"]["status"])
+        self.assertEqual("PAUSED", posts["adsets"]["status"])
+
+    def test_campaign_reconciliation_rejects_wrong_objective(self) -> None:
+        self.existing["campaigns"] = [{"id": "1", "name": "website", "status": "ACTIVE", "objective": "OUTCOME_ENGAGEMENT", "special_ad_categories": []}]
+        with self.assertRaisesRegex(RuntimeError, "objective"):
+            self.adapter.ensure_campaign("website", ["NONE"], "OUTCOME_TRAFFIC")
+        self.assertFalse(any(request.method == "POST" for request in self.requests))
 
     def test_rejects_changed_png_before_upload(self) -> None:
         with self.assertRaisesRegex(ValueError, "digest mismatch"):
@@ -203,10 +233,10 @@ class MetaAdsAdapterTests(unittest.TestCase):
 
     def test_exact_name_reconciliation_resumes_without_duplicate_posts(self) -> None:
         self.existing = {
-            "campaigns": [{"id": "campaign-old", "name": "campaign marker", "status": "PAUSED"}],
-            "adsets": [{"id": "adset-old", "name": "adset marker", "status": "PAUSED", "campaign_id": "campaign-old"}],
-            "adcreatives": [{"id": "creative-old", "name": "creative marker"}],
-            "ads": [{"id": "ad-old", "name": "ad marker", "status": "PAUSED", "adset_id": "adset-old"}],
+            "campaigns": [{"id": "campaign-old", "name": "campaign marker", "status": "ACTIVE", "objective": "OUTCOME_ENGAGEMENT", "special_ad_categories": []}],
+            "adsets": [{"id": "adset-old", "name": "adset marker", "status": "PAUSED", "campaign_id": "campaign-old", "destination_type": "INSTAGRAM_DIRECT", "optimization_goal": "CONVERSATIONS", "billing_event": "IMPRESSIONS", "daily_budget": "500", "targeting": {"geo_locations": {"countries": ["UA"]}, "age_min": 25, "age_max": 44, "publisher_platforms": ["instagram"], "instagram_positions": ["stream"]}}],
+            "adcreatives": [{"id": "creative-old", "name": "creative marker", "object_story_spec": {"page_id": "456", "instagram_user_id": "789", "link_data": {"image_hash": "hash", "name": "Headline", "message": "Primary", "call_to_action": {"type": "SEND_MESSAGE", "value": {"app_destination": "INSTAGRAM_DIRECT"}}}}}],
+            "ads": [{"id": "ad-old", "name": "ad marker", "status": "PAUSED", "adset_id": "adset-old", "creative": {"id": "creative-old"}}],
         }
         campaign = self.adapter.ensure_campaign("campaign marker", ["NONE"])
         ad_set = self.adapter.ensure_ad_set("adset marker", campaign_id=campaign["id"], preset={
@@ -292,11 +322,11 @@ class FakeAdapter:
         self._record("connection")
         return {"configured": True, "verified": True, "graph_version": "v26.0"}
 
-    def ensure_campaign(self, name: str, categories: list[str]) -> dict[str, str]:
+    def ensure_campaign(self, name: str, categories: list[str], objective: str = "OUTCOME_ENGAGEMENT") -> dict[str, str]:
         self._record("campaign")
         return {"id": f"campaign-{self.calls.count('campaign')}"}
 
-    def ensure_ad_set(self, name: str, *, campaign_id: str, preset: dict[str, object]) -> dict[str, str]:
+    def ensure_ad_set(self, name: str, *, campaign_id: str, preset: dict[str, object], destination: str = "INSTAGRAM_DIRECT") -> dict[str, str]:
         self._record("ad_set")
         return {"id": f"adset-{self.calls.count('ad_set')}"}
 
@@ -351,6 +381,41 @@ class MetaAdsServiceTests(unittest.TestCase):
             "special_ad_categories": ["NONE"],
         }
 
+    def website_request(self):
+        from types import SimpleNamespace
+        event = {"event_id": "01900000-0000-7000-8000-000000000011", "landing_version": 1, "landing_version_sha256": "a" * 64}
+        publication = {"publication_id": "01900000-0000-7000-8000-000000000012", "current_event_id": event["event_id"], "events": [event], "status": "published", "canonical_url": "https://natal-service.com/la/example"}
+        self.service.landing_publications = SimpleNamespace(get=lambda _: publication)
+        request = self.request()
+        request.pop("welcome_message")
+        request.update(destination_type="WEBSITE", landing_event_id=event["event_id"])
+        return request, publication
+
+    def test_website_and_direct_campaigns_remain_separate_with_exact_landing_lineage(self):
+        request, _ = self.website_request()
+        website, _ = self.service.reserve(PROJECT_ID, request)
+        direct, _ = self.service.reserve(PROJECT_ID, self.request("01900000-0000-7000-8000-000000000019"))
+        self.assertNotEqual(website["experiment_id"], direct["experiment_id"])
+        self.assertNotEqual(website["audience_id"], direct["audience_id"])
+        self.assertEqual("OUTCOME_TRAFFIC", website["specification"]["objective"])
+        self.assertNotIn("welcome_message", website["specification"])
+        self.assertEqual("staged", self.service.execute(website["deployment_id"])["status"])
+        self.assertEqual("staged", self.service.execute(direct["deployment_id"])["status"])
+        self.assertEqual(2, len(self.service.workspace(PROJECT_ID)["deployments"]))
+        self.assertTrue(any(edge["source_id"] == website["deployment_id"] and edge["target_id"] == request["landing_event_id"] for edge in self.store.list("edges")))
+
+    def test_unpublished_landing_rejects_new_work_but_reconciles_existing_request(self):
+        request, publication = self.website_request()
+        reserved, _ = self.service.reserve(PROJECT_ID, request)
+        publication["status"] = "unpublished"
+        same, created = self.service.reserve(PROJECT_ID, request)
+        self.assertFalse(created)
+        self.assertEqual(reserved["deployment_id"], same["deployment_id"])
+        self.assertEqual("failed", self.service.execute(reserved["deployment_id"])["status"])
+        self.assertEqual(0, self.adapter.calls.count("campaign"))
+        with self.assertRaises(RuntimeError):
+            self.service.reserve(PROJECT_ID, {**request, "request_id": "01900000-0000-7000-8000-000000000018"})
+
     def test_idempotent_request_and_complete_staging(self) -> None:
         deployment, created = self.service.reserve(PROJECT_ID, self.request())
         self.assertTrue(created)
@@ -360,9 +425,18 @@ class MetaAdsServiceTests(unittest.TestCase):
         completed = self.service.execute(deployment["deployment_id"])
         self.assertEqual("staged", completed["status"])
         self.assertEqual("ad-1", completed["meta_ad_id"])
-        self.assertEqual(["connection", "connection", "connection", "campaign", "ad_set", "image", "creative", "ad"], self.adapter.calls)
+        self.assertEqual(["connection", "connection", "campaign", "ad_set", "image", "creative", "ad"], self.adapter.calls)
         serialized = json.dumps(self.store.list("meta_ads_deployments"))
         self.assertNotIn("not-persisted", serialized)
+
+    def test_changed_account_after_reservation_cannot_create_objects(self):
+        from dataclasses import replace
+        deployment, _ = self.service.reserve(PROJECT_ID, self.request())
+        self.service.configuration = replace(self.service.configuration, ad_account_id="999")
+        before = list(self.adapter.calls)
+        failed = self.service.execute(deployment["deployment_id"])
+        self.assertEqual("failed", failed["status"])
+        self.assertEqual(before, self.adapter.calls)
 
     def test_retry_continues_after_saved_image_without_duplicates(self) -> None:
         self.adapter.fail_once = "creative"

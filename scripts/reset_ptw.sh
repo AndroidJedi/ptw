@@ -113,6 +113,8 @@ BEGIN
     ('landing_publications', (SELECT count(*) FROM landing_publications)),
     ('landing_publication_events', (SELECT count(*) FROM landing_publication_events)),
     ('meta_ads_presets', (SELECT count(*) FROM meta_ads_preset_versions)),
+    ('instagram_publications', (SELECT count(*) FROM instagram_publications)),
+    ('instagram_publication_attempts', (SELECT count(*) FROM instagram_publication_attempts)),
     ('meta_ads_workspaces', (SELECT count(*) FROM meta_ads_workspaces)),
     ('meta_ads_audiences', (SELECT count(*) FROM meta_ads_audience_versions)),
     ('meta_ads_deployments', (SELECT count(*) FROM meta_ads_deployments)),
@@ -148,7 +150,7 @@ BEGIN
   IF forbidden IS NOT NULL THEN
     RAISE EXCEPTION 'retired tables survived Product Brief reset: %', forbidden;
   END IF;
-  IF (SELECT count(*) FROM commander_schema_migrations) <> 4
+  IF (SELECT count(*) FROM commander_schema_migrations) <> 5
      OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='001_ptw_brief_v1.sql'
      ) OR NOT EXISTS (
@@ -157,7 +159,7 @@ BEGIN
        SELECT 1 FROM commander_schema_migrations WHERE name='003_ptw_meta_ads_v1.sql'
      ) OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='004_public_landing_v1.sql'
-     ) THEN
+     ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='005_instagram_publication_v1.sql') THEN
     RAISE EXCEPTION 'Product Brief, Studio, Landing, and Meta Ads migrations are incomplete';
   END IF;
 END $$;

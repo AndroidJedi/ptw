@@ -328,6 +328,28 @@ are absent.
 
 ## Verification status
 
+The production Studio Save/Approve HTTP 400 incident was traced against Creative
+`01a07f55-20a5-755c-bbec-17a3f158ef4b`. Requests at 2026-09-09 08:39–08:41 UTC
+crossed the durable workspace boundary before response finalization: PostgreSQL
+contains two immutable versions with the same state/render digests and two
+checkpoints, while the workspace row retained a null latest checkpoint. The
+Database authority rejected the service's derived `approved_version_count`
+patch because that count is selected from immutable version rows rather than
+stored on the workspace row. The earlier complete HTTP/domain workflow used the
+loopback authority, and the database-workspace test stopped at direct version
+persistence, so neither crossed this production adapter finalization seam.
+The correction makes the database adapter accept-but-not-store the derived
+field, adds an adapter-specific regression, and compares normalized draft data
+before approval so an uncertain semantically identical retry cannot append
+another version. The existing duplicate immutable records remain append-only
+incident evidence and are not deleted.
+The first preserving rollout was correctly rejected after candidate restart
+recovered the two queued checkpoints, appending learning authority and touching
+the restored workspace cache. All six prior images and persisted tags were
+restored and verified. The deploy preflight now rejects any Studio checkpoint
+without a completed learning run, so restart recovery must finish on the current
+release before an authority snapshot and a fresh rollout.
+
 The Phone Metrics direction-save incident was reproduced against production
 Creative `01a07f55-20a5-755c-bbec-17a3f158ef4b`: Owner Gateway logged the exact
 `POST .../creative-direction` as HTTP 404 at 2026-09-08 14:39:50 UTC, while the

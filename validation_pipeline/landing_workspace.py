@@ -22,7 +22,7 @@ from .landing_design import (DEFAULT_APP_FEATURE, APP_FEATURE_LIMITS, DEFAULT_PH
 
 
 LANDING_TEMPLATE_ID = "project_landing"
-LANDING_TEMPLATE_VERSION = 4
+LANDING_TEMPLATE_VERSION = 5
 LANDING_SCHEMA = "ptw.landing.workspace.v1"
 LANDING_CONFIGURATION_SCHEMA = "ptw.landing.configuration.v1"
 LANDING_CONTENT_SCHEMA = "ptw.landing.content.v1"
@@ -69,6 +69,7 @@ LANDING_CONTENT_LIMITS = {
     "contacts.email": (3, 254),
     "contacts.phone": (3, 60),
     "contacts.url": (8, 2048),
+    "contacts.instagram": (8, 2048),
     "faq.question": (1, 180),
     "faq.answer": (1, 500),
 }
@@ -127,6 +128,20 @@ def valid_contact(field: str, value: str) -> bool:
         return re.fullmatch(r"\+?[0-9 ()\-]+", value) is not None and 3 <= sum(c.isdigit() for c in value) <= 15
     try:
         parsed = urlsplit(value)
+        if field == "instagram":
+            parts = [part for part in parsed.path.split("/") if part]
+            return (
+                parsed.scheme == "https"
+                and (parsed.hostname or "").casefold() in {"instagram.com", "www.instagram.com"}
+                and parsed.username is None
+                and parsed.password is None
+                and parsed.port is None
+                and parsed.query == ""
+                and parsed.fragment == ""
+                and len(parts) == 1
+                and parsed.path in {f"/{parts[0]}", f"/{parts[0]}/"}
+                and re.fullmatch(r"[A-Za-z0-9._]{1,30}", parts[0]) is not None
+            )
         return parsed.scheme == "https" and bool(parsed.hostname) and parsed.username is None and parsed.password is None and not any(c.isspace() for c in value) and "\\" not in value and (parsed.port is None or 0 < parsed.port <= 65535)
     except ValueError:
         return False
@@ -246,7 +261,10 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("Landing content schema is invalid")
     hero = _object(root["hero"], set(DEFAULT_CONTENT["hero"]), "hero")
     visual_break = _object(root["visual_break"], set(DEFAULT_CONTENT["visual_break"]), "visual break")
-    contacts = _object(root["contacts"], set(DEFAULT_CONTENT["contacts"]), "contacts")
+    contacts = root["contacts"]
+    contact_fields = set(DEFAULT_CONTENT["contacts"])
+    if not isinstance(contacts, Mapping) or set(contacts) not in (contact_fields, contact_fields | {"instagram"}):
+        raise ValueError("Landing contacts fields are invalid")
     proof = _object(root["social_proof"], set(DEFAULT_CONTENT["social_proof"]), "social proof")
     features = root["features"]
     faq = root["faq"]
@@ -298,14 +316,18 @@ def normalize_content(value: Mapping[str, Any]) -> dict[str, Any]:
     email = bounded(contacts["email"], "contacts.email", "contact email")
     phone = bounded(contacts["phone"], "contacts.phone", "contact phone")
     url = bounded(contacts["url"], "contacts.url", "contact URL")
-    for field, contact in (("email", email), ("phone", phone), ("url", url)):
+    instagram = bounded(contacts.get("instagram", ""), "contacts.instagram", "contact Instagram URL")
+    for field, contact in (("email", email), ("phone", phone), ("url", url), ("instagram", instagram)):
         if contact and not valid_contact(field, contact):
-            raise ValueError(f"Landing contact {field} is invalid" + ("; URL must use HTTPS" if field == "url" else ""))
+            hint = "; URL must use HTTPS" if field == "url" else "; use a direct https://www.instagram.com/<username>/ link" if field == "instagram" else ""
+            raise ValueError(f"Landing contact {field} is invalid" + hint)
     result["contacts"] = {
         "heading": bounded(contacts["heading"], "contacts.heading", "contact heading"),
         "supporting_text": bounded(contacts["supporting_text"], "contacts.supporting_text", "contact supporting text"),
         "email": email, "phone": phone, "url": url,
     }
+    if "instagram" in contacts:
+        result["contacts"]["instagram"] = instagram
     result["faq"] = [
         {
             "question": bounded(_object(item, {"question", "answer"}, "FAQ")["question"], "faq.question", "FAQ question"),
@@ -323,7 +345,7 @@ def normalize_composed_content(value: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("Landing AI must provide the app feature screen")
     if result["social_proof"]["items"]:
         raise ValueError("Landing AI must not invent social proof")
-    if any(result["contacts"][field] for field in ("email", "phone", "url")):
+    if any(result["contacts"].get(field, "") for field in ("email", "phone", "url", "instagram")):
         raise ValueError("Landing AI must not invent contact endpoints")
     required = [
         result["hero"]["title"], result["hero"]["supporting_text"], result["hero"]["cta_label"], result["hero"]["visual_direction"],
@@ -537,8 +559,8 @@ class LandingWorkspace:
         target = value["configuration"].get("presentation", DEFAULT_PRESENTATION)["cta_target"]
         if target != "contacts" and not content["contacts"][target]:
             raise ValueError("Landing CTA destination requires its contact endpoint")
-        if not any(content["contacts"][field] for field in ("email", "phone", "url")):
-            raise ValueError("Landing requires an email, phone, or HTTPS contact URL before approval")
+        if not any(content["contacts"].get(field, "") for field in ("email", "phone", "url", "instagram")):
+            raise ValueError("Landing requires an email, phone, HTTPS contact URL, or Instagram link before approval")
         if any(not item["title"] or not item["description"] for item in content["features"]):
             raise ValueError("Landing features must be completed before approval")
         if any(not item["question"] or not item["answer"] for item in content["faq"]):

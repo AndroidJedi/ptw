@@ -677,7 +677,7 @@ export interface LandingContent {
   features: Array<{ title: string; description: string }>
   social_proof: { heading: string; items: Array<{ statement: string; attribution: string }> }
   visual_break: { visual_direction: string }
-  contacts: { heading: string; supporting_text: string; email: string; phone: string; url: string }
+  contacts: { heading: string; supporting_text: string; email: string; phone: string; url: string; instagram?: string }
   faq: Array<{ question: string; answer: string }>
 }
 

@@ -4,6 +4,37 @@ Updated: 2026-09-09
 Branch: `main`
 Deployment: backend release `studio-approval-20260909-59be4a3` and Owner Console Landing Save hotfix `d6d5b65` are live; Meta staging is disabled until a fresh secret is configured
 
+## Pending production incident release
+
+The next preserving release fixes three owner-reported Post/Owner Console
+symptoms. Phone Metrics now binds each PNG preview to the exact draft state and
+hides stale pixels while a changed in-phone title is rendering. Recent iPhone
+thumbnail loads coalesce concurrent Firebase ID/App Check acquisition and retry
+one read once; live diagnosis proved all three PostgreSQL-backed PNGs and their
+Validation digests were intact while no browser history GET reached the Gateway.
+The Owner Hosting boundary adds `X-Frame-Options: DENY`, and its live audit now
+requires enforcing `frame-ancestors 'none'`, no PTW-owned report-only CSP, and
+the independent frame guard. Owner cache generation
+`ptw-shell-brief-studio-landing-ads-v3` displaces the affected client bundle.
+Google Identity/reCAPTCHA report-only diagnostics
+remain third-party and are not grounds to weaken PTW security headers.
+
+Landing renderer v5 adds an optional, owner-supplied direct Instagram profile
+link and renders its handle with an Instagram icon. The supplied
+`https://www.instagram.com/natal_service/` form is accepted; arbitrary hosts,
+non-HTTPS URLs, nested paths, query strings, and fragments remain rejected.
+Older Landing documents omit the field without changing their digest, and the
+AI composer continues to leave every owner contact endpoint empty.
+
+Release-candidate verification passes: 81 Owner Console unit tests and its
+production build, 69 browser flows across desktop/360px/iPhone WebKit, six
+public Landing tests and its production build, 193 built-image Validation tests
+plus seven git-dependent local tests, nine built-image Owner Gateway tests, 16
+Commander tests plus demo, the deterministic Studio visual audit, canonical
+skill validation, and whitespace checks. The seven Validation-image failures
+were limited to the image not containing the `git` executable and passed in the
+repository virtual environment.
+
 ## Landing Save conflict incident
 
 Production diagnosis found that Landing Save/Approve used the generic

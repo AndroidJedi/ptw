@@ -120,7 +120,8 @@ export function LandingInspector({ section, configuration: c, content: v, detail
       {componentSelect('contact_style', tr('Panel style', 'Стиль панелі'), [['contrast', tr('Contrast', 'Контрастний')], ['surface', tr('Light surface', 'Світла поверхня')], ['accent', tr('Accent', 'Акцентний')]])}
       {field(tr('Contact heading', 'Заголовок контактів'), v.contacts.heading, 120, value => onContent({ ...v, contacts: { ...v.contacts, heading: value } }), 'contacts.heading')}
       {field(tr('Next step', 'Наступний крок'), v.contacts.supporting_text, 300, value => onContent({ ...v, contacts: { ...v.contacts, supporting_text: value } }), 'contacts.supporting_text', true)}
-      {(['url', 'email', 'phone'] as const).map(key => <div key={key}>{field(key === 'url' ? tr('HTTPS contact URL', 'HTTPS-адреса контакту') : key === 'email' ? 'Email' : tr('Phone', 'Телефон'), v.contacts[key], key === 'url' ? 2048 : key === 'email' ? 254 : 60, value => onContent({ ...v, contacts: { ...v.contacts, [key]: value } }), `contacts.${key}`)}</div>)}
+      {(['url', 'instagram', 'email', 'phone'] as const).map(key => <div key={key}>{field(key === 'url' ? tr('HTTPS contact URL', 'HTTPS-адреса контакту') : key === 'instagram' ? tr('Instagram profile link', 'Посилання на профіль Instagram') : key === 'email' ? 'Email' : tr('Phone', 'Телефон'), v.contacts[key] || '', key === 'url' || key === 'instagram' ? 2048 : key === 'email' ? 254 : 60, value => onContent({ ...v, contacts: { ...v.contacts, [key]: value } }), `contacts.${key}`)}</div>)}
+      <p className="landing-field-hint">{tr('Instagram accepts a direct profile link such as https://www.instagram.com/natal_service/.', 'Для Instagram використовуйте пряме посилання на профіль, наприклад https://www.instagram.com/natal_service/.')}</p>
       {error('contacts.endpoint') && <p className="landing-field-error">{error('contacts.endpoint')}</p>}
       {alignment('contacts')}
     </>}

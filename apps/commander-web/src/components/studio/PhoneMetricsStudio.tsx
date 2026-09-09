@@ -28,7 +28,9 @@ function PhoneScreenHistoryOption({
   useEffect(() => {
     let disposed = false
     let objectUrl = ''
-    void api.media(
+    let retry = 0
+    let retryTimer = 0
+    const load = () => void api.media(
       `${basePath}/phone-screen/history/${item.sha256}`,
       item.mime_type, item.sha256,
     ).then((blob) => {
@@ -36,10 +38,14 @@ function PhoneScreenHistoryOption({
       if (disposed) URL.revokeObjectURL(objectUrl)
       else setUrl(objectUrl)
     }).catch(() => {
-      if (!disposed) setUrl('')
+      if (disposed) return
+      setUrl('')
+      if (retry++ === 0) retryTimer = window.setTimeout(load, 750)
     })
+    load()
     return () => {
       disposed = true
+      window.clearTimeout(retryTimer)
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [api, basePath, item.mime_type, item.sha256])
@@ -68,6 +74,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   const [configuration, setConfiguration] = useState<StudioPhoneMetricsConfiguration>(structuredClone(initialDetail.configuration))
   const [content, setContent] = useState<StudioPhoneMetricsContent>(structuredClone(initialDetail.content))
   const [previewUrl, setPreviewUrl] = useState('')
+  const [previewState, setPreviewState] = useState('')
   const [busy, setBusy] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
   const initialScreenAsset = initialDetail.assets.find((asset) => asset.slot === 'phone_screen')
@@ -131,21 +138,35 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   }, [initialDetail.state_sha256])
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
 
-  const replacePreview = (blob: Blob) => setPreviewUrl((current) => {
-    if (current) URL.revokeObjectURL(current)
-    return URL.createObjectURL(blob)
-  })
+  const previewStateFor = (
+    saved: StudioPhoneMetricsDetail,
+    nextConfiguration: StudioPhoneMetricsConfiguration,
+    nextContent: StudioPhoneMetricsContent,
+  ) => JSON.stringify([saved.state_sha256, nextConfiguration, nextContent])
+  const currentPreviewState = previewStateFor(detail, configuration, content)
+  const replacePreview = (blob: Blob, state: string) => {
+    setPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current)
+      return URL.createObjectURL(blob)
+    })
+    setPreviewState(state)
+  }
   const render = async (
     saved: StudioPhoneMetricsDetail, draft = false,
     nextConfiguration = configuration, nextContent = content,
   ) => {
     const generation = ++previewGeneration.current
+    const requestedPreviewState = previewStateFor(
+      saved,
+      draft ? nextConfiguration : saved.configuration,
+      draft ? nextContent : saved.content,
+    )
     setPreviewBusy(true)
     try {
       const blob = await api.postMedia(`${basePath}/preview`, draft ? {
         state_sha256: saved.state_sha256, configuration: nextConfiguration, content: nextContent,
       } : { state_sha256: saved.state_sha256 }, 'image/png', { deadlineMs: 90_000 })
-      if (generation === previewGeneration.current) replacePreview(blob)
+      if (generation === previewGeneration.current) replacePreview(blob, requestedPreviewState)
     } catch (cause) {
       if (generation === previewGeneration.current) setError((cause as Error).message)
     } finally {
@@ -346,7 +367,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     <section className="phone-metrics-workspace">
       <main className="studio-canvas-panel phone-metrics-canvas-panel">
         <header><div><small>{tr('LIVE 4:5 RENDER', 'ЖИВИЙ РЕНДЕР 4:5')}</small><h2>{tr('Natal phone & metrics', 'Natal: телефон і метрики')}</h2></div>{(busy || previewBusy) && <RefreshCcw className="spin" />}</header>
-        <figure aria-busy={previewBusy}>{previewUrl ? <img src={previewUrl} alt={tr('Natal phone and metrics creative', 'Креатив Natal із телефоном і метриками')} /> : <div className="studio-preview-empty"><ImagePlus /><span>{tr('Render unavailable', 'Рендер недоступний')}</span></div>}</figure>
+        <figure aria-busy={previewBusy}>{previewUrl && previewState === currentPreviewState ? <img src={previewUrl} alt={tr('Natal phone and metrics creative', 'Креатив Natal із телефоном і метриками')} /> : <div className="studio-preview-empty">{previewBusy || previewUrl ? <RefreshCcw className="spin" /> : <ImagePlus />}<span>{previewBusy || previewUrl ? tr('Updating preview…', 'Оновлення прев’ю…') : tr('Render unavailable', 'Рендер недоступний')}</span></div>}</figure>
       </main>
       <aside className="universal-controls phone-metrics-controls">
         <section className="panel universal-section"><small>{tr('OWNER COPY', 'ТЕКСТ ВЛАСНИКА')}</small><h2>{tr('Visible content', 'Видимий вміст')}</h2>
@@ -494,7 +515,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             disabled={busy || !canGenerateWithDirection || !detail.phone_screen_generation_available} />
           {detail.phone_screen_history.length > 0 && <div className="phone-screen-history">
             <div><strong>{tr('Last 3 images', 'Останні 3 зображення')}</strong><small>{tr('Choose one to apply or enhance', 'Виберіть для застосування або покращення')}</small></div>
-            <div className="phone-screen-history-options" role="radiogroup" aria-label={tr('Recent iPhone images', 'Останні зображення iPhone')}>
+            <div className="phone-screen-history-options" data-recent-image-contract="firebase-token-coalescing-v1" role="radiogroup" aria-label={tr('Recent iPhone images', 'Останні зображення iPhone')}>
               {detail.phone_screen_history.map((item, index) => <PhoneScreenHistoryOption
                 key={item.sha256} api={api} basePath={basePath} item={item} index={index} busy={busy}
                 currentLabel={tr('CURRENT', 'ПОТОЧНЕ')}

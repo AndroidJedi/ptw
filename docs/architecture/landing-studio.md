@@ -86,8 +86,13 @@ in stored v1 configuration; reading a document never inserts it. No migration is
 required. New AI composition includes it and derives language from the Brief.
 
 Page labels have their own language; console language changes do not translate
-saved copy. Contacts use validated HTTPS, mailto, and tel links. External HTTPS
-links open separately. Empty proof and editor placeholders never reach Preview.
+saved copy. Contacts use validated HTTPS, Instagram profile, mailto, and tel
+links. Instagram accepts only one direct HTTPS profile path and renders the
+profile handle with the Instagram icon. External HTTPS and Instagram links open
+separately. The optional
+Instagram field is absent from older v1 content until the owner supplies it, so
+reading an existing Landing does not rewrite its state digest. Empty proof and
+editor placeholders never reach Preview.
 Long copy wraps within the page; section text fields expose backend limits.
 
 Save feedback shows an immutable checkpoint's edit summary, Project lesson, and

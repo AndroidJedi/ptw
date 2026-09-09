@@ -113,6 +113,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         self.assertEqual(
             "deterministic_material_grain_v1", composite["source"]["hero_texture"],
         )
+
         from PIL import Image
         with Image.open(BytesIO(composite["bytes"])) as device_image:
             device_image = device_image.convert("RGBA")
@@ -208,6 +209,17 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
                 for x in range(300, 1000, 19) for y in range(1200, 1370, 17)
             }
             self.assertGreaterEqual(len(grain_colours), 6)
+
+    def test_draft_in_phone_title_changes_preview_without_persisting(self) -> None:
+        detail = self._phone()
+        before = self.workspace.render_preview(state_sha256=detail["state_sha256"])
+        content = {**detail["content"], "phone_hero_title": "Перша година БЕЗКОШТОВНО"}
+        after = self.workspace.render_preview(
+            state_sha256=detail["state_sha256"],
+            configuration=detail["configuration"], content=content,
+        )
+        self.assertNotEqual(before["bytes_sha256"], after["bytes_sha256"])
+        self.assertEqual("", self.workspace.detail()["content"]["phone_hero_title"])
 
     def test_phone_hero_subject_is_lowered_but_artwork_still_reaches_the_top(self) -> None:
         from PIL import Image, ImageDraw

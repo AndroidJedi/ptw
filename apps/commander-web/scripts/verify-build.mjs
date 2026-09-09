@@ -26,6 +26,9 @@ const requiredMarkers = {
   'Landing publication control': 'PUBLIC NATAL PAGE',
   'PAUSED-only Meta Ads staging': 'PAUSED ONLY',
   'approved Brief existing-Creative resolution': 'approved-brief-existing-creative-v1',
+  'draft-bound phone preview state': 'Updating preview…',
+  'recent-image credential coalescing': 'firebase-token-coalescing-v1',
+  'optional Landing Instagram contact': 'Instagram profile link',
 }
 
 const missing = Object.entries(requiredMarkers)
@@ -60,7 +63,7 @@ if (exposed.length) {
 if (!worker.includes("url.pathname.startsWith('/__/auth/')")) {
   throw new Error('Unsafe Commander service worker; Firebase Auth helper traffic is not bypassed')
 }
-if (!worker.includes("ptw-shell-brief-studio-landing-ads-v2")) {
+if (!worker.includes("ptw-shell-brief-studio-landing-ads-v3")) {
   throw new Error('Unsafe Owner Console service worker; cache version is stale')
 }
 

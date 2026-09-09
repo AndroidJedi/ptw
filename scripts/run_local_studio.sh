@@ -80,6 +80,7 @@ trap cleanup EXIT INT TERM
 cd "$repository"
 STUDIO_WORKSPACE_PATH="$workspace" \
 STUDIO_TUNE_MODE=1 \
+PTW_COMMANDER_CHAT_MODE=1 \
 STUDIO_TUNE_REPOSITORY_ROOT="$repository" \
 STUDIO_TUNE_STATE_PATH="$repository/.local/studio-tune" \
 LOCAL_BRIEF_PATH="$repository/.local/owner-briefs" \
@@ -116,4 +117,4 @@ unset META_SYSTEM_USER_ACCESS_TOKEN META_AD_ACCOUNT_ID META_PAGE_ID \
   META_INSTAGRAM_ACTOR_ID META_GRAPH_API_VERSION META_ADS_NAME_PREFIX
 
 echo "PTW local app: http://127.0.0.1:5173/?e2e=1"
-VITE_E2E=true VITE_LOCAL_STUDIO=true npm --prefix apps/commander-web run dev -- --host 127.0.0.1 --strictPort
+VITE_E2E=true VITE_LOCAL_APP=true npm --prefix apps/commander-web run dev -- --host 127.0.0.1 --strictPort

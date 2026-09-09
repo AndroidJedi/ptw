@@ -384,17 +384,18 @@ export interface StudioPhoneActionButtonConfiguration {
 }
 
 export interface StudioPhoneMetricsConfiguration {
-  schema: 'ptw.studio.phone-metrics-config.v8'
+  schema: 'ptw.studio.phone-metrics-config.v9'
   background: {
     color: string
     texture: StudioPhoneBackgroundTexture
     texture_intensity: number
   }
   copy_background: { texture: StudioPhoneBackgroundTexture }
+  logo: { enabled: boolean }
   offer: { enabled: boolean }
   supporting_text: { highlight_color: string }
   typography: Record<StudioPhoneTypographyRole, StudioPhoneTypographyConfiguration>
-  phone_screen: { texture: StudioPhoneScreenTexture }
+  phone_screen: { texture: StudioPhoneScreenTexture; logo_enabled: boolean }
   metric_cards: StudioPhoneMetricCardConfiguration[]
   phone_buttons: StudioPhoneActionButtonConfiguration[]
   device: { x: number; y: number; width: number; rotation: number }

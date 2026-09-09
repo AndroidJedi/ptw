@@ -108,7 +108,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         )
         self.assertEqual(IPHONE_FRAME_SHA256, composite["source"]["frame_sha256"])
         self.assertEqual(
-            "front_natal_app_shell_v18", composite["source"]["screen_composition"],
+            "front_app_shell_v19", composite["source"]["screen_composition"],
         )
         self.assertEqual(
             "deterministic_material_grain_v1", composite["source"]["hero_texture"],
@@ -574,6 +574,72 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             content=DEFAULT_PHONE_CONTENT,
         )
         self.assertNotIn("offer", preview["resolved"]["nodes"])
+
+    def test_logo_toggles_are_independent_and_existing_v8_drafts_stay_visible(self) -> None:
+        from PIL import Image
+
+        visible = build_phone_metrics_template(DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT)
+        visible_nodes = {
+            item["id"]: item for item in visible.document["root"]["children"]
+        }
+        self.assertIn("logo", visible_nodes)
+        self.assertIn("brand", visible.document["semantic_roles"])
+        self.assertIn("logo", visible.document["assets"])
+
+        hidden_config = deepcopy(DEFAULT_PHONE_CONFIG)
+        hidden_config["logo"]["enabled"] = False
+        hidden_config["phone_screen"]["logo_enabled"] = False
+        hidden = build_phone_metrics_template(hidden_config, DEFAULT_PHONE_CONTENT)
+        hidden_nodes = {
+            item["id"]: item for item in hidden.document["root"]["children"]
+        }
+        self.assertNotIn("logo", hidden_nodes)
+        self.assertNotIn("brand", hidden.document["semantic_roles"])
+        self.assertNotIn("logo", hidden.document["assets"])
+
+        source = Image.new("RGBA", PHONE_SCREEN_ART_SIZE, "#F9FAFA")
+        with_logo = _fixed_screen_shell(
+            source, "", "", "none", logo_enabled=True,
+        ).convert("RGBA")
+        without_logo = _fixed_screen_shell(
+            source, "", "", "none", logo_enabled=False,
+        ).convert("RGBA")
+        logo_region = (210, 95, 622, 255)
+        self.assertNotEqual(
+            with_logo.crop(logo_region).tobytes(),
+            without_logo.crop(logo_region).tobytes(),
+        )
+        self.assertEqual(
+            with_logo.crop((0, 0, 180, 90)).tobytes(),
+            without_logo.crop((0, 0, 180, 90)).tobytes(),
+        )
+
+        settings = {
+            setting["setting_id"]: setting["value"]
+            for component in phone_metrics_component_settings(
+                hidden_config, DEFAULT_PHONE_CONTENT,
+            )["components"]
+            for setting in component["settings"]
+        }
+        self.assertFalse(settings["configuration.logo.enabled"])
+        self.assertFalse(settings["configuration.phone_screen.logo_enabled"])
+        self.assertEqual(
+            ["offer", "post_logo", "phone_logo"],
+            phone_metrics_catalog()["variation"]["optional_elements"],
+        )
+
+        legacy = deepcopy(DEFAULT_PHONE_CONFIG)
+        legacy["schema"] = "ptw.studio.phone-metrics-config.v8"
+        legacy.pop("logo")
+        legacy["phone_screen"].pop("logo_enabled")
+        upgraded = normalize_phone_metrics_config(legacy)
+        self.assertEqual(DEFAULT_PHONE_CONFIG, upgraded)
+
+        for path in (("logo", "enabled"), ("phone_screen", "logo_enabled")):
+            invalid = deepcopy(DEFAULT_PHONE_CONFIG)
+            invalid[path[0]][path[1]] = "yes"
+            with self.assertRaisesRegex(ValueError, "must be boolean"):
+                normalize_phone_metrics_config(invalid)
 
     def test_three_optional_textures_change_each_bounded_surface(self) -> None:
         from PIL import Image

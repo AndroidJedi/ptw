@@ -4,6 +4,38 @@ Updated: 2026-09-09
 Branch: `main`
 Deployment: backend release `image-reference-20260909-1` and the matching Owner Console release are live; Meta staging is disabled until a fresh secret is configured
 
+## Local Commander GOD-mode milestone
+
+Local Settings now includes a repository-wide Commander coding chat. The owner
+can request features, fixes, new tabs, Telegram code changes, and skill updates.
+It invokes local Codex against this checkout, retains conversations and turns in
+`.local/commander-chat`, supports follow-up messages and Stop, and reconciles
+duplicate message UUIDs. Only one coding turn runs at a time. Stop, timeout, and
+API disappearance terminate the worker group; restart marks unfinished turns
+interrupted without replaying edits. Already-applied edits remain reviewable.
+
+Every turn loads the current canonical `skills/commander-god-mode/SKILL.md`
+and records its digest. The agent maintains the narrowest relevant PTW skills
+after verified reusable lessons, with canonical sync/validation and separation
+from Product Brief, Post, and Landing learning. Missing skill disables execution.
+
+This milestone is local only and has not been deployed. The launcher enables
+`PTW_COMMANDER_CHAT_MODE=1` and the corrected `VITE_LOCAL_APP=true` flag. The
+runner uses a workspace-write sandbox with shell network access disabled and
+does not inherit user MCP/config or provider-secret environment variables.
+Local credentials plus loopback host/client/origin checks protect the routes;
+neither production API mounts them. VPS execution remains future work requiring
+an authenticated host runner and an explicit operational release.
+
+Local verification passes: 11 chat runtime/HTTP tests (also in the built Linux
+image), seven existing Tune tests, 72 web unit tests, production web build,
+three mocked browser checks across desktop/360px/WebKit, 16 Commander tests in
+the built image plus demo, skill validation, and whitespace checks. A real
+Codex canary created and byte-verified a file in a disposable checkout. The
+refreshed local app reports the chat and canonical skill ready through real
+browser/HTTP reads. Existing production release verification below applies to
+the already-deployed Image Reference milestone.
+
 ## Image Reference milestone
 
 The Owner Console now exposes one optional upload/preview/remove control next
@@ -211,6 +243,10 @@ The common versioned template catalog contains:
 
 - `universal_ad` at 1080×1080;
 - `phone_metrics` at 1080×1350.
+
+Phone Metrics exposes independent visibility toggles for its canonical
+upper-left and in-phone Natal lock-ups. Both are shown by default and remain
+renderer-owned, so owners can omit either mark without replacing its artwork.
 
 Both templates expose an independent bounded font-family and font-size control
 for every editable semantic text role. The catalog provides Inter, Roboto

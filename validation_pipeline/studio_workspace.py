@@ -331,14 +331,16 @@ class UniversalStudioWorkspace:
                 list(normalized_content["phone_buttons"]),
                 list(config["phone_buttons"]),
                 config["typography"],
+                bool(config["phone_screen"]["logo_enabled"]),
             )
-            logo = self._asset_record("logo")
-            if logo is None:
-                raise RuntimeError("Canonical Natal logo is unavailable")
             records = {
-                "logo": {"bytes": logo["bytes"], "mime_type": logo["mime_type"]},
                 "phone_device": {"bytes": device["bytes"], "mime_type": device["mime_type"]},
             }
+            if config["logo"]["enabled"]:
+                logo = self._asset_record("logo")
+                if logo is None:
+                    raise RuntimeError("Canonical Natal logo is unavailable")
+                records["logo"] = {"bytes": logo["bytes"], "mime_type": logo["mime_type"]}
             if config["background"]["texture"] != "none":
                 records["background_texture"] = texture_asset(
                     str(config["background"]["texture"]),

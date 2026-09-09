@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import hashlib
 from io import BytesIO
 import json
@@ -9,7 +10,9 @@ import unittest
 
 from PIL import Image
 
-from validation_pipeline.studio_repository import DatabaseCreativeWorkspace
+from validation_pipeline.studio_repository import (
+    DatabaseCreativeWorkspace, DatabaseStudioAuthority,
+)
 from validation_pipeline.studio_workspace import UniversalStudioWorkspace
 
 
@@ -76,6 +79,48 @@ class Provider:
 
 
 class DatabaseCreativeWorkspaceTests(unittest.TestCase):
+    def test_database_authority_accepts_derived_version_count_during_checkpoint_finalize(self) -> None:
+        workspace_id = "01900000-0000-7000-8000-000000000501"
+
+        class Result:
+            rowcount = 1
+
+        class Connection:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, list[object]]] = []
+
+            def execute(self, query, values):
+                self.calls.append((query, values))
+                return Result()
+
+        class RecordingAuthority(DatabaseStudioAuthority):
+            def __init__(self) -> None:
+                self.database_url = "unused"
+                self.connection_value = Connection()
+
+            @contextmanager
+            def connection(self):
+                yield self.connection_value
+
+            def get_creative(self, creative_id: str):
+                return {
+                    "creative_id": creative_id,
+                    "state_sha256": "a" * 64,
+                    "approved_version_count": 1,
+                }
+
+        authority = RecordingAuthority()
+        updated = authority.update_creative(
+            workspace_id, state_sha256="a" * 64, approved_version_count=1,
+        )
+
+        self.assertEqual(1, updated["approved_version_count"])
+        self.assertEqual(1, len(authority.connection_value.calls))
+        query, values = authority.connection_value.calls[0]
+        self.assertNotIn("approved_version_count=", query)
+        self.assertIn("state_sha256=%s", query)
+        self.assertEqual("a" * 64, values[0])
+
     def test_restores_the_same_workspace_asset_and_version_ids_after_restart(self) -> None:
         repository = MemoryStudioRepository()
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:

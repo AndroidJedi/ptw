@@ -27,10 +27,10 @@ function phoneDetail() {
     }],
     catalog: {
       schema: 'ptw.studio.phone-metrics-catalog.v2', template_id: 'phone_metrics',
-      template_version: 22, canvas: { width: 1080, height: 1350 },
+      template_version: 23, canvas: { width: 1080, height: 1350 },
       semantic_roles: [], components: [], asset_slots: {}, sha256: 'b'.repeat(64),
       variation: {
-        optional_elements: ['offer'], brand: 'Natal', device_pose: 'front_facing_upright',
+        optional_elements: ['offer', 'post_logo', 'phone_logo'], brand: 'Natal', device_pose: 'front_facing_upright',
         device_rotation_degrees: 0,
         background_textures: ['none', 'grain', 'concrete', 'travertine'],
         copy_background_textures: ['none', 'grain', 'concrete', 'travertine'],
@@ -53,15 +53,15 @@ function phoneDetail() {
     },
     state_sha256: 'a'.repeat(64), template_sha256: 'c'.repeat(64),
     configuration: {
-      schema: 'ptw.studio.phone-metrics-config.v8',
+      schema: 'ptw.studio.phone-metrics-config.v9',
       background: { color: '#F4F5F2', texture: 'concrete', texture_intensity: 0.13 },
-      copy_background: { texture: 'none' }, offer: { enabled: true },
+      copy_background: { texture: 'none' }, logo: { enabled: true }, offer: { enabled: true },
       supporting_text: { highlight_color: '#1675F8' },
       typography: Object.fromEntries([
         'offer', 'hero_title', 'supporting_text', 'cta', 'metric_value', 'metric_label',
         'phone_title', 'phone_buttons',
       ].map((role) => [role, { font_family: 'Manrope', font_size: 28 }])),
-      phone_screen: { texture: 'grain' },
+      phone_screen: { texture: 'grain', logo_enabled: true },
       metric_cards: [1, 2, 3].map(() => ({
         style: 'filled', text_color: '#FFFFFF', background_color: '#2457C8', shape: 'rounded',
       })),

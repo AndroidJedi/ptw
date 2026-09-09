@@ -30,10 +30,10 @@ const detail = {
   ],
   catalog: {
     schema: 'ptw.studio.phone-metrics-catalog.v2', template_id: 'phone_metrics',
-    template_version: 22, canvas: { width: 1080, height: 1350 },
+    template_version: 23, canvas: { width: 1080, height: 1350 },
     semantic_roles: [], components: [], asset_slots: {},
     variation: {
-      optional_elements: ['offer'], brand: 'Natal',
+      optional_elements: ['offer', 'post_logo', 'phone_logo'], brand: 'Natal',
       device_pose: 'front_facing_upright', device_rotation_degrees: 0,
       background_textures: ['none', 'grain', 'concrete', 'travertine'],
       copy_background_textures: ['none', 'grain', 'concrete', 'travertine'],
@@ -58,9 +58,10 @@ const detail = {
   },
   state_sha256: 'a'.repeat(64), template_sha256: 'c'.repeat(64),
   configuration: {
-    schema: 'ptw.studio.phone-metrics-config.v8',
+    schema: 'ptw.studio.phone-metrics-config.v9',
     background: { color: '#F4F5F2', texture: 'concrete', texture_intensity: 0.13 },
     copy_background: { texture: 'none' },
+    logo: { enabled: true },
     offer: { enabled: true },
     supporting_text: { highlight_color: '#1675F8' },
     typography: {
@@ -73,7 +74,7 @@ const detail = {
       phone_title: { font_family: 'Manrope', font_size: 55 },
       phone_buttons: { font_family: 'Manrope', font_size: 28 },
     },
-    phone_screen: { texture: 'grain' },
+    phone_screen: { texture: 'grain', logo_enabled: true },
     metric_cards: [1, 2, 3].map(() => ({
       style: 'filled' as const, text_color: '#FFFFFF',
       background_color: '#2457C8', shape: 'rounded' as const,
@@ -219,6 +220,55 @@ describe('Phone & metrics Studio', () => {
     ))
   })
 
+  it('previews and saves the two logo visibility controls independently', async () => {
+    const { api, post } = studioApi()
+    render(<PhoneMetricsStudio
+      api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
+    />)
+
+    expect(screen.getByLabelText('Show post logo')).toBeChecked()
+    expect(screen.getByLabelText('Show in-phone logo')).toBeChecked()
+    fireEvent.click(screen.getByLabelText('Show post logo'))
+
+    expect(screen.getByText('Hidden from the post canvas')).toBeInTheDocument()
+    expect(screen.getByText('Visible in the app screen')).toBeInTheDocument()
+    await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
+      `${basePath}/preview`,
+      expect.objectContaining({
+        configuration: expect.objectContaining({
+          logo: { enabled: false },
+          phone_screen: { texture: 'grain', logo_enabled: true },
+        }),
+      }),
+      'image/png', { deadlineMs: 90_000 },
+    ))
+
+    fireEvent.click(screen.getByLabelText('Show in-phone logo'))
+    expect(screen.getByText('Hidden from the app screen')).toBeInTheDocument()
+    await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
+      `${basePath}/preview`,
+      expect.objectContaining({
+        configuration: expect.objectContaining({
+          logo: { enabled: false },
+          phone_screen: { texture: 'grain', logo_enabled: false },
+        }),
+      }),
+      'image/png', { deadlineMs: 90_000 },
+    ))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(
+      `${basePath}/save`,
+      expect.objectContaining({
+        configuration: expect.objectContaining({
+          logo: { enabled: false },
+          phone_screen: { texture: 'grain', logo_enabled: false },
+        }),
+      }),
+      { deadlineMs: 60_000 },
+    ))
+  })
+
   it('formats selected supporting words and previews size and colour controls', async () => {
     const { api } = studioApi()
     render(<PhoneMetricsStudio
@@ -293,7 +343,7 @@ describe('Phone & metrics Studio', () => {
         configuration: expect.objectContaining({
           background: expect.objectContaining({ texture: 'travertine' }),
           copy_background: { texture: 'concrete' },
-          phone_screen: { texture: 'frosted' },
+          phone_screen: { texture: 'frosted', logo_enabled: true },
         }),
       }),
       'image/png', { deadlineMs: 90_000 },
@@ -306,7 +356,7 @@ describe('Phone & metrics Studio', () => {
         configuration: expect.objectContaining({
           background: expect.objectContaining({ texture: 'travertine' }),
           copy_background: { texture: 'concrete' },
-          phone_screen: { texture: 'frosted' },
+          phone_screen: { texture: 'frosted', logo_enabled: true },
         }),
       }),
       { deadlineMs: 60_000 },

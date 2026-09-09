@@ -11,6 +11,10 @@ Updated: 2026-09-04
   control. Settings may expose the private ChatGPT Authorization state and the
   device-login URL/code only; access and refresh tokens, CLI output, and provider
   credentials never enter browser state, API responses, or logs.
+- Local development Settings also offers Commander GOD-mode chat for PTW-wide
+  code changes and maintained development skills. Label its local execution
+  target, retain conversations, show running/interrupted/failed states, and
+  provide Stop. This local milestone has no VPS execution or deployment action.
 - Design first for 360px and one-hand use with 44×44 CSS-pixel targets, no
   horizontal overflow, keyboard access, and reduced-motion support.
 - Empty state is valid. Never seed fake Briefs, metrics, proof, testimonials,

@@ -634,12 +634,18 @@ class DatabaseStudioAuthority:
         allowed = {
             "template_id", "template_version", "template_sha256", "status", "state_sha256",
             "generation", "learning_baseline", "learning_baseline_sha256", "latest_checkpoint_id",
+            "approved_version_count",
         }
         if not set(patch) <= allowed:
             raise ValueError("Studio creative update fields are invalid")
         assignments = []
         values: list[Any] = []
         for key, value in patch.items():
+            # Version count is derived from universal_studio_versions in
+            # _creative_select; it is persisted by the workspace repository,
+            # not duplicated on the workspace row.
+            if key == "approved_version_count":
+                continue
             assignments.append(f"{key}=%s")
             if key in {"generation", "learning_baseline"} and value is not None:
                 value = Jsonb(value)

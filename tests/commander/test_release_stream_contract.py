@@ -37,6 +37,10 @@ class ReleaseStreamContractTests(unittest.TestCase):
             f"{origin}/assets/App-lazy.js",
             module.resolve_app_bundle_url(origin, entry, '"assets/App-lazy.js"'),
         )
+        auditor = script.read_text()
+        self.assertIn("for attempt in range(5)", auditor)
+        self.assertIn("time.sleep(2)", auditor)
+        self.assertIn("Landing was already saved.", auditor)
 
     def test_dependency_audit_exercises_schema_bound_worker_auth(self) -> None:
         audit = (

@@ -211,6 +211,12 @@ before changing code or runtime state.
   either side automatically. Acceptance requires one completed checkpoint,
   zero duplicate versions/checkpoints, a successful equivalent-response
   reconciliation, and a divergent-state regression that preserves owner input.
+  Immediately after Firebase Hosting release, cache propagation can briefly
+  pair a new document with an old entry bundle (or the reverse). The live audit
+  should retry document → entry → lazy App resolution as one bounded unit and
+  must require the incident-specific `Landing was already saved.` marker before
+  accepting the release; a single transient bundle-resolution miss is not proof
+  that the deployed code is absent.
 - Bare Studio routes, `/api/v1/posts`, candidate/critic modes, singleton rows,
   assignment UX, and historical schema adapters must remain absent.
 

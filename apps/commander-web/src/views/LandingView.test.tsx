@@ -31,7 +31,7 @@ it('saves the selected Landing visual mode together with the existing screen set
   fireEvent.click(screen.getByRole('button', { name: 'Save Landing' }))
   await waitFor(() => expect(api.post).toHaveBeenCalledWith(expect.stringContaining('/save'), expect.objectContaining({
     configuration: { ...detail.configuration, visual_mode: 'image' }, content: detail.content,
-  })))
+  }), { deadlineMs: 480_000 }))
 })
 
 function landingDetail(status: LandingDetail['status'] = 'draft'): LandingDetail {

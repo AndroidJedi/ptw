@@ -54,12 +54,12 @@ def resolve_app_bundle_url(origin: str, entry_url: str, entry_bundle: str) -> st
     return urljoin(entry_url, path)
 
 
-def load_live_app_bundle(origin: str) -> tuple[str, str, str]:
+def load_live_app_bundle(origin: str) -> tuple[str, str, str, dict[str, str]]:
     last_error: RuntimeError | None = None
     for attempt in range(5):
         try:
             cache_bust = f"skill-audit-{time.time_ns()}"
-            status, _, document_bytes = fetch(f"{origin}/?{cache_bust}")
+            status, document_headers, document_bytes = fetch(f"{origin}/?{cache_bust}")
             require(status == 200, f"Owner document returned HTTP {status}")
             document = document_bytes.decode()
             main_match = re.search(r'src="([^"]*?/assets/index-[^"]+\.js)"', document)
@@ -72,7 +72,7 @@ def load_live_app_bundle(origin: str) -> tuple[str, str, str]:
 
             status, _, app_bytes = fetch(app_url)
             require(status == 200, f"App bundle returned HTTP {status}")
-            return main_url, app_url, app_bytes.decode()
+            return main_url, app_url, app_bytes.decode(), document_headers
         except RuntimeError as error:
             last_error = error
             if attempt < 4:
@@ -87,7 +87,12 @@ def main() -> None:
     parser.add_argument("--site-key", default=DEFAULT_SITE_KEY)
     args = parser.parse_args()
 
-    main_url, app_url, app_bundle = load_live_app_bundle(args.origin)
+    main_url, app_url, app_bundle, document_headers = load_live_app_bundle(args.origin)
+    lower_headers = {name.lower(): value for name, value in document_headers.items()}
+    csp = lower_headers.get("content-security-policy", "")
+    require("frame-ancestors 'none'" in csp, "Owner document does not enforce frame-ancestors 'none'")
+    require("content-security-policy-report-only" not in lower_headers, "Owner document unexpectedly uses report-only CSP")
+    require(lower_headers.get("x-frame-options", "").casefold() == "deny", "Owner document X-Frame-Options is not DENY")
     for label, marker in {
         "Commander API origin": args.api,
         "App Check header": "X-Firebase-AppCheck",
@@ -102,6 +107,9 @@ def main() -> None:
         "actionable API error guidance": "Що робити",
         "bounded API technical context": "Технічні дані",
         "approved Brief existing-Creative resolution": "approved-brief-existing-creative-v1",
+        "draft-bound phone preview state": "Updating preview…",
+        "recent-image credential coalescing": "firebase-token-coalescing-v1",
+        "optional Landing Instagram contact": "Instagram profile link",
     }.items():
         require(marker in app_bundle, f"Live App bundle is missing {label}")
     for retired_label in (

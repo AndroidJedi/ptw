@@ -238,6 +238,35 @@ describe('Phone & metrics Studio', () => {
     ))
   })
 
+  it('never presents a stale phone title as the current draft preview', async () => {
+    let finishInitial!: (blob: Blob) => void
+    let finishDraft!: (blob: Blob) => void
+    const { api } = studioApi()
+    vi.mocked(api.postMedia)
+      .mockImplementationOnce(() => new Promise(resolve => { finishInitial = resolve }))
+      .mockImplementationOnce(() => new Promise(resolve => { finishDraft = resolve }))
+    render(<PhoneMetricsStudio
+      api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()}
+    />)
+
+    expect(await screen.findByText('Updating preview…')).toBeInTheDocument()
+    finishInitial(new Blob(['old-preview'], { type: 'image/png' }))
+    await waitFor(() => expect(screen.getByRole('img', { name: 'Natal phone and metrics creative' })).toBeVisible())
+    fireEvent.change(screen.getByLabelText('Optional in-phone title'), {
+      target: { value: 'First hour FREE' },
+    })
+    await waitFor(() => expect(api.postMedia).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('img', { name: 'Natal phone and metrics creative' })).not.toBeInTheDocument()
+    expect(screen.getByText('Updating preview…')).toBeInTheDocument()
+    expect(api.postMedia).toHaveBeenLastCalledWith(
+      `${basePath}/preview`,
+      expect.objectContaining({ content: expect.objectContaining({ phone_hero_title: 'First hour FREE' }) }),
+      'image/png', { deadlineMs: 90_000 },
+    )
+    finishDraft(new Blob(['new-preview'], { type: 'image/png' }))
+    await waitFor(() => expect(screen.getByRole('img', { name: 'Natal phone and metrics creative' })).toBeVisible())
+  })
+
   it('previews and saves the two logo visibility controls independently', async () => {
     const { api, post } = studioApi()
     render(<PhoneMetricsStudio
@@ -606,6 +635,7 @@ describe('Phone & metrics Studio', () => {
     expect(screen.getAllByRole('radio')).toHaveLength(3)
     expect(screen.getByRole('radio', { name: 'iPhone image 1, current' })).toHaveAttribute('aria-checked', 'true')
     await waitFor(() => expect(api.media).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(screen.getAllByRole('radio').every(option => option.querySelector('img'))).toBe(true))
 
     fireEvent.change(screen.getByLabelText('Headline'), {
       target: { value: 'Keep this pending headline' },

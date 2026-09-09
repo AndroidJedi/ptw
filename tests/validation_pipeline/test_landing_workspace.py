@@ -435,7 +435,13 @@ class LandingWorkspaceTests(unittest.TestCase):
                     self.workspace.approval_ready(candidate)
                 candidate['content']['contacts'][target] = endpoint
             self.workspace.approval_ready(candidate)
-        for field, values in {'url': ['https://', 'https://example.test/book', 'https://t.me/not_a_bot_user', 'https://t.me/natal_helper_bot?start=landing', 'http://t.me/natal_helper_bot'], 'phone': ['call us', '++12345'], 'email': ['a@', 'a b@example.test']}.items():
+        instagram = complete_content()
+        instagram['contacts'] = {**instagram['contacts'], 'email': '', 'instagram': 'https://www.instagram.com/natal_service/'}
+        normalized = normalize_content(instagram)
+        self.assertEqual('https://www.instagram.com/natal_service/', normalized['contacts']['instagram'])
+        self.workspace.approval_ready(self.prepared(normalized))
+        self.assertNotIn('instagram', normalize_content(complete_content())['contacts'])
+        for field, values in {'url': ['https://', 'https://example.test/book', 'https://t.me/not_a_bot_user', 'https://t.me/natal_helper_bot?start=landing', 'http://t.me/natal_helper_bot'], 'instagram': ['https://instagram.com/', 'https://instagram.com/natal/service', 'https://evil.test/natal_service', 'http://instagram.com/natal_service'], 'phone': ['call us', '++12345'], 'email': ['a@', 'a b@example.test']}.items():
             for value in values:
                 candidate = complete_content()
                 candidate['contacts'][field] = value
@@ -472,6 +478,27 @@ class LandingDesignTests(unittest.TestCase):
                 normalize_configuration({**deepcopy(DEFAULT_CONFIGURATION), 'components': {**DEFAULT_COMPONENTS, key: choice}})
             with self.assertRaises(ValueError):
                 normalize_configuration({**deepcopy(DEFAULT_CONFIGURATION), 'components': {**DEFAULT_COMPONENTS, key: 'arbitrary-css'}})
+
+    def test_instagram_contact_is_optional_bounded_owner_evidence(self):
+        legacy = complete_content()
+        self.assertNotIn('instagram', normalize_content(legacy)['contacts'])
+        supplied = deepcopy(legacy)
+        supplied['contacts']['instagram'] = 'https://www.instagram.com/natal_service/'
+        self.assertEqual(
+            'https://www.instagram.com/natal_service/',
+            normalize_content(supplied)['contacts']['instagram'],
+        )
+        for value in (
+            'http://www.instagram.com/natal_service/',
+            'https://www.instagram.com/',
+            'https://www.instagram.com/natal/service',
+            'https://www.instagram.com/natal_service//',
+            'https://example.test/natal_service',
+        ):
+            invalid = deepcopy(legacy)
+            invalid['contacts']['instagram'] = value
+            with self.assertRaisesRegex(ValueError, 'instagram'):
+                normalize_content(invalid)
 
     @unittest.skipUnless(LocalLandingAuthority is not None and Image is not None, 'Landing runtime dependencies required')
     def test_generation_preserves_server_configuration_and_accepts_content_only(self):

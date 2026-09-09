@@ -19,12 +19,26 @@ before changing code or runtime state.
 
 - Verify hashed bundles, service-worker cache, Firebase Auth persistence, App
   Check, exact Owner CORS origins, and unauthenticated rejection.
+- When Safari reports that `frame-ancestors` is ignored in a report-only policy,
+  identify the response that supplied that policy before editing PTW headers.
+  The owned Owner document must send an enforcing `Content-Security-Policy`
+  containing `frame-ancestors 'none'`, no report-only CSP, and `X-Frame-Options:
+  DENY`. Google Identity/reCAPTCHA response policies are third-party diagnostics
+  and cannot be repaired by weakening PTW's enforcing policy.
 - The app exposes only Brief / Бриф, Post / Допис, Landing / Лендінг,
   and Settings. Brief, Post, and Landing retain their required Project scope;
   every Studio mutation is Project/creative-scoped.
 - Preview, history, and immutable-version renders are authenticated,
   digest-checked, and private/no-store. The browser receives no provider path,
   prompt credential, database secret, or raw token.
+- When Recent iPhone Images has metadata but blank thumbnails, first verify the
+  exact history bytes and digest through Validation, then check whether any
+  history GET reached the Gateway. Zero Gateway requests while ordinary preview
+  POSTs succeed points to browser credential acquisition, not missing stored
+  media. Coalesce concurrent Firebase ID/App Check acquisition, retain bounded
+  retry for read-only thumbnails, and keep failures non-mutating. Acceptance
+  requires all three digest-checked thumbnails after a cold load and exactly one
+  concurrent App Check acquisition wave.
 - Pexels and image assets retain source/digest provenance and validate declared
   MIME against decoded bytes before persistence.
 - Telegram remains only `/help`, `/status`, and `/stop`; all other input
@@ -232,6 +246,11 @@ before changing code or runtime state.
   must require the incident-specific `Landing was already saved.` marker before
   accepting the release; a single transient bundle-resolution miss is not proof
   that the deployed code is absent.
+- A draft preview image is evidence for one exact configuration/content state.
+  When owner copy changes, hide the prior render until the matching draft
+  response arrives; a busy indicator over stale pixels must not imply the old
+  in-phone title reflects the current field. Bind each preview object URL to the
+  requested state and ignore late responses from superseded requests.
 - Bare Studio routes, `/api/v1/posts`, candidate/critic modes, singleton rows,
   assignment UX, and historical schema adapters must remain absent.
 

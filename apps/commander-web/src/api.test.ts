@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { getToken } from 'firebase/app-check'
 
 vi.mock('./firebase', () => ({ appCheck: {} }))
 vi.mock('firebase/app-check', () => ({ getToken: vi.fn(async () => ({ token: 'app-check-test' })) }))
@@ -58,6 +59,23 @@ describe('API deadline', () => {
     await client.post('/api/v1/slow-operation', { task: 'slow' }, { deadlineMs: 300_000 })
 
     expect(timeout).toHaveBeenCalledWith(expect.any(Function), 300_000)
+  })
+
+  it('coalesces concurrent Firebase credentials for recent-image requests', async () => {
+    let releaseToken!: (value: { token: string }) => void
+    vi.mocked(getToken).mockImplementationOnce(() => new Promise(resolve => { releaseToken = resolve }))
+    const getIdToken = vi.fn(async () => 'owner-token')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    })))
+    const client = new ApiClient({ getIdToken } as any)
+
+    const requests = [1, 2, 3].map(index => client.get(`/api/v1/recent-image-${index}`))
+    await vi.waitFor(() => expect(getToken).toHaveBeenCalledTimes(1))
+    expect(getIdToken).toHaveBeenCalledTimes(1)
+    releaseToken({ token: 'shared-app-check' })
+    await Promise.all(requests)
+    expect(fetch).toHaveBeenCalledTimes(3)
   })
 })
 

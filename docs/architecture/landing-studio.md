@@ -88,9 +88,13 @@ in stored v1 configuration; reading a document never inserts it. No migration is
 required. New AI composition includes it and derives language from the Brief.
 
 Page labels have their own language; console language changes do not translate
-saved copy. Contacts use validated direct `https://t.me/<bot_username>`, mailto,
-and tel links. Telegram links open separately and the username must end in
-`bot`. Empty proof and editor placeholders never reach Preview.
+saved copy. Contacts use validated direct `https://t.me/<bot_username>`,
+Instagram profile, mailto, and tel links. Telegram usernames must end in `bot`;
+Instagram accepts only one direct HTTPS profile path and renders the profile
+handle with the Instagram icon. Both social links open separately. The optional
+Instagram field is absent from older v1 content until the owner supplies it, so
+reading an existing Landing does not rewrite its state digest. Empty proof and
+editor placeholders never reach Preview.
 Long copy wraps within the page; section text fields expose backend limits.
 
 Save feedback shows an immutable checkpoint's edit summary, Project lesson, and

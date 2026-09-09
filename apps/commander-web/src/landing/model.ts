@@ -7,8 +7,8 @@ export const defaults: LandingPresentation = {
   hero_focus: { x: 50, y: 50 }, visual_break_focus: { x: 50, y: 50 },
 }
 export const labels = {
-  en: { app_feature: 'App feature', theme: 'Page design', hero: 'Hero', features: 'Features', social_proof: 'Evidence', visual_break: 'Visual story', contacts: 'Get in touch', faq: 'Questions', explore: 'Discover the details', contact: 'Get in touch', visit: 'Open Telegram bot', email: 'Email us', phone: 'Call us', top: 'Back to top', private: 'Private preview' },
-  uk: { app_feature: 'Функція застосунку', theme: 'Дизайн сторінки', hero: 'Перший екран', features: 'Можливості', social_proof: 'Досвід користувачів', visual_break: 'Візуальна історія', contacts: 'Зв’язатися', faq: 'Запитання', explore: 'Дізнатися більше', contact: 'Зв’язатися', visit: 'Відкрити Telegram-бота', email: 'Написати нам', phone: 'Зателефонувати', top: 'На початок', private: 'Приватне прев’ю' },
+  en: { app_feature: 'App feature', theme: 'Page design', hero: 'Hero', features: 'Features', social_proof: 'Evidence', visual_break: 'Visual story', contacts: 'Get in touch', faq: 'Questions', explore: 'Discover the details', contact: 'Get in touch', visit: 'Open Telegram bot', instagram: 'Instagram', email: 'Email us', phone: 'Call us', top: 'Back to top', private: 'Private preview' },
+  uk: { app_feature: 'Функція застосунку', theme: 'Дизайн сторінки', hero: 'Перший екран', features: 'Можливості', social_proof: 'Досвід користувачів', visual_break: 'Візуальна історія', contacts: 'Зв’язатися', faq: 'Запитання', explore: 'Дізнатися більше', contact: 'Зв’язатися', visit: 'Відкрити Telegram-бота', instagram: 'Instagram', email: 'Написати нам', phone: 'Зателефонувати', top: 'На початок', private: 'Приватне прев’ю' },
 }
 export function telegramBotUsername(value: string) {
   try {
@@ -19,14 +19,26 @@ export function telegramBotUsername(value: string) {
       && /^[A-Za-z0-9_]{2,29}bot$/i.test(username) ? username : null
   } catch { return null }
 }
-export function validContact(field: 'email' | 'phone' | 'url', value: string) {
+export function instagramUsername(value: string) {
+  try {
+    const url = new URL(value)
+    const parts = url.pathname.split('/').filter(Boolean)
+    const username = parts.length === 1 ? parts[0] : ''
+    return url.protocol === 'https:' && ['instagram.com', 'www.instagram.com'].includes(url.hostname.toLowerCase())
+      && !url.username && !url.password && !url.port && !url.search && !url.hash
+      && [`/${username}`, `/${username}/`].includes(url.pathname)
+      && /^[A-Za-z0-9._]{1,30}$/.test(username) ? username : null
+  } catch { return null }
+}
+export function validContact(field: 'email' | 'phone' | 'url' | 'instagram', value: string) {
   if (field === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
   if (field === 'phone') return /^\+?[0-9 ()-]+$/.test(value) && value.replace(/\D/g, '').length >= 3 && value.replace(/\D/g, '').length <= 15
+  if (field === 'instagram') return instagramUsername(value) !== null
   return telegramBotUsername(value) !== null
 }
-export function contactHref(field: 'email' | 'phone' | 'url', value: string) {
+export function contactHref(field: 'email' | 'phone' | 'url' | 'instagram', value: string) {
   if (!validContact(field, value)) return undefined
-  return field === 'email' ? `mailto:${value}` : field === 'phone' ? `tel:${value.replace(/[ ()-]/g, '')}` : `https://t.me/${telegramBotUsername(value)}`
+  return field === 'email' ? `mailto:${value}` : field === 'phone' ? `tel:${value.replace(/[ ()-]/g, '')}` : field === 'instagram' ? `https://www.instagram.com/${instagramUsername(value)}/` : `https://t.me/${telegramBotUsername(value)}`
 }
 export type Issue = { section: Section; path: string; en: string; uk: string }
 export function landingIssues(configuration: LandingConfiguration, content: LandingContent, assets: LandingVisualSummary[]): Issue[] {
@@ -42,9 +54,10 @@ export function landingIssues(configuration: LandingConfiguration, content: Land
   content.social_proof.items.forEach((v, i) => { required('social_proof', `social_proof.${i}.statement`, v.statement, 'Complete or remove this evidence', 'Доповніть або видаліть цей доказ'); required('social_proof', `social_proof.${i}.attribution`, v.attribution, 'Name the evidence source', 'Вкажіть джерело доказу') })
   required('contacts', 'contacts.heading', content.contacts.heading, 'Add a contact heading', 'Додайте заголовок контактів')
   required('contacts', 'contacts.supporting_text', content.contacts.supporting_text, 'Explain the next step', 'Опишіть наступний крок')
-  const fields = ['email', 'phone', 'url'] as const
-  if (!fields.some(f => validContact(f, content.contacts[f]))) issues.push({ section: 'contacts', path: 'contacts.endpoint', en: 'Add an email, phone, or Telegram bot link', uk: 'Додайте email, телефон або посилання на Telegram-бота' })
-  fields.forEach(f => { if (content.contacts[f] && !validContact(f, content.contacts[f])) issues.push({ section: 'contacts', path: `contacts.${f}`, en: `Check the ${f} destination`, uk: `Перевірте контакт: ${f}` }) })
+  const contacts = { ...content.contacts, instagram: content.contacts.instagram || '' }
+  const fields = ['email', 'phone', 'url', 'instagram'] as const
+  if (!fields.some(f => validContact(f, contacts[f]))) issues.push({ section: 'contacts', path: 'contacts.endpoint', en: 'Add an email, phone, Telegram bot, or Instagram link', uk: 'Додайте email, телефон, посилання на Telegram-бота або Instagram' })
+  fields.forEach(f => { if (contacts[f] && !validContact(f, contacts[f])) issues.push({ section: 'contacts', path: `contacts.${f}`, en: `Check the ${f} destination`, uk: `Перевірте контакт: ${f}` }) })
   const target = configuration.presentation?.cta_target || 'contacts'
   if (target !== 'contacts' && !validContact(target, content.contacts[target])) issues.push({ section: 'hero', path: 'hero.cta_target', en: 'Configure the selected button destination in Contacts', uk: 'Налаштуйте обрану адресу кнопки в Контактах' })
   content.faq.forEach((v, i) => { required('faq', `faq.${i}.question`, v.question, `Question ${i + 1} is missing`, `Додайте запитання ${i + 1}`); required('faq', `faq.${i}.answer`, v.answer, `Answer ${i + 1} is missing`, `Додайте відповідь ${i + 1}`) })

@@ -2,7 +2,7 @@
 
 Updated: 2026-09-09
 Branch: `main`
-Deployment: backend release `image-reference-20260909-1` and the matching Owner Console release are live; Meta staging is disabled until a fresh secret is configured
+Deployment: backend release `studio-approval-20260909-59be4a3` and the existing matching Owner Console contract are live; Meta staging is disabled until a fresh secret is configured
 
 ## Image Reference milestone
 
@@ -312,6 +312,28 @@ the restored workspace cache. All six prior images and persisted tags were
 restored and verified. The deploy preflight now rejects any Studio checkpoint
 without a completed learning run, so restart recovery must finish on the current
 release before an authority snapshot and a fresh rollout.
+
+The restarted preserving rollout passed a byte-identical Commander authority
+snapshot, fresh attempt-1 bridge jobs 572–580 for both Brief modes, both Post
+templates, Landing composition, both learning paths, new image generation, and
+exact-reference enhancement, plus Pexels, schema, dependency/auth/worker, skill,
+and 1 GB resource audits. All six services run
+`studio-approval-20260909-59be4a3` and are healthy. One authenticated internal
+HTTP reconciliation of the original Approve action returned 200, reused completed
+checkpoint `01a08553-b1b5-77a4-b470-2473b94242f3`, returned
+`version_created=false`, and kept exactly two versions. A subsequent Validation
+restart retained both version IDs and every state/render/version digest, kept the
+same latest checkpoint, and left zero queued learning and zero active creatives.
+The public approval route returns 401 rather than 404 without credentials; the
+live Hosting/Gateway/CORS/PWA audit passes with no unexpected post-cutover 4xx,
+5xx, traceback, or service error. The two duplicate versions created during the
+incident remain immutable evidence.
+
+Release verification passed 181 clean Validation tests, 16 built-image Commander
+tests and the demo, 68 Owner Console unit tests, 60 desktop/360px/iPhone WebKit
+browser checks, the production build, four-migration disposable PostgreSQL
+idempotency/preservation, the deterministic Studio visual audit, canonical skill
+verification, shell syntax, and whitespace checks.
 
 The Phone Metrics direction-save incident was reproduced against production
 Creative `01a07f55-20a5-755c-bbec-17a3f158ef4b`: Owner Gateway logged the exact

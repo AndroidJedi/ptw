@@ -21,6 +21,7 @@ from psycopg.types.json import Jsonb
 
 from common.database import apply_migrations, database_url
 from common.events import append_event
+from common.image_references import EphemeralImageReferences, persistable_image_request
 from common.secrets import EnvironmentSecretStore
 
 
@@ -42,6 +43,7 @@ MEDIA_MODES = frozenset({"content_non_human_graphic_generation"})
 STRUCTURED_LLM_MODES = frozenset(JSON_MODES | MEDIA_MODES)
 MAX_STRUCTURED_LLM_REQUEST_BYTES = 12_000_000
 MAX_MEDIA_REFERENCE_BYTES = 8 * 1024 * 1024
+image_references = EphemeralImageReferences()
 
 
 def validate_structured_llm_request(request: dict) -> None:
@@ -64,6 +66,8 @@ def validate_structured_llm_request(request: dict) -> None:
         or any(ord(character) < 33 or ord(character) > 126 for character in idempotency_key)
     ):
         raise ValueError("invalid structured LLM request")
+    if "input_reference" in request:
+        raise ValueError("reference handles are server-owned")
     images = request.get("input_images")
     if request["mode"] == "content_non_human_graphic_generation":
         if images is not None:
@@ -86,8 +90,8 @@ def validate_structured_llm_request(request: dict) -> None:
                 or image["digest"] != digest
                 or not isinstance(image["width"], int)
                 or not isinstance(image["height"], int)
-                or image["width"] != image["height"]
-                or not 512 <= image["width"] <= 2048
+                or not 1 <= image["width"] <= 2048
+                or not 1 <= image["height"] <= 2048
                 or int.from_bytes(content[16:20], "big") != image["width"]
                 or int.from_bytes(content[20:24], "big") != image["height"]
             ):
@@ -102,6 +106,7 @@ def structured_llm_capabilities() -> dict:
     return {
         "json_modes": sorted(JSON_MODES), "media_modes": sorted(MEDIA_MODES),
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
+        "image_reference_retention": "ephemeral",
     }
 
 
@@ -197,27 +202,37 @@ def enqueue_structured_llm(request: dict, x_ptw_bridge_token: str = Header(defau
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     owner = min(allowed_user_ids())
-    with psycopg.connect(database_url(secrets)) as connection:
-        connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (request["idempotency_key"],))
-        existing = connection.execute(
-            "SELECT id,status FROM jobs WHERE type='llm_structured' AND structured_idempotency_key=%s",
-            (request["idempotency_key"],),
-        ).fetchone()
-        if existing:
-            return {"request_id": existing[0], "status": existing[1], "deduplicated": True}
-        user_id = connection.execute(
-            """INSERT INTO users(telegram_user_id,role) VALUES(%s,'operator')
-               ON CONFLICT(telegram_user_id) DO UPDATE SET role=users.role RETURNING id""", (owner,),
-        ).fetchone()[0]
-        session_id = connection.execute(
-            "INSERT INTO sessions(user_id,status,summary) VALUES(%s,'active','Result provider request') RETURNING id",
-            (user_id,),
-        ).fetchone()[0]
-        job_id = connection.execute(
-            """INSERT INTO jobs(session_id,type,status,requested_by,parameters,structured_idempotency_key)
-               VALUES(%s,'llm_structured','queued',%s,%s,%s) RETURNING id""",
-            (session_id, user_id, Jsonb(request), request["idempotency_key"]),
-        ).fetchone()[0]
+    reference_key = None
+    try:
+        with psycopg.connect(database_url(secrets)) as connection:
+            connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (request["idempotency_key"],))
+            existing = connection.execute(
+                "SELECT id,status FROM jobs WHERE type='llm_structured' AND structured_idempotency_key=%s",
+                (request["idempotency_key"],),
+            ).fetchone()
+            if existing:
+                return {"request_id": existing[0], "status": existing[1], "deduplicated": True}
+            user_id = connection.execute(
+                """INSERT INTO users(telegram_user_id,role) VALUES(%s,'operator')
+                   ON CONFLICT(telegram_user_id) DO UPDATE SET role=users.role RETURNING id""", (owner,),
+            ).fetchone()[0]
+            session_id = connection.execute(
+                "INSERT INTO sessions(user_id,status,summary) VALUES(%s,'active','Result provider request') RETURNING id",
+                (user_id,),
+            ).fetchone()[0]
+            try:
+                persisted, reference_key = persistable_image_request(request, image_references)
+            except RuntimeError as error:
+                raise HTTPException(status_code=429, detail=str(error)) from error
+            job_id = connection.execute(
+                """INSERT INTO jobs(session_id,type,status,requested_by,parameters,structured_idempotency_key)
+                   VALUES(%s,'llm_structured','queued',%s,%s,%s) RETURNING id""",
+                (session_id, user_id, Jsonb(persisted), request["idempotency_key"]),
+            ).fetchone()[0]
+    except Exception:
+        if reference_key:
+            image_references.discard(reference_key)
+        raise
     return {"request_id": job_id, "status": "queued"}
 
 
@@ -225,6 +240,27 @@ def enqueue_structured_llm(request: dict, x_ptw_bridge_token: str = Header(defau
 def get_structured_llm_capabilities(x_ptw_bridge_token: str = Header(default="")) -> dict:
     _authorize_bridge(x_ptw_bridge_token)
     return structured_llm_capabilities()
+
+
+@app.post("/internal/llm/input-reference/{reference_id}/consume")
+def consume_image_reference(reference_id: str, x_ptw_bridge_token: str = Header(default="")) -> Response:
+    _authorize_bridge(x_ptw_bridge_token)
+    try:
+        image = image_references.consume(reference_id)
+    except KeyError as error:
+        raise HTTPException(status_code=410, detail="Reference expired; upload it again") from error
+    return Response(content=base64.b64decode(image["bytes_base64"], validate=True),
+                    media_type="image/png", headers={"Cache-Control": "private, no-store"})
+
+
+@app.delete("/internal/llm/structured/{job_id}/input-reference")
+def discard_image_reference(job_id: int, x_ptw_bridge_token: str = Header(default="")) -> dict:
+    _authorize_bridge(x_ptw_bridge_token)
+    with psycopg.connect(database_url(secrets)) as connection:
+        row = connection.execute("SELECT parameters FROM jobs WHERE id=%s AND type='llm_structured'", (job_id,)).fetchone()
+    if row:
+        image_references.discard(str((row[0].get("input_reference") or {}).get("id", "")))
+    return {"discarded": True}
 
 
 @app.get("/internal/llm/structured/{job_id}")

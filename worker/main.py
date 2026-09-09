@@ -13,6 +13,7 @@ import re
 import struct
 from pathlib import Path
 
+import httpx
 import psycopg
 from psycopg.types.json import Jsonb
 
@@ -190,6 +191,22 @@ def _structured_reasoning_effort() -> str:
 
 def _materialize_input_images(parameters: dict, directory: Path) -> tuple[list[Path], list[dict]]:
     images = parameters.get("input_images")
+    reference = parameters.get("input_reference")
+    if reference is not None:
+        if images is not None or parameters.get("mode") != "content_non_human_graphic_generation":
+            raise RuntimeError("Invalid ephemeral image reference")
+        reference_id = str(reference.get("id", ""))
+        if not re.fullmatch(r"[0-9a-f]{32}", reference_id):
+            raise RuntimeError("Invalid ephemeral image reference")
+        response = httpx.post(
+            f"http://commander-api:8000/internal/llm/input-reference/{reference_id}/consume",
+            headers={"X-PTW-Bridge-Token": secrets.get("TELEGRAM_BOT_TOKEN")}, timeout=15,
+        )
+        if response.status_code != 200:
+            raise RuntimeError("Reference unavailable; upload it again")
+        images = [{**{k: v for k, v in reference.items() if k != "id"},
+                   "bytes_base64": base64.b64encode(response.content).decode()}]
+
     mode = parameters.get("mode")
     if mode == "content_non_human_graphic_generation":
         if images is None:
@@ -212,8 +229,8 @@ def _materialize_input_images(parameters: dict, directory: Path) -> tuple[list[P
             or not 33 <= len(content) <= 8 * 1024 * 1024
             or image.get("width") != width
             or image.get("height") != height
-            or width != height
-            or not 512 <= width <= 2048
+            or not 1 <= width <= 2048
+            or not 1 <= height <= 2048
         ):
             raise RuntimeError("non-human graphic reference failed exact PNG validation")
         path = directory / f"media-reference-{digest[:12]}.png"
@@ -256,9 +273,8 @@ def execute_structured_llm(parameters: dict) -> dict:
         attachments, attachment_mapping = _materialize_input_images(parameters, temporary_root)
         if attachment_mapping:
             prompt += (
-                "\nREFERENCE_ATTACHMENT: Edit the one attached digest-checked PNG as the starting "
-                "composition. Preserve its recognizable subject, palette, material character, and "
-                "spatial arrangement unless the requested direction explicitly changes them. In "
+                "\nREFERENCE_ATTACHMENT: Use the one attached digest-checked PNG as visual context "
+                "together with the owner direction. Infer what to retain or change from that direction. In "
                 "the image-generation call use num_last_images_to_include=1 and do not use a path.\n"
                 + json.dumps(attachment_mapping, ensure_ascii=False, sort_keys=True)
             )

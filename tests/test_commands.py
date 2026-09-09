@@ -40,6 +40,7 @@ def test_structured_bridge_accepts_exact_result_modes_and_full_contract() -> Non
         "json_modes": sorted(json_modes),
         "media_modes": ["content_non_human_graphic_generation"],
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
+        "image_reference_retention": "ephemeral",
     }
     for mode in json_modes | MEDIA_MODES:
         validate_structured_llm_request({

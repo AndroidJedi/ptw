@@ -306,6 +306,12 @@ field, adds an adapter-specific regression, and compares normalized draft data
 before approval so an uncertain semantically identical retry cannot append
 another version. The existing duplicate immutable records remain append-only
 incident evidence and are not deleted.
+The first preserving rollout was correctly rejected after candidate restart
+recovered the two queued checkpoints, appending learning authority and touching
+the restored workspace cache. All six prior images and persisted tags were
+restored and verified. The deploy preflight now rejects any Studio checkpoint
+without a completed learning run, so restart recovery must finish on the current
+release before an authority snapshot and a fresh rollout.
 
 The Phone Metrics direction-save incident was reproduced against production
 Creative `01a07f55-20a5-755c-bbec-17a3f158ef4b`: Owner Gateway logged the exact

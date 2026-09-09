@@ -129,6 +129,11 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("Commander authority remained unchanged during rejected rollout", deployer)
         self.assertIn("CRITICAL: Commander authority changed during rejected rollout", deployer)
         self.assertIn("CRITICAL: preserving rollout could not verify complete image rollback", deployer)
+        for path in ("deploy_ptw_preserving.sh", "deploy_ptw_in_place.sh"):
+            mutable_gate = (ROOT / "scripts" / path).read_text()
+            self.assertIn("FROM studio_edit_checkpoints checkpoint", mutable_gate)
+            self.assertIn("completed.checkpoint_id=checkpoint.entity_id", mutable_gate)
+            self.assertIn("completed.status='completed'", mutable_gate)
         for image in (
             "ptw-commander:$old_app_tag",
             "ptw-validation:$old_app_tag",

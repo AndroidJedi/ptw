@@ -147,6 +147,11 @@ before changing code or runtime state.
   the original action once, require HTTP 200 with no additional version, and
   prove a service restart retains the same IDs, digests, version count, and
   empty recovery queues.
+  Before a preserving rollout, reject any checkpoint that lacks a completed
+  learning run. Candidate startup resumes queued Studio learning and therefore
+  mutates append-only authority; it must finish on the current release before
+  the deploy snapshot is taken. A preservation mismatch is never waived merely
+  because the writes are valid recovery writes.
 - Treat that Studio failure as one example of a general contract-drift class,
   not a field-specific exception. Every structured Product Brief, revision,
   Universal Post, Phone Metrics, Landing composition, Studio-learning, and

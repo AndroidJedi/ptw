@@ -108,6 +108,12 @@ into a complete compatible release, read
   regression. Reconcile the affected action once after rollout, require HTTP
   200 with no new version, then restart Validation and prove the version IDs,
   state/render digests, latest checkpoint, and recovery queues are unchanged.
+  Both preserving deployers must reject any Studio checkpoint without a
+  completed learning run before taking the authority snapshot: Validation
+  restart recovery is intentionally mutating and would otherwise make a healthy
+  rollout fail its own preservation comparison. Never bypass that comparison;
+  let recovery finish on the current release, verify the queue is empty, and
+  restart the candidate rollout from preflight.
 - Telegram accepts only `/help`, `/status`, and `/stop`.
 - A Landing create failure containing `badly formed hexadecimal UUID string`
   can originate from an internal graph-edge argument inversion rather than an

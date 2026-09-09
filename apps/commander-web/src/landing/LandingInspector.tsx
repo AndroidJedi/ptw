@@ -1,5 +1,6 @@
 import { ImagePlus, RefreshCcw, Trash2 } from 'lucide-react'
 import { ImageReferenceInput } from '../components/ImageReferenceInput'
+import { VisualModeSelect } from '../components/VisualModeSelect'
 import { useId, type CSSProperties } from 'react'
 import type { LandingAppFeature, LandingPhoneMockup, LandingComponents, LandingConfiguration, LandingContent, LandingDetail, LandingPresentation } from '../types'
 import { PhoneHeroDirectionPicker, styles as imageStyles, backgrounds as imageBackgrounds } from '../components/studio/PhoneHeroDirectionPicker'
@@ -60,6 +61,10 @@ export function LandingInspector({ section, configuration: c, content: v, detail
     </div>
   }
   return <fieldset className="landing-inspector-fields" disabled={busy}>
+    {(section === 'hero' || section === 'app_feature') && <>
+      <VisualModeSelect language={language} value={c.visual_mode} onChange={visual_mode => onConfiguration({ ...c, visual_mode })} />
+      {c.visual_mode === 'image' && <p className="landing-field-hint">{tr('The hero shows only the selected image. App screen settings are kept for switching back.', 'Перший екран показує лише обране зображення. Налаштування екрана застосунку зберігаються для повернення.')}</p>}
+    </>}
     {section === 'theme' && <>
       <p className="landing-field-hint">{tr('All apps use the canonical Natal logo and name. Themes style the page components.', 'Усі застосунки використовують канонічний логотип і назву Natal. Теми змінюють вигляд компонентів сторінки.')}</p>
       <div className="landing-theme-presets" aria-label={tr('Page themes', 'Теми сторінки')}>

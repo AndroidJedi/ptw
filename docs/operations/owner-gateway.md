@@ -47,6 +47,14 @@ sign-in and edits the current checkout. Backend edits take effect after the
 local API restarts; the coding agent must finish its reply before that restart.
 This milestone has no VPS execution or deployment surface.
 
+Settings keeps ChatGPT Authorization visible alongside Commander. Its local
+GET/refresh routes use the local Codex sign-in and an owner-initiated PTY device
+flow, protected by the same local headers and loopback/origin checks. Only
+status and the official device URL/code reach the browser. Local sign-in status
+uses `test_status: null`; it does not claim a working provider test. The separate
+production authorization bridge remains unchanged. English/Ukrainian selection
+now lives in Settings and persists across navigation and reload.
+
 Only `validation_pipeline.studio_local_api` mounts the opt-in
 `/api/v1/settings/commander` routes: status, chat creation/detail, message POST,
 and turn Stop. The public Owner Gateway and production Validation API do not

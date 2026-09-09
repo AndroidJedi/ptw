@@ -62,6 +62,42 @@ class FakePhoneScreenImageProvider:
 
 @unittest.skipUnless(__import__("importlib").util.find_spec("PIL") is not None, "Pillow is required")
 class PhoneMetricsTemplateTests(unittest.TestCase):
+    def test_image_mode_preserves_raw_pixels_and_saved_phone_settings(self):
+        from PIL import Image
+
+        raw = _screen_bytes("#6AAFC8")
+        with patch("validation_pipeline.studio_phone_metrics.iphone_frame_bytes", side_effect=AssertionError("frame loaded")):
+            image = compose_phone_device_asset(raw, "Hidden title", visual_mode="image")
+        with Image.open(BytesIO(raw)) as original, Image.open(BytesIO(image["bytes"])) as result:
+            self.assertEqual(original.size, result.size)
+            self.assertEqual(original.convert("RGBA").tobytes(), result.tobytes())
+        detail = self._phone()
+        detail = self.workspace.store_generated_phone_screen(
+            base_sha256=detail["state_sha256"], data=raw,
+            source={"origin": "codex_builtin_image_generation", "text_in_screen": "prohibited_by_prompt"},
+        )
+        config = {**detail["configuration"], "visual_mode": "image"}
+        preview = self.workspace.render_preview(state_sha256=detail["state_sha256"], configuration=config, content=detail["content"])
+        self.assertEqual((1080, 1350), (preview["width"], preview["height"]))
+        with Image.open(BytesIO(preview["bytes"])) as rendered:
+            # Bare artwork occupies the former device slot, with no status UI,
+            # white app shell, blue buttons, fade, or bezel over these pixels.
+            for point in ((630, 150), (630, 850), (1000, 850)):
+                self.assertEqual((106, 175, 200), rendered.convert("RGB").getpixel(point))
+        self.workspace.approve_configuration(base_sha256=detail["state_sha256"], configuration=config, content=detail["content"], change_note="Image mode")
+        version = self.workspace.version_detail(1)
+        self.assertEqual("image", version["configuration"]["visual_mode"])
+        reopened = UniversalStudioWorkspace(self.workspace.root)
+        saved = reopened.detail()
+        self.assertEqual("image", saved["configuration"]["visual_mode"])
+        restored = reopened.save_configuration(base_sha256=saved["state_sha256"], configuration={**config, "visual_mode": "phone"}, content=saved["content"])
+        self.assertEqual(detail["content"], restored["content"])
+        self.assertEqual(detail["phone_screen_history"], restored["phone_screen_history"])
+        self.assertEqual(version, reopened.version_detail(1))
+        self.assertNotIn("visual_mode", normalize_phone_metrics_config(DEFAULT_PHONE_CONFIG))
+        with self.assertRaisesRegex(ValueError, "visual_mode"):
+            normalize_phone_metrics_config({**config, "visual_mode": "invalid"})
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.workspace = UniversalStudioWorkspace(Path(self.temporary.name))

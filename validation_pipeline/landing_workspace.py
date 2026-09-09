@@ -186,7 +186,7 @@ def _color(value: Any, field: str) -> str:
 
 
 def normalize_configuration(value: Mapping[str, Any]) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or set(value) - {"presentation", "components", "image_directions", "phone_mockup"} != set(DEFAULT_CONFIGURATION):
+    if not isinstance(value, Mapping) or set(value) - {"presentation", "components", "image_directions", "phone_mockup", "visual_mode"} != set(DEFAULT_CONFIGURATION):
         raise ValueError("Landing configuration fields are invalid")
     root = value
     if root.get("schema") != LANDING_CONFIGURATION_SCHEMA:
@@ -194,6 +194,10 @@ def normalize_configuration(value: Mapping[str, Any]) -> dict[str, Any]:
     theme = _object(root["theme"], set(DEFAULT_CONFIGURATION["theme"]), "theme")
     fonts = {"font_family", "heading_font_family"}
     result = _copy(DEFAULT_CONFIGURATION)
+    if "visual_mode" in root:
+        if root["visual_mode"] not in ("phone", "image"):
+            raise ValueError("Landing visual_mode is invalid")
+        result["visual_mode"] = root["visual_mode"]
     result["theme"] = {
         key: (str(theme[key]) if key in fonts else _color(theme[key], f"theme.{key}"))
         for key in ("background_color", "surface_color", "text_color", "accent_color", "font_family", "heading_font_family")

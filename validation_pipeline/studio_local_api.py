@@ -35,6 +35,7 @@ from .studio_routes import studio_creative_router
 from .studio_tune import StudioTuneService, studio_tune_router
 from .studio_workspace import UniversalStudioWorkspace
 from .commander_chat import CommanderChatService, commander_chat_router
+from .local_authorization import LocalAuthorization, local_authorization_router
 
 
 LOCAL_OWNER_TOKEN = "e2e-owner-token"
@@ -126,6 +127,7 @@ def create_app(
             meta_configuration, meta_adapter,
         )
     recovery_tasks: set[asyncio.Task[Any]] = set()
+    local_authorization = LocalAuthorization(codex_binary)
     commander_chat = commander_chat_service
     if commander_chat is None and os.environ.get("PTW_COMMANDER_CHAT_MODE") == "1":
         commander_chat = CommanderChatService(
@@ -163,6 +165,7 @@ def create_app(
             task.cancel()
         if commander_chat is not None:
             await asyncio.to_thread(commander_chat.close)
+        await asyncio.to_thread(local_authorization.close)
 
     app = FastAPI(
         title="PTW Local Owner App", version="1.0.0",
@@ -202,6 +205,7 @@ def create_app(
     app.include_router(local_brief_router(
         brief_service, studio_creatives=studio_creatives, dependencies=[Depends(authorize)],
     ))
+    app.include_router(local_authorization_router(local_authorization, [Depends(authorize)]))
     if commander_chat is not None:
         app.include_router(commander_chat_router(commander_chat, dependencies=[Depends(authorize)]))
     if tune_service is not None or tune_enabled:

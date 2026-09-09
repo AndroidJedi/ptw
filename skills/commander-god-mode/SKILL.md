@@ -67,6 +67,11 @@ Post, or Landing learning entities or cross their lesson namespaces.
 
 ## Established chat diagnostics
 
+- GOD mode is additive in Settings: keep ChatGPT Authorization visible in local
+  and production Settings. The English/Ukrainian language control belongs in
+  Settings, not the navigation rails. Test these controls together when changing
+  Settings so a mode condition cannot hide an existing owner control.
+
 - An uncertain message POST must retain its request UUID. Reconcile that UUID
   before resubmitting; a new UUID can execute the same code mutation twice.
 - Stop and timeout terminate the worker process group. A parent-liveness pipe

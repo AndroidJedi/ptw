@@ -306,17 +306,18 @@ class CommanderChatService:
         self._lease.close()
 
 
-def commander_chat_router(service: CommanderChatService, *, dependencies: list) -> APIRouter:
-    def local_request(request: Request, response: Response):
-        response.headers["Cache-Control"] = "no-store"
-        if request.url.hostname not in {"localhost", "127.0.0.1", "::1"}:
-            raise HTTPException(403, "Commander requires a loopback host")
-        if request.client is None or request.client.host not in {"localhost", "127.0.0.1", "::1"}:
-            raise HTTPException(403, "Commander requires a loopback connection")
-        origin = request.headers.get("origin")
-        if origin is not None and origin not in LOCAL_ORIGINS:
-            raise HTTPException(403, "Commander requires a local Owner Console origin")
+def local_request(request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    if request.url.hostname not in {"localhost", "127.0.0.1", "::1"}:
+        raise HTTPException(403, "Commander requires a loopback host")
+    if request.client is None or request.client.host not in {"localhost", "127.0.0.1", "::1"}:
+        raise HTTPException(403, "Commander requires a loopback connection")
+    origin = request.headers.get("origin")
+    if origin is not None and origin not in LOCAL_ORIGINS:
+        raise HTTPException(403, "Commander requires a local Owner Console origin")
 
+
+def commander_chat_router(service: CommanderChatService, *, dependencies: list) -> APIRouter:
     router = APIRouter(prefix="/api/v1/settings/commander", dependencies=[*dependencies, Depends(local_request)])
 
     def invoke(function, *args):

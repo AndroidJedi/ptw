@@ -13,6 +13,7 @@ it('shows Product Briefs, Post, Landing, and Ads destinations without a separate
   expect(screen.getAllByRole('button', { name: /^Ads$/ })).toHaveLength(2)
   expect(screen.getAllByRole('button', { name: 'Brief' })).toHaveLength(2)
   expect(screen.getAllByRole('button', { name: 'Settings' })).toHaveLength(2)
+  expect(screen.queryByRole('button', { name: 'Change language' })).not.toBeInTheDocument()
   fireEvent.click(screen.getAllByRole('button', { name: 'Settings' })[0])
   expect(props.onPage).toHaveBeenCalledWith('settings')
   expect(screen.queryByRole('button', { name: /^Studio$/ })).not.toBeInTheDocument()

@@ -4,9 +4,30 @@ Updated: 2026-09-09
 Branch: `main`
 Deployment: backend release `studio-approval-20260909-59be4a3` and the existing matching Owner Console contract are live; Meta staging is disabled until a fresh secret is configured
 
+## Local Post and Landing visual mode milestone
+
+Post Phone Metrics v24 and Landing now offer **Visual mode: Phone frame &
+buttons / Image only**. The optional saved `visual_mode` defaults to the existing
+phone view. Post contains the complete raw artwork in the device area, keeping
+surrounding copy, metrics, and CTA. Landing removes its app phone overlay and
+shows the hero artwork with existing crop/placement controls. Phone settings,
+content, assets, history, and immutable versions survive toggling. No generation
+is needed to switch. This milestone is local only and has not been deployed.
+
+Verification passes: 85 focused Studio and 21 Landing Python tests, 77 web
+unit tests, six browser flows across desktop/360px/iPhone WebKit, deterministic
+Studio geometry audit, Owner Console and public Landing builds, 16 Commander
+tests in the built Validation image plus demo, skills, and whitespace checks.
+The local launcher was refreshed; authenticated reads confirmed v24 and fresh
+phone/image previews of the same existing Creative without changing saved state.
+
 ## Local Commander GOD-mode milestone
 
-Local Settings now includes a repository-wide Commander coding chat. The owner
+Local Settings retains ChatGPT Authorization, adds the English/Ukrainian
+language switcher moved from navigation, and includes a repository-wide Commander
+coding chat. The local authorization endpoints read CLI sign-in status and
+support owner-initiated device login without exposing CLI output or credentials;
+local status does not claim a provider test passed. The owner
 can request features, fixes, new tabs, Telegram code changes, and skill updates.
 It invokes local Codex against this checkout, retains conversations and turns in
 `.local/commander-chat`, supports follow-up messages and Stop, and reconciles
@@ -166,7 +187,8 @@ and the production Meta secret file is absent, so both connections report the
 intended safe disabled state. The real PAUSED canary has not run and no Meta
 objects were created.
 
-The lower owner navigation includes a compact Settings control next to language.
+The lower owner navigation includes a compact Settings control; language selection
+now lives inside Settings.
 It opens a dedicated `?page=settings` destination rather than a dialog over the
 Brief. Its ChatGPT Authorization card returns only an authorization status and, during
 an owner-initiated device login, the official device URL/code. A private

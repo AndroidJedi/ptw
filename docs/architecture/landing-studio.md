@@ -138,7 +138,16 @@ over approved versions and never influences Landing or Post generation.
 
 ## App feature phone
 
-Every service is presented as a Natal app. The hero uses Post Studio's bundled,
+The local Hero and App feature inspectors offer **Visual mode: Phone frame &
+buttons / Image only**. Optional `configuration.visual_mode` accepts `phone` or
+`image`, defaulting to the existing phone view when omitted. Image mode removes
+the phone and all of its UI, showing the selected hero artwork at full opacity
+with the existing placement and crop controls. Screen settings and content are
+preserved and return when toggled back. Save, approval, and the shared
+inline/fullscreen/public renderer retain the mode. No deployment or publication
+is part of this local milestone.
+
+Every service is presented as a Natal app by default. The hero uses Post Studio's bundled,
 digest-checked iPhone 15 Pro front frame, with a responsive HTML screen behind its
 original aperture. Generated hero art is atmospheric context behind the phone;
 text, controls, identity, and hardware are never generated into those pixels.

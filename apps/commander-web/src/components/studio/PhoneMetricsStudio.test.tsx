@@ -178,6 +178,24 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
 }
 
 describe('Phone & metrics Studio', () => {
+  it('previews and saves image mode while preserving phone content for switching back', async () => {
+    const { api, post } = studioApi()
+    render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} onCheckpoint={vi.fn()} />)
+    const mode = screen.getByRole('combobox', { name: 'Visual mode' })
+    expect(mode).toHaveValue('phone')
+    fireEvent.change(mode, { target: { value: 'image' } })
+    await waitFor(() => expect(api.postMedia).toHaveBeenCalledWith(`${basePath}/preview`, expect.objectContaining({
+      configuration: expect.objectContaining({ visual_mode: 'image' }), content: detail.content,
+    }), 'image/png', expect.anything()))
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`${basePath}/save`, expect.objectContaining({
+      configuration: { ...detail.configuration, visual_mode: 'image' }, content: detail.content,
+    }), expect.anything()))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save creative' })).toBeEnabled())
+    fireEvent.change(mode, { target: { value: 'phone' } })
+    expect(screen.getByLabelText('Phone button 1 text')).toHaveValue(detail.content.phone_buttons[0])
+  })
+
   beforeEach(() => {
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true, value: vi.fn(() => 'blob:phone-preview'),

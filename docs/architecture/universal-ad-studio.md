@@ -68,6 +68,15 @@ asset, and cannot be uploaded or replaced. Existing mutable v8 drafts inherit
 that previously implicit visible state when read and persist the v9 contract on
 their next owner save; immutable approved versions remain untouched.
 
+Local template v24 adds **Visual mode: Phone frame & buttons / Image only**.
+The optional `configuration.visual_mode` accepts `phone` or `image`; omitted
+values retain the phone view without rewriting stored configuration. Image mode
+contains the selected raw artwork in the existing device area, preserving its
+aspect ratio and transparency with no hardware, app UI, fade, or screen texture.
+Surrounding Post copy, metrics, and CTA remain. Switching back restores the saved
+phone settings; image generation/history and immutable Save/Approve paths remain
+shared. This change is local only.
+
 The phone frame is a checked-in, SHA-256-verified WithFrame asset and is never
 fetched at runtime. The screen, UI, and frame are composited as one deterministic
 layer. Full-bleed hero art reaches the top underneath renderer-owned chrome,

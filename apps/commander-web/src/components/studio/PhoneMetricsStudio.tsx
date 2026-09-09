@@ -1,6 +1,7 @@
 import { Bold, Check, Highlighter, ImagePlus, RefreshCcw, Save, Sparkles, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ImageReferenceInput, imageReferencePayload } from '../ImageReferenceInput'
+import { VisualModeSelect } from '../VisualModeSelect'
 import type { ApiClient } from '../../api'
 import { ErrorState } from '../../components/State'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from './PhoneHeroDirectionPicker'
@@ -349,6 +350,11 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
         <figure aria-busy={previewBusy}>{previewUrl ? <img src={previewUrl} alt={tr('Natal phone and metrics creative', 'Креатив Natal із телефоном і метриками')} /> : <div className="studio-preview-empty"><ImagePlus /><span>{tr('Render unavailable', 'Рендер недоступний')}</span></div>}</figure>
       </main>
       <aside className="universal-controls phone-metrics-controls">
+        <section className="panel universal-section">
+          <VisualModeSelect language={language} value={configuration.visual_mode} disabled={busy}
+            onChange={visual_mode => setConfiguration(current => ({ ...current, visual_mode }))} />
+          <p className="universal-section-note">{tr('Image only shows the selected artwork without the phone or its interface. Phone settings are kept when you switch back.', 'Лише зображення показує обрану ілюстрацію без телефону та його інтерфейсу. Налаштування телефону збережуться для повернення.')}</p>
+        </section>
         <section className="panel universal-section"><small>{tr('OWNER COPY', 'ТЕКСТ ВЛАСНИКА')}</small><h2>{tr('Visible content', 'Видимий вміст')}</h2>
           <label className="universal-toggle"><input
             aria-label={tr('Show eyebrow', 'Показувати надзаголовок')}

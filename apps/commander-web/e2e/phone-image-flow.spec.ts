@@ -185,8 +185,20 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   })
 
   await page.goto(`/?e2e=1&page=posts&project=${projectId}&creative=${creativeId}`)
-  await page.getByRole('button', { name: 'Змінити мову' }).click()
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.reload()
   await expect(page.getByRole('heading', { name: 'Generate or enhance hero artwork' })).toBeVisible()
+
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const visualMode = page.getByRole('combobox', { name: 'Visual mode' })
+  await visualMode.focus()
+  await expect(visualMode).toBeFocused()
+  await visualMode.selectOption('image')
+  await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({ visual_mode: 'image' })
+  await visualMode.screenshot({ path: `.local/post-visual-mode-${test.info().project.name}.png` })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await visualMode.selectOption('phone')
+  await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({ visual_mode: 'phone' })
 
   const postLogo = page.getByLabel('Show post logo')
   const phoneLogo = page.getByLabel('Show in-phone logo')

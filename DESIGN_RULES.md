@@ -7,8 +7,9 @@ Updated: 2026-09-04
 
 - Navigation contains exactly Brief / Бриф, Post / Допис, and Landing / Лендінг.
 - The Project selector appears in all destinations.
-- The lower navigation controls include the language switcher and a compact Settings
-  control. Settings may expose the private ChatGPT Authorization state and the
+- The lower navigation controls include a compact Settings control. The language
+  switcher lives inside Settings. Settings always retains ChatGPT Authorization,
+  including when local GOD mode is available. It may expose authorization state and the
   device-login URL/code only; access and refresh tokens, CLI output, and provider
   credentials never enter browser state, API responses, or logs.
 - Local development Settings also offers Commander GOD-mode chat for PTW-wide

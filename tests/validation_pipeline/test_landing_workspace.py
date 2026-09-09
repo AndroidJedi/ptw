@@ -244,6 +244,21 @@ class LandingAuthorityTests(unittest.TestCase):
 
 @unittest.skipUnless(Image is not None, "Pillow is required for Landing visual workspace tests")
 class LandingWorkspaceTests(unittest.TestCase):
+    def test_visual_mode_survives_save_restart_and_immutable_approval(self):
+        detail = self.prepared(configuration={**DEFAULT_CONFIGURATION, "visual_mode": "image"})
+        approved = self.workspace.approve_configuration(base_sha256=detail["state_sha256"], configuration=detail["configuration"], content=detail["content"], change_note="Image hero")
+        version = self.workspace.version_detail(1)
+        self.assertEqual("image", version["configuration"]["visual_mode"])
+        reopened = LandingWorkspace(Path(self.temporary.name), image_provider=self.images)
+        self.assertEqual("image", reopened.detail()["configuration"]["visual_mode"])
+        restored = reopened.save_configuration(base_sha256=approved["state_sha256"], configuration={**approved["configuration"], "visual_mode": "phone"}, content=approved["content"])
+        self.assertEqual(detail["content"], restored["content"])
+        self.assertEqual(detail["assets"], restored["assets"])
+        self.assertEqual(version, reopened.version_detail(1))
+        self.assertNotIn("visual_mode", normalize_configuration(DEFAULT_CONFIGURATION))
+        with self.assertRaisesRegex(ValueError, "visual_mode"):
+            normalize_configuration({**DEFAULT_CONFIGURATION, "visual_mode": "invalid"})
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.images = FakeImages()

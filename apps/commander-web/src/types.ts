@@ -384,6 +384,7 @@ export interface StudioPhoneActionButtonConfiguration {
 }
 
 export interface StudioPhoneMetricsConfiguration {
+  visual_mode?: 'phone' | 'image'
   schema: 'ptw.studio.phone-metrics-config.v9'
   background: {
     color: string
@@ -649,6 +650,7 @@ export interface LandingPhoneMockup { theme: 'light' | 'dark' | 'glass'; layout:
 export interface LandingAppFeature { title: string; description: string; action_label: string; items: Array<{ label: string; value: string }> }
 
 export interface LandingConfiguration {
+  visual_mode?: 'phone' | 'image'
   phone_mockup?: LandingPhoneMockup
   components?: LandingComponents
   image_directions?: LandingImageDirections

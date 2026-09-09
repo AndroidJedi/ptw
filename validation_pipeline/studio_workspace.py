@@ -332,6 +332,7 @@ class UniversalStudioWorkspace:
                 list(config["phone_buttons"]),
                 config["typography"],
                 bool(config["phone_screen"]["logo_enabled"]),
+                visual_mode=str(config.get("visual_mode", "phone")),
             )
             records = {
                 "phone_device": {"bytes": device["bytes"], "mime_type": device["mime_type"]},

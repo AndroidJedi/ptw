@@ -245,7 +245,8 @@ test('approves a Brief through the required template picker and opens its creati
     return route.fallback()
   })
   await page.goto(`/?e2e=1&project=${projectId}`)
-  await page.getByRole('button', { name: 'Змінити мову' }).click()
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.reload()
   await page.getByRole('button', { name: 'I can honor this promise and offer — approve' }).click()
   const picker = page.getByRole('dialog', { name: 'Choose the creative template' })
   await expect(picker).toBeVisible()
@@ -280,7 +281,8 @@ test('opens an approved Brief\'s existing creative without resubmitting approval
   })
 
   await page.goto(`/?e2e=1&project=${projectId}`)
-  await page.getByRole('button', { name: 'Змінити мову' }).click()
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.reload()
   const openCreative = page.getByRole('button', { name: 'Open or create its creative' })
   await expect(openCreative).toHaveAttribute('data-contract', 'approved-brief-existing-creative-v1')
   await openCreative.click()
@@ -318,7 +320,8 @@ test('explains a persisted API-backed Brief failure without exposing raw provide
 test('shows Brief, the project-scoped Post editor, Landing Studio, and Ads', async ({ page }) => {
   await page.goto('/?e2e=1')
   await expect(page.getByRole('button', { name: 'Бриф' }).first()).toBeVisible()
-  await page.getByRole('button', { name: 'Змінити мову' }).click()
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.reload()
   await expect(page.getByRole('button', { name: 'Brief' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Social posts' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Post', exact: true }).first()).toBeVisible()
@@ -340,7 +343,8 @@ test('shows Brief, the project-scoped Post editor, Landing Studio, and Ads', asy
 
 test('opens the Post editor and persists its bounded configuration', async ({ page }) => {
   await page.goto('/?e2e=1&page=posts')
-  await page.getByRole('button', { name: 'Змінити мову' }).click()
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.reload()
 
   await expect(page.getByText('ONE TEMPLATE · CONFIGURATION-FIRST')).toHaveCount(0)
   await expect(page.getByText('Universal Ad Studio')).toHaveCount(0)
@@ -507,7 +511,8 @@ test('live previews every bounded sticker placement control', async ({ page }) =
 
 test('opens the local Tune wizard and submits all three generation inputs', async ({ page }) => {
   await page.goto('/?e2e=1&page=posts')
-  await page.getByRole('button', { name: 'Змінити мову' }).click()
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.reload()
   await page.getByRole('button', { name: 'Feedback & iterations' }).click()
 
   const wizard = page.getByRole('dialog', { name: 'Test generation' })
@@ -556,7 +561,8 @@ test('opens the local Tune wizard and submits all three generation inputs', asyn
 
 test('separates new Project creation from the selected Project workspace', async ({ page }) => {
   await page.goto('/?e2e=1')
-  await page.getByRole('button', { name: 'Змінити мову' }).click()
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.reload()
   await expect(page.getByText('BRIEF HISTORY', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'What do you want to validate?' })).toHaveCount(0)
 

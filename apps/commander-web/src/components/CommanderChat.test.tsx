@@ -68,3 +68,15 @@ it('does not expose the coding mode or call its API in production Settings', asy
   expect(get).toHaveBeenCalledTimes(1)
   expect(get).toHaveBeenCalledWith('/api/v1/settings/chatgpt-authorization')
 })
+
+it('keeps authorization alongside Commander and moves the language action into Settings', async () => {
+  const get = vi.fn(async (path: string) => path.includes('chatgpt-authorization')
+    ? { status: 'authorized', test_status: null }
+    : { target: 'local', available: true, chats: [], active_turn: null })
+  const onLanguage = vi.fn()
+  render(<SettingsView api={{ get } as never} language="uk" localMode onLanguage={onLanguage} />)
+  expect(await screen.findByRole('heading', { name: 'ChatGPT Authorization' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: /Commander/ })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Змінити мову' }))
+  expect(onLanguage).toHaveBeenCalledOnce()
+})

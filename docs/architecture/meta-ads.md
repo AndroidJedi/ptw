@@ -146,6 +146,8 @@ identities, publication/JPEG persistence, immutable guards, graph edges, and rep
 
 Real readiness additionally requires an owner-selected organic post with a
 verified permalink and a website ad verified PAUSED in Meta. Mocked browser/API
-checks do not establish provider readiness. No real canary has run for this
-local milestone. Migration-bearing production release uses the confirmation-gated
-in-place preserving procedure; it does not run a production reset.
+checks do not establish provider readiness. Production deployment and real
+approved-source/PNG/Landing access checks pass; Meta credentials are absent, so
+real Meta publication/ad acceptance remains outstanding. Migration-bearing
+production release uses the confirmation-gated in-place preserving procedure;
+it does not run a production reset.

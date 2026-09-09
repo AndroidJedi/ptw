@@ -23,6 +23,15 @@ a newly published hashed App URL. It passed once assets propagated; the auditor
 now requires JavaScript MIME inside its existing bounded retry window, covered
 by a fallback-then-JavaScript regression. Security marker checks remain required.
 
+Verification and release: 217 Validation tests and 18 built-image Commander tests
+pass. The compatibility release `instagram-restore-20260909-a4af6b2` passed both
+preservation comparisons, all nine fresh generation canaries, Pexels, dependency
+and resource audits, and authenticated access to the existing Project's two
+approved PNGs in both Ads and Instagram. Their digests match PostgreSQL, and the
+current published Landing resolves correctly. All six services are healthy;
+Owner cache v4 and both Hosting sites are live. Meta credentials remain absent,
+so no real Instagram publication or paid-ad creation is claimed.
+
 ## 2026-09-08 — Monolithic Landing composition repeatedly exhausted the worker deadline
 
 **Symptom:** expanded pre-cutover canaries passed all retained structured and

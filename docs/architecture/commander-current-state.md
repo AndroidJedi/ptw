@@ -2,14 +2,14 @@
 
 Updated: 2026-09-09
 Branch: `main`
-Deployment: `instagram-publishing-20260909-7ab10d1` and schema 005 are live; legacy Post restore compatibility hotfix is pending. Meta credentials remain unconfigured.
+Deployment: all six services are healthy on `instagram-restore-20260909-a4af6b2`; schema 005 and both web sites are live with Owner cache v4. Meta credentials remain unconfigured.
 
-## Pending legacy Post restore compatibility hotfix
+## Legacy Post restore compatibility incident — resolved
 
 The full release passed provider, migration-preservation, resource and Hosting
 checks, but authenticated Ads/Instagram source reads exposed a v8-to-v9 Post
 configuration digest mismatch. The old snapshot digest still matches exactly;
-no stored image or owner record was lost. The database adapter now verifies via
+no stored image or owner record was lost. The deployed database adapter verifies via
 the existing legacy-aware validator and avoids persistence on read-only restore.
 The new release canary checks actual project sources and immutable PNG digests
 against PostgreSQL before either preserving deployer reports completion. Tests
@@ -17,7 +17,7 @@ cover repeated restores, original bytes/digest preservation, and tampering.
 The Hosting audit also retries HTTP-200 HTML fallback responses until the entry
 and App assets have JavaScript MIME. See the incident log for diagnostics.
 
-## Local Instagram publishing and website Ads milestone
+## Instagram publishing and website Ads milestone
 
 Approved Posts now expose a version selector, verified approved PNG preview,
 editable caption, organic Instagram publication/history, and an exact-version
@@ -38,8 +38,8 @@ business table, including Landing, and rejects active publication workers.
 Canonical behavior and routes: [`meta-ads.md`](meta-ads.md).
 
 Local verification passes: 86 Owner Console unit tests and production build,
-75 browser flows across desktop/360px/iPhone WebKit (Meta mocked), 216 Validation
-tests in a disposable runtime container, 10 Gateway tests, 16 Commander tests
+75 browser flows across desktop/360px/iPhone WebKit (Meta mocked), 217 Validation
+tests in the repository environment, 10 Gateway tests, 18 built-image Commander tests
 and demo, deterministic Studio geometry/colour audit, canonical
 skills, and disposable migration/persistence checks. The latter exercise the
 actual deployment SQL with psql variables/stdin, preserve old rows and image
@@ -50,16 +50,21 @@ then passed with git/bash installed only in the disposable test container.
 Owner cache generation is now
 `ptw-shell-brief-studio-landing-ads-v4`.
 
-This milestone is local only. Local API and web launch successfully; Meta
-credentials and a public local media origin are absent, and the inspected local
-Project has no published Landing. No real Instagram publication/permalink or
-paused website ad has been accepted in Meta. Production release requires the
-established migration-bearing preserving procedure and hidden-prompt credential
-configuration; no production reset or release was performed.
+Production release and the preserving compatibility hotfix are complete.
+Both rounds of nine fresh generation canaries and Pexels passed, together with
+authorization, dependency, resource, source-access, and Hosting audits. All prior
+business rows remain unchanged. The root-only PostgreSQL backup precedes schema
+005; the 24-hour resource audit is scheduled. Actual production reads verify one
+Project, both immutable approved PNGs, and the current published Landing at
+`https://natal-service.com/la/natal-service`. The temporary media origin is ready.
+Meta credentials remain absent, so export is available but no real Instagram
+publication/permalink or paused website ad has been accepted in Meta. No reset
+was performed. Runtime revision: `a4af6b286ecb51f4ee07bedbb9584f1b2f511240`;
+platform revision remains `630d7636be057d16b22207fc0b1eea13711b4441`.
 
-## Pending production incident release
+## Preview and contact release
 
-The next preserving release fixes three owner-reported Post/Owner Console
+The full preserving release also fixes three owner-reported Post/Owner Console
 symptoms. Phone Metrics now binds each PNG preview to the exact draft state and
 hides stale pixels while a changed in-phone title is rendering. Recent iPhone
 thumbnail loads coalesce concurrent Firebase ID/App Check acquisition and retry
@@ -105,7 +110,7 @@ canonical skill validation, and the authenticated-free live boundary audit.
 The audit now tolerates only a bounded Firebase document/entry/lazy-bundle
 propagation window and requires the incident-specific reconciliation marker.
 
-## Local Post and Landing visual mode milestone
+## Post and Landing visual mode milestone
 
 Post Phone Metrics v24 and Landing now offer **Visual mode: Phone frame &
 buttons / Image only**. The optional saved `visual_mode` defaults to the existing
@@ -113,9 +118,9 @@ phone view. Post contains the complete raw artwork in the device area, keeping
 surrounding copy, metrics, and CTA. Landing removes its app phone overlay and
 shows the hero artwork with existing crop/placement controls. Phone settings,
 content, assets, history, and immutable versions survive toggling. No generation
-is needed to switch. This milestone is local only and has not been deployed.
+is needed to switch. This milestone is now deployed.
 
-Landing's generic HTTPS/booking contact option is also replaced locally by a
+Landing's generic HTTPS/booking contact option is also replaced by a
 bounded direct Telegram bot link. The persisted `url` key remains unchanged for
 contract compatibility, but new validation accepts only
 `https://t.me/<bot_username>` with a username ending in `bot`; the editor and
@@ -149,7 +154,7 @@ and records its digest. The agent maintains the narrowest relevant PTW skills
 after verified reusable lessons, with canonical sync/validation and separation
 from Product Brief, Post, and Landing learning. Missing skill disables execution.
 
-This milestone is local only and has not been deployed. The launcher enables
+This milestone is now deployed. The launcher enables
 `PTW_COMMANDER_CHAT_MODE=1` and the corrected `VITE_LOCAL_APP=true` flag. The
 runner uses a workspace-write sandbox with shell network access disabled and
 does not inherit user MCP/config or provider-secret environment variables.

@@ -4,6 +4,17 @@ Updated: 2026-09-09
 Branch: `main`
 Deployment: backend release `studio-approval-20260909-59be4a3` and the existing matching Owner Console contract are live; Meta staging is disabled until a fresh secret is configured
 
+## Landing Save conflict incident
+
+Production diagnosis found that Landing Save/Approve used the generic
+15-second browser deadline while synchronous Landing learning was allowed 480
+seconds by the Gateway. The affected page had already persisted one completed
+save checkpoint and no immutable version; repeated requests from the stale
+browser state then correctly returned HTTP 409. The web hotfix aligns the
+client deadline with the Gateway and reads the current page once after the exact
+stale-state conflict, reconciling only an exact configuration/content match and
+preserving pending owner input whenever the server document differs.
+
 ## Local Post and Landing visual mode milestone
 
 Post Phone Metrics v24 and Landing now offer **Visual mode: Phone frame &
@@ -56,7 +67,6 @@ Codex canary created and byte-verified a file in a disposable checkout. The
 refreshed local app reports the chat and canonical skill ready through real
 browser/HTTP reads. Existing production release verification below applies to
 the already-deployed Image Reference milestone.
-
 ## Image Reference milestone
 
 The Owner Console now exposes one optional upload/preview/remove control next

@@ -155,12 +155,29 @@ export function LandingView({ api, language, projectId = null, projectName = '',
     try {
       const value = await api.post<{ landing: LandingDetail } & LearningResult>(`${base}/pages/${detail.landing_id}/${approve ? 'approve' : 'save'}`, approve
         ? { base_sha256: detail.state_sha256, configuration, content, change_note: note }
-        : { base_sha256: detail.state_sha256, configuration, content })
+        : { base_sha256: detail.state_sha256, configuration, content }, { deadlineMs: 480_000 })
       applyDetail(value.landing)
       setCheckpointPending(false)
       setNotice(approve ? tr('Landing approved. Private version saved.', 'Лендінг затверджено. Приватну версію збережено.') : tr('Landing saved.', 'Лендінг збережено.'))
       if (value.checkpoint) setLearning(value)
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
+    } catch (cause) {
+      const failure = cause && typeof cause === 'object' && 'details' in cause
+        ? (cause as { details?: { status?: number; detail?: string } }).details : undefined
+      if (failure?.status === 409 && failure.detail === 'Landing changed; reload before saving') {
+        try {
+          const latest = await api.get<LandingDetail>(`${base}/pages/${detail.landing_id}`)
+          if (JSON.stringify(latest.configuration) === JSON.stringify(configuration) && JSON.stringify(latest.content) === JSON.stringify(content)) {
+            applyDetail(latest)
+            setCheckpointPending(false)
+            setNotice(approve
+              ? tr('Landing was already saved. Review it before approving again.', 'Лендінг уже збережено. Перевірте його перед повторним затвердженням.')
+              : tr('Landing was already saved.', 'Лендінг уже збережено.'))
+            return
+          }
+        } catch { /* Keep the original conflict guidance and pending owner input. */ }
+      }
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally { setBusy(false) }
   }
   useEffect(() => { setReferenceImage(null) }, [detail?.landing_id, section, projectId])
   const generate = async (slot: 'hero_visual' | 'visual_break_visual', enhance = false) => {

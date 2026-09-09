@@ -9,11 +9,15 @@ fi
 repository=$(cd "$(dirname "$0")/.." && pwd)
 cd "$repository"
 
-[[ $(git branch --show-current) == main ]] || { echo "Owner Console deployment requires main" >&2; exit 1; }
+branch=$(git branch --show-current)
+case "$branch" in
+    main|incident/*) ;;
+    *) echo "Owner Console deployment requires main or an incident branch" >&2; exit 1 ;;
+esac
 [[ -z $(git status --porcelain) ]] || { echo "Owner Console deployment requires a clean worktree" >&2; exit 1; }
-git fetch origin main
-[[ $(git rev-parse HEAD) == $(git rev-parse origin/main) ]] || {
-    echo "Owner Console deployment requires HEAD to equal origin/main" >&2
+git fetch origin "$branch"
+[[ $(git rev-parse HEAD) == $(git rev-parse "origin/$branch") ]] || {
+    echo "Owner Console deployment requires HEAD to equal its tracked origin branch" >&2
     exit 1
 }
 

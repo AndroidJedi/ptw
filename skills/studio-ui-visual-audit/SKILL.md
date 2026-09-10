@@ -40,7 +40,8 @@ resolved visible geometry or pixel-level assertions over snapshot hashes alone;
 a changed hash proves difference, not correctness. For the Phone & metrics
 template, preserve the off-white texture, upper-left Natal lock-up, left copy
 safe area, fused front-facing device, equal metric-button row with the cobalt
-filled/white-text/rounded reference default, full cobalt CTA band, a crisp
+filled/white-text/rounded reference default, full cobalt CTA band when CTA copy is nonempty (empty copy must remove the
+entire band without changing the upper canvas), a crisp
 upright Natal app shell, and a text-free generated hero-art contract. When
 metric-button controls change, verify Filled and Outlined styles, text and
 background/border colours, and Square, Rounded, and Pill shapes in actual pixels

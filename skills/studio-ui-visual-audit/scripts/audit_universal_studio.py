@@ -723,6 +723,24 @@ def main() -> None:
             phone_path.write_bytes(phone_preview["bytes"])
             phone_report["preview_path"] = str(phone_path.resolve())
         reports.append(phone_report)
+        no_cta_content = {**phone_content, "cta": ""}
+        no_cta_preview = phone_workspace.render_preview(
+            state_sha256=phone["state_sha256"], configuration=reference_phone_config,
+            content=no_cta_content,
+        )
+        require("cta" not in no_cta_preview["resolved"]["nodes"], "phone: empty CTA leaves a node")
+        from io import BytesIO
+        from PIL import Image
+
+        with Image.open(BytesIO(phone_preview["bytes"])) as shown, Image.open(BytesIO(no_cta_preview["bytes"])) as hidden:
+            require(shown.crop((0, 0, 1080, 1206)).tobytes() == hidden.crop((0, 0, 1080, 1206)).tobytes(), "phone: hiding CTA changes unrelated pixels")
+            require(hidden.convert("RGB").getpixel((16, 1300)) != (49, 108, 255), "phone: empty CTA leaves a blue band")
+        no_cta_report = {"variant": "phone_metrics_without_cta", "checks": ["no_cta_node_or_band", "unchanged_upper_canvas"]}
+        if output_dir is not None:
+            no_cta_path = output_dir / "phone_metrics_without_cta.png"
+            no_cta_path.write_bytes(no_cta_preview["bytes"])
+            no_cta_report["preview_path"] = str(no_cta_path.resolve())
+        reports.append(no_cta_report)
         no_logo_config = copy.deepcopy(reference_phone_config)
         no_logo_config["logo"]["enabled"] = False
         no_logo_config["phone_screen"]["logo_enabled"] = False

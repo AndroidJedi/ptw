@@ -227,6 +227,31 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertNotIn("error_type", recovered["generation"])
         self.assertNotIn("error_message", recovered["generation"])
 
+    def test_phone_preview_http_accepts_empty_cta_and_recovers_after_invalid_draft(self) -> None:
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from hashlib import sha256
+        from validation_pipeline.studio_routes import studio_creative_router
+
+        project_id, _, detail = self.generate_creative("phone_metrics")
+        app = FastAPI()
+        app.include_router(studio_creative_router(self.service, prefix="/api/v1/studio"))
+        path = f"/api/v1/studio/projects/{project_id}/creatives/{detail['creative_id']}/preview"
+        request = {
+            "state_sha256": detail["state_sha256"], "configuration": detail["configuration"],
+            "content": {**detail["content"], "cta": "", "hero_title": ""},
+        }
+        with TestClient(app) as client:
+            self.assertEqual(400, client.post(path, json=request).status_code)
+            request["content"]["hero_title"] = "Completed owner headline"
+            response = client.post(path, json=request)
+        self.assertEqual(200, response.status_code, response.text[:200])
+        self.assertEqual("image/png", response.headers["content-type"])
+        self.assertEqual("private, no-store", response.headers["cache-control"])
+        self.assertEqual(sha256(response.content).hexdigest(), response.headers["x-ptw-content-sha256"])
+        self.assertEqual(detail["state_sha256"], self.service.detail(project_id, detail["creative_id"])["state_sha256"])
+        self.assertEqual(1, self.authority.latest_skill("project", project_id)["version"])
+
     def test_phone_generation_uses_brief_composition_and_all_skill_layers(self) -> None:
         project_id, _brief_id, detail = self.generate_creative("phone_metrics")
 
@@ -322,6 +347,7 @@ class StudioCreativeServiceTests(unittest.TestCase):
         detail = self.service._workspace(creative["creative_id"]).detail()
         schema = creative_generation_schema(detail)
         content = schema["properties"]["content"]["properties"]
+        self.assertEqual(0, content["cta"]["minLength"])
 
         self.assertEqual({"minLength": 1, "maxLength": 32}, {
             key: content["offer"][key] for key in ("minLength", "maxLength")

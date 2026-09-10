@@ -31,7 +31,7 @@ _LEGACY_PHONE_METRICS_CONFIG_SCHEMAS = frozenset({
 })
 PHONE_METRICS_CONTENT_SCHEMA = "ptw.studio.phone-metrics-content.v2"
 PHONE_METRICS_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.phone-metrics-component-settings.v2"
-PHONE_METRICS_TEMPLATE_VERSION = 24
+PHONE_METRICS_TEMPLATE_VERSION = 25
 PHONE_VISUAL_MODES = ("phone", "image")
 PHONE_METRICS_CANVAS = (1080, 1350)
 PHONE_BACKGROUND_TEXTURES = ("none", "grain", "concrete", "travertine")
@@ -413,7 +413,7 @@ def normalize_phone_metrics_content(value: Mapping[str, Any]) -> dict[str, Any]:
         "offer": _text(root["offer"], "phone metrics offer", 1, 32),
         "hero_title": _text(root["hero_title"], "phone metrics hero_title", 1, 140),
         "supporting_text": _text(root["supporting_text"], "phone metrics supporting_text", 1, 220),
-        "cta": _text(root["cta"], "phone metrics cta", 1, 60),
+        "cta": _text(root["cta"], "phone metrics cta", 0, 60, allow_empty=True),
         "stats": stats,
         "phone_hero_title": _text(root["phone_hero_title"], "phone metrics phone_hero_title", 0, 72, allow_empty=True),
         "phone_buttons": phone_buttons,
@@ -534,13 +534,14 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
                 "line_height": 0.98, "color": metric_card["text_color"], "text_align": "center", "text_fit": "shrink", "max_lines": 2, "z_index": 9,
             }, binding=("text", f"content.stats_{index + 1}_label", True)),
         ])
-    children.append(_node("cta", "button", {
-        "position": "absolute", "x": 0, "y": 1206, "width": width, "height": 144,
-        "background_color": "#316CFF", "radius": 0, "label_color": "#FFFFFF",
-        "font_family": typography["cta"]["font_family"],
-        "font_size": typography["cta"]["font_size"], "min_font_size": 20, "font_weight": 700, "text_align": "left", "vertical_align": "center",
-        "text_fit": "shrink", "max_lines": 1, "padding": {"top": 22, "right": 64, "bottom": 22, "left": 68}, "z_index": 10,
-    }, binding=("label", "content.cta", True)))
+    if content["cta"]:
+        children.append(_node("cta", "button", {
+            "position": "absolute", "x": 0, "y": 1206, "width": width, "height": 144,
+            "background_color": "#316CFF", "radius": 0, "label_color": "#FFFFFF",
+            "font_family": typography["cta"]["font_family"],
+            "font_size": typography["cta"]["font_size"], "min_font_size": 20, "font_weight": 700, "text_align": "left", "vertical_align": "center",
+            "text_fit": "shrink", "max_lines": 1, "padding": {"top": 22, "right": 64, "bottom": 22, "left": 68}, "z_index": 10,
+        }, binding=("label", "content.cta", True)))
     document = {
         "schema": "ptw.studio.primitive-template.v1", "template_id": PHONE_METRICS_TEMPLATE_ID,
         "template_type": "phone_metrics", "version": PHONE_METRICS_TEMPLATE_VERSION, "status": "approved",
@@ -579,12 +580,14 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
         "rules": [
             *[{"id": f"role_{role}", "scope": "template", "type": "required_role", "params": {"role": role}} for role in (
                 "background", *(('brand',) if config["logo"]["enabled"] else ()),
-                "hero_title", "supporting_text", "device_mockup", "metrics", "cta",
+                "hero_title", "supporting_text", "device_mockup", "metrics", *(("cta",) if content["cta"] else ()),
             )],
             {"id": "fixed_tree", "scope": "template", "type": "max_nodes", "params": {"maximum": 18}},
         ],
-        "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": ["owner-reference-phone-metrics-v1"], "change_note": "Natal phone-and-metrics v24 adds a saved image-only visual mode that contains the complete raw artwork without a phone frame or app UI; phone remains the default."},
+        "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": ["owner-reference-phone-metrics-v1"], "change_note": "Natal phone-and-metrics v25 makes the CTA optional; empty CTA copy removes the entire band. Image-only mode and the default phone view remain available."},
     }
+    if not content["cta"]:
+        document["semantic_roles"].pop("cta")
     if not config["logo"]["enabled"]:
         document["semantic_roles"].pop("brand")
     if not config["offer"]["enabled"]:
@@ -656,7 +659,7 @@ def phone_metrics_catalog() -> dict[str, Any]:
         } for item in PHONE_COMPONENTS],
         "asset_slots": {key: {"role": item["role"], "allowed_mime_types": list(item["allowed_mime_types"]), "description": item["description"]} for key, item in PHONE_ASSET_SLOTS.items()},
         "variation": {
-            "optional_elements": ["offer", "post_logo", "phone_logo"], "brand": "Natal",
+            "optional_elements": ["offer", "post_logo", "phone_logo", "cta"], "brand": "Natal",
             "visual_modes": list(PHONE_VISUAL_MODES),
             "device_pose": "front_facing_upright",
             "device_rotation_degrees": 0.0,

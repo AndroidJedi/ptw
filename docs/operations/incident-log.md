@@ -2,6 +2,23 @@
 
 Updated: 2026-09-10
 
+## 2026-09-10 — Studio draft validation hid the last successful preview
+
+The owner reported HTTP 400 from Phone Metrics preview after clearing CTA.
+The normalizer required 1–60 characters, while a debounced effect rendered every
+field change. The editor hid its previous PNG immediately when the draft state
+changed; a rejected request therefore left a loading placeholder indefinitely.
+
+Phone Metrics now accepts empty CTA copy and removes the whole band. Both Post
+editors batch control changes until **Update preview**, retain the previous PNG
+on failure, label unpreviewed edits, and support manual retry. The requested
+snapshot is tracked independently of edits made while rendering. Composer and
+renderer bounds agree, preview cannot create learning, and the canonical Tune
+and visual-audit skills preserve these requirements.
+
+Local unit, browser, real preview-route, persistence, and pixel regressions pass.
+Owner cache v7 is prepared. Production deployment is pending.
+
 ## 2026-09-10 — Mobile receiver reported failure after a successful rollout
 
 A documentation-only GOD-mode acceptance candidate passed every GitHub gate and

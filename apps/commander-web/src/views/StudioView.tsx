@@ -176,7 +176,10 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
   const [variantDirectionOpen, setVariantDirectionOpen] = useState(false)
   const importRef = useRef<HTMLInputElement>(null)
   const draftPreviewGeneration = useRef(0)
-  const previewMode = useRef<'saved' | 'draft'>('saved')
+  const [previewState, setPreviewState] = useState('')
+  const previewStateFor = (value: StudioUniversalDetail, config = value.configuration, copy = value.content) => JSON.stringify([value.state_sha256, config, normalizedPreviewContent(copy)])
+  const currentPreviewState = detail && configuration && content ? previewStateFor(detail, configuration, content) : ''
+  const previewStale = previewState !== currentPreviewState
   const tr = (en: string, uk: string) => translate(language, en, uk)
   const basePath = projectId && creativeId
     ? `/api/v1/studio/projects/${projectId}/creatives/${creativeId}`
@@ -189,16 +192,22 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
   }
 
   const renderPreview = async (value: StudioUniversalDetail) => {
-    draftPreviewGeneration.current += 1
-    const blob = await api.postMedia(
-      `${basePath}/preview`, { state_sha256: value.state_sha256 },
-      'image/png', { deadlineMs: 90_000 },
-    )
-    setPreviewUrl(URL.createObjectURL(blob))
-    previewMode.current = 'saved'
+    const generation = ++draftPreviewGeneration.current
+    setPreviewBusy(true)
     setPreviewError('')
-    setPreviewBusy(false)
-    setDraftPreviewed(false)
+    try {
+      const blob = await api.postMedia(
+        `${basePath}/preview`, { state_sha256: value.state_sha256 },
+        'image/png', { deadlineMs: 90_000 },
+      )
+      if (generation !== draftPreviewGeneration.current) return
+      setPreviewUrl(URL.createObjectURL(blob))
+      setPreviewState(previewStateFor(value))
+      setPreviewError('')
+      setDraftPreviewed(false)
+    } finally {
+      if (generation === draftPreviewGeneration.current) setPreviewBusy(false)
+    }
   }
 
   const load = async () => {
@@ -232,12 +241,13 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       const value = await api.get<StudioUniversalDetail>(path, { deadlineMs: 60_000 })
       applyDetail(value)
       try {
-        if (value.status === 'draft') {
+        if (value.status === 'draft' && value.template_id === 'universal_ad') {
           const blob = await api.postMedia(
             `${path}/preview`, { state_sha256: value.state_sha256 },
             'image/png', { deadlineMs: 90_000 },
           )
           setPreviewUrl(URL.createObjectURL(blob))
+          setPreviewState(previewStateFor(value))
         }
       } catch (cause) {
         setError((cause as Error).message)
@@ -257,77 +267,36 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
     return () => window.clearInterval(timer)
   }, [detail?.status, projectId, creativeId])
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
+  useEffect(() => () => { draftPreviewGeneration.current += 1 }, [basePath])
   useEffect(() => {
-    const generation = ++draftPreviewGeneration.current
-    if (!detail || !configuration || !content || busy) {
-      setPreviewBusy(false)
-      return
-    }
-    const normalizedContent = normalizedPreviewContent(content)
-    const matchesPersisted = (
+    if (!detail || !configuration || !content) return
+    window.sessionStorage.setItem('ptw.studio.unsaved', (
       JSON.stringify(configuration) === JSON.stringify(detail.configuration)
-      && JSON.stringify(normalizedContent) === JSON.stringify(detail.content)
-    )
-    window.sessionStorage.setItem('ptw.studio.unsaved', matchesPersisted ? '0' : '1')
-    if (matchesPersisted) {
-      if (previewMode.current === 'draft') {
-        setPreviewBusy(true)
-        setPreviewError('')
-        const timer = window.setTimeout(async () => {
-          try {
-            const blob = await api.postMedia(
-              `${basePath}/preview`, { state_sha256: detail.state_sha256 },
-              'image/png', { deadlineMs: 90_000 },
-            )
-            if (draftPreviewGeneration.current !== generation) return
-            setPreviewUrl(URL.createObjectURL(blob))
-            previewMode.current = 'saved'
-            setDraftPreviewed(false)
-          } catch (cause) {
-            if (draftPreviewGeneration.current !== generation) return
-            setPreviewError((cause as Error).message)
-          } finally {
-            if (draftPreviewGeneration.current === generation) setPreviewBusy(false)
-          }
-        }, 180)
-        return () => window.clearTimeout(timer)
-      }
-      setPreviewBusy(false)
-      setPreviewError('')
-      setDraftPreviewed(false)
-      return
-    }
-    if (!normalizedContent.hero_title.trim() || !normalizedContent.supporting_text.trim() || !normalizedContent.offer.trim() || !normalizedContent.cta.trim()) {
-      setPreviewBusy(false)
-      setPreviewError(tr(
-        'Complete the title, supporting text, offer, and CTA to refresh the preview.',
-        'Заповніть заголовок, пояснення, пропозицію та CTA, щоб оновити прев’ю.',
-      ))
-      return
-    }
+      && JSON.stringify(normalizedPreviewContent(content)) === JSON.stringify(detail.content)
+    ) ? '0' : '1')
+  }, [configuration, content, detail])
+
+  const updatePreview = async () => {
+    if (!detail || !configuration || !content || previewBusy) return
+    const generation = ++draftPreviewGeneration.current
+    const requestedState = currentPreviewState
     setPreviewBusy(true)
     setPreviewError('')
-    setDraftPreviewed(false)
-    const timer = window.setTimeout(async () => {
-      try {
-        const blob = await api.postMedia(`${basePath}/preview`, {
-          state_sha256: detail.state_sha256,
-          configuration,
-          content: normalizedContent,
-        }, 'image/png', { deadlineMs: 90_000 })
-        if (draftPreviewGeneration.current !== generation) return
-        setPreviewUrl(URL.createObjectURL(blob))
-        previewMode.current = 'draft'
-        setDraftPreviewed(true)
-      } catch (cause) {
-        if (draftPreviewGeneration.current !== generation) return
-        setPreviewError((cause as Error).message)
-      } finally {
-        if (draftPreviewGeneration.current === generation) setPreviewBusy(false)
-      }
-    }, 180)
-    return () => window.clearTimeout(timer)
-  }, [api, busy, configuration, content, detail, language])
+    try {
+      const blob = await api.postMedia(`${basePath}/preview`, {
+        state_sha256: detail.state_sha256, configuration,
+        content: normalizedPreviewContent(content),
+      }, 'image/png', { deadlineMs: 90_000 })
+      if (draftPreviewGeneration.current !== generation) return
+      setPreviewUrl(URL.createObjectURL(blob))
+      setPreviewState(requestedState)
+      setDraftPreviewed(requestedState !== previewStateFor(detail))
+    } catch (cause) {
+      if (draftPreviewGeneration.current === generation) setPreviewError((cause as Error).message)
+    } finally {
+      if (draftPreviewGeneration.current === generation) setPreviewBusy(false)
+    }
+  }
 
   const patchConfig = <K extends keyof StudioUniversalConfiguration>(
     group: K, patch: Partial<StudioUniversalConfiguration[K]>,
@@ -538,6 +507,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
     try {
       const blob = await api.media(`${basePath}/versions/${version}/render`, 'image/png', digest)
       setPreviewUrl(URL.createObjectURL(blob))
+      setPreviewState('')
       setNotice(tr(`Showing immutable version ${version}.`, `Показано незмінну версію ${version}.`))
     } catch (cause) {
       setError((cause as Error).message)
@@ -718,8 +688,8 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       <span>{detail.catalog.semantic_roles.length} {tr('stable semantic roles', 'сталих семантичних ролей')}</span>
       <code title={detail.state_sha256}>{detail.state_sha256.slice(0, 12)}</code>
       {busy && <span><RefreshCcw className="spin" /> {tr('Working…', 'Обробка…')}</span>}
-      {previewBusy && <span><RefreshCcw className="spin" /> {tr('Updating live preview…', 'Оновлення живого прев’ю…')}</span>}
-      {!previewBusy && draftPreviewed && <span className="studio-live-state">{tr('Live preview up to date', 'Живе прев’ю оновлено')}</span>}
+      {previewBusy && <span><RefreshCcw className="spin" /> {tr('Updating preview…', 'Оновлення прев’ю…')}</span>}
+      {!previewBusy && !previewStale && draftPreviewed && <span className="studio-live-state">{tr('Preview up to date', 'Прев’ю оновлено')}</span>}
       {previewError && <span className="studio-preview-error">{previewError}</span>}
     </div>
 
@@ -754,12 +724,13 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
 
     <section className="universal-studio-workspace">
       <main className="studio-canvas-panel universal-canvas-panel">
-        <header><div><small>{tr('LIVE POST RENDER', 'ЖИВИЙ РЕНДЕР ДОПИСУ')}</small><h2>{tr('Every control updates this creative', 'Кожне налаштування оновлює цей креатив')}</h2></div><span className="studio-live-badge">{tr('LIVE PREVIEW', 'ЖИВЕ ПРЕВ’Ю')}</span></header>
+        <header><div><small>{tr('POST PREVIEW', 'ПРЕВ’Ю ДОПИСУ')}</small><h2>{tr('Edit, then update your preview', 'Редагуйте, потім оновіть прев’ю')}</h2></div><button type="button" className="secondary" disabled={busy || previewBusy} onClick={() => void updatePreview()}><RefreshCcw />{tr('Update preview', 'Оновити прев’ю')}</button></header>
         <div className={`studio-preview-feedback ${previewError ? 'is-error' : ''}`} aria-live="polite">
           {previewBusy && <><RefreshCcw className="spin" /> {tr('Rendering your changes…', 'Рендеримо ваші зміни…')}</>}
+          {!previewBusy && previewStale && <>{tr('Changes not previewed. Press Update preview when ready.', 'Зміни ще не показано. Натисніть «Оновити прев’ю», коли завершите редагування.')}</>}
           {!previewBusy && previewError && <>{tr('Preview could not update:', 'Не вдалося оновити прев’ю:')} {previewError}</>}
-          {!previewBusy && !previewError && draftPreviewed && <>{tr('Preview matches your unsaved changes', 'Прев’ю відповідає незбереженим змінам')}</>}
-          {!previewBusy && !previewError && !draftPreviewed && <>{tr('Preview matches the saved setup', 'Прев’ю відповідає збереженим налаштуванням')}</>}
+          {!previewBusy && !previewError && !previewStale && draftPreviewed && <>{tr('Preview matches your unsaved changes', 'Прев’ю відповідає незбереженим змінам')}</>}
+          {!previewBusy && !previewError && !previewStale && !draftPreviewed && <>{tr('Preview matches the saved setup', 'Прев’ю відповідає збереженим налаштуванням')}</>}
         </div>
         <div className="studio-preview-grid">
           <figure aria-busy={previewBusy}>{previewUrl

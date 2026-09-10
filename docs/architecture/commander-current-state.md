@@ -9,6 +9,20 @@ three provider services remain on `god-mode-sandbox-20260910-faf77f9`. Schema
 005 and both web sites are live with Owner cache v6. Meta credentials remain
 unconfigured.
 
+## Studio manual preview and optional CTA — release prepared
+
+Both Post templates now wait for **Update preview** before rendering draft field
+changes. Pending edits and failed requests retain the last successful image;
+request-state tracking labels edits made during a render as not yet previewed.
+Phone Metrics v25 accepts empty CTA copy and omits the entire blue CTA band,
+including through Save, Approve, and reload. Preview itself remains read-only.
+Owner cache v7 delivers the new controls to installed consoles.
+
+Local verification passed 90 Studio Python tests, 35 editor unit tests, the
+Owner build, affected desktop/360px/iPhone WebKit flows, the real preview-route
+400-to-200 recovery test, canonical skills, whitespace, and authoritative PNG
+geometry/pixel checks with and without CTA. Production rollout is pending.
+
 ## Mobile GOD deployment — live
 
 Hosted Settings now exposes **DEPLOY NEW CHANGES** after a GOD coding turn. A

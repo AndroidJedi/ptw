@@ -365,13 +365,17 @@ describe('Universal Ad Studio', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Creative saved and the Project skill was updated.')
   })
 
-  it('renders unsaved component toggles through the live draft preview', async () => {
+  it('renders unsaved component toggles through the manual draft preview', async () => {
     const { api, post } = studioApi()
     render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
-    expect(await screen.findByText('LIVE PREVIEW')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Update preview' })).toBeInTheDocument()
     expect(screen.getByLabelText('Enable sticker')).toBeChecked()
     fireEvent.click(screen.getByLabelText('Enable sticker'))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ })).toBeEnabled())
+
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
 
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
       `${basePath}/preview`,
@@ -384,10 +388,30 @@ describe('Universal Ad Studio', () => {
       'image/png',
       { deadlineMs: 90_000 },
     ))
-    expect(await screen.findByText('Live preview up to date')).toBeInTheDocument()
+    expect(await screen.findByText('Preview up to date')).toBeInTheDocument()
     expect(post).not.toHaveBeenCalledWith(
       `${basePath}/configuration`, expect.anything(), expect.anything(),
     )
+  })
+
+  it('batches edits without rendering and recovers a failed manual preview without losing the image', async () => {
+    const { api, post } = studioApi()
+    render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
+    await screen.findByText('Preview matches the saved setup')
+    fireEvent.change(screen.getByLabelText('Hero Title'), { target: { value: '' } })
+    fireEvent.click(screen.getByLabelText('Enable sticker'))
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(api.postMedia).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/Changes not previewed/)).toBeInTheDocument()
+    vi.mocked(api.postMedia).mockRejectedValueOnce(new Error('Invalid draft'))
+    fireEvent.click(screen.getByRole('button', { name: 'Update preview' }))
+    await screen.findByText(/Preview could not update:/)
+    expect(screen.getByAltText('Current universal advertising creative')).toBeVisible()
+    fireEvent.change(screen.getByLabelText('Hero Title'), { target: { value: 'Completed headline' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Update preview' }))
+    await screen.findByText('Preview up to date')
+    expect(api.postMedia).toHaveBeenCalledTimes(3)
+    expect(post).not.toHaveBeenCalled()
   })
 
   it('sources a Sticker when the Pexels-backed component starts without an asset', async () => {
@@ -444,7 +468,7 @@ describe('Universal Ad Studio', () => {
     ))
   })
 
-  it('names the sticker placement section and live previews every sticker control', async () => {
+  it('names the sticker placement section and previews every sticker control on request', async () => {
     const { api } = studioApi()
     render(<StudioView api={api} language="uk" projectId={projectId} creativeId={creativeId} />)
 
@@ -461,6 +485,8 @@ describe('Universal Ad Studio', () => {
     ]
     for (const [label, inputValue, setting, expected] of changes) {
       fireEvent.change(screen.getByLabelText(label), { target: { value: inputValue } })
+      await waitFor(() => expect(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ })).toBeEnabled())
+      fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
       await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
         `${basePath}/preview`,
         expect.objectContaining({
@@ -511,6 +537,10 @@ describe('Universal Ad Studio', () => {
     fireEvent.change(screen.getByLabelText('Adjust from right'), { target: { value: '35' } })
     fireEvent.change(screen.getByLabelText('Adjust from bottom'), { target: { value: '20' } })
 
+    await waitFor(() => expect(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ })).toBeEnabled())
+
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
+
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
       `${basePath}/preview`,
       expect.objectContaining({
@@ -545,6 +575,8 @@ describe('Universal Ad Studio', () => {
       { deadlineMs: 90_000 },
     ))
     expect(await screen.findByRole('status')).toHaveTextContent('background_image saved.')
+    await waitFor(() => expect(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
       `${basePath}/preview`,
       expect.objectContaining({
@@ -607,13 +639,17 @@ describe('Universal Ad Studio', () => {
     })
   })
 
-  it('renders unsaved text and background edits through the live draft preview', async () => {
+  it('renders unsaved text and background edits through the manual draft preview', async () => {
     const { api, post } = studioApi()
     render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
     await screen.findByText('Preview matches the saved setup')
     fireEvent.change(screen.getByLabelText('Hero Title'), { target: { value: 'A NEW LIVE PROMISE' } })
     fireEvent.change(screen.getByLabelText('Background mode'), { target: { value: 'texture' } })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ })).toBeEnabled())
+
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
 
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
       `${basePath}/preview`,

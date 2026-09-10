@@ -111,6 +111,37 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             base_sha256=universal["state_sha256"], template_id=PHONE_METRICS_TEMPLATE_ID,
         )
 
+    def test_optional_cta_hides_band_and_survives_preview_save_approval_and_restart(self) -> None:
+        from PIL import Image
+
+        detail = self._phone()
+        original = self.workspace.render_preview(state_sha256=detail["state_sha256"])
+        content = {**detail["content"], "cta": "   "}
+        preview = self.workspace.render_preview(
+            state_sha256=detail["state_sha256"], configuration=detail["configuration"], content=content,
+        )
+        self.assertEqual(detail["state_sha256"], self.workspace.detail()["state_sha256"])
+        self.assertNotIn("cta", preview["resolved"]["nodes"])
+        self.assertIn("cta", original["resolved"]["nodes"])
+        with Image.open(BytesIO(preview["bytes"])) as image:
+            self.assertNotEqual((49, 108, 255), image.convert("RGB").getpixel((20, 1300)))
+        saved = self.workspace.save_configuration(
+            base_sha256=detail["state_sha256"], configuration=detail["configuration"], content=content,
+        )
+        self.assertEqual("", saved["content"]["cta"])
+        self.workspace.approve_configuration(
+            base_sha256=saved["state_sha256"], configuration=saved["configuration"],
+            content=saved["content"], change_note="Optional CTA omitted",
+        )
+        version = self.workspace.version_detail(1)
+        reopened = UniversalStudioWorkspace(self.workspace.root)
+        self.assertEqual("", reopened.detail()["content"]["cta"])
+        self.assertEqual(version, reopened.version_detail(1))
+        for value in ("", "X" * 60):
+            self.assertEqual(value, normalize_phone_metrics_content({**content, "cta": value})["cta"])
+        with self.assertRaisesRegex(ValueError, "phone metrics cta"):
+            normalize_phone_metrics_content({**content, "cta": "X" * 61})
+
     def test_static_owner_selected_frame_has_checked_in_source_license_and_digest(self) -> None:
         manifest = json.loads(IPHONE_FRAME_PATH.with_suffix(".json").read_text())
         self.assertEqual(IPHONE_FRAME_SHA256, sha256(IPHONE_FRAME_PATH.read_bytes()).hexdigest())
@@ -619,7 +650,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             visible_nodes["hero_title"]["props"]["y"],
         )
         self.assertEqual(
-            ["offer", "post_logo", "phone_logo"],
+            ["offer", "post_logo", "phone_logo", "cta"],
             phone_metrics_catalog()["variation"]["optional_elements"],
         )
 
@@ -679,7 +710,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         self.assertFalse(settings["configuration.logo.enabled"])
         self.assertFalse(settings["configuration.phone_screen.logo_enabled"])
         self.assertEqual(
-            ["offer", "post_logo", "phone_logo"],
+            ["offer", "post_logo", "phone_logo", "cta"],
             phone_metrics_catalog()["variation"]["optional_elements"],
         )
 

@@ -61,6 +61,17 @@ and explicitly expands the task.
   reload mode, treat an unchanged browser preview as a stale-runtime failure,
   not as evidence that the renderer change had no effect.
 
+## Explicit Post previews
+
+Both Post editors batch field/control edits until **Update preview**. Do not
+restore debounce-driven render requests or validate incomplete fields while the
+owner types. Keep the last successful image visible on pending edits and render
+failure, label stale previews explicitly, and allow a fresh manual retry.
+Track the exact requested draft so edits made during an in-flight render remain
+stale. Preview must not create Save/Approve checkpoints or learning. Phone
+Metrics CTA copy is optional: empty/whitespace copy removes its whole band,
+including through Save, Approve, and reload; retain the 60-character upper bound.
+
 ## Apple-style sticker treatment
 
 The sticker source must be an ultra-realistic photograph of a physical object

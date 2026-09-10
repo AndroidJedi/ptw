@@ -184,6 +184,8 @@ describe('Phone & metrics Studio', () => {
     const mode = screen.getByRole('combobox', { name: 'Visual mode' })
     expect(mode).toHaveValue('phone')
     fireEvent.change(mode, { target: { value: 'image' } })
+    await waitFor(() => expect(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
     await waitFor(() => expect(api.postMedia).toHaveBeenCalledWith(`${basePath}/preview`, expect.objectContaining({
       configuration: expect.objectContaining({ visual_mode: 'image' }), content: detail.content,
     }), 'image/png', expect.anything()))
@@ -216,7 +218,7 @@ describe('Phone & metrics Studio', () => {
     const error = await screen.findByRole('alert')
     expect(error).toHaveTextContent('Save was not confirmed. Your edits are still in the editor.')
     expect(error).toHaveTextContent('HTTP 409')
-    expect(error.parentElement).toHaveFocus()
+    await waitFor(() => expect(error.parentElement).toHaveFocus())
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' })
     expect(screen.getByLabelText('Headline')).toHaveValue('Keep my pending headline')
     expect(screen.queryByText('Creative saved and Project learning updated.')).not.toBeInTheDocument()
@@ -251,6 +253,8 @@ describe('Phone & metrics Studio', () => {
 
     expect(screen.getByText('Eyebrow removed')).toBeInTheDocument()
     expect(screen.queryByLabelText('Eyebrow')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
       `${basePath}/preview`,
       expect.objectContaining({
@@ -272,7 +276,7 @@ describe('Phone & metrics Studio', () => {
     ))
   })
 
-  it('never presents a stale phone title as the current draft preview', async () => {
+  it('keeps the previous preview visible and labels edits until an explicit update', async () => {
     let finishInitial!: (blob: Blob) => void
     let finishDraft!: (blob: Blob) => void
     const { api } = studioApi()
@@ -289,9 +293,13 @@ describe('Phone & metrics Studio', () => {
     fireEvent.change(screen.getByLabelText('Optional in-phone title'), {
       target: { value: 'First hour FREE' },
     })
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(api.postMedia).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/Changes not previewed/)).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Natal phone and metrics creative' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Update preview' }))
     await waitFor(() => expect(api.postMedia).toHaveBeenCalledTimes(2))
-    expect(screen.queryByRole('img', { name: 'Natal phone and metrics creative' })).not.toBeInTheDocument()
-    expect(screen.getByText('Updating preview…')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Natal phone and metrics creative' })).toBeVisible()
     expect(api.postMedia).toHaveBeenLastCalledWith(
       `${basePath}/preview`,
       expect.objectContaining({ content: expect.objectContaining({ phone_hero_title: 'First hour FREE' }) }),
@@ -299,6 +307,53 @@ describe('Phone & metrics Studio', () => {
     )
     finishDraft(new Blob(['new-preview'], { type: 'image/png' }))
     await waitFor(() => expect(screen.getByRole('img', { name: 'Natal phone and metrics creative' })).toBeVisible())
+  })
+
+  it('allows empty CTA edits, retains the last image after failure, and retries the latest draft', async () => {
+    const { api, post } = studioApi()
+    render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} />)
+    await screen.findByRole('img', { name: 'Natal phone and metrics creative' })
+    vi.mocked(api.postMedia).mockRejectedValueOnce(new Error('Preview unavailable'))
+    fireEvent.change(screen.getByLabelText('CTA'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Headline'), { target: { value: '' } })
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(api.postMedia).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('Preview unavailable')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Update preview' }))
+    expect(await screen.findByText('Preview unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Natal phone and metrics creative' })).toBeVisible()
+    expect(screen.queryByText('Updating preview…')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Headline'), { target: { value: 'Finished headline' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Update preview' }))
+    await screen.findByText('Preview up to date')
+    expect(api.postMedia).toHaveBeenCalledTimes(3)
+    expect(api.postMedia).toHaveBeenLastCalledWith(`${basePath}/preview`, expect.objectContaining({
+      content: expect.objectContaining({ cta: '', hero_title: 'Finished headline' }),
+    }), 'image/png', expect.anything())
+    expect(screen.queryByText('Preview unavailable')).not.toBeInTheDocument()
+    expect(post).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`${basePath}/save`, expect.objectContaining({
+      content: expect.objectContaining({ cta: '' }),
+    }), expect.anything()))
+  })
+
+  it('marks a completed render stale if editing continued while it was running', async () => {
+    const { api } = studioApi()
+    render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} />)
+    await screen.findByRole('img', { name: 'Natal phone and metrics creative' })
+    let finish!: (blob: Blob) => void
+    vi.mocked(api.postMedia).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    fireEvent.change(screen.getByLabelText('CTA'), { target: { value: 'First draft' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Update preview' }))
+    expect(screen.getByRole('button', { name: 'Update preview' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('CTA'), { target: { value: 'Latest draft' } })
+    finish(new Blob(['first draft'], { type: 'image/png' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Update preview' })).toBeEnabled())
+    expect(screen.getByText(/Changes not previewed/)).toBeInTheDocument()
+    expect(api.postMedia).toHaveBeenCalledTimes(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Update preview' }))
+    await screen.findByText('Preview up to date')
   })
 
   it('previews and saves the two logo visibility controls independently', async () => {
@@ -313,6 +368,8 @@ describe('Phone & metrics Studio', () => {
 
     expect(screen.getByText('Hidden from the post canvas')).toBeInTheDocument()
     expect(screen.getByText('Visible in the app screen')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
       `${basePath}/preview`,
       expect.objectContaining({
@@ -326,6 +383,8 @@ describe('Phone & metrics Studio', () => {
 
     fireEvent.click(screen.getByLabelText('Show in-phone logo'))
     expect(screen.getByText('Hidden from the app screen')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
       `${basePath}/preview`,
       expect.objectContaining({
@@ -385,6 +444,10 @@ describe('Phone & metrics Studio', () => {
       target: { value: '#d12f7a' },
     })
 
+    await waitFor(() => expect(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ })).toBeEnabled())
+
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
+
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
       `${basePath}/preview`,
       expect.objectContaining({
@@ -417,6 +480,10 @@ describe('Phone & metrics Studio', () => {
     fireEvent.change(screen.getByLabelText('iPhone screen texture'), {
       target: { value: 'frosted' },
     })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ })).toBeEnabled())
+
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
 
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
       `${basePath}/preview`,
@@ -478,6 +545,8 @@ describe('Phone & metrics Studio', () => {
       style: 'outlined', text_color: '#101B31',
       background_color: '#CEDD3C', shape: 'pill',
     }
+    await waitFor(() => expect(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
       `${basePath}/preview`,
       expect.objectContaining({
@@ -543,6 +612,8 @@ describe('Phone & metrics Studio', () => {
       style: 'outlined', text_color: '#101B31',
       background_color: '#CEDD3C', shape: 'rounded',
     }
+    await waitFor(() => expect(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: /Update preview|Оновити прев’ю/ }))
     await waitFor(() => expect(api.postMedia).toHaveBeenLastCalledWith(
       `${basePath}/preview`,
       expect.objectContaining({

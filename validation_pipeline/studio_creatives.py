@@ -179,7 +179,7 @@ def creative_generation_schema(detail: Mapping[str, Any]) -> dict[str, Any]:
         content["schema"]["enum"] = [detail["content"]["schema"]]
         for field, minimum, maximum in (
             ("offer", 1, 32), ("hero_title", 1, 140),
-            ("supporting_text", 1, 220), ("cta", 1, 60),
+            ("supporting_text", 1, 220), ("cta", 0, 60),
             ("phone_hero_title", 0, 72),
         ):
             content[field].update({"minLength": minimum, "maxLength": maximum})

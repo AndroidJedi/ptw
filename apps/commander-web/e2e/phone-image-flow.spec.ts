@@ -237,14 +237,32 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   await expect(page.getByRole('heading', { name: 'Generate or enhance hero artwork' })).toBeVisible()
 
   await page.emulateMedia({ reducedMotion: 'reduce' })
+  const updatePreview = page.getByRole('button', { name: 'Update preview' })
+  await expect(updatePreview).toBeEnabled()
+  const initialPreviewCount = previewRequests.length
+  await page.getByLabel('CTA', { exact: true }).fill('')
+  await page.getByRole('textbox', { name: 'Headline', exact: true }).fill('Draft headline')
+  await page.waitForTimeout(350)
+  expect(previewRequests).toHaveLength(initialPreviewCount)
+  await expect(page.getByText(/Changes not previewed/)).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Natal phone and metrics creative' })).toBeVisible()
+  await updatePreview.focus()
+  await expect(updatePreview).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.getByText('Preview up to date', { exact: true })).toBeVisible()
+  expect(previewRequests.at(-1).content.cta).toBe('')
+  await updatePreview.screenshot({ path: `.local/manual-preview-${test.info().project.name}.png` })
+
   const visualMode = page.getByRole('combobox', { name: 'Visual mode' })
   await visualMode.focus()
   await expect(visualMode).toBeFocused()
   await visualMode.selectOption('image')
+  await page.getByRole('button', { name: 'Update preview' }).click()
   await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({ visual_mode: 'image' })
   await visualMode.screenshot({ path: `.local/post-visual-mode-${test.info().project.name}.png` })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await visualMode.selectOption('phone')
+  await page.getByRole('button', { name: 'Update preview' }).click()
   await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({ visual_mode: 'phone' })
 
   const postLogo = page.getByLabel('Show post logo')
@@ -257,6 +275,7 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   await page.keyboard.press('Space')
   await expect(postLogo).not.toBeChecked()
   await expect(phoneLogo).not.toBeChecked()
+  await page.getByRole('button', { name: 'Update preview' }).click()
   await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({
     logo: { enabled: false },
     phone_screen: { logo_enabled: false },

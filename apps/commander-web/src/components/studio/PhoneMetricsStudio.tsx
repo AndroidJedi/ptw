@@ -149,10 +149,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   ) => JSON.stringify([saved.state_sha256, nextConfiguration, nextContent])
   const currentPreviewState = previewStateFor(detail, configuration, content)
   const replacePreview = (blob: Blob, state: string) => {
-    setPreviewUrl((current) => {
-      if (current) URL.revokeObjectURL(current)
-      return URL.createObjectURL(blob)
-    })
+    setPreviewUrl(URL.createObjectURL(blob))
     setPreviewState(state)
   }
   const render = async (
@@ -166,6 +163,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       draft ? nextContent : saved.content,
     )
     setPreviewBusy(true)
+    setPreviewError('')
     try {
       const blob = await api.postMedia(`${basePath}/preview`, draft ? {
         state_sha256: saved.state_sha256, configuration: nextConfiguration, content: nextContent,
@@ -180,16 +178,10 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       if (generation === previewGeneration.current) setPreviewBusy(false)
     }
   }
-  useEffect(() => { void render(detail) }, [detail.state_sha256])
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (
-        JSON.stringify(configuration) !== JSON.stringify(detail.configuration)
-        || JSON.stringify(content) !== JSON.stringify(detail.content)
-      ) void render(detail, true, configuration, content)
-    }, 220)
-    return () => window.clearTimeout(timer)
-  }, [configuration, content, detail.state_sha256])
+    void render(detail)
+    return () => { previewGeneration.current += 1 }
+  }, [detail.state_sha256, basePath])
 
   const applyDetail = (next: StudioPhoneMetricsDetail) => {
     setDetail(next)
@@ -236,7 +228,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
         enhance_current: useCurrentAsReference,
         ...(reference ? { reference_image: reference } : {}),
       }, { deadlineMs: 360_000 })
-      applyDetail(next); setEnhanceCurrent(true); await render(next)
+      applyDetail(next); setEnhanceCurrent(true)
       setNotice(useCurrentAsReference
         ? tr('Current iPhone hero visual enhanced and applied.', 'Поточний герой-візуал iPhone покращено й застосовано.')
         : tr('New iPhone hero visual generated and applied.', 'Новий герой-візуал для iPhone згенеровано й застосовано.'))
@@ -272,7 +264,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       const next = await api.post<StudioPhoneMetricsDetail>(`${basePath}/phone-screen/select`, {
         base_sha256: saved.state_sha256, sha256,
       }, { deadlineMs: 60_000 })
-      applyDetail(next); setEnhanceCurrent(true); await render(next)
+      applyDetail(next); setEnhanceCurrent(true)
       const selected = next.phone_screen_history.find((item) => item.selected)
       const selectedDirection = selected?.source.visual_direction
       if (typeof selectedDirection === 'string') setScreenDirection(selectedDirection)
@@ -374,9 +366,15 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     <StudioActionFeedback error={error} notice={notice} language={language} />
     <section className="phone-metrics-workspace">
       <main className="studio-canvas-panel phone-metrics-canvas-panel">
-        <header><div><small>{tr('LIVE 4:5 RENDER', 'ЖИВИЙ РЕНДЕР 4:5')}</small><h2>{tr('Natal phone & metrics', 'Natal: телефон і метрики')}</h2></div>{(busy || previewBusy) && <RefreshCcw className="spin" />}</header>
+        <header><div><small>{tr('POST PREVIEW', 'ПРЕВ’Ю ДОПИСУ')}</small><h2>{tr('Natal phone & metrics', 'Natal: телефон і метрики')}</h2></div>{(busy || previewBusy) && <RefreshCcw className="spin" />}</header>
+        <button type="button" className="secondary" disabled={busy || previewBusy} onClick={() => void render(detail, true)}><RefreshCcw />{tr('Update preview', 'Оновити прев’ю')}</button>
+        <div className="studio-preview-feedback" aria-live="polite">
+          {previewBusy ? tr('Rendering your changes…', 'Рендеримо ваші зміни…')
+            : previewState !== currentPreviewState ? tr('Changes not previewed. Press Update preview when ready.', 'Зміни ще не показано. Натисніть «Оновити прев’ю», коли завершите редагування.')
+              : tr('Preview up to date', 'Прев’ю оновлено')}
+        </div>
         {previewError && <ErrorState message={previewError} language={language} />}
-        <figure aria-busy={previewBusy}>{previewUrl && previewState === currentPreviewState ? <img src={previewUrl} alt={tr('Natal phone and metrics creative', 'Креатив Natal із телефоном і метриками')} /> : <div className="studio-preview-empty">{previewBusy || previewUrl ? <RefreshCcw className="spin" /> : <ImagePlus />}<span>{previewBusy || previewUrl ? tr('Updating preview…', 'Оновлення прев’ю…') : tr('Render unavailable', 'Рендер недоступний')}</span></div>}</figure>
+        <figure aria-busy={previewBusy}>{previewUrl ? <img src={previewUrl} alt={tr('Natal phone and metrics creative', 'Креатив Natal із телефоном і метриками')} /> : <div className="studio-preview-empty">{previewBusy ? <RefreshCcw className="spin" /> : <ImagePlus />}<span>{previewBusy ? tr('Updating preview…', 'Оновлення прев’ю…') : tr('Render unavailable', 'Рендер недоступний')}</span></div>}</figure>
       </main>
       <aside className="universal-controls phone-metrics-controls">
         <section className="panel universal-section">
@@ -408,7 +406,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               <label className="universal-color-field"><span>{tr('Word colour', 'Колір слів')}<code>{configuration.supporting_text.highlight_color}</code></span><input aria-label={tr('Highlight color', 'Колір підсвічування')} type="color" value={configuration.supporting_text.highlight_color} onChange={(event) => setConfiguration({ ...configuration, supporting_text: { ...configuration.supporting_text, highlight_color: event.target.value.toUpperCase() } })} /></label>
             </div>
           </div>
-          <label><span>CTA</span><input value={content.cta} maxLength={60} onChange={(event) => setContent({ ...content, cta: event.target.value })} /></label>
+          <label><span>{tr('CTA (optional)', 'CTA (необов’язково)')}</span><input aria-label="CTA" aria-describedby="phone-cta-hint" value={content.cta} maxLength={60} onChange={(event) => setContent({ ...content, cta: event.target.value })} /></label>
+          <p id="phone-cta-hint" className="universal-section-note">{tr('Leave empty to hide the CTA band.', 'Залиште порожнім, щоб приховати смугу CTA.')}</p>
           <label><span>{tr('Optional in-phone title', 'Необов’язковий заголовок у телефоні')}</span><input value={content.phone_hero_title} maxLength={72} onChange={(event) => setContent({ ...content, phone_hero_title: event.target.value })} /></label>
         </section>
         <section className="panel universal-section"><small>{tr('BRAND VISIBILITY', 'ВИДИМІСТЬ БРЕНДУ')}</small><h2>{tr('Natal logos', 'Логотипи Natal')}</h2>

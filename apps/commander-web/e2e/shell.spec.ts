@@ -395,9 +395,10 @@ test('opens the Post editor and persists its bounded configuration', async ({ pa
     return body?.configuration?.bullets?.enabled === true
   })
   await page.getByLabel('Enable bullets').check()
+  await page.getByRole('button', { name: 'Update preview' }).click()
   const draftRequest = await draftPreviewRequest
   expect(draftRequest.postDataJSON().configuration.bullets.enabled).toBe(true)
-  await expect(page.getByText('Live preview up to date')).toBeVisible()
+  await expect(page.getByText('Preview up to date')).toBeVisible()
 
   const configurationRequest = page.waitForRequest((request) =>
     request.url().endsWith('/save'),
@@ -427,6 +428,7 @@ test('opens the Post editor and persists its bounded configuration', async ({ pa
   await page.getByLabel('CTA placement').selectOption('bottom_right')
   await expect(page.getByLabel('CTA background color')).toHaveValue('#111111')
   await expect(page.getByLabel('CTA text color')).toHaveValue('#ffffff')
+  await page.getByRole('button', { name: 'Update preview' }).click()
   const editedPreview = await editedPreviewRequest
   expect(editedPreview.postDataJSON().content.hero_title).toBe('TEST A CLEAR PROMISE')
   await expect(page.getByText('Preview matches your unsaved changes')).toBeVisible()
@@ -471,7 +473,7 @@ test('opens the Post editor and persists its bounded configuration', async ({ pa
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })
 
-test('live previews every bounded sticker placement control', async ({ page }) => {
+test('manually previews every bounded sticker placement control', async ({ page }) => {
   await page.route(`**${studioBasePath}`, async (route) => {
     const request = route.request()
     if (new URL(request.url()).pathname !== studioBasePath || request.method() !== 'GET') {
@@ -520,6 +522,7 @@ test('live previews every bounded sticker placement control', async ({ page }) =
       return body?.configuration?.sticker?.[setting] === expected
     })
     await page.getByLabel(label).fill(inputValue)
+    await page.getByRole('button', { name: 'Оновити прев’ю' }).click()
     const response = await previewResponse
     expect(response.request().postDataJSON().configuration.sticker[setting]).toBe(expected)
   }

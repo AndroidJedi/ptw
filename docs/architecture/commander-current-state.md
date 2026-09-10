@@ -13,7 +13,8 @@ root process can write only an isolated shallow clone under
 `/opt/ptw/commander-workspace`; runtime environment files, the production
 checkout/data, Docker, deployment, publishing, Git push, and external messaging
 remain outside its mounts and execution policy. The published Codex credential
-and standalone binary are read-only. Conversations persist in a dedicated volume,
+and standalone binary are read-only. Each turn refreshes `auth.json` into a
+private writable runtime home. Conversations persist in a dedicated volume,
 retain request-ID reconciliation, serialize turns, and mark interrupted work
 without replay after restart. Production Validation still mounts no coding routes.
 Owner cache v6 will force mobile clients to install the restored Settings control.
@@ -22,7 +23,11 @@ Verification passes in the Linux image for 12 runner/API lifecycle and security
 tests plus 11 Gateway tests; all 219 Validation tests, 18 Commander release tests,
 the Commander demo, 88 web unit tests, 78 desktop/360px/iPhone WebKit flows,
 canonical skill validation, shell syntax, production build, and whitespace checks
-pass. The final live Codex turn and dependency/resource audits require deployment.
+pass. Release `god-mode-20260910-6e837ec` passed its preserving deployment,
+provider, Pexels, dependency, resource, and live Hosting checks, and Owner cache
+v6 is live. Its first real hosted turn exposed a read-only `CODEX_HOME` contract
+error before any checkout edit. The credential-copy repair is verified locally
+and awaits a follow-up release; GOD mode remains unavailable until that release.
 
 ## Legacy Creative Save incident — resolved in production
 

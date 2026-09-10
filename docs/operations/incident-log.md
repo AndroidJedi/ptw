@@ -2,6 +2,23 @@
 
 Updated: 2026-09-10
 
+## 2026-09-10 — Hosted Commander turn failed with a read-only runtime home
+
+The GOD-mode release passed service health, public authentication denial,
+provider, dependency, resource, and Hosting checks, but its first real private
+turn failed before producing a reply or editing the isolated checkout. The Codex
+binary and published credential were readable. The missing contract was a
+writable `CODEX_HOME`: the credential source is intentionally read-only, while
+the CLI still needs private runtime files during ephemeral execution.
+
+The runner now copies only the published `auth.json` into its persistent private
+state before every turn, atomically refreshes that copy, and points `CODEX_HOME`
+there. The credential source and standalone binary remain read-only, and the
+isolated source checkout has no runtime `.env` files. A regression verifies the
+first copy, credential refresh, private runtime path, and completed execution.
+Status: locally verified; follow-up release and real-turn/restart acceptance are
+required before hosted GOD mode is considered available.
+
 ## 2026-09-10 — Legacy editor Save rejected after successful read-only restore
 
 The owner reported that Save creative edits disappeared after reloading. The

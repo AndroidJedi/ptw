@@ -101,15 +101,16 @@ services:
       PTW_COMMANDER_REPOSITORY: /workspace
       PTW_COMMANDER_STATE: /var/lib/ptw/commander-chat
       PTW_COMMANDER_TIMEOUT_SECONDS: "2400"
-      CODEX_HOME: /root/.codex
+      CODEX_HOME: /var/lib/ptw/commander-chat/codex-home
       CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
+      PTW_CODEX_CREDENTIAL: /run/ptw-codex-auth/auth.json
       HOME: /root
       PATH: /opt/ptw-codex/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     volumes:
       - /opt/ptw/commander-workspace:/workspace
       - commander-god-state:/var/lib/ptw/commander-chat
       - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
-      - /root/.codex/ptw-worker-credential:/root/.codex:ro
+      - /root/.codex/ptw-worker-credential:/run/ptw-codex-auth:ro
     mem_limit: 512m
     pids_limit: 128
     read_only: true

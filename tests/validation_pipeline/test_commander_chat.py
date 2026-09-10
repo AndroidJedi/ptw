@@ -207,11 +207,14 @@ out.write_text('Added the local carousel feature. Tests passed.')
 
     def test_hosted_api_uses_service_auth_and_reports_isolated_target(self):
         from validation_pipeline.commander_host_api import create_app_from_env
+        credential = self.root / "auth.json"
+        credential.write_text("{}")
         with patch.dict(os.environ, {
             "OWNER_GATEWAY_BRIDGE_TOKEN": "service-token",
             "PTW_COMMANDER_REPOSITORY": str(self.repo),
             "PTW_COMMANDER_STATE": str(self.root / "hosted-state"),
             "CODEX_EXECUTABLE": str(self.binary),
+            "PTW_CODEX_CREDENTIAL": str(credential),
         }):
             with TestClient(create_app_from_env()) as client:
                 base = "/internal/v1/settings/commander"
@@ -227,6 +230,31 @@ out.write_text('Added the local carousel feature. Tests passed.')
                     "X-PTW-Owner-Gateway-Token": "service-token",
                 }, json={})
                 self.assertEqual(201, created.status_code)
+
+    def test_hosted_turn_refreshes_credential_into_writable_runtime_home(self):
+        source = self.root / "published-auth.json"
+        source.write_text('{"tokens":"first"}')
+        hosted = CommanderChatService(
+            self.repo, self.root / "hosted-copy-state", codex_binary=str(self.binary),
+            target="hosted", credential_source=source,
+        )
+        try:
+            chat = hosted.create_chat()
+            hosted.send(chat["id"], ChatMessage(request_id=uuid4(), message="check runtime"))
+            deadline = time.monotonic() + 5
+            while hosted.chat(chat["id"])["turns"][-1]["status"] in ACTIVE and time.monotonic() < deadline:
+                time.sleep(.01)
+            runtime_home = hosted.state / "codex-home"
+            self.assertEqual(source.read_bytes(), (runtime_home / "auth.json").read_bytes())
+            self.assertEqual(str(runtime_home), json.loads((self.repo / "invocation.json").read_text())["env"]["CODEX_HOME"])
+            source.write_text('{"tokens":"second"}')
+            hosted.send(chat["id"], ChatMessage(request_id=uuid4(), message="refresh runtime"))
+            deadline = time.monotonic() + 5
+            while hosted.chat(chat["id"])["turns"][-1]["status"] in ACTIVE and time.monotonic() < deadline:
+                time.sleep(.01)
+            self.assertEqual(source.read_bytes(), (runtime_home / "auth.json").read_bytes())
+        finally:
+            hosted.close()
 
     def test_local_app_is_opt_in_and_production_validation_has_no_routes(self):
         from validation_pipeline.studio_local_api import create_app

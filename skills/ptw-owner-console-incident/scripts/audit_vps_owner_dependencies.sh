@@ -25,7 +25,7 @@ for pair in "Owner_Gateway:$owner_container" "Commander:$commander_container" "V
   test "$(docker inspect --format '{{.State.Status}}' "$container")" = running || { echo "$name is not running" >&2; exit 1; }
   test "$(docker inspect --format '{{.State.Health.Status}}' "$container")" = healthy || { echo "$name is not healthy" >&2; exit 1; }
 done
-docker exec "$god_container" test -r /root/.codex/auth.json
+docker exec "$god_container" test -r /run/ptw-codex-auth/auth.json
 docker exec "$god_container" test -x /opt/ptw-codex/bin/codex
 docker exec "$god_container" test -e /workspace/.git
 docker exec "$god_container" sh -c 'test ! -e /workspace/.env && test ! -e /workspace/.env.commander && test ! -e /workspace/.env.owner-gateway'

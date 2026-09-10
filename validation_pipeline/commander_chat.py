@@ -97,7 +97,8 @@ class CommanderChatService:
     """One writer per checkout, durable turns, explicit interruption, no replay."""
 
     def __init__(self, repository: Path, state: Path, *, codex_binary: str | None = None,
-                 timeout_seconds: float = 2400, target: str = "local"):
+                 timeout_seconds: float = 2400, target: str = "local",
+                 credential_source: Path | None = None):
         self.repository = repository.resolve()
         self.state = state.resolve()
         self.codex_binary = shutil.which(codex_binary or "codex")
@@ -105,6 +106,9 @@ class CommanderChatService:
         if target not in {"local", "hosted"}:
             raise ValueError("Commander target is invalid")
         self.target = target
+        self.credential_source = credential_source.resolve() if credential_source else None
+        if self.credential_source and not self.credential_source.is_file():
+            raise ValueError("Commander credential source is missing")
         if not (self.repository / ".git").exists():
             raise ValueError("Commander requires a Git checkout")
         self.state.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -253,6 +257,15 @@ class CommanderChatService:
                            "--output-last-message", str(output), "-"]
                 environment = {k: v for k, v in os.environ.items() if k in SAFE_ENV}
                 environment["NO_COLOR"] = "1"
+                if self.credential_source:
+                    runtime_home = self.state / "codex-home"
+                    runtime_home.mkdir(mode=0o700, exist_ok=True)
+                    credential = runtime_home / "auth.json"
+                    temporary_credential = runtime_home / "auth.json.next"
+                    shutil.copyfile(self.credential_source, temporary_credential)
+                    temporary_credential.chmod(0o600)
+                    temporary_credential.replace(credential)
+                    environment["CODEX_HOME"] = str(runtime_home)
                 with self._lock:
                     if self._cancel.is_set():
                         self._update(turn_id, "cancelled", error="stopped")

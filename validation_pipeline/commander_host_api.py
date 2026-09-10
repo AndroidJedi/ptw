@@ -22,6 +22,9 @@ def create_app_from_env() -> FastAPI:
         codex_binary=os.environ.get("CODEX_EXECUTABLE", "/opt/ptw-codex/bin/codex"),
         timeout_seconds=float(os.environ.get("PTW_COMMANDER_TIMEOUT_SECONDS", "2400")),
         target="hosted",
+        credential_source=Path(os.environ.get(
+            "PTW_CODEX_CREDENTIAL", "/run/ptw-codex-auth/auth.json",
+        )),
     )
 
     @asynccontextmanager
@@ -53,4 +56,3 @@ def create_app_from_env() -> FastAPI:
         local_only=False,
     ))
     return app
-

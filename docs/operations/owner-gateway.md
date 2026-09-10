@@ -44,8 +44,9 @@ Settings exposes **Commander · GOD mode**, a repository-wide coding chat. Local
 development uses the existing local Codex sign-in and edits the current checkout.
 The hosted control uses the same pinned Firebase owner and App Check boundary as
 the rest of Settings, then Owner Gateway proxies to a private `commander-god`
-service. That service receives the published read-only Codex credential and can
-write only an isolated, shallow development clone under
+service. That service receives the published read-only Codex credential, copies
+only `auth.json` into its private writable state for each turn, and can write
+only an isolated, shallow development clone under
 `/opt/ptw/commander-workspace`. Runtime `.env` files, Docker, production data,
 deployment, publishing, Git push, and external messaging are outside its mounts
 and policy. Completed edits wait in that clone for review and normal release.

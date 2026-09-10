@@ -86,6 +86,10 @@ Post, or Landing learning entities or cross their lesson namespaces.
 - Readiness means the CLI and canonical skill are present. It does not prove
   model authorization. A failed execution needs a local Codex sign-in/runtime
   check; never expose raw CLI output or credentials as a diagnostic.
+- Hosted credential publication is read-only. Before every turn, copy only the
+  published `auth.json` into the runner's private writable state directory and
+  point `CODEX_HOME` there. Checking that the source is readable is insufficient:
+  the CLI needs a writable runtime home even for ephemeral execution.
 
 - Post publishing is an approved-artifact boundary. Keep renderer/editor CTA
   controls, pending edits, historical PNGs, and learning namespaces unchanged.

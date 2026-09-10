@@ -47,6 +47,7 @@ demo, canonical skill validation, shell syntax, workflow YAML, and whitespace.
 ## Selective release pipeline — live
 
 The production path is canaried with a docs-only candidate that cannot change runtime behavior or domain data.
+A fresh mobile acceptance run verified the corrected forced receiver after its post-rollout status fix.
 
 The release path now plans changes from the exact deployed commit, builds only
 affected Linux/amd64 PTW images in parallel, streams only those checksumed

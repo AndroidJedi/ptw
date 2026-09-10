@@ -237,12 +237,31 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('approves a Brief through the required template picker and opens its creative', async ({ page }) => {
+  let approvalBody: unknown = null
   await page.route(`**/api/v1/briefs/${briefId}`, async (route) => {
     if (route.request().method() === 'GET') return route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({ ...brief, approved: false }),
     })
     return route.fallback()
+  })
+  await page.route(`**/api/v1/briefs/${briefId}/approve`, async (route) => {
+    approvalBody = route.request().postDataJSON()
+    return route.fulfill({
+      status: 202, contentType: 'application/json',
+      body: JSON.stringify({
+        brief: { ...brief, approved: true }, approved_now: true,
+        creative: {
+          creative_id: creativeId, project_id: projectId, source_brief_id: briefId,
+          ordinal: 1, origin: 'brief_generation', template_id: 'universal_ad',
+          template_version: 11, template_sha256: 'a'.repeat(64), status: 'queued',
+          state_sha256: 'f'.repeat(64), approved_version_count: 0,
+          generation: { stage: 'queued' }, created_at: '2026-08-26T08:06:00Z',
+          updated_at: '2026-08-26T08:06:00Z',
+        },
+        creative_created: true,
+      }),
+    })
   })
   await page.goto(`/?e2e=1&project=${projectId}`)
   await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
@@ -256,11 +275,8 @@ test('approves a Brief through the required template picker and opens its creati
   await picker.locator('input[value="scene"]').check()
   const approveButton = picker.getByRole('button', { name: 'Approve Brief & generate creative' })
   await expect(approveButton).toBeEnabled()
-  const approvalRequest = page.waitForRequest((request) => (
-    request.url().endsWith(`/briefs/${briefId}/approve`) && request.method() === 'POST'
-  ))
   await approveButton.click()
-  expect((await approvalRequest).postDataJSON()).toEqual({
+  await expect.poll(() => approvalBody).toEqual({
     honor_confirmed: true, template_id: 'phone_metrics',
     creative_direction: {
       schema: 'ptw.studio.phone-hero-direction.v1', style: 'cinematic', background: 'scene',

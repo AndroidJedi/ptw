@@ -253,6 +253,7 @@ function studioApi(tuneRuns: StudioTuneRun[] = [], initialDetail: StudioUniversa
 
 describe('Universal Ad Studio', () => {
   beforeEach(() => {
+    window.localStorage?.clear()
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:studio-preview') })
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
     Object.defineProperty(HTMLAnchorElement.prototype, 'click', {

@@ -88,7 +88,8 @@ PY
     docker run --rm --network host \
         -e GOOGLE_APPLICATION_CREDENTIALS=/run/firebase/service-account.json \
         -v /opt/ptw/secrets/firebase-service-account.json:/run/firebase/service-account.json:ro \
-        -v "$release_directory:/release:ro" -w /release node:22-bookworm-slim \
+        -v "$release_directory:/release:ro" -w /release \
+        node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 \
         npx --yes firebase-tools@14.17.0 deploy --non-interactive \
         --project provethemwrong-86123 --config "/release/$(basename "$temp_config")" \
         --only "hosting:$target"

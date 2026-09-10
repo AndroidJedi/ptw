@@ -2,11 +2,47 @@
 
 Updated: 2026-09-10
 Branch: `main`
-Deployment: all seven application services are healthy. Validation and hosted
-GOD run `fast-release-20260910-64de1e8`; unchanged Commander, Owner Gateway, and
-the three provider services remain on `god-mode-sandbox-20260910-faf77f9`.
-Schema 005 and both web sites are live with Owner cache v6. Meta credentials
-remain unconfigured.
+Deployment: all eight application services are healthy. Owner Gateway, hosted
+GOD, and the new release controller run `mobile-god-20260910-e3dadf4`;
+Validation remains on `fast-release-20260910-64de1e8`, while Commander and the
+three provider services remain on `god-mode-sandbox-20260910-faf77f9`. Schema
+005 and both web sites are live with Owner cache v6. Meta credentials remain
+unconfigured.
+
+## Mobile GOD deployment — live
+
+Hosted Settings now exposes **DEPLOY NEW CHANGES** after a GOD coding turn. A
+second confirmation freezes the exact candidate, retains its request UUID, and
+shows queued/running/success/failure state across reloads and service restarts.
+The coding runtime still has no GitHub key, VPS SSH key, Docker socket,
+production environment, database, or deployment capability. A separate 128 MB
+controller shares only the isolated checkout, deployed-revision marker, private
+state, and a repository-scoped candidate-push key. Cross-container file locking
+prevents a coding turn and release snapshot from racing.
+
+Candidates containing migrations, CI/workflow files, deploy scripts,
+Dockerfiles, Compose, or other privileged operations paths are rejected. The
+public-repo GitHub runner runs the complete Python, web, browser, skill, and
+whitespace gates, builds selective Linux/amd64 artifacts off the 1 GB VPS, and
+reaches production only through a dedicated `ptw-release` SSH key whose forced
+command is the preserving receiver. The receiver independently revalidates the
+deployed base, candidate ancestry, protected paths, checksums, plan, maintenance
+lock, authority snapshot, rollback, health/dependency/resource checks, and final
+revision. Hosting bytes are built off-server and deployed with the existing
+root-owned service account; only its Firebase Hosting IAM role was added, and no
+Firebase credential enters GitHub.
+
+Production acceptance passed in 146 seconds. The selective rollout reused
+Commander, Validation, and all platform images; started the release controller;
+replaced only Owner Gateway and hosted GOD images; and published Owner cache v6.
+The live private controller reports a configured empty candidate, its public
+Gateway route rejects unauthenticated access, both controller and GOD mounts are
+free of the Docker socket, GOD cannot see the repository key, and the live lazy
+bundle contains the mobile control. An attempted arbitrary command through the
+CI SSH key was rejected by the forced receiver. Verification passes: 89 Owner
+unit tests/build, 81 full desktop/360px/iPhone WebKit flows, 18 built-GOD chat
+and release tests, 12 Gateway tests, 24 Commander/release tests, the Commander
+demo, canonical skill validation, shell syntax, workflow YAML, and whitespace.
 
 ## Selective release pipeline — live
 

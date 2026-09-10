@@ -22,8 +22,11 @@ The mobile receiver acquires the normal maintenance lock and calls the existing
 selective preserving receiver, so active mutable work, authority snapshots,
 health/dependency/resource checks, rollback, and the deployed-revision commit
 remain mandatory. Hosting bytes are built in CI and deployed on the VPS with the
-root-owned Firebase service account; that credential never enters GitHub. A
-failed workflow remains visible in Settings and never retries automatically.
+root-owned Firebase service account holding its existing application roles plus
+`roles/firebasehosting.admin`; that credential never enters GitHub. The pinned
+Node deploy container is preloaded on the VPS so its fixed Firebase CLI can
+publish already-built bytes without building application images there. A failed
+workflow remains visible in Settings and never retries automatically.
 
 The command reads the deployed PTW and platform revisions, computes the exact
 committed path delta, builds affected Linux/amd64 images in parallel, streams

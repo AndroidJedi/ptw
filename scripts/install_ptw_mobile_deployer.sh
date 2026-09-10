@@ -7,6 +7,7 @@ if [[ $# -ne 1 ]]; then
 fi
 [[ $(id -u) -eq 0 && -s $1 ]] || exit 1
 repository=/root/ptw
+install -d -o root -g root -m 0755 /usr/local/libexec
 install -o root -g root -m 0755 "$repository/scripts/receive_ptw_mobile_release.sh" \
     /usr/local/libexec/ptw-mobile-release
 id ptw-release >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/lib/ptw-release --shell /bin/bash ptw-release

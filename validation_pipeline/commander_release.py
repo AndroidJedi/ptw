@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 CONFIRMATION = "DEPLOY NEW CHANGES"
+WORKFLOW_POLL_SECONDS = 90
 ACTIVE = {"preparing", "queued", "running"}
 TERMINAL = {"succeeded", "failed"}
 GITHUB_REPOSITORY = "AndroidJedi/ptw"
@@ -174,7 +175,7 @@ class CommanderReleaseService:
     def _refresh(self, row: sqlite3.Row | None) -> sqlite3.Row | None:
         if row is None or row["status"] not in {"queued", "running"} or not row["revision"]:
             return row
-        if time.monotonic() - self._last_workflow_poll < 20:
+        if time.monotonic() - self._last_workflow_poll < WORKFLOW_POLL_SECONDS:
             return row
         self._last_workflow_poll = time.monotonic()
         params = urlencode({"head_sha": row["revision"], "event": "push", "per_page": 5})

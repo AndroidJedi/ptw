@@ -536,7 +536,11 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             normalized_content["phone_buttons"], normalized_config["phone_buttons"],
         ).convert("RGB")
         self.assertEqual((209, 47, 122), tuned.getpixel((70, 1284)))
-        self.assertEqual((255, 255, 255), tuned.getpixel((416, 1336)))
+        outlined_label_pixels = sum(
+            max(tuned.getpixel((x, y))) < 100
+            for y in range(1296, 1377) for x in range(106, 727)
+        )
+        self.assertGreater(outlined_label_pixels, 50)
         self.assertEqual((206, 221, 60), tuned.getpixel((70, 1410)))
         self.assertEqual(
             PHONE_ACTION_BUTTON_RADII["rounded"],

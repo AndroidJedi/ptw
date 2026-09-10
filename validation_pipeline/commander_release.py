@@ -75,7 +75,9 @@ class CommanderReleaseService:
             raise ValueError("Commander release service requires the hosted Git checkout")
         self.state.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.database = self.state / "releases.sqlite3"
-        self._last_workflow_poll = 0.0
+        # A fresh controller must reconcile an active workflow immediately;
+        # only subsequent refreshes are rate-limited.
+        self._last_workflow_poll = float("-inf")
         with self._db() as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS deployments(

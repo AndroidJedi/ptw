@@ -109,7 +109,7 @@ class CommanderReleaseTests(unittest.TestCase):
             "head_sha": queued["revision"], "status": "completed", "conclusion": "failure",
             "html_url": "https://github.com/AndroidJedi/ptw/actions/runs/1",
         }]}
-        self.service._last_workflow_poll = 0
+        self.service._last_workflow_poll = float("-inf")
         with patch("validation_pipeline.commander_release.urlopen", return_value=Response(payload)):
             result = self.service.detail()["deployment"]
         self.assertEqual(("failed", "release_workflow_failed"), (result["status"], result["error_code"]))

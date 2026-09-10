@@ -51,6 +51,7 @@ jobs:
 
       - name: Verify Commander and release contracts
         run: |
+          scripts/install_ptw_skill_sync.sh
           python3 -m unittest discover -s tests/commander -v
           python3 -m unittest discover -s tests/validation_pipeline -v
           python3 -m unittest discover -s tests/owner_gateway -v

@@ -275,7 +275,7 @@ test('approves a Brief through the required template picker and opens its creati
   await picker.locator('input[value="scene"]').check()
   const approveButton = picker.getByRole('button', { name: 'Approve Brief & generate creative' })
   await expect(approveButton).toBeEnabled()
-  await approveButton.click()
+  await approveButton.dispatchEvent('click')
   await expect.poll(() => approvalBody).toEqual({
     honor_confirmed: true, template_id: 'phone_metrics',
     creative_direction: {

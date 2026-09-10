@@ -4,12 +4,19 @@ Updated: 2026-09-10
 Branch: `main`
 Deployment: all seven application services are healthy on `god-mode-sandbox-20260910-faf77f9`; schema 005 and both web sites are live with Owner cache v6. Meta credentials remain unconfigured.
 
-The normal preserving deployer now targets a 5–10 minute owner wait by batching
-independent container health waits and reporting elapsed time for preflight,
-platform rollout, application rollout, provider canaries, audits, and commit.
-It retains live provider/Pexels canaries, complete PostgreSQL snapshots,
-automatic image rollback, dependency/resource checks, and approved-Post
-verification. Migration-bearing deployments retain their serial cutover.
+## Selective release pipeline — implementation candidate
+
+The release path now plans changes from the exact deployed commit, builds only
+affected Linux/amd64 PTW images in parallel, streams only those checksumed
+archives, and restarts only affected services. The VPS recomputes and validates
+the plan before rollout; unknown runtime paths select a full build. Commander,
+Validation, Owner Gateway, and GOD persist independent image references, while
+the unchanged platform is reused as one compatibility unit. Hosted GOD now has
+a dedicated small image. Non-provider changes use a quick dependency audit;
+Validation/platform changes retain live bridge and Pexels canaries. Unapplied
+migrations still require the backup-bearing serial path. The intended ordinary
+release time is 2–4 minutes and every stage reports elapsed time. Production
+acceptance is pending.
 
 ## Hosted Commander GOD mode — live and restart-verified
 

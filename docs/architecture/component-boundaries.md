@@ -5,6 +5,8 @@
 - `owner_gateway`: Firebase-authenticated Project, Brief, and creative-scoped
   Studio proxy.
 - `commander`: readiness and established Telegram emergency controls.
+- `commander-god`: isolated hosted coding runtime with its own minimal image and
+  writable development checkout; it shares no production database authority.
 - `apps/commander-web`: Product Brief and Post Studio UI; never data authority.
 - `/opt/ptw/platform`: unrelated bridge runtime with four strict JSON modes
   and one bounded non-human graphic media mode.

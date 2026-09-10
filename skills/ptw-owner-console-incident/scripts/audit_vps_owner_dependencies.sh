@@ -1,6 +1,13 @@
 #!/bin/sh
 set -eu
 
+if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != "--quick" ]; }; then
+  echo "usage: $0 [--quick]" >&2
+  exit 2
+fi
+quick=0
+[ "$#" -eq 0 ] || quick=1
+
 repository_root=${PTW_REPOSITORY_ROOT:-/root/ptw}
 platform_root=${PTW_PLATFORM_ROOT:-/opt/ptw/platform}
 platform_environment=${PTW_PLATFORM_ENVIRONMENT:-/opt/ptw/platform/.env}
@@ -86,6 +93,7 @@ capabilities = StructuredBridge(
 ).capabilities()
 print("Structured bridge capabilities:", capabilities)
 '
+if [ "$quick" -eq 0 ]; then
 docker exec "$owner_container" python -c '
 import json
 import os
@@ -152,6 +160,7 @@ with tempfile.TemporaryDirectory(prefix="ptw-schema-auth-audit-") as directory:
     )
 print("Schema-bound Codex worker probe passed")
 PY
+fi
 
 if docker inspect "$validation_container" --format '{{range .Config.Env}}{{println .}}{{end}}' \
   | grep -Eq '^(DATAFORSEO_|POSITIONING_|LANDING_|YOUTUBE_)'; then

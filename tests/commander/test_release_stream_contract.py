@@ -1,12 +1,91 @@
 import unittest
 import importlib.util
+import json
 from pathlib import Path
+import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 class ReleaseStreamContractTests(unittest.TestCase):
+    def test_release_planner_limits_builds_to_affected_components(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "release_plan", ROOT / "scripts/plan_ptw_release.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        docs = module.classify(["docs/operations/commander.md", "scripts/release_ptw_fast.sh"])
+        self.assertFalse(any(docs["build"].values()))
+        self.assertFalse(any(docs["restart"].values()))
+        self.assertFalse(any(docs["hosting"].values()))
+
+        god = module.classify(["validation_pipeline/commander_chat.py"])
+        self.assertTrue(god["build"]["commander-god"])
+        self.assertFalse(god["build"]["validation"])
+
+        gateway = module.classify(["owner_gateway/api.py"])
+        self.assertEqual(
+            ["owner-gateway"],
+            [name for name, changed in gateway["build"].items() if changed],
+        )
+
+        unknown = module.classify(["new_runtime/main.py"])
+        self.assertTrue(all(unknown["build"].values()))
+        self.assertTrue(all(unknown["hosting"].values()))
+
+        plan = module.create_plan("HEAD", "HEAD", "test-release")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "plan.json"
+            path.write_text(json.dumps(plan), encoding="utf-8")
+            self.assertEqual(
+                plan,
+                module.validate_plan(path, "test-release", plan["target_revision"]),
+            )
+            plan["build"]["validation"] = True
+            path.write_text(json.dumps(plan), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                module.validate_plan(path, "test-release", plan["target_revision"])
+
+    def test_fast_release_streams_only_planned_images_and_uses_selective_deployer(self) -> None:
+        builder = (ROOT / "scripts/build_ptw_release_images.sh").read_text()
+        publisher = (ROOT / "scripts/publish_ptw_preserving.sh").read_text()
+        receiver = (ROOT / "scripts/receive_ptw_preserving_release.sh").read_text()
+        deployer = (ROOT / "scripts/deploy_ptw_selective.sh").read_text()
+
+        self.assertIn("--base-revision", builder)
+        self.assertIn("build_component", builder)
+        self.assertIn('build_component "$component" "$image" "$dockerfile" &', builder)
+        self.assertIn("REUSE %s", publisher)
+        self.assertNotIn("stream_file=$(mktemp", publisher)
+        self.assertIn("PTW-PRESERVING-STREAM 1", receiver)
+        self.assertIn("release plan base does not match the deployed PTW revision", receiver)
+        self.assertIn("deploy_ptw_selective.sh", receiver)
+        self.assertIn("PTW_RELEASE_IMAGE_COMPONENTS", deployer)
+        self.assertIn("PTW_RELEASE_RESTART_COMPONENTS", deployer)
+        self.assertIn("audit_vps_owner_dependencies.sh\" --quick", deployer)
+        self.assertIn("pending migrations require the backup-bearing in-place deployment path", deployer)
+        self.assertIn("CRITICAL: fast rollout rollback verification failed", deployer)
+        self.assertIn('send_ptw_bot_canary.py\" --read-only', deployer)
+
+    def test_compose_accepts_independent_application_images(self) -> None:
+        commander = (ROOT / "docker-compose.commander.yml").read_text()
+        validation = (ROOT / "docker-compose.validation.yml").read_text()
+        self.assertIn("PTW_COMMANDER_IMAGE", commander)
+        self.assertIn("PTW_OWNER_GATEWAY_IMAGE", commander)
+        self.assertIn("PTW_COMMANDER_GOD_IMAGE", commander)
+        self.assertIn("commander_god/Dockerfile", commander)
+        self.assertIn("PTW_VALIDATION_IMAGE", validation)
+
+    def test_quick_dependency_audit_skips_live_codex_execution(self) -> None:
+        audit = (
+            ROOT / "skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh"
+        ).read_text()
+        self.assertIn('usage: $0 [--quick]', audit)
+        self.assertIn('if [ "$quick" -eq 0 ]; then', audit)
+        self.assertIn("Schema-bound Codex worker probe passed", audit)
+
     def test_deployment_bot_canary_is_read_only(self):
         import json
         import os

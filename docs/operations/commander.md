@@ -1,21 +1,34 @@
 # PTW service operations
 
-Build matching Linux/amd64 Commander, Validation, Owner Gateway, platform API,
-and platform worker images off-host with one non-`latest` release tag.
-Production starts them serially with `--no-build`.
+Normal non-migration releases use the component planner and selective publisher:
+
+```sh
+scripts/release_ptw_fast.sh --release-tag RELEASE \
+  --confirm 'DEPLOY PTW PRESERVING'
+```
+
+The command reads the deployed PTW and platform revisions, computes the exact
+committed path delta, builds affected Linux/amd64 images in parallel, streams
+only those checksumed archives, and restarts only affected services. Commander,
+Validation, Owner Gateway, and hosted GOD persist independent image references;
+unchanged services retain their current image. Hosted GOD has a small dedicated
+image rather than carrying the complete Validation/Pillow/PostgreSQL runtime.
+Unknown runtime paths conservatively select every PTW image and both Hosting
+targets. The VPS recomputes the streamed plan and requires its base and target
+to match the deployed and requested revisions.
 
 The unrelated bridge under `/opt/ptw/platform` must advertise exactly
 `product_brief`, `product_brief_revision`,
 `studio_creative_generation`, and `studio_edit_learning` JSON modes plus the
 bounded `content_non_human_graphic_generation` media mode. Enhancement accepts
-at most one digest-checked PNG reference. Run real canaries for all JSON modes,
-fresh image generation, enhancement, and Pexels before either authorized
-maintenance path.
+at most one digest-checked PNG reference. When Validation or the platform
+changes, run real canaries for all JSON modes, fresh image generation,
+enhancement, and Pexels before accepting that release.
 
 `scripts/publish_ptw_release_serial.sh` remains the destructive reset publisher
-and accepts only `RESET PTW PRODUCTION`. Data-preserving releases enter through
+and accepts only `RESET PTW PRODUCTION`. Migration-bearing releases enter through
 `scripts/publish_ptw_in_place_serial.sh` and require exactly
-`DEPLOY PTW IN PLACE`. The in-place path acquires the same maintenance lock,
+`DEPLOY PTW IN PLACE`. That path acquires the same maintenance lock,
 requires matched versioned images and exact PTW/platform revisions, deploys and
 audits the public Firebase shell first, stops Commander-database writers,
 creates a root-only checksummed PostgreSQL custom-format backup, fingerprints
@@ -24,6 +37,14 @@ fingerprints unchanged, and cuts Commander, Validation, then Owner Gateway over
 serially. Failure restores prior service images without reversing the additive
 migration. Dependency/resource canaries and the persistent 24-hour audit remain
 mandatory.
+
+The normal selective path refuses unapplied migrations. It retains the mutable
+work gate, complete authority snapshots, health/resource/dependency checks,
+automatic component rollback, and approved-Post verification when Validation
+changes. Provider and Pexels executions run when Validation or the platform
+changes. Other releases use the quick dependency audit, which still checks all
+service health, mounts, credential handoff digests, networks, routes, and skills
+without spending up to 300 seconds on an unchanged Codex execution.
 
 Firebase Hosting uses the named `owner-console` and `public-landings` targets.
 The public target is `natal-landings-86123`; `/` is the English Natal umbrella

@@ -2,7 +2,7 @@ name: ptw-validation
 
 services:
   validation-api:
-    image: ptw-validation:${PTW_IMAGE_TAG:-latest}
+    image: ${PTW_VALIDATION_IMAGE:-ptw-validation:${PTW_IMAGE_TAG:-latest}}
     pull_policy: never
     build:
       context: .

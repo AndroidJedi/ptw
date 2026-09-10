@@ -30,7 +30,7 @@ services:
     command: ["sh", "/scripts/migrate_commander.sh"]
 
   commander-api:
-    image: ptw-commander:${PTW_IMAGE_TAG:-latest}
+    image: ${PTW_COMMANDER_IMAGE:-ptw-commander:${PTW_IMAGE_TAG:-latest}}
     pull_policy: never
     build:
       context: .
@@ -59,7 +59,7 @@ services:
       retries: 10
 
   owner-gateway:
-    image: ptw-owner-gateway:${PTW_IMAGE_TAG:-latest}
+    image: ${PTW_OWNER_GATEWAY_IMAGE:-ptw-owner-gateway:${PTW_IMAGE_TAG:-latest}}
     pull_policy: never
     build:
       context: .
@@ -91,8 +91,11 @@ services:
       retries: 10
 
   commander-god:
-    image: ptw-validation:${PTW_IMAGE_TAG:-latest}
+    image: ${PTW_COMMANDER_GOD_IMAGE:-ptw-validation:${PTW_IMAGE_TAG:-latest}}
     pull_policy: never
+    build:
+      context: .
+      dockerfile: commander_god/Dockerfile
     user: "0:0"
     command: ["uvicorn", "validation_pipeline.commander_host_api:create_app_from_env", "--factory", "--host", "0.0.0.0", "--port", "8095", "--no-access-log"]
     restart: unless-stopped

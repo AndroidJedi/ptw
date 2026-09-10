@@ -23,13 +23,16 @@ into a complete compatible release, read
    When a persisted object is failed inside an HTTP 200 response, correlate its
    bridge job and use the schema-bound worker probe; HTTP health and login status
    are insufficient.
-2. Use one locked serial SSH session. Build matching Linux/amd64 Commander,
-   Validation, Owner Gateway, platform API, and platform worker images off-host
-   with one versioned non-`latest` tag. Render Compose before deployment.
-   Compare the image of every running public service before and after cutover;
-   never update the Gateway independently of its Validation and platform API/
-   worker release, because an otherwise healthy proxy can forward into a
-   retired route contract.
+2. Use one locked SSH session. For a normal non-migration release, run
+   `scripts/release_ptw_fast.sh --release-tag RELEASE --confirm
+   'DEPLOY PTW PRESERVING'`. Its committed component plan builds affected
+   Linux/amd64 images off-host in parallel, streams only checksumed changed
+   artifacts, and restarts only affected services. The receiver recomputes the
+   plan from the exact previously deployed and requested PTW revisions. Unknown
+   runtime paths select a full PTW rebuild. Compare every running service image
+   after cutover and preserve independent Commander, Validation, Owner Gateway,
+   and hosted GOD image references. When a gateway contract changes with a
+   Validation or platform contract, include both components in the same plan.
 3. Keep Pexels, Firebase, bridge, and Telegram credentials root-owned. Never
    print, rotate, copy, or replace them.
    Keep `codex-auth` private on the backend network but also attach it to the
@@ -136,21 +139,21 @@ into a complete compatible release, read
 
 ## Canaries and reset acceptance
 
-Normal releases must use the tracked `scripts/deploy_ptw_preserving.sh` after
-all six versioned Linux/amd64 images are loaded and both repositories are at the
-requested revisions. Never stream deployment control code into `bash -s` when
-a child command could consume stdin. Every `docker compose run` in a control
-path must use `-T`; the preserving script runs from a file, refuses active
-mutable operations, snapshots every authoritative row, rolls both service sets
-and persisted tags back on any incomplete exit (including exit status zero),
-and never calls the reset script. The destructive serial reset remains a
-separate, explicit owner-confirmed workflow. The preserving script must refuse
-when any repository migration is unapplied; do not use it to bypass the
-backup-bearing in-place confirmation.
+Normal releases must use the tracked `scripts/release_ptw_fast.sh` entrypoint.
+Never stream deployment control code into `bash -s` when a child command could
+consume stdin. The tracked receiver accepts a bounded versioned stream of
+checksumed image/file artifacts and explicit `REUSE` records. Every
+`docker compose run` in a control path must use `-T`; the selective deployer
+runs from a file, refuses active mutable operations, snapshots every
+authoritative row whenever a service restarts, and restores both containers and
+persisted per-component image references on any incomplete exit. The destructive
+serial reset remains a separate, explicit owner-confirmed workflow. The fast
+path must refuse when any repository migration is unapplied; do not use it to
+bypass the backup-bearing in-place confirmation.
 Exercise that migration preflight through the exact production Compose and
 PostgreSQL transport before the first service is replaced. Static assertions
 cannot validate `psql -c`/stdin interpolation. A preflight defect is a rejected
-rollout: verify the previous six images/tags remain live, correct it in source,
+rollout: verify the previous component images remain live, correct it in source,
 add a regression test, publish a new commit, and restart the deployment from
 preflight rather than editing or bypassing the check on the server.
 
@@ -166,14 +169,15 @@ chat that performs a harmless repository read, verify the isolated checkout is
 clean, restart only `commander-god` under the maintenance lock, and confirm that
 the completed chat and reply persist.
 
-Normal preserving deployments target a 5–10 minute owner wait. Keep the live
-provider canary, authority snapshots, rollback, dependency audit, and approved
-artifact verification. Reduce orchestration time by starting independent
-services in one Compose invocation: platform auth and API before the dependent
-worker, and Commander API with hosted GOD before Validation and Gateway. Use the
-deployer's per-stage timing output to identify regressions. Image transfer is a
-secondary cost on the current link; if it becomes material, add a digest-verified
-registry or delta transport rather than weakening release verification.
+Normal preserving deployments target 2–4 minutes for a single PTW component and
+under 10 minutes when Validation/provider execution is required. Keep authority
+snapshots, rollback, health/resource checks, and approved artifact verification.
+Run the expensive live bridge/Pexels canaries and schema-bound Codex dependency
+probe only when their owning Validation/platform components change; unchanged
+provider releases use `audit_vps_owner_dependencies.sh --quick`. Stream only
+changed image archives directly to the tracked receiver, retain old image
+references for every reused component, and use the deployer's per-stage timing
+output to identify regressions.
 
 Migration-bearing preserving releases instead require the exact
 `DEPLOY PTW IN PLACE` confirmation and
@@ -187,9 +191,10 @@ restore and verify all application and platform images plus their persisted
 tags. An additive migration may remain after rollback; existing rows must not
 change and the root-only backup remains the recovery authority.
 
-Before rollout, run real domain-validating canaries for both Product Brief
-modes, Universal Post, Phone Metrics, Landing composition, Studio learning,
-Landing learning, fresh image generation, one-image enhancement, and Pexels.
+Before a Validation or platform rollout, run real domain-validating canaries for
+both Product Brief modes, Universal Post, Phone Metrics, Landing composition,
+Studio learning, Landing learning, fresh image generation, one-image enhancement,
+and Pexels.
 Every structured canary must carry a fresh request fingerprint and complete on
 attempt 1. It must also report valid prompt/input/schema byte budgets. The
 Landing canary must use the exact runtime content-only payload, remain below its

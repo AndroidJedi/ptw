@@ -3,7 +3,7 @@
 Updated: 2026-09-10
 Branch: `main`
 Deployment: all eight application services are healthy. Owner Gateway, hosted
-GOD, and the new release controller run `mobile-god-20260910-e3dadf4`;
+GOD, and the release controller run `god-images-20260910-8da8e21`;
 Validation remains on `fast-release-20260910-64de1e8`, while Commander and the
 three provider services remain on `god-mode-sandbox-20260910-faf77f9`. Schema
 005 and both web sites are live with Owner cache v6. Meta credentials remain
@@ -44,7 +44,7 @@ unit tests/build, 81 full desktop/360px/iPhone WebKit flows, 18 built-GOD chat
 and release tests, 12 Gateway tests, 24 Commander/release tests, the Commander
 demo, canonical skill validation, shell syntax, workflow YAML, and whitespace.
 
-## Temporary GOD chat images
+## Temporary GOD chat images — live
 
 Commander conversations accept up to four PNG, JPEG, or WebP images per request,
 bounded to 8 MB each and 20 MB total. The browser supports image-only requests,

@@ -2,9 +2,13 @@
 
 Updated: 2026-09-10
 Branch: `main`
-Deployment: all seven application services are healthy on `god-mode-sandbox-20260910-faf77f9`; schema 005 and both web sites are live with Owner cache v6. Meta credentials remain unconfigured.
+Deployment: all seven application services are healthy. Validation and hosted
+GOD run `fast-release-20260910-64de1e8`; unchanged Commander, Owner Gateway, and
+the three provider services remain on `god-mode-sandbox-20260910-faf77f9`.
+Schema 005 and both web sites are live with Owner cache v6. Meta credentials
+remain unconfigured.
 
-## Selective release pipeline — implementation candidate
+## Selective release pipeline — live
 
 The release path now plans changes from the exact deployed commit, builds only
 affected Linux/amd64 PTW images in parallel, streams only those checksumed
@@ -16,7 +20,21 @@ a dedicated small image. Non-provider changes use a quick dependency audit;
 Validation/platform changes retain live bridge and Pexels canaries. Unapplied
 migrations still require the backup-bearing serial path. The intended ordinary
 release time is 2–4 minutes and every stage reports elapsed time. Production
-acceptance is pending.
+acceptance passed. The first Validation release completed in 7m19s end to end:
+5s preflight, 43s service cutover, 351s for nine real structured/media provider
+canaries plus Pexels, 14s dependency/resource audits, and 11s approved-Post and
+commit verification. Cached image builds were subsecond and the resumed release
+reused both verified candidate images without uploading them again. The 5–10
+minute target now holds even for the most expensive Validation path; ordinary
+single-component releases skip unrelated images, services, Hosting, and provider
+execution.
+
+The rollout recovered the owner's persisted Save checkpoint through the normal
+domain service. Its fourth append-only learning run completed, created one
+pending global proposal, and remained complete after Validation was replaced.
+The privacy filter now distinguishes generic Studio vocabulary such as `logo`
+from private asset provenance. The saved Creative was never rolled back or
+rewritten. There are no incomplete mutable operations.
 
 ## Hosted Commander GOD mode — live and restart-verified
 

@@ -37,8 +37,14 @@ architecture and source-revision label and reused without another upload.
 Local verification passes all 220 Validation tests, 23 Commander tests (two
 dependency-skipped locally), the Commander demo, shell and Python syntax,
 canonical skill validation, release-contract checks, and whitespace checks.
-Production recovery and release acceptance are recorded in the current-state
-checkpoint.
+The exact checkpoint completed on its fourth append-only learning run and
+created one pending global proposal; the Creative remained unchanged. Release
+`fast-release-20260910-64de1e8` then replaced only Validation and hosted GOD,
+left all five unchanged application/provider images running, passed nine fresh
+provider/media canaries, Pexels, dependency/resource, authority, immutable-Post,
+and live Owner checks, and completed in 7m19s end to end. A post-restart query
+confirmed the checkpoint remains completed and no mutable operation is active.
+Status: resolved in production.
 
 ## 2026-09-10 — Hosted Commander turns failed at two nested runtime boundaries
 

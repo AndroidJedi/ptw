@@ -43,6 +43,7 @@ CI SSH key was rejected by the forced receiver. Verification passes: 89 Owner
 unit tests/build, 81 full desktop/360px/iPhone WebKit flows, 18 built-GOD chat
 and release tests, 12 Gateway tests, 24 Commander/release tests, the Commander
 demo, canonical skill validation, shell syntax, workflow YAML, and whitespace.
+The production path is canaried with a docs-only candidate that cannot change runtime behavior or domain data.
 
 ## Selective release pipeline — live
 

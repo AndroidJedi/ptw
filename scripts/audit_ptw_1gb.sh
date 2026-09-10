@@ -32,6 +32,11 @@ for retired_container in ptw-idea-generation-idea-generation-api-1 ptw-commander
 done
 validation_container=$("${validation_compose[@]}" ps -q validation-api)
 [[ -n $validation_container ]] || { echo "Validation API is unavailable" >&2; exit 1; }
+god_container=$("${commander_compose[@]}" ps -q commander-god)
+[[ -n $god_container ]] || { echo "Commander GOD runtime is unavailable" >&2; exit 1; }
+[[ $(docker inspect "$god_container" --format '{{.State.Health.Status}}') == healthy ]] || {
+    echo "Commander GOD runtime is unhealthy" >&2; exit 1;
+}
 
 commander_postgres=$("${commander_compose[@]}" ps -q commander-db)
 [[ -n $commander_postgres ]] || { echo "Commander PostgreSQL is unavailable" >&2; exit 1; }

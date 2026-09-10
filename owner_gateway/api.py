@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from typing import Any, Mapping
+from uuid import UUID
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -103,6 +104,38 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
                 safe["device_code"] = code
         return safe
 
+    async def commander_bridge(
+        method: str, path: str, *, body: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if not settings.commander_service_url:
+            raise HTTPException(status_code=503, detail="Commander hosted runtime is unavailable")
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.request(
+                    method,
+                    f"{settings.commander_service_url}/internal/v1/settings/commander{path}",
+                    headers={"X-PTW-Owner-Gateway-Token": settings.validation_service_token},
+                    json=None if body is None else dict(body),
+                )
+        except httpx.HTTPError as error:
+            raise HTTPException(status_code=503, detail="Commander hosted runtime is unavailable") from error
+        if response.status_code >= 400:
+            try:
+                detail = response.json().get("detail")
+            except (ValueError, AttributeError):
+                detail = None
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=detail or "Commander hosted runtime request failed",
+            )
+        try:
+            payload = response.json()
+        except ValueError as error:
+            raise HTTPException(status_code=503, detail="Commander hosted runtime is unavailable") from error
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=503, detail="Commander hosted runtime is unavailable")
+        return payload
+
     @app.get("/healthz")
     def health() -> dict[str, str]:
         return {"status": "ok"}
@@ -124,6 +157,46 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         return await codex_authorization_bridge("POST", "/v1/authorization/refresh")
+
+    @app.get("/api/v1/settings/commander")
+    async def commander_status(
+        response: Response, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bridge("GET", "")
+
+    @app.post("/api/v1/settings/commander/chats", status_code=201)
+    async def create_commander_chat(
+        response: Response, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bridge("POST", "/chats", body={})
+
+    @app.get("/api/v1/settings/commander/chats/{chat_id}")
+    async def commander_chat(
+        chat_id: UUID, response: Response, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bridge("GET", f"/chats/{chat_id}")
+
+    @app.post("/api/v1/settings/commander/chats/{chat_id}/messages", status_code=202)
+    async def send_commander_message(
+        chat_id: UUID, request: Mapping[str, Any], response: Response,
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bridge("POST", f"/chats/{chat_id}/messages", body=request)
+
+    @app.post(
+        "/api/v1/settings/commander/chats/{chat_id}/turns/{turn_id}/stop",
+        status_code=202,
+    )
+    async def stop_commander_turn(
+        chat_id: UUID, turn_id: UUID, response: Response,
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bridge("POST", f"/chats/{chat_id}/turns/{turn_id}/stop", body={})
 
     @app.get("/api/v1/projects")
     async def projects(

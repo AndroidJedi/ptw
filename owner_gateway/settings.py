@@ -19,6 +19,7 @@ class Settings:
     landing_public_origins: tuple[str, ...] = ()
     codex_authorization_service_url: str = ""
     codex_authorization_bridge_token: str = ""
+    commander_service_url: str = ""
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -78,4 +79,7 @@ class Settings:
                 "PTW_CODEX_AUTH_SERVICE_URL", "http://codex-auth:8094"
             ).rstrip("/"),
             codex_authorization_bridge_token=codex_authorization_token,
+            commander_service_url=os.environ.get(
+                "PTW_COMMANDER_SERVICE_URL", "http://commander-god:8095"
+            ).rstrip("/"),
         )

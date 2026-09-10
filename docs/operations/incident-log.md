@@ -50,8 +50,14 @@ build verification, and the deterministic Studio visual audit. Actual delayed
 409 screenshots were inspected at desktop/360px/iPhone WebKit; feedback is in
 view with no horizontal overflow and the pending headline remains intact.
 
-Status: local fix and verification; production has not been changed. Rejected
-browser edits are not available in PostgreSQL and must not be invented.
+Release `studio-save-20260910-2d18dfc` passed the preserving rollout, provider,
+Pexels, dependency, 1 GB resource, approved-Post, and live Hosting checks. Owner
+cache v5 is live. A bounded unchanged Save normalized the affected legacy
+workspace, retained its state and both immutable approved version/render hashes,
+and completed one learning checkpoint. The same state, checkpoint, versions, and
+renders survived a Validation restart; a second identical Save returned HTTP 200
+without another checkpoint or version. Rejected browser edits were never stored,
+were not recoverable, and were not invented.
 
 ## 2026-09-09 — Legacy Post reads failed after renderer schema uplift
 

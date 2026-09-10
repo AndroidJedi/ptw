@@ -1,6 +1,6 @@
 ---
 name: commander-god-mode
-description: Implement owner-directed PTW features, fixes, and system changes through Commander GOD-mode chat, and maintain the relevant development skills. Use for repository-wide Commander development requests; the current runtime executes locally only.
+description: Implement owner-directed PTW features, fixes, and system changes through Commander GOD-mode chat, and maintain the relevant development skills. Use for repository-wide Commander development requests in the local or isolated hosted checkout.
 ---
 
 # Commander GOD Mode
@@ -15,11 +15,12 @@ Read the repository entrypoint and only the documentation route relevant to the
 request. Existing product scope describes the baseline; the owner's explicit
 feature request may extend it. Preserve generic Brief learning and domain lineage.
 
-The current runner targets the local checkout. It does not offer VPS execution,
-deployment, publishing, or external messaging. Prepare requested operational
-changes locally. A future authenticated VPS runner needs its own host execution
-contract; changing this skill cannot enable it. Use the applicable operations
-skill when a future owner-authorized runtime actually supports remote work.
+The runner targets either the local checkout or the isolated hosted development
+checkout named by the UI. The hosted checkout contains tracked source only and
+is separate from the live deployment checkout and production data. Neither mode
+offers deployment, publishing, production database access, Docker control, or
+external messaging. Prepare operational changes for review through the normal
+operations path; changing this skill never grants those capabilities.
 
 ## Complete a chat turn
 
@@ -79,7 +80,9 @@ Post, or Landing learning entities or cross their lesson namespaces.
   does not stop an orphaned coding process. Restart never replays mutations.
 - A missing local control can be a launcher/build-flag mismatch. The local shell
   uses `VITE_LOCAL_APP=true`; backend chat additionally requires
-  `PTW_COMMANDER_CHAT_MODE=1`. Production APIs do not mount these routes.
+  `PTW_COMMANDER_CHAT_MODE=1`. Hosted Settings always shows the control. Its
+  Firebase/App Check routes proxy through Owner Gateway to the private
+  `commander-god` service; only that service mounts the isolated checkout.
 - Readiness means the CLI and canonical skill are present. It does not prove
   model authorization. A failed execution needs a local Codex sign-in/runtime
   check; never expose raw CLI output or credentials as a diagnostic.

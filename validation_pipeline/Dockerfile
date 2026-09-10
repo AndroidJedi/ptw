@@ -3,7 +3,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 TZ=Europe/Kyiv
 WORKDIR /app
 COPY requirements-validation.txt ./
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends fonts-dejavu-core \
+    && apt-get install -y --no-install-recommends fonts-dejavu-core git ripgrep \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir -r requirements-validation.txt \
     && useradd --system --uid 10001 validation

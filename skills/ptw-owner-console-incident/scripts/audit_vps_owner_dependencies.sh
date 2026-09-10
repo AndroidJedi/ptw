@@ -18,12 +18,17 @@ commander_container=$($commander_compose ps -q commander-api)
 validation_container=$($validation_compose ps -q validation-api)
 codex_auth_container=$($platform_compose ps -q codex-auth)
 platform_worker_container=$($platform_compose ps -q commander-worker)
-for pair in "Owner_Gateway:$owner_container" "Commander:$commander_container" "Validation:$validation_container" "Codex_Auth:$codex_auth_container" "Platform_Worker:$platform_worker_container"; do
+god_container=$($commander_compose ps -q commander-god)
+for pair in "Owner_Gateway:$owner_container" "Commander:$commander_container" "Validation:$validation_container" "Codex_Auth:$codex_auth_container" "Platform_Worker:$platform_worker_container" "Commander_GOD:$god_container"; do
   name=${pair%%:*}; container=${pair#*:}
   test -n "$container" || { echo "$name container is missing" >&2; exit 1; }
   test "$(docker inspect --format '{{.State.Status}}' "$container")" = running || { echo "$name is not running" >&2; exit 1; }
   test "$(docker inspect --format '{{.State.Health.Status}}' "$container")" = healthy || { echo "$name is not healthy" >&2; exit 1; }
 done
+docker exec "$god_container" test -r /root/.codex/auth.json
+docker exec "$god_container" test -x /opt/ptw-codex/bin/codex
+docker exec "$god_container" test -e /workspace/.git
+docker exec "$god_container" sh -c 'test ! -e /workspace/.env && test ! -e /workspace/.env.commander && test ! -e /workspace/.env.owner-gateway'
 docker exec "$platform_worker_container" test -r /run/ptw-codex-auth/auth.json || {
   echo "Platform worker cannot read its root-owned Codex credential mount" >&2
   exit 1

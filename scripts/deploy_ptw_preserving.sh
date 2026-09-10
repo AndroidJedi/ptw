@@ -71,8 +71,15 @@ done
 
 old_app_image=$(docker inspect ptw-validation-validation-api-1 --format '{{.Config.Image}}')
 old_platform_image=$(docker inspect ptw-agent-platform-commander-api-1 --format '{{.Config.Image}}')
+old_god_running=0
+if [[ $(docker inspect ptw-commander-god-1 --format '{{.State.Running}}' 2>/dev/null || true) == true ]]; then
+    old_god_running=1
+fi
 case "$old_app_image" in ptw-validation:*) old_app_tag=${old_app_image#ptw-validation:} ;; *) exit 1 ;; esac
 case "$old_platform_image" in ptw-agent-platform-commander-api:*) old_platform_tag=${old_platform_image#ptw-agent-platform-commander-api:} ;; *) exit 1 ;; esac
+if [[ $old_god_running -eq 1 ]]; then
+    [[ $(docker inspect ptw-commander-god-1 --format '{{.Config.Image}}') == "ptw-validation:$old_app_tag" ]]
+fi
 [[ $(docker inspect ptw-commander-api-1 --format '{{.Config.Image}}') == "ptw-commander:$old_app_tag" ]]
 [[ $(docker inspect ptw-owner-gateway-1 --format '{{.Config.Image}}') == "ptw-owner-gateway:$old_app_tag" ]]
 [[ $(docker inspect ptw-agent-platform-commander-worker-1 --format '{{.Config.Image}}') == "ptw-agent-platform-commander-worker:$old_platform_tag" ]]
@@ -90,8 +97,14 @@ rollback() {
     export PTW_PLATFORM_IMAGE_TAG=$old_platform_tag
     "${platform_compose[@]}" up -d --no-deps --no-build --wait codex-auth commander-worker commander-api || rollback_failed=1
     export PTW_IMAGE_TAG=$old_app_tag
-    "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api owner-gateway || rollback_failed=1
+    "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api || rollback_failed=1
     "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api || rollback_failed=1
+    if [[ $old_god_running -eq 1 ]]; then
+        "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-god || rollback_failed=1
+    else
+        "${commander_compose[@]}" rm -sf commander-god >/dev/null 2>&1 || rollback_failed=1
+    fi
+    "${commander_compose[@]}" up -d --no-deps --no-build --wait owner-gateway || rollback_failed=1
     sed -i "s/^PTW_PLATFORM_IMAGE_TAG=.*/PTW_PLATFORM_IMAGE_TAG=$old_platform_tag/" "$platform/.env" || rollback_failed=1
     sed -i "s/^PTW_IMAGE_TAG=.*/PTW_IMAGE_TAG=$old_app_tag/" "$repository/.env.commander" || rollback_failed=1
     [[ $(docker inspect ptw-commander-api-1 --format '{{.Config.Image}}') == "ptw-commander:$old_app_tag" ]] || rollback_failed=1
@@ -189,6 +202,7 @@ SQL
 
 snapshot_authority > "$before"
 snapshot_ready=1
+"$repository/scripts/prepare_commander_god_workspace.sh" "$git_revision"
 export PTW_PLATFORM_IMAGE_TAG=$release_tag
 "${platform_compose[@]}" up -d --no-deps --no-build --wait codex-auth
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker
@@ -198,6 +212,7 @@ export PTW_IMAGE_TAG=$release_tag
 "${commander_compose[@]}" run -T --rm --no-deps commander-migrate
 "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api
 "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api
+"${commander_compose[@]}" up -d --no-deps --no-build --wait commander-god
 "${commander_compose[@]}" up -d --no-deps --no-build --wait owner-gateway
 
 curl --fail --silent --max-time 5 http://127.0.0.1:8091/readyz >/dev/null
@@ -218,10 +233,11 @@ cmp -s "$before" "$after" || {
 PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/audit_ptw_1gb.sh" </dev/null
 
 for service in ptw-commander-api-1 ptw-validation-validation-api-1 \
-    ptw-owner-gateway-1 ptw-agent-platform-commander-api-1 \
+    ptw-owner-gateway-1 ptw-commander-god-1 ptw-agent-platform-commander-api-1 \
     ptw-agent-platform-commander-worker-1 ptw-agent-platform-codex-auth-1; do
     [[ $(docker inspect "$service" --format '{{.State.Health.Status}}') == healthy ]]
 done
+[[ $(docker inspect ptw-commander-god-1 --format '{{.Config.Image}}') == "ptw-validation:$release_tag" ]]
 
 sed -i "s/^PTW_PLATFORM_IMAGE_TAG=.*/PTW_PLATFORM_IMAGE_TAG=$release_tag/" "$platform/.env"
 sed -i "s/^PTW_IMAGE_TAG=.*/PTW_IMAGE_TAG=$release_tag/" "$repository/.env.commander"

@@ -40,12 +40,15 @@ and prompts never cross this boundary or enter logs. The worker refreshes its
 read-only auth copy for every request, so completed device authorization needs
 no SSH session or service restart.
 
-Local development Settings additionally exposes **Commander · GOD mode**, a
-repository-wide coding chat. Run `scripts/run_local_studio.sh` and open
-`http://127.0.0.1:5173/?e2e=1&page=settings`. It uses the existing local Codex
-sign-in and edits the current checkout. Backend edits take effect after the
-local API restarts; the coding agent must finish its reply before that restart.
-This milestone has no VPS execution or deployment surface.
+Settings exposes **Commander · GOD mode**, a repository-wide coding chat. Local
+development uses the existing local Codex sign-in and edits the current checkout.
+The hosted control uses the same pinned Firebase owner and App Check boundary as
+the rest of Settings, then Owner Gateway proxies to a private `commander-god`
+service. That service receives the published read-only Codex credential and can
+write only an isolated, shallow development clone under
+`/opt/ptw/commander-workspace`. Runtime `.env` files, Docker, production data,
+deployment, publishing, Git push, and external messaging are outside its mounts
+and policy. Completed edits wait in that clone for review and normal release.
 
 Settings keeps ChatGPT Authorization visible alongside Commander. Its local
 GET/refresh routes use the local Codex sign-in and an owner-initiated PTY device
@@ -55,13 +58,13 @@ uses `test_status: null`; it does not claim a working provider test. The separat
 production authorization bridge remains unchanged. English/Ukrainian selection
 now lives in Settings and persists across navigation and reload.
 
-Only `validation_pipeline.studio_local_api` mounts the opt-in
-`/api/v1/settings/commander` routes: status, chat creation/detail, message POST,
-and turn Stop. The public Owner Gateway and production Validation API do not
-proxy or register them. Requests require local owner/App Check headers and
-loopback host/client/origin checks; responses are no-store. The service holds
-an exclusive local lease, serializes coding work, stores private conversation
-metadata in `.local/commander-chat/chat.sqlite3`, and never stores raw CLI logs.
+The local app mounts opt-in `/api/v1/settings/commander` routes with loopback and
+local owner/App Check guards. Production Validation still mounts no coding
+routes. Owner Gateway registers the same public contract behind pinned owner
+authentication and forwards it with a service secret to
+`/internal/v1/settings/commander`; responses are private/no-store. Each runner
+holds an exclusive lease, serializes coding work, stores private conversation
+metadata in its dedicated state volume, and never stores raw CLI logs.
 A message UUID reconciles uncertain POST results. Stop and timeout terminate
 the worker process group; a liveness pipe also terminates it if the API dies.
 Restart retains interrupted turns without re-executing them. Applied edits

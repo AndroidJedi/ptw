@@ -108,6 +108,7 @@ def main() -> None:
         "Landing publication control": "PUBLIC NATAL PAGE",
         "Landing save timeout reconciliation": "Landing was already saved.",
         "ChatGPT authorization settings": "ChatGPT Authorization",
+        "hosted Commander GOD mode": "Hosted checkout",
         "actionable API error guidance": "Що робити",
         "bounded API technical context": "Технічні дані",
         "approved Brief existing-Creative resolution": "approved-brief-existing-creative-v1",
@@ -142,6 +143,10 @@ def main() -> None:
     auth_status, _, auth_bytes = fetch(f"{args.api}/api/v1/overview")
     require(auth_status == 401, f"Unauthenticated Overview returned HTTP {auth_status}")
     require("Bearer token is required" in auth_bytes.decode(), "Unexpected auth failure body")
+
+    commander_status, _, commander_bytes = fetch(f"{args.api}/api/v1/settings/commander")
+    require(commander_status == 401, f"Unauthenticated Commander returned HTTP {commander_status}")
+    require("Bearer token is required" in commander_bytes.decode(), "Unexpected Commander auth failure body")
 
     private_route_status, _, private_route_bytes = fetch(
         f"{args.api}/api/v1/studio/projects/00000000-0000-0000-0000-000000000001/"

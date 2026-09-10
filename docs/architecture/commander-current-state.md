@@ -2,32 +2,49 @@
 
 Updated: 2026-09-10
 Branch: `main`
-Deployment: all six services are healthy on `instagram-restore-20260909-a4af6b2`; schema 005 and both web sites are live with Owner cache v4. Meta credentials remain unconfigured.
+Deployment: all six application services are healthy on `studio-save-20260910-2d18dfc`; schema 005 and both web sites are live with Owner cache v5. Meta credentials remain unconfigured.
 
-## Legacy Creative Save incident — local fix, awaiting production release
+## Hosted Commander GOD mode — verified candidate, awaiting release
 
-Three owner Save requests returned HTTP 409 before persistence. The Creative
-service replaced the normalized editor hash with the older stored snapshot hash,
-then checkpoint validation compared it against the normalized value. Local code
-now gives renderer fields precedence and reuses bounded legacy state validation.
-Explicit unchanged legacy Saves persist normalized files before updating metadata;
-GETs remain read-only and genuinely stale edits remain rejected. Regression
-coverage includes Save followed by fresh service/cache restore, unchanged Save,
-completed learning/lineage, duplicate prevention, and immutable PNG preservation
-through real HTTP and disposable PostgreSQL. See the incident log. No production
-restart, database repair, or recovery of rejected owner input has been performed.
-Verification passes: 218 local Validation tests, 21 focused built-image Studio
-tests, 18 built-image Commander tests and local demo, the disposable PostgreSQL
-Save/restore check, canonical skills, and whitespace checks. Hosted GOD-mode
-execution remains a separate open request; the existing runner is local only.
-The companion local UI fix brings rejected Save feedback into view and focus
-beside the controls, retains pending input, separates preview errors, and aligns
-both templates' checkpoint deadlines with the Gateway's 480 seconds. Candidate
-Owner cache v5 replaces v4 only when released; production remains on v4.
-Web verification passes: 88 unit tests, 78 browser/UI flows with mocked APIs,
-and the production build. Delayed Save failure screenshots were inspected on
-desktop, 360px, and iPhone WebKit, including focus, visible feedback, retained
-input, and no overflow. The deterministic Studio geometry/colour audit passes.
+Settings now exposes Commander in both local and hosted consoles. The hosted
+contract keeps Firebase owner and App Check verification at Owner Gateway, then
+uses the existing service secret to reach a private `commander-god` API. Its
+root process can write only an isolated shallow clone under
+`/opt/ptw/commander-workspace`; runtime environment files, the production
+checkout/data, Docker, deployment, publishing, Git push, and external messaging
+remain outside its mounts and execution policy. The published Codex credential
+and standalone binary are read-only. Conversations persist in a dedicated volume,
+retain request-ID reconciliation, serialize turns, and mark interrupted work
+without replay after restart. Production Validation still mounts no coding routes.
+Owner cache v6 will force mobile clients to install the restored Settings control.
+
+Verification passes in the Linux image for 12 runner/API lifecycle and security
+tests plus 11 Gateway tests; all 219 Validation tests, 18 Commander release tests,
+the Commander demo, 88 web unit tests, 78 desktop/360px/iPhone WebKit flows,
+canonical skill validation, shell syntax, production build, and whitespace checks
+pass. The final live Codex turn and dependency/resource audits require deployment.
+
+## Legacy Creative Save incident — resolved in production
+
+Three owner Save requests returned HTTP 409 before persistence because the
+Creative service exposed the older stored snapshot hash over its normalized
+editor hash. The deployed service now gives renderer fields precedence and uses
+bounded legacy state validation. Explicit unchanged legacy Saves persist the
+normalized files; GET remains read-only and genuinely stale edits still fail.
+The UI places Save feedback beside the controls, focuses and scrolls to failures,
+retains pending input, separates preview errors, and uses the Gateway's 480-second
+deadline. Owner cache v5 is live.
+
+The preserving rollout passed provider, Pexels, authority-preservation,
+dependency, resource, and approved-Post checks. One exact unchanged Save
+normalized the affected workspace; it returned HTTP 200, retained both immutable
+version IDs and render hashes, and completed its learning run. A Validation
+restart retained the same state, checkpoint, versions, and renders. A second
+identical Save returned HTTP 200 without another checkpoint or version. The three
+rejected browser drafts were unavailable in PostgreSQL and were not invented.
+Local verification covered 218 Validation tests, real HTTP with disposable
+PostgreSQL, 18 Commander tests and demo, 88 web unit tests, 78 browser flows, and
+the deterministic Studio visual audit. See the incident log.
 
 ## Legacy Post restore compatibility incident — resolved
 
@@ -160,7 +177,7 @@ tests in the built Validation image plus demo, skills, and whitespace checks.
 The local launcher was refreshed; authenticated reads confirmed v24 and fresh
 phone/image previews of the same existing Creative without changing saved state.
 
-## Local Commander GOD-mode milestone
+## Commander GOD-mode foundation
 
 Local Settings retains ChatGPT Authorization, adds the English/Ukrainian
 language switcher moved from navigation, and includes a repository-wide Commander
@@ -179,13 +196,13 @@ and records its digest. The agent maintains the narrowest relevant PTW skills
 after verified reusable lessons, with canonical sync/validation and separation
 from Product Brief, Post, and Landing learning. Missing skill disables execution.
 
-This milestone is now deployed. The launcher enables
+The local milestone is deployed. The launcher enables
 `PTW_COMMANDER_CHAT_MODE=1` and the corrected `VITE_LOCAL_APP=true` flag. The
 runner uses a workspace-write sandbox with shell network access disabled and
 does not inherit user MCP/config or provider-secret environment variables.
-Local credentials plus loopback host/client/origin checks protect the routes;
-neither production API mounts them. VPS execution remains future work requiring
-an authenticated host runner and an explicit operational release.
+Local credentials plus loopback host/client/origin checks protect those routes.
+The hosted extension described at the top keeps its runner in a separate private
+service and checkout; production Validation continues to mount neither variant.
 
 Local verification passes: 11 chat runtime/HTTP tests (also in the built Linux
 image), seven existing Tune tests, 72 web unit tests, production web build,

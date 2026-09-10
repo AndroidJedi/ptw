@@ -9,7 +9,7 @@ type Turn = {
 }
 type Chat = { id: string; turns: Turn[] }
 type Runtime = {
-  target: 'local'; available: boolean; unavailable_reason: string | null
+  target: 'local' | 'hosted'; available: boolean; unavailable_reason: string | null
   chats: { id: string; title: string }[]
   active_turn: { id: string; chat_id: string } | null
 }
@@ -30,6 +30,7 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
   const pending = useRef<{ chatId: string; message: string; requestId: string } | null>(null)
   const alive = useRef(true)
   const running = chat?.turns.find(active)
+  const hosted = runtime?.target === 'hosted'
 
   const load = async () => {
     const detail = await api.get<Runtime>(base)
@@ -109,9 +110,11 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
   }
 
   return <section className="panel settings-card commander-card" aria-labelledby="commander-title">
-    <header><div><small>{tr('DEVELOPMENT MODE', 'РЕЖИМ РОЗРОБКИ')}</small><h2 id="commander-title"><Bot /> Commander · GOD mode</h2></div><span className="commander-target">{tr('Local checkout', 'Локальний код')}</span></header>
+    <header><div><small>{tr('DEVELOPMENT MODE', 'РЕЖИМ РОЗРОБКИ')}</small><h2 id="commander-title"><Bot /> Commander · GOD mode</h2></div><span className="commander-target">{hosted ? tr('Hosted checkout', 'Код на сервері') : tr('Local checkout', 'Локальний код')}</span></header>
     <p>{tr('Chat with Commander to fix PTW, change any part of the app, or build new functionality. Try adding a carousel creation tab or improving Telegram controls.', 'Спілкуйтеся з Commander, щоб виправляти PTW, змінювати застосунок або додавати функції. Наприклад, створіть вкладку каруселей чи покращте керування Telegram.')}</p>
-    <p className="commander-scope">{tr('Changes apply directly to this local checkout using your local Codex sign-in. VPS execution and deployment are not enabled in this version.', 'Зміни вносяться прямо в локальний код через ваш локальний вхід у Codex. Виконання на VPS та розгортання в цій версії ще не ввімкнено.')}</p>
+    <p className="commander-scope">{hosted
+      ? tr('Changes apply to an isolated development checkout on the PTW server. Commander cannot deploy or operate production data; completed changes remain ready for review and release.', 'Зміни вносяться в ізольовану копію коду на сервері PTW. Commander не може розгортати зміни або працювати з production-даними; готові зміни залишаються для перевірки та випуску.')
+      : tr('Changes apply directly to this local checkout using your local Codex sign-in. Deployment is not enabled in this chat.', 'Зміни вносяться прямо в локальний код через ваш локальний вхід у Codex. Розгортання з цього чату не ввімкнено.')}</p>
     <p className="commander-scope">{tr('Commander maintains its GOD-mode skills and relevant PTW skills as it learns from verified changes.', 'Commander підтримує навички GOD mode та відповідні навички PTW на основі перевірених змін.')}</p>
     <button className={open ? 'secondary' : 'primary'} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? tr('Close chat', 'Закрити чат') : tr('Open Commander chat', 'Відкрити чат Commander')}</button>
     {error && <p className="settings-error" role="alert">{error}</p>}
@@ -120,7 +123,9 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
       {loading && <p role="status">{tr('Loading Commander…', 'Завантаження Commander…')}</p>}
       {runtime && !runtime.available && <p role="alert">{runtime.unavailable_reason === 'skill_missing'
         ? tr('The Commander GOD-mode skill is missing or invalid. Restore the canonical skill and refresh this page.', 'Навичка Commander GOD mode відсутня або некоректна. Відновіть канонічну навичку та оновіть сторінку.')
-        : tr('Commander is unavailable. Install Codex CLI, sign in locally, and restart the local app.', 'Commander недоступний. Встановіть Codex CLI, увійдіть локально та перезапустіть застосунок.')}</p>}
+        : hosted
+          ? tr('Commander is unavailable on the PTW server. Refresh ChatGPT Authorization, then retry.', 'Commander недоступний на сервері PTW. Оновіть авторизацію ChatGPT і повторіть спробу.')
+          : tr('Commander is unavailable. Install Codex CLI, sign in locally, and restart the local app.', 'Commander недоступний. Встановіть Codex CLI, увійдіть локально та перезапустіть застосунок.')}</p>}
       <div className="commander-toolbar">
         <label>{tr('Conversation', 'Розмова')}<select value={chat?.id || ''} disabled={busy || loading} onChange={event => void select(event.target.value)}>
           <option value="" disabled>{tr('New conversation', 'Нова розмова')}</option>

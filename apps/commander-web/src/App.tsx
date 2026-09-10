@@ -220,7 +220,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     {page === 'posts' && <StudioView api={api} language={language} tuneMode={localApp} projectId={validatedProjectId} creativeId={creativeId} onCreative={selectCreative} />}
     {page === 'landing' && <LandingView api={api} language={language} projectId={validatedProjectId} projectName={projects?.find(item => item.project_id === validatedProjectId)?.name || ''} landingId={landingId} onLanding={selectLanding} />}
     {page === 'ads' && <AdsView api={api} language={language} projectId={validatedProjectId} />}
-    {page === 'settings' && <SettingsView api={api} language={language} localMode={localApp && !liveProduction} onLanguage={changeLanguage} />}
+    {page === 'settings' && <SettingsView api={api} language={language} onLanguage={changeLanguage} />}
   </Shell>
 }
 

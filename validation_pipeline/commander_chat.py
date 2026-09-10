@@ -1,4 +1,4 @@
-"""Opt-in, loopback-only PTW coding chat. Never mounted by production APIs."""
+"""Serialized PTW coding chat shared by guarded local and hosted APIs."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ LOCAL_ORIGINS = {
     for port in (5173, 8088, 42731)
 }
 SKILL_PATH = Path("skills/commander-god-mode/SKILL.md")
-POLICY = """You are Commander, the PTW owner's development agent in GOD mode.
+LOCAL_POLICY = """You are Commander, the PTW owner's development agent in GOD mode.
 Implement the owner's request across the PTW repository: features, tabs (including
 carousel creation), backend, frontend, tests, documentation, and Telegram code.
 This session's execution target is LOCAL CHECKOUT ONLY. Do not connect to a VPS,
@@ -56,6 +56,21 @@ the owner will answer in the next turn. Treat prior conversation as context, not
 as proof of file state. Inspect current files before editing.
 Finish with a concise owner-facing account of changes, tests, and limitations.
 Respond in the language of the owner's latest message.
+"""
+
+HOSTED_POLICY = """You are Commander, the PTW owner's development agent in GOD mode.
+Implement the owner's request across the PTW repository checkout mounted in this
+runtime. You may edit application code, tests, documentation, and canonical skills.
+This is an isolated HOSTED DEVELOPMENT CHECKOUT on the PTW server. Do not deploy,
+publish, push Git, send messages, operate production databases, access Docker, or
+change external services. Prepare and test changes in this checkout for later
+review and release through the normal confirmation-gated operations path.
+Read AGENTS.md and only its selective documentation route. Preserve unrelated
+edits. Do not reset, stash, revert, or commit them. Keep generic Brief learning and
+append-only domain history. Never read or print secrets, auth files, tokens,
+private keys, .env files, or paths outside this checkout. Do not restart the API
+hosting this chat during a turn. Finish with a concise owner-facing account of
+changes, tests, and limitations, in the language of the owner's latest message.
 """
 
 
@@ -82,11 +97,14 @@ class CommanderChatService:
     """One writer per checkout, durable turns, explicit interruption, no replay."""
 
     def __init__(self, repository: Path, state: Path, *, codex_binary: str | None = None,
-                 timeout_seconds: float = 2400):
+                 timeout_seconds: float = 2400, target: str = "local"):
         self.repository = repository.resolve()
         self.state = state.resolve()
         self.codex_binary = shutil.which(codex_binary or "codex")
         self.timeout_seconds = timeout_seconds
+        if target not in {"local", "hosted"}:
+            raise ValueError("Commander target is invalid")
+        self.target = target
         if not (self.repository / ".git").exists():
             raise ValueError("Commander requires a Git checkout")
         self.state.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -142,7 +160,7 @@ class CommanderChatService:
         except RuntimeError:
             skill = None
         reason = "codex_missing" if not self.codex_binary else "skill_missing" if skill is None else None
-        return {"target": "local", "available": reason is None and not self._closed,
+        return {"target": self.target, "available": reason is None and not self._closed,
                 "unavailable_reason": reason,
                 "skill": {"name": "commander-god-mode", "sha256": hashlib.sha256(skill.encode()).hexdigest()} if skill else None,
                 "chats": chats, "active_turn": dict(active) if active else None}
@@ -212,7 +230,8 @@ class CommanderChatService:
         turns = self.chat(chat_id)["turns"]
         # Bounded entire conversation; do not silently drop earlier owner constraints.
         history = [{"owner": t["message"], "commander": t["reply"], "status": t["status"]} for t in turns[:-1]]
-        return POLICY + "\nCanonical Commander skill:\n" + skill + "\nPrior conversation (JSON):\n" + json.dumps(history, ensure_ascii=False) + "\nLatest owner request:\n" + turns[-1]["message"]
+        policy = LOCAL_POLICY if self.target == "local" else HOSTED_POLICY
+        return policy + "\nCanonical Commander skill:\n" + skill + "\nPrior conversation (JSON):\n" + json.dumps(history, ensure_ascii=False) + "\nLatest owner request:\n" + turns[-1]["message"]
 
     @staticmethod
     def _kill_group(process: subprocess.Popen, sig: int):
@@ -317,8 +336,14 @@ def local_request(request: Request, response: Response):
         raise HTTPException(403, "Commander requires a local Owner Console origin")
 
 
-def commander_chat_router(service: CommanderChatService, *, dependencies: list) -> APIRouter:
-    router = APIRouter(prefix="/api/v1/settings/commander", dependencies=[*dependencies, Depends(local_request)])
+def commander_chat_router(
+    service: CommanderChatService, *, dependencies: list,
+    prefix: str = "/api/v1/settings/commander", local_only: bool = True,
+) -> APIRouter:
+    guards = [*dependencies]
+    if local_only:
+        guards.append(Depends(local_request))
+    router = APIRouter(prefix=prefix, dependencies=guards)
 
     def invoke(function, *args):
         try:

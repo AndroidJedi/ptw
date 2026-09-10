@@ -60,12 +60,15 @@ it('restores a persisted running conversation and keeps Stop available', async (
   expect(screen.getByRole('button', { name: 'Зупинити' })).toBeEnabled()
 })
 
-it('does not expose the coding mode or call its API in production Settings', async () => {
-  const get = vi.fn().mockResolvedValue({ status: 'authorized', test_status: 'passed' })
+it('exposes hosted coding mode alongside authorization in production Settings', async () => {
+  const get = vi.fn(async (path: string) => path.includes('chatgpt-authorization')
+    ? { status: 'authorized', test_status: 'passed' }
+    : { target: 'hosted', available: true, chats: [], active_turn: null })
   render(<SettingsView api={{ get } as never} language="en" />)
   expect(await screen.findByText('Authorized and verified')).toBeInTheDocument()
-  expect(screen.queryByText(/GOD mode/)).not.toBeInTheDocument()
-  expect(get).toHaveBeenCalledTimes(1)
+  expect(screen.getByText(/GOD mode/)).toBeInTheDocument()
+  expect(await screen.findByText('Hosted checkout')).toBeInTheDocument()
+  expect(get).toHaveBeenCalledWith('/api/v1/settings/commander')
   expect(get).toHaveBeenCalledWith('/api/v1/settings/chatgpt-authorization')
 })
 
@@ -74,7 +77,7 @@ it('keeps authorization alongside Commander and moves the language action into S
     ? { status: 'authorized', test_status: null }
     : { target: 'local', available: true, chats: [], active_turn: null })
   const onLanguage = vi.fn()
-  render(<SettingsView api={{ get } as never} language="uk" localMode onLanguage={onLanguage} />)
+  render(<SettingsView api={{ get } as never} language="uk" onLanguage={onLanguage} />)
   expect(await screen.findByRole('heading', { name: 'ChatGPT Authorization' })).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: /Commander/ })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Змінити мову' }))

@@ -205,7 +205,30 @@ out.write_text('Added the local carousel feature. Tests passed.')
             self.assertEqual(202, response.status_code)
             self.assertEqual("completed", self.wait(chat["id"])["turns"][-1]["status"])
 
-    def test_local_app_is_opt_in_and_production_has_no_routes(self):
+    def test_hosted_api_uses_service_auth_and_reports_isolated_target(self):
+        from validation_pipeline.commander_host_api import create_app_from_env
+        with patch.dict(os.environ, {
+            "OWNER_GATEWAY_BRIDGE_TOKEN": "service-token",
+            "PTW_COMMANDER_REPOSITORY": str(self.repo),
+            "PTW_COMMANDER_STATE": str(self.root / "hosted-state"),
+            "CODEX_EXECUTABLE": str(self.binary),
+        }):
+            with TestClient(create_app_from_env()) as client:
+                base = "/internal/v1/settings/commander"
+                self.assertEqual(200, client.get("/healthz").status_code)
+                self.assertEqual(401, client.get(base).status_code)
+                response = client.get(base, headers={
+                    "X-PTW-Owner-Gateway-Token": "service-token",
+                })
+                self.assertEqual(200, response.status_code)
+                self.assertEqual("hosted", response.json()["target"])
+                self.assertEqual("no-store", response.headers["cache-control"])
+                created = client.post(base + "/chats", headers={
+                    "X-PTW-Owner-Gateway-Token": "service-token",
+                }, json={})
+                self.assertEqual(201, created.status_code)
+
+    def test_local_app_is_opt_in_and_production_validation_has_no_routes(self):
         from validation_pipeline.studio_local_api import create_app
         with patch.dict(os.environ, {
             "PTW_COMMANDER_CHAT_MODE": "0", "STUDIO_TUNE_MODE": "0",
@@ -223,10 +246,8 @@ out.write_text('Added the local carousel feature. Tests passed.')
                 self.assertEqual(200, client.get(base, headers={
                     "Authorization": "Bearer e2e-owner-token", "X-Firebase-AppCheck": "e2e-app-check",
                 }).status_code)
-        # Both deployed APIs have no import or route for the local coding runner.
-        for file in ["owner_gateway/api.py", "validation_pipeline/api.py"]:
-            source = (Path(__file__).resolve().parents[2] / file).read_text()
-            self.assertNotIn("commander_chat", source)
+        source = (Path(__file__).resolve().parents[2] / "validation_pipeline/api.py").read_text()
+        self.assertNotIn("commander_chat", source)
 
 
 if __name__ == "__main__":

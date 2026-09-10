@@ -97,6 +97,12 @@ before changing code or runtime state.
   A transport, provider, timeout, or persistence failure retains the same provider
   attempt for safe reconciliation. Append a learning-run attempt for every retry;
   never delete the failed runs or alter the saved Creative/checkpoint.
+- Global-proposal privacy checks may compare full owner copy and specific asset
+  provenance values, including IDs, hashes, URLs, filenames, provider identity,
+  and visual direction. Do not classify generic renderer vocabulary such as an
+  asset `slot` value as private: a reusable rule about `logo` visibility must not
+  fail merely because the Creative has a `logo` slot. Cover both acceptance of
+  semantic Studio terms and rejection of an exact provenance identifier.
 - Restart recovery resumes queued composition/image/learning exactly once.
   PostgreSQL remains authority; per-creative renderer files are disposable cache.
 - When an already-approved Brief returns HTTP 409 from `/approve`, inspect its

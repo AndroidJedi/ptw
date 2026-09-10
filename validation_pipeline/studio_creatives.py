@@ -1169,9 +1169,7 @@ class StudioCreativeService:
             for value in _walk_strings(snapshot.get("content")):
                 if len(value) >= 12:
                     forbidden.append(value)
-            for value in _walk_strings(snapshot.get("assets")):
-                if len(value) >= 3:
-                    forbidden.append(value)
+            forbidden.extend(_walk_asset_identifiers(snapshot.get("assets")))
             for value in _walk_strings(snapshot.get("phone_screen_history")):
                 if len(value) >= 3:
                     forbidden.append(value)
@@ -1412,4 +1410,27 @@ def _walk_strings(value: Any) -> list[str]:
         for item in value:
             result.extend(_walk_strings(item))
         return result
+    return []
+
+
+def _walk_asset_identifiers(value: Any, key: str = "") -> list[str]:
+    """Return private/specific provenance values without generic asset vocabulary."""
+
+    if isinstance(value, Mapping):
+        result: list[str] = []
+        for child_key, item in value.items():
+            result.extend(_walk_asset_identifiers(item, str(child_key)))
+        return result
+    if isinstance(value, list):
+        result = []
+        for item in value:
+            result.extend(_walk_asset_identifiers(item, key))
+        return result
+    identifying_key = (
+        key in {"provider", "model", "origin", "filename", "source", "visual_direction"}
+        or key.endswith(("_id", "_url", "_sha256", "_fingerprint"))
+    )
+    if identifying_key and isinstance(value, (str, int)) and not isinstance(value, bool):
+        normalized = " ".join(str(value).split())
+        return [normalized] if len(normalized) >= 3 else []
     return []

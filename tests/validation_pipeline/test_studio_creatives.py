@@ -625,6 +625,23 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertIn("project-specific", checkpoint["checkpoint"]["error_message"])
         self.assertIsNone(checkpoint["learning_proposal"])
         self.assertEqual(1, self.authority.latest_skill("project", project_id)["version"])
+        stored_checkpoint = self.authority.get_checkpoint(
+            checkpoint["checkpoint"]["checkpoint_id"],
+        )
+        creative = self.authority.get_creative(detail["creative_id"])
+        self.assertFalse(self.service._unsafe_global_rule(
+            "Treat logo visibility as region-specific instead of a universal preference.",
+            creative=creative, before=stored_checkpoint["before_snapshot"],
+            after=stored_checkpoint["after_snapshot"],
+        ))
+        private_after = deepcopy(stored_checkpoint["after_snapshot"])
+        private_after["assets"] = [
+            {"slot": "hero", "source": {"provider": "private-provider-123"}},
+        ]
+        self.assertTrue(self.service._unsafe_global_rule(
+            "Prefer private-provider-123 for every Project.", creative=creative,
+            before=stored_checkpoint["before_snapshot"], after=private_after,
+        ))
 
         self.provider.unsafe_global_proposal = False
         recovered = self.service.retry_learning(

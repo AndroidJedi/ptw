@@ -5,10 +5,11 @@ Updated: 2026-09-10
 ## 2026-09-10 — Studio learning replay blocked a guarded fast rollout
 
 An owner Save persisted its Creative and immutable checkpoint, but learning
-rejected a global proposal containing Project-specific content. The UI showed no
-error because Save itself had succeeded and the failure remained in the queued
-learning state. A later release correctly refused to restart Validation while
-that checkpoint lacked a completed learning run.
+rejected a privacy-safe global proposal as though it contained Project-specific
+content. The UI showed no error because Save itself had succeeded and the
+failure remained in the queued learning state. A later release correctly
+refused to restart Validation while that checkpoint lacked a completed learning
+run.
 
 The first Retry appended a second failed run but replayed the same completed
 provider response. Studio learning used one checkpoint-wide idempotency key, so
@@ -16,6 +17,11 @@ deterministic PTW validation could never obtain corrected output. The retry now
 keeps the same provider attempt after transport, provider, timeout, or
 persistence uncertainty, while a prior `ValueError` advances the provider
 attempt and includes only the bounded validation error as correction context.
+Inspection of all four completed provider responses showed generalized rules
+about logo visibility. The privacy filter had treated the generic asset slot
+value `logo` as a private identifier. It now checks exact copy plus selected
+asset provenance identifiers and still rejects IDs, digests, URLs, provider
+identity, and owner visual direction without rejecting ordinary Studio terms.
 The failed runs and saved Creative/checkpoint remain append-only and intact. A
 tracked one-off command can recover that exact checkpoint through the normal
 database and provider services before rollout.

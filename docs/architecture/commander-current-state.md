@@ -44,6 +44,23 @@ unit tests/build, 81 full desktop/360px/iPhone WebKit flows, 18 built-GOD chat
 and release tests, 12 Gateway tests, 24 Commander/release tests, the Commander
 demo, canonical skill validation, shell syntax, workflow YAML, and whitespace.
 
+## Temporary GOD chat images
+
+Commander conversations accept up to four PNG, JPEG, or WebP images per request,
+bounded to 8 MB each and 20 MB total. The browser supports image-only requests,
+mobile previews, removal before Send, and idempotent retry with the same request
+UUID. Owner Gateway authenticates every upload and temporary-preview hop. Hosted
+Commander decodes the claimed format, rejects unsafe dimensions or animation,
+strips metadata, normalizes pixels to a bounded PNG, verifies its digest, and
+passes the temporary path to Codex only for that request.
+
+Pixel bytes never enter the Git checkout, release candidate, chat SQLite,
+Firebase, or PostgreSQL. They live briefly below the private Commander state
+volume and are deleted after completion, failure, Stop, timeout, launch failure,
+or service restart. Chat history retains only the safe filename, size, and digest;
+later turns do not receive an earlier request's pixels. The redundant GOD-mode
+introductory paragraphs were removed from Settings.
+
 ## Selective release pipeline — live
 
 The production path is canaried with a docs-only candidate that cannot change runtime behavior or domain data.

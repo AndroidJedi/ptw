@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from typing import Any, Mapping
 from uuid import UUID
@@ -136,6 +137,30 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             raise HTTPException(status_code=503, detail="Commander hosted runtime is unavailable")
         return payload
 
+    async def commander_attachment_bridge(path: str) -> tuple[bytes, str]:
+        if not settings.commander_service_url:
+            raise HTTPException(status_code=503, detail="Commander hosted runtime is unavailable")
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                upstream = await client.get(
+                    f"{settings.commander_service_url}/internal/v1/settings/commander{path}",
+                    headers={"X-PTW-Owner-Gateway-Token": settings.validation_service_token},
+                )
+        except httpx.HTTPError as error:
+            raise HTTPException(status_code=503, detail="Commander hosted runtime is unavailable") from error
+        if upstream.status_code >= 400:
+            raise HTTPException(status_code=upstream.status_code, detail="Commander conversation image is unavailable")
+        content_type = upstream.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        digest = upstream.headers.get("x-ptw-content-sha256", "").lower()
+        data = upstream.content
+        if (
+            content_type != "image/png" or len(data) > 8 * 1024 * 1024
+            or not re.fullmatch(r"[0-9a-f]{64}", digest)
+            or hashlib.sha256(data).hexdigest() != digest
+        ):
+            raise HTTPException(status_code=502, detail="Commander conversation image failed its integrity check")
+        return data, digest
+
     async def commander_release_bridge(
         method: str, *, body: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -215,6 +240,22 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     ) -> dict[str, Any]:
         response.headers["Cache-Control"] = "private, no-store"
         return await commander_bridge("POST", f"/chats/{chat_id}/messages", body=request)
+
+    @app.get("/api/v1/settings/commander/chats/{chat_id}/turns/{turn_id}/attachments/{attachment_id}")
+    async def commander_attachment(
+        chat_id: UUID, turn_id: UUID, attachment_id: str,
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> Response:
+        data, digest = await commander_attachment_bridge(
+            f"/chats/{chat_id}/turns/{turn_id}/attachments/{attachment_id}"
+        )
+        return Response(
+            content=data, media_type="image/png",
+            headers={
+                "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+                "X-PTW-Content-SHA256": digest, "ETag": f'"{digest}"',
+            },
+        )
 
     @app.post(
         "/api/v1/settings/commander/chats/{chat_id}/turns/{turn_id}/stop",

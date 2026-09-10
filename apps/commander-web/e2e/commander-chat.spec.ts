@@ -4,6 +4,7 @@ test('local Settings Commander chat supports send, reload, stop, and mobile layo
   const base = '/api/v1/settings/commander'
   let status = 'completed'
   let message = ''
+  let attachmentName = ''
   await page.route('**/api/v1/**', route => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith('/chatgpt-authorization')) return route.fulfill({ json: { status: 'authorized', test_status: null } })
@@ -12,7 +13,12 @@ test('local Settings Commander chat supports send, reload, stop, and mobile layo
       target: 'local', available: true, chats: [{ id: 'chat-1', title: 'Carousel tab' }],
       active_turn: status === 'running' ? { id: 'turn-1', chat_id: 'chat-1' } : null,
     } })
-    if (path.endsWith('/messages')) { message = route.request().postDataJSON().message; status = 'running' }
+    if (path.endsWith('/messages')) {
+      const body = route.request().postDataJSON()
+      message = body.message
+      attachmentName = body.attachments?.[0]?.name || ''
+      status = 'running'
+    }
     if (path.endsWith('/stop')) status = 'cancelled'
     return route.fulfill({ json: chat() })
   })
@@ -20,8 +26,13 @@ test('local Settings Commander chat supports send, reload, stop, and mobile layo
   await page.goto('/?e2e=1&page=settings')
   await page.getByRole('button', { name: 'Open Commander chat' }).click()
   await expect(page.getByText('Local checkout', { exact: true })).toBeVisible()
+  await page.getByLabel('Add images to Commander conversation').setInputFiles({
+    name: 'settings-screen.png', mimeType: 'image/png', buffer: Buffer.from('temporary screenshot'),
+  })
+  await expect(page.getByText('settings-screen.png')).toBeVisible()
   await page.getByLabel('Message Commander').fill('Add a carousel creation tab with slide editing')
   await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect.poll(() => attachmentName).toBe('settings-screen.png')
   await expect(page.getByText('Working on your request…')).toBeVisible()
   await page.reload()
   await page.getByRole('button', { name: 'Open Commander chat' }).click()

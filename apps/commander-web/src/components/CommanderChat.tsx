@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Bot, CheckCircle2, LoaderCircle, Plus, Rocket, Send, Square } from 'lucide-react'
+import { AlertTriangle, Bot, CheckCircle2, ImagePlus, LoaderCircle, Plus, Rocket, Send, Square, X } from 'lucide-react'
 import type { ApiClient } from '../api'
 import { translate, type Language } from '../i18n'
+import { imageReferencePayload } from './ImageReferenceInput'
 import './CommanderChat.css'
 
+type Attachment = { id: string; name: string; mime_type: 'image/png'; byte_count: number; sha256: string }
 type Turn = {
-  id: string; message: string; reply: string; status: string; error_code: string | null
+  id: string; message: string; reply: string; status: string; error_code: string | null; attachments?: Attachment[]
 }
 type Chat = { id: string; turns: Turn[] }
 type Runtime = {
@@ -28,6 +30,54 @@ type Release = {
 const base = '/api/v1/settings/commander'
 const deploymentPath = `${base}/deployments`
 const active = (turn: Turn) => ['queued', 'running', 'stopping'].includes(turn.status)
+const maxImages = 4
+const maxImageBytes = 8 * 1024 * 1024
+const maxImageTotalBytes = 20 * 1024 * 1024
+
+function DraftImage({ file, remove, language }: { file: File; remove: () => void; language: Language }) {
+  const [url, setUrl] = useState('')
+  const tr = (en: string, uk: string) => translate(language, en, uk)
+  useEffect(() => {
+    const next = URL.createObjectURL(file)
+    setUrl(next)
+    return () => URL.revokeObjectURL(next)
+  }, [file])
+  return <div className="commander-image">
+    {url && <img src={url} alt={file.name} />}
+    <span>{file.name}</span>
+    <button type="button" className="secondary" aria-label={`${tr('Remove', 'Видалити')} ${file.name}`} onClick={remove}><X /></button>
+  </div>
+}
+
+function StoredImage({ api, chatId, turnId, attachment }: {
+  api: ApiClient; chatId: string; turnId: string; attachment: Attachment
+}) {
+  const [url, setUrl] = useState('')
+  useEffect(() => {
+    let disposed = false
+    let objectUrl = ''
+    void api.image(
+      `${base}/chats/${chatId}/turns/${turnId}/attachments/${attachment.id}`,
+      attachment.mime_type, attachment.sha256,
+    ).then(blob => {
+      if (disposed) return
+      objectUrl = URL.createObjectURL(blob)
+      setUrl(objectUrl)
+    }).catch(() => undefined)
+    return () => { disposed = true; if (objectUrl) URL.revokeObjectURL(objectUrl) }
+  }, [api, chatId, turnId, attachment.id, attachment.mime_type, attachment.sha256])
+  return <div className="commander-image is-stored">
+    {url ? <img src={url} alt={attachment.name} /> : <span className="commander-image-placeholder"><ImagePlus /></span>}
+    <span>{attachment.name}</span>
+  </div>
+}
+
+function ImageRecord({ attachment }: { attachment: Attachment }) {
+  return <div className="commander-image is-stored">
+    <span className="commander-image-placeholder"><ImagePlus /></span>
+    <span>{attachment.name}</span>
+  </div>
+}
 
 export function CommanderChat({ api, language }: { api: ApiClient; language: Language }) {
   const tr = (en: string, uk: string) => translate(language, en, uk)
@@ -35,6 +85,8 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
   const [runtime, setRuntime] = useState<Runtime | null>(null)
   const [chat, setChat] = useState<Chat | null>(null)
   const [draft, setDraft] = useState('')
+  const [images, setImages] = useState<File[]>([])
+  const [imageError, setImageError] = useState('')
   const [error, setError] = useState('')
   const [pollError, setPollError] = useState('')
   const [release, setRelease] = useState<Release | null>(null)
@@ -43,7 +95,8 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const selected = useRef<string | null>(null)
-  const pending = useRef<{ chatId: string; message: string; requestId: string } | null>(null)
+  const pending = useRef<{ chatId: string; message: string; images: string; requestId: string } | null>(null)
+  const imageInput = useRef<HTMLInputElement>(null)
   const deploymentRequest = useRef<string | null>(null)
   const alive = useRef(true)
   const running = chat?.turns.find(active)
@@ -103,19 +156,42 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
 
   const send = async () => {
     const message = draft.trim()
-    if (!message || busy || running) return
+    if ((!message && !images.length) || busy || running) return
     setBusy(true); setError('')
     try {
       const current = chat || await create()
       // Reconcile an uncertain HTTP outcome using the same request ID.
       const previous = pending.current
-      const requestId = previous?.chatId === current.id && previous.message === message ? previous.requestId : crypto.randomUUID()
-      pending.current = { chatId: current.id, message, requestId }
-      const value = await api.post<Chat>(`${base}/chats/${current.id}/messages`, { message, request_id: requestId })
-      setChat(value); setDraft(''); pending.current = null
+      const imageKey = images.map(file => `${file.name}:${file.type}:${file.size}:${file.lastModified}`).join('|')
+      const requestId = previous?.chatId === current.id && previous.message === message && previous.images === imageKey
+        ? previous.requestId : crypto.randomUUID()
+      pending.current = { chatId: current.id, message, images: imageKey, requestId }
+      const attachments = await Promise.all(images.map(async file => ({ name: file.name, ...await imageReferencePayload(file) })))
+      const body = { message, request_id: requestId, ...(attachments.length ? { attachments } : {}) }
+      const value = attachments.length
+        ? await api.post<Chat>(`${base}/chats/${current.id}/messages`, body, { deadlineMs: 60_000 })
+        : await api.post<Chat>(`${base}/chats/${current.id}/messages`, body)
+      setChat(value); setDraft(''); setImages([]); setImageError(''); pending.current = null
+      if (imageInput.current) imageInput.current.value = ''
       await load()
     } catch (cause) { setError((cause as Error).message) }
     finally { setBusy(false) }
+  }
+
+  const addImages = (files: FileList | null) => {
+    if (!files?.length) return
+    const next = [...images, ...Array.from(files)]
+    const invalid = next.find(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || !file.size || file.size > maxImageBytes)
+    if (invalid) {
+      setImageError(tr('Use PNG, JPEG, or WebP images up to 8 MB each.', 'Оберіть PNG, JPEG або WebP до 8 МБ кожне.'))
+    } else if (next.length > maxImages) {
+      setImageError(tr('Attach no more than 4 images to one message.', 'Додайте не більше 4 зображень до одного повідомлення.'))
+    } else if (next.reduce((total, file) => total + file.size, 0) > maxImageTotalBytes) {
+      setImageError(tr('Attached images must total at most 20 MB.', 'Загальний розмір зображень має бути не більше 20 МБ.'))
+    } else {
+      setImages(next); setImageError('')
+    }
+    if (imageInput.current) imageInput.current.value = ''
   }
 
   const stop = async () => {
@@ -160,11 +236,6 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
 
   return <section className="panel settings-card commander-card" aria-labelledby="commander-title">
     <header><div><small>{tr('DEVELOPMENT MODE', 'РЕЖИМ РОЗРОБКИ')}</small><h2 id="commander-title"><Bot /> Commander · GOD mode</h2></div><span className="commander-target">{hosted ? tr('Hosted checkout', 'Код на сервері') : tr('Local checkout', 'Локальний код')}</span></header>
-    <p>{tr('Chat with Commander to fix PTW, change any part of the app, or build new functionality. Try adding a carousel creation tab or improving Telegram controls.', 'Спілкуйтеся з Commander, щоб виправляти PTW, змінювати застосунок або додавати функції. Наприклад, створіть вкладку каруселей чи покращте керування Telegram.')}</p>
-    <p className="commander-scope">{hosted
-      ? tr('Changes apply to an isolated development checkout on the PTW server. Commander cannot deploy or operate production data; completed changes remain ready for review and release.', 'Зміни вносяться в ізольовану копію коду на сервері PTW. Commander не може розгортати зміни або працювати з production-даними; готові зміни залишаються для перевірки та випуску.')
-      : tr('Changes apply directly to this local checkout using your local Codex sign-in. Deployment is not enabled in this chat.', 'Зміни вносяться прямо в локальний код через ваш локальний вхід у Codex. Розгортання з цього чату не ввімкнено.')}</p>
-    <p className="commander-scope">{tr('Commander maintains its GOD-mode skills and relevant PTW skills as it learns from verified changes.', 'Commander підтримує навички GOD mode та відповідні навички PTW на основі перевірених змін.')}</p>
     <button className={open ? 'secondary' : 'primary'} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? tr('Close chat', 'Закрити чат') : tr('Open Commander chat', 'Відкрити чат Commander')}</button>
     {error && <p className="settings-error" role="alert">{error}</p>}
     {pollError && <p className="settings-error" role="alert">{pollError}</p>}
@@ -189,7 +260,11 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
       <div className="commander-messages" role="log" aria-label={tr('Commander conversation', 'Розмова з Commander')} aria-live="polite">
         {!chat?.turns.length && <p className="commander-empty">{tr('Describe what you want to change. Commander can inspect the code, implement it, and run checks.', 'Опишіть бажану зміну. Commander може перевірити код, реалізувати її та виконати тести.')}</p>}
         {chat?.turns.map(turn => <div className="commander-turn" key={turn.id}>
-          <article className="commander-message is-owner"><strong>{tr('You', 'Ви')}</strong><p>{turn.message}</p></article>
+          <article className="commander-message is-owner"><strong>{tr('You', 'Ви')}</strong>{turn.message && <p>{turn.message}</p>}
+            {!!turn.attachments?.length && <div className="commander-images is-history">{turn.attachments.map(attachment => active(turn)
+              ? <StoredImage api={api} chatId={chat.id} turnId={turn.id} attachment={attachment} key={attachment.id} />
+              : <ImageRecord attachment={attachment} key={attachment.id} />)}</div>}
+          </article>
           <article className="commander-message"><strong>Commander</strong>
             {active(turn) ? <p role="status"><LoaderCircle className="spin" />{turn.status === 'stopping' ? tr('Stopping…', 'Зупиняється…') : tr('Working on your request…', 'Виконується ваш запит…')}</p>
               : turn.status === 'completed' ? <p>{turn.reply}</p>
@@ -200,9 +275,15 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
       <form onSubmit={event => { event.preventDefault(); void send() }}>
         <label htmlFor="commander-message">{tr('Message Commander', 'Повідомлення Commander')}</label>
         <textarea id="commander-message" value={draft} maxLength={8000} rows={4} onChange={event => setDraft(event.target.value)} placeholder={tr('Add a carousel creation tab…', 'Додай вкладку створення каруселей…')} />
+        {!!images.length && <div className="commander-images">{images.map((file, index) => <DraftImage file={file} language={language} remove={() => { setImages(current => current.filter((_item, itemIndex) => itemIndex !== index)); setImageError('') }} key={`${file.name}-${file.size}-${file.lastModified}-${index}`} />)}</div>}
+        <div className="commander-attachment-controls">
+          <label className="secondary commander-attach-button"><ImagePlus />{tr('Add images', 'Додати зображення')}<input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp" multiple disabled={busy || !!running} aria-label={tr('Add images to Commander conversation', 'Додати зображення до розмови Commander')} onChange={event => addImages(event.target.files)} /></label>
+          <small>{tr('PNG, JPEG, or WebP · up to 4 images / 20 MB · deleted after the request.', 'PNG, JPEG або WebP · до 4 зображень / 20 МБ · видаляються після запиту.')}</small>
+        </div>
+        {imageError && <p className="settings-error" role="alert">{imageError}</p>}
         <footer><span>{draft.length}/8000</span>{running
           ? <button className="secondary" type="button" disabled={busy || running.status === 'stopping'} onClick={() => void stop()}><Square />{tr('Stop', 'Зупинити')}</button>
-          : <button className="primary" type="submit" disabled={busy || loading || !runtime?.available || !!runtime.active_turn || !draft.trim()}><Send />{tr('Send', 'Надіслати')}</button>}</footer>
+          : <button className="primary" type="submit" disabled={busy || loading || !runtime?.available || !!runtime.active_turn || (!draft.trim() && !images.length)}><Send />{tr('Send', 'Надіслати')}</button>}</footer>
       </form>
       {hosted && <section className="commander-release" aria-labelledby="commander-release-title">
         <header><div><small>{tr('PRODUCTION RELEASE', 'PRODUCTION РЕЛІЗ')}</small><h3 id="commander-release-title"><Rocket />{tr('Deploy new changes', 'Розгорнути нові зміни')}</h3></div></header>

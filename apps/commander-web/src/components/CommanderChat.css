@@ -18,6 +18,20 @@
 .commander-empty { color: var(--muted); font-size: 13px; line-height: 1.6; }
 .commander-chat form { display: grid; gap: 8px; }
 .commander-chat textarea { width: 100%; min-height: 110px; font-size: 16px; }
+.commander-attachment-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.commander-attachment-controls > small { color: var(--muted); font-size: 11px; }
+.commander-attach-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer; }
+.commander-attach-button svg { width: 16px; height: 16px; }
+.commander-attach-button input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.commander-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.commander-images.is-history { margin-top: 10px; }
+.commander-image { position: relative; min-width: 0; display: grid; gap: 6px; padding: 7px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.commander-image img, .commander-image-placeholder { width: 100%; aspect-ratio: 4 / 3; border-radius: 7px; object-fit: cover; background: var(--surface); }
+.commander-image-placeholder { display: grid; place-items: center; color: var(--muted); }
+.commander-image-placeholder svg { width: 22px; height: 22px; margin: 0; }
+.commander-image > span:not(.commander-image-placeholder) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--soft); font-size: 10px; }
+.commander-image > button { position: absolute; top: 11px; right: 11px; min-width: 32px; min-height: 32px; padding: 6px; }
+.commander-image > button svg { width: 15px; height: 15px; }
 .commander-chat form footer { margin-top: 0; align-items: center; justify-content: space-between; }
 .commander-chat footer span { color: var(--muted); font-size: 11px; }
 .commander-release { display: grid; gap: 12px; padding-top: 18px; border-top: 1px solid var(--line); }
@@ -39,5 +53,8 @@
   .commander-toolbar label { flex-basis: 100%; }
   .commander-message { padding: 12px; }
   .commander-message.is-owner { margin-left: 12px; }
+  .commander-images { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .commander-attachment-controls { align-items: stretch; }
+  .commander-attach-button { width: 100%; }
   .commander-deploy-confirm > div button { flex: 1 1 100%; }
 }

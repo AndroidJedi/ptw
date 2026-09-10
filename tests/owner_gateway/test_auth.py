@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 import importlib.util
 import unittest
 from unittest.mock import AsyncMock, patch
@@ -105,6 +106,7 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/settings/commander/chats",
             "/api/v1/settings/commander/chats/{chat_id}",
             "/api/v1/settings/commander/chats/{chat_id}/messages",
+            "/api/v1/settings/commander/chats/{chat_id}/turns/{turn_id}/attachments/{attachment_id}",
             "/api/v1/settings/commander/chats/{chat_id}/turns/{turn_id}/stop",
             "/api/v1/settings/commander/deployments",
             "/api/v1/studio/templates",
@@ -209,6 +211,36 @@ class OwnerClaimsTests(unittest.TestCase):
         forwarded.assert_awaited_once_with(
             "POST", "http://commander-release:8096/internal/v1/settings/commander/deployments",
             headers={"X-PTW-Owner-Gateway-Token": "bridge"}, json=payload,
+        )
+
+    def test_commander_image_requires_owner_and_verifies_private_upstream_bytes(self) -> None:
+        class Verifier:
+            def verify(self, token: str, app_check_token: str) -> OwnerIdentity:
+                if token != "owner-token" or app_check_token != "app-token":
+                    raise AssertionError("gateway did not verify both owner credentials")
+                return OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
+
+        configured = replace(self.settings, commander_service_url="http://commander-god:8095")
+        data = b"private-normalized-png"
+        digest = hashlib.sha256(data).hexdigest()
+        upstream = httpx.Response(
+            200, content=data, headers={"Content-Type": "image/png", "X-PTW-Content-SHA256": digest},
+            request=httpx.Request("GET", "http://commander-god:8095/internal/v1/settings/commander/image"),
+        )
+        forwarded = AsyncMock(return_value=upstream)
+        chat_id = "01900000-0000-7000-8000-000000000001"
+        turn_id = "01900000-0000-7000-8000-000000000002"
+        path = f"/api/v1/settings/commander/chats/{chat_id}/turns/{turn_id}/attachments/image-1"
+        headers = {"Authorization": "Bearer owner-token", "X-Firebase-AppCheck": "app-token"}
+        with patch("httpx.AsyncClient.get", forwarded), TestClient(create_app(configured, verifier=Verifier())) as client:
+            self.assertEqual(401, client.get(path).status_code)
+            response = client.get(path, headers=headers)
+        self.assertEqual(data, response.content)
+        self.assertEqual("private, no-store", response.headers["cache-control"])
+        self.assertEqual(digest, response.headers["x-ptw-content-sha256"])
+        forwarded.assert_awaited_once_with(
+            f"http://commander-god:8095/internal/v1/settings/commander/chats/{chat_id}/turns/{turn_id}/attachments/image-1",
+            headers={"X-PTW-Owner-Gateway-Token": "bridge"},
         )
 
     def test_gateway_and_validation_studio_routes_have_exact_method_parity(self) -> None:

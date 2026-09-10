@@ -33,7 +33,8 @@ committed path delta, builds affected Linux/amd64 images in parallel, streams
 only those checksumed archives, and restarts only affected services. Commander,
 Validation, Owner Gateway, and hosted GOD persist independent image references;
 unchanged services retain their current image. Hosted GOD has a small dedicated
-image rather than carrying the complete Validation/Pillow/PostgreSQL runtime.
+image with only its API/runtime dependencies and the bounded Pillow decoder; it
+does not carry the complete Validation/PostgreSQL runtime.
 Unknown runtime paths conservatively select every PTW image and both Hosting
 targets. The VPS recomputes the streamed plan and requires its base and target
 to match the deployed and requested revisions. A root-only atomic

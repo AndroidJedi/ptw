@@ -111,6 +111,15 @@ Post, or Landing learning entities or cross their lesson namespaces.
   locking, owner/App Check forwarding, mobile confirmation/status recovery,
   workflow failure display, and automatic production rollback.
 
+- GOD chat image inputs are request-scoped visual context, not repository assets.
+  Accept only bounded PNG/JPEG/WebP uploads, decode and normalize them before use,
+  strip metadata, and pass only the latest turn's verified temporary files to the
+  Codex CLI. Keep image bytes out of Git and chat SQLite, and delete them on every
+  terminal outcome, Stop, timeout, launch failure, and service restart. The owner-
+  authenticated preview path must verify the normalized digest. Retain only safe
+  filename/digest metadata in history, and test that later turns cannot reattach
+  pixels from an earlier request.
+
 - Post publishing is an approved-artifact boundary. Keep renderer/editor CTA
   controls, pending edits, historical PNGs, and learning namespaces unchanged.
   Verify the selected approved digest for preview/export; a website ad's native

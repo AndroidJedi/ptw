@@ -1,13 +1,16 @@
 from pathlib import Path
+import base64
 import json
 import fcntl
 import os
+import struct
 import sys
 import tempfile
 import time
 import unittest
 from uuid import uuid4
 from unittest.mock import patch
+import zlib
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.testclient import TestClient
@@ -29,9 +32,14 @@ class CommanderChatTests(unittest.TestCase):
         self.skill.write_text("Maintain the relevant canonical skills after verified work.")
         self.binary = self.root / "fake-codex"
         self.binary.write_text(f"#!{sys.executable}\n" + '''
-import json, os, pathlib, subprocess, sys, time
+import hashlib, json, os, pathlib, subprocess, sys, time
 prompt = sys.stdin.read()
-pathlib.Path('invocation.json').write_text(json.dumps({'args': sys.argv, 'prompt': prompt, 'env': dict(os.environ)}))
+images = []
+for index, argument in enumerate(sys.argv):
+    if argument == '--image':
+        data = pathlib.Path(sys.argv[index + 1]).read_bytes()
+        images.append({'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
+pathlib.Path('invocation.json').write_text(json.dumps({'args': sys.argv, 'prompt': prompt, 'env': dict(os.environ), 'images': images}))
 latest = prompt.rsplit('Latest owner request:', 1)[-1]
 if 'TEST_SLEEP' in latest:
     child = subprocess.Popen([sys.executable, '-c', "import time; time.sleep(2); open('child-survived', 'w').write('bad')"])
@@ -64,9 +72,20 @@ out.write_text('Added the local carousel feature. Tests passed.')
             time.sleep(.01)
         self.fail("Commander did not finish")
 
-    def send(self, message, chat_id=None, request_id=None):
+    def send(self, message, chat_id=None, request_id=None, attachments=None):
         chat_id = chat_id or self.service.create_chat()["id"]
-        return self.service.send(chat_id, ChatMessage(request_id=request_id or uuid4(), message=message))
+        return self.service.send(chat_id, ChatMessage(
+            request_id=request_id or uuid4(), message=message, attachments=attachments or [],
+        ))
+
+    @staticmethod
+    def image(name="screen.png"):
+        def chunk(kind, data):
+            return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xffffffff)
+        width, height = 96, 64
+        pixels = b"".join(b"\0" + b"\x33\x66\x99" * width for _ in range(height))
+        data = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(pixels)) + chunk(b"IEND", b"")
+        return {"name": name, "mime_type": "image/png", "bytes_base64": base64.b64encode(data).decode()}
 
     def test_real_subprocess_edits_checkout_and_followup_retains_context(self):
         (self.repo / "unrelated.txt").write_text("owner draft")
@@ -190,6 +209,38 @@ out.write_text('Added the local carousel feature. Tests passed.')
         self.assertNotIn("sensitive-value", json.dumps(result))
         self.assertNotIn("hidden-value", self.service.database.read_bytes().decode(errors="ignore"))
         self.assertNotIn('a' * 30, safe_text(message))
+
+    def test_images_are_normalized_attached_once_and_deleted_after_the_turn(self):
+        encoded = self.image()["bytes_base64"]
+        started = self.send("Use this screenshot", attachments=[self.image("owner screen.png")])
+        finished = self.wait(started["id"])
+        attachment = finished["turns"][0]["attachments"][0]
+        self.assertEqual(("owner screen.png", "image/png"), (attachment["name"], attachment["mime_type"]))
+        invocation = json.loads((self.repo / "invocation.json").read_text())
+        self.assertEqual(1, invocation["args"].count("--image"))
+        self.assertEqual(attachment["sha256"], invocation["images"][0]["sha256"])
+        self.assertIn("owner screen.png", invocation["prompt"])
+        self.assertNotIn(encoded, self.service.database.read_text(errors="ignore"))
+        self.assertFalse((self.service.state / "temporary-images" / finished["turns"][0]["id"]).exists())
+        with self.assertRaises(KeyError):
+            self.service.attachment(started["id"], finished["turns"][0]["id"], attachment["id"])
+        self.send("Follow up without the old screenshot", started["id"])
+        self.wait(started["id"])
+        invocation = json.loads((self.repo / "invocation.json").read_text())
+        self.assertEqual([], invocation["images"])
+
+    def test_running_image_is_private_and_stop_deletes_its_bytes(self):
+        started = self.send("TEST_SLEEP", attachments=[self.image()])
+        deadline = time.monotonic() + 3
+        while not (self.repo / "child-started").exists() and time.monotonic() < deadline:
+            time.sleep(.01)
+        turn = self.service.chat(started["id"])["turns"][0]
+        metadata, data = self.service.attachment(started["id"], turn["id"], "image-1")
+        self.assertEqual(metadata["sha256"], __import__("hashlib").sha256(data).hexdigest())
+        self.service.stop(started["id"], turn["id"])
+        self.wait(started["id"])
+        with self.assertRaises(KeyError):
+            self.service.attachment(started["id"], turn["id"], "image-1")
 
     def test_http_auth_origin_validation_and_no_store(self):
         def owner(authorization: str = Header(default="")):

@@ -83,6 +83,13 @@ the worker process group; a liveness pipe also terminates it if the API dies.
 Restart retains interrupted turns without re-executing them. Applied edits
 are never rolled back by Stop.
 
+Each GOD message may include up to four owner images. Owner Gateway forwards
+the authenticated bounded payload and exposes its temporary preview only after
+verifying the hosted service's PNG digest. Commander normalizes and strips image
+metadata, keeps the pixels outside Git and SQLite, supplies them only to the
+current Codex turn, and deletes them for every terminal outcome or restart.
+History retains only safe filename, size, and digest metadata.
+
 Each turn injects the current canonical `skills/commander-god-mode/SKILL.md`
 and records its SHA-256. Verified reusable lessons update the narrowest
 relevant canonical skill, followed by `scripts/verify_ptw_skills.py`; this is

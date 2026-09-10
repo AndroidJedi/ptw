@@ -4,6 +4,8 @@ import { CommanderChat } from './CommanderChat'
 import { SettingsView } from '../views/SettingsView'
 
 const base = '/api/v1/settings/commander'
+Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:commander-image') })
+Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
 function fixture() {
   let chat = { id: 'chat-1', turns: [] as Record<string, unknown>[] }
   const get = vi.fn(async (path: string) => path === base ? {
@@ -49,6 +51,24 @@ it('retains the draft and reuses the request ID after an uncertain response', as
   fireEvent.click(screen.getByRole('button', { name: 'Send' }))
   await waitFor(() => expect(post).toHaveBeenCalledTimes(2))
   expect(post.mock.calls[0]).toEqual(post.mock.calls[1])
+})
+
+it('removes redundant mode copy and sends temporary image attachments', async () => {
+  const { api, post } = fixture()
+  render(<CommanderChat api={api} language="uk" />)
+  expect(screen.queryByText(/Спілкуйтеся з Commander/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/Зміни вносяться в ізольовану/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/Commander підтримує навички/)).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Відкрити чат Commander' }))
+  await waitFor(() => expect(screen.queryByText('Завантаження Commander…')).not.toBeInTheDocument())
+  const file = new File([new Uint8Array([1, 2, 3, 4])], 'settings-screen.png', { type: 'image/png', lastModified: 7 })
+  fireEvent.change(screen.getByLabelText('Додати зображення до розмови Commander'), { target: { files: [file] } })
+  expect(screen.getByText('settings-screen.png')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Надіслати' }))
+  await waitFor(() => expect(post).toHaveBeenCalledWith(base + '/chats/chat-1/messages', {
+    message: '', request_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    attachments: [{ name: 'settings-screen.png', mime_type: 'image/png', bytes_base64: 'AQIDBA==' }],
+  }, { deadlineMs: 60_000 }))
 })
 
 it('restores a persisted running conversation and keeps Stop available', async () => {

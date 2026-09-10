@@ -92,6 +92,11 @@ before changing code or runtime state.
 - Save/Approve creates learning only when accumulated owner edits changed state.
   Confirm immutable checkpoint, append-only attempts, automatic Project skill,
   sanitized global proposal, explicit owner decision, and retry without rollback.
+- A Studio learning retry after deterministic output validation must advance its
+  provider idempotency attempt so it cannot replay the completed rejected result.
+  A transport, provider, timeout, or persistence failure retains the same provider
+  attempt for safe reconciliation. Append a learning-run attempt for every retry;
+  never delete the failed runs or alter the saved Creative/checkpoint.
 - Restart recovery resumes queued composition/image/learning exactly once.
   PostgreSQL remains authority; per-creative renderer files are disposable cache.
 - When an already-approved Brief returns HTTP 409 from `/approve`, inspect its

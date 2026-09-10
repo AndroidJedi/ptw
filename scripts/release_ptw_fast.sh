@@ -21,7 +21,7 @@ git fetch origin "$branch"
 
 read -r deployed_ptw_revision deployed_platform_revision < <(
     ssh -i "$HOME/.ssh/ptw_commander" -o IdentitiesOnly=yes root@165.245.212.184 \
-        'printf "%s %s\n" "$(git -C /root/ptw rev-parse HEAD)" "$(git -C /opt/ptw/platform rev-parse HEAD)"'
+        'state=/root/ptw/.local/deployed-revision; deployed=""; if [ -s "$state" ]; then read -r deployed < "$state"; fi; if ! printf "%s" "$deployed" | grep -Eq "^[0-9a-f]{40}$"; then image=$(docker inspect ptw-validation-validation-api-1 --format "{{.Config.Image}}"); tag=${image#ptw-validation:}; short=${tag##*-}; deployed=$(git -C /root/ptw rev-parse "$short^{commit}"); fi; printf "%s %s\n" "$deployed" "$(git -C /opt/ptw/platform rev-parse HEAD)"'
 )
 [[ $deployed_ptw_revision =~ ^[0-9a-f]{40}$ && $deployed_platform_revision =~ ^[0-9a-f]{40}$ ]] || {
     echo "could not determine deployed revisions" >&2; exit 1;

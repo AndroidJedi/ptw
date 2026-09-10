@@ -83,7 +83,13 @@ emit_artifact() {
 }
 emit_optional_image() {
     local name=$1 path=$2
-    if [[ -f $path ]]; then emit_artifact IMAGE "$name" "$path"; else printf 'REUSE %s\n' "$name"; fi
+    if [[ ! -f $path ]]; then
+        printf 'REUSE %s\n' "$name"
+    elif [[ " $remote_present_images " == *" $name "* ]]; then
+        printf 'PRESENT %s\n' "$name"
+    else
+        emit_artifact IMAGE "$name" "$path"
+    fi
 }
 
 owner_web=$(plan_value hosting owner-console)
@@ -94,6 +100,33 @@ if [[ $public_web == 1 ]]; then
     scripts/audit_public_landing.sh https://natal-landings-86123.web.app
     scripts/archive_natal_dashboard.sh
 fi
+
+remote_present_images=$(ssh -i "$HOME/.ssh/ptw_commander" -o IdentitiesOnly=yes \
+    root@165.245.212.184 "bash -s -- '$release_tag' '$revision' '$platform_revision'" <<'REMOTE'
+set -Eeuo pipefail
+release_tag=$1
+ptw_revision=$2
+platform_revision=$3
+inspect_candidate() {
+    local name=$1 image=$2 revision=$3 metadata architecture label
+    metadata=$(docker image inspect "$image:$release_tag" \
+        --format '{{.Architecture}} {{index .Config.Labels "org.opencontainers.image.revision"}}' \
+        2>/dev/null) || return 0
+    read -r architecture label <<< "$metadata"
+    if [[ $architecture == amd64 && $label == "$revision" ]]; then
+        printf '%s\n' "$name"
+    fi
+}
+inspect_candidate commander ptw-commander "$ptw_revision"
+inspect_candidate validation ptw-validation "$ptw_revision"
+inspect_candidate owner-gateway ptw-owner-gateway "$ptw_revision"
+inspect_candidate commander-god ptw-commander-god "$ptw_revision"
+inspect_candidate platform-commander-api ptw-agent-platform-commander-api "$platform_revision"
+inspect_candidate platform-commander-worker ptw-agent-platform-commander-worker "$platform_revision"
+inspect_candidate platform-codex-auth ptw-agent-platform-codex-auth "$platform_revision"
+REMOTE
+)
+remote_present_images=${remote_present_images//$'\n'/ }
 
 publish_started=$(date +%s)
 {
@@ -113,7 +146,7 @@ publish_started=$(date +%s)
     emit_artifact FILE release-plan "$plan"
     printf 'END\n'
 } | ssh -i "$HOME/.ssh/ptw_commander" -o IdentitiesOnly=yes root@165.245.212.184 \
-    "set -e; exec 9>/run/lock/ptw-maintenance.lock; flock -n 9 || exit 73; git -C /root/ptw diff --quiet; git -C /root/ptw diff --cached --quiet; deployed_revision=\$(git -C /root/ptw rev-parse HEAD); export PTW_MAINTENANCE_LOCK_HELD=1; git -C /root/ptw fetch origin '$revision'; git -C /root/ptw merge --ff-only '$revision'; exec /root/ptw/scripts/receive_ptw_preserving_release.sh '$release_tag' '$revision' '$platform_revision' \"\$deployed_revision\""
+    "set -e; exec 9>/run/lock/ptw-maintenance.lock; flock -n 9 || exit 73; git -C /root/ptw diff --quiet; git -C /root/ptw diff --cached --quiet; export PTW_MAINTENANCE_LOCK_HELD=1; git -C /root/ptw fetch origin '$revision'; git -C /root/ptw merge --ff-only '$revision'; exec /root/ptw/scripts/receive_ptw_preserving_release.sh '$release_tag' '$revision' '$platform_revision'"
 
 if [[ $owner_web == 1 ]]; then
     npm --prefix apps/commander-web run check

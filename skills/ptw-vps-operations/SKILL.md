@@ -156,6 +156,17 @@ cannot validate `psql -c`/stdin interpolation. A preflight defect is a rejected
 rollout: verify the previous component images remain live, correct it in source,
 add a regression test, publish a new commit, and restart the deployment from
 preflight rather than editing or bypassing the check on the server.
+Treat the running service image or the root-only atomic
+`.local/deployed-revision` as the deployed PTW revision; production Git HEAD can
+already contain a candidate rejected by preflight. Do not advance that state
+file until all checks accept the release. A preflight failure must not invoke
+rollback because no cutover began. Preserve checksum and architecture checks,
+and allow a retry to send `PRESENT` only when the target image already exists
+with the exact source-revision label. When an incomplete Studio learning
+checkpoint is blocked specifically by the old deterministic-response replay
+bug, load the verified candidate Validation image first, run the tracked exact
+checkpoint retry through normal domain services under the maintenance lock,
+and require it to complete before restarting the release from preflight.
 
 When a release originates in the hosted Commander checkout, treat its output as
 a development handoff. Require a pushed immutable commit, a clean source tree,

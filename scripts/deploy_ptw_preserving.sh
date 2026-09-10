@@ -259,6 +259,11 @@ grep -qx "PTW_PLATFORM_IMAGE_TAG=$release_tag" "$platform/.env"
 grep -qx "PTW_IMAGE_TAG=$release_tag" "$repository/.env.commander"
 "${validation_compose[@]}" exec -T validation-api python -m validation_pipeline.verify_approved_post_access
 
+install -d -m 0700 "$repository/.local"
+revision_state=$(mktemp "$repository/.local/deployed-revision.next.XXXXXX")
+printf '%s\n' "$git_revision" > "$revision_state"
+chmod 0600 "$revision_state"
+mv -f -- "$revision_state" "$repository/.local/deployed-revision"
 rollback_needed=0
 deployment_stage_complete "approved Post verification and commit"
 echo "PTW preserving rollout complete at $git_revision in $(($(date +%s) - deployment_started_epoch))s"

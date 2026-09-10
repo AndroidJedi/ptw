@@ -58,8 +58,12 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("build_component", builder)
         self.assertIn('build_component "$component" "$image" "$dockerfile" &', builder)
         self.assertIn("REUSE %s", publisher)
+        self.assertIn("PRESENT %s", publisher)
+        self.assertIn("remote_present_images", publisher)
         self.assertNotIn("stream_file=$(mktemp", publisher)
         self.assertIn("PTW-PRESERVING-STREAM 1", receiver)
+        self.assertIn('header == "PRESENT $stream_name"', receiver)
+        self.assertIn("revision label does not match the release", receiver)
         self.assertIn("release plan base does not match the deployed PTW revision", receiver)
         self.assertIn("deploy_ptw_selective.sh", receiver)
         self.assertIn("PTW_RELEASE_IMAGE_COMPONENTS", deployer)
@@ -67,6 +71,9 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("audit_vps_owner_dependencies.sh\" --quick", deployer)
         self.assertIn("pending migrations require the backup-bearing in-place deployment path", deployer)
         self.assertIn("CRITICAL: fast rollout rollback verification failed", deployer)
+        self.assertIn("cutover_started=0", deployer)
+        self.assertIn("rollback_needed -eq 1 && $cutover_started -eq 1", deployer)
+        self.assertIn(".local/deployed-revision", deployer)
         self.assertIn('send_ptw_bot_canary.py\" --read-only', deployer)
 
     def test_compose_accepts_independent_application_images(self) -> None:

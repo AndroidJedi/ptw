@@ -119,6 +119,7 @@ before=$(mktemp /run/ptw-fast-before.XXXXXX)
 after=$(mktemp /run/ptw-fast-after.XXXXXX)
 snapshot_ready=0
 rollback_needed=1
+cutover_started=0
 env_persist_started=0
 set_env_value() {
     local file=$1 key=$2 value=$3 temporary
@@ -202,7 +203,7 @@ rollback() {
 cleanup() {
     status=$?
     trap - EXIT HUP INT TERM
-    if [[ $rollback_needed -eq 1 ]]; then
+    if [[ $rollback_needed -eq 1 && $cutover_started -eq 1 ]]; then
         if [[ $snapshot_ready -eq 1 ]]; then
             if snapshot_authority > "$after"; then
                 cmp -s "$before" "$after" || { echo "CRITICAL: authority changed during rejected fast rollout" >&2; status=1; }
@@ -247,6 +248,7 @@ fi
 stage_complete "preflight"
 
 "$repository/scripts/prepare_commander_god_workspace.sh" "$git_revision"
+[[ -z $restart_components ]] || cutover_started=1
 if selected "$restart_components" platform; then
     "${platform_compose[@]}" up -d --no-deps --no-build --wait codex-auth commander-api
     "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker
@@ -315,6 +317,11 @@ if selected "$restart_components" validation; then
     "${validation_compose[@]}" exec -T validation-api python -m validation_pipeline.verify_approved_post_access
 fi
 
+install -d -m 0700 "$repository/.local"
+revision_state=$(mktemp "$repository/.local/deployed-revision.next.XXXXXX")
+printf '%s\n' "$git_revision" > "$revision_state"
+chmod 0600 "$revision_state"
+mv -f -- "$revision_state" "$repository/.local/deployed-revision"
 rollback_needed=0
 stage_complete "commit"
 echo "PTW fast rollout complete at $git_revision in $(($(date +%s) - started_epoch))s; restarted=${restart_components:-none}"

@@ -15,7 +15,12 @@ unchanged services retain their current image. Hosted GOD has a small dedicated
 image rather than carrying the complete Validation/Pillow/PostgreSQL runtime.
 Unknown runtime paths conservatively select every PTW image and both Hosting
 targets. The VPS recomputes the streamed plan and requires its base and target
-to match the deployed and requested revisions.
+to match the deployed and requested revisions. A root-only atomic
+`.local/deployed-revision` records the last accepted application commit rather
+than assuming that the production checkout HEAD is already running. If a
+guarded retry finds an exact candidate image already present with matching
+amd64 architecture and source-revision label, the stream sends a `PRESENT`
+record and skips that archive upload.
 
 The unrelated bridge under `/opt/ptw/platform` must advertise exactly
 `product_brief`, `product_brief_revision`,
@@ -44,7 +49,9 @@ automatic component rollback, and approved-Post verification when Validation
 changes. Provider and Pexels executions run when Validation or the platform
 changes. Other releases use the quick dependency audit, which still checks all
 service health, mounts, credential handoff digests, networks, routes, and skills
-without spending up to 300 seconds on an unchanged Codex execution.
+without spending up to 300 seconds on an unchanged Codex execution. A failure
+before cutover leaves every running container untouched; rollback begins only
+after a selected service replacement starts.
 
 Firebase Hosting uses the named `owner-console` and `public-landings` targets.
 The public target is `natal-landings-86123`; `/` is the English Natal umbrella

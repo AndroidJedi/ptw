@@ -280,4 +280,9 @@ systemctl is-active --quiet ptw-validation-24h-audit.timer || {
     exit 1
 }
 rollout_committed=1
+install -d -m 0700 "$repository/.local"
+revision_state=$(mktemp "$repository/.local/deployed-revision.next.XXXXXX")
+printf '%s\n' "$git_revision" > "$revision_state"
+chmod 0600 "$revision_state"
+mv -f -- "$revision_state" "$repository/.local/deployed-revision"
 echo "PTW Product Brief, Studio, and Landing APIs deployed with confirmation '$confirmation' at $git_revision"

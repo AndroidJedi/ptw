@@ -600,6 +600,13 @@ class StudioCreativeServiceTests(unittest.TestCase):
             item for item in self.store.list("studio_learning_runs")
             if item["checkpoint_id"] == checkpoint_id
         ]))
+        learning_calls = [
+            item for item in self.provider.calls
+            if item["mode"] == "studio_edit_learning"
+        ]
+        self.assertEqual(2, len(learning_calls))
+        self.assertTrue(learning_calls[0]["idempotency_key"].endswith(":attempt:1"))
+        self.assertTrue(learning_calls[1]["idempotency_key"].endswith(":attempt:1"))
         self.assertEqual(2, self.authority.latest_skill("project", project_id)["version"])
         self.assertEqual([], self.service.recover_learning())
 
@@ -625,6 +632,15 @@ class StudioCreativeServiceTests(unittest.TestCase):
         )
         self.assertEqual("completed", recovered["checkpoint"]["status"])
         self.assertIsNotNone(recovered["learning_proposal"])
+        learning_calls = [
+            item for item in self.provider.calls
+            if item["mode"] == "studio_edit_learning"
+        ]
+        self.assertTrue(learning_calls[0]["idempotency_key"].endswith(":attempt:1"))
+        self.assertTrue(learning_calls[1]["idempotency_key"].endswith(":attempt:2"))
+        self.assertIn(
+            "project-specific", learning_calls[1]["input_payload"]["previous_validation_error"],
+        )
 
     def test_phone_failure_keeps_a_draft_and_can_be_retried_separately(self) -> None:
         self.images.failures = 1

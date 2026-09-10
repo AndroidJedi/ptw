@@ -1195,11 +1195,23 @@ class StudioCreativeService:
         before = checkpoint["before_snapshot"]
         after = checkpoint["after_snapshot"]
         paths = list(checkpoint["changed_paths"])
+        prior_attempt = int(checkpoint.get("learning_attempt") or 0)
+        # Reconcile uncertain provider/runtime failures with the same request.
+        # A deterministic output-validation failure needs one new provider job
+        # so Retry cannot replay the already rejected completed response.
+        provider_attempt = (
+            prior_attempt + 1 if checkpoint.get("error_type") == "ValueError"
+            else max(1, prior_attempt)
+        )
         payload = {
             "checkpoint_kind": checkpoint["kind"], "changed_paths": paths,
             "before": before, "after": after,
             "project_name": self.authority.project(project_id).get("name"),
         }
+        if checkpoint.get("error_type") == "ValueError":
+            payload["previous_validation_error"] = str(
+                checkpoint.get("error_message") or "structured output was rejected"
+            )[:1000]
         try:
             def validate_learning(value: Mapping[str, Any]) -> Mapping[str, Any]:
                 learned = validate_studio_edit_learning(value)
@@ -1214,7 +1226,7 @@ class StudioCreativeService:
             result = self._provider_call(
                 mode="studio_edit_learning", system_prompt=self.learner_skill,
                 input_payload=payload, output_schema=studio_edit_learning_schema(),
-                idempotency_key=f"studio-checkpoint:{checkpoint_id}",
+                idempotency_key=f"studio-checkpoint:{checkpoint_id}:attempt:{provider_attempt}",
                 prompt_version="studio-edit-learner-v1",
                 response_validator=validate_learning,
             )

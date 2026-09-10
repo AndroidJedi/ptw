@@ -38,6 +38,41 @@ from .studio_routes import studio_creative_router
 from .studio_workspace import UniversalStudioWorkspace
 
 
+def create_studio_creative_service(
+    settings: Settings,
+    *,
+    structured_provider: StructuredBridge | None = None,
+    studio_renderer: StudioRenderer | None = None,
+    studio_workspace: UniversalStudioWorkspace | None = None,
+) -> StudioCreativeService:
+    bridge = structured_provider or StructuredBridge(
+        settings.bridge_url, settings.bridge_token, settings.model,
+    )
+    renderer = studio_renderer or StudioRenderer()
+    authority = DatabaseStudioAuthority(settings.database_url)
+    image_provider = ResultBridgePhoneScreenImageProvider(
+        settings.bridge_url, settings.bridge_token, settings.model,
+    )
+    pexels = PexelsClient(settings.pexels_api_key)
+    if studio_workspace is not None:
+        workspace_factory = lambda _path: studio_workspace
+    else:
+        workspace_factory = lambda path: DatabaseCreativeWorkspace(
+            UniversalStudioWorkspace(
+                path, renderer=renderer, pexels=pexels,
+                image_provider=image_provider,
+            ),
+            authority.repository, path.name,
+        )
+    return StudioCreativeService(
+        root=settings.studio_workspace_path, authority=authority,
+        workspace_factory=workspace_factory, structured_provider=bridge,
+        composer_skill_path=settings.studio_composer_skill_path,
+        learner_skill_path=settings.studio_learner_skill_path,
+        phone_skill_path=settings.studio_phone_skill_path,
+    )
+
+
 def create_app(
     settings: Settings | None = None,
     *,
@@ -54,31 +89,13 @@ def create_app(
     settings = settings or Settings.from_environment()
     repository = repository or ValidationRepository(settings.database_url)
     bridge = StructuredBridge(settings.bridge_url, settings.bridge_token, settings.model)
-    pexels = PexelsClient(settings.pexels_api_key)
     studio_renderer = studio_renderer or StudioRenderer()
     if studio_creative_service is not None:
         studio_creatives = studio_creative_service
     else:
-        studio_authority = DatabaseStudioAuthority(settings.database_url)
-        image_provider = ResultBridgePhoneScreenImageProvider(
-            settings.bridge_url, settings.bridge_token, settings.model,
-        )
-        if studio_workspace is not None:
-            workspace_factory = lambda _path: studio_workspace
-        else:
-            workspace_factory = lambda path: DatabaseCreativeWorkspace(
-                UniversalStudioWorkspace(
-                    path, renderer=studio_renderer, pexels=pexels,
-                    image_provider=image_provider,
-                ),
-                studio_authority.repository, path.name,
-            )
-        studio_creatives = StudioCreativeService(
-            root=settings.studio_workspace_path, authority=studio_authority,
-            workspace_factory=workspace_factory, structured_provider=bridge,
-            composer_skill_path=settings.studio_composer_skill_path,
-            learner_skill_path=settings.studio_learner_skill_path,
-            phone_skill_path=settings.studio_phone_skill_path,
+        studio_creatives = create_studio_creative_service(
+            settings, structured_provider=bridge, studio_renderer=studio_renderer,
+            studio_workspace=studio_workspace,
         )
     if landing_page_service is not None:
         landing_pages = landing_page_service

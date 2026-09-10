@@ -2,6 +2,38 @@
 
 Updated: 2026-09-10
 
+## 2026-09-10 — Studio learning replay blocked a guarded fast rollout
+
+An owner Save persisted its Creative and immutable checkpoint, but learning
+rejected a global proposal containing Project-specific content. The UI showed no
+error because Save itself had succeeded and the failure remained in the queued
+learning state. A later release correctly refused to restart Validation while
+that checkpoint lacked a completed learning run.
+
+The first Retry appended a second failed run but replayed the same completed
+provider response. Studio learning used one checkpoint-wide idempotency key, so
+deterministic PTW validation could never obtain corrected output. The retry now
+keeps the same provider attempt after transport, provider, timeout, or
+persistence uncertainty, while a prior `ValueError` advances the provider
+attempt and includes only the bounded validation error as correction context.
+The failed runs and saved Creative/checkpoint remain append-only and intact. A
+tracked one-off command can recover that exact checkpoint through the normal
+database and provider services before rollout.
+
+The rejected release also exposed deployment bookkeeping defects. Its receiver
+advanced Git before preflight, so later planning could mistake candidate source
+for running source, and cleanup recreated old containers even though cutover had
+not begun. Successful deployments now atomically record their exact revision;
+legacy installs infer it from the running Validation image. Rollback is armed
+only after preflight. Already loaded candidate images can be verified by amd64
+architecture and source-revision label and reused without another upload.
+
+Local verification passes all 220 Validation tests, 23 Commander tests (two
+dependency-skipped locally), the Commander demo, shell and Python syntax,
+canonical skill validation, release-contract checks, and whitespace checks.
+Production recovery and release acceptance are recorded in the current-state
+checkpoint.
+
 ## 2026-09-10 — Hosted Commander turns failed at two nested runtime boundaries
 
 The GOD-mode release passed service health, public authentication denial,

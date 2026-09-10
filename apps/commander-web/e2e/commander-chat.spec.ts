@@ -55,3 +55,33 @@ test('Settings keeps authorization and persists the language selected there', as
   await expect(page.getByText('ABCD-12345')).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
 })
+
+test('hosted Settings confirms a mobile production deployment without page overflow', async ({ page }) => {
+  const base = '/api/v1/settings/commander'
+  let deployment: Record<string, unknown> | null = null
+  await page.route('**/api/v1/**', route => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/chatgpt-authorization')) return route.fulfill({ json: { status: 'authorized', test_status: 'passed' } })
+    if (path === `${base}/deployments`) {
+      if (route.request().method() === 'POST') deployment = {
+        id: 'deployment-1', base_revision: 'a'.repeat(40), revision: 'b'.repeat(40),
+        branch: 'god-deploy/deployment-1', status: 'queued', error_code: null,
+        workflow_url: null, updated_at: new Date().toISOString(),
+      }
+      return route.fulfill({ json: {
+        candidate: { available: true, deployable: deployment === null, changed_files: ['apps/commander-web/src/change.tsx'], protected_files: [] },
+        deployment,
+      } })
+    }
+    if (path === base) return route.fulfill({ json: { target: 'hosted', available: true, chats: [], active_turn: null } })
+    return route.fulfill({ json: { id: 'chat-1', turns: [] } })
+  })
+  await page.addInitScript(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.goto('/?e2e=1&page=settings')
+  await page.getByRole('button', { name: 'Open Commander chat' }).click()
+  await page.getByRole('button', { name: 'DEPLOY NEW CHANGES' }).click()
+  await expect(page.getByRole('alertdialog')).toContainText('preserving rollout with automatic rollback')
+  await page.getByRole('button', { name: 'Confirm deployment' }).click()
+  await expect(page.getByText('Waiting for the off-server build runner…')).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
+})

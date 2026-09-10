@@ -37,6 +37,11 @@ god_container=$("${commander_compose[@]}" ps -q commander-god)
 [[ $(docker inspect "$god_container" --format '{{.State.Health.Status}}') == healthy ]] || {
     echo "Commander GOD runtime is unhealthy" >&2; exit 1;
 }
+release_container=$("${commander_compose[@]}" ps -q commander-release)
+[[ -n $release_container ]] || { echo "Commander release controller is unavailable" >&2; exit 1; }
+[[ $(docker inspect "$release_container" --format '{{.State.Health.Status}}') == healthy ]] || {
+    echo "Commander release controller is unhealthy" >&2; exit 1;
+}
 
 commander_postgres=$("${commander_compose[@]}" ps -q commander-db)
 [[ -n $commander_postgres ]] || { echo "Commander PostgreSQL is unavailable" >&2; exit 1; }

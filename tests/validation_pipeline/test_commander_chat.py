@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import fcntl
 import os
 import sys
 import tempfile
@@ -144,6 +145,15 @@ out.write_text('Added the local carousel feature. Tests passed.')
     def test_second_service_is_rejected(self):
         with self.assertRaises(RuntimeError):
             CommanderChatService(self.repo, self.root / "state", codex_binary=str(self.binary))
+
+    def test_release_lock_prevents_a_new_coding_turn(self):
+        lease = (self.repo / ".git" / "ptw-commander-operation.lock").open("a")
+        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            with self.assertRaisesRegex(ValueError, "release is preparing"):
+                self.send("must wait")
+        finally:
+            lease.close()
 
     def test_each_turn_uses_current_canonical_skill_and_records_its_digest(self):
         first = self.send("first request")

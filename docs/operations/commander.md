@@ -7,6 +7,24 @@ scripts/release_ptw_fast.sh --release-tag RELEASE \
   --confirm 'DEPLOY PTW PRESERVING'
 ```
 
+Hosted GOD-mode changes may enter the same preserving path from the mobile
+**DEPLOY NEW CHANGES** control. The owner-confirmed controller freezes one exact
+candidate commit and pushes only a `god-deploy/<uuid>` branch. The public-repo
+GitHub runner executes `.github/workflows/god-mobile-deploy.yml`, validates that
+the candidate descends from the deployed revision, rejects protected operational
+paths and migrations, runs the focused Commander/Gateway/web/skill checks, and
+builds selective Linux/amd64 images outside the VPS. It then streams checksummed
+artifacts through the restricted `ptw-release` forced SSH command. Install that
+boundary with `scripts/install_ptw_mobile_deployer.sh`; never give its key or the
+repository deploy key to `commander-god`.
+
+The mobile receiver acquires the normal maintenance lock and calls the existing
+selective preserving receiver, so active mutable work, authority snapshots,
+health/dependency/resource checks, rollback, and the deployed-revision commit
+remain mandatory. Hosting bytes are built in CI and deployed on the VPS with the
+root-owned Firebase service account; that credential never enters GitHub. A
+failed workflow remains visible in Settings and never retries automatically.
+
 The command reads the deployed PTW and platform revisions, computes the exact
 committed path delta, builds affected Linux/amd64 images in parallel, streams
 only those checksumed archives, and restarts only affected services. Commander,

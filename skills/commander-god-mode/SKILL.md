@@ -17,10 +17,11 @@ feature request may extend it. Preserve generic Brief learning and domain lineag
 
 The runner targets either the local checkout or the isolated hosted development
 checkout named by the UI. The hosted checkout contains tracked source only and
-is separate from the live deployment checkout and production data. Neither mode
-offers deployment, publishing, production database access, Docker control, or
-external messaging. Prepare operational changes for review through the normal
-operations path; changing this skill never grants those capabilities.
+is separate from the live deployment checkout and production data. The coding
+runner never receives publishing, production database, Docker, SSH, GitHub-key,
+or external-messaging access. Hosted Settings may separately publish and deploy
+an exact completed candidate through the owner-confirmed release controller;
+that boundary never grants deployment capability to the coding process.
 
 ## Complete a chat turn
 
@@ -98,11 +99,17 @@ Post, or Landing learning entities or cross their lesson namespaces.
   mounts, absent Docker socket and production data, resource limits, and safe
   environment allowlist. Local Commander must retain `workspace-write` with
   shell network disabled.
-- A coding turn may prepare deployment code, release notes, checks, and an exact
-  handoff to `ptw-vps-operations`. A future deployment still requires an owner
-  instruction that authorizes that external mutation; source-edit capability
-  does not grant SSH, Docker, production database, publishing, or messaging
-  access to the hosted runner.
+- Hosted mobile release is available only after the coding turn has finished.
+  Settings requires a second confirmation on **DEPLOY NEW CHANGES** and preserves
+  its request UUID across an uncertain response. A separate locked controller
+  freezes and publishes the exact candidate while an off-VPS runner verifies,
+  builds, and invokes the preserving receiver. The controller rejects migrations,
+  workflows, deploy scripts, Dockerfiles, Compose, and other protected operations
+  paths; those still require `ptw-vps-operations`. Keep the coding container free
+  of the GitHub deploy key, CI SSH key, Docker socket, production checkout/data,
+  and runtime credentials. Verify candidate idempotency, cross-container checkout
+  locking, owner/App Check forwarding, mobile confirmation/status recovery,
+  workflow failure display, and automatic production rollback.
 
 - Post publishing is an approved-artifact boundary. Keep renderer/editor CTA
   controls, pending edits, historical PNGs, and learning namespaces unchanged.

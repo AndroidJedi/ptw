@@ -136,6 +136,35 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             raise HTTPException(status_code=503, detail="Commander hosted runtime is unavailable")
         return payload
 
+    async def commander_release_bridge(
+        method: str, *, body: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if not settings.commander_release_url:
+            raise HTTPException(status_code=503, detail="Commander mobile deployment is unavailable")
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.request(
+                    method,
+                    f"{settings.commander_release_url}/internal/v1/settings/commander/deployments",
+                    headers={"X-PTW-Owner-Gateway-Token": settings.validation_service_token},
+                    json=None if body is None else dict(body),
+                )
+        except httpx.HTTPError as error:
+            raise HTTPException(status_code=503, detail="Commander mobile deployment is unavailable") from error
+        if response.status_code >= 400:
+            try:
+                detail = response.json().get("detail")
+            except (ValueError, AttributeError):
+                detail = None
+            raise HTTPException(response.status_code, detail or "Commander deployment request failed")
+        try:
+            payload = response.json()
+        except ValueError as error:
+            raise HTTPException(status_code=503, detail="Commander mobile deployment is unavailable") from error
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=503, detail="Commander mobile deployment is unavailable")
+        return payload
+
     @app.get("/healthz")
     def health() -> dict[str, str]:
         return {"status": "ok"}
@@ -197,6 +226,21 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     ) -> dict[str, Any]:
         response.headers["Cache-Control"] = "private, no-store"
         return await commander_bridge("POST", f"/chats/{chat_id}/turns/{turn_id}/stop", body={})
+
+    @app.get("/api/v1/settings/commander/deployments")
+    async def commander_deployment(
+        response: Response, _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_release_bridge("GET")
+
+    @app.post("/api/v1/settings/commander/deployments", status_code=202)
+    async def deploy_commander_changes(
+        request: Mapping[str, Any], response: Response,
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_release_bridge("POST", body=request)
 
     @app.get("/api/v1/projects")
     async def projects(

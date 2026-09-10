@@ -1,0 +1,109 @@
+name: GOD mobile production deployment
+
+on:
+  push:
+    branches:
+      - 'god-deploy/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ptw-production-release
+  cancel-in-progress: false
+
+jobs:
+  verify-build-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Validate guarded candidate
+        id: candidate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          revision=$(git rev-parse HEAD)
+          base=$(git log -1 --format=%B | sed -n 's/^PTW-Base-Revision: \([0-9a-f]\{40\}\)$/\1/p' | tail -1)
+          [[ $base =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$base" "$revision"
+          changed=$(git diff --name-only "$base..$revision")
+          [[ -n $changed ]]
+          if printf '%s\n' "$changed" | awk '
+            /^\.github\// || /^scripts\// || /^db\/migrations\// || /^deploy\// ||
+            /^commander_god\// || /^skills\/ptw-vps-operations\// ||
+            /^validation_pipeline\/commander_release\.py$/ ||
+            /(^|\/)\.env/ || /(^|\/)Dockerfile$/ ||
+            /^(AGENTS\.md|\.dockerignore|\.firebaserc|firebase\.json|docker-compose\.)/ {bad=1}
+            END {exit bad ? 0 : 1}
+          '; then
+            echo "candidate changes protected release infrastructure" >&2
+            exit 1
+          fi
+          release_tag="god-mobile-$(date -u +%Y%m%d)-${revision:0:12}"
+          printf 'base=%s\nrevision=%s\nrelease_tag=%s\n' "$base" "$revision" "$release_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Install Python verification dependencies
+        run: python3 -m pip install -r requirements-validation.txt -r requirements-owner-gateway.txt
+
+      - name: Verify Commander and release contracts
+        run: |
+          python3 -m unittest discover -s tests/commander -v
+          python3 -m unittest discover -s tests/validation_pipeline -v
+          python3 -m unittest discover -s tests/owner_gateway -v
+          python3 scripts/verify_ptw_skills.py
+          git diff --check
+
+      - name: Verify Owner Console
+        run: |
+          npm --prefix apps/commander-web ci
+          npm --prefix apps/commander-web run check
+          (cd apps/commander-web && npx playwright install --with-deps chromium webkit)
+          npm --prefix apps/commander-web run test:e2e
+
+      - name: Build selective Linux images
+        run: |
+          scripts/build_ptw_release_images.sh "${{ steps.candidate.outputs.release_tag }}" \
+            ".local/releases/${{ steps.candidate.outputs.release_tag }}" \
+            --base-revision "${{ steps.candidate.outputs.base }}"
+
+      - name: Prepare immutable Hosting files
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          release_dir=".local/releases/${{ steps.candidate.outputs.release_tag }}"
+          plan_value() { python3 - "$release_dir/release-plan.json" "$1" <<'PY'
+          import json, sys
+          print("1" if json.load(open(sys.argv[1]))["hosting"][sys.argv[2]] else "0")
+          PY
+          }
+          if [[ $(plan_value owner-console) == 1 ]]; then
+            tar -C apps/commander-web/dist -czf "$release_dir/owner-console.tar.gz" .
+          fi
+          if [[ $(plan_value public-landings) == 1 ]]; then
+            npm --prefix apps/landing-web ci
+            npm --prefix apps/landing-web run check
+            tar -C apps/landing-web/dist -czf "$release_dir/public-landings.tar.gz" .
+          fi
+
+      - name: Fast-forward canonical source
+        run: git push origin HEAD:main
+
+      - name: Publish through the restricted preserving receiver
+        shell: bash
+        env:
+          PTW_MOBILE_DEPLOY_PRIVATE_KEY: ${{ secrets.PTW_MOBILE_DEPLOY_PRIVATE_KEY }}
+        run: |
+          set -Eeuo pipefail
+          install -d -m 0700 "$RUNNER_TEMP/ptw-ssh"
+          printf '%s\n' "$PTW_MOBILE_DEPLOY_PRIVATE_KEY" > "$RUNNER_TEMP/ptw-ssh/id_ed25519"
+          chmod 0600 "$RUNNER_TEMP/ptw-ssh/id_ed25519"
+          printf '%s\n' '165.245.212.184 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAOfTdGp//Egue7CF9RP62IFN6ZuG66MIvIPutY3sLWC' > "$RUNNER_TEMP/ptw-ssh/known_hosts"
+          export PTW_MOBILE_DEPLOY_SSH_KEY="$RUNNER_TEMP/ptw-ssh/id_ed25519"
+          export PTW_MOBILE_DEPLOY_KNOWN_HOSTS="$RUNNER_TEMP/ptw-ssh/known_hosts"
+          scripts/publish_ptw_mobile_release.sh \
+            --release-tag "${{ steps.candidate.outputs.release_tag }}" \
+            --branch "${GITHUB_REF_NAME}"

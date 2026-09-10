@@ -48,8 +48,20 @@ service. That service receives the published read-only Codex credential, copies
 only `auth.json` into its private writable state for each turn, and can write
 only an isolated, shallow development clone under
 `/opt/ptw/commander-workspace`. Runtime `.env` files, Docker, production data,
-deployment, publishing, Git push, and external messaging are outside its mounts
-and policy. Completed edits wait in that clone for review and normal release.
+deployment, publishing, Git push credentials, and external messaging are outside
+its mounts and policy.
+
+Hosted Settings separately exposes owner-confirmed **DEPLOY NEW CHANGES** after
+a coding turn finishes. Owner Gateway forwards the UUID-bearing request to
+`commander-release`, never to the coding runner. The controller shares only the
+development checkout, its private state, the deployed-revision marker, and one
+repository deploy key. It commits and publishes the exact candidate; GitHub
+Actions builds Linux/amd64 artifacts off the 1 GB VPS, then connects with a
+restricted forced-command SSH key to the preserving receiver. The controller
+has no Docker socket, VPS SSH key, production environment, or database mount.
+One-tap release refuses migrations and protected workflow/deployment/Docker/
+Compose paths. The UI requires a second confirmation, reconciles request UUIDs,
+and recovers queued/running/success/failure status after service restarts.
 
 Settings keeps ChatGPT Authorization visible alongside Commander. Its local
 GET/refresh routes use the local Codex sign-in and an owner-initiated PTY device

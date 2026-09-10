@@ -20,9 +20,24 @@
 .commander-chat textarea { width: 100%; min-height: 110px; font-size: 16px; }
 .commander-chat form footer { margin-top: 0; align-items: center; justify-content: space-between; }
 .commander-chat footer span { color: var(--muted); font-size: 11px; }
+.commander-release { display: grid; gap: 12px; padding-top: 18px; border-top: 1px solid var(--line); }
+.commander-release header h3 { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; font-size: 16px; }
+.commander-release header svg, .commander-deploy-button svg, .commander-deploy-confirm button svg { width: 16px; height: 16px; }
+.commander-deploy-button { width: 100%; }
+.commander-deployment { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.commander-deployment > svg { flex: 0 0 auto; width: 18px; height: 18px; }
+.commander-deployment > div { display: grid; gap: 5px; min-width: 0; }
+.commander-deployment code { color: var(--muted); font-size: 10px; }
+.commander-deployment a { font-size: 11px; }
+.commander-deployment.is-succeeded { border-color: #317b52; }
+.commander-deployment.is-failed { border-color: #94514d; }
+.commander-deploy-confirm { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.commander-deploy-confirm p { margin: 0; color: var(--soft); font-size: 12px; line-height: 1.55; }
+.commander-deploy-confirm > div { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 600px) {
   .commander-card > header { flex-direction: column; gap: 12px; }
   .commander-toolbar label { flex-basis: 100%; }
   .commander-message { padding: 12px; }
   .commander-message.is-owner { margin-left: 12px; }
+  .commander-deploy-confirm > div button { flex: 1 1 100%; }
 }

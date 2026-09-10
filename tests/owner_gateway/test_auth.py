@@ -106,6 +106,7 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/settings/commander/chats/{chat_id}",
             "/api/v1/settings/commander/chats/{chat_id}/messages",
             "/api/v1/settings/commander/chats/{chat_id}/turns/{turn_id}/stop",
+            "/api/v1/settings/commander/deployments",
             "/api/v1/studio/templates",
             "/api/v1/studio/projects/{project_id}/creatives", creative,
             f"{creative}/retry", f"{creative}/creative-direction",
@@ -182,6 +183,32 @@ class OwnerClaimsTests(unittest.TestCase):
             f"http://commander-god:8095/internal/v1/settings/commander/chats/{chat_id}/messages",
             headers={"X-PTW-Owner-Gateway-Token": "bridge"},
             json=payload,
+        )
+
+    def test_mobile_deployment_requires_owner_and_forwards_exact_confirmation(self) -> None:
+        class Verifier:
+            def verify(self, token: str, app_check_token: str) -> OwnerIdentity:
+                if token != "owner-token" or app_check_token != "app-token":
+                    raise AssertionError("gateway did not verify both owner credentials")
+                return OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
+
+        configured = replace(self.settings, commander_release_url="http://commander-release:8096")
+        payload = {"confirmation": "DEPLOY NEW CHANGES", "request_id": "01900000-0000-7000-8000-000000000002"}
+        upstream = httpx.Response(
+            202, json={"candidate": {"changed_files": []}, "deployment": {"status": "queued"}},
+            request=httpx.Request("POST", "http://commander-release:8096/internal/v1/settings/commander/deployments"),
+        )
+        forwarded = AsyncMock(return_value=upstream)
+        path = "/api/v1/settings/commander/deployments"
+        headers = {"Authorization": "Bearer owner-token", "X-Firebase-AppCheck": "app-token"}
+        with patch("httpx.AsyncClient.request", forwarded), TestClient(create_app(configured, verifier=Verifier())) as client:
+            self.assertEqual(401, client.post(path, json=payload).status_code)
+            response = client.post(path, headers=headers, json=payload)
+        self.assertEqual(202, response.status_code)
+        self.assertEqual("private, no-store", response.headers["cache-control"])
+        forwarded.assert_awaited_once_with(
+            "POST", "http://commander-release:8096/internal/v1/settings/commander/deployments",
+            headers={"X-PTW-Owner-Gateway-Token": "bridge"}, json=payload,
         )
 
     def test_gateway_and_validation_studio_routes_have_exact_method_parity(self) -> None:

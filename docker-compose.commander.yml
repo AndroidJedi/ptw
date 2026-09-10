@@ -76,6 +76,7 @@ services:
       FIREBASE_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-service-account.json
       PTW_CODEX_AUTH_SERVICE_URL: http://codex-auth:8094
       PTW_COMMANDER_SERVICE_URL: http://commander-god:8095
+      PTW_COMMANDER_RELEASE_URL: http://commander-release:8096
     volumes:
       - /opt/ptw/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
     networks:
@@ -129,9 +130,43 @@ services:
     networks:
       default:
 
+  commander-release:
+    image: ${PTW_COMMANDER_GOD_IMAGE:-ptw-validation:${PTW_IMAGE_TAG:-latest}}
+    pull_policy: never
+    command: ["uvicorn", "validation_pipeline.commander_release:create_app_from_env", "--factory", "--host", "0.0.0.0", "--port", "8096", "--no-access-log"]
+    restart: unless-stopped
+    environment:
+      OWNER_GATEWAY_BRIDGE_TOKEN: ${OWNER_GATEWAY_BRIDGE_TOKEN:?set OWNER_GATEWAY_BRIDGE_TOKEN}
+      PTW_COMMANDER_REPOSITORY: /workspace
+      PTW_RELEASE_STATE: /var/lib/ptw/commander-release
+      PTW_DEPLOYED_REVISION: /run/ptw-deployed/deployed-revision
+      PTW_GITHUB_DEPLOY_KEY: /run/ptw-github/id_ed25519
+      PTW_GITHUB_KNOWN_HOSTS: /run/ptw-github/known_hosts
+      HOME: /var/lib/ptw/commander-release
+    volumes:
+      - /opt/ptw/commander-workspace:/workspace
+      - commander-release-state:/var/lib/ptw/commander-release
+      - /root/ptw/.local:/run/ptw-deployed:ro
+      - /opt/ptw/secrets/github-god-release:/run/ptw-github:ro
+    mem_limit: 128m
+    pids_limit: 64
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8096/healthz', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+    networks:
+      default:
+
 volumes:
   commander-db-data:
   commander-god-state:
+  commander-release-state:
 
 networks:
   existing-ptw-backend:

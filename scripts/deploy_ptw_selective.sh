@@ -70,6 +70,8 @@ old_commander_image=$(docker inspect ptw-commander-api-1 --format '{{.Config.Ima
 old_validation_image=$(docker inspect ptw-validation-validation-api-1 --format '{{.Config.Image}}')
 old_gateway_image=$(docker inspect ptw-owner-gateway-1 --format '{{.Config.Image}}')
 old_god_image=$(docker inspect ptw-commander-god-1 --format '{{.Config.Image}}')
+old_release_running=$(docker inspect ptw-commander-release-1 --format '{{.State.Running}}' 2>/dev/null || true)
+old_release_image=$(docker inspect ptw-commander-release-1 --format '{{.Config.Image}}' 2>/dev/null || true)
 old_platform_api_image=$(docker inspect ptw-agent-platform-commander-api-1 --format '{{.Config.Image}}')
 old_platform_worker_image=$(docker inspect ptw-agent-platform-commander-worker-1 --format '{{.Config.Image}}')
 old_platform_auth_image=$(docker inspect ptw-agent-platform-codex-auth-1 --format '{{.Config.Image}}')
@@ -185,6 +187,13 @@ rollback() {
     rollback_commander=()
     selected "$restart_components" commander && rollback_commander+=(commander-api)
     selected "$restart_components" commander-god && rollback_commander+=(commander-god)
+    if selected "$restart_components" commander-god; then
+        if [[ $old_release_running == true ]]; then
+            rollback_commander+=(commander-release)
+        else
+            "${commander_compose[@]}" rm -sf commander-release >/dev/null 2>&1 || failed=1
+        fi
+    fi
     [[ ${#rollback_commander[@]} -eq 0 ]] || \
         "${commander_compose[@]}" up -d --no-deps --no-build --wait "${rollback_commander[@]}" || failed=1
     if selected "$restart_components" validation; then
@@ -197,6 +206,9 @@ rollback() {
     [[ $(docker inspect ptw-commander-api-1 --format '{{.Config.Image}}') == "$old_commander_image" ]] || failed=1
     [[ $(docker inspect ptw-owner-gateway-1 --format '{{.Config.Image}}') == "$old_gateway_image" ]] || failed=1
     [[ $(docker inspect ptw-commander-god-1 --format '{{.Config.Image}}') == "$old_god_image" ]] || failed=1
+    if [[ $old_release_running == true ]]; then
+        [[ $(docker inspect ptw-commander-release-1 --format '{{.Config.Image}}') == "$old_release_image" ]] || failed=1
+    fi
     [[ $failed -eq 0 ]] || echo "CRITICAL: fast rollout rollback verification failed" >&2
     return "$failed"
 }
@@ -258,6 +270,7 @@ stage_complete "platform"
 commander_services=()
 selected "$restart_components" commander && commander_services+=(commander-api)
 selected "$restart_components" commander-god && commander_services+=(commander-god)
+selected "$restart_components" commander-god && commander_services+=(commander-release)
 [[ ${#commander_services[@]} -eq 0 ]] || \
     "${commander_compose[@]}" up -d --no-deps --no-build --wait "${commander_services[@]}"
 if selected "$restart_components" validation; then
@@ -293,7 +306,7 @@ PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/audit_ptw_1gb.sh" </dev/null
 stage_complete "audits"
 
 for service in ptw-commander-api-1 ptw-validation-validation-api-1 ptw-owner-gateway-1 \
-    ptw-commander-god-1 ptw-agent-platform-commander-api-1 \
+    ptw-commander-god-1 ptw-commander-release-1 ptw-agent-platform-commander-api-1 \
     ptw-agent-platform-commander-worker-1 ptw-agent-platform-codex-auth-1; do
     [[ $(docker inspect "$service" --format '{{.State.Health.Status}}') == healthy ]]
 done
@@ -301,6 +314,7 @@ done
 [[ $(docker inspect ptw-validation-validation-api-1 --format '{{.Config.Image}}') == "$target_validation_image" ]]
 [[ $(docker inspect ptw-owner-gateway-1 --format '{{.Config.Image}}') == "$target_gateway_image" ]]
 [[ $(docker inspect ptw-commander-god-1 --format '{{.Config.Image}}') == "$target_god_image" ]]
+[[ $(docker inspect ptw-commander-release-1 --format '{{.Config.Image}}') == "$target_god_image" ]]
 [[ $(docker inspect ptw-agent-platform-commander-api-1 --format '{{.Config.Image}}') == "ptw-agent-platform-commander-api:$target_platform_tag" ]]
 [[ $(docker inspect ptw-agent-platform-commander-worker-1 --format '{{.Config.Image}}') == "ptw-agent-platform-commander-worker:$target_platform_tag" ]]
 [[ $(docker inspect ptw-agent-platform-codex-auth-1 --format '{{.Config.Image}}') == "ptw-agent-platform-codex-auth:$target_platform_tag" ]]

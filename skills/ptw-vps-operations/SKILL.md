@@ -180,6 +180,20 @@ chat that performs a harmless repository read, verify the isolated checkout is
 clean, restart only `commander-god` under the maintenance lock, and confirm that
 the completed chat and reply persist.
 
+The hosted mobile release control is the bounded exception to the manual
+handoff. Owner Gateway must verify Firebase owner identity and App Check, then
+forward the UUID-bearing **DEPLOY NEW CHANGES** confirmation to the separate
+`commander-release` controller. That controller may lock, commit, and push the
+isolated candidate branch, but it must have no Docker socket, production
+environment, database, or VPS SSH key; `commander-god` must have none of the
+controller/CI keys. The GitHub runner builds Linux/amd64 artifacts off-VPS and
+may reach production only through the forced `ptw-release` receiver. Refuse
+migrations and changes to CI, deployment scripts, Dockerfiles, Compose, or other
+privileged paths. Acceptance requires the same maintenance lock, authority
+snapshot, rollback, health/dependency/resource checks, deployed-revision update,
+owner Hosting audit, mobile status recovery, and proof that both containers
+remain free of the Docker socket.
+
 Normal preserving deployments target 2–4 minutes for a single PTW component and
 under 10 minutes when Validation/provider execution is required. Keep authority
 snapshots, rollback, health/resource checks, and approved artifact verification.

@@ -85,6 +85,30 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("commander_god/Dockerfile", commander)
         self.assertIn("PTW_VALIDATION_IMAGE", validation)
 
+    def test_mobile_release_keeps_coding_runtime_separate_from_privileged_transport(self) -> None:
+        compose = (ROOT / "docker-compose.commander.yml").read_text()
+        workflow = (ROOT / ".github/workflows/god-mobile-deploy.yml").read_text()
+        publisher = (ROOT / "scripts/publish_ptw_mobile_release.sh").read_text()
+        receiver = (ROOT / "scripts/receive_ptw_mobile_release.sh").read_text()
+        controller = (ROOT / "validation_pipeline/commander_release.py").read_text()
+
+        god = compose.split("  commander-god:", 1)[1].split("  commander-release:", 1)[0]
+        release = compose.split("  commander-release:", 1)[1].split("\nvolumes:\n", 1)[0]
+        self.assertNotIn("ptw-github", god)
+        self.assertNotIn("docker.sock", god)
+        self.assertIn("github-god-release", release)
+        self.assertNotIn("docker.sock", release)
+        self.assertIn('CONFIRMATION = "DEPLOY NEW CHANGES"', controller)
+        self.assertIn('".github/"', controller)
+        self.assertIn('"db/migrations/"', controller)
+        self.assertIn("build_ptw_release_images.sh", workflow)
+        self.assertIn("runs-on: ubuntu-24.04", workflow)
+        self.assertIn("PTW_MOBILE_DEPLOY_PRIVATE_KEY", workflow)
+        self.assertIn("PTW-PRESERVING-STREAM 1", publisher)
+        self.assertIn("receive_ptw_preserving_release.sh", receiver)
+        self.assertIn("PTW_MAINTENANCE_LOCK_HELD=1", receiver)
+        self.assertNotIn("firebase-service-account", workflow)
+
     def test_quick_dependency_audit_skips_live_codex_execution(self) -> None:
         audit = (
             ROOT / "skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh"

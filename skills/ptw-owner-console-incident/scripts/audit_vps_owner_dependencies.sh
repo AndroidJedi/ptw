@@ -26,7 +26,8 @@ validation_container=$($validation_compose ps -q validation-api)
 codex_auth_container=$($platform_compose ps -q codex-auth)
 platform_worker_container=$($platform_compose ps -q commander-worker)
 god_container=$($commander_compose ps -q commander-god)
-for pair in "Owner_Gateway:$owner_container" "Commander:$commander_container" "Validation:$validation_container" "Codex_Auth:$codex_auth_container" "Platform_Worker:$platform_worker_container" "Commander_GOD:$god_container"; do
+release_container=$($commander_compose ps -q commander-release)
+for pair in "Owner_Gateway:$owner_container" "Commander:$commander_container" "Validation:$validation_container" "Codex_Auth:$codex_auth_container" "Platform_Worker:$platform_worker_container" "Commander_GOD:$god_container" "Commander_Release:$release_container"; do
   name=${pair%%:*}; container=${pair#*:}
   test -n "$container" || { echo "$name container is missing" >&2; exit 1; }
   test "$(docker inspect --format '{{.State.Status}}' "$container")" = running || { echo "$name is not running" >&2; exit 1; }
@@ -36,6 +37,11 @@ docker exec "$god_container" test -r /run/ptw-codex-auth/auth.json
 docker exec "$god_container" test -x /opt/ptw-codex/bin/codex
 docker exec "$god_container" test -e /workspace/.git
 docker exec "$god_container" sh -c 'test ! -e /workspace/.env && test ! -e /workspace/.env.commander && test ! -e /workspace/.env.owner-gateway'
+docker exec "$release_container" test -r /run/ptw-github/id_ed25519
+docker exec "$release_container" test -r /run/ptw-deployed/deployed-revision
+test -z "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "$god_container")"
+test -z "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "$release_container")"
+test -z "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/run/ptw-github"}}{{.Source}}{{end}}{{end}}' "$god_container")"
 docker exec "$platform_worker_container" test -r /run/ptw-codex-auth/auth.json || {
   echo "Platform worker cannot read its root-owned Codex credential mount" >&2
   exit 1

@@ -63,13 +63,36 @@ it('restores a persisted running conversation and keeps Stop available', async (
 it('exposes hosted coding mode alongside authorization in production Settings', async () => {
   const get = vi.fn(async (path: string) => path.includes('chatgpt-authorization')
     ? { status: 'authorized', test_status: 'passed' }
-    : { target: 'hosted', available: true, chats: [], active_turn: null })
+    : path.endsWith('/deployments')
+      ? { candidate: { available: true, deployable: false, changed_files: [], protected_files: [] }, deployment: null }
+      : { target: 'hosted', available: true, chats: [], active_turn: null })
   render(<SettingsView api={{ get } as never} language="en" />)
   expect(await screen.findByText('Authorized and verified')).toBeInTheDocument()
   expect(screen.getByText(/GOD mode/)).toBeInTheDocument()
   expect(await screen.findByText('Hosted checkout')).toBeInTheDocument()
   expect(get).toHaveBeenCalledWith('/api/v1/settings/commander')
   expect(get).toHaveBeenCalledWith('/api/v1/settings/chatgpt-authorization')
+})
+
+it('requires a second mobile confirmation and submits an idempotent production release', async () => {
+  const release = { candidate: { available: true, deployable: true, changed_files: ['apps/commander-web/src/change.tsx'], protected_files: [] }, deployment: null }
+  const get = vi.fn(async (path: string) => path === base
+    ? { target: 'hosted', available: true, chats: [], active_turn: null }
+    : path.endsWith('/deployments') ? release : { id: 'chat-1', turns: [] })
+  const post = vi.fn(async (path: string) => path.endsWith('/deployments') ? {
+    candidate: { ...release.candidate, deployable: false },
+    deployment: { id: 'deploy-1', base_revision: 'a'.repeat(40), revision: 'b'.repeat(40), branch: 'god-deploy/1', status: 'queued', error_code: null, workflow_url: null, updated_at: 'now' },
+  } : { id: 'chat-1', turns: [] })
+  render(<CommanderChat api={{ get, post } as never} language="en" />)
+  fireEvent.click(screen.getByRole('button', { name: 'Open Commander chat' }))
+  const deploy = await screen.findByRole('button', { name: 'DEPLOY NEW CHANGES' })
+  fireEvent.click(deploy)
+  expect(screen.getByRole('alertdialog')).toHaveTextContent('Deploy these changes to production?')
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm deployment' }))
+  await waitFor(() => expect(post).toHaveBeenCalledWith(base + '/deployments', {
+    confirmation: 'DEPLOY NEW CHANGES', request_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+  }, { deadlineMs: 30_000 }))
+  expect(await screen.findByText('Waiting for the off-server build runner…')).toBeInTheDocument()
 })
 
 it('keeps authorization alongside Commander and moves the language action into Settings', async () => {

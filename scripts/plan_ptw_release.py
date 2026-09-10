@@ -16,6 +16,7 @@ GOD_ONLY_FILES = {
     "validation_pipeline/commander_chat.py",
     "validation_pipeline/commander_chat_worker.py",
     "validation_pipeline/commander_host_api.py",
+    "validation_pipeline/commander_release.py",
 }
 
 
@@ -58,6 +59,7 @@ def classify(paths: Iterable[str]) -> dict[str, object]:
                 "validation_pipeline/commander_chat.py",
                 "validation_pipeline/commander_chat_worker.py",
                 "validation_pipeline/commander_host_api.py",
+                "validation_pipeline/commander_release.py",
             ),
         ):
             build["commander-god"] = restart["commander-god"] = True

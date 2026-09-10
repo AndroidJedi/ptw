@@ -121,6 +121,7 @@ class CommanderChatService:
         self._lock = threading.RLock()
         self._process: subprocess.Popen | None = None
         self._liveness = None
+        self._operation_lease = None
         self._thread: threading.Thread | None = None
         self._closed = False
         self._cancel = threading.Event()
@@ -202,6 +203,12 @@ class CommanderChatService:
                 raise ValueError("Conversation context is full; start a new chat")
             if self._thread and self._thread.is_alive():
                 raise ValueError("Commander is already working; wait or stop the active request")
+            operation_lease = (self.repository / ".git" / "ptw-commander-operation.lock").open("a")
+            try:
+                fcntl.flock(operation_lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                operation_lease.close()
+                raise ValueError("A Commander release is preparing; wait for it to finish") from None
             turn_id = str(uuid4())
             stamp = now()
             skill_digest = hashlib.sha256(skill.encode()).hexdigest()
@@ -209,8 +216,14 @@ class CommanderChatService:
                        "VALUES (?,?,?,?,'queued',?,?,?)", (turn_id, chat_id, str(body.request_id), message, stamp, stamp, skill_digest))
             db.commit()
             self._cancel.clear()
+            self._operation_lease = operation_lease
             self._thread = threading.Thread(target=self._execute, args=(chat_id, turn_id, skill), daemon=True)
-            self._thread.start()
+            try:
+                self._thread.start()
+            except Exception:
+                self._operation_lease.close()
+                self._operation_lease = None
+                raise
             return self.chat(chat_id)
 
     def _update(self, turn_id: str, status: str, *, reply: str = "", error: str | None = None):
@@ -323,6 +336,9 @@ class CommanderChatService:
                 if self._liveness:
                     self._liveness.close()
                     self._liveness = None
+                if self._operation_lease:
+                    self._operation_lease.close()
+                    self._operation_lease = None
 
     def stop(self, chat_id: str, turn_id: str) -> dict[str, Any]:
         with self._lock:

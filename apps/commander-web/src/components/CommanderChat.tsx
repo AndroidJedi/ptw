@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Bot, LoaderCircle, Plus, Send, Square } from 'lucide-react'
+import { AlertTriangle, Bot, CheckCircle2, LoaderCircle, Plus, Rocket, Send, Square } from 'lucide-react'
 import type { ApiClient } from '../api'
 import { translate, type Language } from '../i18n'
 import './CommanderChat.css'
@@ -13,7 +13,20 @@ type Runtime = {
   chats: { id: string; title: string }[]
   active_turn: { id: string; chat_id: string } | null
 }
+type Deployment = {
+  id: string; base_revision: string; revision: string | null; branch: string
+  status: 'preparing' | 'queued' | 'running' | 'succeeded' | 'failed'
+  error_code: string | null; workflow_url: string | null; updated_at: string
+}
+type Release = {
+  candidate: {
+    available: boolean; unavailable_reason: string | null; deployable?: boolean
+    changed_files: string[]; protected_files: string[]
+  }
+  deployment: Deployment | null
+}
 const base = '/api/v1/settings/commander'
+const deploymentPath = `${base}/deployments`
 const active = (turn: Turn) => ['queued', 'running', 'stopping'].includes(turn.status)
 
 export function CommanderChat({ api, language }: { api: ApiClient; language: Language }) {
@@ -24,10 +37,14 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
   const [pollError, setPollError] = useState('')
+  const [release, setRelease] = useState<Release | null>(null)
+  const [releaseError, setReleaseError] = useState('')
+  const [confirmDeploy, setConfirmDeploy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const selected = useRef<string | null>(null)
   const pending = useRef<{ chatId: string; message: string; requestId: string } | null>(null)
+  const deploymentRequest = useRef<string | null>(null)
   const alive = useRef(true)
   const running = chat?.turns.find(active)
   const hosted = runtime?.target === 'hosted'
@@ -38,6 +55,14 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
     const value = id ? await api.get<Chat>(`${base}/chats/${id}`) : null
     if (!alive.current) return
     setRuntime(detail)
+    if (detail.target === 'hosted') {
+      try {
+        setRelease(await api.get<Release>(deploymentPath))
+        setReleaseError('')
+      } catch (cause) {
+        setReleaseError((cause as Error).message)
+      }
+    }
     if (!selected.current || selected.current === id) {
       selected.current = id || null
       setChat(value)
@@ -101,6 +126,30 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
     finally { setBusy(false) }
   }
 
+  const deploy = async () => {
+    if (!release?.candidate.deployable || busy || running) return
+    setBusy(true); setReleaseError('')
+    try {
+      const requestId = deploymentRequest.current || crypto.randomUUID()
+      deploymentRequest.current = requestId
+      const value = await api.post<Release>(deploymentPath, {
+        confirmation: 'DEPLOY NEW CHANGES', request_id: requestId,
+      }, { deadlineMs: 30_000 })
+      setRelease(value); setConfirmDeploy(false); deploymentRequest.current = null
+    } catch (cause) { setReleaseError((cause as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  const deploymentLabel = (deployment: Deployment) => deployment.status === 'succeeded'
+    ? tr('Deployment completed.', 'Розгортання завершено.')
+    : deployment.status === 'failed'
+      ? tr('Deployment failed safely. Production retained its last accepted release.', 'Розгортання безпечно завершилося помилкою. Production зберіг останній прийнятий реліз.')
+      : deployment.status === 'preparing'
+        ? tr('Preparing the exact release candidate…', 'Підготовка точної версії для релізу…')
+        : deployment.status === 'queued'
+          ? tr('Waiting for the off-server build runner…', 'Очікування зовнішнього build runner…')
+          : tr('Building, verifying, and deploying…', 'Збірка, перевірка та розгортання…')
+
   const failure = (turn: Turn) => {
     const outcome = turn.status === 'cancelled' ? tr('Request stopped.', 'Запит зупинено.')
       : turn.status === 'interrupted' ? tr('Request interrupted by a service restart.', 'Запит перервано перезапуском сервісу.')
@@ -155,6 +204,23 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
           ? <button className="secondary" type="button" disabled={busy || running.status === 'stopping'} onClick={() => void stop()}><Square />{tr('Stop', 'Зупинити')}</button>
           : <button className="primary" type="submit" disabled={busy || loading || !runtime?.available || !!runtime.active_turn || !draft.trim()}><Send />{tr('Send', 'Надіслати')}</button>}</footer>
       </form>
+      {hosted && <section className="commander-release" aria-labelledby="commander-release-title">
+        <header><div><small>{tr('PRODUCTION RELEASE', 'PRODUCTION РЕЛІЗ')}</small><h3 id="commander-release-title"><Rocket />{tr('Deploy new changes', 'Розгорнути нові зміни')}</h3></div></header>
+        {release?.deployment && <div className={`commander-deployment is-${release.deployment.status}`} role="status">
+          {release.deployment.status === 'succeeded' ? <CheckCircle2 /> : release.deployment.status === 'failed' ? <AlertTriangle /> : <LoaderCircle className="spin" />}
+          <div><strong>{deploymentLabel(release.deployment)}</strong><code>{release.deployment.revision?.slice(0, 12) || release.deployment.id.slice(0, 12)}</code>
+            {release.deployment.workflow_url && <a href={release.deployment.workflow_url} target="_blank" rel="noreferrer">{tr('Open release details', 'Відкрити деталі релізу')}</a>}</div>
+        </div>}
+        {release?.candidate.protected_files.length ? <p className="settings-error" role="alert">{tr('These changes include protected deployment infrastructure and must use the normal operations release:', 'Ці зміни містять захищену інфраструктуру розгортання та потребують звичайного operational release:')} {release.candidate.protected_files.join(', ')}</p> : null}
+        {releaseError && <p className="settings-error" role="alert">{releaseError}</p>}
+        {!confirmDeploy ? <button className="primary commander-deploy-button" disabled={busy || !!running || !release?.candidate.deployable || !!release?.deployment && ['preparing', 'queued', 'running'].includes(release.deployment.status)} onClick={() => setConfirmDeploy(true)}><Rocket />{tr('DEPLOY NEW CHANGES', 'РОЗГОРНУТИ НОВІ ЗМІНИ')}</button>
+          : <div className="commander-deploy-confirm" role="alertdialog" aria-labelledby="commander-deploy-confirm-title">
+            <strong id="commander-deploy-confirm-title">{tr('Deploy these changes to production?', 'Розгорнути ці зміни в production?')}</strong>
+            <p>{tr('PTW will freeze the exact candidate, build it outside the VPS, run checks, and use the preserving rollout with automatic rollback.', 'PTW зафіксує точну версію, збере її поза VPS, виконає перевірки та застосує preserving rollout з автоматичним rollback.')}</p>
+            <div><button className="secondary" disabled={busy} onClick={() => setConfirmDeploy(false)}>{tr('Cancel', 'Скасувати')}</button><button className="primary" disabled={busy} onClick={() => void deploy()}>{busy ? <LoaderCircle className="spin" /> : <Rocket />}{tr('Confirm deployment', 'Підтвердити розгортання')}</button></div>
+          </div>}
+        {release && !release.candidate.changed_files.length && !['preparing', 'queued', 'running'].includes(release.deployment?.status || '') && <p className="commander-scope">{tr('No undeployed GOD-mode changes are ready.', 'Немає готових нерозгорнутих змін GOD mode.')}</p>}
+      </section>}
     </div>}
   </section>
 }

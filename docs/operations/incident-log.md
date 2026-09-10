@@ -2,6 +2,29 @@
 
 Updated: 2026-09-10
 
+## 2026-09-10 — Mobile receiver reported failure after a successful rollout
+
+A documentation-only GOD-mode acceptance candidate passed every GitHub gate and
+the restricted receiver completed its preserving rollout, but the workflow then
+reported failure. Production had already advanced to the exact candidate, so
+blindly retrying or treating the old revision as live would have been unsafe.
+
+The receiver's Hosting helper declared its positional locals and a derived path
+in one Bash `local` statement. Under nounset, the derived expression expanded
+before the new `target` local existed. This failed even for a reused Hosting
+artifact, after the deployed-revision commit point. The helper now declares each
+input before deriving the temporary config path. The release contract locks in
+that ordering, and the VPS operations skill requires deployed-revision
+reconciliation whenever a forced receiver exits after the inner rollout.
+
+Verification included the full GitHub Python, Commander, release, Owner Console
+Chromium/Firefox/mobile-WebKit, selective-build, and immutable-Hosting gates.
+The preserving receiver's health, dependency, resource, bot-identity, and
+deployed-revision checks had completed successfully before the false failure.
+The corrected receiver is deployed through the normal preserving path before a
+fresh mobile canary is accepted. No database reset or business-data mutation
+occurred.
+
 ## 2026-09-10 — Studio learning replay blocked a guarded fast rollout
 
 An owner Save persisted its Creative and immutable checkpoint, but learning

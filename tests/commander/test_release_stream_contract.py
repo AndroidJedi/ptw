@@ -107,6 +107,12 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("PTW-PRESERVING-STREAM 1", publisher)
         self.assertIn("receive_ptw_preserving_release.sh", receiver)
         self.assertIn("PTW_MAINTENANCE_LOCK_HELD=1", receiver)
+        self.assertIn(
+            'local target=$1\n    local archive=$2\n    local web_root=$3\n'
+            '    local temp_config="$release_directory/firebase-$target.json"',
+            receiver,
+        )
+        self.assertNotIn("local target=$1 archive=$2 web_root=$3", receiver)
         self.assertNotIn("firebase-service-account", workflow)
 
     def test_quick_dependency_audit_skips_live_codex_execution(self) -> None:

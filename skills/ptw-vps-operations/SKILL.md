@@ -194,6 +194,14 @@ snapshot, rollback, health/dependency/resource checks, deployed-revision update,
 owner Hosting audit, mobile status recovery, and proof that both containers
 remain free of the Docker socket.
 
+Treat the forced receiver's final exit as authoritative even when the inner
+preserving deploy reports success: verify the deployed revision before deciding
+whether recovery means rollback or bookkeeping repair. Receiver functions run
+with Bash nounset; declare positional locals on separate statements before any
+derived local references them. Keep a contract test for that ordering so a
+post-cutover cleanup or Hosting step cannot turn a successful rollout into a
+false failed status.
+
 Normal preserving deployments target 2–4 minutes for a single PTW component and
 under 10 minutes when Validation/provider execution is required. Keep authority
 snapshots, rollback, health/resource checks, and approved artifact verification.

@@ -71,7 +71,10 @@ export PTW_MAINTENANCE_LOCK_HELD=1
 "$repository/scripts/receive_ptw_preserving_release.sh" "$release_tag" "$revision" "$platform_revision"
 
 deploy_hosting() {
-    local target=$1 archive=$2 web_root=$3 temp_config="$release_directory/firebase-$target.json"
+    local target=$1
+    local archive=$2
+    local web_root=$3
+    local temp_config="$release_directory/firebase-$target.json"
     [[ $archive != reuse ]] || return 0
     mkdir -p "$release_directory/$web_root"
     tar -xzf "$archive" --no-same-owner -C "$release_directory/$web_root"

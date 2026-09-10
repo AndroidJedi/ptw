@@ -4,12 +4,12 @@ Updated: 2026-09-10
 Branch: `main`
 Deployment: all eight application services are healthy. Owner Gateway, hosted
 GOD, and the release controller run `god-images-20260910-8da8e21`;
-Validation remains on `fast-release-20260910-64de1e8`, while Commander and the
+Validation now runs `studio-preview-20260910-ce8706f`, while Commander and the
 three provider services remain on `god-mode-sandbox-20260910-faf77f9`. Schema
-005 and both web sites are live with Owner cache v6. Meta credentials remain
+005 and both web sites are live with Owner cache v7. Meta credentials remain
 unconfigured.
 
-## Studio manual preview and optional CTA — release prepared
+## Studio manual preview and optional CTA — live
 
 Both Post templates now wait for **Update preview** before rendering draft field
 changes. Pending edits and failed requests retain the last successful image;
@@ -18,10 +18,21 @@ Phone Metrics v25 accepts empty CTA copy and omits the entire blue CTA band,
 including through Save, Approve, and reload. Preview itself remains read-only.
 Owner cache v7 delivers the new controls to installed consoles.
 
-Local verification passed 90 Studio Python tests, 35 editor unit tests, the
-Owner build, affected desktop/360px/iPhone WebKit flows, the real preview-route
-400-to-200 recovery test, canonical skills, whitespace, and authoritative PNG
-geometry/pixel checks with and without CTA. Production rollout is pending.
+The preserving release `studio-preview-20260910-ce8706f` completed in 493 seconds,
+replacing only Validation and publishing Owner cache v7. All nine fresh provider
+canaries, Pexels, authority preservation, dependencies, resource checks, and three
+immutable approved PNGs passed. The actual affected Creative
+`01a07f55-20a5-755c-bbec-17a3f158ef4b` changed from HTTP 400 to HTTP 200 for
+empty-CTA preview. A rejected incomplete headline followed by a corrected request
+also recovered to HTTP 200. Its saved state digest and three immutable versions
+are unchanged; hiding CTA changes no upper-canvas pixels.
+
+Verification passed all 229 Validation tests locally and in the Linux image,
+24 built-image Commander tests and demo, 93 Owner unit tests/build, 81 full
+browser flows across desktop/360px/iPhone WebKit, canonical skills, whitespace,
+and authoritative PNG geometry/pixel checks. The live Owner bundle is identical
+to the built artifact and includes both new controls. Hosting version
+`dc2a438482dc7d21` is live.
 
 ## Mobile GOD deployment — live
 

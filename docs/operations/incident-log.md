@@ -16,8 +16,20 @@ snapshot is tracked independently of edits made while rendering. Composer and
 renderer bounds agree, preview cannot create learning, and the canonical Tune
 and visual-audit skills preserve these requirements.
 
-Local unit, browser, real preview-route, persistence, and pixel regressions pass.
-Owner cache v7 is prepared. Production deployment is pending.
+Resolved in production by `studio-preview-20260910-ce8706f`. The preserving
+release took 493 seconds, replaced only Validation, and published Owner cache
+v7. All 229 local and Linux-image Validation tests, 24 built-image Commander
+tests, 93 Owner unit tests/build, 81 browser flows, canonical skills, and visual
+checks passed, alongside nine fresh provider canaries, Pexels, dependency/resource
+checks, full authority preservation, and approved-Post access.
+
+The exact affected Creative `01a07f55-20a5-755c-bbec-17a3f158ef4b` reproduced
+HTTP 400 before rollout and returns HTTP 200 afterward for empty CTA. A second
+invalid-then-corrected draft also recovers. Its saved state digest
+`3f28b7a8156bb93feb2ce224a550e16a1f0e32b2ca360c46bc4a050dcbce5327` and all three
+immutable versions remain identical. Live pixels confirm the CTA band disappears
+while the upper canvas is unchanged. The public bundle matches the tested build.
+No Save, Approve, reset, or learning action was performed during acceptance.
 
 ## 2026-09-10 — Mobile receiver reported failure after a successful rollout
 

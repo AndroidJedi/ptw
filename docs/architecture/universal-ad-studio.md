@@ -51,7 +51,7 @@ identity and iPhone system chrome keep their fixed renderer-owned typography.
 
 `phone_metrics` is a 1080×1350 composition with an off-white material
 background, an optional canonical Natal lock-up, left-safe copy, a front-facing black iPhone,
-three equal metric controls, and an optional full-width CTA band. In local
+three equal metric controls, and an optional full-width CTA band. In
 template v25, empty CTA copy removes the entire band; nonempty CTA copy remains
 bounded to 60 characters. Save and Approve accept an empty CTA. Every metric exposes
 bounded value/label, Filled or Outlined style, text and surface colours, and
@@ -137,7 +137,7 @@ last successful image remains visible with a pending-changes notice until the
 owner requests an update. A failed render retains that image and can be retried;
 edits made during a render remain marked as not previewed. Opening a creative
 and completing a saved-state or asset operation still refresh the saved preview.
-Preview never saves, approves, or starts learning. This change is local only.
+Preview never saves, approves, or starts learning. This behavior is deployed.
 
 Live edits never teach the agent. The initial AI composition is provenance, not
 an owner lesson. All subsequent configuration, content, template, import,

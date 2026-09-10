@@ -254,10 +254,12 @@ test('approves a Brief through the required template picker and opens its creati
   await picker.getByRole('button', { name: /Phone & metrics/ }).click()
   await picker.locator('input[value="cinematic"]').check()
   await picker.locator('input[value="scene"]').check()
+  const approveButton = picker.getByRole('button', { name: 'Approve Brief & generate creative' })
+  await expect(approveButton).toBeEnabled()
   const approvalRequest = page.waitForRequest((request) => (
     request.url().endsWith(`/briefs/${briefId}/approve`) && request.method() === 'POST'
   ))
-  await picker.getByRole('button', { name: 'Approve Brief & generate creative' }).click()
+  await approveButton.click()
   expect((await approvalRequest).postDataJSON()).toEqual({
     honor_confirmed: true, template_id: 'phone_metrics',
     creative_direction: {

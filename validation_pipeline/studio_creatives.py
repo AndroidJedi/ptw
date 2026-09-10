@@ -840,7 +840,10 @@ class StudioCreativeService:
         if creative["project_id"] != _uuid(project_id, "project_id"):
             raise KeyError("Studio creative was not found in this Project")
         detail = self._workspace(creative_id).detail()
-        return {**detail, **self.summary(creative_id)}
+        # The renderer view may normalize an older persisted configuration.
+        # Its hashes describe the fields sent to the editor; stored metadata
+        # must not replace them with the pre-normalization snapshot hashes.
+        return {**self.summary(creative_id), **detail}
 
     def _provider_call(self, **kwargs: Any) -> dict[str, Any]:
         if self.structured_provider is None:
@@ -1151,7 +1154,7 @@ class StudioCreativeService:
                 template_version=value["catalog"]["template_version"],
                 template_sha256=value["template_sha256"],
             )
-            return {**value, **self.summary(creative_id)}
+            return {**self.summary(creative_id), **value}
         return value
 
     def _unsafe_global_rule(
@@ -1256,8 +1259,9 @@ class StudioCreativeService:
             raise KeyError("Studio creative was not found in this Project")
         workspace = self._workspace(creative_id)
         current = workspace.detail()
-        if base_sha256 != current["state_sha256"]:
-            raise RuntimeError("Studio state changed; reload before saving")
+        # Accept the same bounded legacy snapshot as preview/configuration.
+        # An already-open browser can still hold its verified stored hash.
+        workspace._assert_state(base_sha256)
 
         if self._template_id(current) == PHONE_METRICS_TEMPLATE_ID:
             candidate_configuration = normalize_phone_metrics_config(configuration)
@@ -1279,7 +1283,9 @@ class StudioCreativeService:
                     change_note=_compact(change_note, "change_note", 1, 240),
                 )
                 version_created = True
-        elif pending_changes:
+        elif pending_changes or creative["state_sha256"] != current["state_sha256"]:
+            # On an explicit Save, persist normalized files before advancing
+            # metadata, even when the owner submitted an unchanged legacy view.
             current = workspace.save_configuration(
                 base_sha256=base_sha256, configuration=candidate_configuration,
                 content=candidate_content,
@@ -1294,7 +1300,7 @@ class StudioCreativeService:
                 approved_version_count=len(current.get("versions", [])),
             )
             return {
-                "creative": {**current, **{k: v for k, v in updated.items() if k != "learning_baseline"}},
+                "creative": {**{k: v for k, v in updated.items() if k != "learning_baseline"}, **current},
                 "checkpoint_created": False, "version_created": version_created,
                 "checkpoint": None, "learning_proposal": None,
             }

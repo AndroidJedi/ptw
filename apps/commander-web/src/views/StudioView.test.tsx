@@ -359,7 +359,7 @@ describe('Universal Ad Studio', () => {
         configuration: expect.objectContaining({ background: expect.objectContaining({ mode: 'texture' }) }),
         content: expect.objectContaining({ hero_title: 'TEST A CLEAR PROMISE' }),
       }),
-      { deadlineMs: 60_000 },
+      { deadlineMs: 480_000 },
     ))
     expect(await screen.findByRole('status')).toHaveTextContent('Creative saved and the Project skill was updated.')
   })

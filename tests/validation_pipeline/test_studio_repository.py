@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from copy import deepcopy
 import hashlib
 from io import BytesIO
 import json
@@ -79,6 +80,84 @@ class Provider:
 
 
 class DatabaseCreativeWorkspaceTests(unittest.TestCase):
+    def test_legacy_editor_save_and_noop_survive_a_fresh_database_restore(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from tests.validation_pipeline.test_studio_creatives import StudioCreativeServiceTests
+        from validation_pipeline.studio_routes import studio_creative_router
+
+        for changed, use_legacy_hash in ((True, False), (True, True), (False, False)):
+            with self.subTest(changed=changed, use_legacy_hash=use_legacy_hash):
+                fixture = StudioCreativeServiceTests()
+                fixture.setUp()
+                try:
+                    project_id, _, initial = fixture.generate_creative("phone_metrics")
+                    cid = initial["creative_id"]
+                    workspace = fixture.service._workspace(cid)
+                    config = workspace._configuration()
+                    config["schema"] = "ptw.studio.phone-metrics-config.v8"
+                    config.pop("logo")
+                    config["phone_screen"].pop("logo_enabled")
+                    (workspace.root / "configuration.json").write_text(json.dumps(config))
+                    legacy_hash = workspace._legacy_phone_state_sha256()
+                    fixture.authority.update_creative(cid, state_sha256=legacy_hash)
+                    repository = MemoryStudioRepository()
+                    repository.workspace_id = cid
+                    repository.persist_creative(
+                        workspace.root, workspace_id=cid, state_sha256=legacy_hash,
+                        template_id="phone_metrics", template_version=22,
+                        template_sha256=initial["template_sha256"],
+                    )
+                    original_files = deepcopy(repository.files)
+
+                    def restart():
+                        restored_root = fixture.root / ("restore-" + str(len(list(fixture.root.iterdir()))))
+                        fixture.service._workspaces[cid] = DatabaseCreativeWorkspace(
+                            UniversalStudioWorkspace(restored_root), repository, cid,
+                        )
+
+                    restart()
+                    app = FastAPI()
+                    app.include_router(studio_creative_router(fixture.service, prefix="/studio"))
+                    with TestClient(app) as client:
+                        path = f"/studio/projects/{project_id}/creatives/{cid}"
+                        detail = client.get(path).json()
+                        self.assertEqual(original_files, repository.files)
+                        self.assertEqual(legacy_hash, repository.state_sha256)
+                        self.assertNotEqual(legacy_hash, detail["state_sha256"])
+                        content = deepcopy(detail["content"])
+                        if changed:
+                            content["hero_title"] = "Owner edits survive a server restart"
+                        payload = {
+                            "base_sha256": legacy_hash if use_legacy_hash else detail["state_sha256"],
+                            "configuration": detail["configuration"], "content": content,
+                        }
+                        saved = client.post(path + "/save", json=payload)
+                        self.assertEqual(200, saved.status_code, saved.text)
+                        saved_detail = saved.json()["creative"]
+                        self.assertEqual(content, saved_detail["content"])
+                        self.assertEqual(saved_detail["state_sha256"], repository.state_sha256)
+                        checkpoints = deepcopy(fixture.store.list("studio_edit_checkpoints"))
+                        files = deepcopy(repository.files)
+                        restart()
+                        restored = client.get(path)
+                        self.assertEqual(200, restored.status_code, restored.text)
+                        self.assertEqual(saved_detail["state_sha256"], restored.json()["state_sha256"])
+                        self.assertEqual(content, restored.json()["content"])
+                        repeated = client.post(path + "/save", json={
+                            **payload, "base_sha256": restored.json()["state_sha256"],
+                        })
+                        self.assertEqual(200, repeated.status_code, repeated.text)
+                        self.assertFalse(repeated.json()["checkpoint_created"])
+                        self.assertEqual(checkpoints, fixture.store.list("studio_edit_checkpoints"))
+                        self.assertEqual(files, repository.files)
+                        if changed:
+                            rejected = client.post(path + "/save", json=payload)
+                            self.assertEqual(409, rejected.status_code)
+                            self.assertEqual(files, repository.files)
+                finally:
+                    fixture.tearDown()
+
     def test_legacy_phone_restore_is_read_only_and_preserves_approved_png(self):
         repository = MemoryStudioRepository()
         with tempfile.TemporaryDirectory() as original, tempfile.TemporaryDirectory() as restored_root:

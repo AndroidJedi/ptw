@@ -3,6 +3,8 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
+import { STUDIO_CHECKPOINT_DEADLINE_MS } from '../studio-checkpoints'
+import { StudioActionFeedback } from '../components/studio/StudioActionFeedback'
 import { StudioTuneWizard } from '../components/studio/StudioTuneWizard'
 import { PostPublishing } from '../components/PostPublishing'
 import { PhoneMetricsStudio } from '../components/studio/PhoneMetricsStudio'
@@ -347,10 +349,9 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
         base_sha256: detail.state_sha256,
         configuration: nextConfiguration,
         content: normalizedContent,
-      }, { deadlineMs: 60_000 })
+      }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
       const value = result.creative
       applyDetail(value)
-      await renderPreview(value)
       if (result.learning_proposal && result.checkpoint) setLearning({
         proposal: result.learning_proposal,
         summary: result.checkpoint.edit_summary,
@@ -361,8 +362,9 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
         : result.checkpoint?.status === 'queued'
           ? tr('Creative saved. Learning is queued for retry.', 'Креатив збережено. Навчання поставлено в чергу на повтор.')
           : tr('Creative saved and the Project skill was updated.', 'Креатив збережено, навичку проєкту оновлено.'))
+      try { await renderPreview(value) } catch (cause) { setPreviewError((cause as Error).message) }
     } catch (cause) {
-      setError((cause as Error).message)
+      setError(`${tr('Save was not confirmed. Your edits are still in the editor.', 'Збереження не підтверджено. Ваші зміни залишаються в редакторі.')}\n${tr('Copy your edits before reloading this page.', 'Скопіюйте зміни перед перезавантаженням сторінки.')}\n${(cause as Error).message}`)
     } finally {
       setBusy(false)
     }
@@ -508,7 +510,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
         configuration,
         content: normalizedPreviewContent(content),
         change_note: changeNote.trim(),
-      }, { deadlineMs: 90_000 })
+      }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
       const value = result.creative
       applyDetail(value)
       if (result.learning_proposal && result.checkpoint) setLearning({
@@ -689,8 +691,6 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
 
   return <div className="studio-page universal-studio-page">
     {creativePicker}
-    {error && <ErrorState message={error} language={language} />}
-    {notice && <p className="notice" role="status">{notice}</p>}
 
     <section className="panel studio-template-selector" aria-label={tr('Post template selector', 'Вибір шаблону допису')}>
       <small>{tr('TEMPLATE', 'ШАБЛОН')}</small><h2>{tr('Choose a preset composition', 'Оберіть готову композицію')}</h2>
@@ -712,6 +712,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       <button className="secondary" disabled={busy} onClick={() => void exportConfiguration()}><Download />{tr('Export config + IDs', 'Експорт конфігурації + ID')}</button>
       <button className="primary" disabled={busy} onClick={() => void saveConfiguration()}><Save />{tr('Save creative', 'Зберегти креатив')}</button>
     </section>
+    <StudioActionFeedback error={error} notice={notice} language={language} />
 
     <div className="studio-meta">
       <span>{detail.catalog.semantic_roles.length} {tr('stable semantic roles', 'сталих семантичних ролей')}</span>

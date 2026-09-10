@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from 'react'
 import { ImageReferenceInput, imageReferencePayload } from '../ImageReferenceInput'
 import { VisualModeSelect } from '../VisualModeSelect'
 import type { ApiClient } from '../../api'
+import { STUDIO_CHECKPOINT_DEADLINE_MS } from '../../studio-checkpoints'
 import { ErrorState } from '../../components/State'
+import { StudioActionFeedback } from './StudioActionFeedback'
 import { PhoneHeroDirectionPicker, creativeDirectionFromDraft, type PhoneHeroDirectionDraft } from './PhoneHeroDirectionPicker'
 import { translate, type Language } from '../../i18n'
 import type {
@@ -89,6 +91,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   const [legacyDirection, setLegacyDirection] = useState<PhoneHeroDirectionDraft>({ style: '', background: '' })
   const [editingCreativeDirection, setEditingCreativeDirection] = useState(false)
   const [error, setError] = useState('')
+  const [previewError, setPreviewError] = useState('')
   const [notice, setNotice] = useState('')
   const previewGeneration = useRef(0)
   const supportingTextRef = useRef<HTMLTextAreaElement>(null)
@@ -167,9 +170,12 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       const blob = await api.postMedia(`${basePath}/preview`, draft ? {
         state_sha256: saved.state_sha256, configuration: nextConfiguration, content: nextContent,
       } : { state_sha256: saved.state_sha256 }, 'image/png', { deadlineMs: 90_000 })
-      if (generation === previewGeneration.current) replacePreview(blob, requestedPreviewState)
+      if (generation === previewGeneration.current) {
+        replacePreview(blob, requestedPreviewState)
+        setPreviewError('')
+      }
     } catch (cause) {
-      if (generation === previewGeneration.current) setError((cause as Error).message)
+      if (generation === previewGeneration.current) setPreviewError((cause as Error).message)
     } finally {
       if (generation === previewGeneration.current) setPreviewBusy(false)
     }
@@ -196,16 +202,18 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
     try {
       const result = await api.post<StudioCheckpointResponse<StudioPhoneMetricsDetail>>(`${basePath}/save`, {
         base_sha256: detail.state_sha256, configuration, content,
-      }, { deadlineMs: 60_000 })
+      }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
       const next = result.creative
-      applyDetail(next); await render(next)
+      applyDetail(next)
       onCheckpoint(result)
       setNotice(!result.checkpoint_created
         ? tr('Creative is already saved; no new learning was created.', 'Креатив уже збережено; нового навчання не створено.')
         : result.checkpoint?.status === 'queued'
           ? tr('Creative saved. Learning is queued for retry.', 'Креатив збережено. Навчання поставлено в чергу на повтор.')
           : tr('Creative saved and Project learning updated.', 'Креатив збережено, навчання проєкту оновлено.'))
-    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+    } catch (cause) {
+      setError(`${tr('Save was not confirmed. Your edits are still in the editor.', 'Збереження не підтверджено. Ваші зміни залишаються в редакторі.')}\n${tr('Copy your edits before reloading this page.', 'Скопіюйте зміни перед перезавантаженням сторінки.')}\n${(cause as Error).message}`)
+    } finally { setBusy(false) }
   }
   const generatePhoneScreen = async () => {
     if (!canGenerateWithDirection) return
@@ -288,7 +296,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       const result = await api.post<StudioCheckpointResponse<StudioPhoneMetricsDetail>>(`${basePath}/approve`, {
         base_sha256: detail.state_sha256, configuration, content,
         change_note: 'Phone & metrics creative',
-      }, { deadlineMs: 90_000 })
+      }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
       const next = result.creative
       onCheckpoint(result)
       applyDetail(next); setNotice(result.checkpoint?.status === 'queued'
@@ -351,8 +359,6 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   }
 
   return <div className="studio-page phone-metrics-studio-page">
-    {error && <ErrorState message={error} language={language} />}
-    {notice && <p className="notice" role="status">{notice}</p>}
     <section className="panel studio-template-selector" aria-label={tr('Post template selector', 'Вибір шаблону допису')}>
       <small>{tr('TEMPLATE', 'ШАБЛОН')}</small><h2>{tr('Start from a fixed composition', 'Почніть із фіксованої композиції')}</h2>
       <p>{tr('Changing template replaces all editable copy and assets. Saved immutable versions are preserved.', 'Зміна шаблону замінює весь редагований текст і ресурси. Збережені незмінні версії не змінюються.')}</p>
@@ -365,9 +371,11 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       <button className="secondary" disabled={busy} onClick={() => void approve()}><Check />{tr('Approve creative', 'Схвалити креатив')}</button>
       <button className="primary" disabled={busy} onClick={() => void save()}><Save />{tr('Save creative', 'Зберегти креатив')}</button>
     </section>
+    <StudioActionFeedback error={error} notice={notice} language={language} />
     <section className="phone-metrics-workspace">
       <main className="studio-canvas-panel phone-metrics-canvas-panel">
         <header><div><small>{tr('LIVE 4:5 RENDER', 'ЖИВИЙ РЕНДЕР 4:5')}</small><h2>{tr('Natal phone & metrics', 'Natal: телефон і метрики')}</h2></div>{(busy || previewBusy) && <RefreshCcw className="spin" />}</header>
+        {previewError && <ErrorState message={previewError} language={language} />}
         <figure aria-busy={previewBusy}>{previewUrl && previewState === currentPreviewState ? <img src={previewUrl} alt={tr('Natal phone and metrics creative', 'Креатив Natal із телефоном і метриками')} /> : <div className="studio-preview-empty">{previewBusy || previewUrl ? <RefreshCcw className="spin" /> : <ImagePlus />}<span>{previewBusy || previewUrl ? tr('Updating preview…', 'Оновлення прев’ю…') : tr('Render unavailable', 'Рендер недоступний')}</span></div>}</figure>
       </main>
       <aside className="universal-controls phone-metrics-controls">

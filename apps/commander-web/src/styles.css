@@ -285,6 +285,8 @@ button svg { width: 17px; height: 17px; }
 .universal-version-list strong { font: 10px ui-monospace, monospace; }
 .universal-version-list span { overflow: hidden; color: var(--soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .universal-version-list button { min-height: 30px; padding: 5px 8px; }
+.studio-action-feedback { min-width: 0; scroll-margin-top: 16px; }
+.studio-action-feedback:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
 .phone-metrics-commandbar { grid-template-columns: minmax(230px, 1fr) repeat(3, auto); }
 .phone-metrics-commandbar > div { min-height: 38px; display: grid; align-content: center; gap: 4px; }
 .phone-metrics-commandbar small { color: var(--muted); font-size: 8px; letter-spacing: .13em; }

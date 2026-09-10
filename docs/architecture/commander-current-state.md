@@ -1,8 +1,33 @@
 # Commander current state
 
-Updated: 2026-09-09
+Updated: 2026-09-10
 Branch: `main`
 Deployment: all six services are healthy on `instagram-restore-20260909-a4af6b2`; schema 005 and both web sites are live with Owner cache v4. Meta credentials remain unconfigured.
+
+## Legacy Creative Save incident — local fix, awaiting production release
+
+Three owner Save requests returned HTTP 409 before persistence. The Creative
+service replaced the normalized editor hash with the older stored snapshot hash,
+then checkpoint validation compared it against the normalized value. Local code
+now gives renderer fields precedence and reuses bounded legacy state validation.
+Explicit unchanged legacy Saves persist normalized files before updating metadata;
+GETs remain read-only and genuinely stale edits remain rejected. Regression
+coverage includes Save followed by fresh service/cache restore, unchanged Save,
+completed learning/lineage, duplicate prevention, and immutable PNG preservation
+through real HTTP and disposable PostgreSQL. See the incident log. No production
+restart, database repair, or recovery of rejected owner input has been performed.
+Verification passes: 218 local Validation tests, 21 focused built-image Studio
+tests, 18 built-image Commander tests and local demo, the disposable PostgreSQL
+Save/restore check, canonical skills, and whitespace checks. Hosted GOD-mode
+execution remains a separate open request; the existing runner is local only.
+The companion local UI fix brings rejected Save feedback into view and focus
+beside the controls, retains pending input, separates preview errors, and aligns
+both templates' checkpoint deadlines with the Gateway's 480 seconds. Candidate
+Owner cache v5 replaces v4 only when released; production remains on v4.
+Web verification passes: 88 unit tests, 78 browser/UI flows with mocked APIs,
+and the production build. Delayed Save failure screenshots were inspected on
+desktop, 360px, and iPhone WebKit, including focus, visible feedback, retained
+input, and no overflow. The deterministic Studio geometry/colour audit passes.
 
 ## Legacy Post restore compatibility incident — resolved
 

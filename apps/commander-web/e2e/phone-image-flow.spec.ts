@@ -96,6 +96,53 @@ function phoneDetail() {
   }
 }
 
+test('a delayed rejected Save is brought into view and keeps the owner draft', async ({ page }) => {
+  const current = phoneDetail()
+  let releaseSave: (() => void) | undefined
+  let saveCount = 0
+  await page.addInitScript(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.route('**/api/v1/**', async route => {
+    const path = new URL(route.request().url()).pathname
+    if (path === '/api/v1/projects') return route.fulfill({ json: { items: [{
+      project_id: projectId, name: 'Save feedback', latest_brief_status: 'completed', brief_count: 1,
+    }] } })
+    if (path === `/api/v1/studio/projects/${projectId}/creatives`) return route.fulfill({ json: { items: [current] } })
+    if (path === creativePath) return route.fulfill({ json: current })
+    if (path === `${creativePath}/save`) {
+      saveCount += 1
+      expect(route.request().postDataJSON().content.hero_title).toBe('Keep this owner edit')
+      await new Promise<void>(resolve => { releaseSave = resolve })
+      return route.fulfill({ status: 409, json: { detail: 'Studio state changed; reload before saving' } })
+    }
+    if (path === `${creativePath}/preview`) return route.fulfill({
+      contentType: 'image/png', body: previewBytes,
+      headers: { 'X-PTW-Content-SHA256': previewDigest },
+    })
+    if (path.includes('/phone-screen/history/')) return route.fulfill({
+      contentType: 'image/png', body: imageBytes[0],
+      headers: { 'X-PTW-Content-SHA256': imageDigests[0] },
+    })
+    return route.fulfill({ status: 404, json: { detail: 'Not found' } })
+  })
+  await page.goto(`/?e2e=1&page=posts&project=${projectId}&creative=${creativeId}`)
+  await page.getByRole('textbox', { name: 'Headline', exact: true }).fill('Keep this owner edit')
+  await page.getByRole('button', { name: 'Save creative', exact: true }).click()
+  await expect.poll(() => Boolean(releaseSave)).toBe(true)
+  // Model an owner continuing to inspect a long mobile editor while Save waits.
+  await page.getByRole('textbox', { name: 'Phone button 3 text', exact: true }).scrollIntoViewIfNeeded()
+  releaseSave!()
+  const feedback = page.locator('.studio-action-feedback')
+  await expect(feedback).toBeFocused()
+  await expect(feedback.getByText('Save was not confirmed. Your edits are still in the editor.', { exact: true })).toBeInViewport()
+  await expect(feedback).toContainText('HTTP 409')
+  await expect(page.getByRole('textbox', { name: 'Headline', exact: true })).toHaveValue('Keep this owner edit')
+  await expect(page.getByText('Creative saved and Project learning updated.', { exact: true })).toHaveCount(0)
+  expect(saveCount).toBe(1)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: `.local/save-error-${test.info().project.name}.png` })
+})
+
 test('runs the Phone Metrics browser UI direction and image workflow', async ({ page }) => {
   let current: any = phoneDetail()
   const directionRequests: any[] = []

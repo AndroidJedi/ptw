@@ -197,12 +197,46 @@ describe('Phone & metrics Studio', () => {
   })
 
   beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn()
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true, value: vi.fn(() => 'blob:phone-preview'),
     })
     Object.defineProperty(URL, 'revokeObjectURL', {
       configurable: true, value: vi.fn(),
     })
+  })
+
+  it('brings a rejected Save into focus and retains pending edits without success feedback', async () => {
+    const { api, post } = studioApi()
+    post.mockRejectedValueOnce(new Error('HTTP 409: Studio state changed; reload before saving'))
+    const onDetail = vi.fn()
+    render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={onDetail} />)
+    fireEvent.change(screen.getByLabelText('Headline'), { target: { value: 'Keep my pending headline' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
+    const error = await screen.findByRole('alert')
+    expect(error).toHaveTextContent('Save was not confirmed. Your edits are still in the editor.')
+    expect(error).toHaveTextContent('HTTP 409')
+    expect(error.parentElement).toHaveFocus()
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' })
+    expect(screen.getByLabelText('Headline')).toHaveValue('Keep my pending headline')
+    expect(screen.queryByText('Creative saved and Project learning updated.')).not.toBeInTheDocument()
+    expect(onDetail).not.toHaveBeenCalled()
+    expect(post).toHaveBeenCalledWith(`${basePath}/save`, expect.anything(), { deadlineMs: 480_000 })
+  })
+
+  it('keeps a confirmed Save visible when its subsequent preview fails', async () => {
+    const { api } = studioApi()
+    const onCheckpoint = vi.fn()
+    render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} onCheckpoint={onCheckpoint} />)
+    await waitFor(() => expect(api.postMedia).toHaveBeenCalled())
+    vi.mocked(api.postMedia).mockRejectedValue(new Error('Preview unavailable'))
+    fireEvent.change(screen.getByLabelText('Headline'), { target: { value: 'Confirmed saved headline' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
+    expect(await screen.findByText('Creative saved and Project learning updated.')).toBeInTheDocument()
+    expect(await screen.findByText('Preview unavailable')).toBeInTheDocument()
+    expect(screen.queryByText(/Save was not confirmed/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Headline')).toHaveValue('Confirmed saved headline')
+    expect(onCheckpoint).toHaveBeenCalledTimes(1)
   })
 
   it('removes the eyebrow control from the draft while preserving its copy', async () => {
@@ -234,7 +268,7 @@ describe('Phone & metrics Studio', () => {
         configuration: expect.objectContaining({ offer: { enabled: false } }),
         content: expect.objectContaining({ offer: 'NATAL' }),
       }),
-      { deadlineMs: 60_000 },
+      { deadlineMs: 480_000 },
     ))
   })
 
@@ -312,7 +346,7 @@ describe('Phone & metrics Studio', () => {
           phone_screen: { texture: 'grain', logo_enabled: false },
         }),
       }),
-      { deadlineMs: 60_000 },
+      { deadlineMs: 480_000 },
     ))
   })
 
@@ -406,7 +440,7 @@ describe('Phone & metrics Studio', () => {
           phone_screen: { texture: 'frosted', logo_enabled: true },
         }),
       }),
-      { deadlineMs: 60_000 },
+      { deadlineMs: 480_000 },
     ))
   })
 
@@ -474,7 +508,7 @@ describe('Phone & metrics Studio', () => {
           ],
         }),
       }),
-      { deadlineMs: 60_000 },
+      { deadlineMs: 480_000 },
     ))
   })
 
@@ -533,7 +567,7 @@ describe('Phone & metrics Studio', () => {
           phone_buttons: ['Створити новий акаунт', 'Sign in now', 'Можливо пізніше'],
         }),
       }),
-      { deadlineMs: 60_000 },
+      { deadlineMs: 480_000 },
     ))
   })
 

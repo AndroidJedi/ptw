@@ -314,6 +314,30 @@ elapse time. Do not infer a monitoring outage from a guessed unit name.
 
 ## Renderer compatibility during release
 
+- If Save creative returns 409 after a compatible renderer restore, compare
+  the public detail hash, the raw workspace detail hash, and PostgreSQL's stored
+  hash before treating it as concurrent owner editing. A normalized editor
+  document must expose its matching renderer hash; merging stored metadata last
+  can replace it with the old snapshot hash and reject every Save. Use the same
+  bounded legacy state validator for checkpoints as for preview/configuration.
+  Keep GET read-only; on an explicit unchanged legacy Save, persist normalized
+  files before advancing metadata so a fresh restore still verifies. Exercise
+  both newly loaded and already-open clients, stale-state rejection, unchanged
+  Save, completed learning, and immutable PNG preservation through real HTTP
+  and disposable PostgreSQL with `scripts/verify_studio_save_restart.py`.
+  A rejected 409 is not a successful save: compare checkpoint timestamps before
+  claiming a restart lost committed edits. Never reconstruct rejected owner
+  input from assumptions or replace append-only history.
+- A `role="alert"` elsewhere in a long editor is not proof that the owner saw
+  a rejected Save. Keep action feedback beside the Save controls, bring errors
+  into the viewport and keyboard focus, retain pending input, and never show
+  success after rejection. Keep preview failures separate so a late render
+  response cannot replace a Save error or make a committed Save look failed.
+  In both Post templates, Save/Approve share the Gateway's bounded 480-second
+  learning deadline. Test a delayed 409 after scrolling away on desktop, 360px,
+  and iPhone WebKit; require the actual error heading in the viewport, retained
+  field values, one request, and no success notice. Tell the owner to copy
+  pending edits before reloading. Bump the PWA shell cache for the release.
 - A Post/Ads/Instagram workspace 409 reporting a restored state-digest mismatch
   can come from normalizing a persisted phone configuration v8 to the current
   editor schema before verifying its original snapshot. Compare the stored

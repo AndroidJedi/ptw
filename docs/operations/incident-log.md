@@ -1,6 +1,57 @@
 # PTW incident log
 
-Updated: 2026-09-09
+Updated: 2026-09-10
+
+## 2026-09-10 — Legacy editor Save rejected after successful read-only restore
+
+The owner reported that Save creative edits disappeared after reloading. The
+Gateway recorded three Save requests at 05:39, 05:45, and 05:47 UTC, all HTTP 409;
+the latest stored save checkpoint remained from the previous day. Validation
+had not restarted since the previous release. The changes were rejected before
+persistence, rather than lost from a committed checkpoint on restart.
+
+The previous compatibility repair correctly restored the original v8 files
+without mutating PostgreSQL. However, the Creative service merged stored
+metadata over the normalized renderer detail, replacing the editor's state
+hash with its older stored hash. Checkpoint Save compared that hash directly
+against the normalized hash, unlike the existing legacy-aware preview validator.
+Read-only inspection of the affected Creative confirmed those hashes differ.
+
+The local fix gives renderer fields precedence in editor responses and uses
+the existing bounded state validator for Save/Approve, including clients already
+holding the verified older hash. An explicit unchanged legacy Save persists the
+normalized files before advancing metadata. GET remains read-only; actual stale
+edits still fail closed. Tests cover edited and unchanged Saves, fresh adapter
+and service/cache restoration, completed learning and checkpoint lineage, no
+duplicate checkpoints, and unchanged immutable PNG bytes. The standalone
+`scripts/verify_studio_save_restart.py` runs real HTTP/domain/database operations
+against an automatically created and removed disposable PostgreSQL instance.
+
+Separate latency evidence: one Creative GET returned Gateway 503, while later
+internal reads took 0.066 seconds for Projects and 0.763 seconds for the Creative.
+The 961 MiB VPS had 164 MiB available and 617 MiB swap used during inspection.
+These observations justify resource investigation but do not prove that memory
+pressure or the image-generation lock caused the original timeout.
+
+The owner also reported seeing no error. Both Post editors placed action errors
+above the template selector without moving focus or scrolling, so a failure
+could remain outside the mobile viewport. The local UI now places feedback
+beside Save, focuses and scrolls to errors, retains pending edits, and tells the
+owner to copy them before reloading. Preview failures have a separate display
+and cannot replace a Save error or negate confirmed persistence. Both templates'
+Save/Approve deadlines now match the Gateway's bounded 480-second learning
+deadline. Candidate shell cache v5 and the build marker identify this UI fix.
+
+Verification: 218 local Validation tests, 21 focused Linux-image Studio tests,
+18 built-image Commander tests plus demo, disposable PostgreSQL Save/restore,
+canonical skill validation, and whitespace checks pass.
+The companion UI passes 88 web unit tests, 78 mocked browser/UI flows, production
+build verification, and the deterministic Studio visual audit. Actual delayed
+409 screenshots were inspected at desktop/360px/iPhone WebKit; feedback is in
+view with no horizontal overflow and the pending headline remains intact.
+
+Status: local fix and verification; production has not been changed. Rejected
+browser edits are not available in PostgreSQL and must not be invented.
 
 ## 2026-09-09 — Legacy Post reads failed after renderer schema uplift
 

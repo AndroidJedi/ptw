@@ -2,11 +2,11 @@
 
 Updated: 2026-09-10
 Branch: `main`
-Deployment: all six application services are healthy on `studio-save-20260910-2d18dfc`; schema 005 and both web sites are live with Owner cache v5. Meta credentials remain unconfigured.
+Deployment: all seven application services are healthy on `god-mode-sandbox-20260910-faf77f9`; schema 005 and both web sites are live with Owner cache v6. Meta credentials remain unconfigured.
 
-## Hosted Commander GOD mode — verified candidate, awaiting release
+## Hosted Commander GOD mode — live and restart-verified
 
-Settings now exposes Commander in both local and hosted consoles. The hosted
+Settings exposes Commander in both local and hosted consoles. The hosted
 contract keeps Firebase owner and App Check verification at Owner Gateway, then
 uses the existing service secret to reach a private `commander-god` API. Its
 root process can write only an isolated shallow clone under
@@ -14,20 +14,24 @@ root process can write only an isolated shallow clone under
 checkout/data, Docker, deployment, publishing, Git push, and external messaging
 remain outside its mounts and execution policy. The published Codex credential
 and standalone binary are read-only. Each turn refreshes `auth.json` into a
-private writable runtime home. Conversations persist in a dedicated volume,
-retain request-ID reconciliation, serialize turns, and mark interrupted work
-without replay after restart. Production Validation still mounts no coding routes.
-Owner cache v6 will force mobile clients to install the restored Settings control.
+private writable runtime home. The hosted CLI uses its externally-sandboxed
+execution mode because the locked-down container is the execution boundary;
+local Commander retains its nested workspace sandbox. Conversations persist in
+a dedicated volume, retain request-ID reconciliation, serialize turns, and mark
+interrupted work without replay after restart. Production Validation still
+mounts no coding routes. Owner cache v6 forces mobile clients to install the
+restored Settings control.
 
-Verification passes in the Linux image for 12 runner/API lifecycle and security
-tests plus 11 Gateway tests; all 219 Validation tests, 18 Commander release tests,
+Verification passes in the Linux image for 13 runner/API lifecycle and security
+tests plus 11 Gateway tests; all 220 Validation tests, 18 Commander release tests,
 the Commander demo, 88 web unit tests, 78 desktop/360px/iPhone WebKit flows,
 canonical skill validation, shell syntax, production build, and whitespace checks
-pass. Release `god-mode-20260910-6e837ec` passed its preserving deployment,
-provider, Pexels, dependency, resource, and live Hosting checks, and Owner cache
-v6 is live. Its first real hosted turn exposed a read-only `CODEX_HOME` contract
-error before any checkout edit. The credential-copy repair is verified locally
-and awaits a follow-up release; GOD mode remains unavailable until that release.
+pass. Release `god-mode-sandbox-20260910-faf77f9` passed its preserving
+deployment, provider, Pexels, dependency, resource, authority, and approved-Post
+checks; Owner cache v6 remains live. A real private hosted turn read `AGENTS.md`,
+reported Git HEAD `faf77f9` and a clean checkout, and made no edits. Restarting
+only `commander-god` under the maintenance lock retained that completed chat and
+reply, and the checkout remained clean. Hosted GOD mode is available.
 
 ## Legacy Creative Save incident — resolved in production
 

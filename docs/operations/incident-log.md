@@ -26,8 +26,14 @@ keeps `workspace-write` with shell network disabled. The container remains the
 hosted boundary: read-only root, isolated checkout and state mounts, no Docker
 socket or production data, dropped capabilities, resource limits, and a bounded
 environment allowlist. Regression coverage distinguishes the two execution
-modes. Status: the second repair requires a follow-up release plus real
-read/restart acceptance before hosted GOD mode is considered available.
+modes.
+
+Release `god-mode-sandbox-20260910-faf77f9` passed the preserving rollout and
+all provider, Pexels, dependency, resource, authority, and approved-Post checks.
+A real private hosted turn read `AGENTS.md`, reported the exact release HEAD and
+a clean checkout, and made no edits. The same completed chat and reply remained
+available after restarting only `commander-god` under the maintenance lock; the
+checkout was still clean. Status: resolved in production.
 
 ## 2026-09-10 — Legacy editor Save rejected after successful read-only restore
 

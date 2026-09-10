@@ -250,11 +250,21 @@ class CommanderChatService:
             prompt = self._prompt(chat_id, skill)
             with tempfile.TemporaryDirectory(prefix="commander-", dir=self.state) as temporary:
                 output = Path(temporary) / "reply.txt"
-                command = [self.codex_binary, "exec", "--ephemeral", "--ignore-user-config",
-                           "--sandbox", "workspace-write", "-c", 'approval_policy="never"',
-                           "-c", "sandbox_workspace_write.network_access=false",
-                           "--cd", str(self.repository), "--color", "never",
-                           "--output-last-message", str(output), "-"]
+                command = [self.codex_binary, "exec", "--ephemeral", "--ignore-user-config"]
+                if self.target == "hosted":
+                    # Docker is the hosted execution sandbox. A nested Linux
+                    # workspace sandbox needs namespace/mount capabilities that
+                    # this deliberately capability-free container does not have.
+                    command.append("--dangerously-bypass-approvals-and-sandbox")
+                else:
+                    command.extend([
+                        "--sandbox", "workspace-write", "-c", 'approval_policy="never"',
+                        "-c", "sandbox_workspace_write.network_access=false",
+                    ])
+                command.extend([
+                    "--cd", str(self.repository), "--color", "never",
+                    "--output-last-message", str(output), "-",
+                ])
                 environment = {k: v for k, v in os.environ.items() if k in SAFE_ENV}
                 environment["NO_COLOR"] = "1"
                 if self.credential_source:

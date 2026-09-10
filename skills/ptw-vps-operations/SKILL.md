@@ -154,6 +154,18 @@ rollout: verify the previous six images/tags remain live, correct it in source,
 add a regression test, publish a new commit, and restart the deployment from
 preflight rather than editing or bypassing the check on the server.
 
+When a release originates in the hosted Commander checkout, treat its output as
+a development handoff. Require a pushed immutable commit, a clean source tree,
+the normal local and built-image verification, and explicit owner authorization
+for deployment before any SSH or production mutation. Build Linux/amd64 images
+outside the 1 GB VPS, transfer checksumed archives, and deploy only through the
+tracked preserving or confirmation-gated in-place script. Hosted Commander must
+not receive the VPS key, Docker socket, production environment files, or database
+credentials. After a GOD-mode runtime change, acceptance must run a real private
+chat that performs a harmless repository read, verify the isolated checkout is
+clean, restart only `commander-god` under the maintenance lock, and confirm that
+the completed chat and reply persist.
+
 Migration-bearing preserving releases instead require the exact
 `DEPLOY PTW IN PLACE` confirmation and
 `scripts/publish_ptw_in_place_serial.sh`. Never bypass that gate with the

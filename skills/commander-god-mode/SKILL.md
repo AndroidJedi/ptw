@@ -90,6 +90,19 @@ Post, or Landing learning entities or cross their lesson namespaces.
   published `auth.json` into the runner's private writable state directory and
   point `CODEX_HOME` there. Checking that the source is readable is insufficient:
   the CLI needs a writable runtime home even for ephemeral execution.
+- Hosted Codex runs inside the dedicated container sandbox. Do not nest the
+  CLI's Linux `workspace-write` sandbox there: Docker's dropped capabilities
+  correctly prevent Bubblewrap from creating its namespace, leaving even Git
+  reads unusable. Use Codex's externally-sandboxed execution mode only for the
+  hosted target. Retain its read-only root filesystem, isolated checkout/state
+  mounts, absent Docker socket and production data, resource limits, and safe
+  environment allowlist. Local Commander must retain `workspace-write` with
+  shell network disabled.
+- A coding turn may prepare deployment code, release notes, checks, and an exact
+  handoff to `ptw-vps-operations`. A future deployment still requires an owner
+  instruction that authorizes that external mutation; source-edit capability
+  does not grant SSH, Docker, production database, publishing, or messaging
+  access to the hosted runner.
 
 - Post publishing is an approved-artifact boundary. Keep renderer/editor CTA
   controls, pending edits, historical PNGs, and learning namespaces unchanged.

@@ -246,7 +246,10 @@ out.write_text('Added the local carousel feature. Tests passed.')
                 time.sleep(.01)
             runtime_home = hosted.state / "codex-home"
             self.assertEqual(source.read_bytes(), (runtime_home / "auth.json").read_bytes())
-            self.assertEqual(str(runtime_home), json.loads((self.repo / "invocation.json").read_text())["env"]["CODEX_HOME"])
+            invocation = json.loads((self.repo / "invocation.json").read_text())
+            self.assertEqual(str(runtime_home), invocation["env"]["CODEX_HOME"])
+            self.assertIn("--dangerously-bypass-approvals-and-sandbox", invocation["args"])
+            self.assertNotIn("workspace-write", invocation["args"])
             source.write_text('{"tokens":"second"}')
             hosted.send(chat["id"], ChatMessage(request_id=uuid4(), message="refresh runtime"))
             deadline = time.monotonic() + 5

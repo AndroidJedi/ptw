@@ -2,7 +2,7 @@
 
 Updated: 2026-09-10
 
-## 2026-09-10 — Hosted Commander turn failed with a read-only runtime home
+## 2026-09-10 — Hosted Commander turns failed at two nested runtime boundaries
 
 The GOD-mode release passed service health, public authentication denial,
 provider, dependency, resource, and Hosting checks, but its first real private
@@ -16,8 +16,18 @@ state before every turn, atomically refreshes that copy, and points `CODEX_HOME`
 there. The credential source and standalone binary remain read-only, and the
 isolated source checkout has no runtime `.env` files. A regression verifies the
 first copy, credential refresh, private runtime path, and completed execution.
-Status: locally verified; follow-up release and real-turn/restart acceptance are
-required before hosted GOD mode is considered available.
+
+The credential repair allowed a real turn to reach the model, but its first Git
+command then failed because the CLI's nested Linux workspace sandbox requires
+namespace and mount operations denied by the deliberately capability-free
+container. The hosted runner now uses Codex's execution mode for externally
+sandboxed environments. This applies only to hosted Commander; the local runner
+keeps `workspace-write` with shell network disabled. The container remains the
+hosted boundary: read-only root, isolated checkout and state mounts, no Docker
+socket or production data, dropped capabilities, resource limits, and a bounded
+environment allowlist. Regression coverage distinguishes the two execution
+modes. Status: the second repair requires a follow-up release plus real
+read/restart acceptance before hosted GOD mode is considered available.
 
 ## 2026-09-10 — Legacy editor Save rejected after successful read-only restore
 

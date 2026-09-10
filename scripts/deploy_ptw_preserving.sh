@@ -28,6 +28,14 @@ platform=/opt/ptw/platform
 commander_compose=(docker compose --env-file "$platform/.env" --env-file "$repository/.env.commander" --env-file "$repository/.env.owner-gateway" --project-directory "$repository" -f "$repository/docker-compose.commander.yml")
 validation_compose=(docker compose --env-file "$platform/.env" --env-file "$repository/.env.commander" --env-file "$repository/.env.owner-gateway" --project-name ptw-validation --project-directory "$repository" -f "$repository/docker-compose.validation.yml")
 platform_compose=(docker compose --env-file "$platform/.env" --project-directory "$platform" -f "$platform/docker-compose.yml")
+deployment_started_epoch=$(date +%s)
+deployment_stage_started_epoch=$deployment_started_epoch
+deployment_stage_complete() {
+    local stage=$1 now
+    now=$(date +%s)
+    echo "PTW deploy stage '$stage': $((now - deployment_stage_started_epoch))s (total $((now - deployment_started_epoch))s)"
+    deployment_stage_started_epoch=$now
+}
 
 [[ -f "$platform/.env" && -f "$repository/.env.commander" && -f "$repository/.env.owner-gateway" ]] || {
     echo "required production environment file is missing" >&2; exit 1;
@@ -95,13 +103,16 @@ rollback() {
     local rollback_failed=0
     echo "preserving rollout failed; restoring prior image tags" >&2
     export PTW_PLATFORM_IMAGE_TAG=$old_platform_tag
-    "${platform_compose[@]}" up -d --no-deps --no-build --wait codex-auth commander-worker commander-api || rollback_failed=1
+    "${platform_compose[@]}" up -d --no-deps --no-build --wait codex-auth commander-api || rollback_failed=1
+    "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker || rollback_failed=1
     export PTW_IMAGE_TAG=$old_app_tag
-    "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api || rollback_failed=1
-    "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api || rollback_failed=1
+    rollback_commander_services=(commander-api)
     if [[ $old_god_running -eq 1 ]]; then
-        "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-god || rollback_failed=1
-    else
+        rollback_commander_services+=(commander-god)
+    fi
+    "${commander_compose[@]}" up -d --no-deps --no-build --wait "${rollback_commander_services[@]}" || rollback_failed=1
+    "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api || rollback_failed=1
+    if [[ $old_god_running -ne 1 ]]; then
         "${commander_compose[@]}" rm -sf commander-god >/dev/null 2>&1 || rollback_failed=1
     fi
     "${commander_compose[@]}" up -d --no-deps --no-build --wait owner-gateway || rollback_failed=1
@@ -202,18 +213,19 @@ SQL
 
 snapshot_authority > "$before"
 snapshot_ready=1
+deployment_stage_complete "preflight and authority snapshot"
 "$repository/scripts/prepare_commander_god_workspace.sh" "$git_revision"
 export PTW_PLATFORM_IMAGE_TAG=$release_tag
-"${platform_compose[@]}" up -d --no-deps --no-build --wait codex-auth
+"${platform_compose[@]}" up -d --no-deps --no-build --wait codex-auth commander-api
 "${platform_compose[@]}" up -d --no-deps --no-build --wait commander-worker
-"${platform_compose[@]}" up -d --no-deps --no-build --wait commander-api
+deployment_stage_complete "platform rollout"
 
 export PTW_IMAGE_TAG=$release_tag
 "${commander_compose[@]}" run -T --rm --no-deps commander-migrate
-"${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api
+"${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api commander-god
 "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api
-"${commander_compose[@]}" up -d --no-deps --no-build --wait commander-god
 "${commander_compose[@]}" up -d --no-deps --no-build --wait owner-gateway
+deployment_stage_complete "application rollout"
 
 curl --fail --silent --max-time 5 http://127.0.0.1:8091/readyz >/dev/null
 curl --fail --silent --max-time 5 http://127.0.0.1:8093/readyz >/dev/null
@@ -222,6 +234,7 @@ curl --fail --silent --max-time 5 http://127.0.0.1:8092/healthz >/dev/null
     python -m validation_pipeline.verify_bridge_contract
 "${validation_compose[@]}" run -T --rm --no-deps validation-api \
     python -m validation_pipeline.verify_pexels
+deployment_stage_complete "provider and Pexels canaries"
 
 snapshot_authority > "$after"
 cmp -s "$before" "$after" || {
@@ -231,6 +244,7 @@ cmp -s "$before" "$after" || {
 }
 "$repository/skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh" </dev/null
 PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/audit_ptw_1gb.sh" </dev/null
+deployment_stage_complete "authority, dependency, and resource audits"
 
 for service in ptw-commander-api-1 ptw-validation-validation-api-1 \
     ptw-owner-gateway-1 ptw-commander-god-1 ptw-agent-platform-commander-api-1 \
@@ -246,4 +260,5 @@ grep -qx "PTW_IMAGE_TAG=$release_tag" "$repository/.env.commander"
 "${validation_compose[@]}" exec -T validation-api python -m validation_pipeline.verify_approved_post_access
 
 rollback_needed=0
-echo "PTW preserving rollout complete at $git_revision"
+deployment_stage_complete "approved Post verification and commit"
+echo "PTW preserving rollout complete at $git_revision in $(($(date +%s) - deployment_started_epoch))s"

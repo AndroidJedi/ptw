@@ -184,6 +184,22 @@ class ReleaseStreamContractTests(unittest.TestCase):
         ):
             self.assertIn(image, deployer)
 
+    def test_preserving_rollout_batches_independent_services_and_reports_stage_times(self) -> None:
+        deployer = (ROOT / "scripts/deploy_ptw_preserving.sh").read_text()
+
+        self.assertIn(
+            'up -d --no-deps --no-build --wait codex-auth commander-api',
+            deployer,
+        )
+        self.assertIn(
+            'up -d --no-deps --no-build --wait commander-api commander-god',
+            deployer,
+        )
+        self.assertIn('deployment_stage_complete "platform rollout"', deployer)
+        self.assertIn('deployment_stage_complete "application rollout"', deployer)
+        self.assertIn('deployment_stage_complete "provider and Pexels canaries"', deployer)
+        self.assertIn('deployment_started_epoch', deployer)
+
     def test_reset_postcondition_covers_every_landing_table(self) -> None:
         reset = (ROOT / "scripts/reset_ptw.sh").read_text()
         for table in (

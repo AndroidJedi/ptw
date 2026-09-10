@@ -166,6 +166,15 @@ chat that performs a harmless repository read, verify the isolated checkout is
 clean, restart only `commander-god` under the maintenance lock, and confirm that
 the completed chat and reply persist.
 
+Normal preserving deployments target a 5–10 minute owner wait. Keep the live
+provider canary, authority snapshots, rollback, dependency audit, and approved
+artifact verification. Reduce orchestration time by starting independent
+services in one Compose invocation: platform auth and API before the dependent
+worker, and Commander API with hosted GOD before Validation and Gateway. Use the
+deployer's per-stage timing output to identify regressions. Image transfer is a
+secondary cost on the current link; if it becomes material, add a digest-verified
+registry or delta transport rather than weakening release verification.
+
 Migration-bearing preserving releases instead require the exact
 `DEPLOY PTW IN PLACE` confirmation and
 `scripts/publish_ptw_in_place_serial.sh`. Never bypass that gate with the

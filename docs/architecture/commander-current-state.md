@@ -4,6 +4,13 @@ Updated: 2026-09-10
 Branch: `main`
 Deployment: all seven application services are healthy on `god-mode-sandbox-20260910-faf77f9`; schema 005 and both web sites are live with Owner cache v6. Meta credentials remain unconfigured.
 
+The normal preserving deployer now targets a 5–10 minute owner wait by batching
+independent container health waits and reporting elapsed time for preflight,
+platform rollout, application rollout, provider canaries, audits, and commit.
+It retains live provider/Pexels canaries, complete PostgreSQL snapshots,
+automatic image rollback, dependency/resource checks, and approved-Post
+verification. Migration-bearing deployments retain their serial cutover.
+
 ## Hosted Commander GOD mode — live and restart-verified
 
 Settings exposes Commander in both local and hosted consoles. The hosted

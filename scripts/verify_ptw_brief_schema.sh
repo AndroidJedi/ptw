@@ -16,7 +16,8 @@ docker run --rm --detach --name "$database_container" \
   postgres:16-alpine >/dev/null
 
 attempt=0
-until docker exec "$database_container" pg_isready -U ptw_brief_test -d ptw_brief_test >/dev/null 2>&1; do
+until docker exec -e PGPASSWORD=ptw-brief-test-only "$database_container" \
+  psql -h 127.0.0.1 -U ptw_brief_test -d ptw_brief_test -qAtc 'SELECT 1' >/dev/null 2>&1; do
   attempt=$((attempt + 1))
   [ "$attempt" -lt 40 ] || { echo "disposable PostgreSQL did not become ready" >&2; exit 1; }
   sleep 1

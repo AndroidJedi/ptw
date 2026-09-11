@@ -15,7 +15,8 @@ docker run --rm -d --name "$container" --hostname commander-db \
     -e POSTGRES_USER=ptw_commander -e POSTGRES_DB=ptw_commander -e POSTGRES_PASSWORD=disposable-canary-only \
     -v "$temporary/migrations:/migrations:ro" -v "$repository/scripts/migrate_commander.sh:/migration-runner:ro" postgres:16-alpine >/dev/null
 for attempt in {1..40}; do
-    if docker exec "$container" pg_isready -U ptw_commander >/dev/null 2>&1; then break; fi
+    if docker exec -e PGPASSWORD=disposable-canary-only "$container" \
+        psql -h 127.0.0.1 -U ptw_commander -d ptw_commander -qAtc 'SELECT 1' >/dev/null 2>&1; then break; fi
     sleep 1
 done
 run_migrations() { docker exec -e PGPASSWORD=disposable-canary-only "$container" sh /migration-runner >/dev/null; }

@@ -9,6 +9,23 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class ReleaseStreamContractTests(unittest.TestCase):
+    def test_disposable_database_readiness_requires_initialized_target_over_tcp(self):
+        for name in ('verify_ptw_brief_schema.sh', 'verify_ptw_migration_runner.sh'):
+            script = (ROOT / 'scripts' / name).read_text()
+            self.assertIn('psql -h 127.0.0.1', script)
+            self.assertIn("-qAtc 'SELECT 1'", script)
+            self.assertNotIn('pg_isready', script)
+
+    def test_host_helpers_stay_on_accepted_release_before_acceptance(self):
+        receiver = (ROOT / 'scripts/receive_ptw_mobile_release.sh').read_text()
+        deployer = (ROOT / 'scripts/deploy_ptw_selective.sh').read_text()
+        configuration = (ROOT / 'scripts/apply_ptw_release_configuration.sh').read_text()
+        self.assertIn('"$PTW_TRUSTED_RELEASE_ROOT/skills/ptw-owner-console-incident/scripts/audit_live_owner_console.py"', receiver)
+        self.assertIn('-c core.hooksPath=/dev/null merge --ff-only', receiver)
+        for helper in ('prepare_commander_god_workspace.sh', 'audit_ptw_1gb.sh', 'send_ptw_bot_canary.py'):
+            self.assertIn('${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/' + helper, deployer)
+        self.assertIn('${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/install_ptw_skill_sync.sh', configuration)
+
     def test_release_planner_limits_builds_to_affected_components(self) -> None:
         spec = importlib.util.spec_from_file_location(
             "release_plan", ROOT / "scripts/plan_ptw_release.py"

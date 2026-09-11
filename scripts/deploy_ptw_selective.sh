@@ -277,7 +277,7 @@ if [[ $pending_migrations == 1 ]]; then
     snapshot_authority > "$before"
 fi
 
-"$repository/scripts/prepare_commander_god_workspace.sh" "$git_revision"
+"${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/prepare_commander_god_workspace.sh" "$git_revision"
 [[ -z $restart_components ]] || cutover_started=1
 if selected "$restart_components" platform; then
     "${platform_compose[@]}" up -d --no-deps --no-build --wait codex-auth commander-api
@@ -314,14 +314,14 @@ if [[ $snapshot_ready -eq 1 ]]; then
     cmp -s "$before" "$after" || { echo "Commander authority changed during fast rollout" >&2; exit 1; }
 fi
 if selected "$restart_components" platform; then
-    "$repository/skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh" </dev/null
+    "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh" </dev/null
 else
-    "$repository/skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh" --quick </dev/null
+    "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh" --quick </dev/null
 fi
-PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/audit_ptw_1gb.sh" </dev/null
+PTW_MAINTENANCE_LOCK_HELD=1 "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/audit_ptw_1gb.sh" </dev/null
 (set -a; . "$platform/.env"; . "$repository/.env.commander"; \
   . "$repository/.env.owner-gateway"; set +a; \
-  python3 "$repository/scripts/send_ptw_bot_canary.py" --read-only)
+  python3 "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/send_ptw_bot_canary.py" --read-only)
 stage_complete "audits"
 
 for service in ptw-commander-api-1 ptw-validation-validation-api-1 ptw-owner-gateway-1 \

@@ -111,7 +111,7 @@ rollback_release() {
 }
 trap rollback_release EXIT
 trap 'exit 1' HUP INT TERM
-git -C "$repository" merge --ff-only "$revision"
+git -C "$repository" -c core.hooksPath=/dev/null merge --ff-only "$revision"
 platform_revision=$(git -C "$platform" rev-parse HEAD)
 export PTW_MAINTENANCE_LOCK_HELD=1
 export PTW_MIGRATIONS_AUTHORIZED=1
@@ -149,7 +149,7 @@ PY
 record_progress hosting
 deploy_hosting public-landings "$web_public_landings" public-dist
 deploy_hosting owner-console "$web_owner_console" owner-dist
-python3 "$repository/skills/ptw-owner-console-incident/scripts/audit_live_owner_console.py"
+python3 "$PTW_TRUSTED_RELEASE_ROOT/skills/ptw-owner-console-incident/scripts/audit_live_owner_console.py"
 record_progress infrastructure
 "$PTW_TRUSTED_RELEASE_ROOT/scripts/apply_ptw_release_configuration.sh" "$repository"
 revision_state=$(mktemp "$repository/.local/deployed-revision.next.XXXXXX")

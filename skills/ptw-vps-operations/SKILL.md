@@ -23,6 +23,16 @@ when hot reload is unavailable. The independent platform worktree may differ
 only by the exact host block generated from the accepted PTW fragment; reject
 all other tracked modifications. Recovery must support the same restart path.
 
+Keep every host-executed release helper and audit anchored to the accepted
+release archive, including nested helpers and skill installation. Disable Git
+hooks during privileged cutover/recovery; installing a candidate script is not
+permission to execute it before acceptance. Resolve hosted synchronization from
+the accepted commit SHA, not a local branch name that may lag a detached rollout.
+
+Disposable PostgreSQL tests must wait for a successful target-database query
+over TCP. `pg_isready` can succeed against the temporary initialization server
+before the requested database exists; that is not migration-test readiness.
+
 1. Read current state and the applicable operations route. Inspect both
    worktrees, exact image tags, containers, memory/swap, disk, database,
    bridge, Firebase, Pexels, and emergency-stop readiness without printing

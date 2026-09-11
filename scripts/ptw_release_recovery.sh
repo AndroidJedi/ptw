@@ -26,7 +26,7 @@ elif [[ $action == restore ]]; then
     old_revision=$(<"$directory/revision")
     current_revision=$(git -C "$repository" rev-parse HEAD)
     if [[ $current_revision != "$old_revision" ]]; then
-        git -C "$repository" switch --detach "$old_revision"
+        git -C "$repository" -c core.hooksPath=/dev/null switch --detach "$old_revision"
     fi
     cp -p "$directory/commander.env" "$repository/.env.commander"
     cp -p "$directory/gateway.env" "$repository/.env.owner-gateway"

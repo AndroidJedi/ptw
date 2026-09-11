@@ -5,7 +5,7 @@ repository=${1:?repository required}
 # Installed helpers must be updated as well as the repository copy. Existing
 # SSH authorization and private credentials are deliberately not rewritten.
 install -o root -g root -m 0755 "$repository/scripts/receive_ptw_mobile_release.sh" /usr/local/libexec/ptw-mobile-release
-"$repository/scripts/install_ptw_skill_sync.sh"
+(cd "$repository"; "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/install_ptw_skill_sync.sh")
 if [[ -f /opt/ptw/platform/infrastructure/caddy/Caddyfile ]]; then
     changed=$(python3 "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/ptw_caddy_configuration.py" apply --repository "$repository")
     if [[ $changed == changed ]]; then

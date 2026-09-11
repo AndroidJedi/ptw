@@ -33,7 +33,9 @@ elif [[ $action == restore ]]; then
     (
         cd "$repository"
         "${PTW_TRUSTED_RELEASE_ROOT:-$directory}/scripts/install_ptw_skill_sync.sh"
-        python3 "${PTW_TRUSTED_RELEASE_ROOT:-$directory}/scripts/verify_ptw_skills.py"
+        # The verifier resolves the canonical repository from its own path, so
+        # execute the restored accepted copy rather than the archived snapshot.
+        python3 "$repository/scripts/verify_ptw_skills.py"
     )
     cp -p "$directory/commander.env" "$repository/.env.commander"
     cp -p "$directory/gateway.env" "$repository/.env.owner-gateway"

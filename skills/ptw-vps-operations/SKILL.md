@@ -18,7 +18,9 @@ into a complete compatible release, read
 
 Recovery Git checkouts can reset group-write permissions on changed skill
 files. After restoring the accepted source, explicitly run the accepted skill
-sync installer and verifier before restarting its services. Keep candidate Git
+sync installer and the verifier from the restored live repository before
+restarting its services. The verifier derives its repository root from its own
+path, so never execute its archived recovery-snapshot copy. Keep candidate Git
 hooks disabled; a healthy container alone does not verify the mounted skill view.
 Keep hosted checkout history complete. A depth-one refresh at an unaccepted
 candidate hides its accepted ancestor after rollback and prevents safe release

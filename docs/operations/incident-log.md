@@ -43,6 +43,18 @@ clean merge and will be frozen only against the newly accepted production base.
 The combined web checks and all 21 focused Commander/Phone Metrics browser
 flows pass. Owner cache v9 forces installed consoles to pick up the final UI.
 
+The following combined release passed every CI gate and reached healthy service
+cutover, but its GitHub publish job was externally cancelled while the receiver
+was active. Termination correctly entered recovery, but the new permission
+check invoked the verifier from the archived snapshot; because that directory
+is not a Git worktree, verification stopped before restoring images and Hosting.
+The retained snapshot was intact. A bounded recovery first proved both index
+and worktree exactly matched accepted revision `96abe02`, moved only the
+detached HEAD reference to that already-present tree, then restored and verified
+all prior images and Hosting. The recovery helper now invokes the verifier from
+the restored accepted repository, with a regression. No data or credential was
+changed.
+
 ## 2026-09-11 — LPV rollout rejected by media enhancement canary
 
 The first preserving rollout of the Meta landing-page-view automation passed

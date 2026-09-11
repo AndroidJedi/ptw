@@ -14,7 +14,7 @@ class ReleaseStreamContractTests(unittest.TestCase):
         restore = recovery.split('elif [[ $action == restore ]]; then', 1)[1]
         switch = restore.index('-c core.hooksPath=/dev/null switch --detach')
         repair = restore.index('${PTW_TRUSTED_RELEASE_ROOT:-$directory}/scripts/install_ptw_skill_sync.sh')
-        verify = restore.index('${PTW_TRUSTED_RELEASE_ROOT:-$directory}/scripts/verify_ptw_skills.py')
+        verify = restore.index('python3 "$repository/scripts/verify_ptw_skills.py"')
         restart = restore.index('"${commander[@]}" up')
         self.assertLess(switch, repair)
         self.assertLess(repair, verify)

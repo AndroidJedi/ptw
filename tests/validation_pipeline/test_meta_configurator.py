@@ -23,6 +23,7 @@ class MetaConfiguratorTests(unittest.TestCase):
 import json, os, pathlib, sys
 args = sys.argv[1:]
 assert '--config' in args and sys.stdin.read().startswith('oauth2-bearer = "')
+assert '--globoff' in args
 assert args[-1].endswith('/me/accounts?fields=id,name,instagram_business_account{{id,username}}&limit=100')
 pathlib.Path(args[args.index('--output')+1]).write_text(json.dumps({{'data':[{{'id':'456','name':'Example','instagram_business_account': {{'id':'789','username':'example'}}}}]}}))
 ''')

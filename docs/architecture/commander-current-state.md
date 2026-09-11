@@ -9,6 +9,16 @@ three provider services remain on `god-mode-sandbox-20260910-faf77f9`. Schema
 005 and both web sites are live with Owner cache v7. Meta credentials remain
 unconfigured.
 
+The first live Page-discovery correction exposed a second configurator defect:
+curl expanded Meta's nested `{id,username}` field expression and therefore
+discarded the linked Instagram object even after matching the correct Page.
+The follow-up candidate disables curl URL globbing and adds a regression at the
+actual command boundary. The failed hidden-prompt attempt wrote no secret; the
+existing token and Meta assignments remain valid. All 231 Validation tests, 24
+Commander checks plus the demo, canonical skill validation, shell syntax,
+compilation, and whitespace checks pass. Both configurator tests also pass in
+the actual Linux/amd64 Validation candidate image.
+
 ## Meta system-user Page discovery fix — live, awaiting credential entry
 
 A fresh Meta system-user token can list the assigned Natal Service Page and its

@@ -55,7 +55,7 @@ trap cleanup EXIT INT TERM
 graph_get() {
   local url=$1 destination=$2
   if ! printf 'oauth2-bearer = "%s"\n' "$access_token" | curl \
-    --config - --proto '=https' --tlsv1.2 --silent --show-error --fail \
+    --config - --globoff --proto '=https' --tlsv1.2 --silent --show-error --fail \
     --connect-timeout 10 --max-time 30 --output "$destination" "$url"
   then
     echo "Meta asset verification failed. Recheck token permissions and assigned assets." >&2

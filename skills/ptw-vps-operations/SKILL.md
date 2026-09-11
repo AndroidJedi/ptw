@@ -272,6 +272,11 @@ action, and bounded technical context without raw provider/5xx output.
   response, match the exact Page ID and Instagram username, and require
   `pages_show_list` alongside the publishing permissions. Never record the token
   or opaque paging cursors.
+- Keep curl URL globbing disabled for Meta Graph queries containing nested field
+  expressions such as `instagram_business_account{id,username}`. Without
+  `--globoff`, curl expands the braces into multiple malformed field requests;
+  the Page can still appear while the linked Instagram object disappears,
+  falsely reporting that a valid assigned account is not linked.
 - Expose only the bounded opaque temporary JPEG route, never Studio files or
   metadata. Disable HTTP access logs that could retain bearer media URLs. Test
   expiry after completion and timeout through Gateway and Validation.

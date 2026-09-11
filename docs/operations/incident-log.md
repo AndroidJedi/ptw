@@ -2,6 +2,21 @@
 
 Updated: 2026-09-11
 
+## 2026-09-11 — Curl expanded Meta nested fields after Page discovery rollout
+
+The first Page-discovery correction still reported that the professional
+Instagram account was not linked. The Page match had succeeded, so the failure
+was narrower than token or assignment validity: curl interpreted Meta's nested
+`instagram_business_account{id,username}` field expression as URL glob syntax
+and issued expanded requests. Those responses retained the Page but omitted the
+linked-account object. The configurator now disables curl URL globbing, and its
+network-boundary regression requires that option. No secret was written by the
+failed attempt, and the owner does not need another token or Meta configuration
+change. All 231 Validation tests, 24 Commander checks plus the demo, canonical
+skill validation, shell syntax, compilation, and whitespace checks pass. Both
+configurator tests also pass in the actual Linux/amd64 Validation candidate
+image.
+
 ## 2026-09-11 — Valid Meta system-user token failed organic Instagram setup
 
 The owner generated a fresh Meta system-user token after assigning the Natal

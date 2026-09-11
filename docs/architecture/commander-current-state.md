@@ -4,18 +4,18 @@ Updated: 2026-09-11
 Branch: `main`
 Deployment: all eight application services are healthy. Owner Gateway, hosted
 GOD, and the release controller run `god-images-20260910-8da8e21`;
-Validation now runs `studio-preview-20260910-ce8706f`, while Commander and the
+Validation now runs `meta-page-discovery-20260911-3dee45b`, while Commander and the
 three provider services remain on `god-mode-sandbox-20260910-faf77f9`. Schema
 005 and both web sites are live with Owner cache v7. Meta credentials remain
 unconfigured.
 
-## Meta system-user Page discovery fix — candidate
+## Meta system-user Page discovery fix — live, awaiting credential entry
 
 A fresh Meta system-user token can list the assigned Natal Service Page and its
-linked professional Instagram account through `/me/accounts`, but the deployed
-organic configurator follows with a direct Page read that Meta rejects with
-HTTP 400. The old example Page ID was also stale. A narrow candidate now uses
-the successful discovery boundary for configuration and runtime verification,
+linked professional Instagram account through `/me/accounts`, but the previous
+organic configurator followed with a direct Page read that Meta rejects with
+HTTP 400. The old example Page ID was also stale. The live fix uses the
+successful discovery boundary for configuration and runtime verification,
 requires `pages_show_list`, and records the current Page ID without storing any
 token or paging cursor. All 231 Validation tests, 24 local Commander checks plus
 the demo, canonical skill validation, shell syntax, compilation, and whitespace
@@ -23,8 +23,10 @@ checks pass. The actual Validation candidate image passes all 11 Instagram
 publication tests and both configurator tests. The generic Commander image
 passes 23 of 24 checks; its sole git-dependent planner check cannot run because
 that older image lacks `git`, while the same check passes locally. Production
-remains unchanged and the secret file is absent until the explicitly authorized
-preserving rollout completes.
+was released through the preserving path at revision `3dee45b`; only Validation
+restarted, all release canaries and audits passed, and the approved asset and
+database checks remained intact. The production secret file is still absent by
+design because only the owner can enter the Meta token through the hidden prompt.
 
 ## Studio manual preview and optional CTA — live
 

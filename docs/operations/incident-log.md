@@ -28,9 +28,10 @@ and whitespace checks pass. The actual Validation candidate image passes all 11
 Instagram publication tests and both configurator tests. The generic Commander
 image passes 23 of 24 checks; its sole git-dependent planner check cannot run
 because that older image lacks `git`, while the same check passes locally.
-Production remains unconfigured until this candidate is deployed through the
-preserving path and the owner reruns the hidden prompt; no reset or database
-mutation is involved.
+The preserving release completed at revision `3dee45b`; only Validation
+restarted, and all canaries, audits, approved-asset checks, and database checks
+passed. Production remains unconfigured until the owner reruns the hidden
+prompt; no reset or database mutation is involved.
 
 ## 2026-09-10 — Studio draft validation hid the last successful preview
 

@@ -9,7 +9,7 @@ three provider services remain on `god-mode-sandbox-20260910-faf77f9`. Schema
 005 and both web sites are live with Owner cache v7. Meta credentials are loaded,
 and the organic Instagram connection is verified live.
 
-## Natal Meta Pixel measurement — implemented, pending preserving release
+## Natal Meta Pixel measurement — live and verified
 
 The dedicated public Landing shell now covers the apex and every `ai|la|wa`
 route with one Meta Pixel integration. Pixel `1056720310312959` is owned by the
@@ -25,7 +25,13 @@ API boundary.
 Verification passes eight public-shell unit tests, the production TypeScript/
 Vite build with bundle markers for the exact Pixel ID and library, and all 20
 desktop/tablet/mobile WebKit browser flows. The browser acceptance proves zero
-Meta requests before consent and an external Meta request after Allow.
+Meta requests before consent and an external Meta request after Allow. Preserving
+release `4bf3c92` changed no application container, retained every health and
+authority check, and published Firebase public-Landing version
+`7daa02c978069292`. The apex audit and real headless-browser checks passed on
+both `/` and `/la/natal-service`: each sent zero pre-consent Meta requests, then
+loaded the exact Pixel and contacted Meta after Allow. The Pixel remains listed
+under production Ad Account `509909256695612` without exposing its token.
 
 After the corrected helper saved the production secret, the live connection
 still reported `configured: false`. The host directory/file use the intended

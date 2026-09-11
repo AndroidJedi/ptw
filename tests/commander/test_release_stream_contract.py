@@ -152,6 +152,10 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn('-o ServerAliveInterval=15', publisher)
         self.assertIn('-o ServerAliveCountMax=40', publisher)
         self.assertIn('-o TCPKeepAlive=yes', publisher)
+        self.assertIn('while sleep 20; do', publisher)
+        self.assertIn('echo "PTW release transport is still active" >&2', publisher)
+        self.assertIn('stop_transport_heartbeat', publisher)
+        self.assertIn('[[ $publish_status -eq 0 ]] || exit "$publish_status"', publisher)
         self.assertIn("receive_ptw_preserving_release.sh", receiver)
         self.assertIn("PTW_MAINTENANCE_LOCK_HELD=1", receiver)
         self.assertIn(

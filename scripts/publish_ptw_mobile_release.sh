@@ -81,7 +81,22 @@ emit_web() {
     fi
 }
 
-{
+transport_heartbeat_pid=
+stop_transport_heartbeat() {
+    if [[ -n ${transport_heartbeat_pid:-} ]]; then
+        kill "$transport_heartbeat_pid" 2>/dev/null || true
+        wait "$transport_heartbeat_pid" 2>/dev/null || true
+        transport_heartbeat_pid=
+    fi
+}
+trap stop_transport_heartbeat EXIT
+(
+    while sleep 20; do
+        echo "PTW release transport is still active" >&2
+    done
+) &
+transport_heartbeat_pid=$!
+if {
     printf 'PTW-MOBILE-RELEASE 2 %s %s %s\n' "$release_tag" "$revision" "$branch"
     emit_web owner-console owner-console.tar.gz
     emit_web public-landings public-landings.tar.gz
@@ -99,6 +114,13 @@ emit_web() {
 } | ssh -i "$PTW_MOBILE_DEPLOY_SSH_KEY" -o IdentitiesOnly=yes \
     -o UserKnownHostsFile="$PTW_MOBILE_DEPLOY_KNOWN_HOSTS" -o StrictHostKeyChecking=yes \
     -o ServerAliveInterval=15 -o ServerAliveCountMax=40 -o TCPKeepAlive=yes \
-    ptw-release@165.245.212.184
+    ptw-release@165.245.212.184; then
+    publish_status=0
+else
+    publish_status=$?
+fi
+stop_transport_heartbeat
+trap - EXIT
+[[ $publish_status -eq 0 ]] || exit "$publish_status"
 
 echo "Mobile preserving release $release_tag completed"

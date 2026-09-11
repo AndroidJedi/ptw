@@ -98,6 +98,10 @@ before the requested database exists; that is not migration-test readiness.
    media canary with a harmless 20-second progress heartbeat, preserve its exact
    exit status, and stop/reap the heartbeat afterward. Never print prompts,
    provider output, tokens, or credentials as heartbeat data.
+   Candidate-side release helpers cannot protect the rollout that installs
+   them because pre-acceptance execution remains pinned to accepted helpers.
+   The CI publisher must also emit a fixed local 20-second heartbeat around the
+   complete SSH stream and propagate the pipeline's exact status.
 
 ## Production contract
 

@@ -82,6 +82,15 @@ images and Hosting. The selective deployer now emits only a fixed, non-sensitive
 20-second progress line while the unchanged structured/media canary runs,
 propagates its exact exit status, and stops/reaps the heartbeat afterward.
 
+That candidate-side heartbeat could not protect its own first rollout because
+the preserving receiver correctly executes deployment machinery from the last
+accepted revision until acceptance. Its rollout therefore reached the final
+media enhancement job and the outer SSH channel again broke at five minutes;
+bounded recovery restored revision `96abe02` and prior images/Hosting. The CI
+publisher now emits the same fixed 20-second heartbeat locally for the entire
+SSH transport, independently of which accepted receiver version is running,
+and still propagates the SSH pipeline's exact failure status.
+
 ## 2026-09-11 — LPV rollout rejected by media enhancement canary
 
 The first preserving rollout of the Meta landing-page-view automation passed

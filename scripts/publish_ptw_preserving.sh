@@ -146,7 +146,7 @@ publish_started=$(date +%s)
     emit_artifact FILE release-plan "$plan"
     printf 'END\n'
 } | ssh -i "$HOME/.ssh/ptw_commander" -o IdentitiesOnly=yes root@165.245.212.184 \
-    "set -e; exec 9>/run/lock/ptw-maintenance.lock; flock -n 9 || exit 73; git -C /root/ptw diff --quiet; git -C /root/ptw diff --cached --quiet; export PTW_MAINTENANCE_LOCK_HELD=1; git -C /root/ptw fetch origin '$revision'; git -C /root/ptw merge --ff-only '$revision'; exec /root/ptw/scripts/receive_ptw_preserving_release.sh '$release_tag' '$revision' '$platform_revision'"
+    "set -e; exec 9>/run/lock/ptw-maintenance.lock; flock -n 9 || exit 73; exec 8>>/opt/ptw/commander-workspace/.git/ptw-commander-operation.lock; flock -n 8 || exit 73; git -C /root/ptw diff --quiet; git -C /root/ptw diff --cached --quiet; export PTW_MAINTENANCE_LOCK_HELD=1; git -C /root/ptw fetch origin '$revision'; git -C /root/ptw merge --ff-only '$revision'; exec /root/ptw/scripts/receive_ptw_preserving_release.sh '$release_tag' '$revision' '$platform_revision'"
 
 if [[ $owner_web == 1 ]]; then
     npm --prefix apps/commander-web run check

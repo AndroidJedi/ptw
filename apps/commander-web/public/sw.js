@@ -1,4 +1,4 @@
-const CACHE = 'ptw-shell-brief-studio-landing-ads-v8'
+const CACHE = 'ptw-shell-brief-studio-landing-ads-v9'
 const CACHE_PREFIX = 'ptw-shell-'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/ptw.svg']
 

@@ -35,6 +35,14 @@ after refresh, complete fresh clones and preservation of unfinished owner edits.
 All nine fresh structured/media canaries subsequently passed as jobs 719–727;
 no authorization change or provider-code change was required.
 
+The next chat release passed every CI gate but was rejected before rollout by
+the maintenance lock while a separate owner-directed Meta LPV release was in
+progress. Its artifact verification passed; exit 73 applied no source or data
+changes. The Commander candidate now preserves that parallel source through a
+clean merge and will be frozen only against the newly accepted production base.
+The combined web checks and all 21 focused Commander/Phone Metrics browser
+flows pass. Owner cache v9 forces installed consoles to pick up the final UI.
+
 ## 2026-09-11 — Saved Meta secret was unreadable inside Validation
 
 After the hidden-prompt configurator succeeded, a Validation restart still

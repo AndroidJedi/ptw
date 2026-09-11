@@ -28,8 +28,12 @@ checkout. Hosted preparation now retains full Git ancestry so a rollback cannot
 block the next Deploy by hiding the accepted base. These guards have focused
 regressions, with 38 Commander tests (container-only cases run separately).
 Combined candidate checks pass
-246 Validation tests, 95 web unit tests, 13 Gateway tests, all affected Phone
+248 Validation tests, 95 web unit tests, 13 Gateway tests, all affected Phone
 Metrics and Commander browser flows, and the authoritative Studio visual audit.
+The next full CI run passed but its publisher was rejected by the maintenance
+lock during a parallel Meta LPV rollout, before any Commander cutover. The clean
+combined source preserves that update; 21 focused browser flows pass, and Owner
+cache v9 is prepared. Wait for the other accepted revision before freezing again.
 
 The owner-authorized redesign is published through the preserving operations
 release. Live model discovery and the public web audit pass; hosted dialogue and

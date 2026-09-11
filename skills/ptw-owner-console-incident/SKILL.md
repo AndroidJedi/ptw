@@ -26,8 +26,11 @@ before changing code or runtime state.
   DENY`. Google Identity/reCAPTCHA response policies are third-party diagnostics
   and cannot be repaired by weakening PTW's enforcing policy.
 - The app exposes only Brief / Бриф, Post / Допис, Landing / Лендінг,
-  Ads / Реклама, and Settings. Brief, Post, and Landing retain their required Project scope;
+  Ads / Реклама, Commander, and Settings. Brief, Post, and Landing retain their required Project scope;
   every Studio mutation is Project/creative-scoped.
+- Commander is a dedicated, Project-independent workspace. When its UI changes,
+  update live bundle acceptance markers with the visible conversation, native
+  mode controls, and steering contract; retired labels are not readiness checks.
 - Preview, history, and immutable-version renders are authenticated,
   digest-checked, and private/no-store. The browser receives no provider path,
   prompt credential, database secret, or raw token.

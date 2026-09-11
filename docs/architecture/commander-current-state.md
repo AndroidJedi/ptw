@@ -2,17 +2,17 @@
 
 Updated: 2026-09-11
 Branch: `main`
-Deployment: all eight application services are healthy. Owner Gateway, hosted
-GOD, and the release controller run `god-images-20260910-8da8e21`;
-Validation now runs `meta-secret-gid-20260911-84dfd6a`, while Commander and the
-three provider services remain on `god-mode-sandbox-20260910-faf77f9`. Schema
-005 and both web sites are live with Owner cache v7. Meta credentials are loaded,
+Deployment: the unified workspace bootstrap is live. Owner Gateway, Validation,
+hosted GOD, Plan and the release controller use the verified workspace images;
+Commander and the three provider services retain their compatible images. Schema
+005 and both web sites are live with Owner cache v8. Meta credentials are loaded,
 and the organic Instagram connection is verified live.
 
-## Unified Commander workspace — implementation candidate
+## Unified Commander workspace — bootstrap live, conversation acceptance pending
 
-The owner-authorized redesign is implemented locally, awaiting production
-bootstrap and live acceptance. Commander has its own route and navigation,
+The owner-authorized redesign is published through the preserving operations
+release. Live model discovery and the public web audit pass; hosted dialogue and
+chat-initiated release acceptance remain next. Commander has its own route and navigation,
 Markdown timeline, history drawer, reply targets, persistent drafts, inline
 questions and a composer with native Plan/Build, runtime models and efforts.
 Send steers active work; UUID reconciliation handles retries and completion

@@ -33,13 +33,17 @@ printf '%s\\n' restored > /root/ptw/.local/recovery-result
 ''',
             "receive_ptw_preserving_release.sh": '''#!/bin/bash
 set -eu
+IFS= read -r header
+[[ $header == 'PTW-PRESERVING-STREAM 1' ]]
+IFS= read -r payload
+[[ $payload == 'artifact-stream-sentinel' ]]
 printf '%s\\n' cutover > /root/ptw/.local/cutover
 [[ ${PTW_TEST_FAILURE:-} != application && ${PTW_TEST_FAILURE:-} != recovery ]]
 ''',
             "apply_ptw_release_configuration.sh": '''#!/bin/bash
 [[ ${PTW_TEST_FAILURE:-} != infrastructure ]]
 ''',
-            "verify_ptw_migration_inventory.py": "print('Simulated migration inventory accepted')\n",
+            "verify_ptw_migration_inventory.py": "import sys\nassert sys.stdin.read() == '', 'Inventory helper consumed the artifact stream'\nprint('Simulated migration inventory accepted')\n",
         }
         for name, content in helpers.items():
             path = self.repo / "scripts" / name
@@ -81,7 +85,7 @@ printf '%s\\n' cutover > /root/ptw/.local/cutover
 
     def run_release(self, failure=""):
         revision = "a" * 40 if failure == "before" else self.candidate
-        payload = f"PTW-MOBILE-RELEASE 2 god-mobile-20260911-{revision[:12]} {revision} god-deploy/{self.identifier}\nREUSE owner-console\nREUSE public-landings\n"
+        payload = f"PTW-MOBILE-RELEASE 2 god-mobile-20260911-{revision[:12]} {revision} god-deploy/{self.identifier}\nREUSE owner-console\nREUSE public-landings\nPTW-PRESERVING-STREAM 1\nartifact-stream-sentinel\n"
         return subprocess.run(["bash", str(self.source / "scripts/receive_ptw_mobile_release.sh")], input=payload, text=True,
             env={**os.environ, "PTW_TEST_FAILURE": failure}, capture_output=True, timeout=30)
 

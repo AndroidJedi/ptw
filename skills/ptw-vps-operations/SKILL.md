@@ -16,6 +16,13 @@ into a complete compatible release, read
 
 ## Start safely
 
+When a wrapper receives Hosting followed by a binary image stream, reserve the
+unread stream on a separate descriptor and give intervening Git/Docker/database
+helpers `/dev/null` as stdin. Docker `exec -i` can consume a pipe even when its
+command uses `psql -c`. Only the nested stream receiver gets the reserved input.
+Acceptance must include a helper that deliberately reads stdin and a downstream
+receiver that checks the exact preserved header and payload.
+
 The existing Caddy host may be named `{$COMMANDER_PUBLIC_HOST}` and its admin
 endpoint is disabled. Only activate a changed PTW host fragment, preserve the
 shared security-header import and unrelated routes, and use validated restart

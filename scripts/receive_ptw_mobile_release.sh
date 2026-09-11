@@ -49,6 +49,11 @@ PY
 receive_web owner-console
 receive_web public-landings
 
+# Preserve the remaining binary stream while Git, Docker and inventory helpers
+# run. Interactive subprocess clients otherwise consume their inherited stdin.
+exec 7<&0
+exec 0</dev/null
+
 repository=/root/ptw
 platform=/opt/ptw/platform
 exec 9>/run/lock/ptw-maintenance.lock
@@ -117,7 +122,8 @@ export PTW_MAINTENANCE_LOCK_HELD=1
 export PTW_MIGRATIONS_AUTHORIZED=1
 python3 "$PTW_TRUSTED_RELEASE_ROOT/scripts/verify_ptw_migration_inventory.py" --repository "$repository" --base "$deployed_revision"
 record_progress application
-"$PTW_TRUSTED_RELEASE_ROOT/scripts/receive_ptw_preserving_release.sh" "$release_tag" "$revision" "$platform_revision"
+"$PTW_TRUSTED_RELEASE_ROOT/scripts/receive_ptw_preserving_release.sh" "$release_tag" "$revision" "$platform_revision" <&7 7<&-
+exec 7<&-
 
 deploy_hosting() {
     local target=$1

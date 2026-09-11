@@ -5,6 +5,18 @@ have separate **Publish to Instagram** and **Create Instagram ad** actions.
 An organic image's drawn CTA is not a native clickable website button. The
 website ad configures a separate Meta **Learn more** button.
 
+## Public Landing measurement
+
+`natal-service.com` uses one Ad Account-owned Meta Pixel from the shared public
+Landing shell, so the apex and every published `ai|la|wa` route have the same
+measurement boundary. The Pixel ID is public configuration, never part of the
+system-user token secret. Meta's browser library and `PageView` event are loaded
+only after the visitor explicitly allows analytics; rejection is persisted
+locally and sends no request to Meta. Keep Firebase Hosting CSP, production
+bundle verification, and desktop/mobile browser tests synchronized with this
+boundary. Individual Landing records and immutable versions must not acquire
+analytics fields.
+
 ## Approved sources and export
 
 Both workflows consume exact immutable approved Post versions, with the selected

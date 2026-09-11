@@ -42,6 +42,19 @@ test('renders the umbrella with no directory or CTA', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Natal' })).toBeVisible()
   await expect(page.getByText('Digital products and services by Natal.')).toBeVisible()
   await expect(page.getByRole('link')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Allow' })).toBeVisible()
+})
+
+test('does not contact Meta before consent and loads the Pixel after consent', async ({ page }) => {
+  let metaRequests = 0
+  await page.route(/https:\/\/(connect\.facebook\.net|www\.facebook\.com)\/.*/, async route => {
+    metaRequests += 1
+    await route.fulfill({ status: 204, body: '' })
+  })
+  await page.goto('/')
+  expect(metaRequests).toBe(0)
+  await page.getByRole('button', { name: 'Allow' }).click()
+  await expect.poll(() => metaRequests).toBeGreaterThan(0)
 })
 
 test('renders the exact shared Landing composition responsively', async ({ page }) => {

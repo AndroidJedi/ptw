@@ -9,6 +9,24 @@ three provider services remain on `god-mode-sandbox-20260910-faf77f9`. Schema
 005 and both web sites are live with Owner cache v7. Meta credentials are loaded,
 and the organic Instagram connection is verified live.
 
+## Natal Meta Pixel measurement — implemented, pending preserving release
+
+The dedicated public Landing shell now covers the apex and every `ai|la|wa`
+route with one Meta Pixel integration. Pixel `1056720310312959` is owned by the
+production UAH Ad Account and named `Natal Service Website`. The browser makes
+no Meta request before an explicit visitor choice; Allow loads Meta's canonical
+browser library and records one `PageView` for the current route, while Reject
+persists the choice without initializing the Pixel. A fixed responsive consent
+panel covers the English umbrella and uses the published Landing language when
+available. The public Firebase CSP permits only the required Meta script,
+measurement image, and connection origins in addition to the existing public
+API boundary.
+
+Verification passes eight public-shell unit tests, the production TypeScript/
+Vite build with bundle markers for the exact Pixel ID and library, and all 20
+desktop/tablet/mobile WebKit browser flows. The browser acceptance proves zero
+Meta requests before consent and an external Meta request after Allow.
+
 After the corrected helper saved the production secret, the live connection
 still reported `configured: false`. The host directory/file use the intended
 GID 10001 and restrictive modes, but the Validation image assigned its service
@@ -462,8 +480,9 @@ append-only event points to an exact approved immutable Landing version.
 Republish atomically switches the stable URL, an older event is the rollback
 path, and Unpublish preserves the reservation while public reads return 404.
 The public snapshot/asset API exposes no internal IDs, provenance, history,
-learning data, or unselected assets. It has no lead handling, forms, analytics,
-cookies, directory, or Post-skill influence.
+learning data, or unselected assets. It has no lead handling, forms, directory,
+or Post-skill influence. The shared public shell has one consent-gated Meta
+Pixel; individual Landing snapshots do not carry analytics configuration.
 
 The dedicated `apps/landing-web` Firebase SPA imports the exact Landing renderer
 in non-editing mode. Its English `/` umbrella contains no links or CTA;

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { PublicLanding } from './PublicApp'
 import { PublicApp } from './PublicApp'
@@ -33,6 +33,27 @@ it('renders the English-only umbrella without a directory or CTA', () => {
   expect(screen.getByRole('heading', { name: 'Natal' })).toBeVisible()
   expect(screen.getByText('Digital products and services by Natal.')).toBeVisible()
   expect(screen.queryByRole('link')).not.toBeInTheDocument()
+})
+
+it('loads Meta Pixel only after explicit consent and tracks the current route once', () => {
+  render(<PublicApp path="/" apiOrigin="" />)
+  expect(document.querySelector('script[data-meta-pixel]')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+  const script = document.querySelector('script[data-meta-pixel]')
+  expect(script).toHaveAttribute('src', 'https://connect.facebook.net/en_US/fbevents.js')
+  expect(script).toHaveAttribute('data-meta-pixel', '1056720310312959')
+  expect(window.fbq?.queue).toEqual([
+    ['init', '1056720310312959'],
+    ['track', 'PageView'],
+  ])
+})
+
+it('persists rejection without contacting Meta', () => {
+  render(<PublicApp path="/" apiOrigin="" />)
+  fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
+  expect(window.localStorage.getItem('natal_meta_pixel_consent_v1')).toBe('rejected')
+  expect(document.querySelector('script[data-meta-pixel]')).toBeNull()
+  expect(window.fbq).toBeUndefined()
 })
 
 it.each(['ai', 'la', 'wa'])('fetches and renders a published %s lane with the shared renderer', async lane => {

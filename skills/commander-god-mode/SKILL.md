@@ -130,3 +130,9 @@ Post, or Landing learning entities or cross their lesson namespaces.
   Restart/sync must reuse that container without replaying media_publish. Save
   the returned media ID before requesting its permalink. Exercise response loss,
   restart, duplicate input, account changes, and media expiry in regression tests.
+- Public Landing analytics belong to the single `apps/landing-web` shell, not
+  immutable Landing snapshots. A Meta Pixel ID is public configuration; keep
+  tokens out of the browser. Load the external library and emit `PageView` only
+  after an explicit persisted visitor choice, keep the Firebase CSP allowlist
+  narrow, and verify both zero pre-consent requests and post-consent loading in
+  desktop/mobile browser tests.

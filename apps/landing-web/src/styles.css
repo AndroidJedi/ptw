@@ -9,3 +9,15 @@ body { background: #fff; color: #111; font-family: Inter, system-ui, sans-serif;
 .natal-public-state a { margin-top: 10px; border-bottom: 1px solid currentColor; color: #111; text-decoration: none; }
 .natal-public-logo { width: 96px; height: auto; }
 .natal-public-home .natal-public-logo { width: 128px; }
+.natal-pixel-consent { position: fixed; z-index: 1000; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); left: max(16px, env(safe-area-inset-left)); display: flex; align-items: center; justify-content: space-between; gap: 20px; max-width: 760px; margin-left: auto; padding: 18px 20px; border: 1px solid #d9dee8; border-radius: 16px; background: #fff; box-shadow: 0 16px 48px rgb(20 31 51 / 20%); color: #182235; }
+.natal-pixel-consent strong { display: block; margin-bottom: 5px; font-size: 16px; }
+.natal-pixel-consent p { margin: 0; color: #526078; font-size: 14px; line-height: 1.45; }
+.natal-pixel-consent__actions { display: flex; flex: none; gap: 8px; }
+.natal-pixel-consent button { min-height: 42px; padding: 0 16px; border: 1px solid #cad2df; border-radius: 10px; background: #fff; color: #182235; font: inherit; font-weight: 700; cursor: pointer; }
+.natal-pixel-consent button:focus-visible { outline: 3px solid rgb(50 103 255 / 30%); outline-offset: 2px; }
+.natal-pixel-consent .natal-pixel-consent__accept { border-color: #3267ff; background: #3267ff; color: #fff; }
+@media (max-width: 600px) {
+  .natal-pixel-consent { align-items: stretch; flex-direction: column; gap: 14px; }
+  .natal-pixel-consent__actions { justify-content: stretch; }
+  .natal-pixel-consent button { flex: 1; }
+}

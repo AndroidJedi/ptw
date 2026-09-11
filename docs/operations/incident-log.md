@@ -43,6 +43,22 @@ clean merge and will be frozen only against the newly accepted production base.
 The combined web checks and all 21 focused Commander/Phone Metrics browser
 flows pass. Owner cache v9 forces installed consoles to pick up the final UI.
 
+## 2026-09-11 — LPV rollout rejected by media enhancement canary
+
+The first preserving rollout of the Meta landing-page-view automation passed
+preflight and started a healthy candidate Validation container, but the fresh
+external image-enhancement canary returned a bounded `failed` state. The tracked
+deployer rejected the release and restored the prior Validation image. The
+authoritative deployed revision remained unchanged and the restored container
+was healthy; no Meta campaign was created or activated. A single fresh full
+preserving retry is allowed only after that rollback proof, with the same
+provider canary retained as a release gate.
+
+The bounded retry subsequently passed all provider checks and was accepted at
+revision `96abe02`. Validation and the platform worker are healthy. Commander
+release work now uses that revision as its accepted base, preserving the LPV
+changes rather than overwriting them.
+
 ## 2026-09-11 — Saved Meta secret was unreadable inside Validation
 
 After the hidden-prompt configurator succeeded, a Validation restart still

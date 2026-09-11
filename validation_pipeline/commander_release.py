@@ -376,10 +376,14 @@ class CommanderReleaseService:
         except (OSError, subprocess.CalledProcessError):
             with self._db() as db:
                 db.execute(
-                    "UPDATE deployments SET status='failed',error_code='candidate_publish_failed',updated_at=? WHERE id=?",
+                    # A disconnected push can have succeeded remotely. Keep
+                    # its exact request revision reconcilable instead of
+                    # misreporting failure and permitting a second rollout.
+                    "UPDATE deployments SET status=CASE WHEN request_revision IS NOT NULL THEN 'preparing' ELSE 'failed' END,"
+                    "error_code=CASE WHEN request_revision IS NOT NULL THEN NULL ELSE 'candidate_publish_failed' END,updated_at=? WHERE id=?",
                     (now(), deployment_id),
                 )
-            raise RuntimeError("The release candidate could not be published") from None
+            raise RuntimeError("Candidate publication needs reconciliation; retry the same request") from None
         finally:
             self._preparing.discard(deployment_id)
         return self.detail()

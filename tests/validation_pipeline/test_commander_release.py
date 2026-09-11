@@ -102,6 +102,35 @@ class CommanderReleaseTests(unittest.TestCase):
         changed = subprocess.check_output(["git", "-C", self.repo, "diff", "--name-only", self.base, release["request_revision"]], text=True)
         self.assertEqual(".ptw-release-request.json\n", changed)
 
+    def test_disconnected_push_reconciles_the_same_durable_request(self):
+        (self.repo / "README.md").write_text("changed\n")
+        request = DeploymentRequest(request_id=uuid4())
+        original = self.service._git
+
+        def disconnected(*args, environment=None):
+            if args[0] == "push":
+                raise subprocess.CalledProcessError(128, "git push")
+            return original(*args, environment=environment)
+
+        with patch.object(self.service, "_git", side_effect=disconnected):
+            with self.assertRaisesRegex(RuntimeError, "reconciliation"):
+                self.service.create(request)
+        with self.service._db() as db:
+            row = db.execute("SELECT * FROM deployments").fetchone()
+        self.assertEqual("preparing", row["status"])
+
+        def reconnected(*args, environment=None):
+            if args[0] == "ls-remote":
+                return row["request_revision"] + "\trefs/heads/" + row["branch"]
+            return original(*args, environment=environment)
+
+        with patch.object(self.service, "_git", side_effect=reconnected), patch(
+            "validation_pipeline.commander_release.urlopen", return_value=Response({"workflow_runs": []}),
+        ):
+            resumed = self.service.create(request)["deployment"]
+        self.assertEqual(row["id"], resumed["id"])
+        self.assertEqual("queued", resumed["status"])
+
     def test_refresh_maps_public_workflow_result_without_exposing_logs(self):
         path = self.repo / "owner_gateway/change.py"
         path.parent.mkdir()

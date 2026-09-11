@@ -94,6 +94,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
   const [previewError, setPreviewError] = useState('')
   const [notice, setNotice] = useState('')
   const previewGeneration = useRef(0)
+  const heroTitleRef = useRef<HTMLTextAreaElement>(null)
   const supportingTextRef = useRef<HTMLTextAreaElement>(null)
   const hasCurrentPhoneScreen = detail.assets.some((asset) => (
     asset.slot === 'phone_screen' && asset.available && Boolean(asset.sha256)
@@ -334,15 +335,17 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       [role]: { ...current.typography[role], [key]: value },
     },
   }))
-  const markSupportingSelection = (marker: '**' | '==') => {
-    const field = supportingTextRef.current
+  const markSelection = (
+    key: 'hero_title' | 'supporting_text', field: HTMLTextAreaElement | null,
+    marker: '**' | '==', maximum: number,
+  ) => {
     if (!field) return
     const start = field.selectionStart
     const end = field.selectionEnd
-    if (field.value.length + marker.length * 2 > 220) return
+    if (field.value.length + marker.length * 2 > maximum) return
     setContent((current) => ({
       ...current,
-      supporting_text: `${current.supporting_text.slice(0, start)}${marker}${current.supporting_text.slice(start, end)}${marker}${current.supporting_text.slice(end)}`,
+      [key]: `${current[key].slice(0, start)}${marker}${current[key].slice(start, end)}${marker}${current[key].slice(end)}`,
     }))
     window.requestAnimationFrame(() => {
       field.focus()
@@ -394,20 +397,46 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             : tr('Eyebrow removed', 'Надзаголовок прибрано')}
           </span></label>
           {configuration.offer.enabled && <label><span>{tr('Eyebrow', 'Надзаголовок')}</span><input value={content.offer} maxLength={32} onChange={(event) => setContent({ ...content, offer: event.target.value })} /></label>}
-          <label><span>{tr('Headline', 'Заголовок')}</span><textarea rows={4} value={content.hero_title} maxLength={140} onChange={(event) => setContent({ ...content, hero_title: event.target.value })} /></label>
+          <div className="phone-rich-copy">
+            <label><span>{tr('Headline', 'Заголовок')}</span><textarea ref={heroTitleRef} aria-label={tr('Headline', 'Заголовок')} rows={4} value={content.hero_title} maxLength={140} onChange={(event) => setContent({ ...content, hero_title: event.target.value })} /></label>
+            <div className="phone-markup-toolbar" role="toolbar" aria-label={tr('Headline formatting', 'Форматування заголовка')}>
+              <button type="button" className="secondary" onClick={() => markSelection('hero_title', heroTitleRef.current, '**', 140)} aria-label={tr('Bold selected headline words', 'Виділити вибрані слова заголовка жирним')}><Bold /></button>
+              <button type="button" className="secondary" onClick={() => markSelection('hero_title', heroTitleRef.current, '==', 140)} aria-label={tr('Colour selected headline words', 'Підсвітити вибрані слова заголовка кольором')}><Highlighter /></button>
+              <small>{tr('Select words, then use bold or colour.', 'Виберіть слова, потім застосуйте жирний шрифт або колір.')}</small>
+            </div>
+            <div className="phone-rich-settings">
+              <label className="universal-color-field"><span>{tr('Word colour', 'Колір слів')}<code>{configuration.hero_title.highlight_color}</code></span><input aria-label={tr('Headline highlight color', 'Колір виділення заголовка')} type="color" value={configuration.hero_title.highlight_color} onChange={(event) => setConfiguration({ ...configuration, hero_title: { highlight_color: event.target.value.toUpperCase() } })} /></label>
+            </div>
+          </div>
           <div className="phone-rich-copy">
             <label><span>{tr('Supporting text', 'Пояснювальний текст')}</span><textarea ref={supportingTextRef} rows={4} value={content.supporting_text} maxLength={220} onChange={(event) => setContent({ ...content, supporting_text: event.target.value })} /></label>
             <div className="phone-markup-toolbar" role="toolbar" aria-label={tr('Supporting text formatting', 'Форматування пояснювального тексту')}>
-              <button type="button" className="secondary" onClick={() => markSupportingSelection('**')} aria-label={tr('Bold selected words', 'Виділити вибрані слова жирним')}><Bold /></button>
-              <button type="button" className="secondary" onClick={() => markSupportingSelection('==')} aria-label={tr('Highlight selected words', 'Підсвітити вибрані слова кольором')}><Highlighter /></button>
+              <button type="button" className="secondary" onClick={() => markSelection('supporting_text', supportingTextRef.current, '**', 220)} aria-label={tr('Bold selected words', 'Виділити вибрані слова жирним')}><Bold /></button>
+              <button type="button" className="secondary" onClick={() => markSelection('supporting_text', supportingTextRef.current, '==', 220)} aria-label={tr('Highlight selected words', 'Підсвітити вибрані слова кольором')}><Highlighter /></button>
               <small>{tr('Select words, then use bold or colour.', 'Виберіть слова, потім застосуйте жирний шрифт або колір.')}</small>
             </div>
             <div className="phone-rich-settings">
               <label className="universal-color-field"><span>{tr('Word colour', 'Колір слів')}<code>{configuration.supporting_text.highlight_color}</code></span><input aria-label={tr('Highlight color', 'Колір підсвічування')} type="color" value={configuration.supporting_text.highlight_color} onChange={(event) => setConfiguration({ ...configuration, supporting_text: { ...configuration.supporting_text, highlight_color: event.target.value.toUpperCase() } })} /></label>
             </div>
           </div>
-          <label><span>{tr('CTA (optional)', 'CTA (необов’язково)')}</span><input aria-label="CTA" aria-describedby="phone-cta-hint" value={content.cta} maxLength={60} onChange={(event) => setContent({ ...content, cta: event.target.value })} /></label>
-          <p id="phone-cta-hint" className="universal-section-note">{tr('Leave empty to hide the CTA band.', 'Залиште порожнім, щоб приховати смугу CTA.')}</p>
+          <label className="universal-toggle"><input
+            aria-label={tr('Show bottom CTA', 'Показувати нижній CTA')}
+            type="checkbox" checked={configuration.cta.enabled}
+            onChange={(event) => setConfiguration({
+              ...configuration, cta: { ...configuration.cta, enabled: event.target.checked },
+            })}
+          /><span>{configuration.cta.enabled
+            ? tr('Bottom CTA visible', 'Нижній CTA видимий')
+            : tr('Bottom CTA removed', 'Нижній CTA прибрано')}
+          </span></label>
+          {configuration.cta.enabled && <>
+            <label><span>{tr('CTA label', 'Текст CTA')}</span><input aria-label={tr('CTA label', 'Текст CTA')} aria-describedby="phone-cta-hint" value={content.cta} maxLength={60} onChange={(event) => setContent({ ...content, cta: event.target.value })} /></label>
+            <p id="phone-cta-hint" className="universal-section-note">{tr('Leave empty to hide the CTA band.', 'Залиште порожнім, щоб приховати смугу CTA.')}</p>
+            <div className="phone-rich-settings">
+              <label className="universal-color-field"><span>{tr('CTA background', 'Фон CTA')}<code>{configuration.cta.background_color}</code></span><input aria-label={tr('CTA background color', 'Колір фону CTA')} type="color" value={configuration.cta.background_color} onChange={(event) => setConfiguration({ ...configuration, cta: { ...configuration.cta, background_color: event.target.value.toUpperCase() } })} /></label>
+              <label className="universal-color-field"><span>{tr('CTA text', 'Текст CTA')}<code>{configuration.cta.text_color}</code></span><input aria-label={tr('CTA text color', 'Колір тексту CTA')} type="color" value={configuration.cta.text_color} onChange={(event) => setConfiguration({ ...configuration, cta: { ...configuration.cta, text_color: event.target.value.toUpperCase() } })} /></label>
+            </div>
+          </>}
           <label><span>{tr('Optional in-phone title', 'Необов’язковий заголовок у телефоні')}</span><input value={content.phone_hero_title} maxLength={72} onChange={(event) => setContent({ ...content, phone_hero_title: event.target.value })} /></label>
         </section>
         <section className="panel universal-section"><small>{tr('BRAND VISIBILITY', 'ВИДИМІСТЬ БРЕНДУ')}</small><h2>{tr('Natal logos', 'Логотипи Natal')}</h2>

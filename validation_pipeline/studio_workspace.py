@@ -424,7 +424,7 @@ class UniversalStudioWorkspace:
         return _canonical(self._snapshot())[1]
 
     def _legacy_phone_state_sha256(self) -> str | None:
-        """Reproduce an untouched v8 draft digest during its one-save uplift."""
+        """Reproduce an untouched legacy phone draft digest during one-save uplift."""
 
         if self._selected_template_id() != PHONE_METRICS_TEMPLATE_ID:
             return None
@@ -437,7 +437,11 @@ class UniversalStudioWorkspace:
             return None
         if (
             not isinstance(raw_config, Mapping)
-            or raw_config.get("schema") != "ptw.studio.phone-metrics-config.v8"
+            or raw_config.get("schema") not in {
+                "ptw.studio.phone-metrics-config.v8",
+                "ptw.studio.phone-metrics-config.v9",
+                "ptw.studio.phone-metrics-config.v10",
+            }
         ):
             return None
         snapshot = self._snapshot()

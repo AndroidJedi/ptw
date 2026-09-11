@@ -33,7 +33,7 @@ const detail = {
     template_version: 23, canvas: { width: 1080, height: 1350 },
     semantic_roles: [], components: [], asset_slots: {},
     variation: {
-      optional_elements: ['offer', 'post_logo', 'phone_logo'], brand: 'Natal',
+      optional_elements: ['offer', 'post_logo', 'phone_logo', 'cta'], brand: 'Natal',
       device_pose: 'front_facing_upright', device_rotation_degrees: 0,
       background_textures: ['none', 'grain', 'concrete', 'travertine'],
       copy_background_textures: ['none', 'grain', 'concrete', 'travertine'],
@@ -58,11 +58,13 @@ const detail = {
   },
   state_sha256: 'a'.repeat(64), template_sha256: 'c'.repeat(64),
   configuration: {
-    schema: 'ptw.studio.phone-metrics-config.v9',
+    schema: 'ptw.studio.phone-metrics-config.v11',
     background: { color: '#F4F5F2', texture: 'concrete', texture_intensity: 0.13 },
     copy_background: { texture: 'none' },
     logo: { enabled: true },
     offer: { enabled: true },
+    cta: { enabled: true, background_color: '#316CFF', text_color: '#FFFFFF' },
+    hero_title: { highlight_color: '#FF30E8' },
     supporting_text: { highlight_color: '#1675F8' },
     typography: {
       offer: { font_family: 'Manrope', font_size: 23 },
@@ -178,6 +180,28 @@ function studioApi(initialDetail: StudioPhoneMetricsDetail = detail) {
 }
 
 describe('Phone & metrics Studio', () => {
+  it('edits and hides the bottom CTA while retaining its saved values', async () => {
+    const { api, post } = studioApi()
+    render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} onCheckpoint={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('CTA label'), { target: { value: 'BOOK A FREE CONSULTATION' } })
+    fireEvent.change(screen.getByLabelText('CTA background color'), { target: { value: '#e2385a' } })
+    fireEvent.change(screen.getByLabelText('CTA text color'), { target: { value: '#f9f4ea' } })
+    fireEvent.click(screen.getByLabelText('Show bottom CTA'))
+    expect(screen.queryByLabelText('CTA label')).not.toBeInTheDocument()
+    expect(screen.getByText('Bottom CTA removed')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Show bottom CTA'))
+    expect(screen.getByLabelText('CTA label')).toHaveValue('BOOK A FREE CONSULTATION')
+    fireEvent.click(screen.getByRole('button', { name: 'Save creative' }))
+    await waitFor(() => expect(post).toHaveBeenCalledWith(`${basePath}/save`, expect.objectContaining({
+      configuration: expect.objectContaining({
+        cta: { enabled: true, background_color: '#E2385A', text_color: '#F9F4EA' },
+      }),
+      content: expect.objectContaining({ cta: 'BOOK A FREE CONSULTATION' }),
+    }), expect.anything()))
+  })
+
   it('previews and saves image mode while preserving phone content for switching back', async () => {
     const { api, post } = studioApi()
     render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} onCheckpoint={vi.fn()} />)
@@ -314,7 +338,7 @@ describe('Phone & metrics Studio', () => {
     render(<PhoneMetricsStudio api={api} basePath={basePath} language="en" detail={structuredClone(detail)} onDetail={vi.fn()} />)
     await screen.findByRole('img', { name: 'Natal phone and metrics creative' })
     vi.mocked(api.postMedia).mockRejectedValueOnce(new Error('Preview unavailable'))
-    fireEvent.change(screen.getByLabelText('CTA'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('CTA label'), { target: { value: '' } })
     fireEvent.change(screen.getByLabelText('Headline'), { target: { value: '' } })
     await new Promise(resolve => setTimeout(resolve, 300))
     expect(api.postMedia).toHaveBeenCalledTimes(1)
@@ -344,10 +368,10 @@ describe('Phone & metrics Studio', () => {
     await screen.findByRole('img', { name: 'Natal phone and metrics creative' })
     let finish!: (blob: Blob) => void
     vi.mocked(api.postMedia).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
-    fireEvent.change(screen.getByLabelText('CTA'), { target: { value: 'First draft' } })
+    fireEvent.change(screen.getByLabelText('CTA label'), { target: { value: 'First draft' } })
     fireEvent.click(screen.getByRole('button', { name: 'Update preview' }))
     expect(screen.getByRole('button', { name: 'Update preview' })).toBeDisabled()
-    fireEvent.change(screen.getByLabelText('CTA'), { target: { value: 'Latest draft' } })
+    fireEvent.change(screen.getByLabelText('CTA label'), { target: { value: 'Latest draft' } })
     finish(new Blob(['first draft'], { type: 'image/png' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Update preview' })).toBeEnabled())
     expect(screen.getByText(/Changes not previewed/)).toBeInTheDocument()
@@ -423,6 +447,18 @@ describe('Phone & metrics Studio', () => {
       expect(screen.getByLabelText(`${role} font size`)).toBeInTheDocument()
     }
 
+    const headline = screen.getByLabelText('Headline') as HTMLTextAreaElement
+    headline.focus()
+    headline.setSelectionRange(0, 'Ваш'.length)
+    fireEvent.click(screen.getByRole('button', { name: 'Bold selected headline words' }))
+    const headlineColourStart = headline.value.indexOf('головний')
+    headline.setSelectionRange(headlineColourStart, headlineColourStart + 'головний'.length)
+    fireEvent.click(screen.getByRole('button', { name: 'Colour selected headline words' }))
+    expect(headline).toHaveValue('**Ваш** ==головний== меседж тут')
+    fireEvent.change(screen.getByLabelText('Headline highlight color'), {
+      target: { value: '#21a179' },
+    })
+
     const supporting = screen.getByLabelText('Supporting text') as HTMLTextAreaElement
     supporting.focus()
     supporting.setSelectionRange(0, 'Коротке'.length)
@@ -452,12 +488,14 @@ describe('Phone & metrics Studio', () => {
       `${basePath}/preview`,
       expect.objectContaining({
         configuration: expect.objectContaining({
+          hero_title: { highlight_color: '#21A179' },
           supporting_text: { highlight_color: '#D12F7A' },
           typography: expect.objectContaining({
             supporting_text: { font_family: 'Source Sans 3', font_size: 36 },
           }),
         }),
         content: expect.objectContaining({
+          hero_title: '**Ваш** ==головний== меседж тут',
           supporting_text: '**Коротке** ==пояснення==.',
         }),
       }),

@@ -187,6 +187,18 @@ or service restart. Chat history retains only the safe filename, size, and diges
 later turns do not receive an earlier request's pixels. The redundant GOD-mode
 introductory paragraphs were removed from Settings.
 
+## Phone Metrics optional CTA — local candidate
+
+Phone Metrics v26 makes the full-width post CTA band independently optional.
+Studio now edits its retained label, background color, text color, font, and
+size; hiding the band removes its renderer node and semantic role without
+discarding those saved values. Existing v8/v9 mutable drafts retain the previous
+visible cobalt/white default during their one-save uplift, while immutable
+versions remain unchanged. The hero title now also matches supporting text with
+select-and-bold, select-and-colour, and an independently persisted word colour;
+existing v10 drafts receive the default hero accent during their one-save uplift.
+This candidate has not been deployed from the hosted development checkout.
+
 ## Selective release pipeline — live
 
 The production path is canaried with a docs-only candidate that cannot change runtime behavior or domain data.

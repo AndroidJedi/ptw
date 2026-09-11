@@ -30,7 +30,7 @@ function phoneDetail() {
       template_version: 23, canvas: { width: 1080, height: 1350 },
       semantic_roles: [], components: [], asset_slots: {}, sha256: 'b'.repeat(64),
       variation: {
-        optional_elements: ['offer', 'post_logo', 'phone_logo'], brand: 'Natal', device_pose: 'front_facing_upright',
+        optional_elements: ['offer', 'post_logo', 'phone_logo', 'cta'], brand: 'Natal', device_pose: 'front_facing_upright',
         device_rotation_degrees: 0,
         background_textures: ['none', 'grain', 'concrete', 'travertine'],
         copy_background_textures: ['none', 'grain', 'concrete', 'travertine'],
@@ -53,9 +53,11 @@ function phoneDetail() {
     },
     state_sha256: 'a'.repeat(64), template_sha256: 'c'.repeat(64),
     configuration: {
-      schema: 'ptw.studio.phone-metrics-config.v9',
+      schema: 'ptw.studio.phone-metrics-config.v11',
       background: { color: '#F4F5F2', texture: 'concrete', texture_intensity: 0.13 },
       copy_background: { texture: 'none' }, logo: { enabled: true }, offer: { enabled: true },
+      cta: { enabled: true, background_color: '#316CFF', text_color: '#FFFFFF' },
+      hero_title: { highlight_color: '#FF30E8' },
       supporting_text: { highlight_color: '#1675F8' },
       typography: Object.fromEntries([
         'offer', 'hero_title', 'supporting_text', 'cta', 'metric_value', 'metric_label',
@@ -240,7 +242,7 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   const updatePreview = page.getByRole('button', { name: 'Update preview' })
   await expect(updatePreview).toBeEnabled()
   const initialPreviewCount = previewRequests.length
-  await page.getByLabel('CTA', { exact: true }).fill('')
+  await page.getByLabel('CTA label', { exact: true }).fill('')
   await page.getByRole('textbox', { name: 'Headline', exact: true }).fill('Draft headline')
   await page.waitForTimeout(350)
   expect(previewRequests).toHaveLength(initialPreviewCount)
@@ -269,6 +271,39 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
   const phoneLogo = page.getByLabel('Show in-phone logo')
   await expect(postLogo).toBeChecked()
   await expect(phoneLogo).toBeChecked()
+  const headline = page.getByLabel('Headline', { exact: true })
+  await headline.fill('A focused promise')
+  await headline.evaluate((field: HTMLTextAreaElement) => field.setSelectionRange(0, 1))
+  await page.getByLabel('Bold selected headline words').click()
+  await expect(headline).toHaveValue('**A** focused promise')
+  await expect.poll(() => headline.evaluate((field: HTMLTextAreaElement) => [field.selectionStart, field.selectionEnd])).toEqual([2, 3])
+  await headline.evaluate((field: HTMLTextAreaElement) => {
+    const start = field.value.indexOf('focused')
+    field.setSelectionRange(start, start + 'focused'.length)
+  })
+  await page.getByLabel('Colour selected headline words').click()
+  await page.getByLabel('Headline highlight color').fill('#21a179')
+  await updatePreview.click()
+  await expect.poll(() => previewRequests.at(-1)).toMatchObject({
+    configuration: { hero_title: { highlight_color: '#21A179' } },
+    content: { hero_title: '**A** ==focused== promise' },
+  })
+  const bottomCta = page.getByLabel('Show bottom CTA')
+  await expect(bottomCta).toBeChecked()
+  await bottomCta.uncheck()
+  await expect(page.getByLabel('CTA label')).toHaveCount(0)
+  await updatePreview.click()
+  await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({
+    cta: { enabled: false },
+  })
+  await bottomCta.check()
+  await page.getByLabel('CTA label').fill('BOOK A FREE CONSULTATION')
+  await page.getByLabel('CTA background color').fill('#e2385a')
+  await page.getByLabel('CTA text color').fill('#f9f4ea')
+  await updatePreview.click()
+  await expect.poll(() => previewRequests.at(-1)?.configuration).toMatchObject({
+    cta: { enabled: true, background_color: '#E2385A', text_color: '#F9F4EA' },
+  })
   await postLogo.focus()
   await page.keyboard.press('Space')
   await phoneLogo.focus()
@@ -370,7 +405,7 @@ test(`approved Instagram Post and exact website Ads handoff (${configured ? 'moc
   await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Publish approved Post' })).toBeVisible()
-  await expect(page.getByLabel('CTA', { exact: true })).toHaveValue('START NOW')
+  await expect(page.getByLabel('CTA label', { exact: true })).toHaveValue('START NOW')
   await page.getByLabel('Approved version').selectOption('1')
   await page.getByRole('button', { name: 'Publish to Instagram', exact: true }).click()
   await expect(page.getByLabel('Instagram caption')).toHaveValue('Approved title 1\n\nApproved body')

@@ -390,7 +390,7 @@ export interface StudioPhoneActionButtonConfiguration {
 
 export interface StudioPhoneMetricsConfiguration {
   visual_mode?: 'phone' | 'image'
-  schema: 'ptw.studio.phone-metrics-config.v9'
+  schema: 'ptw.studio.phone-metrics-config.v11'
   background: {
     color: string
     texture: StudioPhoneBackgroundTexture
@@ -399,6 +399,8 @@ export interface StudioPhoneMetricsConfiguration {
   copy_background: { texture: StudioPhoneBackgroundTexture }
   logo: { enabled: boolean }
   offer: { enabled: boolean }
+  cta: { enabled: boolean; background_color: string; text_color: string }
+  hero_title: { highlight_color: string }
   supporting_text: { highlight_color: string }
   typography: Record<StudioPhoneTypographyRole, StudioPhoneTypographyConfiguration>
   phone_screen: { texture: StudioPhoneScreenTexture; logo_enabled: boolean }

@@ -717,6 +717,8 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         legacy = deepcopy(DEFAULT_PHONE_CONFIG)
         legacy["schema"] = "ptw.studio.phone-metrics-config.v8"
         legacy.pop("logo")
+        legacy.pop("cta")
+        legacy.pop("hero_title")
         legacy["phone_screen"].pop("logo_enabled")
         upgraded = normalize_phone_metrics_config(legacy)
         self.assertEqual(DEFAULT_PHONE_CONFIG, upgraded)
@@ -743,6 +745,91 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             invalid = deepcopy(DEFAULT_PHONE_CONFIG)
             invalid[path[0]][path[1]] = "yes"
             with self.assertRaisesRegex(ValueError, "must be boolean"):
+                normalize_phone_metrics_config(invalid)
+
+    def test_cta_is_optional_editable_and_existing_v9_drafts_stay_visible(self) -> None:
+        visible = build_phone_metrics_template(DEFAULT_PHONE_CONFIG, DEFAULT_PHONE_CONTENT)
+        visible_nodes = {
+            item["id"]: item for item in visible.document["root"]["children"]
+        }
+        self.assertEqual("#316CFF", visible_nodes["cta"]["props"]["background_color"])
+        self.assertEqual("#FFFFFF", visible_nodes["cta"]["props"]["label_color"])
+
+        edited = deepcopy(DEFAULT_PHONE_CONFIG)
+        edited["cta"].update({
+            "background_color": "#E2385A", "text_color": "#F9F4EA",
+        })
+        edited_node = next(
+            item for item in build_phone_metrics_template(
+                edited, {**DEFAULT_PHONE_CONTENT, "cta": "CUSTOM ACTION"},
+            ).document["root"]["children"]
+            if item["id"] == "cta"
+        )
+        self.assertEqual("#E2385A", edited_node["props"]["background_color"])
+        self.assertEqual("#F9F4EA", edited_node["props"]["label_color"])
+
+        from PIL import Image
+        phone = self._phone()
+        edited_preview = self.workspace.render_preview(
+            state_sha256=phone["state_sha256"], configuration=edited,
+            content={**DEFAULT_PHONE_CONTENT, "cta": "CUSTOM ACTION"},
+        )
+        with Image.open(BytesIO(edited_preview["bytes"])) as source:
+            self.assertEqual((226, 56, 90), source.convert("RGB").getpixel((20, 1280)))
+
+        hidden = deepcopy(edited)
+        hidden["cta"]["enabled"] = False
+        hidden_template = build_phone_metrics_template(hidden, DEFAULT_PHONE_CONTENT)
+        self.assertNotIn(
+            "cta", {item["id"] for item in hidden_template.document["root"]["children"]},
+        )
+        self.assertNotIn("cta", hidden_template.document["semantic_roles"])
+        self.assertNotIn(
+            "content.cta", phone_metrics_semantic_data(hidden, DEFAULT_PHONE_CONTENT),
+        )
+        hidden_preview = self.workspace.render_preview(
+            state_sha256=phone["state_sha256"], configuration=hidden,
+            content=DEFAULT_PHONE_CONTENT,
+        )
+        self.assertNotIn("cta", hidden_preview["resolved"]["nodes"])
+        with Image.open(BytesIO(hidden_preview["bytes"])) as source:
+            self.assertNotEqual((226, 56, 90), source.convert("RGB").getpixel((20, 1280)))
+
+        settings = {
+            setting["setting_id"]: setting["value"]
+            for component in phone_metrics_component_settings(
+                hidden, DEFAULT_PHONE_CONTENT,
+            )["components"]
+            for setting in component["settings"]
+        }
+        self.assertFalse(settings["configuration.cta.enabled"])
+        self.assertEqual("#E2385A", settings["configuration.cta.background_color"])
+        self.assertEqual("#F9F4EA", settings["configuration.cta.text_color"])
+
+        legacy = deepcopy(DEFAULT_PHONE_CONFIG)
+        legacy["schema"] = "ptw.studio.phone-metrics-config.v9"
+        legacy.pop("cta")
+        legacy.pop("hero_title")
+        upgraded = normalize_phone_metrics_config(legacy)
+        self.assertEqual(DEFAULT_PHONE_CONFIG, upgraded)
+
+        previous = deepcopy(DEFAULT_PHONE_CONFIG)
+        previous["schema"] = "ptw.studio.phone-metrics-config.v10"
+        previous.pop("hero_title")
+        self.assertEqual(DEFAULT_PHONE_CONFIG, normalize_phone_metrics_config(previous))
+
+        self.workspace._atomic_json(  # pylint: disable=protected-access
+            self.workspace.root / "configuration.json", legacy,
+        )
+        legacy_state_sha256 = self.workspace._legacy_phone_state_sha256()  # pylint: disable=protected-access
+        self.assertIsNotNone(legacy_state_sha256)
+        preview = self.workspace.render_preview(state_sha256=legacy_state_sha256)
+        self.assertIn("cta", preview["resolved"]["nodes"])
+
+        for field, value in (("enabled", "yes"), ("background_color", "blue"), ("text_color", "white")):
+            invalid = deepcopy(DEFAULT_PHONE_CONFIG)
+            invalid["cta"][field] = value
+            with self.assertRaisesRegex(ValueError, "cta"):
                 normalize_phone_metrics_config(invalid)
 
     def test_three_optional_textures_change_each_bounded_surface(self) -> None:
@@ -898,6 +985,54 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             accent_pixels = sum(
                 1 for red, green, blue in supporting_area.getdata()
                 if red > 150 and green < 100 and blue > 80
+            )
+        self.assertGreater(accent_pixels, 100)
+
+    def test_hero_title_markup_and_colour_reach_the_saved_renderer(self) -> None:
+        invalid = deepcopy(DEFAULT_PHONE_CONFIG)
+        invalid["hero_title"]["highlight_color"] = "magenta"
+        with self.assertRaisesRegex(ValueError, "hero_title.highlight_color"):
+            normalize_phone_metrics_config(invalid)
+
+        config = deepcopy(DEFAULT_PHONE_CONFIG)
+        config["hero_title"]["highlight_color"] = "#21A179"
+        content = deepcopy(DEFAULT_PHONE_CONTENT)
+        content["hero_title"] = "**Допомога** у ==побутових справах=="
+        template = build_phone_metrics_template(config, content)
+        node = next(
+            item for item in template.document["root"]["children"]
+            if item["id"] == "hero_title"
+        )
+        self.assertEqual("rich_text", node["type"])
+        self.assertEqual(900, node["props"]["bold_weight"])
+        self.assertEqual("#21A179", node["props"]["highlight_color"])
+
+        settings = {
+            setting["setting_id"]: setting["value"]
+            for component in phone_metrics_component_settings(config, content)["components"]
+            for setting in component["settings"]
+        }
+        self.assertEqual(
+            "#21A179", settings["configuration.hero_title.highlight_color"],
+        )
+
+        phone = self._phone()
+        preview = self.workspace.render_preview(
+            state_sha256=phone["state_sha256"], configuration=config,
+            content=content,
+        )
+        rendered_node = preview["resolved"]["nodes"]["hero_title"]
+        self.assertEqual("simple_v1", rendered_node["text_layout"]["markup"])
+        self.assertGreater(rendered_node["text_layout"]["bold_character_count"], 0)
+        self.assertGreater(rendered_node["text_layout"]["highlight_character_count"], 0)
+        self.assertFalse(rendered_node["text_layout"]["overflow"])
+
+        from PIL import Image
+        with Image.open(BytesIO(preview["bytes"])) as source:
+            title_area = source.convert("RGB").crop((68, 274, 516, 639))
+            accent_pixels = sum(
+                1 for red, green, blue in title_area.getdata()
+                if green > red * 1.15 and green > blue * 1.05
             )
         self.assertGreater(accent_pixels, 100)
 

@@ -43,6 +43,9 @@ safe area, fused front-facing device, equal metric-button row with the cobalt
 filled/white-text/rounded reference default, full cobalt CTA band when CTA copy is nonempty (empty copy must remove the
 entire band without changing the upper canvas), a crisp
 upright Natal app shell, and a text-free generated hero-art contract. When
+the post CTA changes, verify its saved visible and hidden states, label retention,
+bounded font sizing, configured background/text colours, and absence from both
+the resolved nodes and semantic roles when disabled. When
 metric-button controls change, verify Filled and Outlined styles, text and
 background/border colours, and Square, Rounded, and Pill shapes in actual pixels
 while all three labels remain unclipped. Preserve the three in-phone action
@@ -55,10 +58,10 @@ rounded hardware corners. Confirm the artwork and selected texture dissolve
 together through a long eased transition into the lower white content area,
 without a straight cutoff above the headline. Preserve the crisp status-bar network treatment with
 four ascending cellular bars and a complete Wi-Fi glyph containing three
-separated arcs and its dot. When supporting-copy markup is present, verify that
-delimiter characters are removed, bold and configured accent spans reach the
-resolved layout, the requested font-size extremes remain unclipped, and the
-accent colour exists in the authoritative PNG pixels. For optional texture
+separated arcs and its dot. When hero-title or supporting-copy markup is present,
+verify that delimiter characters are removed, bold and independently configured
+accent spans reach the resolved layout, the requested font-size extremes remain
+unclipped, and each accent colour exists in the authoritative PNG pixels. For optional texture
 controls, cover the off state and every bounded preset on its intended surface;
 verify that off removes the full-canvas and left-copy renderer nodes, that the
 left-copy finish remains clipped to its rounded safe-area surface, and that

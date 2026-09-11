@@ -77,7 +77,6 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
   const selected = useRef(storage.get('selected'))
   const initialized = useRef('')
   const pending = useRef<{ key: string; id: string } | null>(null)
-  const deploymentRequest = useRef(storage.get('deployment-request'))
   const eventCursor = useRef(0)
   const composer = useRef<HTMLTextAreaElement>(null)
   const timeline = useRef<HTMLDivElement>(null)
@@ -190,10 +189,11 @@ export function CommanderChat({ api, language }: { api: ApiClient; language: Lan
     setBusy(true); setError('')
     try {
       const current = chat || await create()
-      const id = deploymentRequest.current || crypto.randomUUID()
-      deploymentRequest.current = id; storage.set('deployment-request', id)
+      const key = 'deployment-request-' + current.id
+      const id = storage.get(key) || crypto.randomUUID()
+      storage.set(key, id)
       setChat(await api.post<Chat>(`${base}/chats/${current.id}/deploy`, { request_id: id }, { deadlineMs: 30_000 }))
-      deploymentRequest.current = ''; storage.set('deployment-request', '')
+      storage.set(key, '')
       await load()
     } catch (cause) { setError((cause as Error).message) }
     finally { setBusy(false) }

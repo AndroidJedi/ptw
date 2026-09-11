@@ -83,6 +83,10 @@ Post, or Landing learning entities or cross their lesson namespaces.
 
 - An uncertain message POST must retain its request UUID. Reconcile that UUID
   before resubmitting; a new UUID can execute the same code mutation twice.
+- Scope pending deployment UUIDs to their conversation. A disconnected Git push
+  is an uncertain outcome, not proof of failure: reconcile the immutable request
+  branch before allowing another release. Test a push that succeeds remotely
+  while its local transport reports failure.
 - Stop and timeout terminate the worker process group. A parent-liveness pipe
   also stops it when the API crashes; marking a database row interrupted alone
   does not stop an orphaned coding process. Restart never replays mutations.

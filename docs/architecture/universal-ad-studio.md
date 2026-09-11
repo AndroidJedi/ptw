@@ -51,11 +51,18 @@ identity and iPhone system chrome keep their fixed renderer-owned typography.
 
 `phone_metrics` is a 1080×1350 composition with an off-white material
 background, an optional canonical Natal lock-up, left-safe copy, a front-facing black iPhone,
-three equal metric controls, and an optional full-width CTA band. In
-template v25, empty CTA copy removes the entire band; nonempty CTA copy remains
-bounded to 60 characters. Save and Approve accept an empty CTA. Every metric exposes
+three equal metric controls, and an independently optional full-width CTA band. The CTA retains
+its saved label and typography while hidden and exposes bounded background and text colors.
+Empty CTA copy also removes the entire band. Save and Approve accept empty copy;
+nonempty CTA copy remains bounded to 60 characters.
+Every metric exposes
 bounded value/label, Filled or Outlined style, text and surface colours, and
 Square, Rounded, or Pill shape.
+
+The post hero title and supporting text each accept the same bounded inline
+markup: selected words can be made bold or assigned that role's independent
+word colour. Markup delimiters are editor syntax only and never appear in the
+authoritative PNG.
 
 The phone app screen has a fixed status bar, complete cellular and Wi-Fi
 signals, battery, an independently optional canonical Natal lock-up, optional eyebrow/title, generated hero,

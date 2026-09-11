@@ -25,13 +25,15 @@ from .studio_primitives import PrimitiveTemplate
 
 
 PHONE_METRICS_TEMPLATE_ID = "phone_metrics"
-PHONE_METRICS_CONFIG_SCHEMA = "ptw.studio.phone-metrics-config.v9"
+PHONE_METRICS_CONFIG_SCHEMA = "ptw.studio.phone-metrics-config.v11"
 _LEGACY_PHONE_METRICS_CONFIG_SCHEMAS = frozenset({
     "ptw.studio.phone-metrics-config.v8",
+    "ptw.studio.phone-metrics-config.v9",
+    "ptw.studio.phone-metrics-config.v10",
 })
 PHONE_METRICS_CONTENT_SCHEMA = "ptw.studio.phone-metrics-content.v2"
 PHONE_METRICS_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.phone-metrics-component-settings.v2"
-PHONE_METRICS_TEMPLATE_VERSION = 25
+PHONE_METRICS_TEMPLATE_VERSION = 26
 PHONE_VISUAL_MODES = ("phone", "image")
 PHONE_METRICS_CANVAS = (1080, 1350)
 PHONE_BACKGROUND_TEXTURES = ("none", "grain", "concrete", "travertine")
@@ -98,11 +100,11 @@ PHONE_COMPONENTS: tuple[dict[str, Any], ...] = (
     {"component_id": "phone_metrics.background", "role": "background", "node_ids": ("canvas", "background_texture", "copy_background_texture"), "asset_slot_ids": (), "setting_ids": ("configuration.background.texture", "configuration.copy_background.texture")},
     {"component_id": "phone_metrics.brand", "role": "brand", "node_ids": ("logo",), "asset_slot_ids": (), "setting_ids": ("configuration.logo.enabled",)},
     {"component_id": "phone_metrics.offer", "role": "offer", "node_ids": ("offer",), "asset_slot_ids": (), "setting_ids": ("configuration.offer.enabled", "configuration.typography.offer", "content.offer")},
-    {"component_id": "phone_metrics.hero_title", "role": "hero_title", "node_ids": ("hero_title",), "asset_slot_ids": (), "setting_ids": ("configuration.typography.hero_title", "content.hero_title")},
+    {"component_id": "phone_metrics.hero_title", "role": "hero_title", "node_ids": ("hero_title",), "asset_slot_ids": (), "setting_ids": ("configuration.typography.hero_title", "configuration.hero_title.highlight_color", "content.hero_title")},
     {"component_id": "phone_metrics.supporting_text", "role": "supporting_text", "node_ids": ("supporting_text",), "asset_slot_ids": (), "setting_ids": ("configuration.typography.supporting_text", "configuration.supporting_text.highlight_color", "content.supporting_text")},
     {"component_id": "phone_metrics.device", "role": "device_mockup", "node_ids": ("phone_device",), "asset_slot_ids": ("phone_screen",), "setting_ids": ("configuration.visual_mode", "configuration.phone_screen.texture", "configuration.phone_screen.logo_enabled", "configuration.typography.phone_title", "configuration.typography.phone_buttons", "configuration.phone_buttons", "content.phone_hero_title", "content.phone_buttons")},
     {"component_id": "phone_metrics.metrics", "role": "metrics", "node_ids": ("metric_card_1", "metric_card_2", "metric_card_3", "metric_value_1", "metric_value_2", "metric_value_3", "metric_label_1", "metric_label_2", "metric_label_3"), "asset_slot_ids": (), "setting_ids": ("configuration.typography.metric_value", "configuration.typography.metric_label", "configuration.metric_cards", "content.stats")},
-    {"component_id": "phone_metrics.cta", "role": "cta", "node_ids": ("cta",), "asset_slot_ids": (), "setting_ids": ("configuration.typography.cta", "content.cta")},
+    {"component_id": "phone_metrics.cta", "role": "cta", "node_ids": ("cta",), "asset_slot_ids": (), "setting_ids": ("configuration.cta.enabled", "configuration.cta.background_color", "configuration.cta.text_color", "configuration.typography.cta", "content.cta")},
 )
 
 DEFAULT_PHONE_CONFIG: dict[str, Any] = {
@@ -113,6 +115,10 @@ DEFAULT_PHONE_CONFIG: dict[str, Any] = {
     "copy_background": {"texture": "none"},
     "logo": {"enabled": True},
     "offer": {"enabled": True},
+    "cta": {
+        "enabled": True, "background_color": "#316CFF", "text_color": "#FFFFFF",
+    },
+    "hero_title": {"highlight_color": "#FF30E8"},
     "supporting_text": {"highlight_color": "#1675F8"},
     "typography": {
         "offer": {"font_family": "Manrope", "font_size": 23},
@@ -205,6 +211,13 @@ def _enum(value: Any, allowed: tuple[str, ...], label: str) -> str:
     return normalized
 
 
+def _color(value: Any, label: str) -> str:
+    normalized = str(value).upper()
+    if not _COLOR.fullmatch(normalized):
+        raise ValueError(f"{label} must be a six-digit hex color")
+    return normalized
+
+
 def _text(value: Any, label: str, minimum: int, maximum: int, *, allow_empty: bool = False) -> str:
     normalized = " ".join(str(value or "").split())
     if allow_empty and not normalized:
@@ -222,6 +235,8 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
         value = deepcopy(dict(value))
         value["schema"] = PHONE_METRICS_CONFIG_SCHEMA
         value.setdefault("logo", {"enabled": True})
+        value.setdefault("cta", deepcopy(DEFAULT_PHONE_CONFIG["cta"]))
+        value.setdefault("hero_title", deepcopy(DEFAULT_PHONE_CONFIG["hero_title"]))
         phone_screen = dict(value.get("phone_screen") or {})
         phone_screen.setdefault("logo_enabled", True)
         value["phone_screen"] = phone_screen
@@ -233,6 +248,11 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("Studio phone metrics configuration schema is invalid")
     background = _object(root["background"], set(DEFAULT_PHONE_CONFIG["background"]), "phone metrics background")
     offer = _object(root["offer"], set(DEFAULT_PHONE_CONFIG["offer"]), "phone metrics offer")
+    cta = _object(root["cta"], set(DEFAULT_PHONE_CONFIG["cta"]), "phone metrics cta")
+    hero_title = _object(
+        root["hero_title"], set(DEFAULT_PHONE_CONFIG["hero_title"]),
+        "phone metrics hero title",
+    )
     copy_background = _object(
         root["copy_background"], set(DEFAULT_PHONE_CONFIG["copy_background"]),
         "phone metrics copy background",
@@ -334,6 +354,8 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("phone metrics background.color must be a six-digit hex color")
     if not isinstance(offer["enabled"], bool):
         raise ValueError("phone metrics offer.enabled must be boolean")
+    if not isinstance(cta["enabled"], bool):
+        raise ValueError("phone metrics cta.enabled must be boolean")
     if not isinstance(logo["enabled"], bool):
         raise ValueError("phone metrics logo.enabled must be boolean")
     if not isinstance(phone_screen["logo_enabled"], bool):
@@ -367,6 +389,21 @@ def normalize_phone_metrics_config(value: Mapping[str, Any]) -> dict[str, Any]:
         },
         "logo": {"enabled": logo["enabled"]},
         "offer": {"enabled": offer["enabled"]},
+        "cta": {
+            "enabled": cta["enabled"],
+            "background_color": _color(
+                cta["background_color"], "phone metrics cta.background_color",
+            ),
+            "text_color": _color(
+                cta["text_color"], "phone metrics cta.text_color",
+            ),
+        },
+        "hero_title": {
+            "highlight_color": _color(
+                hero_title["highlight_color"],
+                "phone metrics hero_title.highlight_color",
+            ),
+        },
         "supporting_text": {
             "highlight_color": highlight_color,
         },
@@ -459,11 +496,13 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
     # use a larger radius for a softer, smoother silhouette.
     cards_y, card_height, card_gap, card_x, card_width = 1022, 140, 28, 92, 280
     children: list[dict[str, Any]] = [
-        _node("hero_title", "text", {
+        _node("hero_title", "rich_text", {
             "position": "absolute", "x": 68, "y": 274 if config["offer"]["enabled"] else 212,
             "width": 448, "height": 365 if config["offer"]["enabled"] else 427,
             "font_family": typography["hero_title"]["font_family"],
-            "font_size": typography["hero_title"]["font_size"], "min_font_size": 42, "font_weight": 800,
+            "font_size": typography["hero_title"]["font_size"], "min_font_size": 42,
+            "font_weight": 800, "bold_weight": 900,
+            "highlight_color": config["hero_title"]["highlight_color"],
             "line_height": 0.94, "letter_spacing": -2.5, "color": "#101B31", "text_fit": "shrink", "max_lines": 5, "z_index": 6,
         }, binding=("text", "content.hero_title", True)),
         _node("supporting_text", "rich_text", {
@@ -534,10 +573,11 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
                 "line_height": 0.98, "color": metric_card["text_color"], "text_align": "center", "text_fit": "shrink", "max_lines": 2, "z_index": 9,
             }, binding=("text", f"content.stats_{index + 1}_label", True)),
         ])
-    if content["cta"]:
+    if config["cta"]["enabled"] and content["cta"]:
         children.append(_node("cta", "button", {
             "position": "absolute", "x": 0, "y": 1206, "width": width, "height": 144,
-            "background_color": "#316CFF", "radius": 0, "label_color": "#FFFFFF",
+            "background_color": config["cta"]["background_color"], "radius": 0,
+            "label_color": config["cta"]["text_color"],
             "font_family": typography["cta"]["font_family"],
             "font_size": typography["cta"]["font_size"], "min_font_size": 20, "font_weight": 700, "text_align": "left", "vertical_align": "center",
             "text_fit": "shrink", "max_lines": 1, "padding": {"top": 22, "right": 64, "bottom": 22, "left": 68}, "z_index": 10,
@@ -555,7 +595,8 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
                 if config["copy_background"]["texture"] != "none" else []
             )], "brand": ["logo"], "offer": ["offer"],
             "hero_title": ["hero_title"], "supporting_text": ["supporting_text"], "device_mockup": ["phone_device"],
-            "metrics": ["metric_card_1", "metric_card_2", "metric_card_3"], "cta": ["cta"],
+            "metrics": ["metric_card_1", "metric_card_2", "metric_card_3"],
+            **({"cta": ["cta"]} if config["cta"]["enabled"] else {}),
         },
         "assets": {
             **({
@@ -580,14 +621,15 @@ def build_phone_metrics_template(config: Mapping[str, Any], content: Mapping[str
         "rules": [
             *[{"id": f"role_{role}", "scope": "template", "type": "required_role", "params": {"role": role}} for role in (
                 "background", *(('brand',) if config["logo"]["enabled"] else ()),
-                "hero_title", "supporting_text", "device_mockup", "metrics", *(("cta",) if content["cta"] else ()),
+                "hero_title", "supporting_text", "device_mockup", "metrics",
+                *(("cta",) if config["cta"]["enabled"] and content["cta"] else ()),
             )],
             {"id": "fixed_tree", "scope": "template", "type": "max_nodes", "params": {"maximum": 18}},
         ],
-        "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": ["owner-reference-phone-metrics-v1"], "change_note": "Natal phone-and-metrics v25 makes the CTA optional; empty CTA copy removes the entire band. Image-only mode and the default phone view remain available."},
+        "provenance": {"base_template_id": None, "base_version": None, "base_sha256": None, "reference_ids": ["owner-reference-phone-metrics-v1"], "change_note": "Natal phone-and-metrics v26 adds independently coloured bold/highlight markup to the post hero title while retaining the optional CTA controls."},
     }
     if not content["cta"]:
-        document["semantic_roles"].pop("cta")
+        document["semantic_roles"].pop("cta", None)
     if not config["logo"]["enabled"]:
         document["semantic_roles"].pop("brand")
     if not config["offer"]["enabled"]:
@@ -600,10 +642,12 @@ def phone_metrics_semantic_data(config: Mapping[str, Any], content: Mapping[str,
     normalized = normalize_phone_metrics_content(content)
     result = {
         "content.hero_title": normalized["hero_title"],
-        "content.supporting_text": normalized["supporting_text"], "content.cta": normalized["cta"],
+        "content.supporting_text": normalized["supporting_text"],
     }
     if config["offer"]["enabled"]:
         result["content.offer"] = normalized["offer"]
+    if config["cta"]["enabled"]:
+        result["content.cta"] = normalized["cta"]
     for index, stat in enumerate(normalized["stats"], 1):
         result[f"content.stats_{index}_value"] = stat["value"]
         result[f"content.stats_{index}_label"] = stat["label"]
@@ -621,6 +665,10 @@ def phone_metrics_component_settings(config: Mapping[str, Any], content: Mapping
         "configuration.copy_background.texture": config["copy_background"]["texture"],
         "configuration.logo.enabled": config["logo"]["enabled"],
         "configuration.offer.enabled": config["offer"]["enabled"],
+        "configuration.cta.enabled": config["cta"]["enabled"],
+        "configuration.cta.background_color": config["cta"]["background_color"],
+        "configuration.cta.text_color": config["cta"]["text_color"],
+        "configuration.hero_title.highlight_color": config["hero_title"]["highlight_color"],
         "configuration.supporting_text.highlight_color": config["supporting_text"]["highlight_color"],
         "configuration.phone_screen.texture": config["phone_screen"]["texture"],
         "configuration.phone_screen.logo_enabled": config["phone_screen"]["logo_enabled"],

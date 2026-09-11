@@ -15,7 +15,9 @@ failed attempt, and the owner does not need another token or Meta configuration
 change. All 231 Validation tests, 24 Commander checks plus the demo, canonical
 skill validation, shell syntax, compilation, and whitespace checks pass. Both
 configurator tests also pass in the actual Linux/amd64 Validation candidate
-image.
+image. Preserving release `dff9d6d` completed in 41 seconds with no service
+restart; all audits passed, the deployed helper contains `--globoff`, and the
+production secret remains absent pending the next owner-entered hidden prompt.
 
 ## 2026-09-11 — Valid Meta system-user token failed organic Instagram setup
 

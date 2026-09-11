@@ -14,7 +14,11 @@ and the release contract binds that identity to the configurator's ownership.
 The Linux/amd64 candidate reports identity `10001:10001`, reads a synthetic
 root-owned mode-440 secret through the intended directory permissions, and
 passes all 11 Instagram publication plus both configurator tests. The saved
-token remains intact and does not need to be entered again.
+token remains intact and does not need to be entered again. Preserving release
+`84dfd6a` restarted only Validation and passed all provider, resource, authority,
+database, and approved-asset checks. The live process runs as `10001:10001`, can
+read the mounted secret, and reports `configured: true`, `verified: true`, and
+`media_ready: true` for Instagram actor `17841468586410037` / `natal_service`.
 
 ## 2026-09-11 — Curl expanded Meta nested fields after Page discovery rollout
 
@@ -31,7 +35,7 @@ skill validation, shell syntax, compilation, and whitespace checks pass. Both
 configurator tests also pass in the actual Linux/amd64 Validation candidate
 image. Preserving release `dff9d6d` completed in 41 seconds with no service
 restart; all audits passed, the deployed helper contains `--globoff`, and the
-production secret remains absent pending the next owner-entered hidden prompt.
+production secret was still absent at that checkpoint pending owner entry.
 
 ## 2026-09-11 — Valid Meta system-user token failed organic Instagram setup
 
@@ -61,8 +65,8 @@ image passes 23 of 24 checks; its sole git-dependent planner check cannot run
 because that older image lacks `git`, while the same check passes locally.
 The preserving release completed at revision `3dee45b`; only Validation
 restarted, and all canaries, audits, approved-asset checks, and database checks
-passed. Production remains unconfigured until the owner reruns the hidden
-prompt; no reset or database mutation is involved.
+passed. Production was still unconfigured at that checkpoint until the owner
+reran the hidden prompt; no reset or database mutation was involved.
 
 ## 2026-09-10 — Studio draft validation hid the last successful preview
 

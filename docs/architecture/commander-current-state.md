@@ -4,20 +4,23 @@ Updated: 2026-09-11
 Branch: `main`
 Deployment: all eight application services are healthy. Owner Gateway, hosted
 GOD, and the release controller run `god-images-20260910-8da8e21`;
-Validation now runs `meta-page-discovery-20260911-3dee45b`, while Commander and the
+Validation now runs `meta-secret-gid-20260911-84dfd6a`, while Commander and the
 three provider services remain on `god-mode-sandbox-20260910-faf77f9`. Schema
-005 and both web sites are live with Owner cache v7. Meta credentials remain
-saved but unreadable by the current Validation image.
+005 and both web sites are live with Owner cache v7. Meta credentials are loaded,
+and the organic Instagram connection is verified live.
 
 After the corrected helper saved the production secret, the live connection
 still reported `configured: false`. The host directory/file use the intended
 GID 10001 and restrictive modes, but the Validation image assigned its service
-user GID 999, preventing traversal of the read-only bind mount. A follow-up
-candidate makes UID and GID 10001 explicit and locks that cross-file contract in
-the release tests. The Linux/amd64 candidate reports identity `10001:10001`,
+user GID 999, preventing traversal of the read-only bind mount. The live image
+makes UID and GID 10001 explicit and locks that cross-file contract in the
+release tests. The Linux/amd64 candidate reports identity `10001:10001`,
 reads a synthetic root-owned mode-440 secret through the intended directory
 permissions, and passes all 11 Instagram publication plus both configurator
-tests. The already-saved token remains intact.
+tests. Preserving release `84dfd6a` restarted only Validation and passed every
+provider, resource, authority, database, and approved-asset check. The live
+process reports `configured: true`, `verified: true`, `media_ready: true`, and
+the expected Natal Service Instagram actor without exposing the token.
 
 The first live Page-discovery correction exposed a second configurator defect:
 curl expanded Meta's nested `{id,username}` field expression and therefore
@@ -31,7 +34,7 @@ the actual Linux/amd64 Validation candidate image. Preserving release `dff9d6d`
 completed in 41 seconds with no service restart; all audits passed and the
 deployed helper contains the required `--globoff` option.
 
-## Meta system-user Page discovery fix — live, awaiting credential entry
+## Meta system-user Page discovery fix — live and verified
 
 A fresh Meta system-user token can list the assigned Natal Service Page and its
 linked professional Instagram account through `/me/accounts`, but the previous
@@ -47,8 +50,8 @@ passes 23 of 24 checks; its sole git-dependent planner check cannot run because
 that older image lacks `git`, while the same check passes locally. Production
 was released through the preserving path at revision `3dee45b`; only Validation
 restarted, all release canaries and audits passed, and the approved asset and
-database checks remained intact. The production secret file is still absent by
-design because only the owner can enter the Meta token through the hidden prompt.
+database checks remained intact. The later configurator and container-identity
+corrections now make the saved production credential readable and verified.
 
 ## Studio manual preview and optional CTA — live
 

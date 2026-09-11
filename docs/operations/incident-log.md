@@ -27,6 +27,14 @@ probe subsequently passed without a new login. Full provider acceptance is
 being rechecked before retry; no production data reset or credential rotation
 was performed. Release completion is not yet claimed.
 
+A subsequent retry readiness check exposed depth-one hosted checkout refresh:
+the candidate commit remained present but Git no longer recognized its accepted
+ancestor after rollback. Preparation now retains complete history and upgrades
+clean legacy shallow clones. A real disposable-Git regression verifies ancestry
+after refresh, complete fresh clones and preservation of unfinished owner edits.
+All nine fresh structured/media canaries subsequently passed as jobs 719–727;
+no authorization change or provider-code change was required.
+
 ## 2026-09-11 — Saved Meta secret was unreadable inside Validation
 
 After the hidden-prompt configurator succeeded, a Validation restart still

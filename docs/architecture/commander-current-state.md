@@ -18,12 +18,16 @@ pass; the receiver reaches healthy service cutover. Final acceptance remains
 blocked by a failed live structured-provider canary; recovery restored the
 accepted source, component images and Hosting with a durable rolled-back
 receipt. Authorization and a fresh schema-bound worker probe subsequently pass;
-the full provider canary is being rechecked before another release.
+all nine fresh structured/media canaries now pass (jobs 719–727), without a new
+login. Another controlled release is next; final acceptance is not yet claimed.
 
 Rollout testing corrected disposable-database readiness to query the fully
 initialized target over TCP, isolated the binary artifact stream from helper
 stdin, and added explicit accepted skill-permission repair after recovery Git
-checkout. These guards have focused regressions. Combined candidate checks pass
+checkout. Hosted preparation now retains full Git ancestry so a rollback cannot
+block the next Deploy by hiding the accepted base. These guards have focused
+regressions, with 38 Commander tests (container-only cases run separately).
+Combined candidate checks pass
 246 Validation tests, 95 web unit tests, 13 Gateway tests, all affected Phone
 Metrics and Commander browser flows, and the authoritative Studio visual audit.
 

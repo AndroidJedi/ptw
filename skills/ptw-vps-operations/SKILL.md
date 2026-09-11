@@ -20,6 +20,10 @@ Recovery Git checkouts can reset group-write permissions on changed skill
 files. After restoring the accepted source, explicitly run the accepted skill
 sync installer and verifier before restarting its services. Keep candidate Git
 hooks disabled; a healthy container alone does not verify the mounted skill view.
+Keep hosted checkout history complete. A depth-one refresh at an unaccepted
+candidate hides its accepted ancestor after rollback and prevents safe release
+retry. Unshallow a clean legacy checkout from the canonical full source; never
+rewrite or replace a checkout containing unfinished owner work.
 
 When a wrapper receives Hosting followed by a binary image stream, reserve the
 unread stream on a separate descriptor and give intervening Git/Docker/database

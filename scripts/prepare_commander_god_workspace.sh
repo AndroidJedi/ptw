@@ -26,11 +26,17 @@ if [[ ! -d "$workspace/.git" ]]; then
         echo "Commander hosted workspace exists but is not an isolated Git clone" >&2
         exit 1
     }
-    git clone --depth 1 --no-checkout "file://$repository" "$workspace"
+    git clone --no-checkout "file://$repository" "$workspace"
     git -C "$workspace" remote remove origin
     git -C "$workspace" checkout --detach "$revision"
 elif [[ -z $(git -C "$workspace" status --porcelain) ]]; then
-    git -C "$workspace" fetch --depth 1 "$repository" "$revision"
+    # Release retries need the accepted ancestor even when a newer candidate
+    # was cut over and rolled back. Never truncate the hosted history here.
+    fetch_options=()
+    if [[ $(git -C "$workspace" rev-parse --is-shallow-repository) == true ]]; then
+        fetch_options+=(--unshallow)
+    fi
+    git -C "$workspace" fetch "${fetch_options[@]}" "$repository" "$revision"
     git -C "$workspace" checkout --detach FETCH_HEAD
 else
     echo "Commander hosted workspace has owner changes; preserving its current revision" >&2

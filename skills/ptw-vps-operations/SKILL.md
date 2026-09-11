@@ -82,6 +82,12 @@ before the requested database exists; that is not migration-test readiness.
    generated runtime artifacts, not canonical skill content. Skill verification
    ignores them; run skill-hosted Python with `PYTHONDONTWRITEBYTECODE=1` where
    practical so a read-only audit does not create permission-noisy artifacts.
+6. Before receiving release images, reclaim only dangling images and builder
+   cache older than 24 hours while holding the maintenance lock. CI builds
+   release artifacts off-host, so that cache is rebuildable. Never prune tagged
+   images, containers in use, volumes, databases, credentials, or Commander
+   conversation state. Verify sufficient free space before retrying an ENOSPC
+   rollback; do not blind-retry the same artifact stream.
 
 ## Production contract
 

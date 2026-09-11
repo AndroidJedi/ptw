@@ -38,6 +38,12 @@ cleanup() { rm -rf -- "$release_directory"; }
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
+# CI builds artifacts off-host, so the VPS builder cache is never release
+# authority. Reclaim old cache and dangling layers under the maintenance lock
+# before receiving images; never prune tagged images or volumes.
+docker image prune --force >/dev/null
+docker builder prune --force --filter until=24h >/dev/null
+
 IFS= read -r stream_version
 [[ $stream_version == "PTW-PRESERVING-STREAM 1" ]] || {
     echo "unsupported preserving release stream" >&2; exit 1;

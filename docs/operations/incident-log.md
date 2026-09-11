@@ -55,6 +55,16 @@ all prior images and Hosting. The recovery helper now invokes the verifier from
 the restored accepted repository, with a regression. No data or credential was
 changed.
 
+The next retry passed all CI checks and stopped during artifact receipt with
+`ENOSPC` while loading the GOD image. Its rollback completed normally and left
+accepted revision `96abe02`, all prior images and Hosting healthy. The host had
+673 MB free after accumulated failed-release layers. Maintenance reclaimed 1.4
+GB of unused builder cache and dangling layers, leaving 2.4 GB free; no tagged
+image, volume, database, credential or conversation state was removed. The
+tracked receiver now performs that bounded reclaim under its maintenance lock
+before reading image artifacts, and regression coverage forbids all-image or
+volume pruning.
+
 ## 2026-09-11 — LPV rollout rejected by media enhancement canary
 
 The first preserving rollout of the Meta landing-page-view automation passed

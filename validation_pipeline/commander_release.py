@@ -12,6 +12,9 @@ import re
 import sqlite3
 import subprocess
 import time
+import tempfile
+import threading
+import stat
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -29,17 +32,7 @@ TERMINAL = {"succeeded", "failed"}
 GITHUB_REPOSITORY = "AndroidJedi/ptw"
 BRANCH_PREFIX = "god-deploy/"
 MAX_CHANGED_FILES = 500
-PROTECTED_EXACT = {
-    ".dockerignore", ".firebaserc", "AGENTS.md", "docker-compose.commander.yml",
-    "docker-compose.validation.yml", "firebase.json", "requirements-commander-god.txt",
-}
-PROTECTED_PREFIXES = (
-    ".github/", "commander_god/", "db/migrations/", "deploy/", "scripts/",
-    "skills/ptw-vps-operations/", "validation_pipeline/commander_release.py",
-)
-DOCKERFILES = {
-    "commander/Dockerfile", "owner_gateway/Dockerfile", "validation_pipeline/Dockerfile",
-}
+REQUEST_PATH = ".ptw-release-request.json"
 
 
 def now() -> str:
@@ -49,7 +42,11 @@ def now() -> str:
 class DeploymentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     request_id: UUID
-    confirmation: str = Field(min_length=len(CONFIRMATION), max_length=len(CONFIRMATION))
+    # Older clients can still send the old confirmation; authenticated owner
+    # POSTs are the authorization boundary, not a second magic-word dialog.
+    confirmation: str | None = None
+    chat_id: UUID | None = None
+    owner_message_id: UUID | None = None
 
 
 class CommanderReleaseService:
@@ -78,6 +75,8 @@ class CommanderReleaseService:
         # A fresh controller must reconcile an active workflow immediately;
         # only subsequent refreshes are rate-limited.
         self._last_workflow_poll = float("-inf")
+        self._preparing = set()
+        self._create_lock = threading.RLock()
         with self._db() as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS deployments(
@@ -90,10 +89,10 @@ class CommanderReleaseService:
                 CREATE UNIQUE INDEX IF NOT EXISTS one_active_deployment ON deployments((1))
                     WHERE status IN ('preparing','queued','running');
             """)
-            db.execute(
-                "UPDATE deployments SET status='failed',error_code='controller_restart',updated_at=? "
-                "WHERE status='preparing'", (now(),),
-            )
+            columns = {r[1] for r in db.execute("PRAGMA table_info(deployments)")}
+            for column in ("request_revision", "chat_id", "owner_message_id"):
+                if column not in columns:
+                    db.execute(f"ALTER TABLE deployments ADD COLUMN {column} TEXT")
         self.database.chmod(0o600)
 
     @contextmanager
@@ -107,8 +106,17 @@ class CommanderReleaseService:
             db.close()
 
     def _git(self, *arguments: str, environment: dict[str, str] | None = None) -> str:
+        configured = subprocess.run(["git", "-C", str(self.repository), "config", "--name-only", "--get-regexp", r"^filter\."],
+                                    text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        filters = []
+        for key in configured.stdout.splitlines():
+            if key.startswith("filter.") and key.rsplit(".", 1)[-1] in {"clean", "smudge", "process", "required"}:
+                filters.extend(["-c", key + ("=false" if key.endswith(".required") else "=")])
         return subprocess.check_output(
-            ["git", "-C", str(self.repository), *arguments],
+            ["git", "-C", str(self.repository), "--git-dir=" + str(self.repository / ".git"),
+             "--work-tree=" + str(self.repository), "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
+             "-c", "credential.helper=", "-c", "protocol.allow=never", "-c", "protocol.ext.allow=never",
+             "-c", "protocol.ssh.allow=always", "-c", "protocol.https.allow=always", "-c", "ssh.variant=ssh", *filters, *arguments],
             text=True, stderr=subprocess.DEVNULL, env=environment,
         ).strip()
 
@@ -143,12 +151,25 @@ class CommanderReleaseService:
 
     @staticmethod
     def _protected(paths: list[str]) -> list[str]:
-        return [
-            path for path in paths
-            if path in PROTECTED_EXACT or path in DOCKERFILES
-            or any(path.startswith(prefix) for prefix in PROTECTED_PREFIXES)
-            or any(part.startswith(".env") for part in Path(path).parts)
-        ]
+        return [path for path in paths if any(part.startswith(".env") and not part.endswith(".example") for part in Path(path).parts)]
+
+    def _request_commit(self, base: str, revision: str, identifier: str) -> str:
+        """Publish trusted workflow bytes with only an immutable request added.
+
+        A private Git index leaves the owner's checkout and index untouched.
+        Candidate code cannot replace the workflow performing its own release.
+        """
+        manifest = json.dumps({"version": 2, "id": identifier, "base_revision": base,
+                               "revision": revision, "candidate_branch": f"god-candidate/{identifier}"}, sort_keys=True)
+        blob = subprocess.check_output(["git", "-C", str(self.repository), "hash-object", "-w", "--stdin"],
+                                       input=manifest, text=True).strip()
+        with tempfile.TemporaryDirectory(prefix="release-index-", dir=self.state) as temporary:
+            environment = {**os.environ, "GIT_INDEX_FILE": str(Path(temporary) / "index")}
+            self._git("read-tree", base, environment=environment)
+            self._git("update-index", "--add", "--cacheinfo", f"100644,{blob},{REQUEST_PATH}", environment=environment)
+            tree = self._git("write-tree", environment=environment)
+            return self._git("-c", "user.name=PTW Commander", "-c", "user.email=commander@proove-them-wrong.com",
+                             "commit-tree", tree, "-p", base, "-m", f"Deploy PTW candidate {identifier}")
 
     def _candidate(self) -> dict[str, Any]:
         try:
@@ -172,15 +193,44 @@ class CommanderReleaseService:
             return None
         value = dict(row)
         value.pop("request_id", None)
+        receipt_path = self.deployed_revision_file.parent / "commander-releases" / (row["id"] + ".json")
+        try:
+            receipt = json.loads(receipt_path.read_text())
+            if receipt.get("id") == row["id"] and receipt.get("revision") == row["revision"] and receipt.get("phase") in {
+                "preparing", "application", "hosting", "infrastructure", "accepted", "rolled_back", "recovery_failed",
+            }:
+                value["phase"] = receipt["phase"]
+        except (OSError, ValueError):
+            pass
         return value
 
     def _refresh(self, row: sqlite3.Row | None) -> sqlite3.Row | None:
-        if row is None or row["status"] not in {"queued", "running"} or not row["revision"]:
+        if row is None or row["status"] not in {"preparing", "queued", "running"}:
             return row
+        if row["status"] == "preparing":
+            if row["id"] in self._preparing:
+                return row
+            if row["request_revision"]:
+                try:
+                    remote = self._git("ls-remote", "https://github.com/" + self.github_repository + ".git", "refs/heads/" + row["branch"])
+                except subprocess.CalledProcessError:
+                    return row
+                if not remote.startswith(row["request_revision"] + "\t"):
+                    with self._db() as db:
+                        db.execute("UPDATE deployments SET status='failed',error_code='candidate_publish_interrupted' WHERE id=?", (row["id"],))
+                        return db.execute("SELECT * FROM deployments WHERE id=?", (row["id"],)).fetchone()
+                with self._db() as db:
+                    db.execute("UPDATE deployments SET status='queued' WHERE id=?", (row["id"],))
+                    row = db.execute("SELECT * FROM deployments WHERE id=?", (row["id"],)).fetchone()
+            else:
+                with self._db() as db:
+                    db.execute("UPDATE deployments SET status='failed',error_code='candidate_prepare_interrupted' WHERE id=?", (row["id"],))
+                    return db.execute("SELECT * FROM deployments WHERE id=?", (row["id"],)).fetchone()
         if time.monotonic() - self._last_workflow_poll < WORKFLOW_POLL_SECONDS:
             return row
         self._last_workflow_poll = time.monotonic()
-        params = urlencode({"head_sha": row["revision"], "event": "push", "per_page": 5})
+        workflow_revision = row["request_revision"] or row["revision"]
+        params = urlencode({"head_sha": workflow_revision, "event": "push", "per_page": 5})
         request = Request(
             f"https://api.github.com/repos/{self.github_repository}/actions/runs?{params}",
             headers={"Accept": "application/vnd.github+json", "User-Agent": "ptw-commander-release"},
@@ -191,12 +241,21 @@ class CommanderReleaseService:
         except (HTTPError, URLError, TimeoutError, ValueError):
             return row
         runs = payload.get("workflow_runs", []) if isinstance(payload, dict) else []
-        run = next((item for item in runs if item.get("head_sha") == row["revision"]), None)
+        run = next((item for item in runs if item.get("head_sha") == workflow_revision), None)
         if not run:
             return row
         workflow_status = run.get("status")
         conclusion = run.get("conclusion")
         status = "running" if workflow_status != "completed" else "succeeded" if conclusion == "success" else "failed"
+        if workflow_status == "completed":
+            try:
+                deployed = self._deployed_revision()
+            except RuntimeError:
+                deployed = None
+            if deployed == row["revision"] and conclusion != "success":
+                status = "bookkeeping_required"
+            elif conclusion == "success" and deployed != row["revision"]:
+                status = "failed"
         error = None if status != "failed" else "release_workflow_failed"
         url = run.get("html_url") if isinstance(run.get("html_url"), str) else None
         with self._db() as db:
@@ -206,30 +265,39 @@ class CommanderReleaseService:
             )
             return db.execute("SELECT * FROM deployments WHERE id=?", (row["id"],)).fetchone()
 
-    def detail(self) -> dict[str, Any]:
+    def detail(self, chat_id: str | None = None) -> dict[str, Any]:
         with self._db() as db:
             row = db.execute("SELECT * FROM deployments ORDER BY rowid DESC LIMIT 1").fetchone()
         row = self._refresh(row)
-        return {"candidate": self._candidate(), "deployment": self._deployment(row)}
+        with self._db() as db:
+            history = db.execute("SELECT * FROM deployments WHERE chat_id=? ORDER BY rowid DESC LIMIT 30", (chat_id,)).fetchall() if chat_id else []
+        return {"candidate": self._candidate(), "deployment": self._deployment(row), "history": [self._deployment(r) for r in history]}
 
     def create(self, body: DeploymentRequest) -> dict[str, Any]:
-        if body.confirmation != CONFIRMATION:
+        with self._create_lock:
+            return self._create(body)
+
+    def _create(self, body: DeploymentRequest) -> dict[str, Any]:
+        if body.confirmation is not None and body.confirmation != CONFIRMATION:
             raise ValueError(f"Type {CONFIRMATION} to authorize this production deployment")
         with self._db() as db:
             prior = db.execute("SELECT * FROM deployments WHERE request_id=?", (str(body.request_id),)).fetchone()
             if prior:
-                return self.detail()
+                if prior["chat_id"] != (str(body.chat_id) if body.chat_id else None) or prior["owner_message_id"] != (str(body.owner_message_id) if body.owner_message_id else None):
+                    raise ValueError("Request UUID belongs to another deployment instruction")
+                return {"candidate": self._candidate(), "deployment": self._deployment(self._refresh(prior))}
             if db.execute("SELECT 1 FROM deployments WHERE status IN ('preparing','queued','running')").fetchone():
                 raise ValueError("A production deployment is already active")
         candidate = self._candidate()
         if not candidate.get("deployable"):
             if candidate.get("protected_files"):
-                raise ValueError("This candidate changes protected release infrastructure and requires the normal operations path")
+                raise ValueError("Runtime secret files cannot be included in a source release")
             if not candidate.get("changed_files"):
                 raise ValueError("There are no new GOD-mode changes to deploy")
             raise RuntimeError(candidate.get("unavailable_reason") or "Mobile deployment is unavailable")
 
         deployment_id = str(uuid4())
+        self._preparing.add(deployment_id)
         branch = f"{BRANCH_PREFIX}{deployment_id}"
         stamp = now()
         with self._db() as db:
@@ -238,6 +306,8 @@ class CommanderReleaseService:
                 "VALUES (?,?,?,?,?,?,?)",
                 (deployment_id, str(body.request_id), candidate["base_revision"], branch, "preparing", stamp, stamp),
             )
+            db.execute("UPDATE deployments SET chat_id=?,owner_message_id=? WHERE id=?",
+                       (str(body.chat_id) if body.chat_id else None, str(body.owner_message_id) if body.owner_message_id else None, deployment_id))
         lock_path = self.repository / ".git" / "ptw-commander-operation.lock"
         try:
             with lock_path.open("a") as operation_lock:
@@ -250,11 +320,24 @@ class CommanderReleaseService:
                 if checked.get("base_revision") != candidate["base_revision"] or checked.get("changed_files") != candidate["changed_files"]:
                     raise ValueError("The GOD-mode checkout changed; refresh before deploying")
                 if self._git("status", "--porcelain"):
-                    self._git("add", "-A")
-                    subprocess.run(
-                        ["git", "-C", str(self.repository), "diff", "--cached", "--check"],
-                        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    )
+                    # Never execute owner-controlled hooks or clean filters in
+                    # the publisher, which alone can read its publishing key.
+                    for name in checked["changed_files"]:
+                        path = self.repository / name
+                        if not path.exists() and not path.is_symlink():
+                            self._git("update-index", "--force-remove", "--", name)
+                            continue
+                        info = path.lstat()
+                        if stat.S_ISLNK(info.st_mode):
+                            content, mode = os.readlink(path).encode(), "120000"
+                        elif stat.S_ISREG(info.st_mode):
+                            content = path.read_bytes()
+                            mode = "100755" if info.st_mode & stat.S_IXUSR else "100644"
+                        else:
+                            raise ValueError("Release candidate contains an unsupported file type")
+                        blob = subprocess.check_output(["git", "-C", str(self.repository), "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "hash-object", "--no-filters", "-w", "--stdin"], input=content).decode().strip()
+                        self._git("update-index", "--add", "--cacheinfo", f"{mode},{blob},{name}")
+                    self._git("diff", "--cached", "--check")
                     message = (
                         f"Prepare GOD-mode mobile release {deployment_id}\n\n"
                         f"PTW-Base-Revision: {candidate['base_revision']}"
@@ -266,13 +349,17 @@ class CommanderReleaseService:
                 revision = self._git("rev-parse", "HEAD")
                 if revision == candidate["base_revision"]:
                     raise ValueError("There are no committed GOD-mode changes to deploy")
+                request_revision = self._request_commit(candidate["base_revision"], revision, deployment_id)
+                with self._db() as db:
+                    db.execute("UPDATE deployments SET revision=?,request_revision=? WHERE id=?", (revision, request_revision, deployment_id))
                 environment = {**os.environ, "GIT_SSH_COMMAND": (
                     f"ssh -i {self.deploy_key} -o IdentitiesOnly=yes "
                     f"-o UserKnownHostsFile={self.known_hosts} -o StrictHostKeyChecking=yes"
                 )}
                 self._git(
-                    "push", "git@github.com:" + self.github_repository + ".git",
-                    f"HEAD:refs/heads/{branch}", environment=environment,
+                    "push", "--atomic", "git@github.com:" + self.github_repository + ".git",
+                    f"{revision}:refs/heads/god-candidate/{deployment_id}",
+                    f"{request_revision}:refs/heads/{branch}", environment=environment,
                 )
             with self._db() as db:
                 db.execute(
@@ -293,6 +380,8 @@ class CommanderReleaseService:
                     (now(), deployment_id),
                 )
             raise RuntimeError("The release candidate could not be published") from None
+        finally:
+            self._preparing.discard(deployment_id)
         return self.detail()
 
 
@@ -326,8 +415,8 @@ def create_app_from_env() -> FastAPI:
     )
 
     @router.get("")
-    def detail():
-        return service.detail()
+    def detail(chat_id: UUID | None = None):
+        return service.detail(str(chat_id) if chat_id else None)
 
     @router.post("", status_code=202)
     def deploy(body: DeploymentRequest):

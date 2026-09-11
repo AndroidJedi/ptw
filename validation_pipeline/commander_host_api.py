@@ -10,18 +10,23 @@ from typing import AsyncIterator
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 
 from .commander_chat import CommanderChatService, commander_chat_router
+from .commander_workspace import CommanderWorkspaceService
 
 
 def create_app_from_env() -> FastAPI:
     token = os.environ.get("OWNER_GATEWAY_BRIDGE_TOKEN", "").strip()
     if not token:
         raise RuntimeError("OWNER_GATEWAY_BRIDGE_TOKEN is required")
-    service = CommanderChatService(
+    service = CommanderWorkspaceService(
         Path(os.environ.get("PTW_COMMANDER_REPOSITORY", "/workspace")),
         Path(os.environ.get("PTW_COMMANDER_STATE", "/var/lib/ptw/commander-chat")),
         codex_binary=os.environ.get("CODEX_EXECUTABLE", "/opt/ptw-codex/bin/codex"),
         timeout_seconds=float(os.environ.get("PTW_COMMANDER_TIMEOUT_SECONDS", "2400")),
         target="hosted",
+        plan_url=os.environ.get("PTW_COMMANDER_PLAN_URL", "http://commander-plan:8097"),
+        release_url=os.environ.get("PTW_COMMANDER_RELEASE_URL", "http://commander-release:8096"),
+        bridge_token=token,
+        plan_token=os.environ.get("PTW_COMMANDER_PLAN_TOKEN", ""),
         credential_source=Path(os.environ.get(
             "PTW_CODEX_CREDENTIAL", "/run/ptw-codex-auth/auth.json",
         )),

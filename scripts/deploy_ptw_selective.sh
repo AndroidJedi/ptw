@@ -53,6 +53,7 @@ stage_complete() {
 [[ $(git -C "$repository" rev-parse HEAD) == "$git_revision" ]]
 [[ $(git -C "$platform" rev-parse HEAD) == "$platform_git_revision" ]]
 
+pending_migrations=0
 for migration in "$repository"/db/migrations/*.sql; do
     migration_name=$(basename "$migration")
     applied=$("${commander_compose[@]}" exec -T commander-db \
@@ -61,10 +62,11 @@ for migration in "$repository"/db/migrations/*.sql; do
 SELECT count(*) FROM commander_schema_migrations WHERE name=:'migration_name';
 SQL
     )
-    [[ $applied == 1 ]] || {
-        echo "pending migrations require the backup-bearing in-place deployment path" >&2; exit 1;
-    }
+    if [[ $applied != 1 ]]; then pending_migrations=1; fi
 done
+[[ $pending_migrations == 0 || ${PTW_MIGRATIONS_AUTHORIZED:-0} == 1 ]] || {
+    echo "pending migrations require the backup-bearing in-place deployment path" >&2; exit 1;
+}
 
 old_commander_image=$(docker inspect ptw-commander-api-1 --format '{{.Config.Image}}')
 old_validation_image=$(docker inspect ptw-validation-validation-api-1 --format '{{.Config.Image}}')
@@ -72,6 +74,7 @@ old_gateway_image=$(docker inspect ptw-owner-gateway-1 --format '{{.Config.Image
 old_god_image=$(docker inspect ptw-commander-god-1 --format '{{.Config.Image}}')
 old_release_running=$(docker inspect ptw-commander-release-1 --format '{{.State.Running}}' 2>/dev/null || true)
 old_release_image=$(docker inspect ptw-commander-release-1 --format '{{.Config.Image}}' 2>/dev/null || true)
+old_plan_running=$(docker inspect ptw-commander-plan-1 --format '{{.State.Running}}' 2>/dev/null || true)
 old_platform_api_image=$(docker inspect ptw-agent-platform-commander-api-1 --format '{{.Config.Image}}')
 old_platform_worker_image=$(docker inspect ptw-agent-platform-commander-worker-1 --format '{{.Config.Image}}')
 old_platform_auth_image=$(docker inspect ptw-agent-platform-codex-auth-1 --format '{{.Config.Image}}')
@@ -188,6 +191,11 @@ rollback() {
     selected "$restart_components" commander && rollback_commander+=(commander-api)
     selected "$restart_components" commander-god && rollback_commander+=(commander-god)
     if selected "$restart_components" commander-god; then
+        if [[ $old_plan_running == true ]]; then
+            rollback_commander+=(commander-plan)
+        else
+            "${commander_compose[@]}" rm -sf commander-plan >/dev/null 2>&1 || failed=1
+        fi
         if [[ $old_release_running == true ]]; then
             rollback_commander+=(commander-release)
         else
@@ -259,6 +267,13 @@ SQL
 fi
 stage_complete "preflight"
 
+if [[ $pending_migrations == 1 ]]; then
+    "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/apply_ptw_migrations_preserving.sh" "$repository"
+    # The migration helper verifies old data and records the accepted new
+    # schema baseline before application processes are restarted.
+    snapshot_authority > "$before"
+fi
+
 "$repository/scripts/prepare_commander_god_workspace.sh" "$git_revision"
 [[ -z $restart_components ]] || cutover_started=1
 if selected "$restart_components" platform; then
@@ -271,6 +286,7 @@ commander_services=()
 selected "$restart_components" commander && commander_services+=(commander-api)
 selected "$restart_components" commander-god && commander_services+=(commander-god)
 selected "$restart_components" commander-god && commander_services+=(commander-release)
+selected "$restart_components" commander-god && commander_services+=(commander-plan)
 [[ ${#commander_services[@]} -eq 0 ]] || \
     "${commander_compose[@]}" up -d --no-deps --no-build --wait "${commander_services[@]}"
 if selected "$restart_components" validation; then
@@ -306,7 +322,7 @@ PTW_MAINTENANCE_LOCK_HELD=1 "$repository/scripts/audit_ptw_1gb.sh" </dev/null
 stage_complete "audits"
 
 for service in ptw-commander-api-1 ptw-validation-validation-api-1 ptw-owner-gateway-1 \
-    ptw-commander-god-1 ptw-commander-release-1 ptw-agent-platform-commander-api-1 \
+    ptw-commander-god-1 ptw-commander-release-1 ptw-commander-plan-1 ptw-agent-platform-commander-api-1 \
     ptw-agent-platform-commander-worker-1 ptw-agent-platform-codex-auth-1; do
     [[ $(docker inspect "$service" --format '{{.State.Health.Status}}') == healthy ]]
 done
@@ -331,11 +347,13 @@ if selected "$restart_components" validation; then
     "${validation_compose[@]}" exec -T validation-api python -m validation_pipeline.verify_approved_post_access
 fi
 
+if [[ ${PTW_DEFER_RELEASE_COMMIT:-0} != 1 ]]; then
 install -d -m 0700 "$repository/.local"
 revision_state=$(mktemp "$repository/.local/deployed-revision.next.XXXXXX")
 printf '%s\n' "$git_revision" > "$revision_state"
 chmod 0600 "$revision_state"
 mv -f -- "$revision_state" "$repository/.local/deployed-revision"
+fi
 rollback_needed=0
 stage_complete "commit"
 echo "PTW fast rollout complete at $git_revision in $(($(date +%s) - started_epoch))s; restarted=${restart_components:-none}"

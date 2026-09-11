@@ -75,8 +75,10 @@ $commander_compose up -d --no-deps --wait --no-build commander-api >/dev/null
 $validation_compose up -d --no-deps --wait --no-build validation-api >/dev/null
 $commander_compose up -d --no-deps --wait --no-build --force-recreate owner-gateway >/dev/null
 
-$commander_compose exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 \
+expected_migrations=$(find "$repository/db/migrations" -maxdepth 1 -name '*.sql' | wc -l | tr -d ' ')
+$commander_compose exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 -v expected_migrations="$expected_migrations" \
   -U ptw_commander -d ptw_commander <<'SQL'
+CREATE TEMP TABLE expected_migration_inventory AS SELECT :expected_migrations AS count;
 DO $$
 DECLARE failures text;
 DECLARE forbidden text;
@@ -150,7 +152,7 @@ BEGIN
   IF forbidden IS NOT NULL THEN
     RAISE EXCEPTION 'retired tables survived Product Brief reset: %', forbidden;
   END IF;
-  IF (SELECT count(*) FROM commander_schema_migrations) <> 5
+  IF (SELECT count(*) FROM commander_schema_migrations) <> (SELECT count FROM expected_migration_inventory)
      OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='001_ptw_brief_v1.sql'
      ) OR NOT EXISTS (

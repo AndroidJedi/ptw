@@ -12,6 +12,7 @@ import { StudioView } from './views/StudioView'
 import { LandingView } from './views/LandingView'
 import { AdsView } from './views/AdsView'
 import { SettingsView } from './views/SettingsView'
+import { CommanderChat } from './components/CommanderChat'
 
 const OWNER = 'sgolovaschuk@gmail.com'
 export const AUTH_BOOT_TIMEOUT_MS = 10_000
@@ -36,8 +37,8 @@ function persistLanguage(language: Language) {
 function initialConsoleLocation(): { page: Page; projectId: string | null; creativeId: string | null; landingId: string | null } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const page: Page = requestedPage === 'posts' || requestedPage === 'landing' || requestedPage === 'ads' || requestedPage === 'settings' ? requestedPage : 'briefs'
-  if (requestedPage && requestedPage !== 'briefs' && requestedPage !== 'posts' && requestedPage !== 'landing' && requestedPage !== 'ads' && requestedPage !== 'settings') {
+  const page: Page = requestedPage === 'posts' || requestedPage === 'landing' || requestedPage === 'ads' || requestedPage === 'settings' || requestedPage === 'commander' ? requestedPage : 'briefs'
+  if (requestedPage && !['briefs', 'posts', 'landing', 'ads', 'settings', 'commander'].includes(requestedPage)) {
     params.delete('page')
     const search = params.toString()
     window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
@@ -51,7 +52,7 @@ function writeConsoleLocation(
   const params = new URLSearchParams(window.location.search)
   if (page === 'briefs') params.delete('page')
   else params.set('page', page)
-  if (page !== 'settings' && projectId) params.set('project', projectId)
+  if (page !== 'settings' && page !== 'commander' && projectId) params.set('project', projectId)
   else params.delete('project')
   if (page === 'posts' && creativeId) params.set('creative', creativeId)
   else params.delete('creative')
@@ -139,7 +140,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
   }
 
   useEffect(() => {
-    if (page === 'settings' || projects !== null) return
+    if (page === 'settings' || page === 'commander' || projects !== null) return
     void refreshProjects().catch((cause: Error) => {
       setProjects([])
       setProjectError(cause.message)
@@ -214,13 +215,14 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
   return <Shell page={page} onPage={navigate} language={language}>
     {liveProduction && <div className="live-production-banner" role="alert"><strong>LIVE PRODUCTION DATA</strong><span>{language === 'uk' ? 'Створення та виправлення брифів запускають реальних провайдерів.' : 'Brief creation and correction invoke real providers.'}</span></div>}
     <div className="top-owner"><span>{user.email}</span><button onClick={() => signOut(auth)} aria-label={language === 'uk' ? 'Вийти' : 'Sign out'}><LogOut /></button></div>
-    {page !== 'settings' && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
-    {page !== 'settings' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
+    {page !== 'settings' && page !== 'commander' && <ProjectSwitcher projects={projects} projectId={validatedProjectId} onSelect={selectProject} onNew={newProject} onRename={renameProject} language={language} />}
+    {page !== 'settings' && page !== 'commander' && projectError && <p className="notice" role="alert">{projectError} <button className="text-action" onClick={() => void refreshProjects()}>{language === 'uk' ? 'Повторити завантаження проєктів' : 'Retry projects'}</button></p>}
     {page === 'briefs' && <ProductBriefView api={api} projectId={validatedProjectId} onProjectCreated={projectCreated} onProjectBriefChanged={projectNameChanged} onProjectsRefresh={refreshProjects} onCreative={openCreative} language={language} />}
     {page === 'posts' && <StudioView api={api} language={language} tuneMode={localApp} projectId={validatedProjectId} creativeId={creativeId} onCreative={selectCreative} />}
     {page === 'landing' && <LandingView api={api} language={language} projectId={validatedProjectId} projectName={projects?.find(item => item.project_id === validatedProjectId)?.name || ''} landingId={landingId} onLanding={selectLanding} />}
     {page === 'ads' && <AdsView api={api} language={language} projectId={validatedProjectId} />}
     {page === 'settings' && <SettingsView api={api} language={language} onLanguage={changeLanguage} />}
+    {page === 'commander' && <CommanderChat api={api} language={language} />}
   </Shell>
 }
 

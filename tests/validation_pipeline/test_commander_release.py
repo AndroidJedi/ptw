@@ -89,16 +89,18 @@ class CommanderReleaseTests(unittest.TestCase):
         ))
         self.assertEqual(deployment["id"], duplicate["deployment"]["id"])
 
-    def test_rejects_protected_infrastructure_and_exact_confirmation(self):
+    def test_infrastructure_uses_bounded_request_on_accepted_workflow(self):
         workflow = self.repo / ".github/workflows/release.yml"
         workflow.parent.mkdir(parents=True)
         workflow.write_text("unsafe\n")
         detail = self.service.detail()
-        self.assertEqual([".github/workflows/release.yml"], detail["candidate"]["protected_files"])
-        with self.assertRaisesRegex(ValueError, "Type DEPLOY NEW CHANGES"):
-            self.service.create(DeploymentRequest(request_id=uuid4(), confirmation="x" * len(CONFIRMATION)))
-        with self.assertRaisesRegex(ValueError, "protected release infrastructure"):
-            self.service.create(DeploymentRequest(request_id=uuid4(), confirmation=CONFIRMATION))
+        self.assertEqual([], detail["candidate"]["protected_files"])
+        release = self.create_without_network()["deployment"]
+        from scripts.verify_ptw_release_request import validate
+        manifest = validate(self.repo, release["request_revision"], deployed=self.base)
+        self.assertEqual(release["revision"], manifest["revision"])
+        changed = subprocess.check_output(["git", "-C", self.repo, "diff", "--name-only", self.base, release["request_revision"]], text=True)
+        self.assertEqual(".ptw-release-request.json\n", changed)
 
     def test_refresh_maps_public_workflow_result_without_exposing_logs(self):
         path = self.repo / "owner_gateway/change.py"
@@ -106,7 +108,7 @@ class CommanderReleaseTests(unittest.TestCase):
         path.write_text("value = 1\n")
         queued = self.create_without_network()["deployment"]
         payload = {"workflow_runs": [{
-            "head_sha": queued["revision"], "status": "completed", "conclusion": "failure",
+            "head_sha": queued["request_revision"], "status": "completed", "conclusion": "failure",
             "html_url": "https://github.com/AndroidJedi/ptw/actions/runs/1",
         }]}
         self.service._last_workflow_poll = float("-inf")
@@ -114,6 +116,17 @@ class CommanderReleaseTests(unittest.TestCase):
             result = self.service.detail()["deployment"]
         self.assertEqual(("failed", "release_workflow_failed"), (result["status"], result["error_code"]))
         self.assertEqual(payload["workflow_runs"][0]["html_url"], result["workflow_url"])
+
+    def test_publisher_never_executes_checkout_hooks_or_clean_filters(self):
+        hook = self.repo / ".git/hooks/pre-commit"
+        hook.write_text("#!/bin/sh\ntouch hook-ran\nexit 1\n")
+        hook.chmod(0o755)
+        subprocess.run(["git", "-C", self.repo, "config", "filter.owner.clean", "touch filter-ran"], check=True)
+        (self.repo / ".gitattributes").write_text("*.txt filter=owner\n")
+        (self.repo / "feature.txt").write_text("New feature\n")
+        self.create_without_network()
+        self.assertFalse((self.repo / "hook-ran").exists())
+        self.assertFalse((self.repo / "filter-ran").exists())
 
     def test_private_api_requires_gateway_token(self):
         with patch.dict("os.environ", {

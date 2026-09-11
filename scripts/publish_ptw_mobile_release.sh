@@ -12,17 +12,33 @@ branch=$4
 : "${PTW_MOBILE_DEPLOY_SSH_KEY:?set PTW_MOBILE_DEPLOY_SSH_KEY}"
 : "${PTW_MOBILE_DEPLOY_KNOWN_HOSTS:?set PTW_MOBILE_DEPLOY_KNOWN_HOSTS}"
 
-revision=$(git rev-parse HEAD)
+revision=${PTW_RELEASE_TARGET_REVISION:-$(git rev-parse HEAD)}
 [[ $revision =~ ^[0-9a-f]{40}$ && -z $(git status --porcelain) ]] || {
     echo "mobile release requires a clean committed candidate" >&2; exit 1;
 }
 release_directory=".local/releases/$release_tag"
 plan="$release_directory/release-plan.json"
+python3 - "$release_directory" "$revision" <<'PY'
+import hashlib, json, pathlib, sys
+directory = pathlib.Path(sys.argv[1])
+manifest = json.loads((directory / 'artifact-digests.json').read_text())
+allowed = {'release-plan.json','commander.tar','validation.tar','owner-gateway.tar','commander-god.tar','owner-console.tar.gz','public-landings.tar.gz'}
+assert manifest['revision'] == sys.argv[2] and set(manifest['sha256']) <= allowed
+assert 'release-plan.json' in manifest['sha256']
+for name, digest in manifest['sha256'].items():
+    path = directory / name
+    assert not path.is_symlink()
+    with path.open('rb') as source:
+        assert hashlib.file_digest(source, 'sha256').hexdigest() == digest, 'Artifact digest mismatch'
+plan = json.loads((directory / 'release-plan.json').read_text())
+for component, changed in plan['build'].items():
+    assert not changed or component + '.tar' in manifest['sha256']
+for target, changed in plan['hosting'].items():
+    assert not changed or target + '.tar.gz' in manifest['sha256']
+print('Candidate revision and artifact digests verified')
+PY
 python3 scripts/plan_ptw_release.py --validate "$plan" --target "$revision" \
     --release-tag "$release_tag" >/dev/null
-[[ $(python3 -c 'import json,sys; print(int(json.load(open(sys.argv[1]))["migrations"]))' "$plan") == 0 ]] || {
-    echo "mobile release does not accept migrations" >&2; exit 1;
-}
 
 sha256_file() {
     local line
@@ -66,7 +82,7 @@ emit_web() {
 }
 
 {
-    printf 'PTW-MOBILE-RELEASE 1 %s %s %s\n' "$release_tag" "$revision" "$branch"
+    printf 'PTW-MOBILE-RELEASE 2 %s %s %s\n' "$release_tag" "$revision" "$branch"
     emit_web owner-console owner-console.tar.gz
     emit_web public-landings public-landings.tar.gz
     printf 'PTW-PRESERVING-STREAM 1\n'

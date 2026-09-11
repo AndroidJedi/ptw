@@ -162,7 +162,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         return data, digest
 
     async def commander_release_bridge(
-        method: str, *, body: Mapping[str, Any] | None = None,
+        method: str, *, body: Mapping[str, Any] | None = None, chat_id: UUID | None = None,
     ) -> dict[str, Any]:
         if not settings.commander_release_url:
             raise HTTPException(status_code=503, detail="Commander mobile deployment is unavailable")
@@ -173,6 +173,7 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
                     f"{settings.commander_release_url}/internal/v1/settings/commander/deployments",
                     headers={"X-PTW-Owner-Gateway-Token": settings.validation_service_token},
                     json=None if body is None else dict(body),
+                    params={"chat_id": str(chat_id)} if chat_id else None,
                 )
         except httpx.HTTPError as error:
             raise HTTPException(status_code=503, detail="Commander mobile deployment is unavailable") from error
@@ -228,10 +229,35 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
 
     @app.get("/api/v1/settings/commander/chats/{chat_id}")
     async def commander_chat(
-        chat_id: UUID, response: Response, _identity: OwnerIdentity = Depends(owner),
+        chat_id: UUID, response: Response, before: int | None = None, _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         response.headers["Cache-Control"] = "private, no-store"
-        return await commander_bridge("GET", f"/chats/{chat_id}")
+        return await commander_bridge("GET", f"/chats/{chat_id}" + (f"?before={before}" if before is not None else ""))
+
+    @app.get("/api/v1/settings/commander/capabilities")
+    async def commander_capabilities(response: Response, _identity: OwnerIdentity = Depends(owner)):
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bridge("GET", "/capabilities")
+
+    @app.get("/api/v1/settings/commander/chats/{chat_id}/events")
+    async def commander_events(chat_id: UUID, response: Response, after: int = 0, _identity: OwnerIdentity = Depends(owner)):
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bridge("GET", f"/chats/{chat_id}/events?after={max(0, after)}")
+
+    @app.post("/api/v1/settings/commander/chats/{chat_id}/preferences")
+    async def commander_preferences(chat_id: UUID, request: Mapping[str, Any], response: Response, _identity: OwnerIdentity = Depends(owner)):
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bridge("POST", f"/chats/{chat_id}/preferences", body=request)
+
+    @app.post("/api/v1/settings/commander/chats/{chat_id}/deploy", status_code=202)
+    async def commander_deploy_action(chat_id: UUID, request: Mapping[str, Any], response: Response, _identity: OwnerIdentity = Depends(owner)):
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bridge("POST", f"/chats/{chat_id}/deploy", body=request)
+
+    @app.post("/api/v1/settings/commander/chats/{chat_id}/questions/{question_id}/answers")
+    async def commander_answer(chat_id: UUID, question_id: UUID, request: Mapping[str, Any], response: Response, _identity: OwnerIdentity = Depends(owner)):
+        response.headers["Cache-Control"] = "private, no-store"
+        return await commander_bridge("POST", f"/chats/{chat_id}/questions/{question_id}/answers", body=request)
 
     @app.post("/api/v1/settings/commander/chats/{chat_id}/messages", status_code=202)
     async def send_commander_message(
@@ -270,10 +296,10 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
 
     @app.get("/api/v1/settings/commander/deployments")
     async def commander_deployment(
-        response: Response, _identity: OwnerIdentity = Depends(owner),
+        response: Response, chat_id: UUID | None = None, _identity: OwnerIdentity = Depends(owner),
     ) -> dict[str, Any]:
         response.headers["Cache-Control"] = "private, no-store"
-        return await commander_release_bridge("GET")
+        return await commander_release_bridge("GET", chat_id=chat_id)
 
     @app.post("/api/v1/settings/commander/deployments", status_code=202)
     async def deploy_commander_changes(

@@ -20,7 +20,7 @@ import subprocess
 import sys
 import tempfile
 import threading
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -28,6 +28,26 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 ACTIVE = {"queued", "running", "stopping"}
+
+
+class Preferences(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mode: str = "build"
+    model: str | None = None
+    effort: str | None = None
+
+
+class QuestionAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    request_id: UUID
+    answers: dict[str, list[str]]
+
+
+class DeploymentAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    request_id: UUID
+
+
 MAX_TURNS = 30
 MAX_IMAGES_PER_MESSAGE = 4
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -107,6 +127,10 @@ class ChatMessage(BaseModel):
     request_id: UUID
     message: str = Field(default="", max_length=8000)
     attachments: list[ChatImage] = Field(default_factory=list, max_length=MAX_IMAGES_PER_MESSAGE)
+    reply_to_message_id: UUID | None = None
+    mode: Literal["plan", "build"] | None = None
+    model: str | None = Field(default=None, max_length=120)
+    effort: str | None = Field(default=None, max_length=40)
 
     @model_validator(mode="after")
     def require_content(self) -> "ChatMessage":
@@ -567,8 +591,31 @@ def commander_chat_router(
         return service.create_chat()
 
     @router.get("/chats/{chat_id}")
-    def chat(chat_id: UUID):
+    def chat(chat_id: UUID, before: int | None = None):
+        if hasattr(service, "capabilities"):
+            return invoke(service.chat, str(chat_id), before)
         return invoke(service.chat, str(chat_id))
+
+    if hasattr(service, "capabilities"):
+        @router.get("/capabilities")
+        def capabilities():
+            return invoke(service.capabilities)
+
+        @router.post("/chats/{chat_id}/deploy", status_code=202)
+        def deploy(chat_id: UUID, body: DeploymentAction):
+            return invoke(service.deploy_chat, str(chat_id), str(body.request_id))
+
+        @router.post("/chats/{chat_id}/preferences")
+        def preferences(chat_id: UUID, body: Preferences):
+            return invoke(service.preferences, str(chat_id), body)
+
+        @router.get("/chats/{chat_id}/events")
+        def events(chat_id: UUID, after: int = 0):
+            return invoke(service.events, str(chat_id), max(0, after))
+
+        @router.post("/chats/{chat_id}/questions/{question_id}/answers")
+        def answer(chat_id: UUID, question_id: UUID, body: QuestionAnswer):
+            return invoke(service.answer, str(chat_id), str(question_id), body)
 
     @router.post("/chats/{chat_id}/messages", status_code=202)
     def send(chat_id: UUID, body: ChatMessage):

@@ -105,6 +105,7 @@ services:
       PTW_COMMANDER_REPOSITORY: /workspace
       PTW_COMMANDER_STATE: /var/lib/ptw/commander-chat
       PTW_COMMANDER_TIMEOUT_SECONDS: "2400"
+      PTW_COMMANDER_PLAN_TOKEN: ${PTW_COMMANDER_PLAN_TOKEN:-}
       CODEX_HOME: /var/lib/ptw/commander-chat/codex-home
       CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
       PTW_CODEX_CREDENTIAL: /run/ptw-codex-auth/auth.json
@@ -113,7 +114,7 @@ services:
     volumes:
       - /opt/ptw/commander-workspace:/workspace
       - commander-god-state:/var/lib/ptw/commander-chat
-      - /root/.codex/packages/standalone/current:/opt/ptw-codex:ro
+      - /root/.codex/packages/standalone/releases/0.147.0-x86_64-unknown-linux-musl:/opt/ptw-codex:ro
       - /root/.codex/ptw-worker-credential:/run/ptw-codex-auth:ro
     mem_limit: 512m
     pids_limit: 128
@@ -157,6 +158,35 @@ services:
     security_opt: [no-new-privileges:true]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8096/healthz', timeout=2)"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+    networks:
+      default:
+
+  commander-plan:
+    image: ${PTW_COMMANDER_GOD_IMAGE:-ptw-validation:${PTW_IMAGE_TAG:-latest}}
+    pull_policy: never
+    command: ["uvicorn", "validation_pipeline.commander_plan_api:create_app_from_env", "--factory", "--host", "0.0.0.0", "--port", "8097", "--no-access-log"]
+    restart: unless-stopped
+    environment:
+      PTW_COMMANDER_PLAN_TOKEN: ${PTW_COMMANDER_PLAN_TOKEN:-}
+      CODEX_EXECUTABLE: /opt/ptw-codex/bin/codex
+      PTW_CODEX_CREDENTIAL: /run/ptw-codex-auth/auth.json
+      PATH: /opt/ptw-codex/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    volumes:
+      - /opt/ptw/commander-workspace:/workspace:ro
+      - /root/.codex/packages/standalone/releases/0.147.0-x86_64-unknown-linux-musl:/opt/ptw-codex:ro
+      - /root/.codex/ptw-worker-credential:/run/ptw-codex-auth:ro
+    mem_limit: 512m
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8097/healthz', timeout=2)"]
       interval: 15s
       timeout: 3s
       retries: 10

@@ -7,7 +7,7 @@ description: Implement owner-directed PTW features, fixes, and system changes th
 
 ## Scope and context
 
-This is the PTW development agent behind Settings → Commander → GOD mode.
+This is the PTW development agent behind the dedicated Commander GOD workspace.
 It can change application code, APIs, tabs, Telegram implementation, tests,
 documentation, and canonical skills across the repository. A requested carousel
 workspace is a feature to implement, not an unsupported Studio template field.
@@ -19,9 +19,17 @@ The runner targets either the local checkout or the isolated hosted development
 checkout named by the UI. The hosted checkout contains tracked source only and
 is separate from the live deployment checkout and production data. The coding
 runner never receives publishing, production database, Docker, SSH, GitHub-key,
-or external-messaging access. Hosted Settings may separately publish and deploy
-an exact completed candidate through the owner-confirmed release controller;
-that boundary never grants deployment capability to the coding process.
+or external-messaging access. An explicit owner instruction to deploy authorizes
+the host-handled `request_deployment` tool without another confirmation. Complete
+implementation and checks first; the host durably hands off the result, then the
+separate release controller freezes and deploys the candidate. Never use shell
+commands to bypass that bounded interface or claim a queued release is live.
+
+Plan uses native collaboration mode in a separate read-only worker without
+deployment tools. Build uses native Default mode. Use interactive questions for
+clarifications; answers and replies continue the same task. The selected model
+and effort are authoritative. Implement plan switches to Build but does not
+authorize deployment unless the owner also requests deployment.
 
 ## Complete a chat turn
 
@@ -69,10 +77,9 @@ Post, or Landing learning entities or cross their lesson namespaces.
 
 ## Established chat diagnostics
 
-- GOD mode is additive in Settings: keep ChatGPT Authorization visible in local
-  and production Settings. The English/Ukrainian language control belongs in
-  Settings, not the navigation rails. Test these controls together when changing
-  Settings so a mode condition cannot hide an existing owner control.
+- Commander has its own navigation destination and no Project selector. Settings
+  retains authorization and language. Use a timeline, history drawer and sticky
+  composer, with Plan/Build, runtime model/effort choices, Reply, Send and Stop.
 
 - An uncertain message POST must retain its request UUID. Reconcile that UUID
   before resubmitting; a new UUID can execute the same code mutation twice.
@@ -99,17 +106,28 @@ Post, or Landing learning entities or cross their lesson namespaces.
   mounts, absent Docker socket and production data, resource limits, and safe
   environment allowlist. Local Commander must retain `workspace-write` with
   shell network disabled.
-- Hosted mobile release is available only after the coding turn has finished.
-  Settings requires a second confirmation on **DEPLOY NEW CHANGES** and preserves
-  its request UUID across an uncertain response. A separate locked controller
-  freezes and publishes the exact candidate while an off-VPS runner verifies,
-  builds, and invokes the preserving receiver. The controller rejects migrations,
-  workflows, deploy scripts, Dockerfiles, Compose, and other protected operations
-  paths; those still require `ptw-vps-operations`. Keep the coding container free
-  of the GitHub deploy key, CI SSH key, Docker socket, production checkout/data,
-  and runtime credentials. Verify candidate idempotency, cross-container checkout
-  locking, owner/App Check forwarding, mobile confirmation/status recovery,
-  workflow failure display, and automatic production rollback.
+- Chat-triggered deployment and the one-click Deploy action share a durable
+  request UUID. "Implement and deploy" survives clarification, but questions,
+  quoted examples, negations and Plan messages never initiate a release. The
+  final coding response and handoff must persist before the checkout lock is
+  released. All versioned PTW paths are eligible, including workflows, Docker,
+  Compose, receiver code and migrations; routine releases preserve data. Resets,
+  credential rotation and unrelated systems need specifically scoped requests.
+- The candidate branch contains source; the request branch is based on the last
+  accepted revision and changes only a bounded manifest. Its trusted workflow
+  builds without production credentials; the privileged stage verifies artifacts
+  and invokes the restricted receiver. Recovery remains owned by the accepted
+  release until application, infrastructure, migrations and Hosting pass.
+- A previous successful release does not prove newer edits are live. Match the
+  exact candidate, authoritative deployed marker and workflow outcome. Preserve
+  per-conversation release links; distinguish rollout failure from bookkeeping
+  repair. Never publish the generated `skills/.system` runtime directory.
+- App-server threads are ephemeral. Persist sanitized transcript, effective turn
+  settings, questions and answers; reconstruct context after restart and retrieve
+  archived messages by cursor when needed. Keep Send available for steering and
+  reconcile completion races with the original request UUID. Never replay an
+  interrupted mutation automatically. Plan has a separate bridge token, not the
+  Owner Gateway/release token; its checkout mount must actually reject writes.
 
 - GOD chat image inputs are request-scoped visual context, not repository assets.
   Accept only bounded PNG/JPEG/WebP uploads, decode and normalize them before use,

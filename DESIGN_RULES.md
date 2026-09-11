@@ -5,17 +5,20 @@ Updated: 2026-09-04
 
 ## Navigation and trust
 
-- Navigation contains exactly Brief / Бриф, Post / Допис, and Landing / Лендінг.
-- The Project selector appears in all destinations.
+- Navigation contains Brief, Post, Landing, Ads, Commander and Settings.
+- The Project selector appears only in project-scoped destinations, never Commander or Settings.
 - The lower navigation controls include a compact Settings control. The language
   switcher lives inside Settings. Settings always retains ChatGPT Authorization,
   including when local GOD mode is available. It may expose authorization state and the
   device-login URL/code only; access and refresh tokens, CLI output, and provider
   credentials never enter browser state, API responses, or logs.
-- Local development Settings also offers Commander GOD-mode chat for PTW-wide
-  code changes and maintained development skills. Label its local execution
-  target, retain conversations, show running/interrupted/failed states, and
-  provide Stop. This local milestone has no VPS execution or deployment action.
+- Commander is one conversation workspace at `?page=commander`: compact header,
+  history drawer, Markdown timeline and sticky composer. Mode, available model
+  and compatible effort controls sit beside messages. Reply quotes its target;
+  Send steers active work and Stop remains separate. Questions and release
+  outcomes belong in the timeline, not unrelated page panels. Explicit deploy
+  instructions and Deploy need no second confirmation. Always distinguish newer
+  local changes from an earlier successful release.
 - Design first for 360px and one-hand use with 44×44 CSS-pixel targets, no
   horizontal overflow, keyboard access, and reduced-motion support.
 - Empty state is valid. Never seed fake Briefs, metrics, proof, testimonials,

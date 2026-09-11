@@ -5,18 +5,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 from typing import Iterable
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(os.environ.get("PTW_PLAN_REPOSITORY", str(Path(__file__).resolve().parents[1])))
 COMPONENTS = ("commander", "validation", "owner-gateway", "commander-god")
 GOD_ONLY_FILES = {
     "validation_pipeline/commander_chat.py",
     "validation_pipeline/commander_chat_worker.py",
     "validation_pipeline/commander_host_api.py",
     "validation_pipeline/commander_release.py",
+    "validation_pipeline/commander_rpc.py",
+    "validation_pipeline/commander_workspace.py",
+    "validation_pipeline/commander_plan_api.py",
 }
 
 
@@ -60,6 +64,9 @@ def classify(paths: Iterable[str]) -> dict[str, object]:
                 "validation_pipeline/commander_chat_worker.py",
                 "validation_pipeline/commander_host_api.py",
                 "validation_pipeline/commander_release.py",
+                "validation_pipeline/commander_rpc.py",
+                "validation_pipeline/commander_workspace.py",
+                "validation_pipeline/commander_plan_api.py",
             ),
         ):
             build["commander-god"] = restart["commander-god"] = True
@@ -73,7 +80,14 @@ def classify(paths: Iterable[str]) -> dict[str, object]:
             matched = True
         if path.startswith("db/migrations/"):
             migrations = True
+            build["commander"] = restart["commander"] = True
+            build["validation"] = restart["validation"] = True
+            restart["owner-gateway"] = True
             matched = True
+        if path.startswith(("deploy/", "config/")):
+            restart = {name: True for name in restart}
+        if path == "scripts/migrate_commander.sh":
+            restart = {name: True for name in restart}
         if path.startswith("apps/commander-web/"):
             hosting["owner-console"] = True
             matched = True

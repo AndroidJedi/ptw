@@ -195,7 +195,7 @@ class OwnerClaimsTests(unittest.TestCase):
                 return OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
 
         configured = replace(self.settings, commander_release_url="http://commander-release:8096")
-        payload = {"confirmation": "DEPLOY NEW CHANGES", "request_id": "01900000-0000-7000-8000-000000000002"}
+        payload = {"request_id": "01900000-0000-7000-8000-000000000002"}
         upstream = httpx.Response(
             202, json={"candidate": {"changed_files": []}, "deployment": {"status": "queued"}},
             request=httpx.Request("POST", "http://commander-release:8096/internal/v1/settings/commander/deployments"),
@@ -210,7 +210,7 @@ class OwnerClaimsTests(unittest.TestCase):
         self.assertEqual("private, no-store", response.headers["cache-control"])
         forwarded.assert_awaited_once_with(
             "POST", "http://commander-release:8096/internal/v1/settings/commander/deployments",
-            headers={"X-PTW-Owner-Gateway-Token": "bridge"}, json=payload,
+            headers={"X-PTW-Owner-Gateway-Token": "bridge"}, json=payload, params=None,
         )
 
     def test_commander_image_requires_owner_and_verifies_private_upstream_bytes(self) -> None:

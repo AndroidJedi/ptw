@@ -7,12 +7,15 @@ scripts/release_ptw_fast.sh --release-tag RELEASE \
   --confirm 'DEPLOY PTW PRESERVING'
 ```
 
-Hosted GOD-mode changes may enter the same preserving path from the mobile
-**DEPLOY NEW CHANGES** control. The owner-confirmed controller freezes one exact
-candidate commit and pushes only a `god-deploy/<uuid>` branch. The public-repo
-GitHub runner executes `.github/workflows/god-mobile-deploy.yml`, validates that
-the candidate descends from the deployed revision, rejects protected operational
-paths and migrations, runs the focused Commander/Gateway/web/skill checks, and
+Hosted GOD-mode changes enter the preserving path from an explicit chat deploy
+instruction or one click on Deploy in the Commander workspace. No second
+confirmation is required. The controller freezes one exact candidate commit in
+`god-candidate/<uuid>` and a `god-deploy/<uuid>` request branch based on the last
+accepted revision. The request changes only `.ptw-release-request.json`; its
+existing workflow verifies and builds the candidate without production secrets.
+All versioned PTW paths are eligible, including infrastructure and migrations.
+The public-repo GitHub runner executes `.github/workflows/god-mobile-deploy.yml`, validates that
+the candidate descends from the deployed revision, runs the Commander/Gateway/web/skill checks, and
 builds selective Linux/amd64 images outside the VPS. It then streams checksummed
 artifacts through the restricted `ptw-release` forced SSH command. Install that
 boundary with `scripts/install_ptw_mobile_deployer.sh`; never give its key or the
@@ -26,7 +29,25 @@ root-owned Firebase service account holding its existing application roles plus
 `roles/firebasehosting.admin`; that credential never enters GitHub. The pinned
 Node deploy container is preloaded on the VPS so its fixed Firebase CLI can
 publish already-built bytes without building application images there. A failed
-workflow remains visible in Settings and never retries automatically.
+workflow remains visible in its Commander conversation. A successful rollout
+with failed source promotion is reported as bookkeeping repair, not rollback.
+
+Commander uses supervised Codex app-server, pinned in production to the tested
+standalone 0.147.0 runtime. Runtime `model/list` and `collaborationMode/list`
+determine available selections. Plan runs in `commander-plan` with a read-only
+checkout and a separate token; Build runs in `commander-god`. Private SQLite
+stores sanitized transcripts, preferences, effective settings, cursor events,
+questions/answers and release handoffs. Native threads are ephemeral; restart
+records interruption without repeating mutations. Image pixels are temporary.
+
+The receiver retains accepted-release recovery tools until all application,
+configuration, migration and Hosting checks pass. Migration inventory is ordered
+and checksummed. Optional `db/migration-contracts/<filename.sql>.json` declares
+`transformed_columns`, `verify` and `rollback_verify` SQL paths under
+`db/migration-checks/`; each read-only SQL check must return exactly one true
+boolean. Undeclared columns and row multiplicity must remain unchanged. Rehearse
+on a disposable clone, retain the backup, then verify live under the writer stop.
+Failed recovery retains its root-only recovery directory for operator repair.
 
 The command reads the deployed PTW and platform revisions, computes the exact
 committed path delta, builds affected Linux/amd64 images in parallel, streams

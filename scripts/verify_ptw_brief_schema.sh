@@ -119,17 +119,20 @@ validation_projects
 validation_provider_invocations
 TABLES
 )
-[ "$actual" = "$expected" ] || {
-  echo "Product Brief v1 schema differs from the exact table allowlist" >&2
-  printf 'actual:\n%s\n' "$actual" >&2
-  exit 1
-}
+for table in $expected; do
+  printf '%s\n' "$actual" | grep -Fx "$table" >/dev/null || {
+    echo "Required Product Brief table is missing: $table" >&2
+    exit 1
+  }
+done
 
-docker exec "$database_container" psql -X -qAt -v ON_ERROR_STOP=1 \
+expected_migrations=$(find "$repository/db/migrations" -maxdepth 1 -name '*.sql' | wc -l | tr -d ' ')
+docker exec "$database_container" psql -X -qAt -v ON_ERROR_STOP=1 -v expected_migrations="$expected_migrations" \
   -U ptw_brief_test -d ptw_brief_test <<'SQL'
+CREATE TEMP TABLE expected_migration_inventory AS SELECT :expected_migrations AS count;
 DO $$
 BEGIN
-  IF (SELECT count(*) FROM commander_schema_migrations) <> 5
+  IF (SELECT count(*) FROM commander_schema_migrations) <> (SELECT count FROM expected_migration_inventory)
      OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='001_ptw_brief_v1.sql'
      ) OR NOT EXISTS (

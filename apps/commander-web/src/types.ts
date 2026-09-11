@@ -1,4 +1,4 @@
-export type Page = 'briefs' | 'posts' | 'landing' | 'ads' | 'settings'
+export type Page = 'briefs' | 'posts' | 'landing' | 'ads' | 'settings' | 'commander'
 export type I18n<T = string> = { en: T; uk: T }
 
 export interface MetaAdsConnection {

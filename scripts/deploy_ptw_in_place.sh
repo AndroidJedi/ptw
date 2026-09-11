@@ -189,10 +189,12 @@ snapshot_ready=1
 export PTW_IMAGE_TAG=$release_tag
 "${commander_compose[@]}" run -T --rm --no-deps commander-migrate
 
-"${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 -U ptw_commander -d ptw_commander <<'SQL'
+expected_migrations=$(find "$repository/db/migrations" -maxdepth 1 -name '*.sql' | wc -l | tr -d ' ')
+"${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 -v expected_migrations="$expected_migrations" -U ptw_commander -d ptw_commander <<'SQL'
+CREATE TEMP TABLE expected_migration_inventory AS SELECT :expected_migrations AS count;
 DO $$
 BEGIN
-  IF (SELECT count(*) FROM commander_schema_migrations) <> 5
+  IF (SELECT count(*) FROM commander_schema_migrations) <> (SELECT count FROM expected_migration_inventory)
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='004_public_landing_v1.sql')
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='005_instagram_publication_v1.sql')
      OR to_regclass('public.instagram_publications') IS NULL

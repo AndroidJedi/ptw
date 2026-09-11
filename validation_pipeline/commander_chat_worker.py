@@ -23,6 +23,8 @@ def main() -> int:
             os.killpg(os.getpgrp(), signal.SIGKILL)
 
     threading.Thread(target=watch_parent, daemon=True).start()
+    if "app-server" in sys.argv[2:]:
+        return subprocess.call(sys.argv[2:], stdin=sys.stdin)
     process = subprocess.Popen(sys.argv[2:], stdin=subprocess.PIPE, text=True)
     process.communicate(input=sys.stdin.read())
     return process.returncode

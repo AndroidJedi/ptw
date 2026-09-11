@@ -21,8 +21,10 @@ rm -f -- "$output_directory/commander.tar" "$output_directory/validation.tar" \
     "$output_directory/owner-gateway.tar" "$output_directory/commander-god.tar"
 
 plan="$output_directory/release-plan.json"
+release_tools=${PTW_TRUSTED_RELEASE_ROOT:-$PWD}
+export PTW_PLAN_REPOSITORY="$PWD"
 if [[ -n $base_revision ]]; then
-    python3 scripts/plan_ptw_release.py --base "$base_revision" --target "$revision" \
+    python3 "$release_tools/scripts/plan_ptw_release.py" --base "$base_revision" --target "$revision" \
         --release-tag "$release_tag" --output "$plan"
 else
     python3 - "$release_tag" "$revision" "$plan" <<'PY'
@@ -93,6 +95,6 @@ save_component validation ptw-validation validation.tar
 save_component owner-gateway ptw-owner-gateway owner-gateway.tar
 save_component commander-god ptw-commander-god commander-god.tar
 
-python3 scripts/plan_ptw_release.py --validate "$plan" --target "$revision" \
+python3 "$release_tools/scripts/plan_ptw_release.py" --validate "$plan" --target "$revision" \
     --release-tag "$release_tag" >/dev/null
 echo "Prepared selective Linux/amd64 PTW release $release_tag in $output_directory"

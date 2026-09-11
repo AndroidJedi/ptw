@@ -36,7 +36,8 @@ from .studio_creatives import LocalStudioAuthority, StudioCreativeService
 from .studio_routes import studio_creative_router
 from .studio_tune import StudioTuneService, studio_tune_router
 from .studio_workspace import UniversalStudioWorkspace
-from .commander_chat import CommanderChatService, commander_chat_router
+from .commander_chat import commander_chat_router
+from .commander_workspace import CommanderWorkspaceService as CommanderChatService
 from .local_authorization import LocalAuthorization, local_authorization_router
 
 

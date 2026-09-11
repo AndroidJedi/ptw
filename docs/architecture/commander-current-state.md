@@ -9,6 +9,39 @@ three provider services remain on `god-mode-sandbox-20260910-faf77f9`. Schema
 005 and both web sites are live with Owner cache v7. Meta credentials are loaded,
 and the organic Instagram connection is verified live.
 
+## Unified Commander workspace — implementation candidate
+
+The owner-authorized redesign is implemented locally, awaiting production
+bootstrap and live acceptance. Commander has its own route and navigation,
+Markdown timeline, history drawer, reply targets, persistent drafts, inline
+questions and a composer with native Plan/Build, runtime models and efforts.
+Send steers active work; UUID reconciliation handles retries and completion
+races. SQLite migrations retain old conversations without a 30-turn cutoff.
+Native app-server history is ephemeral; questions/answers, settings and release
+links survive restart. Production Codex is pinned to tested standalone 0.147.0.
+
+Both explicit chat deployment and one-click Deploy create the same durable
+owner-message-linked handoff without a second confirmation. Candidate and
+accepted-base request branches separate new source from the trusted release
+workflow. Infrastructure is eligible; migrations use ordered checksums,
+backup-bearing disposable rehearsal and declared transformation/compatibility
+checks. The accepted receiver owns recovery through Hosting/configuration
+acceptance and records rollback or recovery failure durably. Plan has a separate
+token and a read-only checkout; coding workers retain no publishing keys.
+
+Verification so far: 241 Validation tests, 13 Gateway tests, 94 web unit tests,
+81 desktop/360px/WebKit flows, Commander tests/demo, skill verification and
+production build. The Linux/amd64 GOD image passes Commander and runtime tests;
+the stock Commander test image lacks Git, so Git-bearing contracts are tested
+in that built GOD image. A real Codex canary passes model discovery, native Plan
+question/answer and targeted Build continuation. The OS rejects Plan checkout
+writes; the real migration runner passes disposable idempotency, transaction
+rollback and checksum-tampering checks. Pending hosted Phone Metrics edits have
+been preserved separately and must not be overwritten during bootstrap.
+The real receiver also passes five isolated-container scenarios with simulated
+services: success, pre-cutover failure, post-cutover rollback, infrastructure
+failure, and explicitly failed recovery with retained artifacts.
+
 ## Natal Meta Pixel measurement — live and verified
 
 The dedicated public Landing shell now covers the apex and every `ai|la|wa`

@@ -4,7 +4,7 @@ set -Eeuo pipefail
 [[ $(id -u) -eq 0 ]] || { echo "mobile release receiver must run as root" >&2; exit 1; }
 IFS= read -r header
 read -r protocol version release_tag revision branch extra <<< "$header"
-[[ $protocol == PTW-MOBILE-RELEASE && $version == 1 && -z ${extra:-} ]] || exit 2
+[[ $protocol == PTW-MOBILE-RELEASE && $version == 2 && -z ${extra:-} ]] || exit 2
 [[ $release_tag =~ ^god-mobile-[0-9]{8}-[0-9a-f]{12}$ ]] || exit 2
 [[ $revision =~ ^[0-9a-f]{40}$ && $branch =~ ^god-deploy/[0-9a-f-]{36}$ ]] || exit 2
 
@@ -32,6 +32,18 @@ receive_web() {
     checksum=$(sha256sum "$archive"); actual=${checksum%% *}
     [[ $actual == "$digest" ]] || exit 1
     [[ -z $(tar -tzf "$archive" | awk '/(^\/|(^|\/)\.\.($|\/))/ {print; exit}') ]] || exit 1
+    python3 - "$archive" <<'PY'
+import pathlib, sys, tarfile
+with tarfile.open(sys.argv[1]) as archive:
+    total = 0
+    for item in archive:
+        path = pathlib.PurePosixPath(item.name)
+        if path.is_absolute() or '..' in path.parts or not (item.isfile() or item.isdir()):
+            raise SystemExit('Unsafe Hosting archive member')
+        total += item.size
+        if total > 209715200:
+            raise SystemExit('Hosting archive expands beyond its limit')
+PY
     printf -v "web_${expected//-/_}" '%s' "$archive"
 }
 receive_web owner-console
@@ -41,34 +53,71 @@ repository=/root/ptw
 platform=/opt/ptw/platform
 exec 9>/run/lock/ptw-maintenance.lock
 flock -n 9 || { echo "another PTW maintenance operation is active" >&2; exit 73; }
+exec 8>>/opt/ptw/commander-workspace/.git/ptw-commander-operation.lock
+flock -n 8 || { echo "Commander is still working; retry deployment after the task finishes" >&2; exit 73; }
 [[ -z $(git -C "$repository" status --porcelain --untracked-files=no) ]] || {
     echo "production PTW checkout has tracked changes" >&2; exit 1;
 }
 git -C "$repository" fetch origin "$branch"
+request_revision=$(git -C "$repository" rev-parse FETCH_HEAD)
+identifier=${branch#god-deploy/}
+record_progress() {
+    python3 - "$repository/.local/commander-releases" "$identifier" "$revision" "$1" <<'PY'
+import json, os, pathlib, sys, tempfile
+directory = pathlib.Path(sys.argv[1])
+directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+descriptor, name = tempfile.mkstemp(prefix='receipt-', dir=directory)
+with os.fdopen(descriptor, 'w') as output:
+    json.dump({'id':sys.argv[2], 'revision':sys.argv[3], 'phase':sys.argv[4]}, output)
+    output.flush()
+    os.fsync(output.fileno())
+os.replace(name, directory / (sys.argv[2] + '.json'))
+PY
+}
+git -C "$repository" fetch origin "god-candidate/$identifier"
 [[ $(git -C "$repository" rev-parse FETCH_HEAD) == "$revision" ]] || exit 1
 deployed_revision=$(<"$repository/.local/deployed-revision")
 [[ $deployed_revision =~ ^[0-9a-f]{40}$ ]]
-declared_base=$(git -C "$repository" log -1 --format=%B "$revision" \
-    | sed -n 's/^PTW-Base-Revision: \([0-9a-f]\{40\}\)$/\1/p' | tail -1)
-[[ $declared_base == "$deployed_revision" ]]
+python3 "$repository/scripts/verify_ptw_release_request.py" --repository "$repository" \
+    --request "$request_revision" --deployed "$deployed_revision" > "$release_directory/request.json"
+[[ $(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["revision"])' "$release_directory/request.json") == "$revision" ]]
 git -C "$repository" merge-base --is-ancestor "$deployed_revision" "$revision"
 changed=$(git -C "$repository" diff --name-only "$deployed_revision..$revision")
 [[ -n $changed ]]
-if printf '%s\n' "$changed" | awk '
-  /^\.github\// || /^scripts\// || /^db\/migrations\// || /^deploy\// ||
-  /^commander_god\// || /^skills\/ptw-vps-operations\// ||
-  /^validation_pipeline\/commander_release\.py$/ ||
-  /(^|\/)\.env/ || /(^|\/)Dockerfile$/ ||
-  /^(AGENTS\.md|\.dockerignore|\.firebaserc|firebase\.json|docker-compose\.)/ {bad=1}
-  END {exit bad ? 0 : 1}
-'; then
-    echo "mobile candidate changes protected release infrastructure" >&2
-    exit 1
-fi
+# Keep the accepted release tools alive for this entire rollout. New release
+# machinery is installed only after acceptance, including receiver self-updates.
+mkdir "$release_directory/trusted"
+git -C "$repository" archive "$deployed_revision" | tar -x -C "$release_directory/trusted"
+export PTW_TRUSTED_RELEASE_ROOT="$release_directory/trusted"
+export PTW_PLAN_REPOSITORY="$repository"
+export PTW_DEFER_RELEASE_COMMIT=1
+record_progress preparing
+"$PTW_TRUSTED_RELEASE_ROOT/scripts/ptw_release_recovery.sh" snapshot "$release_directory/recovery"
+accepted=0
+rollback_release() {
+    local status=$?
+    trap - EXIT HUP INT TERM
+    if [[ $accepted == 0 ]]; then
+        if ! "$PTW_TRUSTED_RELEASE_ROOT/scripts/ptw_release_recovery.sh" restore "$release_directory/recovery"; then
+            record_progress recovery_failed
+            echo "Recovery needs operator attention; protected recovery files retained at $release_directory" >&2
+            exit 1
+        fi
+        record_progress rolled_back
+        [[ $status != 0 ]] || status=1
+    fi
+    cleanup
+    exit "$status"
+}
+trap rollback_release EXIT
+trap 'exit 1' HUP INT TERM
 git -C "$repository" merge --ff-only "$revision"
 platform_revision=$(git -C "$platform" rev-parse HEAD)
 export PTW_MAINTENANCE_LOCK_HELD=1
-"$repository/scripts/receive_ptw_preserving_release.sh" "$release_tag" "$revision" "$platform_revision"
+export PTW_MIGRATIONS_AUTHORIZED=1
+python3 "$PTW_TRUSTED_RELEASE_ROOT/scripts/verify_ptw_migration_inventory.py" --repository "$repository" --base "$deployed_revision"
+record_progress application
+"$PTW_TRUSTED_RELEASE_ROOT/scripts/receive_ptw_preserving_release.sh" "$release_tag" "$revision" "$platform_revision"
 
 deploy_hosting() {
     local target=$1
@@ -97,7 +146,16 @@ PY
         --project provethemwrong-86123 --config "/release/$(basename "$temp_config")" \
         --only "hosting:$target"
 }
+record_progress hosting
 deploy_hosting public-landings "$web_public_landings" public-dist
 deploy_hosting owner-console "$web_owner_console" owner-dist
 python3 "$repository/skills/ptw-owner-console-incident/scripts/audit_live_owner_console.py"
+record_progress infrastructure
+"$PTW_TRUSTED_RELEASE_ROOT/scripts/apply_ptw_release_configuration.sh" "$repository"
+revision_state=$(mktemp "$repository/.local/deployed-revision.next.XXXXXX")
+printf '%s\n' "$revision" > "$revision_state"
+chmod 0600 "$revision_state"
+mv -f "$revision_state" "$repository/.local/deployed-revision"
+accepted=1
+record_progress accepted
 echo "PTW mobile release accepted at $revision"

@@ -1,6 +1,5 @@
 import type { ApiClient } from '../api'
 import { AuthorizationSettings } from '../components/AuthorizationSettings'
-import { CommanderChat } from '../components/CommanderChat'
 import { PageHeader } from '../components/State'
 import { translate, type Language } from '../i18n'
 
@@ -12,6 +11,5 @@ export function SettingsView({ api, language, onLanguage }: { api: ApiClient; la
       <button className="secondary" onClick={onLanguage} aria-label={translate(language, 'Change language', 'Змінити мову')}>{language === 'uk' ? 'English' : 'Українська'}</button>
     </section>
     <AuthorizationSettings api={api} language={language} />
-    <CommanderChat api={api} language={language} />
   </div>
 }

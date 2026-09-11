@@ -108,7 +108,7 @@ IFS= read -r stream_end
 
 plan="$release_directory/release-plan"
 [[ $received_release_plan == published ]]
-python3 "$repository/scripts/plan_ptw_release.py" --validate "$plan" \
+python3 "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/plan_ptw_release.py" --validate "$plan" \
     --target "$git_revision" --release-tag "$release_tag" >/dev/null
 planned_base=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["base_revision"])' "$plan")
 plan_mode=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["mode"])' "$plan")
@@ -141,7 +141,7 @@ import json, sys
 print("1" if json.load(open(sys.argv[1], encoding="utf-8"))["migrations"] else "0")
 PY
 )
-[[ $has_migrations != 1 ]] || {
+[[ $has_migrations != 1 || ${PTW_MIGRATIONS_AUTHORIZED:-0} == 1 ]] || {
     echo "migration-bearing releases require the backup-bearing in-place path" >&2; exit 1;
 }
 
@@ -171,5 +171,5 @@ fi
 join_components() { local IFS=,; printf '%s' "$*"; }
 export PTW_RELEASE_IMAGE_COMPONENTS="$(join_components "${image_components[@]}")"
 export PTW_RELEASE_RESTART_COMPONENTS="$(join_components "${restart_components[@]}")"
-"$repository/scripts/deploy_ptw_selective.sh" \
+"${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/deploy_ptw_selective.sh" \
     "$release_tag" "$git_revision" "$platform_git_revision"

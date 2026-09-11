@@ -5,6 +5,19 @@ repository=${PTW_REPOSITORY:-/root/ptw}
 workspace=${PTW_COMMANDER_WORKSPACE:-/opt/ptw/commander-workspace}
 revision=${1:-HEAD}
 
+# A Plan worker never receives the Owner Gateway/release bridge credential.
+if [[ $repository == /root/ptw && $(id -u) == 0 ]]; then
+    python3 - "$repository/.env.commander" <<'PY'
+import pathlib, secrets, sys
+path = pathlib.Path(sys.argv[1])
+value = path.read_text()
+if not any(line.startswith('PTW_COMMANDER_PLAN_TOKEN=') and line.partition('=')[2] for line in value.splitlines()):
+    value = '\n'.join(line for line in value.splitlines() if not line.startswith('PTW_COMMANDER_PLAN_TOKEN='))
+    path.write_text(value + '\nPTW_COMMANDER_PLAN_TOKEN=' + secrets.token_hex(32) + '\n')
+    path.chmod(0o600)
+PY
+fi
+
 git -C "$repository" rev-parse --verify "$revision^{commit}" >/dev/null
 mkdir -p "$(dirname "$workspace")"
 

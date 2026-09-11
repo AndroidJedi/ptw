@@ -75,6 +75,13 @@ server-alive probes with a bounded 40-miss window and TCP keepalive. Canaries
 remain mandatory; the keepalive fixes transport silence instead of weakening
 acceptance.
 
+Protocol keepalives alone did not satisfy the CI channel: the next rollout again
+completed all nine provider jobs but disconnected at the same five-minute silent
+boundary before scoped-canary completion. Recovery restored accepted source,
+images and Hosting. The selective deployer now emits only a fixed, non-sensitive
+20-second progress line while the unchanged structured/media canary runs,
+propagates its exact exit status, and stops/reaps the heartbeat afterward.
+
 ## 2026-09-11 — LPV rollout rejected by media enhancement canary
 
 The first preserving rollout of the Meta landing-page-view automation passed

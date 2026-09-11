@@ -46,6 +46,19 @@ stage_complete() {
     echo "PTW fast deploy '$label': $((now - stage_epoch))s (total $((now - started_epoch))s)"
     stage_epoch=$now
 }
+run_with_progress_heartbeat() {
+    local heartbeat_pid status
+    (
+        while sleep 20; do
+            echo "PTW release canary is still running"
+        done
+    ) &
+    heartbeat_pid=$!
+    if "$@"; then status=0; else status=$?; fi
+    kill "$heartbeat_pid" 2>/dev/null || true
+    wait "$heartbeat_pid" 2>/dev/null || true
+    return "$status"
+}
 
 [[ -f $platform/.env && -f $repository/.env.commander && -f $repository/.env.owner-gateway ]]
 [[ -z $(git -C "$repository" status --porcelain --untracked-files=no) ]]
@@ -304,7 +317,8 @@ curl --fail --silent --max-time 5 http://127.0.0.1:8091/readyz >/dev/null
 curl --fail --silent --max-time 5 http://127.0.0.1:8093/readyz >/dev/null
 curl --fail --silent --max-time 5 http://127.0.0.1:8092/healthz >/dev/null
 if selected "$restart_components" platform || selected "$restart_components" validation; then
-    "${validation_compose[@]}" run -T --rm --no-deps validation-api python -m validation_pipeline.verify_bridge_contract
+    run_with_progress_heartbeat "${validation_compose[@]}" run -T --rm --no-deps \
+        validation-api python -m validation_pipeline.verify_bridge_contract
     "${validation_compose[@]}" run -T --rm --no-deps validation-api python -m validation_pipeline.verify_pexels
 fi
 stage_complete "scoped canaries"

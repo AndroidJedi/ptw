@@ -93,6 +93,11 @@ before the requested database exists; that is not migration-test readiness.
    artifact transport is still connected. Treat a post-cutover SSH broken pipe
    as a failed release, verify rollback, and retain bounded keepalive regression
    coverage; never bypass the canaries to shorten the silent interval.
+   Some CI transport boundaries still terminate a channel without visible log
+   output even while SSH protocol keepalives succeed. Wrap the long structured/
+   media canary with a harmless 20-second progress heartbeat, preserve its exact
+   exit status, and stop/reap the heartbeat afterward. Never print prompts,
+   provider output, tokens, or credentials as heartbeat data.
 
 ## Production contract
 

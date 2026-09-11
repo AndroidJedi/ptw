@@ -10,10 +10,12 @@ export interface MetaAdsConnection {
   account?: { id?: string; name?: string; currency?: string; timezone_name?: string; account_status?: number }
   page?: { id: string; name?: string | null }
   instagram?: { id: string; username?: string | null }
+  pixel?: { id: string; name?: string | null } | null
   available?: {
     ad_accounts: Array<{ id?: string; name?: string; currency?: string; timezone_name?: string; account_status?: number }>
     pages: Array<{ id?: string; name?: string }>
     instagram_accounts: Array<{ id?: string; username?: string }>
+    pixels?: Array<{ id?: string; name?: string }>
   }
 }
 

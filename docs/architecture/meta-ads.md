@@ -70,9 +70,11 @@ permalink by caption matching. A saved media ID allows later permalink recovery.
 ## Paid ads
 
 Ads supports **Instagram Direct** and **Website**. Direct retains engagement,
-conversations, and SEND_MESSAGE. Website uses OUTCOME_TRAFFIC, LINK_CLICKS,
-WEBSITE, and LEARN_MORE with the current Project landing's canonical HTTPS URL;
-it omits welcome-message and messaging promoted-object fields. Both use
+conversations, and SEND_MESSAGE. Website uses OUTCOME_TRAFFIC,
+LANDING_PAGE_VIEWS, WEBSITE, and LEARN_MORE with the current Project landing's
+canonical HTTPS URL. Each Website Ad carries an offsite-conversion tracking
+spec for the configured Ad Account Pixel and omits welcome-message and messaging
+promoted-object fields. Both use
 Instagram Feed, impressions billing, lowest-cost bidding, and opted-out standard
 creative enhancements. The current [Meta SDK story specification](https://github.com/facebook/facebook-python-business-sdk/blob/main/facebook_business/adobjects/adcreativeobjectstoryspec.py)
 uses `instagram_user_id`; PTW retains its existing `META_INSTAGRAM_ACTOR_ID`
@@ -142,6 +144,12 @@ advertising calls. Advertising requires `ads_management` and
 `ads_read`; grant the organic permissions above for publishing too. The helper
 verifies the selected assets; the separate in-app publishing check verifies
 organic capability. No token belongs in chat, Git, shell history, or arguments.
+
+`META_PIXEL_ID` is the non-secret Ad Account-owned browser Pixel used for Website
+ad readiness and tracking. Production Compose defaults to the Natal Service
+Website Pixel; it is deliberately outside the strict secret file so rollback
+images can ignore it. Runtime readiness lists the Ad Account's Pixels and requires
+an exact configured match before Website staging.
 
 `META_INSTAGRAM_MEDIA_ORIGIN` is a non-secret, public HTTPS Gateway origin with
 no path. Production Compose defaults to `https://commander.proove-them-wrong.com`;

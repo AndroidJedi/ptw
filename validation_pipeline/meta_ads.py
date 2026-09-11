@@ -169,6 +169,7 @@ class MetaAdsConfiguration:
     ad_account_id: str = ""
     page_id: str = ""
     instagram_actor_id: str = ""
+    pixel_id: str = ""
     graph_version: str = GRAPH_VERSION
     name_prefix: str = "[PTW LOCAL]"
     instagram_media_origin: str = ""
@@ -176,6 +177,10 @@ class MetaAdsConfiguration:
     @property
     def configured(self) -> bool:
         return all((self.access_token, self.ad_account_id, self.page_id, self.instagram_actor_id))
+
+    @property
+    def website_configured(self) -> bool:
+        return self.configured and bool(self.pixel_id)
 
     @classmethod
     def from_environment(cls) -> "MetaAdsConfiguration":
@@ -188,11 +193,15 @@ class MetaAdsConfiguration:
         if not re.fullmatch(r"v\d+\.\d+", version):
             raise RuntimeError("META_GRAPH_API_VERSION is invalid")
         prefix = _single_line(value("META_ADS_NAME_PREFIX", "[PTW LOCAL]"), "name prefix", 1, 40)
+        pixel_id = value("META_PIXEL_ID")
+        if pixel_id and not pixel_id.isdigit():
+            raise RuntimeError("META_PIXEL_ID is invalid")
         return cls(
             access_token=value("META_SYSTEM_USER_ACCESS_TOKEN"),
             ad_account_id=value("META_AD_ACCOUNT_ID").removeprefix("act_"),
             page_id=value("META_PAGE_ID"),
             instagram_actor_id=value("META_INSTAGRAM_ACTOR_ID"),
+            pixel_id=pixel_id,
             graph_version=version,
             name_prefix=prefix,
             instagram_media_origin=value("META_INSTAGRAM_MEDIA_ORIGIN"),
@@ -298,35 +307,58 @@ class MetaAdsAdapter:
         )
         account = self._call(
             "GET", self.account_node,
-            params={"fields": "id,name,currency,timezone_name,account_status,disable_reason,promote_pages"},
+            params={"fields": "id,name,currency,timezone_name,account_status,disable_reason"},
             outcome="Meta ad account verification failed",
+        )
+        pages_value = self._call(
+            "GET", "me/accounts",
+            params={"fields": "id,name,instagram_business_account{id,username}", "limit": 100},
+            outcome="Meta Page asset verification failed",
         )
         instagram = self._call(
             "GET", f"{self.account_node}/instagram_accounts",
             params={"fields": "id,username", "limit": 100},
             outcome="Meta Instagram asset verification failed",
         )
-        pages_value = account.get("promote_pages") or {}
-        pages = pages_value.get("data", []) if isinstance(pages_value, Mapping) else pages_value
-        pages = pages if isinstance(pages, list) else []
+        pages = pages_value.get("data") if isinstance(pages_value.get("data"), list) else []
         instagram_items = instagram.get("data") if isinstance(instagram.get("data"), list) else []
         accounts = accounts_value.get("data") if isinstance(accounts_value.get("data"), list) else []
         if not any(str(item.get("id", "")).removeprefix("act_") == self.configuration.ad_account_id for item in accounts if isinstance(item, Mapping)):
             raise MetaAdsProviderError("Configured ad account is not assigned to this system user")
-        if not any(str(item.get("id")) == self.configuration.page_id for item in pages if isinstance(item, Mapping)):
-            raise MetaAdsProviderError("Configured Facebook Page is not assigned to this ad account")
+        selected_page = next((item for item in pages if isinstance(item, Mapping)
+                              and str(item.get("id")) == self.configuration.page_id), None)
+        if selected_page is None:
+            raise MetaAdsProviderError("Configured Facebook Page is not assigned to this system user")
         selected_ig = next((
             item for item in instagram_items if isinstance(item, Mapping)
             and str(item.get("id")) == self.configuration.instagram_actor_id
         ), None)
         if selected_ig is None:
             raise MetaAdsProviderError("Configured Instagram account is not assigned to this ad account")
-        selected_page = next((item for item in pages if str(item.get("id")) == self.configuration.page_id), {})
+        linked_ig = selected_page.get("instagram_business_account") or {}
+        if str(linked_ig.get("id")) != self.configuration.instagram_actor_id:
+            raise MetaAdsProviderError("Configured Instagram account is not linked to the configured Facebook Page")
+        selected_pixel = None
+        pixel_items: list[Any] = []
+        if self.configuration.pixel_id:
+            pixels = self._call(
+                "GET", f"{self.account_node}/adspixels",
+                params={"fields": "id,name", "limit": 100},
+                outcome="Meta Pixel asset verification failed",
+            )
+            pixel_items = pixels.get("data") if isinstance(pixels.get("data"), list) else []
+            selected_pixel = next((item for item in pixel_items if isinstance(item, Mapping)
+                                   and str(item.get("id")) == self.configuration.pixel_id), None)
+            if selected_pixel is None:
+                raise MetaAdsProviderError("Configured Meta Pixel is not assigned to this ad account")
         return {
             "configured": True, "verified": True, "graph_version": self.configuration.graph_version,
             "account": {key: account.get(key) for key in ("id", "name", "currency", "timezone_name", "account_status")},
             "page": {"id": self.configuration.page_id, "name": selected_page.get("name")},
             "instagram": {"id": self.configuration.instagram_actor_id, "username": selected_ig.get("username")},
+            "pixel": None if selected_pixel is None else {
+                "id": self.configuration.pixel_id, "name": selected_pixel.get("name"),
+            },
             "available": {
                 "ad_accounts": [
                     {key: item.get(key) for key in ("id", "name", "currency", "timezone_name", "account_status")}
@@ -334,6 +366,7 @@ class MetaAdsAdapter:
                 ],
                 "pages": [dict(item) for item in pages if isinstance(item, Mapping)],
                 "instagram_accounts": [dict(item) for item in instagram_items if isinstance(item, Mapping)],
+                "pixels": [dict(item) for item in pixel_items if isinstance(item, Mapping)],
             },
         }
 
@@ -429,7 +462,7 @@ class MetaAdsAdapter:
             "POST", f"{self.account_node}/adsets",
             data=self._data(
                 name=name, campaign_id=campaign_id, status="PAUSED",
-                optimization_goal="LINK_CLICKS" if destination == "WEBSITE" else "CONVERSATIONS", billing_event="IMPRESSIONS",
+                optimization_goal="LANDING_PAGE_VIEWS" if destination == "WEBSITE" else "CONVERSATIONS", billing_event="IMPRESSIONS",
                 bid_strategy="LOWEST_COST_WITHOUT_CAP", destination_type=destination,
                 daily_budget=preset["daily_budget_minor"], targeting=targeting,
                 promoted_object={
@@ -498,15 +531,27 @@ class MetaAdsAdapter:
         )
         return {"id": str(payload["id"]), "name": name}
 
-    def ensure_ad(self, name: str, *, ad_set_id: str, creative_id: str) -> dict[str, Any]:
-        existing = self._find("ads", name, fields="id,name,status,effective_status,adset_id,creative")
+    def ensure_ad(
+        self, name: str, *, ad_set_id: str, creative_id: str,
+        tracking_pixel_id: str | None = None,
+    ) -> dict[str, Any]:
+        existing = self._find("ads", name, fields="id,name,status,effective_status,adset_id,creative,tracking_specs")
+        tracking_specs = None if tracking_pixel_id is None else [{
+            "action.type": ["offsite_conversion"], "fb_pixel": [tracking_pixel_id],
+        }]
         if existing is not None:
-            if str(existing.get("adset_id")) != str(ad_set_id) or str((existing.get("creative") or {}).get("id")) != creative_id or existing.get("status") != "PAUSED":
+            if (str(existing.get("adset_id")) != str(ad_set_id)
+                    or str((existing.get("creative") or {}).get("id")) != creative_id
+                    or existing.get("status") != "PAUSED"
+                    or (tracking_specs is not None and existing.get("tracking_specs") != tracking_specs)):
                 raise MetaAdsProviderError("Existing PTW ad does not match its PAUSED ad set")
             return existing
         payload = self._call(
             "POST", f"{self.account_node}/ads",
-            data=self._data(name=name, adset_id=ad_set_id, creative={"creative_id": creative_id}, status="PAUSED"),
+            data=self._data(
+                name=name, adset_id=ad_set_id, creative={"creative_id": creative_id},
+                tracking_specs=tracking_specs, status="PAUSED",
+            ),
             outcome="Meta ad creation failed",
         )
         return {"id": str(payload["id"]), "name": name, "status": "PAUSED", "adset_id": ad_set_id}
@@ -535,7 +580,7 @@ class MetaAdsAdapter:
         cities_match = sorted((str(item.get("key")), item.get("radius"), item.get("distance_unit")) for item in actual_cities) == sorted((item["key"], item["radius_km"], "kilometer") for item in expected_cities)
         if (str(value.get("campaign_id")) != campaign_id or value.get("status") not in {"PAUSED", "ACTIVE"}
                 or value.get("destination_type") != destination
-                or value.get("optimization_goal") != ("LINK_CLICKS" if destination == "WEBSITE" else "CONVERSATIONS")
+                or value.get("optimization_goal") != ("LANDING_PAGE_VIEWS" if destination == "WEBSITE" else "CONVERSATIONS")
                 or value.get("billing_event") != "IMPRESSIONS"
                 or str(value.get("daily_budget")) != str(preset["daily_budget_minor"])
                 or targeting.get("publisher_platforms") != ["instagram"] or targeting.get("instagram_positions") != ["stream"]
@@ -1148,6 +1193,8 @@ class MetaAdsService:
         connection = self.connection()
         if not connection.get("verified"):
             raise RuntimeError(str(connection.get("explanation") or "Meta Ads assets could not be verified"))
+        if website and not self.configuration.website_configured:
+            raise RuntimeError("Meta Pixel is not configured for Website ad staging")
         project_id = _uuid(project_id, "project_id")
         self.authority.project(project_id)
         request_id = _uuid(request["request_id"], "request_id")
@@ -1177,9 +1224,13 @@ class MetaAdsService:
             landing = self.landing(project_id)
             if not landing or landing["event_id"] != request["landing_event_id"]:
                 raise RuntimeError("Published Landing changed or is unavailable. Refresh and review the destination.")
-            specification.update(schema="ptw.meta-ads.deployment-spec.v2", objective="OUTCOME_TRAFFIC",
-                                 optimization_goal="LINK_CLICKS", destination_type="WEBSITE",
-                                 call_to_action="LEARN_MORE", landing=landing)
+            specification["identity"]["pixel_id"] = self.configuration.pixel_id
+            specification.update(
+                schema="ptw.meta-ads.deployment-spec.v3", objective="OUTCOME_TRAFFIC",
+                optimization_goal="LANDING_PAGE_VIEWS", destination_type="WEBSITE",
+                call_to_action="LEARN_MORE", landing=landing,
+                measurement={"pixel_id": self.configuration.pixel_id, "event": "PageView"},
+            )
         specification_sha = _sha(specification)
         project = self.authority.project(project_id)
         campaign_key = _sha({"objective": specification["objective"], "categories": categories})[:16]
@@ -1241,8 +1292,14 @@ class MetaAdsService:
             try:
                 spec = deployment["specification"]
                 identity = spec.get("identity")
-                if identity and identity != {"ad_account_id": self.configuration.ad_account_id,
-                        "page_id": self.configuration.page_id, "instagram_actor_id": self.configuration.instagram_actor_id}:
+                expected_identity = {
+                    "ad_account_id": self.configuration.ad_account_id,
+                    "page_id": self.configuration.page_id,
+                    "instagram_actor_id": self.configuration.instagram_actor_id,
+                }
+                if spec.get("destination_type") == "WEBSITE":
+                    expected_identity["pixel_id"] = self.configuration.pixel_id
+                if identity and identity != expected_identity:
                     raise RuntimeError("Configured Meta assets changed after review; create a new reviewed ad")
                 self.adapter.connection()
                 if spec.get("destination_type") == "WEBSITE":
@@ -1285,6 +1342,8 @@ class MetaAdsService:
                     ad = self.adapter.ensure_ad(
                         deployment["ad_name"], ad_set_id=audience["meta_ad_set_id"],
                         creative_id=deployment["meta_creative_id"],
+                        tracking_pixel_id=(spec.get("measurement") or {}).get("pixel_id")
+                        if spec.get("destination_type") == "WEBSITE" else None,
                     )
                     deployment = self.authority.update_deployment(deployment_id, meta_ad_id=ad["id"])
                     self.authority.record_run(deployment_id, "ad", "completed")

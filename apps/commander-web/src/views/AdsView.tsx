@@ -15,6 +15,7 @@ const metaConsoles = [
   { href: 'https://business.facebook.com/settings/ad-accounts', en: 'Ad accounts', uk: 'Рекламні акаунти', detailEn: 'Account status, access and payment setup', detailUk: 'Статус акаунта, доступ і налаштування оплати' },
   { href: 'https://business.facebook.com/settings/pages', en: 'Facebook Pages', uk: 'Сторінки Facebook', detailEn: 'Page ownership and system-user access', detailUk: 'Власність Page і доступ системного користувача' },
   { href: 'https://business.facebook.com/settings/instagram-accounts', en: 'Instagram accounts', uk: 'Акаунти Instagram', detailEn: 'Professional account and connected assets', detailUk: 'Професійний акаунт і пов’язані активи' },
+  { href: 'https://business.facebook.com/events_manager2/list/pixel/1056720310312959/overview', en: 'Events Manager', uk: 'Менеджер подій', detailEn: 'Pixel PageView activity and diagnostics', detailUk: 'Події PageView і діагностика Pixel' },
   { href: 'https://developers.facebook.com/tools/debug/accesstoken/', en: 'Token debugger', uk: 'Перевірка токена', detailEn: 'Expiry, app and granted permissions', detailUk: 'Строк дії, застосунок і надані дозволи' },
 ]
 
@@ -228,6 +229,7 @@ export function AdsView({ api, language, projectId = null }: {
   if (!workspace && error) return <ErrorState message={error} retry={() => void reload()} language={language} />
   if (!workspace) return null
   const connected = workspace.connection.configured && workspace.connection.verified
+  const websiteReady = connected && Boolean(workspace.connection.pixel)
   const adsManagerUrl = workspace.ads_manager_url || 'https://adsmanager.facebook.com/adsmanager/manage/campaigns'
   const setupChecks = [
     {
@@ -258,6 +260,11 @@ export function AdsView({ api, language, projectId = null }: {
       detail: workspace.connection.instagram?.username ? `@${workspace.connection.instagram.username}` : tr('Connect the professional Instagram account to the Page.', 'Під’єднайте професійний Instagram-акаунт до Page.'),
     },
     {
+      ok: Boolean(workspace.connection.pixel),
+      en: 'Website Pixel available', uk: 'Pixel сайту доступний',
+      detail: workspace.connection.pixel?.name || tr('Assign the Natal Service Website Pixel to this Ad Account.', 'Призначте Pixel Natal Service Website цьому рекламному акаунту.'),
+    },
+    {
       ok: workspace.sources.length > 0,
       en: 'Approved Post available', uk: 'Затверджений Post доступний',
       detail: workspace.sources.length
@@ -278,8 +285,8 @@ export function AdsView({ api, language, projectId = null }: {
       <small>{tr('CONNECTION', 'ПІДКЛЮЧЕННЯ')}</small>
       <div className="ads-connection-grid">
         <div>{connected ? <CheckCircle2 /> : <AlertTriangle />}<span><strong>{connected ? tr('Meta assets verified', 'Активи Meta перевірено') : tr('Meta staging disabled', 'Staging Meta вимкнено')}</strong><small>{workspace.connection.explanation || tr('System user and assigned assets are available.', 'Системний користувач і призначені активи доступні.')}</small></span></div>
-        <dl><div><dt>{tr('Ad Account', 'Рекламний акаунт')}</dt><dd>{workspace.connection.account?.name || '—'} <code>{short(workspace.connection.account?.id)}</code></dd></div><div><dt>Facebook Page</dt><dd>{workspace.connection.page?.name || '—'} <code>{short(workspace.connection.page?.id)}</code></dd></div><div><dt>Instagram</dt><dd>{workspace.connection.instagram?.username ? `@${workspace.connection.instagram.username}` : '—'} <code>{short(workspace.connection.instagram?.id)}</code></dd></div></dl>
-        {workspace.connection.available && <p className="ads-available">{tr('Available to this system user', 'Доступно цьому системному користувачу')}: {workspace.connection.available.ad_accounts.length} Ad Account · {workspace.connection.available.pages.length} Page · {workspace.connection.available.instagram_accounts.length} Instagram</p>}
+        <dl><div><dt>{tr('Ad Account', 'Рекламний акаунт')}</dt><dd>{workspace.connection.account?.name || '—'} <code>{short(workspace.connection.account?.id)}</code></dd></div><div><dt>Facebook Page</dt><dd>{workspace.connection.page?.name || '—'} <code>{short(workspace.connection.page?.id)}</code></dd></div><div><dt>Instagram</dt><dd>{workspace.connection.instagram?.username ? `@${workspace.connection.instagram.username}` : '—'} <code>{short(workspace.connection.instagram?.id)}</code></dd></div><div><dt>Meta Pixel</dt><dd>{workspace.connection.pixel?.name || '—'} <code>{short(workspace.connection.pixel?.id)}</code></dd></div></dl>
+        {workspace.connection.available && <p className="ads-available">{tr('Available to this system user', 'Доступно цьому системному користувачу')}: {workspace.connection.available.ad_accounts.length} Ad Account · {workspace.connection.available.pages.length} Page · {workspace.connection.available.instagram_accounts.length} Instagram · {workspace.connection.available.pixels?.length || 0} Pixel</p>}
       </div>
     </section>
 
@@ -321,8 +328,8 @@ export function AdsView({ api, language, projectId = null }: {
             <label>{tr('Audience preset version', 'Версія пресета аудиторії')}<select value={selectedPresetId} onChange={event => setSelectedPresetId(event.target.value)}><option value="">{tr('Create a preset first', 'Спочатку створіть пресет')}</option>{workspace.presets.map(item => <option key={item.preset_id} value={item.preset_id}>v{item.version} · {item.specification.name} · {item.specification.daily_budget_minor} {workspace.connection.account?.currency || tr('minor units', 'мін. од.')}</option>)}</select></label>
             <label>{tr('Special ad category', 'Спеціальна категорія реклами')}<select value={category} onChange={event => setCategory(event.target.value)}>{categories.map(item => <option key={item}>{item}</option>)}</select></label>
           </div>
-          <div className="ads-fixed"><span>Instagram Feed</span><span>{destination === 'WEBSITE' ? 'OUTCOME_TRAFFIC' : 'OUTCOME_ENGAGEMENT'}</span><span>{destination === 'WEBSITE' ? 'Website · Learn more' : 'Instagram Direct'}</span><span>{destination === 'WEBSITE' ? 'LINK_CLICKS' : 'CONVERSATIONS'}</span><span>IMPRESSIONS</span><span>Lowest cost</span><span>Enhancements: OFF</span></div>
-          <button className="primary large" disabled={!connected || !selectedPreset || busy || !headline.trim() || !primaryText.trim() || !previewUrl || (destination === 'WEBSITE' ? !workspace.landing : !welcomeMessage.trim())} onClick={() => void stage()}><Megaphone />{busy ? tr('Working…', 'Виконується…') : tr('Create PAUSED campaign structure', 'Створити PAUSED-структуру кампанії')}</button>
+          <div className="ads-fixed"><span>Instagram Feed</span><span>{destination === 'WEBSITE' ? 'OUTCOME_TRAFFIC' : 'OUTCOME_ENGAGEMENT'}</span><span>{destination === 'WEBSITE' ? 'Website · Learn more' : 'Instagram Direct'}</span><span>{destination === 'WEBSITE' ? 'LANDING_PAGE_VIEWS' : 'CONVERSATIONS'}</span><span>IMPRESSIONS</span><span>Lowest cost</span><span>Enhancements: OFF</span></div>
+          <button className="primary large" disabled={!connected || !selectedPreset || busy || !headline.trim() || !primaryText.trim() || !previewUrl || (destination === 'WEBSITE' ? (!workspace.landing || !websiteReady) : !welcomeMessage.trim())} onClick={() => void stage()}><Megaphone />{busy ? tr('Working…', 'Виконується…') : tr('Create PAUSED campaign structure', 'Створити PAUSED-структуру кампанії')}</button>
           <div className="post-publishing-actions"><button className="secondary" disabled={busy} onClick={() => void exportImage()}>{tr('Download image', 'Завантажити зображення')}</button><button className="secondary" onClick={() => void copy([headline, primaryText].filter(Boolean).join('\n\n'))}>{tr('Copy ad text', 'Копіювати текст реклами')}</button>{workspace.landing && <button className="secondary" onClick={() => void copy(workspace.landing!.canonical_url)}>{tr('Copy landing URL', 'Копіювати URL лендінгу')}</button>}<a className="secondary" href={adsManagerUrl} target="_blank" rel="noreferrer">{tr('Open in Ads Manager', 'Відкрити в Ads Manager')}</a></div>
           <p>{tr('Export is available without Meta access. Create or review the ad and start paid delivery in Ads Manager. These links open Meta; they do not fill its forms.', 'Експорт доступний без підключення Meta. Створіть або перевірте рекламу та запустіть покази в Ads Manager. Посилання відкривають Meta, але не заповнюють форми.')}</p>
         </> : <p>{tr('Select an approved Post version.' , 'Виберіть затверджену версію допису.')}</p>}

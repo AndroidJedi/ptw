@@ -11,6 +11,47 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class MetaConfiguratorTests(unittest.TestCase):
+    def test_paid_setup_uses_independent_system_user_and_ad_account_assignments(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binary = root / 'bin'
+            binary.mkdir()
+            fake_git = binary / 'git'
+            fake_git.write_text('#!/bin/sh\nprintf "%s\\n" "$PTW_TEST_ROOT"\n')
+            fake_curl = binary / 'curl'
+            fake_curl.write_text(f'''#!{sys.executable}
+import json, pathlib, sys
+args = sys.argv[1:]
+assert '--config' in args and sys.stdin.read().startswith('oauth2-bearer = "')
+assert '--globoff' in args
+url = args[-1]
+if '/me/adaccounts?' in url:
+    payload = {{'data':[{{'id':'act_123','name':'Ads'}}]}}
+elif '/me/accounts?' in url:
+    assert 'instagram_business_account{{id,username}}' in url
+    payload = {{'data':[{{'id':'456','name':'Page','instagram_business_account':{{'id':'789','username':'example'}}}}]}}
+elif '/act_123/instagram_accounts?' in url:
+    payload = {{'data':[{{'id':'789','username':'example'}}]}}
+elif '/act_123/adspixels?' in url:
+    payload = {{'data':[{{'id':'101','name':'Website Pixel'}}]}}
+else:
+    raise AssertionError(url)
+pathlib.Path(args[args.index('--output')+1]).write_text(json.dumps(payload))
+''')
+            fake_git.chmod(0o700)
+            fake_curl.chmod(0o700)
+            result = subprocess.run(
+                ['bash', str(ROOT/'scripts/configure_meta_ads.sh'), 'local', '123', '456', 'example'],
+                env={**os.environ, 'PATH': str(binary)+os.pathsep+os.environ['PATH'],
+                     'PYTHON_BIN': sys.executable, 'PTW_TEST_ROOT': str(root), 'META_PIXEL_ID': '101'},
+                input='test-only-hidden-token-123456\n', text=True, capture_output=True, check=True,
+            )
+            self.assertNotIn('test-only-hidden-token-123456', result.stdout + result.stderr)
+            fields = dict(line.split('=', 1) for line in (root/'.local/local-studio.env').read_text().splitlines())
+            self.assertEqual('123', fields['META_AD_ACCOUNT_ID'])
+            self.assertEqual('456', fields['META_PAGE_ID'])
+            self.assertEqual('789', fields['META_INSTAGRAM_ACTOR_ID'])
+
     def test_organic_setup_does_not_require_advertising_access(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)

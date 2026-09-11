@@ -15,6 +15,7 @@ function fixture(verified = true): MetaAdsProjectWorkspace {
       configured: true, verified: true, graph_version: 'v26.0',
       account: { id: 'act_123', name: 'Local Ads', currency: 'USD' },
       page: { id: '456', name: 'Natal' }, instagram: { id: '789', username: 'natal' },
+      pixel: { id: '101', name: 'Natal Website' },
     } : {
       configured: false, verified: false, graph_version: 'v26.0',
       explanation: 'Add the Meta system-user token and assigned asset IDs to the local secrets file.',
@@ -158,6 +159,8 @@ it('creates a website ad using the published landing and omits Direct copy', asy
   render(<AdsView api={api} language="en" projectId={projectId} />)
   await screen.findByText('Meta assets verified')
   fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'WEBSITE' } })
+  expect(screen.getByText('LANDING_PAGE_VIEWS')).toBeVisible()
+  expect(screen.getAllByText('Natal Website')).toHaveLength(2)
   expect(screen.queryByLabelText('Initial Direct message')).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: value.landing.canonical_url })).toHaveAttribute('href', value.landing.canonical_url)
   await waitFor(() => expect(screen.getByRole('button', { name: 'Create PAUSED campaign structure' })).toBeEnabled())

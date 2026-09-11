@@ -384,6 +384,7 @@ class ReleaseStreamContractTests(unittest.TestCase):
         gateway = (ROOT / "docker-compose.commander.yml").read_text()
 
         self.assertIn("META_ADS_SECRETS_PATH: /run/ptw-meta-ads/config.env", compose)
+        self.assertIn("META_PIXEL_ID: ${META_PIXEL_ID:-1056720310312959}", compose)
         self.assertIn("/opt/ptw/secrets/meta-ads:/run/ptw-meta-ads:ro", compose)
         self.assertNotIn("META_SYSTEM_USER_ACCESS_TOKEN", compose)
         self.assertNotIn("ptw-meta-ads", gateway)

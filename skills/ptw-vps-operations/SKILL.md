@@ -314,6 +314,14 @@ action, and bounded technical context without raw provider/5xx output.
   response, match the exact Page ID and Instagram username, and require
   `pages_show_list` alongside the publishing permissions. Never record the token
   or opaque paging cursors.
+- Advertising configuration must verify the system user's assigned Ad Account
+  through `/me/adaccounts`, its assigned Page and linked professional account
+  through `/me/accounts`, and the Instagram actor through the Ad Account's
+  `instagram_accounts` edge. Do not gate valid credentials on the Ad Account's
+  `promote_pages` field; it can omit an independently assigned Page even when
+  the three authoritative assignment checks pass. Website LPV readiness also
+  requires the exact non-secret `META_PIXEL_ID` on the Ad Account `adspixels`
+  edge. Keep that ID in Compose, never in the six-key token file.
 - Keep curl URL globbing disabled for Meta Graph queries containing nested field
   expressions such as `instagram_business_account{id,username}`. Without
   `--globoff`, curl expands the braces into multiple malformed field requests;

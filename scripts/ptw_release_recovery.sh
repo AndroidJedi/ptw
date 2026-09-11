@@ -34,7 +34,7 @@ elif [[ $action == restore ]]; then
     [[ ! -f "$directory/receiver" ]] || cp -p "$directory/receiver" /usr/local/libexec/ptw-mobile-release
     if [[ -f "$directory/Caddyfile" ]]; then
         cp -p "$directory/Caddyfile" /opt/ptw/platform/infrastructure/caddy/Caddyfile
-        docker exec ptw-agent-platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile
+        docker exec ptw-agent-platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile || docker restart ptw-agent-platform-caddy-1 >/dev/null
     fi
     commander=(docker compose --env-file "$platform/.env" --env-file "$repository/.env.commander" --env-file "$repository/.env.owner-gateway" --project-directory "$repository" -f "$repository/docker-compose.commander.yml")
     validation=(docker compose --env-file "$platform/.env" --env-file "$repository/.env.commander" --env-file "$repository/.env.owner-gateway" --project-name ptw-validation --project-directory "$repository" -f "$repository/docker-compose.validation.yml")

@@ -16,6 +16,13 @@ into a complete compatible release, read
 
 ## Start safely
 
+The existing Caddy host may be named `{$COMMANDER_PUBLIC_HOST}` and its admin
+endpoint is disabled. Only activate a changed PTW host fragment, preserve the
+shared security-header import and unrelated routes, and use validated restart
+when hot reload is unavailable. The independent platform worktree may differ
+only by the exact host block generated from the accepted PTW fragment; reject
+all other tracked modifications. Recovery must support the same restart path.
+
 1. Read current state and the applicable operations route. Inspect both
    worktrees, exact image tags, containers, memory/swap, disk, database,
    bridge, Firebase, Pexels, and emergency-stop readiness without printing

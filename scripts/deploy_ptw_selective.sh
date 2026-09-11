@@ -49,7 +49,10 @@ stage_complete() {
 
 [[ -f $platform/.env && -f $repository/.env.commander && -f $repository/.env.owner-gateway ]]
 [[ -z $(git -C "$repository" status --porcelain --untracked-files=no) ]]
-[[ -z $(git -C "$platform" status --porcelain --untracked-files=no) ]]
+[[ -z $(git -C "$platform" status --porcelain --untracked-files=no -- . ':!infrastructure/caddy/Caddyfile') ]]
+if [[ -n $(git -C "$platform" status --porcelain --untracked-files=no -- infrastructure/caddy/Caddyfile) ]]; then
+    python3 "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/ptw_caddy_configuration.py" verify
+fi
 [[ $(git -C "$repository" rev-parse HEAD) == "$git_revision" ]]
 [[ $(git -C "$platform" rev-parse HEAD) == "$platform_git_revision" ]]
 

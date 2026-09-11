@@ -7,27 +7,11 @@ repository=${1:?repository required}
 install -o root -g root -m 0755 "$repository/scripts/receive_ptw_mobile_release.sh" /usr/local/libexec/ptw-mobile-release
 "$repository/scripts/install_ptw_skill_sync.sh"
 if [[ -f /opt/ptw/platform/infrastructure/caddy/Caddyfile ]]; then
-    python3 - "$repository/deploy/owner-gateway/Caddyfile.fragment" /opt/ptw/platform/infrastructure/caddy/Caddyfile <<'PY'
-import pathlib, re, sys
-fragment, destination = map(pathlib.Path, sys.argv[1:])
-content = destination.read_text()
-new = fragment.read_text()
-# The existing installation uses a dedicated host block. Replace exactly that
-# block; all unrelated platform and public-domain routes remain intact.
-host = new.split('{', 1)[0].strip()
-start = re.search(r'(?m)^' + re.escape(host) + r'\s*\{', content)
-if not start:
-    raise SystemExit('Owner Gateway Caddy host block was not found')
-depth = 1
-index = start.end()
-while depth and index < len(content):
-    depth += (content[index] == '{') - (content[index] == '}')
-    index += 1
-if depth:
-    raise SystemExit('Owner Gateway Caddy block is incomplete')
-destination.write_text(content[:start.start()] + new.strip() + content[index:])
-PY
-    docker exec ptw-agent-platform-caddy-1 caddy validate --config /etc/caddy/Caddyfile >/dev/null
-    docker exec ptw-agent-platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile
+    changed=$(python3 "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/ptw_caddy_configuration.py" apply --repository "$repository")
+    if [[ $changed == changed ]]; then
+        docker exec ptw-agent-platform-caddy-1 caddy validate --config /etc/caddy/Caddyfile >/dev/null
+        # Existing production deliberately disables Caddy's admin endpoint.
+        docker exec ptw-agent-platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile || docker restart ptw-agent-platform-caddy-1 >/dev/null
+    fi
     curl --fail --silent --max-time 15 https://commander.proove-them-wrong.com/healthz >/dev/null
 fi

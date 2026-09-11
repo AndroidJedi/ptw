@@ -65,6 +65,16 @@ tracked receiver now performs that bounded reclaim under its maintenance lock
 before reading image artifacts, and regression coverage forbids all-image or
 volume pruning.
 
+After storage remediation, the next rollout loaded and started all candidate
+images, and every structured/media canary completed, including enhancement.
+The CI-to-VPS SSH session then broke after nearly five silent minutes, before
+Hosting/infrastructure acceptance, causing another rollback. The accepted
+marker remained `96abe02`; the retained snapshot restored the clean accepted
+source, prior images and Hosting. The publisher now sends 15-second SSH
+server-alive probes with a bounded 40-miss window and TCP keepalive. Canaries
+remain mandatory; the keepalive fixes transport silence instead of weakening
+acceptance.
+
 ## 2026-09-11 — LPV rollout rejected by media enhancement canary
 
 The first preserving rollout of the Meta landing-page-view automation passed

@@ -145,6 +145,9 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("runs-on: ubuntu-24.04", workflow)
         self.assertIn("PTW_MOBILE_DEPLOY_PRIVATE_KEY", workflow)
         self.assertIn("PTW-PRESERVING-STREAM 1", publisher)
+        self.assertIn('-o ServerAliveInterval=15', publisher)
+        self.assertIn('-o ServerAliveCountMax=40', publisher)
+        self.assertIn('-o TCPKeepAlive=yes', publisher)
         self.assertIn("receive_ptw_preserving_release.sh", receiver)
         self.assertIn("PTW_MAINTENANCE_LOCK_HELD=1", receiver)
         self.assertIn(

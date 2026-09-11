@@ -98,6 +98,7 @@ emit_web() {
     printf 'END\n'
 } | ssh -i "$PTW_MOBILE_DEPLOY_SSH_KEY" -o IdentitiesOnly=yes \
     -o UserKnownHostsFile="$PTW_MOBILE_DEPLOY_KNOWN_HOSTS" -o StrictHostKeyChecking=yes \
+    -o ServerAliveInterval=15 -o ServerAliveCountMax=40 -o TCPKeepAlive=yes \
     ptw-release@165.245.212.184
 
 echo "Mobile preserving release $release_tag completed"

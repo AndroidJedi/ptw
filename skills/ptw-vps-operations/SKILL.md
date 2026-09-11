@@ -88,6 +88,11 @@ before the requested database exists; that is not migration-test readiness.
    images, containers in use, volumes, databases, credentials, or Commander
    conversation state. Verify sufficient free space before retrying an ENOSPC
    rollback; do not blind-retry the same artifact stream.
+7. The CI publisher must send SSH server-alive probes throughout silent live
+   provider canaries. A completed platform job does not prove that the outer
+   artifact transport is still connected. Treat a post-cutover SSH broken pipe
+   as a failed release, verify rollback, and retain bounded keepalive regression
+   coverage; never bypass the canaries to shorten the silent interval.
 
 ## Production contract
 

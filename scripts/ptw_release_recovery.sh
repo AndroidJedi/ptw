@@ -28,6 +28,13 @@ elif [[ $action == restore ]]; then
     if [[ $current_revision != "$old_revision" ]]; then
         git -C "$repository" -c core.hooksPath=/dev/null switch --detach "$old_revision"
     fi
+    # Git restores file bytes, not the worker group's write permissions. Repair
+    # the restored skill view explicitly; candidate Git hooks stay disabled.
+    (
+        cd "$repository"
+        "${PTW_TRUSTED_RELEASE_ROOT:-$directory}/scripts/install_ptw_skill_sync.sh"
+        python3 "${PTW_TRUSTED_RELEASE_ROOT:-$directory}/scripts/verify_ptw_skills.py"
+    )
     cp -p "$directory/commander.env" "$repository/.env.commander"
     cp -p "$directory/gateway.env" "$repository/.env.owner-gateway"
     cp -p "$directory/deployed-revision" "$repository/.local/deployed-revision"

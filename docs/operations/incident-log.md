@@ -2,6 +2,31 @@
 
 Updated: 2026-09-11
 
+## 2026-09-11 — Unified workspace controlled-release acceptance
+
+The unified Commander bootstrap is live. Hosted native dialogue, questions,
+steering, model/effort changes and restart persistence pass. The controlled
+chat deployment preserved the owner's earlier Phone Metrics edits and exposed
+three release-boundary defects: disposable PostgreSQL readiness could precede
+target database creation; an inventory helper inherited and consumed the binary
+artifact stream; and rollback Git checkout reset group-write permissions on
+changed skill files. The candidate now uses a real target-database TCP query,
+reserves artifact input on a separate descriptor with helper stdin closed, and
+repairs/verifies accepted skill permissions before recovery service restart.
+The stream fix was installed through the owner-authorized receiver bootstrap,
+with its prior entrypoint retained for recovery. Candidate host helpers and Git
+hooks cannot replace accepted recovery authority before acceptance.
+
+The latest controlled release passed CI and reached healthy service cutover,
+then stopped on structured bridge job 718 (`RuntimeError`, eight seconds).
+The worker retained only the bounded error type, so its underlying provider
+cause is not established. The receiver durably recorded `rolled_back` and
+restored accepted revision `3c06ee8`, component images and Hosting. Credential
+handoff equality, authorization verification and a fresh schema-bound worker
+probe subsequently passed without a new login. Full provider acceptance is
+being rechecked before retry; no production data reset or credential rotation
+was performed. Release completion is not yet claimed.
+
 ## 2026-09-11 — Saved Meta secret was unreadable inside Validation
 
 After the hidden-prompt configurator succeeded, a Validation restart still

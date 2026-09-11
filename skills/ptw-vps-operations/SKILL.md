@@ -16,6 +16,11 @@ into a complete compatible release, read
 
 ## Start safely
 
+Recovery Git checkouts can reset group-write permissions on changed skill
+files. After restoring the accepted source, explicitly run the accepted skill
+sync installer and verifier before restarting its services. Keep candidate Git
+hooks disabled; a healthy container alone does not verify the mounted skill view.
+
 When a wrapper receives Hosting followed by a binary image stream, reserve the
 unread stream on a separate descriptor and give intervening Git/Docker/database
 helpers `/dev/null` as stdin. Docker `exec -i` can consume a pipe even when its

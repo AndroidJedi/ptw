@@ -8,7 +8,24 @@ Commander and the three provider services retain their compatible images. Schema
 005 and both web sites are live with Owner cache v8. Meta credentials are loaded,
 and the organic Instagram connection is verified live.
 
-## Unified Commander workspace — bootstrap live, conversation acceptance pending
+## Unified Commander workspace — live dialogue verified, release acceptance pending
+
+Live native model discovery, Plan questions/answers, targeted Build replies,
+in-flight steering, alternate model/effort selection, cancellation and restart
+recovery pass. A chat-triggered candidate includes the preserved Phone Metrics
+hero-title formatting and optional CTA controls. Full CI verification/builds
+pass; the receiver reaches healthy service cutover. Final acceptance remains
+blocked by a failed live structured-provider canary; recovery restored the
+accepted source, component images and Hosting with a durable rolled-back
+receipt. Authorization and a fresh schema-bound worker probe subsequently pass;
+the full provider canary is being rechecked before another release.
+
+Rollout testing corrected disposable-database readiness to query the fully
+initialized target over TCP, isolated the binary artifact stream from helper
+stdin, and added explicit accepted skill-permission repair after recovery Git
+checkout. These guards have focused regressions. Combined candidate checks pass
+246 Validation tests, 95 web unit tests, 13 Gateway tests, all affected Phone
+Metrics and Commander browser flows, and the authoritative Studio visual audit.
 
 The owner-authorized redesign is published through the preserving operations
 release. Live model discovery and the public web audit pass; hosted dialogue and

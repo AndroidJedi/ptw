@@ -9,6 +9,17 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class ReleaseStreamContractTests(unittest.TestCase):
+    def test_recovery_repairs_restored_skill_permissions_using_accepted_helpers(self):
+        recovery = (ROOT / 'scripts/ptw_release_recovery.sh').read_text()
+        restore = recovery.split('elif [[ $action == restore ]]; then', 1)[1]
+        switch = restore.index('-c core.hooksPath=/dev/null switch --detach')
+        repair = restore.index('${PTW_TRUSTED_RELEASE_ROOT:-$directory}/scripts/install_ptw_skill_sync.sh')
+        verify = restore.index('${PTW_TRUSTED_RELEASE_ROOT:-$directory}/scripts/verify_ptw_skills.py')
+        restart = restore.index('"${commander[@]}" up')
+        self.assertLess(switch, repair)
+        self.assertLess(repair, verify)
+        self.assertLess(verify, restart)
+
     def test_disposable_database_readiness_requires_initialized_target_over_tcp(self):
         for name in ('verify_ptw_brief_schema.sh', 'verify_ptw_migration_runner.sh'):
             script = (ROOT / 'scripts' / name).read_text()

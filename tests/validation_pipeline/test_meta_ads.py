@@ -45,10 +45,17 @@ class MetaAdsAdapterTests(unittest.TestCase):
             if request.method == "GET" and path.endswith("/act_123"):
                 return httpx.Response(200, json={
                     "id": "act_123", "name": "Local test", "currency": "USD",
-                    "account_status": 1, "promote_pages": {"data": [{"id": "456", "name": "Page"}]},
+                    "account_status": 1,
                 })
+            if request.method == "GET" and path.endswith("/me/accounts"):
+                return httpx.Response(200, json={"data": [{
+                    "id": "456", "name": "Page",
+                    "instagram_business_account": {"id": "789", "username": "ptw"},
+                }]})
             if request.method == "GET" and path.endswith("/instagram_accounts"):
                 return httpx.Response(200, json={"data": [{"id": "789", "username": "ptw"}]})
+            if request.method == "GET" and path.endswith("/adspixels"):
+                return httpx.Response(200, json={"data": [{"id": "101", "name": "Website Pixel"}]})
             if request.method == "GET" and path.endswith("/search"):
                 return httpx.Response(200, json={"data": [
                     {"key": "2420605", "name": "Kyiv", "type": "city", "country_code": "UA", "country_name": "Ukraine", "region": "Kyiv"},
@@ -70,7 +77,7 @@ class MetaAdsAdapterTests(unittest.TestCase):
 
         configuration = MetaAdsConfiguration(
             access_token="secret-system-token", ad_account_id="123",
-            page_id="456", instagram_actor_id="789",
+            page_id="456", instagram_actor_id="789", pixel_id="101",
         )
         self.adapter = MetaAdsAdapter(
             configuration, client=httpx.Client(transport=httpx.MockTransport(handler)),
@@ -83,6 +90,10 @@ class MetaAdsAdapterTests(unittest.TestCase):
     def test_exact_paused_instagram_direct_structure_and_no_token_leak(self) -> None:
         connection = self.adapter.connection()
         self.assertTrue(connection["verified"])
+        self.assertEqual("101", connection["pixel"]["id"])
+        account_read = next(request for request in self.requests if request.url.path.endswith("/act_123"))
+        self.assertNotIn("promote_pages", account_read.url.params["fields"])
+        self.assertTrue(any(request.url.path.endswith("/me/accounts") for request in self.requests))
         campaign = self.adapter.ensure_campaign("[PTW LOCAL] project", ["NONE"])
         ad_set = self.adapter.ensure_ad_set("[PTW LOCAL] audience", campaign_id=campaign["id"], preset={
             "countries": ["UA"], "age_min": 25, "age_max": 44,
@@ -132,9 +143,13 @@ class MetaAdsAdapterTests(unittest.TestCase):
         self.adapter.ensure_creative("website creative", image_hash="hash", specification={
             "headline": "Headline", "primary_text": "Primary", "destination_type": "WEBSITE", "landing": {"canonical_url": url},
         })
+        self.adapter.ensure_ad(
+            "website ad", ad_set_id="adset-1", creative_id="creative-1",
+            tracking_pixel_id="101",
+        )
         posts = {request.url.path.rsplit("/", 1)[-1]: form(request) for request in self.requests if request.method == "POST"}
         self.assertEqual("OUTCOME_TRAFFIC", posts["campaigns"]["objective"])
-        self.assertEqual("LINK_CLICKS", posts["adsets"]["optimization_goal"])
+        self.assertEqual("LANDING_PAGE_VIEWS", posts["adsets"]["optimization_goal"])
         self.assertEqual("WEBSITE", posts["adsets"]["destination_type"])
         self.assertNotIn("promoted_object", posts["adsets"])
         creative = posts["adcreatives"]
@@ -142,6 +157,9 @@ class MetaAdsAdapterTests(unittest.TestCase):
         link = json.loads(creative["object_story_spec"])["link_data"]
         self.assertEqual(url, link["link"])
         self.assertEqual({"type": "LEARN_MORE", "value": {"link": url}}, link["call_to_action"])
+        self.assertEqual([{
+            "action.type": ["offsite_conversion"], "fb_pixel": ["101"],
+        }], json.loads(posts["ads"]["tracking_specs"]))
         self.assertEqual("PAUSED", posts["campaigns"]["status"])
         self.assertEqual("PAUSED", posts["adsets"]["status"])
 
@@ -215,10 +233,13 @@ class MetaAdsAdapterTests(unittest.TestCase):
                 encoding="utf-8",
             )
             secrets_path.chmod(0o400)
-            with patch.dict(os.environ, {"META_ADS_SECRETS_PATH": str(secrets_path)}, clear=True):
+            with patch.dict(os.environ, {
+                "META_ADS_SECRETS_PATH": str(secrets_path), "META_PIXEL_ID": "101",
+            }, clear=True):
                 configuration = MetaAdsConfiguration.from_environment()
             self.assertTrue(configuration.configured)
             self.assertEqual("123", configuration.ad_account_id)
+            self.assertEqual("101", configuration.pixel_id)
             self.assertEqual("[PTW VPS]", configuration.name_prefix)
             self.assertNotIn("server-secret", repr(configuration))
 
@@ -339,8 +360,13 @@ class FakeAdapter:
         self._record("creative")
         return {"id": f"creative-{self.calls.count('creative')}"}
 
-    def ensure_ad(self, name: str, *, ad_set_id: str, creative_id: str) -> dict[str, str]:
+    def ensure_ad(
+        self, name: str, *, ad_set_id: str, creative_id: str,
+        tracking_pixel_id: str | None = None,
+    ) -> dict[str, str]:
         self._record("ad")
+        if tracking_pixel_id is not None:
+            assert tracking_pixel_id == "101"
         return {"id": f"ad-{self.calls.count('ad')}"}
 
     def status(self, object_id: str, kind: str) -> dict[str, str]:
@@ -361,7 +387,8 @@ class MetaAdsServiceTests(unittest.TestCase):
         self.adapter = FakeAdapter()
         self.service = MetaAdsService(
             self.authority, FakeStudio(), MetaAdsConfiguration(
-                access_token="not-persisted", ad_account_id="123", page_id="456", instagram_actor_id="789",
+                access_token="not-persisted", ad_account_id="123", page_id="456",
+                instagram_actor_id="789", pixel_id="101",
             ), self.adapter,
         )
         self.preset = self.service.create_preset({
@@ -398,6 +425,8 @@ class MetaAdsServiceTests(unittest.TestCase):
         self.assertNotEqual(website["experiment_id"], direct["experiment_id"])
         self.assertNotEqual(website["audience_id"], direct["audience_id"])
         self.assertEqual("OUTCOME_TRAFFIC", website["specification"]["objective"])
+        self.assertEqual("LANDING_PAGE_VIEWS", website["specification"]["optimization_goal"])
+        self.assertEqual({"pixel_id": "101", "event": "PageView"}, website["specification"]["measurement"])
         self.assertNotIn("welcome_message", website["specification"])
         self.assertEqual("staged", self.service.execute(website["deployment_id"])["status"])
         self.assertEqual("staged", self.service.execute(direct["deployment_id"])["status"])
@@ -415,6 +444,14 @@ class MetaAdsServiceTests(unittest.TestCase):
         self.assertEqual(0, self.adapter.calls.count("campaign"))
         with self.assertRaises(RuntimeError):
             self.service.reserve(PROJECT_ID, {**request, "request_id": "01900000-0000-7000-8000-000000000018"})
+
+    def test_website_staging_requires_the_nonsecret_pixel_configuration(self):
+        from dataclasses import replace
+        request, _ = self.website_request()
+        self.service.configuration = replace(self.service.configuration, pixel_id="")
+        with self.assertRaisesRegex(RuntimeError, "Meta Pixel is not configured"):
+            self.service.reserve(PROJECT_ID, request)
+        self.assertEqual([], self.authority.list_deployments(PROJECT_ID))
 
     def test_idempotent_request_and_complete_staging(self) -> None:
         deployment, created = self.service.reserve(PROJECT_ID, self.request())
@@ -464,7 +501,7 @@ class MetaAdsServiceTests(unittest.TestCase):
                 service = MetaAdsService(
                     authority, FakeStudio(), MetaAdsConfiguration(
                         access_token="not-persisted", ad_account_id="123",
-                        page_id="456", instagram_actor_id="789",
+                        page_id="456", instagram_actor_id="789", pixel_id="101",
                     ), adapter,
                 )
                 preset = service.create_preset({

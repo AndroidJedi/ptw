@@ -13,12 +13,14 @@ page_id=$3
 instagram_username=${4#@}
 graph_version=v26.0
 instagram_media_origin=${META_INSTAGRAM_MEDIA_ORIGIN:-}
+pixel_id=${META_PIXEL_ID:-1056720310312959}
 repository=$(git rev-parse --show-toplevel)
 python=${PYTHON_BIN:-$repository/.venv/bin/python}
 
 [[ -z $ad_account_id || $ad_account_id =~ ^[0-9]+$ ]] || { echo "Ad Account ID must contain digits only" >&2; exit 2; }
 [[ $page_id =~ ^[0-9]+$ ]] || { echo "Page ID must contain digits only" >&2; exit 2; }
 [[ $instagram_username =~ ^[A-Za-z0-9._]+$ ]] || { echo "Instagram username is invalid" >&2; exit 2; }
+[[ $pixel_id =~ ^[0-9]+$ ]] || { echo "Pixel ID must contain digits only" >&2; exit 2; }
 [[ -x $python ]] || python=python3
 
 if [[ $mode == vps ]]; then
@@ -66,34 +68,42 @@ graph_get() {
 accounts_json=$temporary_directory/accounts.json
 page_json=$temporary_directory/page.json
 instagram_json=$temporary_directory/instagram.json
+pixels_json=$temporary_directory/pixels.json
 base=https://graph.facebook.com/$graph_version
 if [[ -n $ad_account_id ]]; then
 graph_get "$base/me/adaccounts?fields=id,name,currency,account_status&limit=100" "$accounts_json"
-graph_get "$base/act_$ad_account_id?fields=id,name,promote_pages" "$page_json"
+graph_get "$base/me/accounts?fields=id,name,instagram_business_account{id,username}&limit=100" "$page_json"
 graph_get "$base/act_$ad_account_id/instagram_accounts?fields=id,username&limit=100" "$instagram_json"
+graph_get "$base/act_$ad_account_id/adspixels?fields=id,name&limit=100" "$pixels_json"
 
-instagram_actor_id=$("$python" - "$accounts_json" "$page_json" "$instagram_json" \
-  "$ad_account_id" "$page_id" "$instagram_username" <<'PY'
+instagram_actor_id=$("$python" - "$accounts_json" "$page_json" "$instagram_json" "$pixels_json" \
+  "$ad_account_id" "$page_id" "$instagram_username" "$pixel_id" <<'PY'
 import json
 import sys
 
-accounts_path, page_path, instagram_path, account_id, page_id, username = sys.argv[1:]
+accounts_path, page_path, instagram_path, pixels_path, account_id, page_id, username, pixel_id = sys.argv[1:]
 with open(accounts_path, encoding="utf-8") as source:
     accounts = json.load(source).get("data", [])
 with open(page_path, encoding="utf-8") as source:
-    account = json.load(source)
+    pages = json.load(source).get("data", [])
 with open(instagram_path, encoding="utf-8") as source:
     instagram = json.load(source).get("data", [])
+with open(pixels_path, encoding="utf-8") as source:
+    pixels = json.load(source).get("data", [])
 
 if not any(str(item.get("id", "")).removeprefix("act_") == account_id for item in accounts):
     raise SystemExit("Configured Ad Account is not assigned to this system user.")
-pages = account.get("promote_pages") or {}
-pages = pages.get("data", []) if isinstance(pages, dict) else pages
-if not any(str(item.get("id")) == page_id for item in pages):
-    raise SystemExit("Configured Facebook Page is not available to this Ad Account.")
+page_matches = [item for item in pages if str(item.get("id")) == page_id]
+if len(page_matches) != 1:
+    raise SystemExit("Configured Facebook Page is not assigned to this system user.")
+linked = page_matches[0].get("instagram_business_account") or {}
 matches = [item for item in instagram if str(item.get("username", "")).lower() == username.lower()]
 if len(matches) != 1 or not matches[0].get("id"):
     raise SystemExit("The requested Instagram account is not uniquely available to this Ad Account.")
+if str(linked.get("id")) != str(matches[0]["id"]):
+    raise SystemExit("The requested professional Instagram account is not linked to this Page.")
+if not any(str(item.get("id")) == pixel_id for item in pixels):
+    raise SystemExit("Configured Meta Pixel is not available to this Ad Account.")
 print(matches[0]["id"])
 PY
 )
@@ -154,3 +164,4 @@ echo "Restart the PTW API process before checking Ads / Реклама and Insta
 echo "Organic publishing additionally needs pages_show_list, instagram_basic, instagram_content_publish and pages_read_engagement."
 echo "For local publishing, set META_INSTAGRAM_MEDIA_ORIGIN to a public HTTPS origin reaching this API before configuration."
 echo "For VPS publishing, set that nonsecret origin in Validation Compose; do not add it to the strict secret file."
+echo "Website ads use nonsecret Pixel $pixel_id and remain disabled unless that Pixel is assigned to the Ad Account."

@@ -66,6 +66,24 @@ both `/` and `/la/natal-service`: each sent zero pre-consent Meta requests, then
 loaded the exact Pixel and contacted Meta after Allow. The Pixel remains listed
 under production Ad Account `509909256695612` without exposing its token.
 
+## Landing-page-view Ads automation — verified candidate
+
+PTW Website Ads now freeze the current published Landing URL and create
+OUTCOME_TRAFFIC / LANDING_PAGE_VIEWS / WEBSITE structures with native Learn more,
+impressions billing, and the Natal Service Website Pixel attached as the Ad's
+offsite-conversion tracking source. Campaign, Ad Set, and Ad remain PAUSED. The
+Ads workspace displays the exact Pixel and blocks Website staging when it is not
+assigned to the configured Ad Account.
+
+The paid configurator no longer treats the Ad Account `promote_pages` response as
+the assignment authority. It verifies the system user's Ad Account and Page,
+the Page-to-Instagram binding, and the Ad Account's Instagram actor separately,
+matching Meta's actual asset assignment model. The final candidate passes 245
+Validation tests, 34 Commander tests (five expected container-only skips), 94
+Owner unit tests, 15 affected Playwright desktop/mobile/WebKit flows, the
+production web build, the Commander demo, and skill verification. Deployment
+and one real PAUSED Meta structure remain pending.
+
 After the corrected helper saved the production secret, the live connection
 still reported `configured: false`. The host directory/file use the intended
 GID 10001 and restrictive modes, but the Validation image assigned its service

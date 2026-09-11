@@ -263,6 +263,15 @@ action, and bounded technical context without raw provider/5xx output.
   images. `META_INSTAGRAM_MEDIA_ORIGIN` is a nonsecret Validation Compose setting,
   not an additional production secret-file key. Loopback publishing requires an
   explicitly configured public HTTPS origin reaching the same local authority.
+- When the organic configurator returns Meta HTTP 400 but a token-safe
+  `GET /me/accounts?fields=id,name,tasks,instagram_business_account{id,username}`
+  returns the assigned Page and linked professional account, do not keep rotating
+  the token or retry a stale example Page ID. A system-user token can discover
+  that binding through `/me/accounts` while Meta rejects a direct `/{page_id}`
+  read. Organic configuration and runtime verification must use the discovery
+  response, match the exact Page ID and Instagram username, and require
+  `pages_show_list` alongside the publishing permissions. Never record the token
+  or opaque paging cursors.
 - Expose only the bounded opaque temporary JPEG route, never Studio files or
   metadata. Disable HTTP access logs that could retain bearer media URLs. Test
   expiry after completion and timeout through Gateway and Validation.

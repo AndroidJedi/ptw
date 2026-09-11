@@ -1,6 +1,36 @@
 # PTW incident log
 
-Updated: 2026-09-10
+Updated: 2026-09-11
+
+## 2026-09-11 — Valid Meta system-user token failed organic Instagram setup
+
+The owner generated a fresh Meta system-user token after assigning the Natal
+Facebook Page, professional Instagram account, and PTW app. The hidden-prompt
+configurator still returned Meta HTTP 400 and wrote no production secret.
+A token-safe `GET /me/accounts` succeeded and returned Page
+`1337006432822527` linked to Instagram actor `17841468586410037`, proving the
+token and asset assignments were usable without disclosing the token.
+
+The organic-only configurator and runtime connection check then performed a
+direct `/{page_id}` read. Meta rejects that form for this system-user token even
+though the supported Page-discovery response contains the exact Page and linked
+Instagram account. The committed example also retained obsolete Page ID
+`61593990040727`, which made the generic failure harder to isolate.
+
+The prepared fix uses `/me/accounts` for both hidden-prompt configuration and
+runtime binding verification, matches the configured Page and username exactly,
+adds `pages_show_list` to the organic permission contract, corrects the example
+Page ID, and preserves the six-key secret-file boundary. Regression coverage
+uses the exact successful discovery response shape and rejects an unassigned
+Page without writing a secret. All 231 Validation tests, 24 local Commander
+checks plus the demo, canonical skill validation, shell syntax, compilation,
+and whitespace checks pass. The actual Validation candidate image passes all 11
+Instagram publication tests and both configurator tests. The generic Commander
+image passes 23 of 24 checks; its sole git-dependent planner check cannot run
+because that older image lacks `git`, while the same check passes locally.
+Production remains unconfigured until this candidate is deployed through the
+preserving path and the owner reruns the hidden prompt; no reset or database
+mutation is involved.
 
 ## 2026-09-10 — Studio draft validation hid the last successful preview
 

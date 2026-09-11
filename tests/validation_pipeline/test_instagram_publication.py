@@ -199,9 +199,9 @@ class InstagramAdapterTests(unittest.TestCase):
             requests.append(request)
             path = request.url.path
             if path.endswith('/permissions'):
-                return httpx.Response(200,json={'data':[{'permission':p, 'status':'granted'} for p in ['instagram_basic','instagram_content_publish','pages_read_engagement']]})
-            if path.endswith('/456'):
-                return httpx.Response(200,json={'instagram_business_account':{'id':'789','username':'example'}})
+                return httpx.Response(200,json={'data':[{'permission':p, 'status':'granted'} for p in ['pages_show_list','instagram_basic','instagram_content_publish','pages_read_engagement']]})
+            if path.endswith('/me/accounts'):
+                return httpx.Response(200,json={'data':[{'id':'456','name':'Example','instagram_business_account':{'id':'789','username':'example'}}]})
             return httpx.Response(200,json={'data':[]})
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
             adapter = InstagramAdapter(MetaAdsConfiguration(access_token='secret', page_id='456',instagram_actor_id='789'),client=client)
@@ -210,3 +210,18 @@ class InstagramAdapterTests(unittest.TestCase):
             for request in requests:
                 self.assertNotIn('secret', str(request.url))
                 self.assertEqual('Bearer secret', request.headers['authorization'])
+
+    def test_publishing_connection_rejects_page_missing_from_system_user_discovery(self):
+        def handler(request):
+            if request.url.path.endswith('/permissions'):
+                return httpx.Response(200, json={'data': [
+                    {'permission': permission, 'status': 'granted'} for permission in
+                    ['pages_show_list', 'instagram_basic', 'instagram_content_publish', 'pages_read_engagement']
+                ]})
+            return httpx.Response(200, json={'data': []})
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            adapter = InstagramAdapter(
+                MetaAdsConfiguration(access_token='secret', page_id='456', instagram_actor_id='789'), client=client,
+            )
+            with self.assertRaisesRegex(Exception, 'not assigned to this system user'):
+                adapter.publishing_connection()

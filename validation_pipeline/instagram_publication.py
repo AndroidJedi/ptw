@@ -20,7 +20,7 @@ from commander.ids import new_uuid7
 from .local_brief_store import utc_now
 from .meta_ads import DatabaseMetaAdsAuthority, MetaAdsAdapter, MetaAdsProviderError, _sha, _uuid, _text
 
-PERMISSIONS = ['instagram_basic', 'instagram_content_publish', 'pages_read_engagement']
+PERMISSIONS = ['pages_show_list', 'instagram_basic', 'instagram_content_publish', 'pages_read_engagement']
 TERMINAL = {'published', 'published_unresolved', 'uncertain', 'failed'}
 
 
@@ -65,9 +65,16 @@ class InstagramAdapter(MetaAdsAdapter):
         if missing:
             return {'verified': False, 'required_permissions': PERMISSIONS,
                     'explanation': 'Grant Instagram publishing permissions through the hidden-prompt configurator.'}
-        page = self._call('GET', self.configuration.page_id,
-                          params={'fields': 'instagram_business_account{id,username}'},
-                          outcome='Instagram Page connection verification failed')
+        page_result = self._call(
+            'GET', 'me/accounts',
+            params={'fields': 'id,name,instagram_business_account{id,username}', 'limit': 100},
+            outcome='Instagram Page connection verification failed',
+        )
+        pages = page_result.get('data') if isinstance(page_result.get('data'), list) else []
+        page = next((item for item in pages if isinstance(item, Mapping)
+                     and str(item.get('id')) == self.configuration.page_id), None)
+        if page is None:
+            raise MetaAdsProviderError('Configured Facebook Page is not assigned to this system user')
         account = page.get('instagram_business_account') or {}
         if str(account.get('id')) != self.configuration.instagram_actor_id:
             raise MetaAdsProviderError('Configured Instagram account does not match the Facebook Page')

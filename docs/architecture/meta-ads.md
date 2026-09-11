@@ -32,7 +32,7 @@ link-in-bio guidance is editable. Profile changes, Facebook organic posts,
 Stories, Reels, scheduling, and native organic website CTA buttons are absent.
 
 Publishing uses the Facebook-linked Instagram API and independently verifies
-`instagram_basic`, `instagram_content_publish`, and `pages_read_engagement`,
+`pages_show_list`, `instagram_basic`, `instagram_content_publish`, and `pages_read_engagement`,
 the Page/account binding, and the publishing quota. Advertising permissions and
 an Ad Account are not prerequisites for organic publishing.
 
@@ -124,7 +124,8 @@ Authorization headers, never browser responses or provider-error bodies.
 
 Use `scripts/configure_meta_ads.sh local|vps AD_ACCOUNT_ID PAGE_ID INSTAGRAM_USERNAME`
 with its hidden token prompt. Pass `-` for AD_ACCOUNT_ID for an organic-only setup;
-that path resolves the linked professional account through the Page without
+that path resolves the assigned Page and linked professional account through
+`/me/accounts` without a direct Page read or
 advertising calls. Advertising requires `ads_management` and
 `ads_read`; grant the organic permissions above for publishing too. The helper
 verifies the selected assets; the separate in-app publishing check verifies

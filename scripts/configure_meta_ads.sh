@@ -100,13 +100,20 @@ PY
 
 else
   # An organic-only account must not depend on advertising permissions.
-  graph_get "$base/$page_id?fields=instagram_business_account{id,username}" "$instagram_json"
-  instagram_actor_id=$("$python" - "$instagram_json" "$instagram_username" <<'PYACCOUNT'
+  # System-user tokens discover their assigned Pages through /me/accounts.
+  # Meta can reject a direct Page read even when that discovery response
+  # contains the Page and its linked professional Instagram account.
+  graph_get "$base/me/accounts?fields=id,name,instagram_business_account{id,username}&limit=100" "$instagram_json"
+  instagram_actor_id=$("$python" - "$instagram_json" "$page_id" "$instagram_username" <<'PYACCOUNT'
 import json
 import sys
 with open(sys.argv[1], encoding="utf-8") as source:
-    account = json.load(source).get("instagram_business_account") or {}
-if not account.get("id") or str(account.get("username", "")).lower() != sys.argv[2].lower():
+    pages = json.load(source).get("data", [])
+matches = [item for item in pages if str(item.get("id", "")) == sys.argv[2]]
+if len(matches) != 1:
+    raise SystemExit("The requested Facebook Page is not assigned to this system user.")
+account = matches[0].get("instagram_business_account") or {}
+if not account.get("id") or str(account.get("username", "")).lower() != sys.argv[3].lower():
     raise SystemExit("The requested professional Instagram account is not linked to this Page.")
 print(account["id"])
 PYACCOUNT
@@ -144,6 +151,6 @@ unset access_token
 
 echo "Selected Meta assets verified and the locked $mode configuration was saved."
 echo "Restart the PTW API process before checking Ads / Реклама and Instagram publishing."
-echo "Organic publishing additionally needs instagram_basic, instagram_content_publish and pages_read_engagement."
+echo "Organic publishing additionally needs pages_show_list, instagram_basic, instagram_content_publish and pages_read_engagement."
 echo "For local publishing, set META_INSTAGRAM_MEDIA_ORIGIN to a public HTTPS origin reaching this API before configuration."
 echo "For VPS publishing, set that nonsecret origin in Validation Compose; do not add it to the strict secret file."

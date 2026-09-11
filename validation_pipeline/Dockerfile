@@ -6,7 +6,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends fonts-dejavu-core git ripgrep \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir -r requirements-validation.txt \
-    && useradd --system --uid 10001 validation
+    && groupadd --gid 10001 validation \
+    && useradd --system --uid 10001 --gid validation validation
 COPY validation_pipeline ./validation_pipeline
 COPY commander/ids.py ./commander/ids.py
 COPY commander/__init__.py ./commander/__init__.py

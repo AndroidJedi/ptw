@@ -355,10 +355,15 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertNotIn("META_SYSTEM_USER_ACCESS_TOKEN", compose)
         self.assertNotIn("ptw-meta-ads", gateway)
 
+        dockerfile = (ROOT / "validation_pipeline/Dockerfile").read_text()
+        self.assertIn("groupadd --gid 10001 validation", dockerfile)
+        self.assertIn("useradd --system --uid 10001 --gid validation validation", dockerfile)
+
         configurator = (ROOT / "scripts/configure_meta_ads.sh").read_text()
         self.assertIn("read -r -s access_token", configurator)
         self.assertIn("oauth2-bearer", configurator)
         self.assertIn("chmod 0440", configurator)
+        self.assertIn("chown root:10001", configurator)
         self.assertIn("chmod 0600", configurator)
         self.assertNotIn("--oauth2-bearer", configurator)
 

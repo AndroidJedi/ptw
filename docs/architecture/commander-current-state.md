@@ -7,7 +7,17 @@ GOD, and the release controller run `god-images-20260910-8da8e21`;
 Validation now runs `meta-page-discovery-20260911-3dee45b`, while Commander and the
 three provider services remain on `god-mode-sandbox-20260910-faf77f9`. Schema
 005 and both web sites are live with Owner cache v7. Meta credentials remain
-unconfigured.
+saved but unreadable by the current Validation image.
+
+After the corrected helper saved the production secret, the live connection
+still reported `configured: false`. The host directory/file use the intended
+GID 10001 and restrictive modes, but the Validation image assigned its service
+user GID 999, preventing traversal of the read-only bind mount. A follow-up
+candidate makes UID and GID 10001 explicit and locks that cross-file contract in
+the release tests. The Linux/amd64 candidate reports identity `10001:10001`,
+reads a synthetic root-owned mode-440 secret through the intended directory
+permissions, and passes all 11 Instagram publication plus both configurator
+tests. The already-saved token remains intact.
 
 The first live Page-discovery correction exposed a second configurator defect:
 curl expanded Meta's nested `{id,username}` field expression and therefore

@@ -277,6 +277,11 @@ action, and bounded technical context without raw provider/5xx output.
   `--globoff`, curl expands the braces into multiple malformed field requests;
   the Page can still appear while the linked Instagram object disappears,
   falsely reporting that a valid assigned account is not linked.
+- Keep the Validation process in GID `10001`, matching the root-owned Meta
+  secret directory and mode-440 file written by the configurator. After the
+  hidden prompt succeeds, verify only mount presence, numeric ownership/mode,
+  process identity, and readability before checking the live connection; never
+  print the file. A container restart cannot repair a UID/GID mismatch.
 - Expose only the bounded opaque temporary JPEG route, never Studio files or
   metadata. Disable HTTP access logs that could retain bearer media URLs. Test
   expiry after completion and timeout through Gateway and Validation.

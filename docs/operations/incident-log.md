@@ -2,6 +2,20 @@
 
 Updated: 2026-09-11
 
+## 2026-09-11 — Saved Meta secret was unreadable inside Validation
+
+After the hidden-prompt configurator succeeded, a Validation restart still
+reported `configured: false`. The root-owned host secret existed with the
+intended mode 440 and group 10001, and the directory mount pointed at the same
+inode, but the Validation image's service user had primary group 999. It could
+not traverse the mode-750 secret directory, so the file appeared absent to the
+application. The image now creates the service user with explicit GID 10001,
+and the release contract binds that identity to the configurator's ownership.
+The Linux/amd64 candidate reports identity `10001:10001`, reads a synthetic
+root-owned mode-440 secret through the intended directory permissions, and
+passes all 11 Instagram publication plus both configurator tests. The saved
+token remains intact and does not need to be entered again.
+
 ## 2026-09-11 — Curl expanded Meta nested fields after Page discovery rollout
 
 The first Page-discovery correction still reported that the professional

@@ -82,7 +82,10 @@ matching Meta's actual asset assignment model. The final candidate passes 245
 Validation tests, 34 Commander tests (five expected container-only skips), 94
 Owner unit tests, 15 affected Playwright desktop/mobile/WebKit flows, the
 production web build, the Commander demo, and skill verification. Deployment
-and one real PAUSED Meta structure remain pending.
+and one real PAUSED Meta structure remain pending. The first preserving rollout
+was correctly rejected when its external image-enhancement canary failed; the
+deployer restored the prior healthy Validation image and retained the previous
+authoritative deployed revision. One guarded full retry remains allowed.
 
 After the corrected helper saved the production secret, the live connection
 still reported `configured: false`. The host directory/file use the intended

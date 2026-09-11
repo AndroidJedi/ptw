@@ -221,6 +221,11 @@ false failed status.
 Normal preserving deployments target 2–4 minutes for a single PTW component and
 under 10 minutes when Validation/provider execution is required. Keep authority
 snapshots, rollback, health/resource checks, and approved artifact verification.
+If a fresh post-cutover media enhancement canary alone returns `failed`, require
+the tracked deployer to restore the prior image and verify its deployed marker
+and health before retrying. Inspect only the bridge job's bounded status; never
+expose provider output or bypass the canary. At most one fresh full preserving
+retry is appropriate for an isolated transient provider failure.
 Run the expensive live bridge/Pexels canaries and schema-bound Codex dependency
 probe only when their owning Validation/platform components change; unchanged
 provider releases use `audit_vps_owner_dependencies.sh --quick`. Stream only

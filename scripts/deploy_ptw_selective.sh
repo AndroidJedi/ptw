@@ -327,6 +327,7 @@ if [[ $snapshot_ready -eq 1 ]]; then
     snapshot_authority > "$after"
     cmp -s "$before" "$after" || { echo "Commander authority changed during fast rollout" >&2; exit 1; }
 fi
+(cd "$repository"; "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/scripts/install_ptw_skill_sync.sh")
 if selected "$restart_components" platform; then
     "${PTW_TRUSTED_RELEASE_ROOT:-$repository}/skills/ptw-owner-console-incident/scripts/audit_vps_owner_dependencies.sh" </dev/null
 else

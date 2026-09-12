@@ -100,6 +100,15 @@ audit passed; production accepted `317dfc0` and canonical `main` was promoted to
 the same revision. Release reconciliation now recognizes this exact externally
 accepted and promoted candidate even if its earlier CI attempt is terminal.
 
+The first normal GOD follow-up proved that the new outer heartbeat remained
+visible and that GOD, Plan and release-controller candidate containers became
+healthy. Its audit then rejected the release because merging a changed skill
+reset that file to Git mode 0644 before the group-write verifier ran. Rollback
+restored the accepted images and source. The selective deployer now invokes the
+accepted skill installer after candidate cutover and before dependency/skill
+audits, so candidate skill files regain their required group permissions without
+executing candidate control code before acceptance.
+
 ## 2026-09-11 — LPV rollout rejected by media enhancement canary
 
 The first preserving rollout of the Meta landing-page-view automation passed

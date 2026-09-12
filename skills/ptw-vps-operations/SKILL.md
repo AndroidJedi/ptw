@@ -107,6 +107,11 @@ before the requested database exists; that is not migration-test readiness.
    immutable request branch by running candidate release code before acceptance.
    Promote canonical source only after the preserving rollout is accepted, then
    reconcile the matching durable Commander record.
+8. A candidate merge can reset modified skill files to Git mode 0644. Before
+   dependency and skill verification, run the accepted
+   `install_ptw_skill_sync.sh` against the candidate repository so Linux group
+   ownership/write permissions are repaired without executing candidate release
+   machinery. A permissions failure is a rejected rollout, not an audit bypass.
 
 ## Production contract
 

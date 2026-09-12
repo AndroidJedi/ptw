@@ -91,6 +91,15 @@ publisher now emits the same fixed 20-second heartbeat locally for the entire
 SSH transport, independently of which accepted receiver version is running,
 and still propagates the SSH pipeline's exact failure status.
 
+The accepted request branch also correctly retained the previous publisher, so
+the next self-update could not install that outer heartbeat through its own
+workflow. The documented preserving operations bootstrap deployed the exact
+candidate instead. All nine fresh provider canaries, remaining production
+audits, 95 Owner tests, 81 browser flows, Firebase publication and the live web
+audit passed; production accepted `317dfc0` and canonical `main` was promoted to
+the same revision. Release reconciliation now recognizes this exact externally
+accepted and promoted candidate even if its earlier CI attempt is terminal.
+
 ## 2026-09-11 — LPV rollout rejected by media enhancement canary
 
 The first preserving rollout of the Meta landing-page-view automation passed

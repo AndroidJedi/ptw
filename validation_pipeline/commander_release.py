@@ -205,7 +205,29 @@ class CommanderReleaseService:
         return value
 
     def _refresh(self, row: sqlite3.Row | None) -> sqlite3.Row | None:
-        if row is None or row["status"] not in {"preparing", "queued", "running"}:
+        if row is None:
+            return row
+        if row["revision"] and row["status"] != "succeeded":
+            try:
+                deployed = self._deployed_revision()
+            except RuntimeError:
+                deployed = None
+            if deployed == row["revision"]:
+                try:
+                    canonical = self._git(
+                        "ls-remote", "https://github.com/" + self.github_repository + ".git",
+                        "refs/heads/main",
+                    ).startswith(row["revision"] + "\t")
+                except subprocess.CalledProcessError:
+                    canonical = False
+                status = "succeeded" if canonical else "bookkeeping_required"
+                with self._db() as db:
+                    db.execute(
+                        "UPDATE deployments SET status=?,error_code=NULL,updated_at=? WHERE id=?",
+                        (status, now(), row["id"]),
+                    )
+                    return db.execute("SELECT * FROM deployments WHERE id=?", (row["id"],)).fetchone()
+        if row["status"] not in {"preparing", "queued", "running"}:
             return row
         if row["status"] == "preparing":
             if row["id"] in self._preparing:
@@ -271,6 +293,7 @@ class CommanderReleaseService:
         row = self._refresh(row)
         with self._db() as db:
             history = db.execute("SELECT * FROM deployments WHERE chat_id=? ORDER BY rowid DESC LIMIT 30", (chat_id,)).fetchall() if chat_id else []
+        history = [self._refresh(item) for item in history]
         return {"candidate": self._candidate(), "deployment": self._deployment(row), "history": [self._deployment(r) for r in history]}
 
     def create(self, body: DeploymentRequest) -> dict[str, Any]:

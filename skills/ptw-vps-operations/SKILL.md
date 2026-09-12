@@ -102,6 +102,11 @@ before the requested database exists; that is not migration-test readiness.
    them because pre-acceptance execution remains pinned to accepted helpers.
    The CI publisher must also emit a fixed local 20-second heartbeat around the
    complete SSH stream and propagate the pipeline's exact status.
+   When the accepted request-branch publisher itself must change, bootstrap the
+   exact clean, pushed candidate through `release_ptw_fast.sh`; do not weaken the
+   immutable request branch by running candidate release code before acceptance.
+   Promote canonical source only after the preserving rollout is accepted, then
+   reconcile the matching durable Commander record.
 
 ## Production contract
 

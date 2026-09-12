@@ -146,6 +146,28 @@ class CommanderReleaseTests(unittest.TestCase):
         self.assertEqual(("failed", "release_workflow_failed"), (result["status"], result["error_code"]))
         self.assertEqual(payload["workflow_runs"][0]["html_url"], result["workflow_url"])
 
+    def test_failed_workflow_reconciles_after_exact_candidate_is_accepted_and_promoted(self):
+        path = self.repo / "owner_gateway/change.py"
+        path.parent.mkdir()
+        path.write_text("value = 1\n")
+        release = self.create_without_network()["deployment"]
+        with self.service._db() as db:
+            db.execute(
+                "UPDATE deployments SET status='failed',error_code='release_workflow_failed' WHERE id=?",
+                (release["id"],),
+            )
+        self.deployed.write_text(release["revision"] + "\n")
+        original = self.service._git
+
+        def promoted(*args, environment=None):
+            if args[0] == "ls-remote" and args[-1] == "refs/heads/main":
+                return release["revision"] + "\trefs/heads/main"
+            return original(*args, environment=environment)
+
+        with patch.object(self.service, "_git", side_effect=promoted):
+            result = self.service.detail()["deployment"]
+        self.assertEqual(("succeeded", None), (result["status"], result["error_code"]))
+
     def test_publisher_never_executes_checkout_hooks_or_clean_filters(self):
         hook = self.repo / ".git/hooks/pre-commit"
         hook.write_text("#!/bin/sh\ntouch hook-ran\nexit 1\n")

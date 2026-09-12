@@ -1,25 +1,23 @@
 # Commander current state
 
-Updated: 2026-09-11
+Updated: 2026-09-12
 Branch: `main`
-Deployment: the unified workspace bootstrap is live. Owner Gateway, Validation,
-hosted GOD, Plan and the release controller use the verified workspace images;
-Commander and the three provider services retain their compatible images. Schema
-005 and both web sites are live with Owner cache v8. Meta credentials are loaded,
-and the organic Instagram connection is verified live.
+Deployment: unified Commander is accepted at `317dfc0`. Hosted GOD, Plan,
+release control and Validation use the verified candidate images; compatible
+Commander, Owner Gateway and provider images were preserved. The Owner Console
+and cache v9 are live. The accepted marker, production checkout and canonical
+`main` all identify the same revision.
 
-## Unified Commander workspace — live dialogue verified, release acceptance pending
+## Unified Commander workspace — live and accepted
 
 Live native model discovery, Plan questions/answers, targeted Build replies,
 in-flight steering, alternate model/effort selection, cancellation and restart
-recovery pass. A chat-triggered candidate includes the preserved Phone Metrics
-hero-title formatting and optional CTA controls. Full CI verification/builds
-pass; the receiver reaches healthy service cutover. Final acceptance remains
-blocked by a failed live structured-provider canary; recovery restored the
-accepted source, component images and Hosting with a durable rolled-back
-receipt. Authorization and a fresh schema-bound worker probe subsequently pass;
-all nine fresh structured/media canaries now pass (jobs 719–727), without a new
-login. Another controlled release is next; final acceptance is not yet claimed.
+recovery pass. The accepted candidate includes the preserved Phone Metrics
+hero-title formatting and optional CTA controls. The bootstrap preserving
+release passed all nine fresh structured/media provider canaries, Pexels,
+schema, dependency, resource, approved-asset and data-preservation checks. It
+then passed 95 Owner unit tests, the production build, all 81 desktop/360px/
+WebKit flows, Firebase publication and the live Owner audit.
 
 Rollout testing corrected disposable-database readiness to query the fully
 initialized target over TCP, isolated the binary artifact stream from helper
@@ -30,14 +28,14 @@ regressions, with 38 Commander tests (container-only cases run separately).
 Combined candidate checks pass
 248 Validation tests, 95 web unit tests, 13 Gateway tests, all affected Phone
 Metrics and Commander browser flows, and the authoritative Studio visual audit.
-The next full CI run passed but its publisher was rejected by the maintenance
-lock during a parallel Meta LPV rollout, before any Commander cutover. The clean
-combined source preserves that update; 21 focused browser flows pass, and Owner
-cache v9 is prepared. Wait for the other accepted revision before freezing again.
+The combined source preserves the independently accepted Meta LPV update. Owner
+cache v9 is installed. Release bookkeeping now reconciles an exact candidate
+that was accepted through the bootstrap operations path and distinguishes it
+from both a genuinely failed rollout and a live rollout awaiting source
+promotion.
 
 The owner-authorized redesign is published through the preserving operations
-release. Live model discovery and the public web audit pass; hosted dialogue and
-chat-initiated release acceptance remain next. Commander has its own route and navigation,
+release. Commander has its own route and navigation,
 Markdown timeline, history drawer, reply targets, persistent drafts, inline
 questions and a composer with native Plan/Build, runtime models and efforts.
 Send steers active work; UUID reconciliation handles retries and completion

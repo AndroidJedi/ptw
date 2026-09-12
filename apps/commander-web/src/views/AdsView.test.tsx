@@ -138,6 +138,10 @@ it('searches Meta and saves an immutable city-radius preset without country broa
   fireEvent.click(await screen.findByRole('button', { name: 'New preset' }))
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Kyiv 25 km' } })
   fireEvent.change(screen.getByLabelText('Geography'), { target: { value: 'cities' } })
+  expect(screen.getByText('How to add a city')).toBeVisible()
+  expect(screen.getByText(/Typing a city name alone does not select it for Meta targeting/)).toBeVisible()
+  expect(screen.getByText(/Search Meta, then add at least one city result before saving/)).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Save immutable version' })).toBeDisabled()
   fireEvent.click(screen.getByRole('button', { name: 'Search Meta' }))
   fireEvent.click(await screen.findByRole('button', { name: /Kyiv.*Add/ }))
   fireEvent.change(screen.getByLabelText('Radius, km'), { target: { value: '25' } })
@@ -149,6 +153,26 @@ it('searches Meta and saves an immutable city-radius preset without country broa
     }],
     age_min: 25, age_max: 55, gender: 'all', daily_budget_minor: 500,
   }))
+})
+
+it('explains that staging needs an immutable audience preset', async () => {
+  const workspace = fixture()
+  workspace.presets = []
+  const { api } = apiFor(workspace)
+  render(<AdsView api={api} language="en" projectId={projectId} />)
+  await screen.findByText('Meta assets verified')
+  expect(screen.getByRole('button', { name: 'Create PAUSED campaign structure' })).toBeDisabled()
+  expect(screen.getByText(/Create and select an audience preset below/)).toBeVisible()
+})
+
+it('shows the beginner city-selection steps in Ukrainian', async () => {
+  const { api } = apiFor(fixture())
+  render(<AdsView api={api} language="uk" projectId={projectId} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Новий пресет' }))
+  fireEvent.change(screen.getByLabelText('Географія'), { target: { value: 'cities' } })
+  expect(screen.getByText('Як додати місто до аудиторії')).toBeVisible()
+  expect(screen.getByText('Натисніть «Знайти в Meta».')).toBeVisible()
+  expect(screen.getByText('Важливо: введена назва міста сама по собі не вибирає місто для реклами.')).toBeVisible()
 })
 
 it('creates a website ad using the published landing and omits Direct copy', async () => {

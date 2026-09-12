@@ -230,6 +230,30 @@ export function AdsView({ api, language, projectId = null }: {
   if (!workspace) return null
   const connected = workspace.connection.configured && workspace.connection.verified
   const websiteReady = connected && Boolean(workspace.connection.pixel)
+  const presetSaveBlocker = busy
+    ? tr('Saving is in progress.', 'Триває збереження.')
+    : !preset.name.trim()
+      ? tr('Enter a preset name.', 'Вкажіть назву пресета.')
+      : preset.geo_mode === 'cities' && !preset.cities.length
+        ? tr('Search Meta, then add at least one city result before saving.', 'Спочатку знайдіть місто в Meta і натисніть «Додати» біля результату.')
+        : preset.geo_mode === 'countries' && !preset.countries.trim()
+          ? tr('Enter at least one country code.', 'Вкажіть щонайменше один код країни.')
+          : ''
+  const stagingBlocker = !connected
+    ? tr('Meta connection must be configured and verified.', 'Підключення Meta має бути налаштоване й перевірене.')
+    : !selectedPreset
+      ? tr('Create and select an audience preset below.', 'Щоб увімкнути цю кнопку: нижче знайдіть місто в Meta, натисніть «Додати» біля результату та збережіть пресет аудиторії.')
+      : !headline.trim() || !primaryText.trim()
+        ? tr('Enter a headline and primary text.', 'Вкажіть заголовок і основний текст.')
+        : !previewUrl
+          ? tr('The approved image is still being verified.', 'Затверджене зображення ще перевіряється.')
+          : destination === 'WEBSITE' && !workspace.landing
+            ? tr('Publish a Landing in this Project first.', 'Спочатку опублікуйте лендінг цього проєкту.')
+            : destination === 'WEBSITE' && !websiteReady
+              ? tr('The configured Website Pixel must be available to this Ad Account.', 'Налаштований Pixel сайту має бути доступний цьому рекламному акаунту.')
+              : destination === 'INSTAGRAM_DIRECT' && !welcomeMessage.trim()
+                ? tr('Enter the initial Direct message.', 'Вкажіть початкове повідомлення Direct.')
+                : busy ? tr('A request is in progress.', 'Триває виконання запиту.') : ''
   const adsManagerUrl = workspace.ads_manager_url || 'https://adsmanager.facebook.com/adsmanager/manage/campaigns'
   const setupChecks = [
     {
@@ -330,6 +354,7 @@ export function AdsView({ api, language, projectId = null }: {
           </div>
           <div className="ads-fixed"><span>Instagram Feed</span><span>{destination === 'WEBSITE' ? 'OUTCOME_TRAFFIC' : 'OUTCOME_ENGAGEMENT'}</span><span>{destination === 'WEBSITE' ? 'Website · Learn more' : 'Instagram Direct'}</span><span>{destination === 'WEBSITE' ? 'LANDING_PAGE_VIEWS' : 'CONVERSATIONS'}</span><span>IMPRESSIONS</span><span>Lowest cost</span><span>Enhancements: OFF</span></div>
           <button className="primary large" disabled={!connected || !selectedPreset || busy || !headline.trim() || !primaryText.trim() || !previewUrl || (destination === 'WEBSITE' ? (!workspace.landing || !websiteReady) : !welcomeMessage.trim())} onClick={() => void stage()}><Megaphone />{busy ? tr('Working…', 'Виконується…') : tr('Create PAUSED campaign structure', 'Створити PAUSED-структуру кампанії')}</button>
+          {stagingBlocker && <p className="ads-action-help" role="status">{stagingBlocker}</p>}
           <div className="post-publishing-actions"><button className="secondary" disabled={busy} onClick={() => void exportImage()}>{tr('Download image', 'Завантажити зображення')}</button><button className="secondary" onClick={() => void copy([headline, primaryText].filter(Boolean).join('\n\n'))}>{tr('Copy ad text', 'Копіювати текст реклами')}</button>{workspace.landing && <button className="secondary" onClick={() => void copy(workspace.landing!.canonical_url)}>{tr('Copy landing URL', 'Копіювати URL лендінгу')}</button>}<a className="secondary" href={adsManagerUrl} target="_blank" rel="noreferrer">{tr('Open in Ads Manager', 'Відкрити в Ads Manager')}</a></div>
           <p>{tr('Export is available without Meta access. Create or review the ad and start paid delivery in Ads Manager. These links open Meta; they do not fill its forms.', 'Експорт доступний без підключення Meta. Створіть або перевірте рекламу та запустіть покази в Ads Manager. Посилання відкривають Meta, але не заповнюють форми.')}</p>
         </> : <p>{tr('Select an approved Post version.' , 'Виберіть затверджену версію допису.')}</p>}
@@ -348,6 +373,16 @@ export function AdsView({ api, language, projectId = null }: {
             <button className="secondary" type="button" disabled={!connected || locationBusy || locationQuery.trim().length < 2 || preset.city_country_code.trim().length !== 2} onClick={() => void searchLocations()}><Search />{locationBusy ? tr('Searching…', 'Пошук…') : tr('Search Meta', 'Знайти в Meta')}</button>
           </div>
           {!connected && <p className="ads-location-help">{tr('Connect and verify Meta first; city keys come directly from its targeting search.', 'Спочатку під’єднайте та перевірте Meta; ключі міст беруться безпосередньо з її targeting search.')}</p>}
+          {connected && !preset.cities.length && <div className="ads-location-help ads-city-guide" role="status">
+            <strong>{tr('How to add a city', 'Як додати місто до аудиторії')}</strong>
+            <ol>
+              <li>{tr('Enter the city name, for example Kyiv.', 'Введіть назву міста, наприклад Kyiv.')}</li>
+              <li>{tr('Select Search Meta.', 'Натисніть «Знайти в Meta».')}</li>
+              <li>{tr('In the result list, select Add beside the matching city.', 'У списку результатів натисніть «Додати» біля потрібного міста.')}</li>
+              <li>{tr('Check that the city appears below with a radius, then save the preset.', 'Переконайтеся, що нижче з’явилося місто та радіус, і натисніть «Зберегти незмінну версію».')}</li>
+            </ol>
+            <small>{tr('Typing a city name alone does not select it for Meta targeting.', 'Важливо: введена назва міста сама по собі не вибирає місто для реклами.')}</small>
+          </div>}
           {locationError && <p className="ads-location-error" role="alert">{locationError}</p>}
           {locationResults.length > 0 && <div className="ads-location-results">{locationResults.map(city => <button type="button" key={city.key} disabled={preset.cities.some(item => item.key === city.key)} onClick={() => addCity(city)}><MapPin /><span><strong>{city.name}</strong><small>{[city.region, city.country_name].filter(Boolean).join(', ')}</small></span>{preset.cities.some(item => item.key === city.key) ? <CheckCircle2 /> : tr('Add', 'Додати')}</button>)}</div>}
           {preset.cities.length > 0 && <div className="ads-selected-cities">{preset.cities.map(city => <article key={city.key}><span><MapPin /><strong>{city.name}</strong><small>{city.country_code} · Meta key {city.key}</small></span><label>{tr('Radius, km', 'Радіус, км')}<input type="number" min="17" max="80" value={city.radius_km} onChange={event => setPreset(current => ({ ...current, cities: current.cities.map(item => item.key === city.key ? { ...item, radius_km: Number(event.target.value) } : item) }))} /></label><button type="button" className="icon-button" aria-label={tr(`Remove ${city.name}`, `Видалити ${city.name}`)} onClick={() => removeCity(city.key)}><X /></button></article>)}</div>}
@@ -356,7 +391,7 @@ export function AdsView({ api, language, projectId = null }: {
         <label>{tr('Maximum age', 'Максимальний вік')}<input type="number" min="18" max="65" value={preset.age_max} onChange={event => setPreset(current => ({ ...current, age_max: Number(event.target.value) }))} /></label>
         <label>{tr('Gender', 'Стать')}<select value={preset.gender} onChange={event => setPreset(current => ({ ...current, gender: event.target.value }))}><option value="all">{tr('All', 'Усі')}</option><option value="women">{tr('Women', 'Жінки')}</option><option value="men">{tr('Men', 'Чоловіки')}</option></select></label>
         <label>{tr('Daily budget (minor currency units)', 'Денний бюджет (мінімальні одиниці валюти)')}<input type="number" min="1" value={preset.daily_budget_minor} onChange={event => setPreset(current => ({ ...current, daily_budget_minor: Number(event.target.value) }))} /></label>
-        <button className="primary" disabled={busy || !preset.name.trim() || (preset.geo_mode === 'cities' ? !preset.cities.length : !preset.countries.trim())} onClick={() => void createPreset()}>{tr('Save immutable version', 'Зберегти незмінну версію')}</button>
+        <div className="ads-preset-save"><button className="primary" disabled={Boolean(presetSaveBlocker)} onClick={() => void createPreset()}>{tr('Save immutable version', 'Зберегти незмінну версію')}</button>{presetSaveBlocker && <small role="status">{presetSaveBlocker}</small>}</div>
       </div>}
       {!presetOpen && <div className="ads-preset-list">{workspace.presets.map(item => <button key={item.preset_id} className={selectedPresetId === item.preset_id ? 'selected' : ''} onClick={() => setSelectedPresetId(item.preset_id)}><strong>v{item.version} · {item.specification.name}</strong><span>{presetGeography(item.specification)} · {item.specification.age_min}–{item.specification.age_max} · {item.specification.gender}</span><code>{short(item.specification_sha256)}</code></button>)}</div>}
     </section>

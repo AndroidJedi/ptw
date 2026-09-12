@@ -543,6 +543,12 @@ button svg { width: 17px; height: 17px; }
 .ads-city-search .secondary { min-height: 42px; }
 .ads-city-search svg { width: 14px; height: 14px; }
 .ads-location-help, .ads-location-error { margin: 0; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 8px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.ads-city-guide strong { display: block; color: var(--white); margin-bottom: 3px; }
+.ads-city-guide ol { margin: 0 0 4px; padding-left: 16px; }
+.ads-city-guide small { display: block; }
+.ads-action-help { margin: -2px 0 0; color: var(--muted); font-size: 11px; }
+.ads-preset-save { display: grid; gap: 5px; }
+.ads-preset-save small { color: var(--muted); font-size: 9px; line-height: 1.4; }
 .ads-location-error { color: var(--white); }
 .ads-location-results { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 7px; }
 .ads-location-results button { min-width: 0; padding: 9px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 9px; color: var(--white); background: #0d0d0d; text-align: left; }

@@ -2,7 +2,7 @@
 
 Updated: 2026-09-12
 Branch: `main`
-Deployment: unified Commander is accepted at `317dfc0`. Hosted GOD, Plan,
+Deployment: unified Commander is live and accepted. Hosted GOD, Plan,
 release control and Validation use the verified candidate images; compatible
 Commander, Owner Gateway and provider images were preserved. The Owner Console
 and cache v9 are live. The accepted marker, production checkout and canonical
@@ -33,6 +33,12 @@ cache v9 is installed. Release bookkeeping now reconciles an exact candidate
 that was accepted through the bootstrap operations path and distinguishes it
 from both a genuinely failed rollout and a live rollout awaiting source
 promotion.
+
+The final documentation-only acceptance was initiated with the one-click
+Deploy action in the same Commander conversation. It uses the immutable
+accepted-base request branch, candidate branch, CI verification, restricted
+receiver and durable timeline record without rebuilding or restarting an
+unaffected service. This is the normal path for subsequent GOD-mode changes.
 
 The owner-authorized redesign is published through the preserving operations
 release. Commander has its own route and navigation,

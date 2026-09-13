@@ -197,8 +197,12 @@ BEGIN
   IF (SELECT count(*) FROM commander_schema_migrations) <> (SELECT count FROM expected_migration_inventory)
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='004_public_landing_v1.sql')
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='005_instagram_publication_v1.sql')
+     OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='006_meta_ads_control_v1.sql')
      OR to_regclass('public.instagram_publications') IS NULL
      OR to_regclass('public.instagram_publication_attempts') IS NULL
+     OR to_regclass('public.meta_ads_control_actions') IS NULL
+     OR to_regclass('public.meta_ads_insight_snapshots') IS NULL
+     OR to_regclass('public.meta_ads_recommendations') IS NULL
      OR NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='landing_publications')
      OR NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='landing_publication_events')
      OR (SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='validation_projects' AND column_name='owner_idea_source_id') <> 'YES' THEN

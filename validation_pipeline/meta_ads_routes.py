@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.params import Depends as DependsParameter
 
 
@@ -24,6 +24,15 @@ def meta_ads_router(
     def no_fields(request: Mapping[str, Any], message: str) -> None:
         if request:
             raise HTTPException(status_code=400, detail=message)
+
+    def preset_fail(error: Exception) -> HTTPException:
+        message = str(error)[:300]
+        field = next((name for name, marker in (
+            ("name", "preset name"), ("countries", "country"), ("cities", "city"),
+            ("age_min", "ages"), ("age_max", "ages"), ("gender", "gender"),
+            ("daily_budget_minor", "budget"),
+        ) if marker in message.lower()), "preset")
+        return HTTPException(status_code=400, detail={"code": "invalid_preset", "message": message, "fields": {field: message}})
 
     @router.get("/connection")
     def connection() -> dict[str, Any]:
@@ -48,7 +57,7 @@ def meta_ads_router(
         try:
             return service.create_preset(request)
         except (KeyError, ValueError, RuntimeError) as error:
-            raise fail(error) from error
+            raise preset_fail(error) from error
 
     @router.get("/projects/{project_id}")
     def workspace(project_id: str) -> dict[str, Any]:
@@ -89,6 +98,35 @@ def meta_ads_router(
         no_fields(request, "Meta Ads sync has no input fields")
         try:
             return {"deployment": service.sync(project_id, deployment_id)}
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.post("/projects/{project_id}/controls", status_code=201)
+    def propose_control(project_id: str, request: Mapping[str, Any], owner_request: Request) -> dict[str, Any]:
+        try:
+            action, created = service.propose_control(project_id, request, owner_request.headers.get("X-PTW-Actor", "owner-web"))
+            return {"action": action, "created": created}
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.post("/projects/{project_id}/controls/{action_id}/confirm")
+    def confirm_control(project_id: str, action_id: str, request: Mapping[str, Any], owner_request: Request) -> dict[str, Any]:
+        if request != {"confirmed": True}:
+            raise HTTPException(status_code=400, detail="Meta Ads control confirmation requires confirmed=true")
+        try:
+            return {"action": service.confirm_control(project_id, action_id, owner_request.headers.get("X-PTW-Actor", "owner-web"))}
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
+    @router.post("/projects/{project_id}/deployments/{deployment_id}/insights")
+    def insights(project_id: str, deployment_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        if set(request) - {"window_days"}:
+            raise HTTPException(status_code=400, detail="Meta Ads insight fields are invalid")
+        window_days = request.get("window_days", 7)
+        if isinstance(window_days, bool) or not isinstance(window_days, int):
+            raise HTTPException(status_code=400, detail="Meta Ads insight window must be an integer")
+        try:
+            return service.refresh_insights(project_id, deployment_id, window_days)
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
 

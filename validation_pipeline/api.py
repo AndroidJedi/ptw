@@ -167,6 +167,14 @@ def create_app(
             ))
             tasks.add(task)
             task.add_done_callback(tasks.discard)
+        if callable(getattr(meta_ads_service, "maintain_controls", None)):
+            async def maintain_meta_ads() -> None:
+                while True:
+                    await asyncio.to_thread(meta_ads_service.maintain_controls)
+                    await asyncio.sleep(900)
+            task = asyncio.create_task(maintain_meta_ads())
+            tasks.add(task)
+            task.add_done_callback(tasks.discard)
         yield
         for task in tasks:
             task.cancel()

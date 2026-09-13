@@ -95,6 +95,18 @@ export interface MetaAdsDeployment {
   updated_at: string
 }
 
+export interface MetaAdsControlAction {
+  action_id: string
+  deployment_id: string
+  action: { operation: 'activate' | 'pause' | 'set_budget' | 'set_schedule'; scope: 'campaign' | 'ad_set' | 'ad'; kpi_target_minor?: number; daily_budget_minor?: number; affected_objects: string[] }
+  before_snapshot: MetaAdsStatusSnapshot
+  state: { status: 'proposed' | 'executing' | 'completed' | 'failed' | 'uncertain'; [key: string]: unknown }
+  created_at: string
+}
+
+export interface MetaAdsInsightSnapshot { insight_id: string; deployment_id: string; window_days: 7 | 30; metrics: Record<string, unknown>; created_at: string }
+export interface MetaAdsRecommendation { recommendation_id: string; deployment_id: string; insight_id?: string | null; record: { status: 'on_target' | 'above_target' | 'insufficient_metric_data'; cost_minor?: number | null; target_cost_minor?: number | null; [key: string]: unknown }; created_at: string }
+
 export interface MetaAdsProjectWorkspace {
   schema: 'ptw.meta-ads.workspace.v1'
   project_id: string
@@ -105,6 +117,9 @@ export interface MetaAdsProjectWorkspace {
   landing?: PublishedLandingReference | null
   experiment?: { meta_campaign_id?: string | null; status: string; special_ad_categories: string[] } | null
   deployments: MetaAdsDeployment[]
+  controls?: MetaAdsControlAction[]
+  insights?: Record<string, MetaAdsInsightSnapshot[]>
+  recommendations?: Record<string, MetaAdsRecommendation[]>
   ads_manager_url?: string | null
 }
 

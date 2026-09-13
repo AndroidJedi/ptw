@@ -121,7 +121,10 @@ BEGIN
     ('meta_ads_audiences', (SELECT count(*) FROM meta_ads_audience_versions)),
     ('meta_ads_deployments', (SELECT count(*) FROM meta_ads_deployments)),
     ('meta_ads_runs', (SELECT count(*) FROM meta_ads_stage_runs)),
-    ('meta_ads_snapshots', (SELECT count(*) FROM meta_ads_status_snapshots))
+    ('meta_ads_snapshots', (SELECT count(*) FROM meta_ads_status_snapshots)),
+    ('meta_ads_controls', (SELECT count(*) FROM meta_ads_control_actions)),
+    ('meta_ads_insights', (SELECT count(*) FROM meta_ads_insight_snapshots)),
+    ('meta_ads_recommendations', (SELECT count(*) FROM meta_ads_recommendations))
   ) AS counts(label,value) WHERE value <> 0;
   IF failures IS NOT NULL THEN
     RAISE EXCEPTION 'Product Brief reset postcondition failed: %', failures;

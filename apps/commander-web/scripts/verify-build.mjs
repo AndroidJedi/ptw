@@ -24,7 +24,7 @@ const requiredMarkers = {
   'single universal Studio': 'universal_ad · v',
   'private Landing Studio': 'PRIVATE LANDING',
   'Landing publication control': 'PUBLIC NATAL PAGE',
-  'PAUSED-only Meta Ads staging': 'PAUSED ONLY',
+  'owner-confirmed Meta Ads controls': 'OWNER CONFIRMATION REQUIRED',
   'approved Brief existing-Creative resolution': 'approved-brief-existing-creative-v1',
   'draft-bound phone preview state': 'Updating preview…',
   'recent-image credential coalescing': 'firebase-token-coalescing-v1',
@@ -67,7 +67,7 @@ if (exposed.length) {
 if (!worker.includes("url.pathname.startsWith('/__/auth/')")) {
   throw new Error('Unsafe Commander service worker; Firebase Auth helper traffic is not bypassed')
 }
-if (!worker.includes("ptw-shell-brief-studio-landing-ads-v9")) {
+if (!worker.includes("ptw-shell-brief-studio-landing-ads-v10")) {
   throw new Error('Unsafe Owner Console service worker; cache version is stale')
 }
 

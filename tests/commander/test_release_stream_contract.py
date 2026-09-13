@@ -393,9 +393,12 @@ class ReleaseStreamContractTests(unittest.TestCase):
             "meta_ads_preset_versions",
             "meta_ads_workspaces",
             "meta_ads_audience_versions",
+            "meta_ads_control_actions",
             "meta_ads_deployments",
+            "meta_ads_insight_snapshots",
             "meta_ads_stage_runs",
             "meta_ads_status_snapshots",
+            "meta_ads_recommendations",
         ):
             self.assertIn(table, reset)
             self.assertIn(table, schema)

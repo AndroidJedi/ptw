@@ -168,6 +168,14 @@ def create_app(
             task = asyncio.create_task(asyncio.to_thread(meta_ads_service.execute, deployment_id))
             recovery_tasks.add(task)
             task.add_done_callback(recovery_tasks.discard)
+        if callable(getattr(meta_ads_service, "maintain_controls", None)):
+            async def maintain_meta_ads() -> None:
+                while True:
+                    await asyncio.to_thread(meta_ads_service.maintain_controls)
+                    await asyncio.sleep(900)
+            task = asyncio.create_task(maintain_meta_ads())
+            recovery_tasks.add(task)
+            task.add_done_callback(recovery_tasks.discard)
         for item in studio_creatives.recover_learning():
             task = asyncio.create_task(asyncio.to_thread(
                 studio_creatives.retry_learning, item["project_id"],

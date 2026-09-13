@@ -70,6 +70,7 @@ def main():
             before_fingerprints = psql(sql_blocks[1], '-v', 'baseline_schema=' + baseline_schema)
             assert 'landing_workspaces=' in before_fingerprints
             connection.execute((ROOT/'db/migrations/005_instagram_publication_v1.sql').read_text())
+            connection.execute((ROOT/'db/migrations/006_meta_ads_control_v1.sql').read_text())
             assert psql(sql_blocks[1], '-v', 'baseline_schema=' + baseline_schema) == before_fingerprints
             connection.execute("UPDATE validation_projects SET name='Changed' WHERE entity_id=%s", (PROJECT_ID,))
             assert psql(sql_blocks[1], '-v', 'baseline_schema=' + baseline_schema) != before_fingerprints
@@ -93,7 +94,7 @@ def main():
             landing = {'publication_id': str(uuid4()), 'current_event_id': event_id, 'status': 'published',
                 'canonical_url': 'https://natal-service.com/la/example', 'events': [
                     {'event_id': event_id, 'landing_version': 1, 'landing_version_sha256': 'a'*64}]}
-            ads.configuration = MetaAdsConfiguration(access_token='test-only',ad_account_id='123',page_id='456',instagram_actor_id='789')
+            ads.configuration = MetaAdsConfiguration(access_token='test-only',ad_account_id='123',page_id='456',instagram_actor_id='789',pixel_id='101')
             ads.adapter = FakeAdapter()
             ads.landing_publications = SimpleNamespace(get=lambda _: landing)
             preset = ads.create_preset({'name':'Test audience','countries':['UA'],'age_min':25,'age_max':44,'gender':'all','daily_budget_minor':500})['preset']
@@ -104,6 +105,12 @@ def main():
             assert created and deployment['experiment_id'] == traffic['experiment_id']
             assert ads.execute(deployment['deployment_id'])['status'] == 'staged'
             assert ads.reserve(PROJECT_ID,ad_request)[1] is False
+            control, created = ads.propose_control(PROJECT_ID, {
+                'request_id': str(uuid4()), 'deployment_id': deployment['deployment_id'],
+                'operation': 'activate', 'scope': 'ad', 'kpi_target_minor': 500,
+            }, 'test')
+            assert created and ads.confirm_control(PROJECT_ID, control['action_id'], 'test')['state']['status'] == 'completed'
+            assert ads.refresh_insights(PROJECT_ID, deployment['deployment_id'])['recommendation']['record']['status'] == 'above_target'
             assert connection.execute("SELECT count(*) FROM commander_relationships WHERE source_id=%s AND target_id=%s AND relation='derived_from'", (deployment['deployment_id'],event_id)).fetchone()[0] == 1
             publishing = InstagramPublicationService(DatabaseInstagramAuthority(url),ads,InstagramFake(),origin='https://test.example')
             request = {'request_id':REQUEST_ID,'creative_id':CREATIVE_ID,'version':1,'caption':'Reviewed caption'}

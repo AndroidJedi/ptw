@@ -4,7 +4,7 @@ import { downloadBlob } from '../components/PostPublishing'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading } from '../components/State'
 import { translate, type Language } from '../i18n'
-import type { MetaAdsDeployment, MetaAdsLocation, MetaAdsPresetVersion, MetaAdsProjectWorkspace, MetaAdsSourceVersion } from '../types'
+import type { MetaAdsControlAction, MetaAdsDeployment, MetaAdsLocation, MetaAdsPresetVersion, MetaAdsProjectWorkspace, MetaAdsSourceVersion } from '../types'
 
 const runningStates = new Set(['queued', 'creating_campaign', 'creating_ad_set', 'uploading_image', 'creating_creative', 'creating_ad'])
 const categories = ['NONE', 'CREDIT', 'EMPLOYMENT', 'HOUSING', 'ISSUES_ELECTIONS_POLITICS', 'FINANCIAL_PRODUCTS_SERVICES', 'ONLINE_GAMBLING_AND_GAMING']
@@ -65,6 +65,11 @@ export function AdsView({ api, language, projectId = null }: {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [presetOpen, setPresetOpen] = useState(false)
+  const [presetErrors, setPresetErrors] = useState<Record<string, string>>({})
+  const [pendingControl, setPendingControl] = useState<MetaAdsControlAction | null>(null)
+  const [kpiTarget, setKpiTarget] = useState('500')
+  const [budgetDraft, setBudgetDraft] = useState<Record<string, string>>({})
+  const [scheduleDraft, setScheduleDraft] = useState<Record<string, { start: string; end: string }>>({})
   const [preset, setPreset] = useState<PresetDraft>({
     name: '', geo_mode: 'countries', countries: 'UA', city_country_code: 'UA', cities: [],
     age_min: 25, age_max: 55, gender: 'all', daily_budget_minor: 500,
@@ -137,6 +142,15 @@ export function AdsView({ api, language, projectId = null }: {
   )
 
   const createPreset = async () => {
+    const errors: Record<string, string> = {}
+    if (!preset.name.trim()) errors.name = tr('Enter a preset name.', 'Введіть назву пресета.')
+    if (preset.geo_mode === 'countries' && !preset.countries.split(',').some(item => /^[A-Za-z]{2}$/.test(item.trim()))) errors.countries = tr('Enter at least one two-letter country code.', 'Введіть щонайменше один дволітерний код країни.')
+    if (preset.geo_mode === 'cities' && !preset.cities.length) errors.cities = tr('Add at least one Meta city.', 'Додайте щонайменше одне місто Meta.')
+    if (!Number.isInteger(preset.age_min) || preset.age_min < 18 || preset.age_min > 65) errors.age_min = tr('Use an integer age from 18 to 65.', 'Вкажіть цілий вік від 18 до 65.')
+    if (!Number.isInteger(preset.age_max) || preset.age_max < preset.age_min || preset.age_max > 65) errors.age_max = tr('Maximum age must be an integer from the minimum age to 65.', 'Максимальний вік має бути цілим числом від мінімального віку до 65.')
+    if (!Number.isInteger(preset.daily_budget_minor) || preset.daily_budget_minor < 1) errors.daily_budget_minor = tr('Enter a positive whole-number daily budget.', 'Введіть додатний цілий денний бюджет.')
+    setPresetErrors(errors)
+    if (Object.keys(errors).length) return
     setBusy(true); setError('')
     try {
       const result = await api.post<{ preset: MetaAdsPresetVersion }>('/api/v1/ads/presets', {
@@ -153,9 +167,52 @@ export function AdsView({ api, language, projectId = null }: {
       })
       await reload(true)
       setSelectedPresetId(result.preset.preset_id)
-      setPresetOpen(false)
+      setPresetOpen(false); setPresetErrors({})
       setNotice(tr('Audience preset version saved.', 'Версію пресета аудиторії збережено.'))
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause)
+      const match = message.match(/"fields":\{"([a-z_]+)":"([^"}]*)/)
+      if (match) setPresetErrors(current => ({ ...current, [match[1]]: match[2] }))
+      setError(message)
+    } finally { setBusy(false) }
+  }
+
+  const proposeControl = async (deployment: MetaAdsDeployment, operation: 'activate' | 'pause' | 'set_budget' | 'set_schedule') => {
+    if (!projectId) return
+    const scope = operation === 'set_budget' || operation === 'set_schedule' ? 'ad_set' : 'ad'
+    const baseControl = { request_id: crypto.randomUUID(), deployment_id: deployment.deployment_id, operation, scope }
+    const schedule = scheduleDraft[deployment.deployment_id] || { start: '', end: '' }
+    const value = operation === 'activate'
+      ? { ...baseControl, kpi_target_minor: Number(kpiTarget) }
+      : operation === 'set_budget'
+        ? { ...baseControl, daily_budget_minor: Number(budgetDraft[deployment.deployment_id] || 0) }
+        : operation === 'set_schedule'
+          ? { ...baseControl, start_time: schedule.start ? new Date(schedule.start).toISOString() : null, end_time: schedule.end ? new Date(schedule.end).toISOString() : null }
+        : baseControl
+    setBusy(true); setError('')
+    try {
+      const response = await api.post<{ action: MetaAdsControlAction }>(`${base}/controls`, value)
+      setPendingControl(response.action)
+      setNotice(tr('Review the exact Meta change, then confirm it.', 'Перевірте точну зміну Meta, а потім підтвердьте її.'))
+      await reload(true)
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
+  }
+
+  const confirmControl = async () => {
+    if (!pendingControl || !projectId) return
+    setBusy(true); setError('')
+    try {
+      await api.post(`${base}/controls/${pendingControl.action_id}/confirm`, { confirmed: true }, { deadlineMs: 120_000 })
+      setNotice(tr('Confirmed. PTW reconciled the selected Meta objects.', 'Підтверджено. PTW звірив вибрані об’єкти Meta.'))
+      setPendingControl(null); await reload(true)
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
+  }
+
+  const refreshInsights = async (deployment: MetaAdsDeployment) => {
+    if (!projectId) return
+    setBusy(true); setError('')
+    try { await api.post(`${base}/deployments/${deployment.deployment_id}/insights`, { window_days: 7 }, { deadlineMs: 120_000 }); await reload(true) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
   }
 
   const searchLocations = async () => {
@@ -280,6 +337,15 @@ export function AdsView({ api, language, projectId = null }: {
     </header>
     {error && <ErrorState message={error} retry={() => void reload(true)} language={language} />}
     {notice && <p className="notice" role="status">{notice}</p>}
+    {pendingControl && <section className="panel" aria-label={tr('Confirm Meta control', 'Підтвердити керування Meta')}>
+      <small>{tr('OWNER CONFIRMATION REQUIRED', 'ПОТРІБНЕ ПІДТВЕРДЖЕННЯ ВЛАСНИКА')}</small>
+      <h2>{tr('Review the exact paid-delivery change', 'Перевірте точну зміну платного показу')}</h2>
+      <p>{pendingControl.action.operation} · {pendingControl.action.affected_objects.join(' → ')} · <code>{short(pendingControl.deployment_id)}</code></p>
+      {pendingControl.action.kpi_target_minor && <p>{tr('7-day KPI target', 'Ціль KPI за 7 днів')}: {pendingControl.action.kpi_target_minor} {workspace.connection.account?.currency || tr('minor units', 'мін. од.')}</p>}
+      {pendingControl.action.daily_budget_minor && <p>{tr('Daily budget', 'Денний бюджет')}: {pendingControl.action.daily_budget_minor} {workspace.connection.account?.currency || tr('minor units', 'мін. од.')}</p>}
+      <button className="primary" disabled={busy} onClick={() => void confirmControl()}>{tr('Confirm Meta change', 'Підтвердити зміну Meta')}</button>{' '}
+      <button className="secondary" disabled={busy} onClick={() => setPendingControl(null)}>{tr('Cancel', 'Скасувати')}</button>
+    </section>}
 
     <section className={`panel ads-connection ${connected ? 'is-ready' : 'is-warning'}`}>
       <small>{tr('CONNECTION', 'ПІДКЛЮЧЕННЯ')}</small>
@@ -339,9 +405,9 @@ export function AdsView({ api, language, projectId = null }: {
     <section className="panel ads-presets">
       <div className="ads-section-title"><div><small>{tr('VERSIONED TARGETING', 'ВЕРСІЙНИЙ TARGETING')}</small><h2>{tr('Audience presets', 'Пресети аудиторії')}</h2></div><button className="secondary" onClick={() => setPresetOpen(value => !value)}>{presetOpen ? tr('Close', 'Закрити') : tr('New preset', 'Новий пресет')}</button></div>
       {presetOpen && <div className="ads-preset-form">
-        <label>{tr('Name', 'Назва')}<input value={preset.name} maxLength={80} onChange={event => setPreset(current => ({ ...current, name: event.target.value }))} /></label>
+        <label>{tr('Name', 'Назва')}<input value={preset.name} maxLength={80} onChange={event => setPreset(current => ({ ...current, name: event.target.value }))} />{presetErrors.name && <small role="alert">{presetErrors.name}</small>}</label>
         <label>{tr('Geography', 'Географія')}<select value={preset.geo_mode} onChange={event => setPreset(current => ({ ...current, geo_mode: event.target.value as PresetDraft['geo_mode'] }))}><option value="countries">{tr('Entire countries', 'Цілі країни')}</option><option value="cities">{tr('City + radius', 'Місто + радіус')}</option></select></label>
-        {preset.geo_mode === 'countries' ? <label>{tr('Countries (ISO, comma-separated)', 'Країни (ISO, через кому)')}<input value={preset.countries} onChange={event => setPreset(current => ({ ...current, countries: event.target.value }))} /></label> : <div className="ads-city-targeting">
+        {preset.geo_mode === 'countries' ? <label>{tr('Countries (ISO, comma-separated)', 'Країни (ISO, через кому)')}<input value={preset.countries} onChange={event => setPreset(current => ({ ...current, countries: event.target.value }))} />{presetErrors.countries && <small role="alert">{presetErrors.countries}</small>}</label> : <div className="ads-city-targeting">
           <div className="ads-city-search">
             <label>{tr('Country code', 'Код країни')}<input value={preset.city_country_code} maxLength={2} onChange={event => setPreset(current => ({ ...current, city_country_code: event.target.value.toUpperCase() }))} /></label>
             <label>{tr('Search city in Meta', 'Знайти місто в Meta')}<input value={locationQuery} maxLength={80} onChange={event => setLocationQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void searchLocations() } }} /></label>
@@ -350,12 +416,12 @@ export function AdsView({ api, language, projectId = null }: {
           {!connected && <p className="ads-location-help">{tr('Connect and verify Meta first; city keys come directly from its targeting search.', 'Спочатку під’єднайте та перевірте Meta; ключі міст беруться безпосередньо з її targeting search.')}</p>}
           {locationError && <p className="ads-location-error" role="alert">{locationError}</p>}
           {locationResults.length > 0 && <div className="ads-location-results">{locationResults.map(city => <button type="button" key={city.key} disabled={preset.cities.some(item => item.key === city.key)} onClick={() => addCity(city)}><MapPin /><span><strong>{city.name}</strong><small>{[city.region, city.country_name].filter(Boolean).join(', ')}</small></span>{preset.cities.some(item => item.key === city.key) ? <CheckCircle2 /> : tr('Add', 'Додати')}</button>)}</div>}
-          {preset.cities.length > 0 && <div className="ads-selected-cities">{preset.cities.map(city => <article key={city.key}><span><MapPin /><strong>{city.name}</strong><small>{city.country_code} · Meta key {city.key}</small></span><label>{tr('Radius, km', 'Радіус, км')}<input type="number" min="17" max="80" value={city.radius_km} onChange={event => setPreset(current => ({ ...current, cities: current.cities.map(item => item.key === city.key ? { ...item, radius_km: Number(event.target.value) } : item) }))} /></label><button type="button" className="icon-button" aria-label={tr(`Remove ${city.name}`, `Видалити ${city.name}`)} onClick={() => removeCity(city.key)}><X /></button></article>)}</div>}
+          {presetErrors.cities && <small role="alert">{presetErrors.cities}</small>}{preset.cities.length > 0 && <div className="ads-selected-cities">{preset.cities.map(city => <article key={city.key}><span><MapPin /><strong>{city.name}</strong><small>{city.country_code} · Meta key {city.key}</small></span><label>{tr('Radius, km', 'Радіус, км')}<input type="number" min="17" max="80" value={city.radius_km} onChange={event => setPreset(current => ({ ...current, cities: current.cities.map(item => item.key === city.key ? { ...item, radius_km: Number(event.target.value) } : item) }))} /></label><button type="button" className="icon-button" aria-label={tr(`Remove ${city.name}`, `Видалити ${city.name}`)} onClick={() => removeCity(city.key)}><X /></button></article>)}</div>}
         </div>}
-        <label>{tr('Minimum age', 'Мінімальний вік')}<input type="number" min="18" max="65" value={preset.age_min} onChange={event => setPreset(current => ({ ...current, age_min: Number(event.target.value) }))} /></label>
-        <label>{tr('Maximum age', 'Максимальний вік')}<input type="number" min="18" max="65" value={preset.age_max} onChange={event => setPreset(current => ({ ...current, age_max: Number(event.target.value) }))} /></label>
+        <label>{tr('Minimum age', 'Мінімальний вік')}<input type="number" min="18" max="65" value={preset.age_min} onChange={event => setPreset(current => ({ ...current, age_min: Number(event.target.value) }))} />{presetErrors.age_min && <small role="alert">{presetErrors.age_min}</small>}</label>
+        <label>{tr('Maximum age', 'Максимальний вік')}<input type="number" min="18" max="65" value={preset.age_max} onChange={event => setPreset(current => ({ ...current, age_max: Number(event.target.value) }))} />{presetErrors.age_max && <small role="alert">{presetErrors.age_max}</small>}</label>
         <label>{tr('Gender', 'Стать')}<select value={preset.gender} onChange={event => setPreset(current => ({ ...current, gender: event.target.value }))}><option value="all">{tr('All', 'Усі')}</option><option value="women">{tr('Women', 'Жінки')}</option><option value="men">{tr('Men', 'Чоловіки')}</option></select></label>
-        <label>{tr('Daily budget (minor currency units)', 'Денний бюджет (мінімальні одиниці валюти)')}<input type="number" min="1" value={preset.daily_budget_minor} onChange={event => setPreset(current => ({ ...current, daily_budget_minor: Number(event.target.value) }))} /></label>
+        <label>{tr('Daily budget (minor currency units)', 'Денний бюджет (мінімальні одиниці валюти)')}<input type="number" min="1" value={preset.daily_budget_minor} onChange={event => setPreset(current => ({ ...current, daily_budget_minor: Number(event.target.value) }))} />{presetErrors.daily_budget_minor && <small role="alert">{presetErrors.daily_budget_minor}</small>}</label>
         <button className="primary" disabled={busy || !preset.name.trim() || (preset.geo_mode === 'cities' ? !preset.cities.length : !preset.countries.trim())} onClick={() => void createPreset()}>{tr('Save immutable version', 'Зберегти незмінну версію')}</button>
       </div>}
       {!presetOpen && <div className="ads-preset-list">{workspace.presets.map(item => <button key={item.preset_id} className={selectedPresetId === item.preset_id ? 'selected' : ''} onClick={() => setSelectedPresetId(item.preset_id)}><strong>v{item.version} · {item.specification.name}</strong><span>{presetGeography(item.specification)} · {item.specification.age_min}–{item.specification.age_max} · {item.specification.gender}</span><code>{short(item.specification_sha256)}</code></button>)}</div>}
@@ -363,7 +429,7 @@ export function AdsView({ api, language, projectId = null }: {
 
     <section className="panel ads-history">
       <div className="ads-section-title"><div><small>{tr('APPEND-ONLY HISTORY', 'APPEND-ONLY ІСТОРІЯ')}</small><h2>{tr('Staging deployments', 'Staging deployments')}</h2></div>{workspace.ads_manager_url && <a className="secondary" href={workspace.ads_manager_url} target="_blank" rel="noreferrer">Ads Manager <ExternalLink /></a>}</div>
-      {workspace.deployments.length === 0 ? <p>{tr('No deployment has been staged for this Project.', 'Для цього Project ще немає staging deployment.')}</p> : <div className="ads-deployment-list">{workspace.deployments.map(item => <article key={item.deployment_id} className={`ads-deployment is-${item.status}`}><header><div><strong>Post v{item.source_version}</strong><code>{short(item.deployment_id)}</code></div><span>{runningStates.has(item.status) && <RefreshCcw className="spin" />}{item.status === 'staged' ? tr('Created in Meta', 'Створено в Meta') : item.status}</span></header><dl><div><dt>Campaign</dt><dd>{short(item.meta_campaign_id)} · {objectStatus(item.status_snapshot?.campaign)}</dd></div><div><dt>Ad Set</dt><dd>{short(item.meta_ad_set_id)} · {objectStatus(item.status_snapshot?.ad_set)}</dd></div><div><dt>Creative</dt><dd>{short(item.meta_creative_id)}</dd></div><div><dt>Ad</dt><dd>{short(item.meta_ad_id)} · {objectStatus(item.status_snapshot?.ad)}</dd></div></dl>{item.error?.error_message && <p role="alert">{item.error.error_message}</p>}<footer>{item.ads_manager_url && <a className="secondary" href={item.ads_manager_url} target="_blank" rel="noreferrer">{tr('Open in Ads Manager', 'Відкрити в Ads Manager')}</a>}{item.status === 'failed' && <button className="secondary" disabled={busy} onClick={() => void deploymentAction(item, 'retry')}><RotateCcw />{tr('Retry safely', 'Безпечно повторити')}</button>}{item.status === 'staged' && <button className="secondary" disabled={busy} onClick={() => void deploymentAction(item, 'sync')}><RefreshCcw />{tr('Sync status', 'Синхронізувати статус')}</button>}</footer></article>)}</div>}
+      {workspace.deployments.length === 0 ? <p>{tr('No deployment has been staged for this Project.', 'Для цього Project ще немає staging deployment.')}</p> : <div className="ads-deployment-list">{workspace.deployments.map(item => <article key={item.deployment_id} className={`ads-deployment is-${item.status}`}><header><div><strong>Post v{item.source_version}</strong><code>{short(item.deployment_id)}</code></div><span>{runningStates.has(item.status) && <RefreshCcw className="spin" />}{item.status === 'staged' ? tr('Created in Meta', 'Створено в Meta') : item.status}</span></header><dl><div><dt>Campaign</dt><dd>{short(item.meta_campaign_id)} · {objectStatus(item.status_snapshot?.campaign)}</dd></div><div><dt>Ad Set</dt><dd>{short(item.meta_ad_set_id)} · {objectStatus(item.status_snapshot?.ad_set)}</dd></div><div><dt>Creative</dt><dd>{short(item.meta_creative_id)}</dd></div><div><dt>Ad</dt><dd>{short(item.meta_ad_id)} · {objectStatus(item.status_snapshot?.ad)}</dd></div></dl>{workspace.recommendations?.[item.deployment_id]?.[0] && <p>{tr('7-day recommendation', 'Рекомендація за 7 днів')}: <strong>{workspace.recommendations[item.deployment_id][0].record.status}</strong></p>}{item.error?.error_message && <p role="alert">{item.error.error_message}</p>}<footer>{item.ads_manager_url && <a className="secondary" href={item.ads_manager_url} target="_blank" rel="noreferrer">{tr('Open in Ads Manager', 'Відкрити в Ads Manager')}</a>}{item.status === 'failed' && <button className="secondary" disabled={busy} onClick={() => void deploymentAction(item, 'retry')}><RotateCcw />{tr('Retry safely', 'Безпечно повторити')}</button>}{item.status === 'staged' && <><button className="secondary" disabled={busy} onClick={() => void deploymentAction(item, 'sync')}><RefreshCcw />{tr('Sync status', 'Синхронізувати статус')}</button><button className="secondary" disabled={busy} onClick={() => void proposeControl(item, 'activate')}>{tr('Activate with confirmation', 'Активувати з підтвердженням')}</button><button className="secondary" disabled={busy} onClick={() => void proposeControl(item, 'pause')}>{tr('Pause with confirmation', 'Пауза з підтвердженням')}</button><label>{tr('Daily budget', 'Денний бюджет')}<input type="number" min="1" value={budgetDraft[item.deployment_id] || ''} onChange={event => setBudgetDraft(current => ({ ...current, [item.deployment_id]: event.target.value }))} /></label><button className="secondary" disabled={busy || !budgetDraft[item.deployment_id]} onClick={() => void proposeControl(item, 'set_budget')}>{tr('Review budget change', 'Перевірити зміну бюджету')}</button><label>{tr('Start (local time)', 'Початок (місцевий час)')}<input type="datetime-local" value={scheduleDraft[item.deployment_id]?.start || ''} onChange={event => setScheduleDraft(current => ({ ...current, [item.deployment_id]: { start: event.target.value, end: current[item.deployment_id]?.end || '' } }))} /></label><label>{tr('End (local time)', 'Кінець (місцевий час)')}<input type="datetime-local" value={scheduleDraft[item.deployment_id]?.end || ''} onChange={event => setScheduleDraft(current => ({ ...current, [item.deployment_id]: { start: current[item.deployment_id]?.start || '', end: event.target.value } }))} /></label><button className="secondary" disabled={busy || !(scheduleDraft[item.deployment_id]?.start || scheduleDraft[item.deployment_id]?.end)} onClick={() => void proposeControl(item, 'set_schedule')}>{tr('Review schedule change', 'Перевірити зміну розкладу')}</button><button className="secondary" disabled={busy} onClick={() => void refreshInsights(item)}>{tr('Refresh 7-day results', 'Оновити результати за 7 днів')}</button></>}</footer></article>)}</div>}
     </section>
   </div>
 }

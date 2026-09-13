@@ -122,6 +122,24 @@ it('creates a versioned audience preset', async () => {
   }))
 })
 
+it('normalizes leading-zero audience numbers and blocks an invalid preset before the API call', async () => {
+  const { api, post } = apiFor(fixture())
+  render(<AdsView api={api} language="en" projectId={projectId} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'New preset' }))
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Leading zeros' } })
+  fireEvent.change(screen.getByLabelText('Minimum age'), { target: { value: '020' } })
+  fireEvent.change(screen.getByLabelText('Maximum age'), { target: { value: '035' } })
+  fireEvent.change(screen.getByLabelText('Daily budget (minor currency units)'), { target: { value: '0200' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save immutable version' }))
+  await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/ads/presets', expect.objectContaining({ age_min: 20, age_max: 35, daily_budget_minor: 200 })))
+
+  post.mockClear()
+  fireEvent.change(screen.getByLabelText('Maximum age'), { target: { value: '' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save immutable version' }))
+  expect(await screen.findByText('Maximum age must be an integer from the minimum age to 65.')).toBeVisible()
+  expect(post).not.toHaveBeenCalled()
+})
+
 it('searches Meta and saves an immutable city-radius preset without country broadening', async () => {
   const workspace = fixture()
   const { api, get, post } = apiFor(workspace)

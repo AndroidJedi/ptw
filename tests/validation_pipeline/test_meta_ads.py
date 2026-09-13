@@ -372,6 +372,17 @@ class FakeAdapter:
     def status(self, object_id: str, kind: str) -> dict[str, str]:
         return {"id": object_id, "status": "PAUSED", "effective_status": "PAUSED"}
 
+    def control(self, object_id: str, kind: str, patch: dict[str, object]) -> dict[str, str]:
+        self._record(f"control:{kind}")
+        return {"id": object_id, "status": str(patch.get("status") or "PAUSED"), "effective_status": str(patch.get("status") or "PAUSED")}
+
+    def insights(self, ad_id: str, window_days: int) -> dict[str, object]:
+        self._record("insights")
+        return {"spend": "8.00", "cost_per_action_type": [
+            {"action_type": "onsite_conversion.messaging_conversation_started_7d", "value": "8.00"},
+            {"action_type": "landing_page_view", "value": "8.00"},
+        ]}
+
     def ads_manager_url(self, campaign_id: str | None = None) -> str:
         return "https://adsmanager.facebook.com/test"
 
@@ -465,6 +476,25 @@ class MetaAdsServiceTests(unittest.TestCase):
         self.assertEqual(["connection", "connection", "campaign", "ad_set", "image", "creative", "ad"], self.adapter.calls)
         serialized = json.dumps(self.store.list("meta_ads_deployments"))
         self.assertNotIn("not-persisted", serialized)
+
+    def test_owner_confirmed_control_records_before_after_and_kpi_recommendation(self) -> None:
+        deployment, _ = self.service.reserve(PROJECT_ID, self.request())
+        self.service.execute(deployment["deployment_id"])
+        proposed, created = self.service.propose_control(PROJECT_ID, {
+            "request_id": "01900000-0000-7000-8000-000000000021",
+            "deployment_id": deployment["deployment_id"], "operation": "activate", "scope": "ad", "kpi_target_minor": 700,
+        }, "firebase:owner")
+        self.assertTrue(created)
+        self.assertEqual("proposed", proposed["state"]["status"])
+        completed = self.service.confirm_control(PROJECT_ID, proposed["action_id"], "firebase:owner")
+        self.assertEqual("completed", completed["state"]["status"])
+        self.assertEqual(["campaign", "ad_set", "ad"], proposed["action"]["affected_objects"])
+        self.assertEqual(1, self.adapter.calls.count("control:campaign"))
+        self.assertEqual(1, self.adapter.calls.count("control:ad_set"))
+        self.assertEqual(1, self.adapter.calls.count("control:ad"))
+        result = self.service.refresh_insights(PROJECT_ID, deployment["deployment_id"])
+        self.assertEqual("above_target", result["recommendation"]["record"]["status"])
+        self.assertEqual(1, len(self.authority.list_controls(PROJECT_ID)))
 
     def test_changed_account_after_reservation_cannot_create_objects(self):
         from dataclasses import replace

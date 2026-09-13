@@ -807,6 +807,33 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             body=request, actor=actor(identity), timeout=60,
         )).json()
 
+    @app.post("/api/v1/ads/projects/{project_id}/controls", status_code=201)
+    async def meta_ads_propose_control(
+        project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/ads/projects/{project_id}/controls",
+            body=request, actor=actor(identity), timeout=60,
+        )).json()
+
+    @app.post("/api/v1/ads/projects/{project_id}/controls/{action_id}/confirm")
+    async def meta_ads_confirm_control(
+        project_id: str, action_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/ads/projects/{project_id}/controls/{action_id}/confirm",
+            body=request, actor=actor(identity), timeout=120,
+        )).json()
+
+    @app.post("/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/insights")
+    async def meta_ads_insights(
+        project_id: str, deployment_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/ads/projects/{project_id}/deployments/{deployment_id}/insights",
+            body=request, actor=actor(identity), timeout=120,
+        )).json()
+
     @app.get("/api/v1/system/health")
     async def system_health(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         try:

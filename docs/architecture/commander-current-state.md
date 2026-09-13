@@ -1,12 +1,40 @@
 # Commander current state
 
-Updated: 2026-09-12
+Updated: 2026-09-13
 Branch: `main`
 Deployment: unified Commander is live and accepted. Hosted GOD, Plan,
 release control and Validation use the verified candidate images; compatible
 Commander, Owner Gateway and provider images were preserved. The Owner Console
 and cache v9 are live. The accepted marker, production checkout and canonical
 `main` all identify the same revision.
+
+## Meta campaign control and preset recovery — verified release candidate
+
+The next additive release repairs Ads preset recovery: the Owner Console rejects
+invalid name, geography, age, and daily-budget fields before sending a request;
+the Gateway and Validation return a bounded `invalid_preset` envelope with safe
+field detail for a rejected request. Numeric entries such as `20`, `035`, and
+`0200` normalize to integer values before submission. Owner cache generation is
+v10.
+
+The candidate also adds PTW-lineage-only Meta lifecycle control. Original
+deployment, audience, and creative specifications remain immutable; proposed
+control actions, live snapshots, 7-day KPI insights, and recommendations are
+append-only authority records. Controls are reviewed first and then explicitly
+owner-confirmed, revalidate immediately before execution, serialize by Project,
+and reconcile uncertain provider outcomes by known object ID. Activation,
+pause, Ad Set budget/schedule, and replacement paused audience/creative flows
+are available only for PTW-created objects. Insights can recommend on-target,
+above-target, or insufficient data, but never change spend automatically.
+
+The candidate includes migration `006_meta_ads_control_v1.sql`, which is
+additive and preserves existing authority data. Local Commander/demo, Owner,
+targeted built-image API, disposable PostgreSQL migration, schema/release,
+skill, build, and whitespace checks pass. A guarded migration-bearing
+production release is pending through the release controller; afterwards the
+owner must select an approved Website deployment and separately confirm the
+first bounded activation and later pause from PTW. No live activation or spend
+has occurred for this candidate.
 
 ## Unified Commander workspace — live and accepted
 

@@ -592,8 +592,33 @@ class MetaAdsAdapter:
 
     def status(self, object_id: str, kind: str) -> dict[str, Any]:
         fields = "id,name,status,effective_status,issues_info"
+        if kind == "ad_set":
+            fields += ",daily_budget,start_time,end_time"
         value = self._call("GET", object_id, params={"fields": fields}, outcome=f"Meta {kind} status sync failed")
-        return {key: value.get(key) for key in ("id", "name", "status", "effective_status", "issues_info")}
+        return {key: value.get(key) for key in ("id", "name", "status", "effective_status", "issues_info", "daily_budget", "start_time", "end_time")}
+
+    def control(self, object_id: str, kind: str, patch: Mapping[str, Any]) -> dict[str, Any]:
+        """Apply one reviewed control to a PTW-owned Meta object."""
+        allowed = {"status"} if kind in {"campaign", "ad"} else {"status", "daily_budget", "start_time", "end_time"}
+        if not patch or set(patch) - allowed:
+            raise ValueError("Meta Ads control fields are invalid")
+        if patch.get("status") not in {None, "ACTIVE", "PAUSED"}:
+            raise ValueError("Meta Ads status must be ACTIVE or PAUSED")
+        if "daily_budget" in patch and (isinstance(patch["daily_budget"], bool) or not isinstance(patch["daily_budget"], int) or not 1 <= patch["daily_budget"] <= 100_000_000):
+            raise ValueError("Meta Ads daily budget is outside the supported bound")
+        value = self._call("POST", object_id, data=self._data(**patch), outcome=f"Meta {kind} control failed")
+        return {"id": str(value.get("id") or object_id), **self.status(object_id, kind)}
+
+    def insights(self, ad_id: str, window_days: int) -> dict[str, Any]:
+        if window_days not in {7, 30}:
+            raise ValueError("Meta Ads insight window must be 7 or 30 days")
+        result = self._call(
+            "GET", f"{ad_id}/insights",
+            params={"date_preset": f"last_{window_days}d", "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,actions,cost_per_action_type"},
+            outcome="Meta Ads insight sync failed",
+        )
+        item = next((entry for entry in result.get("data", []) if isinstance(entry, Mapping)), {})
+        return {key: item.get(key) for key in ("spend", "impressions", "reach", "clicks", "ctr", "cpc", "cpm", "actions", "cost_per_action_type")}
 
     def ads_manager_url(self, campaign_id: str | None = None) -> str:
         base = f"https://adsmanager.facebook.com/adsmanager/manage/campaigns?act={quote(self.configuration.ad_account_id)}"
@@ -741,6 +766,9 @@ class LocalMetaAdsAuthority:
         project_id = _uuid(project_id, "project_id")
         return [item for item in self.store.list("meta_ads_deployments") if item["project_id"] == project_id]
 
+    def managed_deployments(self) -> list[dict[str, Any]]:
+        return [item for item in self.store.list("meta_ads_deployments") if item.get("status") == "staged" and item.get("meta_ad_id")]
+
     def record_run(self, deployment_id: str, stage: str, status: str, error: Mapping[str, Any] | None = None) -> dict[str, Any]:
         previous = [item for item in self.store.list("meta_ads_runs") if item["deployment_id"] == deployment_id]
         run_id = new_uuid7()
@@ -760,6 +788,48 @@ class LocalMetaAdsAuthority:
         self.store.append("meta_ads_snapshots", snapshot_id, record)
         self.store.edge(source_id=deployment_id, relation="contains", target_id=snapshot_id, evidence={"member": "meta_ads_status_snapshot"})
         return record
+
+    def list_controls(self, project_id: str) -> list[dict[str, Any]]:
+        return [item for item in self.store.list("meta_ads_controls") if item["project_id"] == _uuid(project_id, "project_id")]
+
+    def get_control(self, action_id: str) -> dict[str, Any]:
+        return self.store.get("meta_ads_controls", _uuid(action_id, "action_id"))
+
+    def create_control(self, value: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
+        request_id = _uuid(value["request_id"], "request_id")
+        existing = next((item for item in self.store.list("meta_ads_controls") if item["request_id"] == request_id), None)
+        if existing is not None:
+            if existing["request_sha256"] != value["request_sha256"]:
+                raise ValueError("Meta Ads control request ID was reused with different input")
+            return existing, False
+        record = deepcopy(dict(value))
+        self.store.append("meta_ads_controls", record["action_id"], record)
+        self.store.edge(source_id=record["deployment_id"], relation="contains", target_id=record["action_id"], evidence={"member": "meta_ads_control_action"})
+        return record, True
+
+    def update_control(self, action_id: str, state: Mapping[str, Any]) -> dict[str, Any]:
+        current = self.get_control(action_id)
+        record = {**current, "state": deepcopy(dict(state)), "updated_at": utc_now()}
+        self.store.append("meta_ads_controls", action_id, record)
+        return record
+
+    def record_insight(self, deployment_id: str, window_days: int, metrics: Mapping[str, Any]) -> dict[str, Any]:
+        record = {"insight_id": new_uuid7(), "deployment_id": deployment_id, "window_days": window_days, "metrics": deepcopy(dict(metrics)), "created_at": utc_now()}
+        self.store.append("meta_ads_insights", record["insight_id"], record)
+        self.store.edge(source_id=deployment_id, relation="contains", target_id=record["insight_id"], evidence={"member": "meta_ads_insight_snapshot"})
+        return record
+
+    def list_insights(self, deployment_id: str) -> list[dict[str, Any]]:
+        return [item for item in self.store.list("meta_ads_insights") if item["deployment_id"] == deployment_id]
+
+    def record_recommendation(self, deployment_id: str, insight_id: str, record: Mapping[str, Any]) -> dict[str, Any]:
+        value = {"recommendation_id": new_uuid7(), "deployment_id": deployment_id, "insight_id": insight_id, "record": deepcopy(dict(record)), "created_at": utc_now()}
+        self.store.append("meta_ads_recommendations", value["recommendation_id"], value)
+        self.store.edge(source_id=deployment_id, relation="contains", target_id=value["recommendation_id"], evidence={"member": "meta_ads_recommendation"})
+        return value
+
+    def list_recommendations(self, deployment_id: str) -> list[dict[str, Any]]:
+        return [item for item in self.store.list("meta_ads_recommendations") if item["deployment_id"] == deployment_id]
 
     def recover_interrupted(self) -> list[str]:
         return [item["deployment_id"] for item in self.store.list("meta_ads_deployments") if item["status"] not in {"staged", "failed"}]
@@ -1001,6 +1071,11 @@ class DatabaseMetaAdsAuthority:
             rows = connection.execute(self._deployment_select() + " WHERE project_id=%s ORDER BY created_at DESC", (UUID(project_id),)).fetchall()
         return [self._deployment(row) for row in rows]
 
+    def managed_deployments(self) -> list[dict[str, Any]]:
+        with self.connection() as connection:
+            rows = connection.execute(self._deployment_select() + " WHERE status='staged' AND meta_ad_id IS NOT NULL ORDER BY updated_at DESC").fetchall()
+        return [self._deployment(row) for row in rows]
+
     def record_run(self, deployment_id: str, stage: str, status: str, error: Mapping[str, Any] | None = None) -> dict[str, Any]:
         from psycopg.types.json import Jsonb
         run_id = UUID(new_uuid7())
@@ -1021,6 +1096,80 @@ class DatabaseMetaAdsAuthority:
             connection.execute("INSERT INTO meta_ads_status_snapshots(entity_id,deployment_id,objects) VALUES(%s,%s,%s)", (snapshot_id, UUID(deployment_id), Jsonb(dict(value))))
             self._edge(connection, deployment_id, "contains", str(snapshot_id), {"member": "meta_ads_status_snapshot"})
         return {"snapshot_id": str(snapshot_id), "deployment_id": deployment_id, "objects": dict(value)}
+
+    @staticmethod
+    def _control(row: Any) -> dict[str, Any]:
+        return {"action_id": str(row[0]), "project_id": str(row[1]), "deployment_id": str(row[2]),
+                "request_id": str(row[3]), "request_sha256": row[4], "action": dict(row[5]),
+                "before_snapshot": dict(row[6]), "state": dict(row[7]),
+                "created_at": row[8].isoformat(), "updated_at": row[9].isoformat()}
+
+    @staticmethod
+    def _control_select() -> str:
+        return "SELECT entity_id,project_id,deployment_id,request_id,request_sha256,action,before_snapshot,state,created_at,updated_at FROM meta_ads_control_actions"
+
+    def list_controls(self, project_id: str) -> list[dict[str, Any]]:
+        with self.connection() as connection:
+            rows = connection.execute(self._control_select() + " WHERE project_id=%s ORDER BY created_at DESC", (UUID(project_id),)).fetchall()
+        return [self._control(row) for row in rows]
+
+    def get_control(self, action_id: str) -> dict[str, Any]:
+        with self.connection() as connection:
+            row = connection.execute(self._control_select() + " WHERE entity_id=%s", (UUID(action_id),)).fetchone()
+        if row is None:
+            raise KeyError("Meta Ads control action was not found")
+        return self._control(row)
+
+    def create_control(self, value: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
+        from psycopg.types.json import Jsonb
+        request_id = UUID(str(value["request_id"]))
+        with self.connection() as connection:
+            connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (f"meta-ads-control:{request_id}",))
+            row = connection.execute(self._control_select() + " WHERE request_id=%s", (request_id,)).fetchone()
+            if row is not None:
+                existing = self._control(row)
+                if existing["request_sha256"] != value["request_sha256"]:
+                    raise ValueError("Meta Ads control request ID was reused with different input")
+                return existing, False
+            action_id = UUID(str(value["action_id"]))
+            connection.execute("INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'meta_ads_control_action',%s)", (action_id, Jsonb({"schema_version": 1, "project_id": value["project_id"]})))
+            connection.execute("INSERT INTO meta_ads_control_actions(entity_id,project_id,deployment_id,request_id,request_sha256,action,before_snapshot,state) VALUES(%s,%s,%s,%s,%s,%s,%s,%s)", (action_id, UUID(str(value["project_id"])), UUID(str(value["deployment_id"])), request_id, value["request_sha256"], Jsonb(dict(value["action"])), Jsonb(dict(value["before_snapshot"])), Jsonb(dict(value["state"]))))
+            self._edge(connection, str(value["deployment_id"]), "contains", str(action_id), {"member": "meta_ads_control_action"})
+        return self.get_control(str(action_id)), True
+
+    def update_control(self, action_id: str, state: Mapping[str, Any]) -> dict[str, Any]:
+        from psycopg.types.json import Jsonb
+        with self.connection() as connection:
+            connection.execute("UPDATE meta_ads_control_actions SET state=%s,updated_at=clock_timestamp() WHERE entity_id=%s", (Jsonb(dict(state)), UUID(action_id)))
+        return self.get_control(action_id)
+
+    def record_insight(self, deployment_id: str, window_days: int, metrics: Mapping[str, Any]) -> dict[str, Any]:
+        from psycopg.types.json import Jsonb
+        insight_id = UUID(new_uuid7())
+        with self.connection() as connection:
+            connection.execute("INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'meta_ads_insight_snapshot',%s)", (insight_id, Jsonb({"schema_version": 1, "window_days": window_days})))
+            connection.execute("INSERT INTO meta_ads_insight_snapshots(entity_id,deployment_id,window_days,metrics) VALUES(%s,%s,%s,%s)", (insight_id, UUID(deployment_id), window_days, Jsonb(dict(metrics))))
+            self._edge(connection, deployment_id, "contains", str(insight_id), {"member": "meta_ads_insight_snapshot"})
+        return {"insight_id": str(insight_id), "deployment_id": deployment_id, "window_days": window_days, "metrics": dict(metrics)}
+
+    def list_insights(self, deployment_id: str) -> list[dict[str, Any]]:
+        with self.connection() as connection:
+            rows = connection.execute("SELECT entity_id,window_days,metrics,created_at FROM meta_ads_insight_snapshots WHERE deployment_id=%s ORDER BY created_at DESC", (UUID(deployment_id),)).fetchall()
+        return [{"insight_id": str(row[0]), "deployment_id": deployment_id, "window_days": row[1], "metrics": dict(row[2]), "created_at": row[3].isoformat()} for row in rows]
+
+    def record_recommendation(self, deployment_id: str, insight_id: str, record: Mapping[str, Any]) -> dict[str, Any]:
+        from psycopg.types.json import Jsonb
+        recommendation_id = UUID(new_uuid7())
+        with self.connection() as connection:
+            connection.execute("INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'meta_ads_recommendation',%s)", (recommendation_id, Jsonb({"schema_version": 1})))
+            connection.execute("INSERT INTO meta_ads_recommendations(entity_id,deployment_id,insight_snapshot_id,record) VALUES(%s,%s,%s,%s)", (recommendation_id, UUID(deployment_id), UUID(insight_id), Jsonb(dict(record))))
+            self._edge(connection, deployment_id, "contains", str(recommendation_id), {"member": "meta_ads_recommendation"})
+        return {"recommendation_id": str(recommendation_id), "deployment_id": deployment_id, "insight_id": insight_id, "record": dict(record)}
+
+    def list_recommendations(self, deployment_id: str) -> list[dict[str, Any]]:
+        with self.connection() as connection:
+            rows = connection.execute("SELECT entity_id,insight_snapshot_id,record,created_at FROM meta_ads_recommendations WHERE deployment_id=%s ORDER BY created_at DESC", (UUID(deployment_id),)).fetchall()
+        return [{"recommendation_id": str(row[0]), "deployment_id": deployment_id, "insight_id": str(row[1]) if row[1] else None, "record": dict(row[2]), "created_at": row[3].isoformat()} for row in rows]
 
     def recover_interrupted(self) -> list[str]:
         with self.connection() as connection:
@@ -1151,7 +1300,156 @@ class MetaAdsService:
             "presets": self.authority.list_presets(), "sources": self._sources(project_id),
             "experiment": experiment, "deployments": deployments, "ads_manager_url": manager_url,
             "landing": self.landing(project_id),
+            "controls": self.authority.list_controls(project_id),
+            "insights": {item["deployment_id"]: self.authority.list_insights(item["deployment_id"])[:3] for item in deployments},
+            "recommendations": {item["deployment_id"]: self.authority.list_recommendations(item["deployment_id"])[:3] for item in deployments},
         }
+
+    def _objects(self, deployment: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+        if self.adapter is None:
+            raise RuntimeError("Meta Ads credentials are not configured")
+        experiment = self.authority.get_experiment(deployment["project_id"], deployment["experiment_id"])
+        audience = self.authority.get_audience(deployment["audience_id"])
+        identifiers = {
+            "campaign": None if experiment is None else experiment.get("meta_campaign_id"),
+            "ad_set": audience.get("meta_ad_set_id"),
+            "ad": deployment.get("meta_ad_id"),
+        }
+        return {kind: self.adapter.status(str(identifier), kind) for kind, identifier in identifiers.items() if identifier}
+
+    @staticmethod
+    def _control_input(request: Mapping[str, Any]) -> dict[str, Any]:
+        required = {"request_id", "deployment_id", "operation", "scope"}
+        operation = request.get("operation")
+        if operation == "activate":
+            required.add("kpi_target_minor")
+        elif operation == "set_budget":
+            required.add("daily_budget_minor")
+        elif operation == "set_schedule":
+            required.update({"start_time", "end_time"})
+        elif operation != "pause":
+            raise ValueError("Meta Ads control operation is invalid")
+        if set(request) != required:
+            raise ValueError("Meta Ads control fields are invalid")
+        scope = request["scope"]
+        if scope not in {"campaign", "ad_set", "ad"}:
+            raise ValueError("Meta Ads control scope is invalid")
+        if operation in {"set_budget", "set_schedule"} and scope != "ad_set":
+            raise ValueError("Meta Ads budget and schedule controls apply to an Ad Set")
+        value = {"operation": operation, "scope": scope}
+        if operation == "activate":
+            target = request["kpi_target_minor"]
+            if isinstance(target, bool) or not isinstance(target, int) or not 1 <= target <= 100_000_000:
+                raise ValueError("Meta Ads KPI target must be a positive integer in minor currency units")
+            value["kpi_target_minor"] = target
+        if operation == "set_budget":
+            budget = request["daily_budget_minor"]
+            if isinstance(budget, bool) or not isinstance(budget, int) or not 1 <= budget <= 100_000_000:
+                raise ValueError("Meta Ads daily budget is outside the supported bound")
+            value["daily_budget_minor"] = budget
+        if operation == "set_schedule":
+            for key in ("start_time", "end_time"):
+                item = request[key]
+                if item is not None and (not isinstance(item, str) or not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?Z", item)):
+                    raise ValueError("Meta Ads schedule must use a UTC ISO timestamp or null")
+                value[key] = item
+            if value["start_time"] is None and value["end_time"] is None:
+                raise ValueError("Meta Ads schedule must change a start or end time")
+        return value
+
+    def propose_control(self, project_id: str, request: Mapping[str, Any], actor: str) -> tuple[dict[str, Any], bool]:
+        if self.adapter is None or not self.configuration.configured:
+            raise RuntimeError("Meta Ads controls are disabled until credentials are configured")
+        project_id = _uuid(project_id, "project_id")
+        input_value = self._control_input(request)
+        deployment = self.authority.get_deployment(_uuid(request["deployment_id"], "deployment_id"))
+        if deployment["project_id"] != project_id or deployment["status"] != "staged":
+            raise KeyError("Meta Ads deployment was not found in this Project")
+        before = self._objects(deployment)
+        target_ids = {kind: value["id"] for kind, value in before.items()}
+        if input_value["scope"] not in target_ids:
+            raise RuntimeError("Meta Ads control target is not available")
+        input_value["targets"] = target_ids
+        if input_value["operation"] == "activate" and input_value["scope"] == "ad":
+            input_value["affected_objects"] = ["campaign", "ad_set", "ad"]
+        else:
+            input_value["affected_objects"] = [input_value["scope"]]
+        value = {
+            "action_id": new_uuid7(), "project_id": project_id, "deployment_id": deployment["deployment_id"],
+            "request_id": _uuid(request["request_id"], "request_id"),
+            "request_sha256": _sha({"project_id": project_id, "deployment_id": deployment["deployment_id"], **input_value}),
+            "action": input_value, "before_snapshot": before,
+            "state": {"status": "proposed", "proposed_by": str(actor)[:200], "proposed_at": utc_now()},
+            "created_at": utc_now(), "updated_at": utc_now(),
+        }
+        return self.authority.create_control(value)
+
+    def confirm_control(self, project_id: str, action_id: str, actor: str) -> dict[str, Any]:
+        project_id = _uuid(project_id, "project_id")
+        action = self.authority.get_control(_uuid(action_id, "action_id"))
+        if action["project_id"] != project_id:
+            raise KeyError("Meta Ads control action was not found in this Project")
+        if action["state"].get("status") != "proposed":
+            raise ValueError("Only a proposed Meta Ads control can be confirmed")
+        return self.execute_control(action_id, actor)
+
+    def execute_control(self, action_id: str, actor: str) -> dict[str, Any]:
+        action = self.authority.get_control(action_id)
+        if self.adapter is None or not self.configuration.configured:
+            raise RuntimeError("Meta Ads controls are disabled until credentials are configured")
+        with self._lock, self.authority.execution_lock(action["project_id"]):
+            action = self.authority.get_control(action_id)
+            if action["state"].get("status") == "completed":
+                return action
+            if action["state"].get("status") != "proposed":
+                raise ValueError("Meta Ads control is already executing or requires reconciliation")
+            deployment = self.authority.get_deployment(action["deployment_id"])
+            current = self._objects(deployment)
+            state = {"status": "executing", "confirmed_by": str(actor)[:200], "confirmed_at": utc_now(), "revalidated_snapshot": current}
+            self.authority.update_control(action_id, state)
+            spec, targets = action["action"], action["action"]["targets"]
+            try:
+                operation, scope = spec["operation"], spec["scope"]
+                if operation == "activate":
+                    order = [kind for kind in ("campaign", "ad_set", "ad") if kind in targets] if scope == "ad" else [scope]
+                    for kind in order:
+                        self.adapter.control(targets[kind], kind, {"status": "ACTIVE"})
+                elif operation == "pause":
+                    self.adapter.control(targets[scope], scope, {"status": "PAUSED"})
+                elif operation == "set_budget":
+                    self.adapter.control(targets["ad_set"], "ad_set", {"daily_budget": spec["daily_budget_minor"]})
+                else:
+                    self.adapter.control(targets["ad_set"], "ad_set", {"start_time": spec["start_time"], "end_time": spec["end_time"]})
+                after = self._objects(deployment)
+                return self.authority.update_control(action_id, {**state, "status": "completed", "completed_at": utc_now(), "after_snapshot": after})
+            except MetaAdsProviderError as error:
+                status = "uncertain" if error.transient else "failed"
+                return self.authority.update_control(action_id, {**state, "status": status, "error": error.record(), "finished_at": utc_now()})
+            except Exception as error:
+                return self.authority.update_control(action_id, {**state, "status": "failed", "error": self._error(error), "finished_at": utc_now()})
+
+    def refresh_insights(self, project_id: str, deployment_id: str, window_days: int = 7) -> dict[str, Any]:
+        project_id, deployment_id = _uuid(project_id, "project_id"), _uuid(deployment_id, "deployment_id")
+        deployment = self.authority.get_deployment(deployment_id)
+        if deployment["project_id"] != project_id:
+            raise KeyError("Meta Ads deployment was not found in this Project")
+        if self.adapter is None or not deployment.get("meta_ad_id"):
+            raise RuntimeError("Meta Ads insights are unavailable for this deployment")
+        metrics = self.adapter.insights(deployment["meta_ad_id"], window_days)
+        insight = self.authority.record_insight(deployment_id, window_days, metrics)
+        activation = next((item for item in self.authority.list_controls(project_id)
+                           if item["deployment_id"] == deployment_id and item["action"].get("operation") == "activate"
+                           and item["state"].get("status") == "completed"), None)
+        cost = None
+        action_type = "landing_page_view" if deployment["specification"].get("destination_type") == "WEBSITE" else "onsite_conversion.messaging_conversation_started_7d"
+        for item in metrics.get("cost_per_action_type") or []:
+            if isinstance(item, Mapping) and item.get("action_type") == action_type:
+                try: cost = int(round(float(item.get("value")) * 100))
+                except (TypeError, ValueError): pass
+        target = None if activation is None else activation["action"].get("kpi_target_minor")
+        status = "insufficient_metric_data" if cost is None or target is None else ("on_target" if cost <= target else "above_target")
+        recommendation = self.authority.record_recommendation(deployment_id, insight["insight_id"], {"status": status, "metric": action_type, "cost_minor": cost, "target_cost_minor": target, "window_days": window_days})
+        return {"insight": insight, "recommendation": recommendation}
 
     def reserve(self, project_id: str, request: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
         with self._lock:
@@ -1384,6 +1682,28 @@ class MetaAdsService:
                 objects[kind] = self.adapter.status(str(identifier), kind)
         snapshot = self.authority.record_snapshot(deployment_id, objects)
         return self.authority.update_deployment(deployment_id, status_snapshot=snapshot["objects"])
+
+    def maintain_controls(self) -> None:
+        """Bounded restart-safe reconciliation for PTW-owned active campaigns."""
+        if self.adapter is None:
+            return
+        today = utc_now()[:10]
+        for deployment in self.authority.managed_deployments():
+            try:
+                activated = any(item["deployment_id"] == deployment["deployment_id"]
+                                and item["action"].get("operation") == "activate"
+                                and item["state"].get("status") == "completed"
+                                for item in self.authority.list_controls(deployment["project_id"]))
+                if not activated:
+                    continue
+                self.sync(deployment["project_id"], deployment["deployment_id"])
+                latest = self.authority.list_insights(deployment["deployment_id"])
+                if activated and (not latest or str(latest[0].get("created_at", ""))[:10] != today):
+                    self.refresh_insights(deployment["project_id"], deployment["deployment_id"], 7)
+            except Exception:
+                # Individual provider failures remain visible through explicit Sync;
+                # a scheduler must never replay a delivery-changing control.
+                continue
 
     def recover_interrupted(self) -> list[str]:
         return self.authority.recover_interrupted()

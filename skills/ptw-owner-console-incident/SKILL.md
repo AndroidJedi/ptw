@@ -46,6 +46,14 @@ before changing code or runtime state.
   MIME against decoded bytes before persistence.
 - Telegram remains only `/help`, `/status`, and `/stop`; all other input
   returns the web-console link and cannot mutate state.
+- For PTW-managed Meta delivery, never turn a browser control directly into a
+  provider mutation. Persist an immutable, Project-scoped proposal with its
+  current object snapshot; require a second owner confirmation, re-read the
+  PTW-owned Meta IDs under the Project execution lock, and record the outcome
+  as completed, failed, or uncertain. A scheduler may reconcile statuses and
+  import insights, but must never replay activation, budget, schedule, audience,
+  or creative changes. Preserve the original PAUSED deployment, audience preset,
+  and approved source lineage.
 
 ## Brief, Studio, and provider checks
 

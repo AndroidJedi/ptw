@@ -146,6 +146,9 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/ads/projects/{project_id}/deployments",
             "/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/retry",
             "/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/sync",
+            "/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/insights",
+            "/api/v1/ads/projects/{project_id}/controls",
+            "/api/v1/ads/projects/{project_id}/controls/{action_id}/confirm",
         }
         self.assertTrue(required <= paths)
         self.assertNotIn("/api/v1/studio", paths)

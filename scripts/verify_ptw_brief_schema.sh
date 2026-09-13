@@ -98,8 +98,11 @@ landing_versions
 landing_workspace_files
 landing_workspaces
 meta_ads_audience_versions
+meta_ads_control_actions
 meta_ads_deployments
+meta_ads_insight_snapshots
 meta_ads_preset_versions
+meta_ads_recommendations
 meta_ads_stage_runs
 meta_ads_status_snapshots
 meta_ads_workspaces
@@ -144,6 +147,8 @@ BEGIN
        SELECT 1 FROM commander_schema_migrations WHERE name='004_public_landing_v1.sql'
      ) OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='005_instagram_publication_v1.sql'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM commander_schema_migrations WHERE name='006_meta_ads_control_v1.sql'
      ) THEN
     RAISE EXCEPTION 'the database must contain the Product Brief, Studio, Landing, and Meta Ads migrations';
   END IF;

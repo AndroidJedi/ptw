@@ -120,7 +120,9 @@ class MetaAdsAdapterTests(unittest.TestCase):
         targeting = json.loads(ad_set_payload["targeting"])
         self.assertEqual(["instagram"], targeting["publisher_platforms"])
         self.assertEqual(["stream"], targeting["instagram_positions"])
+        self.assertEqual({"advantage_audience": 0}, targeting["targeting_automation"])
         self.assertEqual([2], targeting["genders"])
+        self.assertEqual({"page_id": "456"}, json.loads(ad_set_payload["promoted_object"]))
         creative_payload = form(posts["adcreatives"])
         story = json.loads(creative_payload["object_story_spec"])
         self.assertEqual("456", story["page_id"])
@@ -257,7 +259,7 @@ class MetaAdsAdapterTests(unittest.TestCase):
     def test_exact_name_reconciliation_resumes_without_duplicate_posts(self) -> None:
         self.existing = {
             "campaigns": [{"id": "campaign-old", "name": "campaign marker", "status": "ACTIVE", "objective": "OUTCOME_ENGAGEMENT", "special_ad_categories": []}],
-            "adsets": [{"id": "adset-old", "name": "adset marker", "status": "PAUSED", "campaign_id": "campaign-old", "destination_type": "INSTAGRAM_DIRECT", "optimization_goal": "CONVERSATIONS", "billing_event": "IMPRESSIONS", "daily_budget": "500", "targeting": {"geo_locations": {"countries": ["UA"]}, "age_min": 25, "age_max": 44, "publisher_platforms": ["instagram"], "instagram_positions": ["stream"]}}],
+            "adsets": [{"id": "adset-old", "name": "adset marker", "status": "PAUSED", "campaign_id": "campaign-old", "destination_type": "INSTAGRAM_DIRECT", "optimization_goal": "CONVERSATIONS", "billing_event": "IMPRESSIONS", "daily_budget": "500", "targeting": {"geo_locations": {"countries": ["UA"]}, "age_min": 25, "age_max": 44, "publisher_platforms": ["instagram"], "instagram_positions": ["stream"], "targeting_automation": {"advantage_audience": 0}}}],
             "adcreatives": [{"id": "creative-old", "name": "creative marker", "object_story_spec": {"page_id": "456", "instagram_user_id": "789", "link_data": {"image_hash": "hash", "name": "Headline", "message": "Primary", "call_to_action": {"type": "SEND_MESSAGE", "value": {"app_destination": "INSTAGRAM_DIRECT"}}}}}],
             "ads": [{"id": "ad-old", "name": "ad marker", "status": "PAUSED", "adset_id": "adset-old", "creative": {"id": "creative-old"}}],
         }

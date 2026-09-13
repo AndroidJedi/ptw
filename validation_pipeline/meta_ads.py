@@ -460,6 +460,9 @@ class MetaAdsAdapter:
             "geo_locations": geo_locations,
             "age_min": preset["age_min"], "age_max": preset["age_max"],
             "publisher_platforms": ["instagram"], "instagram_positions": ["stream"],
+            # Keep Meta's expansion feature explicit and disabled so the
+            # immutable, owner-reviewed audience remains authoritative.
+            "targeting_automation": {"advantage_audience": 0},
         }
         if genders is not None:
             targeting["genders"] = genders
@@ -472,7 +475,6 @@ class MetaAdsAdapter:
                 daily_budget=preset["daily_budget_minor"], targeting=targeting,
                 promoted_object={
                     "page_id": self.configuration.page_id,
-                    "instagram_user_id": self.configuration.instagram_actor_id,
                 } if destination != "WEBSITE" else None,
             ), outcome="Meta ad set creation failed",
         )
@@ -589,6 +591,7 @@ class MetaAdsAdapter:
                 or value.get("billing_event") != "IMPRESSIONS"
                 or str(value.get("daily_budget")) != str(preset["daily_budget_minor"])
                 or targeting.get("publisher_platforms") != ["instagram"] or targeting.get("instagram_positions") != ["stream"]
+                or (targeting.get("targeting_automation") or {}).get("advantage_audience") != 0
                 or targeting.get("age_min") != preset["age_min"] or targeting.get("age_max") != preset["age_max"]
                 or (targeting.get("genders") or []) != ([] if preset["gender"] == "all" else [1 if preset["gender"] == "men" else 2])
                 or sorted(geo.get("countries") or []) != sorted(preset["countries"])

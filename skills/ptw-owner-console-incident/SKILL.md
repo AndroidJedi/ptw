@@ -61,6 +61,10 @@ before changing code or runtime state.
   upload; the manual draft is a separate object. For Graph API v26 Ad Set-budget
   campaigns, send `is_adset_budget_sharing_enabled=false` explicitly and confirm
   with a validate-only provider request before retrying the same PAUSED deployment.
+  Graph API v26 Direct Ad Sets accept only the Page in `promoted_object`; retain
+  the Instagram actor on `object_story_spec`, and explicitly set
+  `targeting_automation.advantage_audience=0` so Meta cannot expand the immutable
+  owner-reviewed audience.
   Acceptance requires the stored image hash, creative ID, Ad ID, and Meta's
   creative readback to match the approved render lineage; never activate it as
   part of incident recovery.

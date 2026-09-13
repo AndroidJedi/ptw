@@ -465,6 +465,8 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("export PTW_COMMANDER_IMAGE=$target_commander_image", in_place)
         self.assertIn("export PTW_VALIDATION_IMAGE=$target_validation_image", in_place)
         self.assertIn("export PTW_OWNER_GATEWAY_IMAGE=$target_gateway_image", in_place)
+        self.assertNotIn('up -d --no-deps --no-build --wait commander-god', in_place)
+        self.assertNotIn("docker inspect ptw-commander-god-1", in_place)
 
     def test_release_uses_named_multisite_targets_and_public_shell_first_for_in_place(self) -> None:
         publisher = (ROOT / "scripts/publish_ptw_release_serial.sh").read_text()

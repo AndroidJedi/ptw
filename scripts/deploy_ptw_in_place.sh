@@ -220,10 +220,8 @@ cmp -s "$before_snapshot" "$after_snapshot" || {
 curl --fail --silent --max-time 3 http://127.0.0.1:8091/readyz >/dev/null
 "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api >/dev/null
 curl --fail --silent --max-time 3 http://127.0.0.1:8093/readyz >/dev/null
-"${commander_compose[@]}" up -d --no-deps --no-build --wait commander-god >/dev/null
 "${commander_compose[@]}" up -d --no-deps --no-build --wait --force-recreate owner-gateway >/dev/null
 curl --fail --silent --max-time 3 http://127.0.0.1:8092/healthz >/dev/null
-[[ $(docker inspect ptw-commander-god-1 --format '{{.Config.Image}}') == "ptw-validation:$release_tag" ]]
 
 "${validation_compose[@]}" exec -T validation-api python -m validation_pipeline.verify_approved_post_access
 

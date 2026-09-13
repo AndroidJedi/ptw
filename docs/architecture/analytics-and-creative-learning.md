@@ -174,7 +174,11 @@ Runtime rules use one schema:
     "operation": "set",
     "value": "compact"
   },
-  "evidence": {},
+  "evidence": {
+    "metric": "interaction_rate",
+    "summary": "The compact variant led its age-matched comparison.",
+    "winning_item_indexes": [0]
+  },
   "confidence": {"level": "exploratory", "sample_size": 2, "project_count": 1},
   "active": true,
   "tombstone": false

@@ -491,10 +491,18 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("trap 'exit 1' HUP INT TERM", deployer)
         self.assertIn('if [[ $confirmation == "DEPLOY PTW IN PLACE" ]]', deployer)
         self.assertIn('rollout_rollback_ready=1', deployer)
+        self.assertIn('source_rollback_ready=1', deployer)
+        self.assertIn('restore_source_revisions || status=1', deployer)
         self.assertIn('restore_application_images || status=1', deployer)
         self.assertIn('restore_platform_images || status=1', deployer)
         self.assertIn('rollout_committed=1', deployer)
         self.assertIn("CRITICAL: application rollback could not be fully verified", deployer)
+        self.assertIn("CRITICAL: source and skill rollback could not be fully verified", deployer)
+        self.assertIn("./scripts/install_ptw_skill_sync.sh", deployer)
+        self.assertLess(
+            deployer.index('restore_source_revisions || status=1'),
+            deployer.index('restore_platform_images || status=1'),
+        )
         self.assertNotIn("deployed PTW application tags do not match", deployer)
         for key in ("PTW_COMMANDER_IMAGE", "PTW_VALIDATION_IMAGE", "PTW_OWNER_GATEWAY_IMAGE"):
             self.assertIn(f'set_env_value "$repository/.env.commander" {key}', deployer)
@@ -511,11 +519,20 @@ class ReleaseStreamContractTests(unittest.TestCase):
         publisher = (ROOT / "scripts/publish_ptw_release_serial.sh").read_text()
         self.assertNotIn("firebase.natal-placeholder.json", publisher)
         public = publisher.index("firebase deploy --only hosting:public-landings")
-        ssh = publisher.index('ssh -i "$HOME/.ssh/ptw_commander"')
+        ssh = publisher.index('ssh -i "$HOME/.ssh/ptw_commander"', public)
         owner = publisher.index("firebase deploy --only hosting:owner-console", ssh)
         self.assertLess(public, ssh)
         self.assertLess(ssh, owner)
         self.assertIn("hosting:owner-console,hosting:public-landings", publisher)
+        snapshot = publisher.index("ptw_hosting_recovery.py snapshot")
+        public = publisher.index("firebase deploy --only hosting:public-landings")
+        remote = publisher.index("exec /root/ptw/scripts/deploy_ptw_serial.sh")
+        committed = publisher.index("vps_committed=1", remote)
+        self.assertLess(snapshot, public)
+        self.assertLess(public, remote)
+        self.assertLess(remote, committed)
+        self.assertIn("ptw_hosting_recovery.py restore", publisher)
+        self.assertIn("if [[ $vps_committed -eq 0 ]]", publisher)
 
     def test_owner_console_releases_require_cross_browser_e2e_and_live_audit(self) -> None:
         publisher = (ROOT / "scripts/publish_ptw_release_serial.sh").read_text()

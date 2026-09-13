@@ -75,6 +75,12 @@ before changing code or runtime state.
   status. Correlate that ID across the Product Brief attempt, provider
   invocation, platform `jobs` row, and worker log without exposing prompts or
   credentials.
+- Before promoting a new structured schema, run that exact schema through the
+  production Codex CLI `--output-schema` boundary, not only a Python validator.
+  Every object at every nesting depth must set `additionalProperties: false`
+  and require exactly its declared properties; open target/evidence/confidence
+  objects can be rejected before model execution while ordinary auth and health
+  checks remain green.
 - A Brief/list GET can correctly return HTTP 200 while an item inside it has
   `status: failed`. Diagnose that stored background-operation failure separately
   from transport/API status; never tell the owner that HTTP 200 proves the
@@ -335,6 +341,13 @@ cleanup must refuse active mutable work, fingerprint pre-existing rows again on
 the failed path, restore and verify all application images, preserve the
 root-only backup, and never reverse the additive migration. Every Compose
 one-off in either layer uses `-T` so SSH stdin cannot be consumed.
+If that outer rollout fails after either source tree advances, restore the
+accepted PTW and platform revisions and run accepted skill sync/verification
+before restarting accepted application or platform images. Otherwise an old
+Validation image can become unhealthy against candidate skills that removed an
+old mounted skill. If the in-place publisher released the public Hosting shell
+before the VPS step, restore the snapshotted accepted Hosting version on every
+incomplete exit as part of the same rollback.
 Before claiming Telegram works, verify authorization,
 deployed help/routing, provider readiness, persistence, restart behavior, and
 the user-facing failure path.

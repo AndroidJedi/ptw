@@ -24,6 +24,15 @@ Analyze only the frozen dataset supplied in `INPUT_JSON`.
   Because those targets belong to one catalog, `ui`, `copy`, and `image` rules
   must select exactly `post` or `landing`, never `both`. Project `domain` and
   global `spirit` principles may use `both`.
+- Return the exact closed evidence object: `metric`, a bounded `summary`, and
+  zero-based `winning_item_indexes` that refer only to the supplied frozen
+  dataset. Return the exact confidence object: `level`, `sample_size`, and
+  `project_count`; preserve the dataset values even though the server verifies
+  and reasserts them.
+- Return exactly one target shape: an empty object for `domain`/`spirit`, one
+  `semantic_role` for copy, one `asset_slot` for image, or the complete typed UI
+  value/range target. Never add explanatory keys to target, evidence, or
+  confidence.
 - Return candidates for owner review. Never claim that a candidate is active,
   never modify a skill, and never request publishing, ad mutation, or spend.
 - Do not include contact data, identities, raw URLs, referrers, IP addresses,

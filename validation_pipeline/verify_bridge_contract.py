@@ -233,7 +233,7 @@ def main() -> None:
                 "schema": "ptw.creative-learning.dataset.v1",
                 "scope": "project", "project_id": marker, "surface": "post",
                 "minimum_age_hours": 72, "platform_separated": True,
-                "sample_size": 2, "confidence": "exploratory",
+                "sample_size": 2, "project_count": 1, "confidence": "exploratory",
                 "priority": ["attributable_outbound_contact_rate", "primary_cta_rate", "high_intent_engagement", "interaction_rate", "reach_or_view_velocity"],
                 "items": [
                     {"provider": "instagram", "age_band_hours": 72, "metrics": {"views": 100, "likes": 5, "comments": 2, "shares": 1, "saves": 1}, "funnel": {"landing_view": 10, "primary_cta_click": 3, "contact_click": 2}, "creative": {"template_id": "universal_ad", "content": {"hero_title": "One clear next step"}, "configuration": {}, "visual_descriptor": {"subject": ["abstract object"], "detail": "medium", "composition": "centered", "density": "sparse", "palette": ["warm white"], "contrast": "high", "human_presence": "none"}}},

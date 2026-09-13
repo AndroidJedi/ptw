@@ -165,6 +165,56 @@ def validate_visual_descriptor(value: Mapping[str, Any]) -> dict[str, Any]:
 
 def learning_output_schema(scope: str) -> dict[str, Any]:
     families = ["spirit"] if scope == "global" else sorted(RULE_FAMILIES - {"spirit"})
+    typed_value = {
+        "anyOf": [
+            {"type": "string"}, {"type": "number"}, {"type": "boolean"},
+            {
+                "type": "array", "maxItems": 24,
+                "items": {"anyOf": [
+                    {"type": "string"}, {"type": "number"}, {"type": "boolean"},
+                ]},
+            },
+        ],
+    }
+    target = {
+        "anyOf": [
+            {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+            {
+                "type": "object",
+                "properties": {"semantic_role": {"type": "string", "minLength": 1, "maxLength": 120}},
+                "required": ["semantic_role"], "additionalProperties": False,
+            },
+            {
+                "type": "object",
+                "properties": {"asset_slot": {"type": "string", "minLength": 1, "maxLength": 120}},
+                "required": ["asset_slot"], "additionalProperties": False,
+            },
+            {
+                "type": "object",
+                "properties": {
+                    "template_id": {"type": "string", "minLength": 1, "maxLength": 120},
+                    "component_id": {"type": "string", "minLength": 1, "maxLength": 160},
+                    "setting_id": {"type": "string", "minLength": 1, "maxLength": 200},
+                    "operation": {"type": "string", "enum": ["set", "prefer", "avoid"]},
+                    "value": typed_value,
+                },
+                "required": ["template_id", "component_id", "setting_id", "operation", "value"],
+                "additionalProperties": False,
+            },
+            {
+                "type": "object",
+                "properties": {
+                    "template_id": {"type": "string", "minLength": 1, "maxLength": 120},
+                    "component_id": {"type": "string", "minLength": 1, "maxLength": 160},
+                    "setting_id": {"type": "string", "minLength": 1, "maxLength": 200},
+                    "operation": {"type": "string", "enum": ["range"]},
+                    "minimum": {"type": "number"}, "maximum": {"type": "number"},
+                },
+                "required": ["template_id", "component_id", "setting_id", "operation", "minimum", "maximum"],
+                "additionalProperties": False,
+            },
+        ],
+    }
     return {
         "type": "object",
         "properties": {
@@ -176,9 +226,30 @@ def learning_output_schema(scope: str) -> dict[str, Any]:
                         "surface": {"type": "string", "enum": sorted(RULE_SURFACES)},
                         "family": {"type": "string", "enum": families},
                         "instruction": {"type": "string", "minLength": 8, "maxLength": 1000},
-                        "target": {"type": "object"},
-                        "evidence": {"type": "object"},
-                        "confidence": {"type": "object"},
+                        "target": target,
+                        "evidence": {
+                            "type": "object",
+                            "properties": {
+                                "metric": {"type": "string", "minLength": 1, "maxLength": 120},
+                                "summary": {"type": "string", "minLength": 1, "maxLength": 600},
+                                "winning_item_indexes": {
+                                    "type": "array", "minItems": 1, "maxItems": 24,
+                                    "items": {"type": "integer", "minimum": 0},
+                                },
+                            },
+                            "required": ["metric", "summary", "winning_item_indexes"],
+                            "additionalProperties": False,
+                        },
+                        "confidence": {
+                            "type": "object",
+                            "properties": {
+                                "level": {"type": "string", "enum": ["exploratory", "directional", "strong", "owner"]},
+                                "sample_size": {"type": "integer", "minimum": 0},
+                                "project_count": {"type": "integer", "minimum": 0},
+                            },
+                            "required": ["level", "sample_size", "project_count"],
+                            "additionalProperties": False,
+                        },
                     },
                     "required": ["surface", "family", "instruction", "target", "evidence", "confidence"],
                     "additionalProperties": False,

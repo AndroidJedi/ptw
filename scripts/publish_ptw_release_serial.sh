@@ -20,7 +20,25 @@ fi
 revision=$(git rev-parse HEAD)
 [[ -z $(git status --porcelain --untracked-files=no) ]] || { echo "tracked local changes must be committed" >&2; exit 1; }
 stream_file=$(mktemp /tmp/ptw-release-stream.XXXXXX)
-trap 'rm -f -- "$stream_file"' EXIT
+hosting_recovery_directory=
+hosting_recovery_ready=0
+vps_committed=0
+cleanup_release_stream() {
+    status=$?
+    trap - EXIT HUP INT TERM
+    if [[ $hosting_recovery_ready -eq 1 ]]; then
+        if [[ $vps_committed -eq 0 ]]; then
+            ssh -i "$HOME/.ssh/ptw_commander" -o IdentitiesOnly=yes root@165.245.212.184 \
+                "python3 /root/ptw/scripts/ptw_hosting_recovery.py restore '$hosting_recovery_directory/hosting.json'" || status=1
+        fi
+        ssh -i "$HOME/.ssh/ptw_commander" -o IdentitiesOnly=yes root@165.245.212.184 \
+            "rm -f -- '$hosting_recovery_directory/hosting.json' && rmdir -- '$hosting_recovery_directory'" || status=1
+    fi
+    rm -f -- "$stream_file"
+    exit "$status"
+}
+trap cleanup_release_stream EXIT
+trap 'exit 1' HUP INT TERM
 
 sha256_file() {
     local line
@@ -66,6 +84,12 @@ emit_file platform-revision "$platform_image_directory/platform-revision.bundle"
 printf 'END\n' >> "$stream_file"
 
 if [[ $confirmation == "DEPLOY PTW IN PLACE" ]]; then
+    hosting_recovery_directory=$(ssh -i "$HOME/.ssh/ptw_commander" -o IdentitiesOnly=yes root@165.245.212.184 \
+        'set -e; directory=$(mktemp -d /var/tmp/ptw-hosting-release.XXXXXX); python3 /root/ptw/scripts/ptw_hosting_recovery.py snapshot "$directory/hosting.json" >/dev/null; printf "%s\n" "$directory"')
+    [[ $hosting_recovery_directory =~ ^/var/tmp/ptw-hosting-release\.[A-Za-z0-9]+$ ]] || {
+        echo "Hosting recovery snapshot path is invalid" >&2; exit 1;
+    }
+    hosting_recovery_ready=1
     npm --prefix apps/landing-web run check
     firebase deploy --only hosting:public-landings
     scripts/audit_public_landing.sh https://natal-landings-86123.web.app
@@ -75,6 +99,12 @@ fi
 ssh -i "$HOME/.ssh/ptw_commander" -o IdentitiesOnly=yes root@165.245.212.184 \
     "set -e; exec 9>/run/lock/ptw-maintenance.lock; flock -n 9 || exit 73; git -C /root/ptw diff --quiet; git -C /root/ptw diff --cached --quiet; export PTW_MAINTENANCE_LOCK_HELD=1; git -C /root/ptw fetch origin '$revision'; git -C /root/ptw merge --ff-only '$revision'; exec /root/ptw/scripts/deploy_ptw_serial.sh '$release_tag' '$revision' '$platform_revision' '$confirmation'" \
     < "$stream_file"
+vps_committed=1
+if [[ $hosting_recovery_ready -eq 1 ]]; then
+    ssh -i "$HOME/.ssh/ptw_commander" -o IdentitiesOnly=yes root@165.245.212.184 \
+        "rm -f -- '$hosting_recovery_directory/hosting.json' && rmdir -- '$hosting_recovery_directory'"
+    hosting_recovery_ready=0
+fi
 
 npm --prefix apps/commander-web run check
 npm --prefix apps/commander-web run test:e2e

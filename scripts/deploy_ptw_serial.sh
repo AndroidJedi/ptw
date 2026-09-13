@@ -31,11 +31,15 @@ commander_compose=(docker compose --env-file "$platform/.env" --env-file "$repos
 validation_compose=(docker compose --env-file "$platform/.env" --env-file "$repository/.env.commander" --env-file "$repository/.env.owner-gateway" --project-name ptw-validation --project-directory "$repository" -f "$repository/docker-compose.validation.yml")
 platform_compose=(docker compose --env-file "$platform/.env" --project-directory "$platform" -f "$platform/docker-compose.yml")
 release_directory=$(mktemp -d /var/tmp/ptw-release.XXXXXX)
+source_rollback_ready=0
 rollout_rollback_ready=0
 rollout_committed=0
 cleanup_release() {
     status=$?
     trap - EXIT HUP INT TERM
+    if [[ $source_rollback_ready -eq 1 && $rollout_committed -eq 0 ]]; then
+        restore_source_revisions || status=1
+    fi
     if [[ $rollout_rollback_ready -eq 1 && $rollout_committed -eq 0 ]]; then
         restore_platform_images || status=1
         restore_application_images || status=1
@@ -48,6 +52,39 @@ trap cleanup_release EXIT
 trap 'exit 1' HUP INT TERM
 deployment_started_at=$(date --iso-8601=seconds)
 
+[[ -z $(git -C "$repository" status --porcelain --untracked-files=no) ]] || {
+    echo "production repository has tracked changes" >&2; exit 1;
+}
+[[ -z $(git -C "$platform" status --porcelain --untracked-files=no) ]] || {
+    echo "platform repository has tracked changes" >&2; exit 1;
+}
+old_repository_revision=$(tr -d '\n' < "$repository/.local/deployed-revision")
+old_platform_revision=$(git -C "$platform" rev-parse HEAD)
+[[ $old_repository_revision =~ ^[0-9a-f]{40}$ && $old_platform_revision =~ ^[0-9a-f]{40}$ ]] || {
+    echo "accepted source revision metadata is invalid" >&2; exit 1;
+}
+git -C "$repository" cat-file -e "$old_repository_revision^{commit}"
+git -C "$platform" cat-file -e "$old_platform_revision^{commit}"
+restore_source_revisions() {
+    local restore_failed=0
+    git -C "$repository" -c core.hooksPath=/dev/null switch --detach --quiet "$old_repository_revision" || restore_failed=1
+    git -C "$platform" -c core.hooksPath=/dev/null switch --detach --quiet "$old_platform_revision" || restore_failed=1
+    if [[ $restore_failed -eq 0 ]]; then
+        (
+            cd "$repository"
+            ./scripts/install_ptw_skill_sync.sh
+            python3 scripts/verify_ptw_skills.py
+        ) || restore_failed=1
+    fi
+    [[ $(git -C "$repository" rev-parse HEAD) == "$old_repository_revision" ]] || restore_failed=1
+    [[ $(git -C "$platform" rev-parse HEAD) == "$old_platform_revision" ]] || restore_failed=1
+    if [[ $restore_failed -ne 0 ]]; then
+        echo "CRITICAL: source and skill rollback could not be fully verified" >&2
+    fi
+    return "$restore_failed"
+}
+source_rollback_ready=1
+
 [[ -f "$platform/.env" && -f "$repository/.env.commander" && -f "$repository/.env.owner-gateway" ]] || {
     echo "required production environment file is missing" >&2; exit 1;
 }
@@ -59,9 +96,6 @@ pexels_value=${pexels_line#PEXELS_API_KEY=}
     echo "a root-owned PEXELS_API_KEY is required before cutover" >&2; exit 1;
 }
 unset pexels_line pexels_value
-[[ -z $(git -C "$repository" status --porcelain --untracked-files=no) ]] || {
-    echo "production repository has tracked changes" >&2; exit 1;
-}
 git -C "$repository" fetch origin "$git_revision"
 git -C "$repository" merge --ff-only "$git_revision"
 [[ $(git -C "$repository" rev-parse HEAD) == "$git_revision" ]] || { echo "requested revision was not deployed" >&2; exit 1; }

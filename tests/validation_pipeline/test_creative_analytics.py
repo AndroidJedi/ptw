@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from validation_pipeline.creative_analytics import (
     CreativeAnalyticsService, LocalCreativeAnalyticsAuthority, _rules_conflict,
-    comparison_age_band, due_milestone, normalize_rule,
+    comparison_age_band, due_milestone, learning_output_schema, normalize_rule,
     safe_landing_learning_content,
 )
 from validation_pipeline.local_brief_store import LocalBriefStore
@@ -210,6 +210,21 @@ class CreativeAnalyticsTests(unittest.TestCase):
         self.assertTrue(_rules_conflict([
             {**common, "surface": "both"}, {**common, "surface": "post"},
         ]))
+
+    def test_learning_output_schema_closes_every_object_for_codex_strict_mode(self) -> None:
+        def assert_closed(node) -> None:
+            if isinstance(node, dict):
+                if node.get("type") == "object":
+                    self.assertIs(node.get("additionalProperties"), False)
+                    self.assertEqual(set(node.get("properties", {})), set(node.get("required", [])))
+                for value in node.values():
+                    assert_closed(value)
+            elif isinstance(node, list):
+                for value in node:
+                    assert_closed(value)
+
+        for scope in ("project", "global"):
+            assert_closed(learning_output_schema(scope))
 
 
 if __name__ == "__main__":

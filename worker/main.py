@@ -193,7 +193,9 @@ def _materialize_input_images(parameters: dict, directory: Path) -> tuple[list[P
     images = parameters.get("input_images")
     reference = parameters.get("input_reference")
     if reference is not None:
-        if images is not None or parameters.get("mode") != "content_non_human_graphic_generation":
+        if images is not None or parameters.get("mode") not in {
+            "content_non_human_graphic_generation", "creative_visual_analysis",
+        }:
             raise RuntimeError("Invalid ephemeral image reference")
         reference_id = str(reference.get("id", ""))
         if not re.fullmatch(r"[0-9a-f]{32}", reference_id):
@@ -237,6 +239,28 @@ def _materialize_input_images(parameters: dict, directory: Path) -> tuple[list[P
         path.write_bytes(content)
         path.chmod(0o600)
         return [path], [{"sha256": digest, "attachment_index": 1}]
+    if mode == "creative_visual_analysis":
+        if not isinstance(images, list) or len(images) != 1:
+            raise RuntimeError("creative visual analysis requires exactly one approved PNG")
+        image = images[0]
+        try:
+            content = base64.b64decode(image["bytes_base64"], validate=True)
+        except (KeyError, TypeError, ValueError, binascii.Error) as exc:
+            raise RuntimeError("creative visual analysis artifact base64 is invalid") from exc
+        digest = hashlib.sha256(content).hexdigest()
+        if (
+            set(image) != {"name", "mime_type", "sha256", "bytes_base64"}
+            or image.get("name") != "approved_png"
+            or image.get("mime_type") != "image/png"
+            or image.get("sha256") != digest
+            or not content.startswith(b"\x89PNG\r\n\x1a\n")
+            or not 33 <= len(content) <= 8 * 1024 * 1024
+        ):
+            raise RuntimeError("creative visual analysis artifact failed exact PNG validation")
+        path = directory / f"approved-{digest[:12]}.png"
+        path.write_bytes(content)
+        path.chmod(0o600)
+        return [path], [{"name": "approved_png", "sha256": digest, "attachment_index": 1}]
     if images is not None:
         raise RuntimeError("only the media mode accepts input images")
     return [], []
@@ -257,7 +281,8 @@ def execute_structured_llm(parameters: dict) -> dict:
     mode = parameters.get("mode")
     if mode not in {
         "product_brief", "product_brief_revision", "studio_creative_generation",
-        "studio_edit_learning", "content_non_human_graphic_generation",
+        "creative_performance_learning", "creative_visual_analysis",
+        "content_non_human_graphic_generation",
     }:
         raise RuntimeError("unsupported Result bridge mode")
     prompt = (
@@ -271,11 +296,18 @@ def execute_structured_llm(parameters: dict) -> dict:
         output = temporary_root / "result.json"
         schema = temporary_root / "output-schema.json"
         attachments, attachment_mapping = _materialize_input_images(parameters, temporary_root)
-        if attachment_mapping:
+        if attachment_mapping and mode == "content_non_human_graphic_generation":
             prompt += (
                 "\nREFERENCE_ATTACHMENT: Use the one attached digest-checked PNG as visual context "
                 "together with the owner direction. Infer what to retain or change from that direction. In "
                 "the image-generation call use num_last_images_to_include=1 and do not use a path.\n"
+                + json.dumps(attachment_mapping, ensure_ascii=False, sort_keys=True)
+            )
+        elif attachment_mapping:
+            prompt += (
+                "\nAPPROVED_VISUAL_ATTACHMENT: Inspect the one attached digest-checked PNG "
+                "only for bounded, non-identifying visual descriptors. Do not perform OCR, "
+                "identify people, or generate an image.\n"
                 + json.dumps(attachment_mapping, ensure_ascii=False, sort_keys=True)
             )
         if mode == "content_non_human_graphic_generation":

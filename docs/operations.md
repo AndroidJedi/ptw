@@ -7,7 +7,9 @@ new bounded PTW modes.
 Verify `/internal/llm/structured/capabilities` through the authenticated
 application canary. It must report exactly `product_brief`,
 `product_brief_revision`, `studio_creative_generation`,
-`studio_edit_learning`, and `content_non_human_graphic_generation`.
+`creative_performance_learning`, `creative_visual_analysis`, and
+`content_non_human_graphic_generation`. Visual analysis accepts exactly one
+digest-bound approved PNG through the ephemeral input-reference boundary.
 The media canary must cover both a fresh text-free graphic and one
 digest-mapped PNG enhancement.
 

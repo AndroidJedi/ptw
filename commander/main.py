@@ -37,9 +37,10 @@ secrets = EnvironmentSecretStore()
 EMERGENCY_COMMANDS = frozenset({"/help", "/status", "/stop"})
 JSON_MODES = frozenset({
     "product_brief", "product_brief_revision", "studio_creative_generation",
-    "studio_edit_learning",
+    "creative_performance_learning", "creative_visual_analysis",
 })
 MEDIA_MODES = frozenset({"content_non_human_graphic_generation"})
+MULTIMODAL_MODES = frozenset({"creative_visual_analysis"})
 STRUCTURED_LLM_MODES = frozenset(JSON_MODES | MEDIA_MODES)
 MAX_STRUCTURED_LLM_REQUEST_BYTES = 12_000_000
 MAX_MEDIA_REFERENCE_BYTES = 8 * 1024 * 1024
@@ -69,6 +70,9 @@ def validate_structured_llm_request(request: dict) -> None:
     if "input_reference" in request:
         raise ValueError("reference handles are server-owned")
     images = request.get("input_images")
+    artifacts = request.get("input_artifacts")
+    if images is not None and artifacts is not None:
+        raise ValueError("only one structured image input family is allowed")
     if request["mode"] == "content_non_human_graphic_generation":
         if images is not None:
             if not isinstance(images, list) or len(images) != 1:
@@ -98,6 +102,28 @@ def validate_structured_llm_request(request: dict) -> None:
                 raise ValueError("non-human graphic reference bytes or dimensions are invalid")
     elif images is not None:
         raise ValueError("only the media mode accepts input images")
+    if request["mode"] == "creative_visual_analysis":
+        if not isinstance(artifacts, list) or len(artifacts) != 1:
+            raise ValueError("creative visual analysis requires exactly one approved PNG")
+        artifact = artifacts[0]
+        if not isinstance(artifact, dict) or set(artifact) != {
+            "name", "mime_type", "sha256", "bytes_base64",
+        }:
+            raise ValueError("invalid creative visual analysis artifact mapping")
+        try:
+            content = base64.b64decode(artifact["bytes_base64"], validate=True)
+        except (TypeError, ValueError, binascii.Error) as error:
+            raise ValueError("creative visual analysis artifact base64 is invalid") from error
+        if (
+            artifact["name"] != "approved_png"
+            or artifact["mime_type"] != "image/png"
+            or not content.startswith(b"\x89PNG\r\n\x1a\n")
+            or not 33 <= len(content) <= MAX_MEDIA_REFERENCE_BYTES
+            or artifact["sha256"] != hashlib.sha256(content).hexdigest()
+        ):
+            raise ValueError("creative visual analysis artifact failed exact PNG validation")
+    elif artifacts is not None:
+        raise ValueError("only creative visual analysis accepts structured input artifacts")
     if len(json.dumps(request, ensure_ascii=False).encode("utf-8")) > MAX_STRUCTURED_LLM_REQUEST_BYTES:
         raise ValueError("structured LLM request is too large")
 
@@ -105,6 +131,7 @@ def validate_structured_llm_request(request: dict) -> None:
 def structured_llm_capabilities() -> dict:
     return {
         "json_modes": sorted(JSON_MODES), "media_modes": sorted(MEDIA_MODES),
+        "multimodal_modes": sorted(MULTIMODAL_MODES),
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
         "image_reference_retention": "ephemeral",
     }

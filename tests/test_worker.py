@@ -81,6 +81,49 @@ def test_result_json_uses_fresh_ephemeral_schema_bound_session(monkeypatch) -> N
     assert observed["schema"] == {"type": "object"}
 
 
+def test_visual_analysis_receives_digest_checked_approved_png(monkeypatch) -> None:
+    approved = png_header(1024, 768)
+    digest = hashlib.sha256(approved).hexdigest()
+    observed = {}
+    monkeypatch.setattr("worker.main.secrets.get", lambda _name: "test-token")
+    reference_id = "1" * 32
+
+    def consume(url, **kwargs):
+        assert url.endswith(f"/{reference_id}/consume")
+        assert kwargs["headers"] == {"X-PTW-Bridge-Token": "test-token"}
+        return __import__("unittest").mock.Mock(status_code=200, content=approved)
+
+    def fake_run(command, **kwargs):
+        attachments = [
+            Path(command[index + 1])
+            for index, value in enumerate(command) if value == "--image"
+        ]
+        observed["bytes"] = [path.read_bytes() for path in attachments]
+        observed["prompt"] = kwargs["input"]
+        Path(command[command.index("--output-last-message") + 1]).write_text(
+            '{"palette":["neutral"]}', encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(
+            command, 0, stdout=thread_output("visual-analysis-1"), stderr="",
+        )
+
+    monkeypatch.setattr("worker.main.httpx.post", consume)
+    monkeypatch.setattr("worker.main.subprocess.run", fake_run)
+    value = execute_structured_llm(request(
+        "creative_visual_analysis",
+        input_reference={
+            "id": reference_id, "name": "approved_png",
+            "mime_type": "image/png", "sha256": digest,
+        },
+    ))
+
+    assert json.loads(value["response"]) == {"palette": ["neutral"]}
+    assert observed["bytes"] == [approved]
+    assert digest in observed["prompt"]
+    assert base64.b64encode(approved).decode() not in observed["prompt"]
+    assert "Do not perform OCR" in observed["prompt"]
+
+
 def test_structured_execution_timeout_is_bounded_and_passed_to_codex(monkeypatch) -> None:
     observed = {}
     monkeypatch.setenv("RESULT_BRIDGE_EXECUTION_TIMEOUT_SECONDS", "360")

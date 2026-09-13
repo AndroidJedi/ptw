@@ -17,6 +17,15 @@ def image():
             'digest': hashlib.sha256(content).hexdigest(), 'bytes_base64': base64.b64encode(content).decode()}
 
 
+def visual_artifact():
+    content = png_header(640, 320)
+    return {
+        'name': 'approved_png', 'mime_type': 'image/png',
+        'sha256': hashlib.sha256(content).hexdigest(),
+        'bytes_base64': base64.b64encode(content).decode(),
+    }
+
+
 def test_job_parameters_never_contain_image_bytes():
     references = EphemeralImageReferences()
     request = {'mode': 'content_non_human_graphic_generation', 'input_images': [image()]}
@@ -27,6 +36,17 @@ def test_job_parameters_never_contain_image_bytes():
     assert references.consume(key) == image()
     with pytest.raises(KeyError):
         references.consume(key)
+
+
+def test_visual_artifact_bytes_are_ephemeral_and_never_persisted():
+    references = EphemeralImageReferences()
+    persisted, key = persistable_image_request({
+        'mode': 'creative_visual_analysis', 'input_artifacts': [visual_artifact()],
+    }, references)
+    assert 'input_artifacts' not in persisted
+    assert 'bytes_base64' not in json.dumps(persisted)
+    assert persisted['input_reference']['name'] == 'approved_png'
+    assert references.consume(key) == visual_artifact()
 
 
 def test_ttl_capacity_explicit_cleanup_and_restart():

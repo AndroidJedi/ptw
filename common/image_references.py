@@ -44,9 +44,13 @@ def persistable_image_request(request: dict, references: EphemeralImageReference
     """Replace the validated upload with metadata before Jsonb serialization."""
     result = dict(request)
     images = result.pop("input_images", None)
-    if images is None:
+    artifacts = result.pop("input_artifacts", None)
+    if images is not None and artifacts is not None:
+        raise ValueError("only one structured image input family is allowed")
+    inputs = images if images is not None else artifacts
+    if inputs is None:
         return result, None
-    image = images[0]
+    image = inputs[0]
     key = references.put(image)
     result["input_reference"] = {"id": key, **{k: v for k, v in image.items() if k != "bytes_base64"}}
     return result, key

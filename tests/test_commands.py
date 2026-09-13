@@ -4,7 +4,8 @@ import pytest
 from pathlib import Path
 
 from commander.main import (
-    EMERGENCY_COMMANDS, JSON_MODES, MEDIA_MODES, MAX_STRUCTURED_LLM_REQUEST_BYTES,
+    EMERGENCY_COMMANDS, JSON_MODES, MEDIA_MODES, MULTIMODAL_MODES,
+    MAX_STRUCTURED_LLM_REQUEST_BYTES,
     get_structured_llm_capabilities, normalized_command, public_health,
     structured_llm_capabilities, validate_structured_llm_request,
 )
@@ -32,17 +33,19 @@ def test_telegram_surface_is_emergency_only() -> None:
 def test_structured_bridge_accepts_exact_result_modes_and_full_contract() -> None:
     json_modes = {
         "product_brief", "product_brief_revision", "studio_creative_generation",
-        "studio_edit_learning",
+        "creative_performance_learning", "creative_visual_analysis",
     }
     assert JSON_MODES == json_modes
     assert MEDIA_MODES == {"content_non_human_graphic_generation"}
+    assert MULTIMODAL_MODES == {"creative_visual_analysis"}
     assert structured_llm_capabilities() == {
         "json_modes": sorted(json_modes),
         "media_modes": ["content_non_human_graphic_generation"],
+        "multimodal_modes": ["creative_visual_analysis"],
         "max_request_bytes": MAX_STRUCTURED_LLM_REQUEST_BYTES,
         "image_reference_retention": "ephemeral",
     }
-    for mode in json_modes | MEDIA_MODES:
+    for mode in (json_modes - MULTIMODAL_MODES) | MEDIA_MODES:
         validate_structured_llm_request({
             "mode": mode,
             "system_prompt": "Return structured evidence.",
@@ -68,6 +71,18 @@ def test_structured_bridge_accepts_exact_result_modes_and_full_contract() -> Non
             "digest": hashlib.sha256(reference).hexdigest(),
             "width": 1024,
             "height": 1024,
+            "bytes_base64": base64.b64encode(reference).decode(),
+        }],
+    })
+    validate_structured_llm_request({
+        "mode": "creative_visual_analysis",
+        "system_prompt": "Describe safe visual traits.",
+        "input_payload": {"artifact_sha256": hashlib.sha256(reference).hexdigest()},
+        "output_schema": {"type": "object"},
+        "idempotency_key": "test:creative-visual:attempt:1",
+        "input_artifacts": [{
+            "name": "approved_png", "mime_type": "image/png",
+            "sha256": hashlib.sha256(reference).hexdigest(),
             "bytes_base64": base64.b64encode(reference).decode(),
         }],
     })

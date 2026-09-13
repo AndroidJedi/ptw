@@ -425,6 +425,11 @@ class MetaAdsAdapter:
             data=self._data(
                 name=name, objective=objective, buying_type="AUCTION", status="PAUSED",
                 special_ad_categories=[] if categories == ["NONE"] else categories,
+                # This product owns budgets at the Ad Set level. Graph API v26
+                # requires the sharing choice to be explicit when no campaign
+                # budget is supplied; keep it disabled so Meta cannot move spend
+                # between owner-reviewed audiences.
+                is_adset_budget_sharing_enabled=False,
             ), outcome="Meta campaign creation failed",
         )
         return {"id": str(payload["id"]), "name": name, "status": "PAUSED"}

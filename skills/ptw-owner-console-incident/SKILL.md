@@ -54,6 +54,16 @@ before changing code or runtime state.
   import insights, but must never replay activation, budget, schedule, audience,
   or creative changes. Preserve the original PAUSED deployment, audience preset,
   and approved source lineage.
+- When Ads Manager reports missing media on a generic manual draft such as
+  `New Traffic Ad`, correlate it with PTW's lineage-tagged campaign, Ad Set,
+  creative, and Ad names before changing creative code. A deployment that failed
+  at `creating_campaign` with no image hash or creative/Ad ID never reached media
+  upload; the manual draft is a separate object. For Graph API v26 Ad Set-budget
+  campaigns, send `is_adset_budget_sharing_enabled=false` explicitly and confirm
+  with a validate-only provider request before retrying the same PAUSED deployment.
+  Acceptance requires the stored image hash, creative ID, Ad ID, and Meta's
+  creative readback to match the approved render lineage; never activate it as
+  part of incident recovery.
 
 ## Brief, Studio, and provider checks
 

@@ -143,12 +143,22 @@ esac
 old_commander_image=$(docker inspect ptw-commander-api-1 --format '{{.Config.Image}}')
 old_validation_image=$(docker inspect ptw-validation-validation-api-1 --format '{{.Config.Image}}')
 old_gateway_image=$(docker inspect ptw-owner-gateway-1 --format '{{.Config.Image}}')
-case "$old_commander_image" in
-    ptw-commander:*) old_app_tag=${old_commander_image#ptw-commander:} ;;
-    *) echo "unexpected deployed Commander image: $old_commander_image" >&2; exit 1 ;;
-esac
-[[ $old_app_tag != latest && $old_validation_image == "ptw-validation:$old_app_tag" && $old_gateway_image == "ptw-owner-gateway:$old_app_tag" ]] || {
-    echo "deployed PTW application tags do not match" >&2; exit 1;
+case "$old_commander_image" in ptw-commander:latest) exit 1 ;; ptw-commander:*) ;; *) echo "unexpected deployed Commander image: $old_commander_image" >&2; exit 1 ;; esac
+case "$old_validation_image" in ptw-validation:latest) exit 1 ;; ptw-validation:*) ;; *) echo "unexpected deployed Validation image: $old_validation_image" >&2; exit 1 ;; esac
+case "$old_gateway_image" in ptw-owner-gateway:latest) exit 1 ;; ptw-owner-gateway:*) ;; *) echo "unexpected deployed Gateway image: $old_gateway_image" >&2; exit 1 ;; esac
+
+set_env_value() {
+    local file=$1 key=$2 value=$3 temporary
+    temporary=$(mktemp "${file}.next.XXXXXX")
+    awk -v key="$key" -v value="$value" '
+      BEGIN { found=0 }
+      index($0,key "=")==1 { if (!found) print key "=" value; found=1; next }
+      { print }
+      END { if (!found) print key "=" value }
+    ' "$file" > "$temporary"
+    chmod --reference="$file" "$temporary"
+    chown --reference="$file" "$temporary"
+    mv -f -- "$temporary" "$file"
 }
 
 restore_platform_images() {
@@ -169,14 +179,18 @@ restore_platform_images() {
 
 restore_application_images() {
     local restore_failed=0
-    export PTW_IMAGE_TAG=$old_app_tag
+    export PTW_COMMANDER_IMAGE=$old_commander_image
+    export PTW_VALIDATION_IMAGE=$old_validation_image
+    export PTW_OWNER_GATEWAY_IMAGE=$old_gateway_image
     "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api || restore_failed=1
     "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api || restore_failed=1
     "${commander_compose[@]}" up -d --no-deps --no-build --wait owner-gateway || restore_failed=1
-    sed -i "s/^PTW_IMAGE_TAG=.*/PTW_IMAGE_TAG=$old_app_tag/" "$repository/.env.commander" || restore_failed=1
-    [[ $(docker inspect ptw-commander-api-1 --format '{{.Config.Image}}') == "ptw-commander:$old_app_tag" ]] || restore_failed=1
-    [[ $(docker inspect ptw-validation-validation-api-1 --format '{{.Config.Image}}') == "ptw-validation:$old_app_tag" ]] || restore_failed=1
-    [[ $(docker inspect ptw-owner-gateway-1 --format '{{.Config.Image}}') == "ptw-owner-gateway:$old_app_tag" ]] || restore_failed=1
+    set_env_value "$repository/.env.commander" PTW_COMMANDER_IMAGE "$old_commander_image" || restore_failed=1
+    set_env_value "$repository/.env.commander" PTW_VALIDATION_IMAGE "$old_validation_image" || restore_failed=1
+    set_env_value "$repository/.env.commander" PTW_OWNER_GATEWAY_IMAGE "$old_gateway_image" || restore_failed=1
+    [[ $(docker inspect ptw-commander-api-1 --format '{{.Config.Image}}') == "$old_commander_image" ]] || restore_failed=1
+    [[ $(docker inspect ptw-validation-validation-api-1 --format '{{.Config.Image}}') == "$old_validation_image" ]] || restore_failed=1
+    [[ $(docker inspect ptw-owner-gateway-1 --format '{{.Config.Image}}') == "$old_gateway_image" ]] || restore_failed=1
     if [[ $restore_failed -ne 0 ]]; then
         echo "CRITICAL: application rollback could not be fully verified" >&2
     fi
@@ -197,6 +211,9 @@ git -C "$platform" merge --ff-only "$platform_git_revision"
 }
 
 export PTW_PLATFORM_IMAGE_TAG=$release_tag
+export PTW_COMMANDER_IMAGE="ptw-commander:$release_tag"
+export PTW_VALIDATION_IMAGE="ptw-validation:$release_tag"
+export PTW_OWNER_GATEWAY_IMAGE="ptw-owner-gateway:$release_tag"
 # Render the exact production configuration before replacing either bridge
 # service. A comma-delimited tmpfs option must remain one mount item.
 rendered_platform_compose="$release_directory/platform-compose.yml"
@@ -242,11 +259,10 @@ else
     fi
 fi
 
-if grep -q '^PTW_IMAGE_TAG=' "$repository/.env.commander"; then
-    sed -i "s/^PTW_IMAGE_TAG=.*/PTW_IMAGE_TAG=$release_tag/" "$repository/.env.commander"
-else
-    printf '\nPTW_IMAGE_TAG=%s\n' "$release_tag" >> "$repository/.env.commander"
-fi
+set_env_value "$repository/.env.commander" PTW_IMAGE_TAG "$release_tag"
+set_env_value "$repository/.env.commander" PTW_COMMANDER_IMAGE "ptw-commander:$release_tag"
+set_env_value "$repository/.env.commander" PTW_VALIDATION_IMAGE "ptw-validation:$release_tag"
+set_env_value "$repository/.env.commander" PTW_OWNER_GATEWAY_IMAGE "ptw-owner-gateway:$release_tag"
 grep -qx "PTW_IMAGE_TAG=$release_tag" "$repository/.env.commander" || {
     echo "application release tag was not persisted" >&2; exit 1;
 }

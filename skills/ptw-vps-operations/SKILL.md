@@ -302,6 +302,13 @@ until every dependency/resource/OOM audit passes, any error or termination must
 restore and verify all application and platform images plus their persisted
 tags. An additive migration may remain after rollback; existing rows must not
 change and the root-only backup remains the recovery authority.
+Accepted selective releases can leave Commander, Validation, and Owner Gateway
+on different versioned tags. The serial/in-place preflight and rollback must
+therefore capture and restore `PTW_COMMANDER_IMAGE`, `PTW_VALIDATION_IMAGE`, and
+`PTW_OWNER_GATEWAY_IMAGE` independently; never require one shared legacy
+`PTW_IMAGE_TAG`, and never restart an unchanged GOD service merely to normalize
+tags. Retagging preserved platform archives for a new serial release is allowed
+only when their exact revision bundle and image bytes are retained.
 
 Before a Validation or platform rollout, run real domain-validating canaries for
 both Product Brief modes, Universal Post, Phone Metrics, Landing composition,

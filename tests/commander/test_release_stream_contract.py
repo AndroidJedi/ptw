@@ -456,6 +456,15 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn('restore_platform_images || status=1', deployer)
         self.assertIn('rollout_committed=1', deployer)
         self.assertIn("CRITICAL: application rollback could not be fully verified", deployer)
+        self.assertNotIn("deployed PTW application tags do not match", deployer)
+        for key in ("PTW_COMMANDER_IMAGE", "PTW_VALIDATION_IMAGE", "PTW_OWNER_GATEWAY_IMAGE"):
+            self.assertIn(f'set_env_value "$repository/.env.commander" {key}', deployer)
+
+        in_place = (ROOT / "scripts/deploy_ptw_in_place.sh").read_text()
+        self.assertNotIn("deployed PTW application images are not one matching versioned release", in_place)
+        self.assertIn("export PTW_COMMANDER_IMAGE=$target_commander_image", in_place)
+        self.assertIn("export PTW_VALIDATION_IMAGE=$target_validation_image", in_place)
+        self.assertIn("export PTW_OWNER_GATEWAY_IMAGE=$target_gateway_image", in_place)
 
     def test_release_uses_named_multisite_targets_and_public_shell_first_for_in_place(self) -> None:
         publisher = (ROOT / "scripts/publish_ptw_release_serial.sh").read_text()

@@ -31,17 +31,13 @@ owner_gateway_container=$("${commander_compose[@]}" ps -q owner-gateway)
 old_commander_image=$(docker inspect "$commander_api_container" --format '{{.Config.Image}}')
 old_validation_image=$(docker inspect "$validation_api_container" --format '{{.Config.Image}}')
 old_gateway_image=$(docker inspect "$owner_gateway_container" --format '{{.Config.Image}}')
-old_god_running=0
-if [[ $(docker inspect ptw-commander-god-1 --format '{{.State.Running}}' 2>/dev/null || true) == true ]]; then
-    old_god_running=1
-fi
-case "$old_commander_image" in ptw-commander:*) old_tag=${old_commander_image#ptw-commander:} ;; *) echo "unexpected Commander image" >&2; exit 1 ;; esac
-[[ $old_tag != latest && $old_validation_image == "ptw-validation:$old_tag" && $old_gateway_image == "ptw-owner-gateway:$old_tag" ]] || {
-    echo "deployed PTW application images are not one matching versioned release" >&2; exit 1;
-}
-if [[ $old_god_running -eq 1 ]]; then
-    [[ $(docker inspect ptw-commander-god-1 --format '{{.Config.Image}}') == "ptw-validation:$old_tag" ]]
-fi
+case "$old_commander_image" in ptw-commander:latest) exit 1 ;; ptw-commander:*) ;; *) echo "unexpected Commander image" >&2; exit 1 ;; esac
+case "$old_validation_image" in ptw-validation:latest) exit 1 ;; ptw-validation:*) ;; *) echo "unexpected Validation image" >&2; exit 1 ;; esac
+case "$old_gateway_image" in ptw-owner-gateway:latest) exit 1 ;; ptw-owner-gateway:*) ;; *) echo "unexpected Owner Gateway image" >&2; exit 1 ;; esac
+
+target_commander_image="ptw-commander:$release_tag"
+target_validation_image="ptw-validation:$release_tag"
+target_gateway_image="ptw-owner-gateway:$release_tag"
 
 before_snapshot=$(mktemp /run/ptw-in-place-before.XXXXXX)
 after_snapshot=$(mktemp /run/ptw-in-place-after.XXXXXX)
@@ -52,18 +48,15 @@ snapshot_ready=0
 rollback() {
     set +e
     local rollback_failed=0
-    export PTW_IMAGE_TAG=$old_tag
+    export PTW_COMMANDER_IMAGE=$old_commander_image
+    export PTW_VALIDATION_IMAGE=$old_validation_image
+    export PTW_OWNER_GATEWAY_IMAGE=$old_gateway_image
     "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-api >/dev/null 2>&1 || rollback_failed=1
     "${validation_compose[@]}" up -d --no-deps --no-build --wait validation-api >/dev/null 2>&1 || rollback_failed=1
-    if [[ $old_god_running -eq 1 ]]; then
-        "${commander_compose[@]}" up -d --no-deps --no-build --wait commander-god >/dev/null 2>&1 || rollback_failed=1
-    else
-        "${commander_compose[@]}" rm -sf commander-god >/dev/null 2>&1 || rollback_failed=1
-    fi
     "${commander_compose[@]}" up -d --no-deps --no-build --wait owner-gateway >/dev/null 2>&1 || rollback_failed=1
-    [[ $(docker inspect "$("${commander_compose[@]}" ps -q commander-api)" --format '{{.Config.Image}}') == "ptw-commander:$old_tag" ]] || rollback_failed=1
-    [[ $(docker inspect "$("${validation_compose[@]}" ps -q validation-api)" --format '{{.Config.Image}}') == "ptw-validation:$old_tag" ]] || rollback_failed=1
-    [[ $(docker inspect "$("${commander_compose[@]}" ps -q owner-gateway)" --format '{{.Config.Image}}') == "ptw-owner-gateway:$old_tag" ]] || rollback_failed=1
+    [[ $(docker inspect "$("${commander_compose[@]}" ps -q commander-api)" --format '{{.Config.Image}}') == "$old_commander_image" ]] || rollback_failed=1
+    [[ $(docker inspect "$("${validation_compose[@]}" ps -q validation-api)" --format '{{.Config.Image}}') == "$old_validation_image" ]] || rollback_failed=1
+    [[ $(docker inspect "$("${commander_compose[@]}" ps -q owner-gateway)" --format '{{.Config.Image}}') == "$old_gateway_image" ]] || rollback_failed=1
     if [[ $rollback_failed -ne 0 ]]; then
         echo "CRITICAL: in-place deployment could not verify complete application rollback" >&2
     else
@@ -98,6 +91,10 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
+
+export PTW_COMMANDER_IMAGE=$target_commander_image
+export PTW_VALIDATION_IMAGE=$target_validation_image
+export PTW_OWNER_GATEWAY_IMAGE=$target_gateway_image
 
 snapshot_database() {
     # Capture all pre-existing business tables and columns once. Additive columns

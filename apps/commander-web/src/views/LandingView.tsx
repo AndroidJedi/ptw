@@ -13,7 +13,7 @@ import { labels, landingIssues, sections, type Section } from '../landing/model'
 import '../landing/editor.css'
 
 type SourcePost = { creative_id: string; version: number; version_sha256: string; template_id: string; source_brief_id: string }
-type LearningResult = { checkpoint: { checkpoint_id: string; status: string; edit_summary?: string; project_lesson?: string; after_snapshot?: unknown; error_message?: string } | null; learning_proposal: { proposal_id: string; global_rule: string; status: string } | null }
+type CheckpointResult = { checkpoint: { checkpoint_id: string; status: string } | null; learning_proposal: null }
 function clone<T>(value: T): T { return structuredClone(value) }
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 function suggestedSlug(name: string) {
@@ -37,7 +37,6 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   const [section, setSection] = useState<Section>('hero')
   const [mode, setMode] = useState<'edit' | 'preview'>('edit')
   const [width, setWidth] = useState(() => window.innerWidth <= 700 ? 360 : 1280)
-  const [learning, setLearning] = useState<LearningResult | null>(null)
   const [notice, setNotice] = useState('')
   const [checkpointPending, setCheckpointPending] = useState(false)
   const [publication, setPublication] = useState<LandingPublication | null>(null)
@@ -57,7 +56,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   const reload = async () => {
     if (!projectId) return
     const epoch = ++requestEpoch.current
-    setError(''); setPages(null); setSources(null); setDetail(null); setLearning(null); setCheckpointPending(false); setPublicationLoaded(false)
+    setError(''); setPages(null); setSources(null); setDetail(null); setCheckpointPending(false); setPublicationLoaded(false)
     try {
       const [pageList, sourceList] = await Promise.all([
         api.get<{ items: LandingSummary[] }>(`${base}/pages`), api.get<{ items: SourcePost[] }>(`${base}/source-posts`),
@@ -153,13 +152,12 @@ export function LandingView({ api, language, projectId = null, projectName = '',
     if (!detail || !configuration || !content) return
     setBusy(true); setError('')
     try {
-      const value = await api.post<{ landing: LandingDetail } & LearningResult>(`${base}/pages/${detail.landing_id}/${approve ? 'approve' : 'save'}`, approve
+      const value = await api.post<{ landing: LandingDetail } & CheckpointResult>(`${base}/pages/${detail.landing_id}/${approve ? 'approve' : 'save'}`, approve
         ? { base_sha256: detail.state_sha256, configuration, content, change_note: note }
         : { base_sha256: detail.state_sha256, configuration, content }, { deadlineMs: 480_000 })
       applyDetail(value.landing)
       setCheckpointPending(false)
       setNotice(approve ? tr('Landing approved. Private version saved.', 'Лендінг затверджено. Приватну версію збережено.') : tr('Landing saved.', 'Лендінг збережено.'))
-      if (value.checkpoint) setLearning(value)
     } catch (cause) {
       const failure = cause && typeof cause === 'object' && 'details' in cause
         ? (cause as { details?: { status?: number; detail?: string } }).details : undefined
@@ -210,20 +208,6 @@ export function LandingView({ api, language, projectId = null, projectName = '',
   const status = detail?.status
   const dirty = Boolean(detail && configuration && content && (JSON.stringify(configuration) !== JSON.stringify(detail.configuration) || JSON.stringify(content) !== JSON.stringify(detail.content)))
   const issues = configuration && content && detail ? landingIssues(configuration, content, detail.assets) : []
-  const decideLearning = async (decision: string) => {
-    if (!learning?.learning_proposal || !detail) return
-    setBusy(true)
-    try {
-      await api.post(`${base}/pages/${detail.landing_id}/learning/${learning.learning_proposal.proposal_id}`, { decision })
-      setLearning(null); setNotice(tr('Learning preference saved.', 'Налаштування навчання збережено.'))
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
-  }
-  const retryLearning = async () => {
-    if (!learning?.checkpoint || !detail) return
-    setBusy(true)
-    try { setLearning(await api.post<LearningResult>(`${base}/pages/${detail.landing_id}/learning/${learning.checkpoint.checkpoint_id}/retry`, {})) }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
-  }
   const refreshPublication = async () => {
     if (!projectId) return null
     const value = await api.get<{ publication: LandingPublication | null }>(`${base}/publication`)
@@ -288,7 +272,7 @@ export function LandingView({ api, language, projectId = null, projectName = '',
       <button className="secondary" disabled={busy} onClick={() => void save(false)}><Save />{tr('Save Landing', 'Зберегти лендінг')}</button>
       <button className="primary" disabled={busy || issues.length > 0 || !note.trim()} onClick={() => void save(true)}><Check />{tr('Approve Landing', 'Затвердити лендінг')}</button>
     </div></header>
-    {error && !learning && <div className="landing-inline-error" role="alert">{error}<button className="ghost" onClick={() => setError('')}>{tr('Dismiss', 'Закрити')}</button></div>}
+    {error && <div className="landing-inline-error" role="alert">{error}<button className="ghost" onClick={() => setError('')}>{tr('Dismiss', 'Закрити')}</button></div>}
     {(detail.versions.length > 0 || publication) && <section className="panel landing-publication-panel" aria-labelledby="landing-publication-title">
       <header><div><small>PUBLIC NATAL PAGE</small><h2 id="landing-publication-title"><Globe2 /> {tr('Publication', 'Публікація')}</h2></div>{publication && <span className={`landing-publication-status is-${publication.status}`}>{publication.status}</span>}</header>
       {!publication ? <>
@@ -315,8 +299,5 @@ export function LandingView({ api, language, projectId = null, projectName = '',
       <div className="landing-preview-area">{preview(mode === 'edit')}</div>
     </div>
     {landingViewOpen && <LandingDialog title={tr('Full-screen Landing preview', 'Повноекранне прев’ю лендінгу')} onClose={() => setLandingViewOpen(false)} className="landing-fullscreen"><div className="landing-dialog-toolbar">{viewportControls}<small>{tr('PRIVATE LANDING', 'ПРИВАТНИЙ ЛЕНДІНГ')}</small></div>{preview(false)}</LandingDialog>}
-    {learning?.checkpoint && <LandingDialog title={tr('Landing saved · Project learning', 'Лендінг збережено · Навчання проєкту')} onClose={() => setLearning(null)} className="landing-learning"><div className="landing-learning-content">{error && <p role="alert">{error}</p>}
-      {learning.checkpoint.status === 'failed' ? <ErrorState message={operationFailureMessage({ operation: 'learning', detail: learning.checkpoint.error_message, reference: learning.checkpoint.checkpoint_id }, language)} retry={() => void retryLearning()} language={language} /> : <><p>{learning.checkpoint.edit_summary}</p><p>{learning.checkpoint.project_lesson || tr('Your changes have been saved as a Project lesson.', 'Ваші зміни збережено як урок для проєкту.')}</p>{learning.learning_proposal && <><h3>{tr('Suggested global rule', 'Запропоноване глобальне правило')}</h3><p>{learning.learning_proposal.global_rule}</p><div className="landing-actions"><button className="primary" disabled={busy} onClick={() => void decideLearning('apply_global')}>{tr('Apply globally', 'Застосувати глобально')}</button><button className="secondary" disabled={busy} onClick={() => void decideLearning('keep_project')}>{tr('Keep project-only', 'Лише для проєкту')}</button></div></>}</>}
-    </div></LandingDialog>}
   </section>
 }

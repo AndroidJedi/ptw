@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import base64
 import json
 import tempfile
 from uuid import uuid4
@@ -14,13 +15,14 @@ from .landing_pages import (
     landing_generation_schema, validate_landing_composition,
 )
 from .landing_workspace import LandingWorkspace
+from .creative_analytics import (
+    learning_output_schema, normalize_rule, validate_visual_descriptor,
+    visual_descriptor_schema,
+)
 from .openai_images import ResultBridgePhoneScreenImageProvider
 from .provider import BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES, StructuredBridge
 from .service import load_product_brief_skill, product_brief_system_prompt
-from .studio_creatives import (
-    creative_generation_schema, studio_edit_learning_schema,
-    validate_studio_edit_learning,
-)
+from .studio_creatives import creative_generation_schema
 from .studio_workspace import UniversalStudioWorkspace
 
 
@@ -194,8 +196,8 @@ def main() -> None:
                     "generation": {}, "assets": [], "version_sha256": "0" * 64,
                 },
                 content_defaults=landing_detail["content"],
-                global_skill="No accepted global Landing lessons yet.",
-                project_skill="No accepted Project Landing lessons yet.",
+                active_creative_skills={"project": None, "global": None},
+                live_landing_catalog=landing_detail["catalog"],
             ),
             output_schema=landing_generation_schema(),
             prompt_version=LANDING_COMPOSER_PROMPT_VERSION,
@@ -211,51 +213,61 @@ def main() -> None:
             raise RuntimeError("Landing composition changed server-owned configuration")
     accept(landing, "landing_composition")
 
-    studio_private_marker = f"project-private-{marker}"
+    def validate_performance_learning(value):
+        if not isinstance(value, dict) or set(value) != {"candidates"}:
+            raise ValueError("performance learning canary fields are invalid")
+        if not isinstance(value["candidates"], list) or not value["candidates"]:
+            raise ValueError("performance learning canary returned no candidate")
+        return {
+            "candidates": [
+                normalize_rule(item, scope="project", project_id=marker)
+                for item in value["candidates"]
+            ],
+        }
 
-    def validate_studio_learning(value):
-        result = validate_studio_edit_learning(value)
-        if studio_private_marker.casefold() in result["global_rule"].casefold():
-            raise ValueError("Studio learning canary leaked Project content globally")
-        return result
-
-    learned = provider.call(
-        mode="studio_edit_learning",
-        system_prompt=settings.studio_learner_skill_path.read_text(encoding="utf-8"),
+    performance = provider.call(
+        mode="creative_performance_learning",
+        system_prompt=settings.creative_performance_skill_path.read_text(encoding="utf-8"),
         input_payload={
-            "checkpoint_kind": "save", "changed_paths": ["content.hero_title"],
-            "before": {"content": {"hero_title": "A useful product"}},
-            "after": {"content": {"hero_title": "A clearer useful product"}},
-            "project_name": studio_private_marker,
+            "dataset": {
+                "schema": "ptw.creative-learning.dataset.v1",
+                "scope": "project", "project_id": marker, "surface": "post",
+                "minimum_age_hours": 72, "platform_separated": True,
+                "sample_size": 2, "confidence": "exploratory",
+                "priority": ["attributable_outbound_contact_rate", "primary_cta_rate", "high_intent_engagement", "interaction_rate", "reach_or_view_velocity"],
+                "items": [
+                    {"provider": "instagram", "age_band_hours": 72, "metrics": {"views": 100, "likes": 5, "comments": 2, "shares": 1, "saves": 1}, "funnel": {"landing_view": 10, "primary_cta_click": 3, "contact_click": 2}, "creative": {"template_id": "universal_ad", "content": {"hero_title": "One clear next step"}, "configuration": {}, "visual_descriptor": {"subject": ["abstract object"], "detail": "medium", "composition": "centered", "density": "sparse", "palette": ["warm white"], "contrast": "high", "human_presence": "none"}}},
+                    {"provider": "instagram", "age_band_hours": 72, "metrics": {"views": 100, "likes": 3, "comments": 1, "shares": 0, "saves": 0}, "funnel": {"landing_view": 8, "primary_cta_click": 1, "contact_click": 0}, "creative": {"template_id": "universal_ad", "content": {"hero_title": "A useful product"}, "configuration": {}, "visual_descriptor": {"subject": ["abstract object"], "detail": "high", "composition": "layered", "density": "dense", "palette": ["blue"], "contrast": "medium", "human_presence": "none"}}},
+                ],
+            },
+            "active_skills": {"project": None, "global": None},
         },
-        output_schema=studio_edit_learning_schema(),
-        prompt_version="studio-edit-learner-v1",
-        idempotency_key=f"canary:{marker}:studio_edit_learning",
-        response_validator=validate_studio_learning,
+        output_schema=learning_output_schema("project"),
+        prompt_version="creative-performance-learner-v1",
+        idempotency_key=f"canary:{marker}:creative_performance_learning",
+        response_validator=validate_performance_learning,
     )
-    accept(learned, "studio_edit_learning")
-    landing_private_marker = f"landing-private-{marker}"
+    accept(performance, "creative_performance_learning")
 
-    def validate_landing_learning(value):
-        result = validate_studio_edit_learning(value)
-        if landing_private_marker.casefold() in result["global_rule"].casefold():
-            raise ValueError("Landing learning canary leaked page content globally")
-        return result
-
-    landing_learned = provider.call(
-        mode="studio_edit_learning",
-        system_prompt=settings.landing_learner_skill_path.read_text(encoding="utf-8"),
-        input_payload={
-            "checkpoint_kind": "save", "changed_paths": ["content.hero.title"],
-            "before": {"content": {"hero": {"title": landing_private_marker}}},
-            "after": {"content": {"hero": {"title": "A clearer useful service"}}},
-        },
-        output_schema=studio_edit_learning_schema(),
-        prompt_version="landing-edit-learner-v1",
-        idempotency_key=f"canary:{marker}:landing_edit_learning",
-        response_validator=validate_landing_learning,
+    approved_png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZgL8AAAAASUVORK5CYII="
     )
-    accept(landing_learned, "landing_edit_learning")
+    approved_digest = hashlib.sha256(approved_png).hexdigest()
+    visual = provider.call(
+        mode="creative_visual_analysis",
+        system_prompt=settings.creative_visual_skill_path.read_text(encoding="utf-8"),
+        input_payload={"artifact_sha256": approved_digest, "surface": "post", "provider": "canary"},
+        input_artifacts=[{
+            "name": "approved_png", "mime_type": "image/png",
+            "sha256": approved_digest,
+            "bytes_base64": base64.b64encode(approved_png).decode(),
+        }],
+        output_schema=visual_descriptor_schema(),
+        prompt_version="creative-visual-analyzer-v1",
+        idempotency_key=f"canary:{marker}:creative_visual_analysis",
+        response_validator=validate_visual_descriptor,
+    )
+    accept(visual, "creative_visual_analysis")
     media = ResultBridgePhoneScreenImageProvider(
         settings.bridge_url, settings.bridge_token, settings.model,
     )

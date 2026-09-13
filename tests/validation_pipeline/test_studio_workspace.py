@@ -968,15 +968,6 @@ class UniversalStudioApiTests(unittest.TestCase):
             class StructuredProvider:
                 def call(self, **request):
                     self.request = request
-                    if request["mode"] == "studio_edit_learning":
-                        return {
-                            "response": {
-                                "edit_summary": "The owner refined the phone creative.",
-                                "project_lesson": "Prefer the selected sculptural direction in this Project.",
-                                "global_rule": "Keep phone hero artwork visually focused and text-free.",
-                            },
-                            "invocation": {"provider": "test", "model": "test-learner"},
-                        }
                     defaults = request["input_payload"]["template_defaults"]
                     return {
                         "response": {
@@ -1191,14 +1182,15 @@ class UniversalStudioApiTests(unittest.TestCase):
                 )
                 self.assertEqual(200, saved.status_code, saved.text)
                 self.assertTrue(saved.json()["checkpoint_created"])
-                proposal = saved.json()["learning_proposal"]
-                self.assertIsNotNone(proposal)
-                decision = client.post(
-                    f'{creative_path}/learning/{proposal["proposal_id"]}',
-                    headers=headers, json={"decision": "project_only"},
+                self.assertEqual("saved", saved.json()["checkpoint"]["status"])
+                self.assertIsNone(saved.json()["learning_proposal"])
+                self.assertEqual(
+                    404,
+                    client.post(
+                        f"{creative_path}/learning/01900000-0000-7000-8000-000000000099",
+                        headers=headers, json={"decision": "project_only"},
+                    ).status_code,
                 )
-                self.assertEqual(200, decision.status_code, decision.text)
-                self.assertEqual("project_only", decision.json()["decision"])
 
                 approved = client.post(
                     f"{creative_path}/approve", headers=headers, json={

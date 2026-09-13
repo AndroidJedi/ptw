@@ -297,27 +297,4 @@ def studio_creative_router(
         except (KeyError, ValueError) as error:
             raise fail(error) from error
 
-    @router.post("/projects/{project_id}/creatives/{creative_id}/learning/{proposal_id}")
-    def learning(
-        project_id: str, creative_id: str, proposal_id: str, request: Mapping[str, Any],
-    ) -> dict[str, Any]:
-        fields(request, {"decision"}, "Studio learning decision is required")
-        try:
-            return service.decide_learning(
-                project_id, creative_id, proposal_id, str(request["decision"]),
-            )
-        except (KeyError, ValueError, RuntimeError) as error:
-            raise fail(error) from error
-
-    @router.post("/projects/{project_id}/creatives/{creative_id}/checkpoints/{checkpoint_id}/retry")
-    def retry_learning(
-        project_id: str, creative_id: str, checkpoint_id: str,
-        request: Mapping[str, Any],
-    ) -> dict[str, Any]:
-        fields(request, set(), "Studio learning retry has no input fields")
-        try:
-            return service.retry_learning(project_id, creative_id, checkpoint_id)
-        except (KeyError, ValueError, RuntimeError) as error:
-            raise fail(error) from error
-
     return router

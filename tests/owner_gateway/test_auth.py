@@ -65,7 +65,7 @@ class OwnerClaimsTests(unittest.TestCase):
             *configured.owner_public_origins, *configured.landing_public_origins,
         ], middleware.kwargs["allow_origins"])
 
-    def test_every_private_api_route_keeps_owner_auth_and_public_routes_are_get_head_only(self) -> None:
+    def test_every_private_api_route_keeps_owner_auth_and_public_routes_are_bounded(self) -> None:
         from owner_gateway.auth import OwnerDependency
 
         class Verifier:
@@ -80,8 +80,11 @@ class OwnerClaimsTests(unittest.TestCase):
             if not path.startswith("/api/v1/"):
                 continue
             methods = set(getattr(route, "methods", set()))
-            if path.startswith(("/api/v1/public/landings/", "/api/v1/public/instagram-media/")):
+            if path.startswith(("/api/v1/public/landings/", "/api/v1/public/instagram-media/", "/api/v1/public/tiktok-media/")) or path == "/api/v1/public/landing-analytics/events":
                 public_methods[path] = methods
+                continue
+            if path == "/api/v1/tiktok/oauth/callback":
+                self.assertEqual({"GET"}, methods)
                 continue
             dependencies = getattr(getattr(route, "dependant", None), "dependencies", [])
             if not any(isinstance(getattr(item, "call", None), OwnerDependency) for item in dependencies):
@@ -89,9 +92,12 @@ class OwnerClaimsTests(unittest.TestCase):
 
         self.assertEqual([], private_missing_auth)
         self.assertTrue(public_methods)
+        self.assertEqual(
+            {"POST"}, public_methods.pop("/api/v1/public/landing-analytics/events"),
+        )
         self.assertTrue(all(methods == {"GET", "HEAD"} for methods in public_methods.values()))
 
-    def test_route_table_is_briefs_plus_project_scoped_post_and_landing_studio(self) -> None:
+    def test_route_table_includes_project_studio_publishing_and_analytics(self) -> None:
         class Verifier:
             def verify(self, _token: str, _app_check: str):  # pragma: no cover
                 raise AssertionError
@@ -119,8 +125,6 @@ class OwnerClaimsTests(unittest.TestCase):
             f"{creative}/phone-screen/history/{{sha256}}", f"{creative}/preview",
             f"{creative}/component-settings", f"{creative}/versions/{{version}}/render",
             f"{creative}/versions/{{version}}", f"{creative}/approve",
-            f"{creative}/learning/{{proposal_id}}",
-            f"{creative}/checkpoints/{{checkpoint_id}}/retry",
             "/api/v1/landings/projects/{project_id}/source-posts",
             "/api/v1/landings/projects/{project_id}/pages",
             "/api/v1/landings/projects/{project_id}/pages/{landing_id}",
@@ -133,8 +137,6 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/landings/projects/{project_id}/pages/{landing_id}/save",
             "/api/v1/landings/projects/{project_id}/pages/{landing_id}/approve",
             "/api/v1/landings/projects/{project_id}/pages/{landing_id}/versions/{version}",
-            "/api/v1/landings/projects/{project_id}/pages/{landing_id}/learning/{proposal_id}",
-            "/api/v1/landings/projects/{project_id}/pages/{landing_id}/learning/{checkpoint_id}/retry",
             "/api/v1/landings/projects/{project_id}/publication",
             "/api/v1/landings/projects/{project_id}/publication/availability",
             "/api/v1/landings/projects/{project_id}/publication/publish",
@@ -149,6 +151,13 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/insights",
             "/api/v1/ads/projects/{project_id}/controls",
             "/api/v1/ads/projects/{project_id}/controls/{action_id}/confirm",
+            "/api/v1/public/landing-analytics/events",
+            "/api/v1/analytics/{scope}/workspace",
+            "/api/v1/analytics/{scope}/refresh",
+            "/api/v1/analytics/{scope}/learning-runs",
+            "/api/v1/analytics/{scope}/learning-runs/{run_id}/decision",
+            "/api/v1/analytics/{scope}/skills/revisions",
+            "/api/v1/analytics/{scope}/skills/{rule_id}/delete",
         }
         self.assertTrue(required <= paths)
         self.assertNotIn("/api/v1/studio", paths)
@@ -160,6 +169,7 @@ class OwnerClaimsTests(unittest.TestCase):
         self.assertFalse([
             path for path in paths if any(fragment in path for fragment in forbidden_fragments)
         ])
+        self.assertFalse([path for path in paths if "/learning/" in path and path.startswith((creative, "/api/v1/landings/"))])
 
     def test_commander_routes_require_owner_and_forward_only_to_private_runtime(self) -> None:
         class Verifier:
@@ -320,6 +330,33 @@ class OwnerClaimsTests(unittest.TestCase):
             self.assertEqual(405, client.post(path, json={}).status_code)
             self.assertEqual(404, client.get("/api/v1/public/instagram-media/bad.jpg").status_code)
         self.assertEqual("bridge", forwarded.call_args.kwargs["headers"]["X-PTW-Owner-Gateway-Token"])
+
+    def test_tiktok_routes_match_validation_and_keep_oauth_and_media_boundaries(self):
+        from validation_pipeline.tiktok_publication_routes import tiktok_router, tiktok_media_router
+        class Verifier:
+            def verify(self, token, app_check_token):
+                return OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
+        gateway = create_app(self.settings, verifier=Verifier())
+        def routes(items, prefix):
+            return {(method, route.path.replace(prefix, "", 1)) for route in items
+                    if getattr(route, "path", "").startswith(prefix) for method in route.methods}
+        self.assertEqual(routes(gateway.routes, "/api/v1/tiktok"),
+                         routes(tiktok_router(object(), prefix="/internal/v1/tiktok").routes, "/internal/v1/tiktok"))
+        self.assertEqual(routes(gateway.routes, "/api/v1/public/tiktok-media"),
+                         routes(tiktok_media_router(object(), prefix="/internal/v1/public/tiktok-media").routes, "/internal/v1/public/tiktok-media"))
+        payload = {"request_id": "request", "source": {"creative_id": "creative", "version": 2}, "content": {"title": "Title", "description": "Description"}, "settings": {}, "creator_snapshot_sha256": "a" * 64, "consent": {}}
+        forwarded = AsyncMock(return_value=httpx.Response(202, json={"publication": {"publication_id": "pub"}}))
+        path = "/api/v1/tiktok/projects/project/publications"
+        with patch("httpx.AsyncClient.request", forwarded), TestClient(gateway) as client:
+            self.assertEqual(401, client.post(path, json=payload).status_code)
+            self.assertEqual(202, client.post(path, json=payload, headers={"Authorization":"Bearer test", "X-Firebase-AppCheck":"test"}).status_code)
+        self.assertEqual(payload, forwarded.call_args.kwargs["json"])
+        forwarded = AsyncMock(return_value=httpx.Response(200, content=b"jpeg"))
+        media = "/api/v1/public/tiktok-media/" + "a" * 43 + ".jpg"
+        with patch("httpx.AsyncClient.request", forwarded), TestClient(gateway) as client:
+            self.assertEqual(200, client.get(media).status_code)
+            self.assertEqual(405, client.post(media, json={}).status_code)
+            self.assertEqual(404, client.get("/api/v1/public/tiktok-media/bad.jpg").status_code)
 
     def test_creative_direction_crosses_authenticated_gateway_with_exact_contract(self) -> None:
         class Verifier:

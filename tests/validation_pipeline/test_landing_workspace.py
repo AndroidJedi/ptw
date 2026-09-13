@@ -204,10 +204,13 @@ class LandingAuthorityTests(unittest.TestCase):
 
     @unittest.skipUnless(LocalLandingAuthority is not None, "Landing dependencies are required")
     def test_composition_payload_is_bounded_and_excludes_presentation_state(self) -> None:
-        from validation_pipeline.landing_pages import (
-            LANDING_GENERATION_LESSON_LIMIT, landing_composition_payload,
-        )
-        lessons = "\n".join(f"- accepted lesson {number}" for number in range(20))
+        from validation_pipeline.landing_pages import landing_composition_payload
+        from validation_pipeline.landing_workspace import landing_catalog
+        skills = {
+            "project": {"skill_snapshot_id": "project", "rules": []},
+            "global": {"skill_snapshot_id": "global", "rules": []},
+            "precedence": ["catalog_brand_and_brief", "explicit_owner_direction", "project_rules", "global_spirit", "template_defaults"],
+        }
         payload = landing_composition_payload(
             landing_id="01900000-0000-7000-8000-000000000001",
             approved_product_brief={"language": "en"},
@@ -217,29 +220,19 @@ class LandingAuthorityTests(unittest.TestCase):
                 "version_sha256": "a" * 64,
             },
             content_defaults=DEFAULT_CONTENT,
-            global_skill=lessons,
-            project_skill=lessons,
+            active_creative_skills=skills,
+            live_landing_catalog=landing_catalog(),
         )
-        self.assertNotIn("live_landing_catalog", payload)
+        self.assertEqual("ptw.landing.catalog.v2", payload["live_landing_catalog"]["schema"])
         self.assertNotIn("configuration", payload["source_post_copy"])
         self.assertNotIn("assets", payload["source_post_copy"])
-        self.assertEqual(
-            LANDING_GENERATION_LESSON_LIMIT,
-            len(payload["accepted_global_landing_lessons"]),
-        )
-        self.assertEqual("accepted lesson 12", payload["accepted_project_landing_lessons"][0])
+        self.assertEqual(skills, payload["active_creative_skills"])
 
     @unittest.skipUnless(LocalLandingAuthority is not None, "Landing dependencies are required")
-    def test_learning_decision_cannot_cross_a_page_boundary(self):
+    def test_save_approve_learning_entrypoint_is_retired(self):
         from validation_pipeline.landing_pages import LandingService
-        service = object.__new__(LandingService)
-        service.detail = Mock()
-        service.authority = Mock()
-        service.authority.get_proposal.return_value = {"checkpoint_id": "checkpoint"}
-        service.authority.get_checkpoint.return_value = {"landing_id": "01900000-0000-7000-8000-000000000001"}
-        with self.assertRaises(KeyError):
-            service.decide_learning("01900000-0000-7000-8000-000000000003", "01900000-0000-7000-8000-000000000002", "proposal", "apply_global")
-        service.authority.decide_proposal.assert_not_called()
+        self.assertFalse(hasattr(LandingService, "decide_learning"))
+        self.assertFalse(hasattr(LandingService, "retry_learning"))
 
 
 @unittest.skipUnless(Image is not None, "Pillow is required for Landing visual workspace tests")
@@ -559,7 +552,6 @@ class LandingDesignTests(unittest.TestCase):
                 workspace_factory=lambda path: LandingWorkspace(path, image_provider=images),
                 structured_provider=provider,
                 composer_skill_path=Path("skills/landing-page-composer/SKILL.md"),
-                learner_skill_path=Path("skills/landing-edit-learner/SKILL.md"),
             )
             workspace = service._workspace(landing_id)
             detail = workspace.detail()
@@ -577,7 +569,8 @@ class LandingDesignTests(unittest.TestCase):
             self.assertEqual("draft", authority.page["status"])
             self.assertEqual(LANDING_COMPOSER_PROMPT_VERSION, provider.kwargs["prompt_version"])
             self.assertEqual({"content"}, set(provider.kwargs["output_schema"]["properties"]))
-            self.assertNotIn("live_landing_catalog", provider.kwargs["input_payload"])
+            self.assertEqual("ptw.landing.catalog.v2", provider.kwargs["input_payload"]["live_landing_catalog"]["schema"])
+            self.assertEqual(["catalog_brand_and_brief", "explicit_owner_direction", "project_rules", "global_spirit", "template_defaults"], provider.kwargs["input_payload"]["active_creative_skills"]["precedence"])
             self.assertNotIn("configuration", provider.kwargs["input_payload"]["source_post_copy"])
 
     @unittest.skipUnless(LocalLandingAuthority is not None, 'Landing service dependencies required')

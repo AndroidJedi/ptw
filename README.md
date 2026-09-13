@@ -4,11 +4,12 @@ PTW is an owner-operated validation app with two destinations:
 
 ```text
 one idea → one Product Brief → owner template choice and approval
-approved Brief → project creative → Studio AI draft → Save/Approve learning
+approved Brief → project creative → Studio AI draft → Save/Approve checkpoint
+approved performance data → explicit Analytics run → reviewed Creative Skills
 ```
 
 The common Studio catalog provides `universal_ad` and `phone_metrics`.
-Creatives, edit checkpoints, skills, assets, and immutable versions are
+Creatives, edit checkpoints, typed Creative Skills, assets, and immutable versions are
 Project-scoped. The former Social Post automation, review/export/publication
 workflow, candidate/critic modes, singleton Studio, and compatibility migrations
 are absent.
@@ -26,7 +27,8 @@ scripts/run_local_studio.sh
 Open `http://127.0.0.1:5173/?e2e=1`. Append-only Brief/creative metadata is
 stored below `.local/owner-briefs`; per-creative renderer files are below
 `.local/studio-workspace/creatives`. An authenticated Codex CLI provides local
-Brief, Studio composition/learning, phone-image, and Tune work. Pexels provides
+Brief, Studio composition, explicit performance learning, visual analysis,
+phone-image, and Tune work. Pexels provides
 provenance-retained photographs. The launcher binds to `127.0.0.1` and never
 deploys or publishes.
 

@@ -8,12 +8,12 @@ or service-worker caches.
 Brief approval accepts `honor_confirmed` and `template_id`; `phone_metrics`
 also requires its bounded saved `creative_direction`. The creative-scoped
 direction route is state-hash guarded and may replace that direction without
-creating a checkpoint or learning data. It returns the updated Creative without
+creating a checkpoint or performance-learning run. It returns the updated Creative without
 starting image generation. Studio exposes the common template
 catalog and only Project/creative-scoped operations: list/create, detail,
 composition/image retry, configuration, Save, template apply, assets/Pexels,
 preview, phone generate/enhance/select/history, immutable creative approval,
-version retrieval, learning decision, and learning retry.
+and version retrieval. Save/Approve learning decision and retry routes are retired.
 
 The public Gateway and private Validation Studio route tables must have exact
 GET/POST method-and-path parity after their `/api/v1/studio` and
@@ -99,20 +99,32 @@ checks CLI/skill presence, not successful model authorization. Real CLI failures
 remain bounded and ask the owner to inspect local Codex sign-in/runtime.
 
 Private Landing routes are `/api/v1/landings/projects/{project_id}/…`: source
-approved Post versions, pages, page-scoped mutations, visual history, versions,
-learning decisions, and failed-learning retry. They are Firebase/App-Check protected, cross-Project
+approved Post versions, pages, page-scoped mutations, visual history, and
+versions. They are Firebase/App-Check protected, cross-Project
 IDs fail closed, and editor images are private/no-store. Publication status,
 availability, Publish, Republish, rollback, and Unpublish remain owner-only and
 Firebase/Auth/App Check protected.
 
-The only authentication exception is bounded `GET`/`HEAD` below
-`/api/v1/public/landings/{namespace}/{slug}`. It returns a sanitized current
+The authentication exceptions are bounded `GET`/`HEAD` below
+`/api/v1/public/landings/{namespace}/{slug}` and strict JSON-only
+`POST /api/v1/public/landing-analytics/events` from an allowed Landing origin.
+Public Landing reads return a sanitized current
 snapshot or one exact selected digest-addressed PNG. Unknown, malformed,
 unpublished, cross-Project, old-version, unselected-asset, and write requests
 fail closed. Public JSON is `no-store`; selected current PNGs are immutable.
 `LANDING_WEB_ORIGINS` is an exact comma-separated allowlist and defaults to the
-Natal apex plus both Firebase default domains. No public forms, lead endpoints,
-analytics, cookies, Project listing, or mutation routes exist.
+Natal apex plus both Firebase default domains. The event endpoint accepts only
+the documented cookieless event UUID, ephemeral visit UUID, route, version
+digest, event semantics, optional attribution token, and viewport class; it does
+not accept contact data or request telemetry. No public forms, lead endpoints,
+Project listing, or content mutation routes exist.
+
+Authenticated Analytics routes are under
+`/api/v1/analytics/{project_uuid|global}` for workspace reads, read-only provider
+refresh/backfill, explicit learning runs, reviewed decisions, direct skill
+revisions, and tombstones. The Gateway forwards the exact bounded body and never
+supplies provider credentials to the browser. See
+[`../architecture/analytics-and-creative-learning.md`](../architecture/analytics-and-creative-learning.md).
 
 Ads routes are only `/api/v1/ads/connection`, versioned presets, and
 `/api/v1/ads/projects/{project_id}/…` workspace/deployment/retry/sync calls.
@@ -121,11 +133,12 @@ sanitized connection metadata, Meta object IDs/statuses/issues, and local
 deployment records. All write-side Meta payloads are server-fixed to PAUSED and
 Instagram Feed; the owner API has no activation route.
 
-PostgreSQL owns all creative state and bytes, append-only generation/learning
-runs, immutable checkpoints/versions/skill snapshots, proposals/decisions, and
-graph edges. Validation may rebuild only a disposable per-creative renderer
-cache after restart; queued composition, image, and learning stages resume
-idempotently.
+PostgreSQL owns all creative state and bytes, append-only generation runs,
+immutable checkpoints/versions, Analytics snapshots/rollups, frozen performance
+runs, reviewed typed skill snapshots/decisions, and graph edges. Historical
+Save-era learning rows remain inert. Validation may rebuild only a disposable
+per-creative renderer cache after restart; queued composition and image stages
+resume idempotently.
 
 The private Owner PWA service worker caches only its shell assets. The separate
 Natal public Hosting app has no authentication or service worker. Bind loopback services

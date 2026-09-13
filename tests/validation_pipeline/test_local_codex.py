@@ -1,4 +1,6 @@
 import json
+import base64
+import hashlib
 from pathlib import Path
 import subprocess
 import unittest
@@ -84,6 +86,30 @@ class LocalCodexStructuredProviderTests(unittest.TestCase):
                 self.assertEqual(len(calls), 1)
                 self.assertEqual(len(raised.exception.attempts), 1)
                 self.assertNotIn("should-not-persist", str(raised.exception))
+
+    def test_visual_artifact_is_ephemeral_and_digest_bound(self):
+        calls = []
+        png = b"\x89PNG\r\n\x1a\nexample"
+        digest = hashlib.sha256(png).hexdigest()
+
+        def executor(command, **_kwargs):
+            calls.append(command)
+            image_path = Path(command[command.index("--image") + 1])
+            self.assertEqual(png, image_path.read_bytes())
+            _output_path(command).write_text(json.dumps({"value": 2}), encoding="utf-8")
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        result = self._request(
+            self._provider(executor), mode="creative_visual_analysis",
+            input_artifacts=[{
+                "name": "approved_png", "mime_type": "image/png", "sha256": digest,
+                "bytes_base64": base64.b64encode(png).decode(),
+            }],
+        )
+
+        self.assertEqual({"approved_png": digest}, result["invocation"]["attempts"][0]["input_artifacts"])
+        self.assertEqual(len(png), result["invocation"]["attempts"][0]["input_artifact_bytes"])
+        self.assertEqual(1, len(calls))
 
 
 if __name__ == "__main__":

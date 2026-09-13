@@ -21,6 +21,7 @@ from .local_brief_store import utc_now
 from .meta_ads import DatabaseMetaAdsAuthority, MetaAdsAdapter, MetaAdsProviderError, _sha, _uuid, _text
 
 PERMISSIONS = ['pages_show_list', 'instagram_basic', 'instagram_content_publish', 'pages_read_engagement']
+ANALYTICS_PERMISSION = 'instagram_manage_insights'
 TERMINAL = {'published', 'published_unresolved', 'uncertain', 'failed'}
 
 
@@ -87,6 +88,34 @@ class InstagramAdapter(MetaAdsAdapter):
                 raise MetaAdsProviderError('Instagram publishing quota is exhausted; wait before publishing')
         return {'verified': True, 'instagram': {'id': str(account['id']), 'username': account.get('username')},
                 'required_permissions': PERMISSIONS}
+
+    def analytics_connection(self) -> dict[str, Any]:
+        permissions = self._call('GET', 'me/permissions', outcome='Instagram insights permission verification failed')
+        granted = {item.get('permission') for item in permissions.get('data', []) if item.get('status') == 'granted'}
+        available = ANALYTICS_PERMISSION in granted
+        return {
+            'provider': 'instagram', 'configured': True, 'available': available,
+            'required_permissions': [ANALYTICS_PERMISSION],
+            **({} if available else {'explanation': 'Reauthorize Meta with instagram_manage_insights to collect organic performance.'}),
+        }
+
+    def media_insights(self, identifier: str) -> dict[str, Any]:
+        if not re.fullmatch(r'[0-9]{1,40}', str(identifier)):
+            raise ValueError('Instagram media ID is invalid')
+        result = self._call(
+            'GET', f'{identifier}/insights',
+            params={'metric': 'views,reach,likes,comments,shares,saved,total_interactions'},
+            outcome='Instagram media insights refresh failed',
+        )
+        metrics: dict[str, Any] = {}
+        for item in result.get('data', []):
+            if not isinstance(item, Mapping):
+                continue
+            values = item.get('values')
+            value = values[-1].get('value') if isinstance(values, list) and values and isinstance(values[-1], Mapping) else item.get('total_value', {}).get('value') if isinstance(item.get('total_value'), Mapping) else None
+            if isinstance(item.get('name'), str) and isinstance(value, (int, float, str)):
+                metrics[str(item['name'])] = value
+        return metrics
 
     def create_container(self, url: str, caption: str) -> str:
         result = self._call('POST', f'{self.configuration.instagram_actor_id}/media',
@@ -260,167 +289,80 @@ class DatabaseInstagramAuthority(DatabaseMetaAdsAuthority):
 
 class InstagramPublicationService:
     def __init__(self, authority: Any, ads: Any, adapter: Any = None, *, origin: str | None = None, sleep: Any = time.sleep):
+        from .social_publishing.engine import SocialPublishingEngine
+        from .social_publishing.providers.instagram import InstagramPublishingAdapter
         self.authority, self.ads, self.adapter = authority, ads, adapter
-        self.origin = media_origin(ads.configuration.instagram_media_origin) if origin is None else origin
+        self._origin = media_origin(ads.configuration.instagram_media_origin) if origin is None else origin
         self.sleep = sleep
+        self.publisher = InstagramPublishingAdapter(
+            ads, adapter, origin=self._origin, sleep=sleep,
+        )
+        self.engine = SocialPublishingEngine(
+            authority, ads, self.publisher, origin=self._origin,
+        )
+
+    @property
+    def origin(self) -> str:
+        return self._origin
+
+    @origin.setter
+    def origin(self, value: str) -> None:
+        self._origin = value
+        self.publisher.origin = value
+        self.engine.origin = value.rstrip('/')
 
     def connection(self, *, verify: bool = True) -> dict[str, Any]:
-        configured = bool(self.adapter and self.ads.configuration.access_token and self.ads.configuration.page_id
-                          and self.ads.configuration.instagram_actor_id)
-        result = {'configured': configured, 'verified': False, 'graph_version': self.ads.configuration.graph_version,
-                  'required_permissions': PERMISSIONS, 'media_ready': bool(self.origin)}
-        if not configured:
-            return {**result, 'explanation': 'Configure the Meta token, Facebook Page and professional Instagram account. Export is available.'}
-        if not verify:
-            return result
-        try:
-            result.update(self.adapter.publishing_connection())
-        except MetaAdsProviderError as error:
-            result.update(verified=False, explanation=str(error))
-        if not self.origin:
-            result.update(verified=False, explanation='Configure a public HTTPS media origin for Instagram. Export is available.')
-        return result
+        return self.engine.connection(verify=verify)
 
-    @staticmethod
-    def safe(value: dict[str, Any]) -> dict[str, Any]:
-        state = {key: item for key, item in value['state'].items() if key != 'media_token'}
-        return {key: deepcopy(value[key]) for key in ('publication_id', 'project_id', 'request_id', 'specification', 'created_at')} | state
+    def safe(self, value: dict[str, Any]) -> dict[str, Any]:
+        return self.engine.safe(value)
 
     def workspace(self, project_id: str) -> dict[str, Any]:
-        self.ads.authority.project(_uuid(project_id, 'project_id'))
-        return {'connection': self.connection(verify=False), 'sources': self.ads._sources(project_id), 'landing': self.ads.landing(project_id),
-                'publications': [self.safe(item) for item in self.authority.list(project_id)]}
+        return self.engine.workspace(project_id)
+
+    def analytics_connection(self, *, verify: bool = True) -> dict[str, Any]:
+        if self.adapter is None or not self.ads.configuration.access_token:
+            return {'provider': 'instagram', 'configured': False, 'available': False,
+                    'required_permissions': [ANALYTICS_PERMISSION],
+                    'explanation': 'Configure the Meta connection before collecting Instagram insights.'}
+        if not verify:
+            return {'provider': 'instagram', 'configured': True, 'available': None,
+                    'required_permissions': [ANALYTICS_PERMISSION],
+                    'explanation': 'Use Refresh to verify the separate Instagram insights permission.'}
+        try:
+            return self.adapter.analytics_connection()
+        except (MetaAdsProviderError, RuntimeError) as error:
+            return {'provider': 'instagram', 'configured': True, 'available': False,
+                    'required_permissions': [ANALYTICS_PERMISSION], 'explanation': str(error)}
+
+    def insights(self, post_ids: list[str]) -> dict[str, Any]:
+        readiness = self.analytics_connection(verify=True)
+        if not readiness.get('available'):
+            raise RuntimeError(str(readiness.get('explanation') or 'Instagram analytics is unavailable'))
+        if len(post_ids) != 1:
+            raise ValueError('Instagram insight refresh requires one published media ID')
+        return self.adapter.media_insights(post_ids[0])
 
     def publications(self, project_id: str) -> dict[str, Any]:
-        self.ads.authority.project(_uuid(project_id, 'project_id'))
-        return {'items': [self.safe(item) for item in self.authority.list(project_id)]}
+        return self.engine.publications(project_id)
 
     def detail(self, project_id: str, identifier: str) -> dict[str, Any]:
-        value = self.authority.get(_uuid(identifier, 'publication_id'))
-        if value['project_id'] != _uuid(project_id, 'project_id'):
-            raise KeyError('Instagram publication not found in this Project')
-        return {**self.safe(value), 'attempts': self.authority.attempts(identifier)}
+        return self.engine.detail(project_id, identifier)
 
     def reserve(self, project_id: str, request: Mapping[str, Any], actor: str) -> tuple[dict[str, Any], bool]:
-        if set(request) != {'request_id', 'creative_id', 'version', 'caption'}:
-            raise ValueError('Instagram publication fields are invalid')
-        project_id = _uuid(project_id, 'project_id')
-        request_id = _uuid(request['request_id'], 'request_id')
-        creative_id = _uuid(request['creative_id'], 'creative_id')
-        version = request['version']
-        if isinstance(version, bool) or not isinstance(version, int) or version < 1:
-            raise ValueError('Approved Post version must be a positive integer')
-        if not isinstance(request['caption'], str):
-            raise ValueError('Instagram caption must be text')
-        caption = _text(request['caption'], 'caption', 0, 2200)
-        fingerprint = _sha({'project_id': project_id, 'creative_id': creative_id, 'version': version, 'caption': caption})
-        with self.authority.lock('request:' + request_id):
-            previous = self.authority.request(request_id)
-            if previous:
-                if previous['request_sha256'] != fingerprint:
-                    raise ValueError('Request ID was reused with different publication input')
-                return self.safe(previous), False
-            artifact = self.ads._artifact(project_id, creative_id, version)
-            connection = self.connection()
-            if not connection['verified']:
-                raise RuntimeError(connection.get('explanation', 'Instagram publishing is unavailable'))
-            rendered, record = artifact['rendered'], artifact['record']
-            jpeg = jpeg_delivery(rendered['bytes'], record['render_sha256'])
-            token = secrets.token_urlsafe(32)
-            source_id = record.get('version_id') or str(uuid5(NAMESPACE_URL, f"ptw-studio-version:{creative_id}:{version}:{record['version_sha256']}"))
-            spec = {'creative_id': creative_id, 'version': version, 'source_version_id': source_id,
-                    'source_version_sha256': record['version_sha256'], 'render_sha256': record['render_sha256'],
-                    'delivery_sha256': hashlib.sha256(jpeg).hexdigest(), 'caption': caption,
-                    'instagram_actor_id': self.ads.configuration.instagram_actor_id, 'instagram': connection.get('instagram'),
-                    'landing': self.ads.landing(project_id), 'requested_by': actor}
-            value = {'publication_id': new_uuid7(), 'project_id': project_id, 'request_id': request_id,
-                     'request_sha256': fingerprint, 'specification': spec, 'created_at': utc_now(),
-                     'media_token_sha256': hashlib.sha256(token.encode()).hexdigest(),
-                     'state': {'status': 'queued', 'container_id': None, 'media_id': None, 'permalink': None,
-                               'publish_started': False, 'media_token': token,
-                               'media_expires_at': (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(), 'error': None}}
-            return self.safe(self.authority.reserve(value, jpeg)), True
+        return self.engine.reserve(project_id, request, actor)
 
     def media(self, token: str) -> bytes:
-        if not re.fullmatch(r'[A-Za-z0-9_-]{43}', token):
-            raise KeyError('Media unavailable')
-        value, jpeg = self.authority.delivery(hashlib.sha256(token.encode()).hexdigest())
-        state = value['state']
-        if state['status'] in TERMINAL or datetime.fromisoformat(state['media_expires_at']) <= datetime.now(timezone.utc):
-            raise KeyError('Media unavailable')
-        if hashlib.sha256(jpeg).hexdigest() != value['specification']['delivery_sha256']:
-            raise KeyError('Media unavailable')
-        return jpeg
+        return self.engine.media(token)
 
     def execute(self, identifier: str, *, reconcile_only: bool = False) -> dict[str, Any]:
-        with self.authority.lock('publication:' + identifier):
-            value = self.authority.get(identifier)
-            state = value['state']
-            if state['status'] == 'published' and not reconcile_only:
-                return self.safe(value)
-            try:
-                if not self.adapter or value['specification']['instagram_actor_id'] != self.ads.configuration.instagram_actor_id:
-                    raise RuntimeError('The selected Instagram account is unavailable or has changed')
-                if state.get('media_id'):
-                    link = self.adapter.permalink(state['media_id'])
-                    if reconcile_only:
-                        self.authority.attempt(identifier, 'sync', 'published')
-                    return self.safe(self.authority.update(identifier, status='published', permalink=link, error=None, media_token=None))
-                container = state.get('container_id')
-                if not container:
-                    if reconcile_only:
-                        return self.safe(value)
-                    if datetime.fromisoformat(state['media_expires_at']) <= datetime.now(timezone.utc):
-                        raise RuntimeError('Image access expired before preparation; create a new reviewed publication')
-                    self.authority.update(identifier, status='creating_container', error=None)
-                    container = self.adapter.create_container(f'{self.origin}/api/v1/public/instagram-media/{state["media_token"]}.jpg', value['specification']['caption'])
-                    self.authority.update(identifier, container_id=container, status='preparing')
-                    self.authority.attempt(identifier, 'container', 'completed')
-                status = self.adapter.container_status(container)
-                if reconcile_only:
-                    self.authority.attempt(identifier, 'sync', status)
-                if state.get('publish_started'):
-                    # FINISHED after a lost response does not prove no publish happened.
-                    result = 'published_unresolved' if status == 'PUBLISHED' else 'uncertain'
-                    return self.safe(self.authority.update(identifier, status=result, media_token=None,
-                        error='Publication outcome needs reconciliation. Check Instagram before creating another post.'))
-                if status in {'ERROR', 'EXPIRED', 'PUBLISHED'}:
-                    raise RuntimeError('Existing Instagram container cannot be published; inspect its status')
-                if reconcile_only:
-                    return self.safe(self.authority.get(identifier))
-                for _ in range(5):
-                    if status == 'FINISHED':
-                        break
-                    if status != 'IN_PROGRESS':
-                        raise RuntimeError('Instagram container readiness is unknown')
-                    self.sleep(60)
-                    status = self.adapter.container_status(container)
-                if status != 'FINISHED':
-                    raise RuntimeError('Instagram image is not ready; retry preparation later')
-                self.authority.update(identifier, status='publishing', publish_started=True)
-                media_id = self.adapter.publish(container)
-                self.authority.update(identifier, media_id=media_id, status='published_unresolved', media_token=None)
-                self.authority.attempt(identifier, 'publish', 'completed')
-                link = self.adapter.permalink(media_id)
-                return self.safe(self.authority.update(identifier, status='published', permalink=link, error=None))
-            except Exception as error:
-                current = self.authority.get(identifier)['state']
-                uncertain = current.get('publish_started', False)
-                self.authority.attempt(identifier, current['status'], 'uncertain' if uncertain else 'failed')
-                message = ('Publication may have succeeded. Sync status and check Instagram; PTW will not publish it again.' if uncertain
-                           else 'Instagram publication failed. Check the connection and retry preparation or export the approved image.')
-                if isinstance(error, MetaAdsProviderError):
-                    message += ' ' + str(error)
-                result = self.authority.update(identifier, status='uncertain' if uncertain else 'failed', error=message)
-                return self.safe(result)
+        return self.engine.execute(identifier, reconcile_only=reconcile_only)
 
     def retry(self, project_id: str, identifier: str) -> dict[str, Any]:
-        self.detail(project_id, identifier)
-        with self.authority.lock('publication:' + identifier):
-            value = self.authority.get(identifier)
-            if value['state']['status'] != 'failed' or value['state'].get('publish_started'):
-                raise RuntimeError('This publication must be reconciled instead of published again')
-            return self.safe(self.authority.update(identifier, status='queued', error=None))
+        return self.engine.retry(project_id, identifier)
 
     def recover_interrupted(self) -> list[str]:
-        return [item['publication_id'] for item in self.authority.list() if item['state']['status'] not in TERMINAL]
+        return self.engine.recover_interrupted()
+
+    def maintain(self) -> None:
+        self.engine.maintain()

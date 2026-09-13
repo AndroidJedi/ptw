@@ -168,7 +168,7 @@ const baseUrl = resolveApiBaseUrl(import.meta.env.VITE_COMMANDER_API_URL, import
 const localStudioMode = import.meta.env.DEV && import.meta.env.VITE_LOCAL_STUDIO === 'true'
 
 function routeBaseUrl(path: string) {
-  return localStudioMode && (path.startsWith('/api/v1/studio') || path.startsWith('/api/v1/landings') || path.startsWith('/api/v1/ads')) ? '' : baseUrl
+  return localStudioMode && ['/api/v1/studio', '/api/v1/landings', '/api/v1/ads', '/api/v1/analytics', '/api/v1/instagram', '/api/v1/tiktok'].some(prefix => path.startsWith(prefix)) ? '' : baseUrl
 }
 
 export async function fetchWithDeadline(
@@ -284,7 +284,7 @@ export class ApiClient {
 
   private async headers(path: string, json = false): Promise<HeadersInit> {
     const e2eMode = import.meta.env.DEV && (import.meta.env.VITE_E2E === 'true' || new URLSearchParams(window.location.search).has('e2e'))
-    const localStudio = localStudioMode && (path.startsWith('/api/v1/studio') || path.startsWith('/api/v1/landings') || path.startsWith('/api/v1/ads'))
+    const localStudio = localStudioMode && (path.startsWith('/api/v1/studio') || path.startsWith('/api/v1/landings') || path.startsWith('/api/v1/ads') || path.startsWith('/api/v1/analytics'))
     const [token, appCheckToken] = e2eMode || localStudio
       ? [await this.user.getIdToken(), 'e2e-app-check']
       : await this.firebaseTokens()

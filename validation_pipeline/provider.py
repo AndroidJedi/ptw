@@ -3,24 +3,62 @@
 from __future__ import annotations
 
 import hashlib
+import base64
 import json
 import re
 import threading
 import time
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 import urllib.error
 import urllib.request
 
 
 JSON_MODES = (
     "product_brief", "product_brief_revision", "studio_creative_generation",
-    "studio_edit_learning",
+    "creative_performance_learning", "creative_visual_analysis",
 )
 BRIDGE_JSON_MODES = JSON_MODES
 BRIDGE_MEDIA_MODES = ("content_non_human_graphic_generation",)
+BRIDGE_MULTIMODAL_MODES = ("creative_visual_analysis",)
 BRIDGE_IDEMPOTENCY_KEY_LIMIT = 240
 BRIDGE_CONCURRENT_SLOT_LIMIT = 1
 BRIDGE_STRUCTURED_CONTRACT_LIMIT_BYTES = 512_000
+BRIDGE_INPUT_ARTIFACT_LIMIT_BYTES = 8_388_608
+
+
+def _input_artifacts(
+    value: Sequence[Mapping[str, Any]] | None,
+) -> tuple[list[dict[str, str]], dict[str, str], int]:
+    if value is None:
+        return [], {}, 0
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)) or len(value) != 1:
+        raise ValueError("structured visual analysis requires exactly one input artifact")
+    artifact = value[0]
+    if set(artifact) != {"name", "mime_type", "sha256", "bytes_base64"}:
+        raise ValueError("structured input artifact fields are invalid")
+    name = str(artifact["name"])
+    mime_type = str(artifact["mime_type"])
+    expected_digest = str(artifact["sha256"])
+    if name != "approved_png" or mime_type != "image/png":
+        raise ValueError("structured input artifact must be the approved PNG")
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_digest):
+        raise ValueError("structured input artifact digest is invalid")
+    try:
+        raw = base64.b64decode(str(artifact["bytes_base64"]), validate=True)
+    except (ValueError, TypeError) as error:
+        raise ValueError("structured input artifact is not valid base64") from error
+    if not raw or len(raw) > BRIDGE_INPUT_ARTIFACT_LIMIT_BYTES:
+        raise ValueError("structured input artifact exceeds its bounded byte budget")
+    if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError("structured input artifact is not a PNG")
+    actual_digest = hashlib.sha256(raw).hexdigest()
+    if actual_digest != expected_digest:
+        raise ValueError("structured input artifact digest does not match its bytes")
+    normalized = [{
+        "name": name, "mime_type": mime_type, "sha256": expected_digest,
+        "bytes_base64": str(artifact["bytes_base64"]),
+    }]
+    return normalized, {name: expected_digest}, len(raw)
 
 
 def _validation_error(error: Exception) -> str:
@@ -115,12 +153,15 @@ class StructuredBridge:
         value = self._request(f"{self.url}/capabilities", None, timeout=5)
         json_modes = value.get("json_modes")
         media_modes = value.get("media_modes")
+        multimodal_modes = value.get("multimodal_modes")
         maximum = value.get("max_request_bytes")
         if (
             not isinstance(json_modes, list)
             or not all(isinstance(item, str) for item in json_modes)
             or not isinstance(media_modes, list)
             or not all(isinstance(item, str) for item in media_modes)
+            or not isinstance(multimodal_modes, list)
+            or not all(isinstance(item, str) for item in multimodal_modes)
             or not isinstance(maximum, int)
         ):
             raise ValueError("structured bridge capabilities are invalid")
@@ -128,9 +169,12 @@ class StructuredBridge:
             raise RuntimeError("structured bridge JSON modes do not match the deployed provider contract")
         if set(media_modes) != set(BRIDGE_MEDIA_MODES) or len(media_modes) != len(BRIDGE_MEDIA_MODES):
             raise RuntimeError("structured bridge media modes do not match the deployed provider contract")
+        if set(multimodal_modes) != set(BRIDGE_MULTIMODAL_MODES) or len(multimodal_modes) != len(BRIDGE_MULTIMODAL_MODES):
+            raise RuntimeError("structured bridge multimodal modes do not match the deployed provider contract")
         return {
             "json_modes": sorted(json_modes),
             "media_modes": sorted(media_modes),
+            "multimodal_modes": sorted(multimodal_modes),
             "max_request_bytes": maximum,
         }
 
@@ -139,11 +183,13 @@ class StructuredBridge:
         output_schema: Mapping[str, Any], prompt_version: str,
         idempotency_key: str,
         response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]],
+        input_artifacts: Sequence[Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
         return self.call(
             mode=mode, system_prompt=system_prompt, input_payload=input_payload,
             output_schema=output_schema, prompt_version=prompt_version,
             idempotency_key=idempotency_key, response_validator=response_validator,
+            input_artifacts=input_artifacts,
         )
 
     def call(
@@ -151,6 +197,7 @@ class StructuredBridge:
         output_schema: Mapping[str, Any], prompt_version: str,
         idempotency_key: str,
         response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]],
+        input_artifacts: Sequence[Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Validate a completed response and make at most one fresh correction.
 
@@ -164,6 +211,11 @@ class StructuredBridge:
             raise ValueError("structured bridge calls require a domain response validator")
         if mode not in JSON_MODES:
             raise ValueError("unsupported structured bridge mode")
+        artifacts, artifact_digests, artifact_bytes = _input_artifacts(input_artifacts)
+        if artifacts and mode not in BRIDGE_MULTIMODAL_MODES:
+            raise ValueError("structured input artifacts are not allowed for this mode")
+        if mode in BRIDGE_MULTIMODAL_MODES and not artifacts:
+            raise ValueError("structured visual analysis requires an approved PNG")
         if not self._slots.acquire(timeout=max(0, self.timeout_seconds)):
             raise TimeoutError(f"{mode} could not enter its bounded execution slot")
         validation_attempts: list[dict[str, Any]] = []
@@ -175,6 +227,9 @@ class StructuredBridge:
                     output_schema=output_schema, prompt_version=prompt_version,
                     idempotency_key=idempotency_key, attempt=attempt,
                     correction=correction,
+                    input_artifacts=artifacts,
+                    input_artifact_digests=artifact_digests,
+                    input_artifact_bytes=artifact_bytes,
                 )
                 try:
                     validated = dict(response_validator(result["response"]))
@@ -213,12 +268,16 @@ class StructuredBridge:
         self, *, mode: str, system_prompt: str, input_payload: Mapping[str, Any],
         output_schema: Mapping[str, Any], prompt_version: str,
         idempotency_key: str, attempt: int, correction: str | None = None,
+        input_artifacts: Sequence[Mapping[str, str]] = (),
+        input_artifact_digests: Mapping[str, str] | None = None,
+        input_artifact_bytes: int = 0,
     ) -> dict[str, Any]:
         context_hash = self._digest(input_payload)
         request_fingerprint = bridge_request_fingerprint(
             mode=mode, system_prompt=system_prompt, input_payload=input_payload,
             output_schema=output_schema, prompt_version=prompt_version,
             model=self.model,
+            input_artifact_digests=input_artifact_digests,
         )
         prompt = system_prompt
         if correction is not None:
@@ -244,6 +303,8 @@ class StructuredBridge:
                 idempotency_key, request_fingerprint, attempt,
             ),
         }
+        if input_artifacts:
+            request_document["input_artifacts"] = list(input_artifacts)
         if self.model != "codex-cli-default":
             request_document["model"] = self.model
         queued = self._request(self.url, request_document)
@@ -260,6 +321,8 @@ class StructuredBridge:
             "request_fingerprint": request_fingerprint,
             "bridge_attempt": attempt,
             "contract_bytes": contract_bytes,
+            "input_artifacts": dict(input_artifact_digests or {}),
+            "input_artifact_bytes": input_artifact_bytes,
         }
         return {"response": response, "invocation": invocation}
 

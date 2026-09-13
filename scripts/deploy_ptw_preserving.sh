@@ -159,7 +159,7 @@ trap cleanup EXIT
 "${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 \
     -U ptw_commander -d ptw_commander <<'SQL'
 DO $$
-DECLARE instagram_active boolean;
+DECLARE instagram_active boolean; tiktok_active boolean;
 BEGIN
   IF to_regclass('public.instagram_publications') IS NOT NULL THEN
     EXECUTE 'SELECT EXISTS(SELECT 1 FROM instagram_publications WHERE state->>''status'' NOT IN (''published'',''published_unresolved'',''uncertain'',''failed''))' INTO instagram_active;
@@ -167,18 +167,15 @@ BEGIN
       RAISE EXCEPTION 'an Instagram publication is active; deployment refused';
     END IF;
   END IF;
+  IF to_regclass('public.tiktok_publications') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS(SELECT 1 FROM tiktok_publications WHERE state->>''phase'' NOT IN (''published'',''published_unresolved'',''uncertain'',''failed''))' INTO tiktok_active;
+    IF tiktok_active THEN
+      RAISE EXCEPTION 'a TikTok publication is active; deployment refused';
+    END IF;
+  END IF;
   IF EXISTS (SELECT 1 FROM product_briefs WHERE status='generating')
      OR EXISTS (SELECT 1 FROM universal_studio_workspaces WHERE status IN ('queued','composing','generating_image'))
-     OR EXISTS (
-       SELECT 1 FROM studio_edit_checkpoints checkpoint
-       WHERE NOT EXISTS (
-         SELECT 1 FROM studio_learning_runs completed
-         WHERE completed.checkpoint_id=checkpoint.entity_id
-           AND completed.status='completed'
-       )
-     )
      OR EXISTS (SELECT 1 FROM landing_workspaces WHERE status IN ('queued','composing','generating_images'))
-     OR EXISTS (SELECT 1 FROM landing_checkpoints WHERE status='learning')
      OR EXISTS (SELECT 1 FROM meta_ads_deployments WHERE status NOT IN ('staged','failed')) THEN
     RAISE EXCEPTION 'a mutable PTW operation is active; preserving rollout refused';
   END IF;

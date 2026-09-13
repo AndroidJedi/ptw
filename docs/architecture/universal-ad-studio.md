@@ -136,7 +136,7 @@ A failed image request preserves the composed draft and deterministic fallback.
 The selected raw hero is the input to the next enhancement. A fourth successful
 generation evicts only the oldest raw hero file.
 
-## Save, approve, and learning
+## Save, approve, and performance learning
 
 **Update preview** explicitly renders pending edits in either Post template.
 Typing and control changes send no render requests or validation errors. The
@@ -144,34 +144,30 @@ last successful image remains visible with a pending-changes notice until the
 owner requests an update. A failed render retains that image and can be retried;
 edits made during a render remain marked as not previewed. Opening a creative
 and completing a saved-state or asset operation still refresh the saved preview.
-Preview never saves, approves, or starts learning. This behavior is deployed.
+Preview never saves, approves, or starts performance learning.
 
 Live edits never teach the agent. The initial AI composition is provenance, not
-an owner lesson. All subsequent configuration, content, template, import,
-asset, image-generation, enhancement, and image-selection changes accumulate
-until **Save creative** or **Approve creative**.
+an owner lesson. A changed **Save creative** or **Approve creative** stores the
+lightweight immutable before/after checkpoint and changed paths; approval also
+writes the immutable creative version. Neither action invokes a learner, opens a
+learning dialog, queues a retry, or creates a Project/global rule. A no-change
+checkpoint creates no event.
 
-A changed checkpoint stores immutable before/after snapshots and changed paths,
-then starts one append-only learning attempt. Success appends a Project skill
-snapshot and a privacy-filtered global proposal. The checkpoint dialog shows
-the edit summary, saved Project lesson, and proposed global rule, with
-**Apply globally** and **Keep project-only** decisions. Applying globally
-appends a global skill snapshot; keeping it Project-only records the decision
-without changing the global skill.
-
-A no-change checkpoint creates no event and no dialog. Approval saves pending
-changes atomically before writing the immutable creative version. Learning
-failure cannot roll back saved state or an approved version and is queued for
-retry. Project lessons may retain Project preferences; global rules reject
-Project IDs/names, exact campaign copy, asset digests, and unsupported claims.
+Performance learning is an explicit action in Analytics. It compares eligible
+complete approved creatives, freezes its dataset, and produces inactive typed
+candidates for owner review. Active Project and global Creative Skill snapshots
+are read at generation time and their exact IDs/digests are recorded in
+generation provenance. See
+[Analytics and reviewed Creative Skills](analytics-and-creative-learning.md).
 
 ## Persistence and APIs
 
 PostgreSQL stores one row per creative plus its renderer snapshot/files, assets,
-immutable versions, generation runs, edit checkpoints, learning runs,
-proposals/decisions, and immutable skill snapshots. Explicit graph edges retain
-Project and Brief lineage. Renderer files in production are disposable cache
-rehydrated from PostgreSQL.
+immutable versions, generation runs, and edit checkpoints. Historical
+Save/Approve learning rows remain preserved but inactive. Performance runs,
+decisions, and typed Creative Skill snapshots use the shared Analytics authority.
+Explicit graph edges retain Project and Brief lineage. Renderer files in
+production are disposable cache rehydrated from PostgreSQL.
 
 Public routes are:
 
@@ -179,13 +175,12 @@ Public routes are:
 - project creative list/create;
 - creative-scoped detail, retry, creative-direction replacement, configuration,
   Save, template apply, assets, Pexels, preview, component metadata, phone
-  generation/select/history/retry, approval, versions, learning decision, and
-  learning retry.
+  generation/select/history/retry, approval, and versions.
 
 Bare Studio detail/mutation routes and `/api/v1/posts` do not exist. Local
 loopback exposes the same creative-scoped contracts. Restart recovery resumes
-queued/interrupted composition, image, and learning work without duplicating
-creatives, assets, skill snapshots, or completed checkpoints.
+queued/interrupted composition and image work without duplicating creatives,
+assets, or completed checkpoints. Save-era learning recovery is retired.
 
 ## Visual and Tune gates
 
@@ -194,7 +189,7 @@ templates at authoritative resolution, including copy bounds, device alignment,
 network glyphs, button variants, textures, hero top coverage/fade, and
 text-free artwork. The browser/UI E2E suite checks desktop, 360px, and iPhone
 WebKit flows, creative progress, direction replacement, fresh generation,
-enhancement/history selection, Save/Approve learning dialogs, and no horizontal
+enhancement/history selection, Save/Approve checkpoint behavior, and no horizontal
 overflow. It is paired with real HTTP/domain-service tests, exact
 Gateway-to-Validation route parity, authenticated forwarding assertions, and a
 live route-registration probe; mocked browser traffic alone is not accepted as
@@ -202,8 +197,8 @@ complete system E2E evidence.
 
 `STUDIO_TUNE_MODE=1` remains loopback-only. It may modify Studio implementation
 files through its guarded worktree and requires explicit owner approval before
-copy-back. Runtime learning writes immutable database/local skill snapshots; it
-never rewrites Git skills or mounted read-only skill directories.
+copy-back. Runtime performance learning writes immutable database/local skill
+snapshots; it never rewrites Git skills or mounted read-only skill directories.
 
 ## Shared Image Reference input
 
@@ -228,6 +223,15 @@ page/creative navigation, removal, and unmount clear the reference/preview.
 Failures preserve the current generated image and require re-upload for a
 reference retry. Generated results use ordinary asset/history/version behavior.
 Only a reference SHA-256 is retained as generation provenance.
+
+## Social publishing
+
+Every approved Post version can enter the shared Instagram/TikTok publishing
+shell. Both panels verify and export the same immutable PNG, preserve request UUIDs
+across uncertain browser responses, and share status/retry/sync/history behavior.
+Provider descriptors supply only their review fields: Instagram caption, or
+TikTok title, description, live privacy/comment options, music, commercial
+disclosure, and consent. See [`social-publishing.md`](social-publishing.md).
 
 The companion platform bridge must advertise
 `image_reference_retention: ephemeral` before PTW sends reference bytes. It

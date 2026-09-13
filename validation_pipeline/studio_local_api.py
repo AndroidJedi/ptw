@@ -29,6 +29,9 @@ from .meta_ads import (
 from .meta_ads_routes import meta_ads_router
 from .instagram_publication import InstagramAdapter, InstagramPublicationService, LocalInstagramAuthority
 from .instagram_publication_routes import instagram_router, instagram_media_router
+from .tiktok_publication import LocalTikTokAuthority, TikTokPublicationService
+from .tiktok_publication_routes import tiktok_router, tiktok_media_router
+from .social_publishing.providers.tiktok import TikTokConfiguration
 from .openai_images import (
     LocalCodexPhoneScreenImageProvider, OpenAIPhoneScreenImageProvider,
 )
@@ -39,6 +42,10 @@ from .studio_workspace import UniversalStudioWorkspace
 from .commander_chat import commander_chat_router
 from .commander_workspace import CommanderWorkspaceService as CommanderChatService
 from .local_authorization import LocalAuthorization, local_authorization_router
+from .creative_analytics import CreativeAnalyticsService, LocalCreativeAnalyticsAuthority
+from .creative_analytics_routes import (
+    creative_analytics_owner_router, creative_analytics_public_router,
+)
 
 
 LOCAL_OWNER_TOKEN = "e2e-owner-token"
@@ -51,6 +58,8 @@ def create_app(
     phone_screen_image_provider: Any | None = None,
     meta_ads_service: MetaAdsService | None = None,
     instagram_service: Any | None = None,
+    tiktok_service: Any | None = None,
+    analytics_service: Any | None = None,
     commander_chat_service: CommanderChatService | None = None,
 ) -> FastAPI:
     tune_enabled = os.environ.get("STUDIO_TUNE_MODE", "").strip() == "1"
@@ -100,7 +109,7 @@ def create_app(
     repository_root = Path(__file__).resolve().parents[1]
     brief_service = brief_service or LocalBriefService(
         store=local_store, provider=structured_provider,
-        repository_root=repository_root, on_project_created=authority.ensure_project_skill,
+        repository_root=repository_root,
     )
     studio_creatives = StudioCreativeService(
         root=workspace_path, authority=authority,
@@ -109,7 +118,6 @@ def create_app(
         ),
         structured_provider=structured_provider,
         composer_skill_path=repository_root / "skills/studio-creative-composer/SKILL.md",
-        learner_skill_path=repository_root / "skills/studio-edit-learner/SKILL.md",
         phone_skill_path=repository_root / "skills/studio-phone-hero-generator/SKILL.md",
     )
     landing_pages = LandingService(
@@ -118,7 +126,6 @@ def create_app(
         workspace_factory=lambda path: LandingWorkspace(path, image_provider=phone_screen_images),
         structured_provider=structured_provider,
         composer_skill_path=repository_root / "skills/landing-page-composer/SKILL.md",
-        learner_skill_path=repository_root / "skills/landing-edit-learner/SKILL.md",
     )
     landing_publications = LocalLandingPublicationAuthority(
         local_store, landing_pages._workspace,
@@ -137,6 +144,27 @@ def create_app(
             LocalInstagramAuthority(local_store), meta_ads_service,
             InstagramAdapter(ig_configuration) if ig_configuration.access_token else None,
         )
+    if tiktok_service is None:
+        tiktok_service = TikTokPublicationService(
+            LocalTikTokAuthority(local_store), studio_creatives,
+            TikTokConfiguration.from_environment(),
+        )
+    analytics = analytics_service or CreativeAnalyticsService(
+        LocalCreativeAnalyticsAuthority(local_store),
+        studio=studio_creatives, landing_pages=landing_pages,
+        landing_publications=landing_publications, meta_ads=meta_ads_service,
+        structured_provider=structured_provider,
+        performance_skill_path=repository_root / "skills/creative-performance-learner/SKILL.md",
+        visual_skill_path=repository_root / "skills/creative-visual-analyzer/SKILL.md",
+        instagram=instagram_service, tiktok=tiktok_service,
+    )
+    studio_creatives.analytics = analytics
+    landing_pages.analytics = analytics
+    meta_ads_service.analytics = analytics
+    if getattr(instagram_service, "engine", None) is not None:
+        instagram_service.engine.analytics = analytics
+    if getattr(tiktok_service, "engine", None) is not None:
+        tiktok_service.engine.analytics = analytics
     recovery_tasks: set[asyncio.Task[Any]] = set()
     local_authorization = LocalAuthorization(codex_binary)
     commander_chat = commander_chat_service
@@ -164,6 +192,18 @@ def create_app(
             task = asyncio.create_task(asyncio.to_thread(instagram_service.execute, publication_id))
             recovery_tasks.add(task)
             task.add_done_callback(recovery_tasks.discard)
+        if getattr(getattr(tiktok_service, "configuration", None), "configured", False):
+            for publication_id in await asyncio.to_thread(tiktok_service.recover_interrupted):
+                task = asyncio.create_task(asyncio.to_thread(tiktok_service.execute, publication_id))
+                recovery_tasks.add(task)
+                task.add_done_callback(recovery_tasks.discard)
+            async def maintain_tiktok() -> None:
+                while True:
+                    await asyncio.to_thread(tiktok_service.maintain)
+                    await asyncio.sleep(30)
+            task = asyncio.create_task(maintain_tiktok())
+            recovery_tasks.add(task)
+            task.add_done_callback(recovery_tasks.discard)
         for deployment_id in meta_ads_service.recover_interrupted():
             task = asyncio.create_task(asyncio.to_thread(meta_ads_service.execute, deployment_id))
             recovery_tasks.add(task)
@@ -176,13 +216,13 @@ def create_app(
             task = asyncio.create_task(maintain_meta_ads())
             recovery_tasks.add(task)
             task.add_done_callback(recovery_tasks.discard)
-        for item in studio_creatives.recover_learning():
-            task = asyncio.create_task(asyncio.to_thread(
-                studio_creatives.retry_learning, item["project_id"],
-                item["creative_id"], item["checkpoint_id"],
-            ))
-            recovery_tasks.add(task)
-            task.add_done_callback(recovery_tasks.discard)
+        async def maintain_analytics() -> None:
+            while True:
+                await asyncio.sleep(900)
+                await asyncio.to_thread(analytics.maintain)
+        task = asyncio.create_task(maintain_analytics())
+        recovery_tasks.add(task)
+        task.add_done_callback(recovery_tasks.discard)
         yield
         for task in recovery_tasks:
             task.cancel()
@@ -228,8 +268,20 @@ def create_app(
     app.include_router(instagram_media_router(
         instagram_service, prefix="/api/v1/public/instagram-media",
     ))
+    app.include_router(tiktok_router(
+        tiktok_service, prefix="/api/v1/tiktok", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(tiktok_media_router(
+        tiktok_service, prefix="/api/v1/public/tiktok-media",
+    ))
     app.include_router(meta_ads_router(
         meta_ads_service, prefix="/api/v1/ads", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(creative_analytics_owner_router(
+        analytics, prefix="/api/v1/analytics", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(creative_analytics_public_router(
+        analytics, prefix="/api/v1/public/landing-analytics",
     ))
     app.include_router(local_brief_router(
         brief_service, studio_creatives=studio_creatives, dependencies=[Depends(authorize)],

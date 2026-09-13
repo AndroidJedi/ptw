@@ -139,7 +139,7 @@ SQL
 "${commander_compose[@]}" exec -T commander-db psql -X -qAt -v ON_ERROR_STOP=1 \
     -U ptw_commander -d ptw_commander <<'SQL'
 DO $$
-DECLARE instagram_active boolean;
+DECLARE instagram_active boolean; tiktok_active boolean;
 BEGIN
   IF to_regclass('public.instagram_publications') IS NOT NULL THEN
     EXECUTE 'SELECT EXISTS(SELECT 1 FROM instagram_publications WHERE state->>''status'' NOT IN (''published'',''published_unresolved'',''uncertain'',''failed''))' INTO instagram_active;
@@ -147,18 +147,15 @@ BEGIN
       RAISE EXCEPTION 'an Instagram publication is active; deployment refused';
     END IF;
   END IF;
+  IF to_regclass('public.tiktok_publications') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS(SELECT 1 FROM tiktok_publications WHERE state->>''phase'' NOT IN (''published'',''published_unresolved'',''uncertain'',''failed''))' INTO tiktok_active;
+    IF tiktok_active THEN
+      RAISE EXCEPTION 'a TikTok publication is active; deployment refused';
+    END IF;
+  END IF;
   IF EXISTS (SELECT 1 FROM product_briefs WHERE status='generating')
      OR EXISTS (SELECT 1 FROM universal_studio_workspaces WHERE status IN ('queued','composing','generating_image'))
-     OR EXISTS (
-       SELECT 1 FROM studio_edit_checkpoints checkpoint
-       WHERE NOT EXISTS (
-         SELECT 1 FROM studio_learning_runs completed
-         WHERE completed.checkpoint_id=checkpoint.entity_id
-           AND completed.status='completed'
-       )
-     )
      OR EXISTS (SELECT 1 FROM landing_workspaces WHERE status IN ('queued','composing','generating_images'))
-     OR EXISTS (SELECT 1 FROM landing_checkpoints WHERE status='learning')
      OR EXISTS (SELECT 1 FROM meta_ads_deployments WHERE status NOT IN ('staged','failed')) THEN
     RAISE EXCEPTION 'a mutable PTW operation is active; in-place deployment refused';
   END IF;
@@ -195,15 +192,29 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='004_public_landing_v1.sql')
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='005_instagram_publication_v1.sql')
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='006_meta_ads_control_v1.sql')
+     OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='007_tiktok_publication_v1.sql')
+     OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='008_analytics_creative_learning_v1.sql')
      OR to_regclass('public.instagram_publications') IS NULL
      OR to_regclass('public.instagram_publication_attempts') IS NULL
+     OR to_regclass('public.tiktok_publications') IS NULL
+     OR to_regclass('public.tiktok_publication_attempts') IS NULL
+     OR to_regclass('public.tiktok_account_connections') IS NULL
      OR to_regclass('public.meta_ads_control_actions') IS NULL
      OR to_regclass('public.meta_ads_insight_snapshots') IS NULL
      OR to_regclass('public.meta_ads_recommendations') IS NULL
+     OR to_regclass('public.creative_attribution_sources') IS NULL
+     OR to_regclass('public.creative_insight_snapshots') IS NULL
+     OR to_regclass('public.landing_analytics_events') IS NULL
+     OR to_regclass('public.landing_analytics_rollup_snapshots') IS NULL
+     OR to_regclass('public.creative_visual_descriptors') IS NULL
+     OR to_regclass('public.creative_visual_descriptor_sources') IS NULL
+     OR to_regclass('public.creative_learning_runs') IS NULL
+     OR to_regclass('public.creative_skill_snapshots') IS NULL
+     OR to_regclass('public.creative_learning_decisions') IS NULL
      OR NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='landing_publications')
      OR NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='landing_publication_events')
      OR (SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='validation_projects' AND column_name='owner_idea_source_id') <> 'YES' THEN
-    RAISE EXCEPTION 'Landing and Instagram publication migrations are incomplete';
+    RAISE EXCEPTION 'Landing, social publishing, Meta Ads, and Analytics migrations are incomplete';
   END IF;
 END $$;
 SQL

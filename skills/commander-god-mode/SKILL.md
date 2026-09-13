@@ -152,6 +152,14 @@ Post, or Landing learning entities or cross their lesson namespaces.
   Restart/sync must reuse that container without replaying media_publish. Save
   the returned media ID before requesting its permalink. Exercise response loss,
   restart, duplicate input, account changes, and media expiry in regression tests.
+- Social publishers share orchestration, never provider persistence. Drive commit
+  timing from adapter capabilities, and persist the mutation-start marker before
+  every irreversible provider call. For TikTok Direct Post, `content/init` is the
+  commit: a lost response is uncertain and must never be replayed. Pin the OAuth
+  `open_id` plus expected username, encrypt rotating tokens, fetch creator options
+  before review and reservation, derive AIGC from approved asset provenance, keep
+  pull media for its full expiry, and gate non-private visibility on recorded app
+  audit approval.
 - Public Landing analytics belong to the single `apps/landing-web` shell, not
   immutable Landing snapshots. A Meta Pixel ID is public configuration; keep
   tokens out of the browser. Load the external library and emit `PageView` only

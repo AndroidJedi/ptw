@@ -1,4 +1,4 @@
-"""Project-scoped Studio creative orchestration and runtime learning."""
+"""Project-scoped Studio creative orchestration and edit checkpoints."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
-import re
 import tempfile
 import threading
 from typing import Any, Callable, Mapping
@@ -50,7 +49,6 @@ TEMPLATE_IDS = frozenset({"universal_ad", PHONE_METRICS_TEMPLATE_ID})
 GLOBAL_SKILL_SCOPE = "global"
 PROJECT_SKILL_SCOPE = "project"
 STUDIO_COMPOSER_PROMPT_VERSION = "studio-creative-composer-v3"
-_DIGEST = re.compile(r"\b[0-9a-fA-F]{64}\b")
 
 
 def _uuid(value: str, field: str) -> str:
@@ -223,31 +221,6 @@ def creative_generation_schema(detail: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "type": "object", "properties": properties,
         "required": list(properties), "additionalProperties": False,
-    }
-
-
-def studio_edit_learning_schema() -> dict[str, Any]:
-    return {
-        "type": "object",
-        "properties": {
-            "edit_summary": {"type": "string", "minLength": 8, "maxLength": 1200},
-            "project_lesson": {"type": "string", "minLength": 8, "maxLength": 800},
-            "global_rule": {"type": "string", "minLength": 8, "maxLength": 800},
-        },
-        "required": ["edit_summary", "project_lesson", "global_rule"],
-        "additionalProperties": False,
-    }
-
-
-def validate_studio_edit_learning(value: Mapping[str, Any]) -> dict[str, str]:
-    if not isinstance(value, Mapping) or set(value) != {
-        "edit_summary", "project_lesson", "global_rule",
-    }:
-        raise ValueError("Studio learning response fields are invalid")
-    return {
-        "edit_summary": _compact(value["edit_summary"], "edit_summary", 8, 1200),
-        "project_lesson": _compact(value["project_lesson"], "project_lesson", 8, 800),
-        "global_rule": _compact(value["global_rule"], "global_rule", 8, 800),
     }
 
 
@@ -457,8 +430,6 @@ class LocalStudioAuthority:
             source_id=creative_id, relation="derived_from", target_id=brief_id,
             evidence={"input": "approved_product_brief"},
         )
-        self.ensure_project_skill(project_id)
-        self.ensure_global_skill()
         return value, True
 
     def get_creative(self, creative_id: str) -> dict[str, Any]:
@@ -564,29 +535,10 @@ class LocalStudioAuthority:
         checkpoint = self.store.get(
             "studio_edit_checkpoints", _uuid(checkpoint_id, "checkpoint_id"),
         )
-        attempts = [item for item in self.store.list("studio_learning_runs") if (
-            item["checkpoint_id"] == checkpoint_id
-        )]
-        latest = max(attempts, key=lambda item: int(item["attempt"])) if attempts else None
-        return {
-            **checkpoint,
-            "status": "completed" if latest and latest["status"] == "completed" else "queued",
-            "learning_run_id": None if latest is None else latest["learning_run_id"],
-            "learning_attempt": None if latest is None else latest["attempt"],
-            "edit_summary": None if latest is None else latest.get("edit_summary"),
-            "project_lesson": None if latest is None else latest.get("project_lesson"),
-            "project_skill_snapshot_id": None if latest is None else latest.get("project_skill_snapshot_id"),
-            "provider": {} if latest is None else latest.get("provider") or {},
-            "error_type": None if latest is None else latest.get("error_type"),
-            "error_message": None if latest is None else latest.get("error_message"),
-        }
+        return {**checkpoint, "status": "saved"}
 
     def queued_checkpoints(self) -> list[dict[str, Any]]:
-        return [
-            self.get_checkpoint(str(item["checkpoint_id"]))
-            for item in self.store.list("studio_edit_checkpoints")
-            if self.get_checkpoint(str(item["checkpoint_id"])).get("status") == "queued"
-        ]
+        return []
 
     def create_project_skill(
         self, *, project_id: str, lesson: str, checkpoint_id: str,
@@ -679,13 +631,12 @@ class LocalStudioAuthority:
 
 
 class StudioCreativeService:
-    """Coordinate template workspaces, generation, and checkpoint learning."""
+    """Coordinate template workspaces, generation, and edit checkpoints."""
 
     def __init__(
         self, *, root: Path | str, authority: Any,
         workspace_factory: Callable[[Path], Any], structured_provider: Any | None,
-        composer_skill_path: Path, learner_skill_path: Path,
-        phone_skill_path: Path,
+        composer_skill_path: Path, phone_skill_path: Path,
     ) -> None:
         self.root = Path(root)
         self.creatives_root = self.root / "creatives"
@@ -694,8 +645,8 @@ class StudioCreativeService:
         self.workspace_factory = workspace_factory
         self.structured_provider = structured_provider
         self.composer_skill = composer_skill_path.read_text(encoding="utf-8")
-        self.learner_skill = learner_skill_path.read_text(encoding="utf-8")
         self.phone_skill = phone_skill_path.read_text(encoding="utf-8")
+        self.analytics: Any | None = None
         self._workspaces: dict[str, Any] = {}
         self._lock = threading.RLock()
 
@@ -862,16 +813,20 @@ class StudioCreativeService:
 
     def _phone_skill_context(self, creative: Mapping[str, Any]) -> str:
         """Build the bounded, model-independent context used by every hero call."""
-
-        project_skill = self.authority.latest_skill(
-            PROJECT_SKILL_SCOPE, str(creative["project_id"]),
-        )
-        global_skill = self.authority.latest_skill(GLOBAL_SKILL_SCOPE)
+        skills = self._active_skills(str(creative["project_id"]))
         return "\n\n".join((
             self.phone_skill,
-            "Accepted global Studio lessons:\n" + str(global_skill["content"]),
-            "Accepted Project Studio lessons:\n" + str(project_skill["content"]),
+            "Active global creative spirit snapshot:\n" + _canonical(skills["global"]),
+            "Active Project creative rules snapshot:\n" + _canonical(skills["project"]),
         ))[:6000]
+
+    def _active_skills(self, project_id: str) -> dict[str, Any]:
+        if self.analytics is None:
+            return {"project": None, "global": None, "precedence": [
+                "catalog_brand_and_brief", "explicit_owner_direction",
+                "project_rules", "global_spirit", "template_defaults",
+            ]}
+        return self.analytics.active_skills(project_id)
 
     def _finish_draft(
         self, creative_id: str, detail: Mapping[str, Any], generation: Mapping[str, Any],
@@ -975,24 +930,24 @@ class StudioCreativeService:
             raise ValueError("Studio generation requires an approved complete Product Brief")
         workspace = self._workspace(creative_id)
         detail = workspace.detail()
-        project_skill = self.authority.latest_skill(PROJECT_SKILL_SCOPE, creative["project_id"])
-        global_skill = self.authority.latest_skill(GLOBAL_SKILL_SCOPE)
+        skills = self._active_skills(str(creative["project_id"]))
+        project_skill, global_skill = skills["project"], skills["global"]
+        skill_provenance = {
+            "project_skill_snapshot_id": None if project_skill is None else project_skill["skill_snapshot_id"],
+            "project_skill_sha256": None if project_skill is None else project_skill["rules_sha256"],
+            "global_skill_snapshot_id": None if global_skill is None else global_skill["skill_snapshot_id"],
+            "global_skill_sha256": None if global_skill is None else global_skill["rules_sha256"],
+        }
         existing_generation = _clear_generation_failure(creative.get("generation"))
         self.authority.update_creative(creative_id, status="composing", generation={
-            **existing_generation, "stage": "composing", "project_skill_snapshot_id": project_skill["skill_snapshot_id"],
-            "project_skill_sha256": project_skill["content_sha256"],
-            "global_skill_snapshot_id": global_skill["skill_snapshot_id"],
-            "global_skill_sha256": global_skill["content_sha256"],
+            **existing_generation, "stage": "composing", **skill_provenance,
         })
         generation_context = {
             "source_brief_id": creative["source_brief_id"],
             "template_id": creative["template_id"],
             "template_version": detail["catalog"]["template_version"],
             "template_sha256": detail["template_sha256"],
-            "project_skill_snapshot_id": project_skill["skill_snapshot_id"],
-            "project_skill_sha256": project_skill["content_sha256"],
-            "global_skill_snapshot_id": global_skill["skill_snapshot_id"],
-            "global_skill_sha256": global_skill["content_sha256"],
+            **skill_provenance,
             **({"creative_direction": self._creative_direction(creative)}
                if creative["template_id"] == PHONE_METRICS_TEMPLATE_ID else {}),
         }
@@ -1002,7 +957,7 @@ class StudioCreativeService:
             "template_defaults": {
                 "configuration": detail["configuration"], "content": detail["content"],
             },
-            "global_skill": global_skill["content"], "project_skill": project_skill["content"],
+            "active_creative_skills": skills,
             **({"creative_direction": self._creative_direction(creative)}
                if creative["template_id"] == PHONE_METRICS_TEMPLATE_ID else {}),
         }
@@ -1157,106 +1112,6 @@ class StudioCreativeService:
             return {**self.summary(creative_id), **value}
         return value
 
-    def _unsafe_global_rule(
-        self, rule: str, *, creative: Mapping[str, Any], before: Mapping[str, Any],
-        after: Mapping[str, Any],
-    ) -> bool:
-        lowered = rule.casefold()
-        forbidden = [str(creative["project_id"]), str(creative.get("source_brief_id") or "")]
-        project = self.authority.project(str(creative["project_id"]))
-        forbidden.append(str(project.get("name") or ""))
-        for snapshot in (before, after):
-            for value in _walk_strings(snapshot.get("content")):
-                if len(value) >= 12:
-                    forbidden.append(value)
-            forbidden.extend(_walk_asset_identifiers(snapshot.get("assets")))
-            for value in _walk_strings(snapshot.get("phone_screen_history")):
-                if len(value) >= 3:
-                    forbidden.append(value)
-        personal_data = re.search(
-            r"(?:[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|https?://\S+|\+?\d[\d ()-]{7,}\d)",
-            rule,
-        )
-        return bool(
-            _DIGEST.search(rule) or personal_data
-            or any(value and value.casefold() in lowered for value in forbidden)
-        )
-
-    def _learn_checkpoint(
-        self, checkpoint: Mapping[str, Any],
-    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
-        checkpoint = deepcopy(dict(checkpoint))
-        checkpoint_id = str(checkpoint["checkpoint_id"])
-        creative_id = str(checkpoint["creative_id"])
-        project_id = str(checkpoint["project_id"])
-        creative = self.authority.get_creative(creative_id)
-        before = checkpoint["before_snapshot"]
-        after = checkpoint["after_snapshot"]
-        paths = list(checkpoint["changed_paths"])
-        prior_attempt = int(checkpoint.get("learning_attempt") or 0)
-        # Reconcile uncertain provider/runtime failures with the same request.
-        # A deterministic output-validation failure needs one new provider job
-        # so Retry cannot replay the already rejected completed response.
-        provider_attempt = (
-            prior_attempt + 1 if checkpoint.get("error_type") == "ValueError"
-            else max(1, prior_attempt)
-        )
-        payload = {
-            "checkpoint_kind": checkpoint["kind"], "changed_paths": paths,
-            "before": before, "after": after,
-            "project_name": self.authority.project(project_id).get("name"),
-        }
-        if checkpoint.get("error_type") == "ValueError":
-            payload["previous_validation_error"] = str(
-                checkpoint.get("error_message") or "structured output was rejected"
-            )[:1000]
-        try:
-            def validate_learning(value: Mapping[str, Any]) -> Mapping[str, Any]:
-                learned = validate_studio_edit_learning(value)
-                if self._unsafe_global_rule(
-                    learned["global_rule"], creative=creative, before=before, after=after,
-                ):
-                    raise ValueError(
-                        "global Studio proposal contains project-specific or sensitive content"
-                    )
-                return learned
-
-            result = self._provider_call(
-                mode="studio_edit_learning", system_prompt=self.learner_skill,
-                input_payload=payload, output_schema=studio_edit_learning_schema(),
-                idempotency_key=f"studio-checkpoint:{checkpoint_id}:attempt:{provider_attempt}",
-                prompt_version="studio-edit-learner-v1",
-                response_validator=validate_learning,
-            )
-            learned = result["response"]
-            summary = _compact(learned["edit_summary"], "edit_summary", 8, 1200)
-            project_lesson = _compact(learned["project_lesson"], "project_lesson", 8, 800)
-            global_rule = _compact(learned["global_rule"], "global_rule", 8, 800)
-            project_skill = self.authority.create_project_skill(
-                project_id=project_id, lesson=project_lesson, checkpoint_id=checkpoint_id,
-            )
-            proposal = self.authority.create_proposal(
-                checkpoint_id=checkpoint_id,
-                project_skill_snapshot_id=project_skill["skill_snapshot_id"],
-                global_rule=global_rule,
-            )
-            self.authority.record_learning_result(
-                checkpoint_id, status="completed", edit_summary=summary,
-                project_lesson=project_lesson,
-                project_skill_snapshot_id=project_skill["skill_snapshot_id"],
-                provider=sanitized(result.get("invocation") or {}), error=None,
-            )
-            return self.authority.get_checkpoint(checkpoint_id), proposal
-        except Exception as error:
-            self.authority.record_learning_result(
-                checkpoint_id, status="failed",
-                edit_summary=checkpoint.get("edit_summary")
-                or f"Saved changes: {', '.join(paths[:12])}",
-                project_lesson=None, project_skill_snapshot_id=None,
-                provider={}, error=error,
-            )
-            return self.authority.get_checkpoint(checkpoint_id), None
-
     def checkpoint(
         self, project_id: str, creative_id: str, *, kind: str,
         base_sha256: str, configuration: Mapping[str, Any], content: Mapping[str, Any],
@@ -1321,7 +1176,7 @@ class StudioCreativeService:
             "project_id": project_id, "kind": kind, "before_state_sha256": before_sha,
             "after_state_sha256": after_sha, "changed_paths": paths,
             "before_snapshot": before, "after_snapshot": after,
-            "status": "learning", "version": len(current.get("versions", [])) if kind == "approve" else None,
+            "status": "saved", "version": len(current.get("versions", [])) if kind == "approve" else None,
             "created_at": utc_now(),
         }
         checkpoint = self.authority.record_checkpoint(checkpoint)
@@ -1332,56 +1187,15 @@ class StudioCreativeService:
             latest_checkpoint_id=checkpoint_id,
             approved_version_count=len(current.get("versions", [])),
         )
-        checkpoint, proposal = self._learn_checkpoint(checkpoint)
         return {
             "creative": self.detail(project_id, creative_id),
             "checkpoint_created": True, "version_created": version_created,
-            "checkpoint": {key: value for key, value in checkpoint.items() if key not in {"before_snapshot", "after_snapshot"}},
-            "learning_proposal": proposal,
-        }
-
-    def retry_learning(
-        self, project_id: str, creative_id: str, checkpoint_id: str,
-    ) -> dict[str, Any]:
-        self.detail(project_id, creative_id)
-        checkpoint = self.authority.get_checkpoint(_uuid(checkpoint_id, "checkpoint_id"))
-        if (
-            str(checkpoint["creative_id"]) != str(creative_id)
-            or str(checkpoint["project_id"]) != str(project_id)
-        ):
-            raise KeyError("Studio checkpoint was not found in this creative")
-        if checkpoint.get("status") != "queued":
-            raise ValueError("only queued Studio learning can be retried")
-        learned, proposal = self._learn_checkpoint(checkpoint)
-        return {
             "checkpoint": {
-                key: value for key, value in learned.items()
-                if key not in {"before_snapshot", "after_snapshot"}
+                **{key: value for key, value in checkpoint.items() if key not in {"before_snapshot", "after_snapshot"}},
+                "status": "saved",
             },
-            "learning_proposal": proposal,
+            "learning_proposal": None,
         }
-
-    def recover_learning(self) -> list[dict[str, str]]:
-        if not hasattr(self.authority, "queued_checkpoints"):
-            return []
-        return [{
-            "project_id": str(item["project_id"]),
-            "creative_id": str(item["creative_id"]),
-            "checkpoint_id": str(item["checkpoint_id"]),
-        } for item in self.authority.queued_checkpoints()]
-
-    def decide_learning(
-        self, project_id: str, creative_id: str, proposal_id: str, decision: str,
-    ) -> dict[str, Any]:
-        self.detail(project_id, creative_id)
-        if hasattr(self.authority, "proposal_checkpoint"):
-            checkpoint = self.authority.proposal_checkpoint(proposal_id)
-            if (
-                str(checkpoint["creative_id"]) != str(creative_id)
-                or str(checkpoint["project_id"]) != str(project_id)
-            ):
-                raise KeyError("Studio learning proposal was not found in this creative")
-        return self.authority.decide_proposal(proposal_id, decision)
 
     def recover_interrupted(self) -> list[str]:
         if hasattr(self.authority, "recover_interrupted"):
@@ -1395,42 +1209,3 @@ class StudioCreativeService:
                         self.authority.update_creative(creative["creative_id"], status="queued")
                     recovered.append(creative["creative_id"])
         return recovered
-
-
-def _walk_strings(value: Any) -> list[str]:
-    if isinstance(value, str):
-        return [" ".join(value.split())]
-    if isinstance(value, Mapping):
-        result: list[str] = []
-        for item in value.values():
-            result.extend(_walk_strings(item))
-        return result
-    if isinstance(value, list):
-        result = []
-        for item in value:
-            result.extend(_walk_strings(item))
-        return result
-    return []
-
-
-def _walk_asset_identifiers(value: Any, key: str = "") -> list[str]:
-    """Return private/specific provenance values without generic asset vocabulary."""
-
-    if isinstance(value, Mapping):
-        result: list[str] = []
-        for child_key, item in value.items():
-            result.extend(_walk_asset_identifiers(item, str(child_key)))
-        return result
-    if isinstance(value, list):
-        result = []
-        for item in value:
-            result.extend(_walk_asset_identifiers(item, key))
-        return result
-    identifying_key = (
-        key in {"provider", "model", "origin", "filename", "source", "visual_direction"}
-        or key.endswith(("_id", "_url", "_sha256", "_fingerprint"))
-    )
-    if identifying_key and isinstance(value, (str, int)) and not isinstance(value, bool):
-        normalized = " ".join(str(value).split())
-        return [normalized] if len(normalized) >= 3 else []
-    return []

@@ -66,11 +66,13 @@ amd64 architecture and source-revision label, the stream sends a `PRESENT`
 record and skips that archive upload.
 
 The unrelated bridge under `/opt/ptw/platform` must advertise exactly
-`product_brief`, `product_brief_revision`,
-`studio_creative_generation`, and `studio_edit_learning` JSON modes plus the
-bounded `content_non_human_graphic_generation` media mode. Enhancement accepts
-at most one digest-checked PNG reference. When Validation or the platform
-changes, run real canaries for all JSON modes, fresh image generation,
+`product_brief`, `product_brief_revision`, `studio_creative_generation`,
+`creative_performance_learning`, and `creative_visual_analysis` structured JSON
+modes plus the bounded `content_non_human_graphic_generation` media mode. Visual
+analysis and enhancement accept at most one digest-checked PNG reference. The
+visual mode must expose only the safe descriptor schema; the performance mode
+must return inactive typed candidates. When Validation or the platform changes,
+run real canaries for every structured mode, fresh image generation,
 enhancement, and Pexels before accepting that release.
 
 `scripts/publish_ptw_release_serial.sh` remains the destructive reset publisher
@@ -80,7 +82,8 @@ and accepts only `RESET PTW PRODUCTION`. Migration-bearing releases enter throug
 requires matched versioned images and exact PTW/platform revisions, deploys and
 audits the public Firebase shell first, stops Commander-database writers,
 creates a root-only checksummed PostgreSQL custom-format backup, fingerprints
-every pre-existing business row, applies pending additive migrations through 005, proves all
+every pre-existing business row, applies every pending additive migration
+including 008, proves all
 fingerprints unchanged, and cuts Commander, Validation, then Owner Gateway over
 serially. Failure restores prior service images without reversing the additive
 migration. Dependency/resource canaries and the persistent 24-hour audit remain
@@ -106,8 +109,9 @@ screenshots, Firebase metadata, and SHA-256 manifest. DNS/custom-domain transfer
 and later old-site disablement remain manual, separately authorized operations.
 
 After cutover verify Brief approval-to-creative navigation, project isolation,
-composition, automatic phone image, edit/save learning, global decision,
-creative approval, graph persistence, immutable assets/versions/skills,
+composition, automatic phone image, Save/Approve with zero learner calls,
+explicit Analytics learning and reviewed decision, creative approval, graph
+persistence, immutable assets/versions/skills,
 failure/retry paths, restart recovery, the PWA cache, schema/skill checks, and
 dependency/resource audits. Never log prompts, credentials, image bytes, or
 Telegram tokens. Never deploy or reset without the owner’s separate explicit

@@ -545,8 +545,6 @@ class DatabaseStudioAuthority:
                 connection, creative_id, "derived_from", UUID(brief_id),
                 {"input": "approved_product_brief"},
             )
-        self.ensure_project_skill(project_id)
-        self.ensure_global_skill()
         value = self.get_creative(str(creative_id))
         value["project_name"] = project["name"]
         return value, True
@@ -629,8 +627,6 @@ class DatabaseStudioAuthority:
                     {"input": "approved_product_brief"},
                 )
                 creative_created = True
-        self.ensure_project_skill(str(brief[0]))
-        self.ensure_global_skill()
         return self.get_creative(str(creative_id)), approved_now, creative_created
 
     def update_creative(self, creative_id: str, **patch: Any) -> dict[str, Any]:
@@ -899,13 +895,7 @@ class DatabaseStudioAuthority:
             "changed_paths": list(row[6] or []),
             "before_snapshot": dict(row[7] or {}), "after_snapshot": dict(row[8] or {}),
             "version": row[9], "created_at": row[10].isoformat(),
-            "learning_run_id": None if row[11] is None else str(row[11]),
-            "learning_attempt": row[12],
-            "status": "completed" if row[13] == "completed" else "queued",
-            "edit_summary": row[14], "project_lesson": row[15],
-            "project_skill_snapshot_id": None if row[16] is None else str(row[16]),
-            "provider": dict(row[17] or {}), "error_type": row[18],
-            "error_message": row[19],
+            "status": "saved",
         }
 
     @staticmethod
@@ -914,17 +904,8 @@ class DatabaseStudioAuthority:
                          checkpoint.checkpoint_kind,checkpoint.before_state_sha256,
                          checkpoint.after_state_sha256,checkpoint.changed_paths,
                          checkpoint.before_snapshot,checkpoint.after_snapshot,
-                         checkpoint.version,checkpoint.created_at,
-                         learning.entity_id,learning.attempt,learning.status,
-                         learning.edit_summary,learning.project_lesson,
-                         learning.project_skill_snapshot_id,learning.provider,
-                         learning.error_type,learning.error_message
-                    FROM studio_edit_checkpoints checkpoint
-                    LEFT JOIN LATERAL (
-                        SELECT * FROM studio_learning_runs candidate
-                         WHERE candidate.checkpoint_id=checkpoint.entity_id
-                         ORDER BY candidate.attempt DESC LIMIT 1
-                    ) learning ON true"""
+                         checkpoint.version,checkpoint.created_at
+                    FROM studio_edit_checkpoints checkpoint"""
 
     def get_checkpoint(self, checkpoint_id: str) -> dict[str, Any]:
         with self.connection() as connection:
@@ -937,12 +918,7 @@ class DatabaseStudioAuthority:
         return self._checkpoint_row(row)
 
     def queued_checkpoints(self) -> list[dict[str, Any]]:
-        with self.connection() as connection:
-            rows = connection.execute(
-                self._checkpoint_select()
-                + " WHERE NOT EXISTS (SELECT 1 FROM studio_learning_runs completed WHERE completed.checkpoint_id=checkpoint.entity_id AND completed.status='completed') ORDER BY checkpoint.created_at",
-            ).fetchall()
-        return [self._checkpoint_row(row) for row in rows]
+        return []
 
     def create_project_skill(self, *, project_id: str, lesson: str, checkpoint_id: str) -> dict[str, Any]:
         with self.connection() as connection:

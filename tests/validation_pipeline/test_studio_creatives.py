@@ -32,9 +32,7 @@ def _png(color: str = "#f4f3ef") -> bytes:
 class FakeStructuredProvider:
     def __init__(self) -> None:
         self.calls: list[dict] = []
-        self.learning_failures = 0
         self.invalid_generation = False
-        self.unsafe_global_proposal = False
 
     def generate(self, **request):
         self.calls.append(deepcopy(request))
@@ -54,22 +52,6 @@ class FakeStructuredProvider:
             return {
                 "response": response,
                 "invocation": {"provider": "fake", "model": "test-composer"},
-            }
-        if request["mode"] == "studio_edit_learning":
-            if self.learning_failures:
-                self.learning_failures -= 1
-                raise RuntimeError("temporary learning provider failure")
-            return {
-                "response": {
-                    "edit_summary": "The owner made the headline more direct.",
-                    "project_lesson": "Prefer a direct headline for this Project audience.",
-                    "global_rule": (
-                        f"Always reuse {request['input_payload']['project_name']} campaign copy."
-                        if self.unsafe_global_proposal
-                        else "Prefer direct headlines when the template has limited space."
-                    ),
-                },
-                "invocation": {"provider": "fake", "model": "test-learner"},
             }
         raise AssertionError(request["mode"])
 
@@ -114,7 +96,6 @@ class StudioCreativeServiceTests(unittest.TestCase):
             ),
             structured_provider=self.provider,
             composer_skill_path=repository / "skills/studio-creative-composer/SKILL.md",
-            learner_skill_path=repository / "skills/studio-edit-learner/SKILL.md",
             phone_skill_path=repository / "skills/studio-phone-hero-generator/SKILL.md",
         )
 
@@ -148,7 +129,6 @@ class StudioCreativeServiceTests(unittest.TestCase):
             "document_sha256": "a" * 64, "failure_count": 0,
             "approved": True, "created_at": now, "updated_at": now,
         })
-        self.authority.ensure_project_skill(project_id)
         return project_id, brief_id
 
     def generate_creative(self, template_id: str = "universal_ad"):
@@ -250,19 +230,20 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertEqual("private, no-store", response.headers["cache-control"])
         self.assertEqual(sha256(response.content).hexdigest(), response.headers["x-ptw-content-sha256"])
         self.assertEqual(detail["state_sha256"], self.service.detail(project_id, detail["creative_id"])["state_sha256"])
-        self.assertEqual(1, self.authority.latest_skill("project", project_id)["version"])
+        self.assertEqual([], self.store.list("studio_skill_snapshots"))
 
-    def test_phone_generation_uses_brief_composition_and_all_skill_layers(self) -> None:
+    def test_phone_generation_uses_brief_composition_and_typed_skill_provenance(self) -> None:
         project_id, _brief_id, detail = self.generate_creative("phone_metrics")
 
         self.assertEqual("draft", detail["status"])
         self.assertEqual("completed", detail["generation"]["phone_image"]["status"])
         self.assertEqual([None], self.images.references)
         self.assertIn("Studio Phone Hero Generator", self.images.prompts[0])
-        self.assertIn("Accepted global Studio lessons", self.images.prompts[0])
-        self.assertIn("Accepted Project Studio lessons", self.images.prompts[0])
+        self.assertIn("Active global creative spirit snapshot: null", self.images.prompts[0])
+        self.assertIn("Active Project creative rules snapshot: null", self.images.prompts[0])
         self.assertIn("no readable text", self.images.prompts[0])
-        self.assertEqual(1, self.authority.latest_skill("project", project_id)["version"])
+        self.assertIsNone(detail["generation"]["project_skill_snapshot_id"])
+        self.assertIsNone(detail["generation"]["global_skill_snapshot_id"])
         generation_call = next(
             call for call in self.provider.calls
             if call["mode"] == "studio_creative_generation"
@@ -288,8 +269,8 @@ class StudioCreativeServiceTests(unittest.TestCase):
             self.assertEqual(detail["source_brief_id"], run["provenance"]["source_brief_id"])
             self.assertEqual("phone_metrics", run["provenance"]["template_id"])
             self.assertEqual(PHONE_DIRECTION, run["provenance"]["creative_direction"])
-            self.assertRegex(run["provenance"]["global_skill_sha256"], r"^[0-9a-f]{64}$")
-            self.assertRegex(run["provenance"]["project_skill_sha256"], r"^[0-9a-f]{64}$")
+            self.assertIsNone(run["provenance"]["global_skill_sha256"])
+            self.assertIsNone(run["provenance"]["project_skill_sha256"])
 
     def test_phone_direction_is_required_idempotent_and_replaceable(self) -> None:
         project_id, brief_id = self.approved_brief()
@@ -397,7 +378,7 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertEqual(280, content["supporting_text"]["maxLength"])
         self.assertEqual(100, content["bullets"]["items"]["maxLength"])
 
-    def test_runtime_skill_digest_is_verified_before_generation(self) -> None:
+    def test_legacy_runtime_skill_snapshot_is_not_consumed_by_generation(self) -> None:
         project_id, _brief_id = self.approved_brief()
         snapshot_id = new_uuid7()
         self.store.append("studio_skill_snapshots", snapshot_id, {
@@ -408,8 +389,12 @@ class StudioCreativeServiceTests(unittest.TestCase):
             "created_at": "9999-01-01T00:00:00Z",
         })
 
-        with self.assertRaisesRegex(RuntimeError, "digest mismatch"):
-            self.authority.latest_skill("project", project_id)
+        creative, _created = self.service.reserve_from_brief(
+            brief_id=_brief_id, template_id="universal_ad", requested_by="test",
+        )
+        generated = self.service.generate(creative["creative_id"])
+        self.assertEqual("draft", generated["status"])
+        self.assertIsNone(generated["generation"]["project_skill_snapshot_id"])
 
     def test_phone_generation_and_selection_accumulate_in_the_next_checkpoint(self) -> None:
         project_id, _brief_id, baseline = self.generate_creative("phone_metrics")
@@ -457,7 +442,7 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertEqual(1, len(saved["before_snapshot"]["phone_screen_history"]))
         self.assertEqual(3, len(saved["after_snapshot"]["phone_screen_history"]))
 
-    def test_learning_occurs_once_only_at_a_changed_checkpoint(self) -> None:
+    def test_save_creates_one_checkpoint_and_zero_learning(self) -> None:
         project_id, _brief_id, detail = self.generate_creative()
         baseline = self.service.checkpoint(
             project_id, detail["creative_id"], kind="save",
@@ -465,7 +450,7 @@ class StudioCreativeServiceTests(unittest.TestCase):
             configuration=detail["configuration"], content=detail["content"],
         )
         self.assertFalse(baseline["checkpoint_created"])
-        self.assertFalse(any(call["mode"] == "studio_edit_learning" for call in self.provider.calls))
+        self.assertFalse(any(call["mode"] == "creative_performance_learning" for call in self.provider.calls))
 
         changed_content = deepcopy(detail["content"])
         changed_content["hero_title"] = "A shorter owner headline"
@@ -485,13 +470,12 @@ class StudioCreativeServiceTests(unittest.TestCase):
         self.assertEqual(
             1, len(self.store.history("studio_edit_checkpoints", checkpoint_id)),
         )
-        self.assertEqual(1, len([
+        self.assertEqual(0, len([
             item for item in self.store.list("studio_learning_runs")
             if item["checkpoint_id"] == checkpoint_id
         ]))
-        self.assertEqual(2, self.authority.latest_skill("project", project_id)["version"])
-        proposal = checkpoint["learning_proposal"]
-        self.assertIsNotNone(proposal)
+        self.assertEqual([], self.store.list("studio_skill_snapshots"))
+        self.assertIsNone(checkpoint["learning_proposal"])
 
         unchanged = self.service.checkpoint(
             project_id, detail["creative_id"], kind="save",
@@ -500,34 +484,11 @@ class StudioCreativeServiceTests(unittest.TestCase):
             content=checkpoint["creative"]["content"],
         )
         self.assertFalse(unchanged["checkpoint_created"])
-        self.assertEqual(1, len([
-            call for call in self.provider.calls if call["mode"] == "studio_edit_learning"
+        self.assertEqual(0, len([
+            call for call in self.provider.calls if call["mode"] == "creative_performance_learning"
         ]))
-        decision = self.service.decide_learning(
-            project_id, detail["creative_id"], proposal["proposal_id"], "global",
-        )
-        self.assertEqual("global", decision["decision"])
-        self.assertEqual(2, self.authority.latest_skill("global")["version"])
-        edges = self.store.list("edges")
-        project_skill_id = checkpoint["checkpoint"]["project_skill_snapshot_id"]
-        self.assertTrue(any(
-            edge["source_id"] == project_skill_id
-            and edge["relation"] == "derived_from"
-            and edge["target_id"] == checkpoint_id
-            for edge in edges
-        ))
-        self.assertTrue(any(
-            edge["source_id"] == proposal["proposal_id"]
-            and edge["relation"] == "contains"
-            and edge["target_id"] == decision["decision_id"]
-            for edge in edges
-        ))
-
-        other_project, _brief, other = self.generate_creative()
-        with self.assertRaises(KeyError):
-            self.service.decide_learning(
-                other_project, other["creative_id"], proposal["proposal_id"], "project_only",
-            )
+        self.assertEqual([], self.store.list("studio_learning_proposals"))
+        self.assertEqual([], self.store.list("studio_learning_decisions"))
 
     def test_variant_requires_the_latest_creative_to_be_approved(self) -> None:
         project_id, brief_id, first = self.generate_creative()
@@ -598,9 +559,8 @@ class StudioCreativeServiceTests(unittest.TestCase):
             [item["version"] for item in self.service._workspace(detail["creative_id"]).detail()["versions"]],
         )
 
-    def test_failed_learning_is_queued_and_restart_safe_to_retry(self) -> None:
+    def test_save_ignores_obsolete_learning_provider_failures(self) -> None:
         project_id, _brief_id, detail = self.generate_creative()
-        self.provider.learning_failures = 1
         content = deepcopy(detail["content"])
         content["cta"] = "Take the next step"
         checkpoint = self.service.checkpoint(
@@ -608,37 +568,27 @@ class StudioCreativeServiceTests(unittest.TestCase):
             base_sha256=detail["state_sha256"],
             configuration=detail["configuration"], content=content,
         )
-        self.assertEqual("queued", checkpoint["checkpoint"]["status"])
+        self.assertEqual("saved", checkpoint["checkpoint"]["status"])
         self.assertIsNone(checkpoint["learning_proposal"])
-        self.assertEqual(1, self.authority.latest_skill("project", project_id)["version"])
-        self.assertEqual(1, len(self.service.recover_learning()))
-
-        recovered = self.service.retry_learning(
-            project_id, detail["creative_id"], checkpoint["checkpoint"]["checkpoint_id"],
-        )
-        self.assertEqual("completed", recovered["checkpoint"]["status"])
-        self.assertIsNotNone(recovered["learning_proposal"])
+        self.assertFalse(hasattr(self.service, "recover_learning"))
+        self.assertFalse(hasattr(self.service, "retry_learning"))
         checkpoint_id = checkpoint["checkpoint"]["checkpoint_id"]
         self.assertEqual(
             1, len(self.store.history("studio_edit_checkpoints", checkpoint_id)),
         )
-        self.assertEqual(2, len([
+        self.assertEqual(0, len([
             item for item in self.store.list("studio_learning_runs")
             if item["checkpoint_id"] == checkpoint_id
         ]))
         learning_calls = [
             item for item in self.provider.calls
-            if item["mode"] == "studio_edit_learning"
+            if item["mode"] == "creative_performance_learning"
         ]
-        self.assertEqual(2, len(learning_calls))
-        self.assertTrue(learning_calls[0]["idempotency_key"].endswith(":attempt:1"))
-        self.assertTrue(learning_calls[1]["idempotency_key"].endswith(":attempt:1"))
-        self.assertEqual(2, self.authority.latest_skill("project", project_id)["version"])
-        self.assertEqual([], self.service.recover_learning())
+        self.assertEqual(0, len(learning_calls))
+        self.assertEqual([], self.store.list("studio_skill_snapshots"))
 
-    def test_project_specific_global_proposal_is_rejected_and_retryable(self) -> None:
+    def test_save_never_consumes_obsolete_global_proposals(self) -> None:
         project_id, _brief_id, detail = self.generate_creative()
-        self.provider.unsafe_global_proposal = True
         content = deepcopy(detail["content"])
         content["hero_title"] = "Owner-specific final headline"
         checkpoint = self.service.checkpoint(
@@ -647,43 +597,15 @@ class StudioCreativeServiceTests(unittest.TestCase):
             configuration=detail["configuration"], content=content,
         )
 
-        self.assertEqual("queued", checkpoint["checkpoint"]["status"])
-        self.assertIn("project-specific", checkpoint["checkpoint"]["error_message"])
+        self.assertEqual("saved", checkpoint["checkpoint"]["status"])
         self.assertIsNone(checkpoint["learning_proposal"])
-        self.assertEqual(1, self.authority.latest_skill("project", project_id)["version"])
-        stored_checkpoint = self.authority.get_checkpoint(
-            checkpoint["checkpoint"]["checkpoint_id"],
-        )
-        creative = self.authority.get_creative(detail["creative_id"])
-        self.assertFalse(self.service._unsafe_global_rule(
-            "Treat logo visibility as region-specific instead of a universal preference.",
-            creative=creative, before=stored_checkpoint["before_snapshot"],
-            after=stored_checkpoint["after_snapshot"],
-        ))
-        private_after = deepcopy(stored_checkpoint["after_snapshot"])
-        private_after["assets"] = [
-            {"slot": "hero", "source": {"provider": "private-provider-123"}},
-        ]
-        self.assertTrue(self.service._unsafe_global_rule(
-            "Prefer private-provider-123 for every Project.", creative=creative,
-            before=stored_checkpoint["before_snapshot"], after=private_after,
-        ))
-
-        self.provider.unsafe_global_proposal = False
-        recovered = self.service.retry_learning(
-            project_id, detail["creative_id"], checkpoint["checkpoint"]["checkpoint_id"],
-        )
-        self.assertEqual("completed", recovered["checkpoint"]["status"])
-        self.assertIsNotNone(recovered["learning_proposal"])
+        self.assertEqual([], self.store.list("studio_learning_runs"))
+        self.assertEqual([], self.store.list("studio_learning_proposals"))
         learning_calls = [
             item for item in self.provider.calls
-            if item["mode"] == "studio_edit_learning"
+            if item["mode"] == "creative_performance_learning"
         ]
-        self.assertTrue(learning_calls[0]["idempotency_key"].endswith(":attempt:1"))
-        self.assertTrue(learning_calls[1]["idempotency_key"].endswith(":attempt:2"))
-        self.assertIn(
-            "project-specific", learning_calls[1]["input_payload"]["previous_validation_error"],
-        )
+        self.assertEqual([], learning_calls)
 
     def test_phone_failure_keeps_a_draft_and_can_be_retried_separately(self) -> None:
         self.images.failures = 1

@@ -28,7 +28,15 @@ def main() -> None:
         "landing_checkpoints", "landing_skill_snapshots", "landing_learning_proposals",
         "meta_ads_preset_versions", "meta_ads_workspaces", "meta_ads_audience_versions",
         "meta_ads_deployments", "meta_ads_stage_runs", "meta_ads_status_snapshots",
+        "meta_ads_control_actions", "meta_ads_insight_snapshots", "meta_ads_recommendations",
+        "landing_publications", "landing_publication_events",
         "instagram_publications", "instagram_publication_attempts",
+        "tiktok_account_connections", "tiktok_publications", "tiktok_publication_attempts",
+        "creative_attribution_sources", "creative_insight_snapshots",
+        "landing_analytics_events", "landing_analytics_rollup_snapshots",
+        "creative_visual_descriptors", "creative_visual_descriptor_sources",
+        "creative_learning_runs",
+        "creative_skill_snapshots", "creative_learning_decisions",
     }
     forbidden = {
         "project_assets", "project_brand_kits", "studio_recipes", "studio_renders",

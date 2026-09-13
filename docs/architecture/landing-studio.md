@@ -4,8 +4,10 @@ Landing / Лендінг is the third private Owner Console destination and the 
 of Natal's bounded publication workflow. A private Landing belongs to one
 Project and starts from one immutable approved Post version plus its source
 approved Product Brief. Publishing exposes only an explicitly selected approved
-Landing version; it never creates analytics, cookies, forms, lead storage, or a
-public Project directory.
+Landing version. The public shell emits the bounded cookieless first-party
+events defined in
+[Analytics and reviewed Creative Skills](analytics-and-creative-learning.md);
+Landing still has no forms, lead storage, or public Project directory.
 
 ## Bounded page contract
 
@@ -19,8 +21,9 @@ Both image prompts also accept the shared optional [Image Reference input](unive
 operation inputs, never Landing assets or saved page state.
 
 Initial AI composition receives the approved Brief, the frozen Post version’s
-design snapshot, the live Landing catalog, and Landing-only global/Project
-skills. It must not invent social proof or contact endpoints. Evidence is optional:
+design snapshot, the live Landing catalog, and active typed Project/global
+Creative Skills. It records their exact snapshot IDs/digests. It must not invent
+social proof or contact endpoints. Evidence is optional:
 zero entries hide the entire section, while supplied entries require a heading,
 statement, and attribution. One validated email, phone, or direct Telegram bot
 link is required
@@ -36,9 +39,10 @@ Landing captures its source Post snapshot at reservation; future Post edits
 never synchronize into it.
 
 PostgreSQL stores Landing metadata, workspace files, visual bytes, composition
-and visual generation runs, immutable versions, checkpoints, and Landing-only
-learning snapshots/proposals with explicit Project, Brief, and Post-version
-graph lineage. Loopback provides the
+and visual generation runs, immutable versions, and checkpoints with explicit
+Project, Brief, and Post-version graph lineage. Historical Save-era Landing
+learning rows remain preserved but inactive; reviewed typed rules use the shared
+Analytics authority. Loopback provides the
 same append-only metadata contract and per-page workspace files. Editor APIs are
 authenticated and Project/page scoped under `/api/v1/landings`; visual bytes are
 private and `no-store`.
@@ -59,13 +63,13 @@ routes are bounded `GET`/`HEAD` snapshot and selected-asset reads below
 `/api/v1/public/landings/{namespace}/{slug}`. Snapshot JSON allowlists the
 Project display name, canonical URL, normalized approved configuration/content,
 two selected asset URLs, version digest, and publication time. IDs, history,
-provenance, learning data, and unselected assets remain private. JSON is
+provenance, Analytics data, and unselected assets remain private. JSON is
 `no-store`; digest-addressed current PNGs are immutable-cacheable.
 
-Save and Approve create a Landing-only checkpoint when state changed. Learning
-may append Landing global and Project rules, but never alters Post Studio skills
-or generation. The bridge retains its four existing JSON modes and existing
-text-free media mode; Landing uses its own strict schemas and canonical skills.
+Save and Approve create only a Landing checkpoint when state changed; Approve
+also writes the immutable version. They do not call a learner or create rules.
+Performance learning starts only from Analytics and may propose inactive
+Project rules or global spirit principles for explicit owner review.
 
 ## Page design and editing
 
@@ -97,10 +101,9 @@ reading an existing Landing does not rewrite its state digest. Empty proof and
 editor placeholders never reach Preview.
 Long copy wraps within the page; section text fields expose backend limits.
 
-Save feedback shows an immutable checkpoint's edit summary, Project lesson, and
-global proposal. Decision/retry uses existing scoped routes; a proposal must
-belong to the requested page. Image selection persists pending edits before
-changing the selected raw image. Failed mutations retain editable local input.
+Save feedback shows the immutable checkpoint result without a learning dialog,
+proposal, or retry. Image selection persists pending edits before changing the
+selected raw image. Failed mutations retain editable local input.
 Font files are bundled from canonical assets and their OFL notices ship in
 `dist/font-licenses`; the dev server permits only those additional asset paths.
 
@@ -108,7 +111,8 @@ Browser coverage includes desktop, 360px, iPhone WebKit, real font loading,
 maximum-length copy, focal points, section selection, contact actions, FAQ,
 page-language independence, and fullscreen focus restoration. Backend tests
 cover approval without proof, invalid contacts, failed-approval atomicity,
-bounded configuration, immutable versions, and page-scoped learning decisions.
+bounded configuration, immutable versions, zero Save/Approve learner calls, and
+cookieless event semantics.
 
 ## Natal identity, themes, and visual styles
 

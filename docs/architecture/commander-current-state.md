@@ -8,6 +8,67 @@ Commander, Owner Gateway and provider images were preserved. The Owner Console
 and cache v10 are live. The accepted marker and production checkout identify
 revision `b8ae473491188c038557251b2c6c0ad52bed7897`.
 
+## Analytics-driven Creative Skills — implemented and locally verified
+
+The current candidate removes every active Post/Landing Save and
+Approve learning call, dialog, retry/recovery route, and deployment blocker while
+preserving the historical tables and immutable edit checkpoints. Save now saves;
+Approve saves and versions. Neither can create or activate a rule.
+
+Migration `008_analytics_creative_learning_v1.sql` adds immutable Instagram/
+TikTok insight snapshots, cookieless Landing events with 90-day raw retention,
+indefinite daily rollups, opaque publication attribution, digest-bound safe
+visual descriptors, frozen performance-learning datasets, reviewed decisions,
+and typed Project/global Creative Skill snapshots. Analytics supports selected
+Project and All Projects scopes, 7/30/90/all-time views, organic/paid/funnel
+sections, readiness/freshness, leaderboard, learning curve, and full rule
+editing/tombstones. Performance candidates never activate automatically.
+
+Future Post and Landing generations record the exact active Project/global skill
+snapshot IDs and digests. Global rules accept spirit principles only; Project
+rules accept UI/copy/image/domain families and are subordinate to the approved
+Brief and live catalogs. The public Landing shell sends only bounded
+`landing_view`, `primary_cta_click`, and `contact_click` events; Meta Pixel stays
+separately consent-gated. Instagram insights and TikTok `video.list` readiness
+are independent from publishing. TikTok photo Analytics remains unavailable
+until its audited real public-post canary.
+
+The companion bridge candidate replaces the retired `studio_edit_learning`
+mode with `creative_performance_learning` and `creative_visual_analysis`, and
+adds one ephemeral, digest-checked approved-PNG attachment for visual analysis.
+The bridge never persists those PNG bytes in a job and advertises its
+multimodal mode explicitly.
+
+Canonical contracts, metric definitions, privacy, precedence, failure behavior,
+and rollout gates are in
+[`analytics-and-creative-learning.md`](analytics-and-creative-learning.md).
+The final local candidate passes 45 companion-platform tests, the disposable PostgreSQL migration/idempotency
+rehearsal, 275 Validation tests, 14 Owner Gateway tests, 40 Commander tests with
+five expected isolated-container skips plus the demo, 101 Owner web unit tests and its
+production build, eight public Landing unit tests and its production build, all
+84 Owner desktop/360px/WebKit browser flows, all 20 public Landing browser
+flows, the Studio deterministic visual audit, and the canonical skill verifier.
+Analytics has no horizontal overflow and never activates a rule automatically.
+
+Nothing from this candidate has been deployed, no provider reauthorization or
+live event acceptance has run, and no post/ad was created or spend incurred.
+
+## Modular Instagram and TikTok publishing — implemented candidate
+
+Instagram is now behind a provider-neutral publishing engine while retaining its
+legacy request/response aliases, tables, IDs, graph lineage, and public media URL.
+The matching `/api/v1/tiktok` family adds pinned `@natal_cast` OAuth, encrypted
+rotating tokens, fresh creator snapshots, explicit compliance controls,
+server-derived AIGC, Direct Post photo publishing, status reconciliation, and a
+non-replayable uncertain boundary around `content/init`. Migration
+`007_tiktok_publication_v1.sql` keeps TikTok authority separate and additive.
+
+The Owner Studio uses one reusable publishing shell with provider field
+descriptors. TikTok remains disabled until client credentials, its exact callback,
+verified media prefix, owner authorization, and audit state are configured. No
+real TikTok post has been sent; public acceptance still requires one owner-selected
+approved Post to publish successfully to `@natal_cast`.
+
 ## Meta campaign control and preset recovery — live and accepted
 
 The next additive release repairs Ads preset recovery: the Owner Console rejects
@@ -781,30 +842,29 @@ assignment flows, schema adapters, bare mutation routes, and historical Post
 tables are not accepted or migrated. `/api/v1/posts` and bare
 `/api/v1/studio` remain absent.
 
-## Studio agents and learning
+## Studio agents and performance learning
 
 Composition uses the approved Brief, selected live template catalog, canonical
-`studio-creative-composer` skill, and the latest accepted global and Project
-skill snapshots. Output is validated against the selected template's exact
-configuration/content shape; the live catalog wins over learned instructions.
-Renderer-owned numeric bounds, enums, colors, typography, device limits, Landing
-content lengths, and privacy-sensitive blank fields are also present in the
-strict provider schemas and share constants with their runtime normalizers. The
-request fingerprint is versioned with that complete contract, so a changed
-contract cannot replay a completed response from an older schema. If a completed response still fails
-deterministic PTW validation, the bridge may make exactly one fresh corrective
-attempt; transport, timeout, cancellation, and provider failures never trigger
-an unsafe blind second attempt. Release acceptance covers both Product Brief
-modes, Universal Post, Phone Metrics, Landing composition, Studio learning,
-Landing learning, new image generation, and exact-reference enhancement; every
-structured canary must pass domain validation on fresh attempt 1 and report a
-valid prompt/input/schema byte budget. Landing additionally has compact
-input/schema limits and uses exactly the runtime payload builder.
+composer skill, and current typed Project/global Creative Skill snapshots. The
+live catalog and Brief remain higher precedence, and every generation records
+the exact snapshot IDs and digests. Output is validated against the selected
+template's exact configuration/content shape. Renderer-owned numeric bounds,
+enums, colors, typography, device limits, Landing content lengths, and
+privacy-sensitive blank fields share constants with runtime normalizers. A
+changed contract cannot replay a response from an older schema.
+
+Save and Approve now persist only changed checkpoints and immutable versions;
+they make no learner call. Performance learning starts explicitly from Analytics,
+freezes its dataset, and returns inactive typed candidates for owner review.
+Release acceptance covers both Brief modes, Universal Post, Phone Metrics,
+Landing composition, performance learning, safe visual analysis, new image
+generation, and exact-reference enhancement. Every structured canary must pass
+domain validation on fresh attempt 1 and report a valid byte budget.
 
 For `phone_metrics`, composition automatically starts a fresh, text-free hero
 generation governed by `studio-phone-hero-generator`. The prompt includes the
-saved creative direction, a Brief-derived subject description, and accepted
-global and Project visual lessons. The direction remains available to a future
+saved creative direction, a Brief-derived subject description, and active typed
+global/Project Creative Skills. The direction remains available to a future
 legend generator, which is not yet implemented.
 A complete bounded prompt may contain up to 9,000 characters so the maximum
 subject, selected style/background, enhancement rules, canonical skill, and
@@ -818,18 +878,14 @@ reset from its edit icon and replaced without creating learning data.
 
 Intermediate template, configuration, content, import, asset, generation,
 enhancement, and selection edits accumulate without learning. **Save creative**
-or **Approve creative** creates one immutable checkpoint only when state changed.
-The `studio-edit-learner` produces an automatic Project lesson and a sanitized
-global proposal. The owner chooses **Apply globally** or **Keep project-only**.
-No-op saves are idempotent. Learning failure never rolls back the saved creative
-or approved version and remains retryable.
+or **Approve creative** creates one immutable checkpoint only when state changed;
+no-op saves are idempotent.
 
-The independent structured bridge advertises exactly four JSON modes:
-`product_brief`, `product_brief_revision`,
-`studio_creative_generation`, and `studio_edit_learning`. It also retains
-one bounded `content_non_human_graphic_generation` media mode with at most one
-validated PNG reference for image enhancement. Retired candidate/critic modes
-are absent.
+The candidate bridge contract has five structured modes: `product_brief`,
+`product_brief_revision`, `studio_creative_generation`,
+`creative_performance_learning`, and `creative_visual_analysis`. It retains one
+bounded `content_non_human_graphic_generation` media mode. Production still has
+the previous contract until the separately gated bridge-first rollout.
 
 ## Verification status
 
@@ -1030,6 +1086,14 @@ the same Creative ID and state digest, with exactly one Creative for the Brief
 and no approved version. No reset ran.
 
 ## Next work
+
+Finish the candidate verification matrix, then deploy only through the
+documented preserving sequence: companion bridge capabilities/canaries,
+migration and Validation API, Owner Gateway, public Landing shell, Owner
+Console, provider reauthorization, and read-only live acceptance. Acceptance
+must prove a real Landing event appears in Analytics and existing provider rows
+refresh without creating a post, mutating an ad, or spending money. TikTok photo
+acceptance stays gated by the owner-approved audited public post.
 
 Exercise an owner-directed Post or Landing generation with a temporary reference
 image, verify the requested visual change, and confirm that navigation or

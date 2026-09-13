@@ -341,9 +341,9 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("CRITICAL: preserving rollout could not verify complete image rollback", deployer)
         for path in ("deploy_ptw_preserving.sh", "deploy_ptw_in_place.sh"):
             mutable_gate = (ROOT / "scripts" / path).read_text()
-            self.assertIn("FROM studio_edit_checkpoints checkpoint", mutable_gate)
-            self.assertIn("completed.checkpoint_id=checkpoint.entity_id", mutable_gate)
-            self.assertIn("completed.status='completed'", mutable_gate)
+            self.assertNotIn("FROM studio_edit_checkpoints checkpoint", mutable_gate)
+            self.assertNotIn("completed.checkpoint_id=checkpoint.entity_id", mutable_gate)
+            self.assertNotIn("completed.status='completed'", mutable_gate)
         for image in (
             "ptw-commander:$old_app_tag",
             "ptw-validation:$old_app_tag",
@@ -403,6 +403,35 @@ class ReleaseStreamContractTests(unittest.TestCase):
             self.assertIn(table, reset)
             self.assertIn(table, schema)
 
+    def test_reset_and_schema_checks_cover_every_tiktok_table(self) -> None:
+        reset = (ROOT / "scripts/reset_ptw.sh").read_text()
+        schema = (ROOT / "scripts/verify_ptw_brief_schema.sh").read_text()
+        for table in ("tiktok_account_connections", "tiktok_oauth_states", "tiktok_publications", "tiktok_publication_attempts"):
+            self.assertIn(table, reset)
+            self.assertIn(table, schema)
+
+    def test_reset_schema_and_deployment_cover_every_analytics_table(self) -> None:
+        reset = (ROOT / "scripts/reset_ptw.sh").read_text()
+        schema = (ROOT / "scripts/verify_ptw_brief_schema.sh").read_text()
+        deploy = (ROOT / "scripts/deploy_ptw_in_place.sh").read_text()
+        tables = (
+            "creative_attribution_sources",
+            "creative_insight_snapshots",
+            "landing_analytics_events",
+            "landing_analytics_rollup_snapshots",
+            "creative_visual_descriptors",
+            "creative_visual_descriptor_sources",
+            "creative_learning_runs",
+            "creative_skill_snapshots",
+            "creative_learning_decisions",
+        )
+        for table in tables:
+            self.assertIn(table, reset)
+            self.assertIn(table, schema)
+            self.assertIn(table, deploy)
+        for script in (reset, schema, deploy):
+            self.assertIn("008_analytics_creative_learning_v1.sql", script)
+
     def test_meta_token_is_a_validation_only_file_secret(self) -> None:
         compose = (ROOT / "docker-compose.validation.yml").read_text()
         gateway = (ROOT / "docker-compose.commander.yml").read_text()
@@ -424,6 +453,16 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("chown root:10001", configurator)
         self.assertIn("chmod 0600", configurator)
         self.assertNotIn("--oauth2-bearer", configurator)
+
+        self.assertIn("TIKTOK_SECRETS_PATH: /run/ptw-tiktok/config.env", compose)
+        self.assertIn("TIKTOK_PHOTO_ANALYTICS_AUDITED: ${TIKTOK_PHOTO_ANALYTICS_AUDITED:-false}", compose)
+        self.assertIn("/opt/ptw/secrets/tiktok:/run/ptw-tiktok:ro", compose)
+        self.assertNotIn("TIKTOK_CLIENT_SECRET", compose)
+        self.assertNotIn("ptw-tiktok", gateway)
+        tiktok_configurator = (ROOT / "scripts/configure_tiktok.sh").read_text()
+        self.assertIn("read -r -s", tiktok_configurator)
+        self.assertIn("chmod 0440", tiktok_configurator)
+        self.assertIn("chown root:10001", tiktok_configurator)
 
     def test_platform_enforcement_and_canaries_precede_reset(self) -> None:
         deployer = (ROOT / "scripts/deploy_ptw_serial.sh").read_text()

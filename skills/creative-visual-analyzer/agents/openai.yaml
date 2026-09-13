@@ -1,0 +1,5 @@
+interface:
+  display_name: "Creative Visual Analyzer"
+  short_description: "Extract safe visual tags from an approved PNG"
+  default_prompt: "Describe the approved PNG using only the bounded PTW visual descriptor schema."
+

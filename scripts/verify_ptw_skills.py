@@ -13,10 +13,10 @@ SKILLS = (
     "commander-god-mode",
     "product-brief-generator",
     "studio-creative-composer",
-    "studio-edit-learner",
+    "creative-performance-learner",
+    "creative-visual-analyzer",
     "studio-phone-hero-generator",
     "landing-page-composer",
-    "landing-edit-learner",
     "studio-tune-local",
     "studio-ui-visual-audit",
     "ptw-owner-console-incident",
@@ -80,6 +80,7 @@ def main() -> None:
         "marketing-positioning", "ad-creative-generator", "ad-creative-validator", "ad-studio-composer",
         "natal-landing-builder", "content-result-critic",
         "content-candidate-generator",
+        "studio-edit-learner", "landing-edit-learner",
     ):
         require(not (canonical_root / retired).exists(), f"retired {retired} skill remains")
         require(not (desktop_root / retired).exists(), f"retired desktop {retired} skill remains")

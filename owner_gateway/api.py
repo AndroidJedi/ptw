@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from typing import Any, Mapping
 from uuid import UUID
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, Response
 
 from .auth import FirebaseVerifier, OwnerDependency, OwnerIdentity
 from .settings import Settings
@@ -555,25 +556,6 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     ) -> dict[str, Any]:
         return await creative_post(project_id, creative_id, "/approve", request, identity, timeout=480)
 
-    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/learning/{proposal_id}")
-    async def studio_learning(
-        project_id: str, creative_id: str, proposal_id: str,
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return await creative_post(
-            project_id, creative_id, f"/learning/{proposal_id}", request, identity, timeout=60,
-        )
-
-    @app.post("/api/v1/studio/projects/{project_id}/creatives/{creative_id}/checkpoints/{checkpoint_id}/retry")
-    async def studio_learning_retry(
-        project_id: str, creative_id: str, checkpoint_id: str,
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return await creative_post(
-            project_id, creative_id, f"/checkpoints/{checkpoint_id}/retry",
-            request, identity, timeout=480,
-        )
-
     def landing_path(project_id: str, landing_id: str = "", suffix: str = "") -> str:
         base = f"/internal/v1/landings/projects/{project_id}"
         return f"{base}/pages/{landing_id}{suffix}" if landing_id else base
@@ -634,14 +616,6 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     async def landing_version(project_id: str, landing_id: str, version: int, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return (await validation_bridge("GET", landing_path(project_id, landing_id, f"/versions/{version}"), timeout=60)).json()
 
-    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/learning/{proposal_id}")
-    async def landing_learning(project_id: str, landing_id: str, proposal_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return await landing_post(project_id, landing_id, f"/learning/{proposal_id}", request, identity)
-
-    @app.post("/api/v1/landings/projects/{project_id}/pages/{landing_id}/learning/{checkpoint_id}/retry")
-    async def landing_learning_retry(project_id: str, landing_id: str, checkpoint_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return await landing_post(project_id, landing_id, f"/learning/{checkpoint_id}/retry", request, identity, timeout=480)
-
     @app.get("/api/v1/landings/projects/{project_id}/publication")
     async def landing_publication(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
         return (await validation_bridge(
@@ -686,6 +660,87 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             media_type=response.headers.get("content-type", "application/json"),
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
         )
+
+    @app.post("/api/v1/public/landing-analytics/events", status_code=202)
+    async def public_landing_analytics_event(request: Request) -> dict[str, Any]:
+        origin = request.headers.get("origin", "").rstrip("/")
+        if origin not in settings.landing_public_origins:
+            raise HTTPException(status_code=403, detail="Landing analytics origin is not allowed")
+        if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+            raise HTTPException(status_code=415, detail="Landing analytics requires application/json")
+        length = request.headers.get("content-length")
+        if length and (not length.isdigit() or int(length) > 4096):
+            raise HTTPException(status_code=413, detail="Landing analytics event is too large")
+        raw = await request.body()
+        if len(raw) > 4096:
+            raise HTTPException(status_code=413, detail="Landing analytics event is too large")
+        try:
+            body = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise HTTPException(status_code=400, detail="Landing analytics event is invalid JSON") from error
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="Landing analytics event must be an object")
+        return (await validation_bridge(
+            "POST", "/internal/v1/public/landing-analytics/events", body=body,
+            actor="public-landing", timeout=10,
+        )).json()
+
+    @app.get("/api/v1/analytics/{scope}/workspace")
+    async def analytics_workspace(
+        scope: str, window: int = Query(default=30),
+        _identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "GET", f"/internal/v1/analytics/{scope}/workspace",
+            params={"window": window}, timeout=60,
+        )).json()
+
+    @app.post("/api/v1/analytics/{scope}/refresh")
+    async def analytics_refresh(
+        scope: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/analytics/{scope}/refresh", body=request,
+            actor=actor(identity), timeout=180,
+        )).json()
+
+    @app.post("/api/v1/analytics/{scope}/learning-runs")
+    async def analytics_learning_run(
+        scope: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/analytics/{scope}/learning-runs", body=request,
+            actor=actor(identity), timeout=480,
+        )).json()
+
+    @app.post("/api/v1/analytics/{scope}/learning-runs/{run_id}/decision")
+    async def analytics_learning_decision(
+        scope: str, run_id: str, request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/analytics/{scope}/learning-runs/{run_id}/decision",
+            body=request, actor=actor(identity), timeout=60,
+        )).json()
+
+    @app.post("/api/v1/analytics/{scope}/skills/revisions")
+    async def analytics_skill_revision(
+        scope: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/analytics/{scope}/skills/revisions", body=request,
+            actor=actor(identity), timeout=60,
+        )).json()
+
+    @app.post("/api/v1/analytics/{scope}/skills/{rule_id}/delete")
+    async def analytics_skill_delete(
+        scope: str, rule_id: str, request: Mapping[str, Any],
+        identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/analytics/{scope}/skills/{rule_id}/delete",
+            body=request, actor=actor(identity), timeout=60,
+        )).json()
 
     @app.api_route("/api/v1/public/landings/{namespace}/{slug}/versions/{version_sha256}/assets/{slot}/{sha256}.png", methods=["GET", "HEAD"])
     async def public_landing_asset(
@@ -740,6 +795,60 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
         return Response(response.content, media_type="image/jpeg", headers={
             "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, noarchive",
         })
+
+    @app.get("/api/v1/tiktok/connection")
+    async def tiktok_connection(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", "/internal/v1/tiktok/connection", timeout=120)).json()
+
+    @app.get("/api/v1/tiktok/projects/{project_id}")
+    async def tiktok_workspace(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", f"/internal/v1/tiktok/projects/{project_id}", timeout=120)).json()
+
+    @app.get("/api/v1/tiktok/projects/{project_id}/publications")
+    async def tiktok_publications(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", f"/internal/v1/tiktok/projects/{project_id}/publications", timeout=60)).json()
+
+    @app.get("/api/v1/tiktok/projects/{project_id}/publications/{publication_id}")
+    async def tiktok_publication(project_id: str, publication_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", f"/internal/v1/tiktok/projects/{project_id}/publications/{publication_id}", timeout=60)).json()
+
+    @app.post("/api/v1/tiktok/projects/{project_id}/publications", status_code=202)
+    async def tiktok_publish(project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/tiktok/projects/{project_id}/publications", body=request, actor=actor(identity), timeout=120)).json()
+
+    @app.post("/api/v1/tiktok/projects/{project_id}/publications/{publication_id}/retry", status_code=202)
+    async def tiktok_retry(project_id: str, publication_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/tiktok/projects/{project_id}/publications/{publication_id}/retry", body=request, actor=actor(identity), timeout=60)).json()
+
+    @app.post("/api/v1/tiktok/projects/{project_id}/publications/{publication_id}/sync")
+    async def tiktok_sync(project_id: str, publication_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/tiktok/projects/{project_id}/publications/{publication_id}/sync", body=request, actor=actor(identity), timeout=60)).json()
+
+    @app.post("/api/v1/tiktok/oauth/start")
+    async def tiktok_oauth_start(request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", "/internal/v1/tiktok/oauth/start", body=request, actor=actor(identity), timeout=60)).json()
+
+    @app.get("/api/v1/tiktok/oauth/callback")
+    async def tiktok_oauth_callback(
+        code: str = Query(min_length=1, max_length=1024),
+        state: str = Query(min_length=43, max_length=43),
+    ) -> RedirectResponse:
+        result = (await validation_bridge("GET", "/internal/v1/tiktok/oauth/callback", params={"code": code, "state": state}, timeout=60)).json()
+        return_to = str(result.get("return_to") or "/")
+        if not re.fullmatch(r"/[A-Za-z0-9_/?&=.-]{0,500}", return_to) or return_to.startswith("//"):
+            return_to = "/"
+        return RedirectResponse(f"{settings.public_origin.rstrip('/')}{return_to}", status_code=303)
+
+    @app.post("/api/v1/tiktok/disconnect")
+    async def tiktok_disconnect(request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", "/internal/v1/tiktok/disconnect", body=request, actor=actor(identity), timeout=60)).json()
+
+    @app.api_route("/api/v1/public/tiktok-media/{token}.jpg", methods=["GET", "HEAD"])
+    async def tiktok_media(token: str) -> Response:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
+            raise HTTPException(404, "Media unavailable")
+        response = await validation_bridge("GET", f"/internal/v1/public/tiktok-media/{token}.jpg", timeout=60)
+        return Response(response.content, media_type="image/jpeg", headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, noarchive"})
 
     @app.get("/api/v1/ads/connection")
     async def meta_ads_connection(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:

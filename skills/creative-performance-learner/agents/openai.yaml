@@ -1,0 +1,5 @@
+interface:
+  display_name: "Creative Performance Learner"
+  short_description: "Propose reviewed rules from frozen performance data"
+  default_prompt: "Analyze the supplied PTW performance dataset and return bounded typed candidate rules for owner review."
+

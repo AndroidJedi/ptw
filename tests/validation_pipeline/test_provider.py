@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from io import BytesIO
+import base64
+import hashlib
 import unittest
 import urllib.error
 from unittest.mock import patch
@@ -21,9 +23,11 @@ class FakeBridge(StructuredBridge):
             return {
                 "json_modes": [
                     "product_brief", "product_brief_revision",
-                    "studio_creative_generation", "studio_edit_learning",
+                    "studio_creative_generation", "creative_performance_learning",
+                    "creative_visual_analysis",
                 ],
                 "media_modes": ["content_non_human_graphic_generation"],
+                "multimodal_modes": ["creative_visual_analysis"],
                 "max_request_bytes": 1000,
             }
         if payload is not None:
@@ -117,10 +121,38 @@ class StructuredBridgeTests(unittest.TestCase):
     def test_capabilities_match_the_deployed_provider_contract(self) -> None:
         value = FakeBridge().capabilities()
         self.assertEqual([
+            "creative_performance_learning", "creative_visual_analysis",
             "product_brief", "product_brief_revision",
-            "studio_creative_generation", "studio_edit_learning",
+            "studio_creative_generation",
         ], value["json_modes"])
         self.assertEqual(["content_non_human_graphic_generation"], value["media_modes"])
+        self.assertEqual(["creative_visual_analysis"], value["multimodal_modes"])
+
+    def test_visual_mode_requires_one_digest_bound_png(self) -> None:
+        bridge = FakeBridge()
+        png = b"\x89PNG\r\n\x1a\nexample"
+        digest = hashlib.sha256(png).hexdigest()
+        value = bridge.call(
+            mode="creative_visual_analysis", system_prompt="Describe safe tags.",
+            input_payload={"artifact_sha256": digest}, output_schema={"type": "object"},
+            idempotency_key="visual:example", prompt_version="visual-v1",
+            response_validator=lambda response: response,
+            input_artifacts=[{
+                "name": "approved_png", "mime_type": "image/png", "sha256": digest,
+                "bytes_base64": base64.b64encode(png).decode(),
+            }],
+        )
+
+        self.assertEqual({"approved_png": digest}, value["invocation"]["input_artifacts"])
+        self.assertEqual(len(png), value["invocation"]["input_artifact_bytes"])
+        self.assertEqual(1, len(bridge.posted["input_artifacts"]))
+
+        with self.assertRaisesRegex(ValueError, "requires an approved PNG"):
+            bridge.call(
+                mode="creative_visual_analysis", system_prompt="Describe safe tags.",
+                input_payload={}, output_schema={}, idempotency_key="visual:missing",
+                prompt_version="visual-v1", response_validator=lambda response: response,
+            )
 
     def test_other_modes_are_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported structured bridge"):

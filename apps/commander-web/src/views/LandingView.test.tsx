@@ -145,7 +145,7 @@ it('keeps pending copy when Save fails and displays an inline error', async () =
   expect(screen.getByLabelText('Hero title')).toHaveValue('My unsaved headline')
 })
 
-it('waits for bounded Landing learning and reconciles an equivalent completed save after a stale-state response', async () => {
+it('reconciles an equivalent completed save after a stale-state response', async () => {
   const detail = landingDetail()
   const saved = {
     ...detail, state_sha256: 'd'.repeat(64),
@@ -222,17 +222,16 @@ it('persists pending content before selecting another raw image', async () => {
   expect(screen.getByLabelText('Hero title')).toHaveValue('Preserved copy')
 })
 
-it('shows the saved Project lesson and submits the bounded global decision', async () => {
+it('saves a lightweight edit checkpoint without invoking learning', async () => {
   const detail = landingDetail()
   const api = landingApi(detail)
-  vi.mocked(api.post).mockResolvedValueOnce({ landing: detail, checkpoint: { checkpoint_id: 'checkpoint', status: 'completed', edit_summary: 'Shortened the headline.', project_lesson: 'Keep this page concise.' }, learning_proposal: { proposal_id: 'proposal', global_rule: 'Prefer a concise action label.', status: 'pending' } })
-  vi.mocked(api.post).mockResolvedValueOnce({ status: 'keep_project' })
+  vi.mocked(api.post).mockResolvedValueOnce({ landing: detail, checkpoint: { checkpoint_id: 'checkpoint', status: 'saved' }, learning_proposal: null })
   render(<LandingView api={api} language="en" projectId={projectId} landingId={landingId} />)
   fireEvent.click(await screen.findByRole('button', { name: 'Save Landing' }))
-  expect(await screen.findByText('Keep this page concise.')).toBeVisible()
-  fireEvent.click(screen.getByRole('button', { name: 'Keep project-only' }))
-  await waitFor(() => expect(api.post).toHaveBeenLastCalledWith(`/api/v1/landings/projects/${projectId}/pages/${landingId}/learning/proposal`, { decision: 'keep_project' }))
-  expect(screen.getByRole('status')).toHaveTextContent('Learning preference saved')
+  expect(await screen.findByRole('status')).toHaveTextContent('Landing saved.')
+  expect(api.post).toHaveBeenCalledTimes(1)
+  expect(vi.mocked(api.post).mock.calls[0][0]).toMatch(/\/save$/)
+  expect(screen.queryByText(/lesson|learning preference/i)).not.toBeInTheDocument()
 })
 
 it('validates and confirms the complete permanent URL before first Publish', async () => {

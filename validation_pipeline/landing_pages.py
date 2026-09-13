@@ -7,7 +7,6 @@ from contextlib import contextmanager
 import hashlib
 import json
 from pathlib import Path
-import re
 import threading
 from typing import Any, Callable, Iterator, Mapping
 from uuid import UUID
@@ -26,15 +25,12 @@ from .landing_design import (
 )
 from .local_brief_store import LocalBriefStore, utc_now
 from .local_codex import sanitized
-from .studio_creatives import (
-    _json_schema, studio_edit_learning_schema, validate_studio_edit_learning,
-)
+from .studio_creatives import _json_schema
 
 
 LANDING_STATUSES = frozenset({"queued", "composing", "generating_images", "draft", "failed"})
 LANDING_COMPOSER_PROMPT_VERSION = "landing-page-composer-v5"
 LANDING_GENERATION_LESSON_LIMIT = 8
-_DIGEST = re.compile(r"\b[0-9a-fA-F]{64}\b")
 
 
 def _uuid(value: str, field: str) -> str:
@@ -134,7 +130,7 @@ def _bounded_landing_lessons(document: str) -> list[str]:
 def landing_composition_payload(
     *, landing_id: str, approved_product_brief: Mapping[str, Any],
     source_post_snapshot: Mapping[str, Any], content_defaults: Mapping[str, Any],
-    global_skill: str, project_skill: str,
+    active_creative_skills: Mapping[str, Any], live_landing_catalog: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Build the one canonical, bounded payload used by runtime and canaries."""
     return {
@@ -148,8 +144,8 @@ def landing_composition_payload(
         "template_content_defaults": {
             "content": deepcopy(dict(content_defaults)),
         },
-        "accepted_global_landing_lessons": _bounded_landing_lessons(global_skill),
-        "accepted_project_landing_lessons": _bounded_landing_lessons(project_skill),
+        "live_landing_catalog": deepcopy(dict(live_landing_catalog)),
+        "active_creative_skills": deepcopy(dict(active_creative_skills)),
     }
 
 
@@ -243,8 +239,6 @@ class LocalLandingAuthority:
             self.store.edge(source_id=project_id, relation="contains", target_id=landing_id, evidence={"member": "landing_page", "ordinal": value["ordinal"]})
             self.store.edge(source_id=landing_id, relation="derived_from", target_id=source["source_brief_id"], evidence={"input": "approved_product_brief"})
             self.store.edge(source_id=landing_id, relation="derived_from", target_id=source_creative_id, evidence={"input": "approved_post_version", "version": source_version, "sha256": source["version_sha256"]})
-            self.ensure_skill("global")
-            self.ensure_skill("project", project_id)
             return value, True
 
     def get_page(self, landing_id: str) -> dict[str, Any]:
@@ -362,7 +356,7 @@ class LocalLandingAuthority:
                     self.store.edge(source_id=snapshot["version_id"], relation="derived_from", target_id=asset_ids[digest], evidence={"input": "selected_landing_visual", "slot": asset.get("slot")})
 
     def get_checkpoint(self, checkpoint_id: str) -> dict[str, Any]:
-        return self.store.get("landing_checkpoints", checkpoint_id)
+        return {**self.store.get("landing_checkpoints", checkpoint_id), "status": "saved"}
 
     def record_learning_result(self, checkpoint_id: str, **patch: Any) -> dict[str, Any]:
         value = self.get_checkpoint(checkpoint_id)
@@ -575,8 +569,6 @@ class DatabaseLandingAuthority:
             self._edge(connection, project_id, "contains", landing_id, {"member": "landing_page", "ordinal": len(siblings)+1})
             self._edge(connection, landing_id, "derived_from", source["source_brief_id"], {"input": "approved_product_brief"})
             self._edge(connection, landing_id, "derived_from", source_creative_id, {"input": "approved_post_version", "version": source_version, "sha256": source["version_sha256"]})
-        self.ensure_skill("global")
-        self.ensure_skill("project", project_id)
         return self.get_page(landing_id), True
 
     def update_page(self, landing_id: str, **patch: Any) -> dict[str, Any]:
@@ -695,16 +687,16 @@ class DatabaseLandingAuthority:
         from psycopg.types.json import Jsonb
         with self.connection() as connection:
             connection.execute("INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'landing_edit_checkpoint',%s)", (UUID(value["checkpoint_id"]), Jsonb({"schema_version": 1, "kind": value["kind"]})))
-            connection.execute("INSERT INTO landing_checkpoints(entity_id,landing_id,project_id,checkpoint_kind,before_state_sha256,after_state_sha256,changed_paths,before_snapshot,after_snapshot,version,status) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'learning')", (UUID(value["checkpoint_id"]), UUID(value["landing_id"]), UUID(value["project_id"]), value["kind"], value["before_state_sha256"], value["after_state_sha256"], Jsonb(value["changed_paths"]), Jsonb(value["before_snapshot"]), Jsonb(value["after_snapshot"]), value["version"]))
+            connection.execute("INSERT INTO landing_checkpoints(entity_id,landing_id,project_id,checkpoint_kind,before_state_sha256,after_state_sha256,changed_paths,before_snapshot,after_snapshot,version,status) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'completed')", (UUID(value["checkpoint_id"]), UUID(value["landing_id"]), UUID(value["project_id"]), value["kind"], value["before_state_sha256"], value["after_state_sha256"], Jsonb(value["changed_paths"]), Jsonb(value["before_snapshot"]), Jsonb(value["after_snapshot"]), value["version"]))
             self._edge(connection, value["landing_id"], "contains", value["checkpoint_id"], {"member": "landing_checkpoint"})
         return self.get_checkpoint(str(value["checkpoint_id"]))
 
     def get_checkpoint(self, checkpoint_id: str) -> dict[str, Any]:
         with self.connection() as connection:
-            row = connection.execute("SELECT landing_id,project_id,checkpoint_kind,before_state_sha256,after_state_sha256,changed_paths,before_snapshot,after_snapshot,version,status,edit_summary,project_skill_snapshot_id,error_type,error_message,created_at FROM landing_checkpoints WHERE entity_id=%s", (UUID(checkpoint_id),)).fetchone()
+            row = connection.execute("SELECT landing_id,project_id,checkpoint_kind,before_state_sha256,after_state_sha256,changed_paths,before_snapshot,after_snapshot,version,created_at FROM landing_checkpoints WHERE entity_id=%s", (UUID(checkpoint_id),)).fetchone()
         if row is None:
             raise KeyError(checkpoint_id)
-        return {"checkpoint_id": checkpoint_id, "landing_id": str(row[0]), "project_id": str(row[1]), "kind": row[2], "before_state_sha256": row[3], "after_state_sha256": row[4], "changed_paths": list(row[5]), "before_snapshot": dict(row[6]), "after_snapshot": dict(row[7]), "version": row[8], "status": row[9], "edit_summary": row[10], "project_skill_snapshot_id": None if row[11] is None else str(row[11]), "error_type": row[12], "error_message": row[13], "created_at": row[14].isoformat()}
+        return {"checkpoint_id": checkpoint_id, "landing_id": str(row[0]), "project_id": str(row[1]), "kind": row[2], "before_state_sha256": row[3], "after_state_sha256": row[4], "changed_paths": list(row[5]), "before_snapshot": dict(row[6]), "after_snapshot": dict(row[7]), "version": row[8], "status": "saved", "created_at": row[9].isoformat()}
 
     def record_learning_result(self, checkpoint_id: str, **patch: Any) -> dict[str, Any]:
         from psycopg.types.json import Jsonb
@@ -760,7 +752,7 @@ class DatabaseLandingAuthority:
 class LandingService:
     """Coordinate a frozen Post design snapshot, bounded page AI, and page assets."""
 
-    def __init__(self, *, root: Path | str, authority: Any, workspace_factory: Callable[[Path], Any], structured_provider: Any | None, composer_skill_path: Path, learner_skill_path: Path) -> None:
+    def __init__(self, *, root: Path | str, authority: Any, workspace_factory: Callable[[Path], Any], structured_provider: Any | None, composer_skill_path: Path) -> None:
         self.root = Path(root)
         self.pages_root = self.root / "pages"
         self.pages_root.mkdir(parents=True, exist_ok=True)
@@ -768,7 +760,7 @@ class LandingService:
         self.workspace_factory = workspace_factory
         self.structured_provider = structured_provider
         self.composer_skill = composer_skill_path.read_text(encoding="utf-8")
-        self.learner_skill = learner_skill_path.read_text(encoding="utf-8")
+        self.analytics: Any | None = None
         self._workspaces: dict[str, Any] = {}
 
     def _workspace(self, landing_id: str) -> Any:
@@ -799,6 +791,22 @@ class LandingService:
         if page["project_id"] != _uuid(project_id, "project_id"):
             raise KeyError("Landing was not found in this Project")
         return {**self._workspace(landing_id).detail(), **self.summary(landing_id)}
+
+    def approved_version_detail(
+        self, project_id: str, landing_id: str, version: int,
+    ) -> dict[str, Any]:
+        """Return one exact approved version with its generation provenance."""
+        page = self.authority.get_page(landing_id)
+        if page["project_id"] != _uuid(project_id, "project_id"):
+            raise KeyError("Landing was not found in this Project")
+        record = self._workspace(landing_id).version_detail(version)
+        return {
+            **record,
+            "landing_id": page["landing_id"],
+            "project_id": page["project_id"],
+            "template_id": LANDING_TEMPLATE_ID,
+            "generation": deepcopy(page.get("generation") or {}),
+        }
 
     def _provider_call(self, **kwargs: Any) -> dict[str, Any]:
         if self.structured_provider is None:
@@ -856,9 +864,25 @@ class LandingService:
             raise ValueError("Landing generation requires an approved complete Product Brief")
         workspace = self._workspace(landing_id)
         detail = workspace.detail()
-        global_skill = self.authority.latest_skill("global")
-        project_skill = self.authority.latest_skill("project", page["project_id"])
-        self.authority.update_page(landing_id, status="composing", generation={"stage": "composing", "global_skill_sha256": global_skill["content_sha256"], "project_skill_sha256": project_skill["content_sha256"]})
+        skills = (
+            self.analytics.active_skills(str(page["project_id"]))
+            if self.analytics is not None else
+            {"project": None, "global": None, "precedence": [
+                "catalog_brand_and_brief", "explicit_owner_direction",
+                "project_rules", "global_spirit", "template_defaults",
+            ]}
+        )
+        project_skill, global_skill = skills["project"], skills["global"]
+        skill_provenance = {
+            "project_skill_snapshot_id": None if project_skill is None else project_skill["skill_snapshot_id"],
+            "project_skill_sha256": None if project_skill is None else project_skill["rules_sha256"],
+            "global_skill_snapshot_id": None if global_skill is None else global_skill["skill_snapshot_id"],
+            "global_skill_sha256": None if global_skill is None else global_skill["rules_sha256"],
+        }
+        self.authority.update_page(
+            landing_id, status="composing",
+            generation={"stage": "composing", **skill_provenance},
+        )
         payload = landing_composition_payload(
             landing_id=landing_id,
             approved_product_brief=brief["document"],
@@ -867,8 +891,8 @@ class LandingService:
                 **detail["content"],
                 "app_feature": detail["content"].get("app_feature", DEFAULT_APP_FEATURE),
             },
-            global_skill=global_skill["content"],
-            project_skill=project_skill["content"],
+            active_creative_skills=skills,
+            live_landing_catalog=detail["catalog"],
         )
         stage = "composition"
         stage_input = sha256_json(payload)
@@ -885,7 +909,7 @@ class LandingService:
                 configuration=detail["configuration"],
                 content=result["response"]["content"],
             )
-            self.authority.update_page(landing_id, status="generating_images", state_sha256=composed["state_sha256"], generation={"stage": "generating_images", "composition": sanitized(result.get("invocation") or {})})
+            self.authority.update_page(landing_id, status="generating_images", state_sha256=composed["state_sha256"], generation={"stage": "generating_images", **skill_provenance, "composition": sanitized(result.get("invocation") or {})})
             for slot, direction in (("hero_visual", composed["content"]["hero"]["visual_direction"]), ("visual_break_visual", composed["content"]["visual_break"]["visual_direction"])):
                 stage, prompt = slot, self._image_prompt(page, slot, direction, composed["configuration"])
                 stage_input = sha256_json({"base_sha256": composed["state_sha256"], "slot": slot, "visual_direction": direction, "prompt": prompt})
@@ -893,7 +917,7 @@ class LandingService:
                 self._record_generation(landing_id=landing_id, stage=slot, status="completed", input_sha256=stage_input, output_sha256=composed["state_sha256"], prompt_version="landing-visual-generator-v2", invocation={"enhance_current": False})
             self._synchronize_workspace(landing_id, workspace)
             baseline = _snapshot(composed)
-            self.authority.update_page(landing_id, status="draft", state_sha256=composed["state_sha256"], generation={"stage": "draft", "composition": sanitized(result.get("invocation") or {})}, learning_baseline=baseline, learning_baseline_sha256=sha256_json(baseline))
+            self.authority.update_page(landing_id, status="draft", state_sha256=composed["state_sha256"], generation={"stage": "draft", **skill_provenance, "composition": sanitized(result.get("invocation") or {})}, learning_baseline=baseline, learning_baseline_sha256=sha256_json(baseline))
         except Exception as error:
             self._synchronize_workspace(landing_id, workspace)
             self._record_generation(landing_id=landing_id, stage=stage, status="failed", input_sha256=stage_input, output_sha256=None, prompt_version=LANDING_COMPOSER_PROMPT_VERSION if stage == "composition" else "landing-visual-generator-v2", error=error)
@@ -932,33 +956,6 @@ class LandingService:
         self.authority.update_page(landing_id, state_sha256=result["state_sha256"])
         return {**result, **self.summary(landing_id)}
 
-    def _unsafe_global_rule(self, rule: str, page: Mapping[str, Any]) -> bool:
-        values = [str(page["project_id"]), str(page["source_brief_id"]), str(page["source_creative_id"])]
-        values.extend(value for value in json.dumps(page.get("source_post_snapshot", {}), ensure_ascii=False).split('"') if len(value) >= 12)
-        lowered = rule.casefold()
-        return bool(_DIGEST.search(rule) or re.search(r"(?:[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|https?://\S+|\+?\d[\d ()-]{7,}\d)", rule) or any(value.casefold() in lowered for value in values))
-
-    def _learn_checkpoint(self, page: Mapping[str, Any], checkpoint: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | None]:
-        proposal = None
-        try:
-            def validate_learning(value: Mapping[str, Any]) -> Mapping[str, Any]:
-                learned = validate_studio_edit_learning(value)
-                if self._unsafe_global_rule(learned["global_rule"], page):
-                    raise ValueError(
-                        "Landing global proposal contains project-specific or contact data"
-                    )
-                return learned
-
-            result = self._provider_call(mode="studio_edit_learning", system_prompt=self.learner_skill, input_payload={"checkpoint_kind": checkpoint["kind"], "changed_paths": checkpoint["changed_paths"], "before": checkpoint["before_snapshot"], "after": checkpoint["after_snapshot"]}, output_schema=studio_edit_learning_schema(), idempotency_key=f"landing-checkpoint:{checkpoint['checkpoint_id']}", prompt_version="landing-edit-learner-v1", response_validator=validate_learning)
-            learned = result["response"]
-            project_skill = self.authority.create_project_skill(project_id=page["project_id"], lesson=_compact(learned["project_lesson"], "project lesson", 8, 800), checkpoint_id=checkpoint["checkpoint_id"])
-            proposal = self.authority.create_proposal(checkpoint_id=checkpoint["checkpoint_id"], project_skill_snapshot_id=project_skill["skill_snapshot_id"], global_rule=_compact(learned["global_rule"], "global rule", 8, 800))
-            checkpoint = self.authority.record_learning_result(checkpoint["checkpoint_id"], status="completed", edit_summary=_compact(learned["edit_summary"], "edit summary", 8, 1200), project_skill_snapshot_id=project_skill["skill_snapshot_id"], error_type=None, error_message=None)
-            checkpoint = {**checkpoint, "project_lesson": learned["project_lesson"]}
-        except Exception as error:
-            checkpoint = self.authority.record_learning_result(checkpoint["checkpoint_id"], status="failed", error_type=type(error).__name__, error_message=str(error)[:1000])
-        return checkpoint, proposal
-
     def checkpoint(self, project_id: str, landing_id: str, *, kind: str, base_sha256: str, configuration: Mapping[str, Any], content: Mapping[str, Any], change_note: str = "") -> dict[str, Any]:
         if kind not in {"save", "approve"}:
             raise ValueError("Landing checkpoint kind is invalid")
@@ -990,32 +987,10 @@ class LandingService:
         checkpoint = self.authority.record_checkpoint({
             "checkpoint_id": new_uuid7(), "landing_id": landing_id, "project_id": project_id, "kind": kind,
             "before_state_sha256": before_sha, "after_state_sha256": after_sha, "changed_paths": _diff_paths(before, after),
-            "before_snapshot": before, "after_snapshot": after, "status": "learning", "version": len(current["versions"]) if kind == "approve" else None, "created_at": utc_now(),
+            "before_snapshot": before, "after_snapshot": after, "status": "completed", "version": len(current["versions"]) if kind == "approve" else None, "created_at": utc_now(),
         })
-        checkpoint, proposal = self._learn_checkpoint(page, checkpoint)
         self.authority.update_page(landing_id, learning_baseline=after, learning_baseline_sha256=after_sha)
-        return {"landing": {**current, **self.summary(landing_id)}, "checkpoint_created": True, "version_created": version_created, "checkpoint": checkpoint, "learning_proposal": proposal}
-
-    def decide_learning(self, project_id: str, landing_id: str, proposal_id: str, decision: str) -> dict[str, Any]:
-        self.detail(project_id, landing_id)
-        proposal = self.authority.get_proposal(proposal_id)
-        checkpoint = self.authority.get_checkpoint(proposal["checkpoint_id"])
-        if checkpoint["landing_id"] != _uuid(landing_id, "landing_id"):
-            raise KeyError("Landing learning proposal was not found")
-        return self.authority.decide_proposal(proposal_id, decision)
-
-    def retry_learning(self, project_id: str, landing_id: str, checkpoint_id: str) -> dict[str, Any]:
-        page = self.authority.get_page(landing_id)
-        if page["project_id"] != _uuid(project_id, "project_id"):
-            raise KeyError("Landing was not found in this Project")
-        checkpoint = self.authority.get_checkpoint(checkpoint_id)
-        if checkpoint["landing_id"] != _uuid(landing_id, "landing_id"):
-            raise KeyError("Landing checkpoint was not found")
-        if checkpoint["status"] != "failed":
-            raise ValueError("only failed Landing learning can be retried")
-        checkpoint = self.authority.record_learning_result(checkpoint_id, status="learning", error_type=None, error_message=None)
-        checkpoint, proposal = self._learn_checkpoint(page, checkpoint)
-        return {"checkpoint": checkpoint, "learning_proposal": proposal}
+        return {"landing": {**current, **self.summary(landing_id)}, "checkpoint_created": True, "version_created": version_created, "checkpoint": {**checkpoint, "status": "saved"}, "learning_proposal": None}
 
     def recover_interrupted(self) -> list[str]:
         """Return only pages whose initial composition did not reach a draft."""

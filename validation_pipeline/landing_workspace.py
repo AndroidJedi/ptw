@@ -378,12 +378,91 @@ def normalize_composed_content(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def landing_catalog() -> dict[str, Any]:
+    components = [
+        {"component_id": "project_landing.theme", "role": "theme", "setting_ids": (
+            "configuration.theme.background_color", "configuration.theme.surface_color",
+            "configuration.theme.text_color", "configuration.theme.accent_color",
+            "configuration.theme.font_family", "configuration.theme.heading_font_family",
+            "configuration.theme.corner_radius", "configuration.presentation.heading_scale",
+            "configuration.presentation.spacing", "configuration.components.button_style",
+            "configuration.components.button_shape", "configuration.components.button_color",
+            "configuration.components.button_text_color", "configuration.components.card_style",
+            "configuration.components.icon_style", "configuration.components.contact_style",
+        )},
+        {"component_id": "project_landing.hero", "role": "hero", "setting_ids": (
+            "configuration.visual_mode", "configuration.hero.alignment",
+            "configuration.hero.image_position", "configuration.presentation.hero_focus",
+            "content.hero.title", "content.hero.supporting_text", "content.hero.cta_label",
+        )},
+        {"component_id": "project_landing.app_feature", "role": "app_feature", "setting_ids": (
+            "configuration.phone_mockup.theme", "configuration.phone_mockup.layout",
+            "content.app_feature",
+        )},
+        {"component_id": "project_landing.features", "role": "features", "setting_ids": (
+            "configuration.features.layout", "content.features",
+        )},
+        {"component_id": "project_landing.social_proof", "role": "social_proof", "setting_ids": (
+            "configuration.social_proof.layout", "content.social_proof",
+        )},
+        {"component_id": "project_landing.visual_break", "role": "visual_break", "setting_ids": (
+            "configuration.visual_break.height", "configuration.presentation.visual_break_focus",
+            "content.visual_break.visual_direction",
+        )},
+        {"component_id": "project_landing.contacts", "role": "contacts", "setting_ids": (
+            "configuration.presentation.cta_target", "configuration.contacts.alignment",
+            "content.contacts.heading", "content.contacts.supporting_text",
+        )},
+        {"component_id": "project_landing.faq", "role": "faq", "setting_ids": (
+            "configuration.faq.style", "content.faq",
+        )},
+    ]
+    enum_values = {
+        "configuration.visual_mode": ["phone", "image"],
+        "configuration.hero.alignment": ["left", "center"],
+        "configuration.hero.image_position": ["left", "right", "below"],
+        "configuration.presentation.spacing": ["compact", "comfortable", "airy"],
+        "configuration.presentation.cta_target": ["contacts", "url", "email", "phone"],
+        "configuration.phone_mockup.theme": PHONE_MOCKUP_OPTIONS["theme"],
+        "configuration.phone_mockup.layout": PHONE_MOCKUP_OPTIONS["layout"],
+        "configuration.features.layout": ["three_columns", "stacked"],
+        "configuration.social_proof.layout": ["cards", "quote"],
+        "configuration.visual_break.height": ["small", "medium", "large"],
+        "configuration.contacts.alignment": ["left", "center"],
+        "configuration.faq.style": ["divided", "cards"],
+        "configuration.components.button_style": COMPONENT_OPTIONS["button_style"],
+        "configuration.components.button_shape": COMPONENT_OPTIONS["button_shape"],
+        "configuration.components.card_style": COMPONENT_OPTIONS["card_style"],
+        "configuration.components.icon_style": COMPONENT_OPTIONS["icon_style"],
+        "configuration.components.contact_style": COMPONENT_OPTIONS["contact_style"],
+        "configuration.theme.font_family": list(LANDING_FONT_FAMILIES),
+        "configuration.theme.heading_font_family": list(LANDING_FONT_FAMILIES),
+    }
+    numeric = {
+        "configuration.theme.corner_radius": (0, 48),
+        "configuration.presentation.heading_scale": (.85, 1.15),
+    }
+    setting_definitions = []
+    for component in components:
+        for setting_id in component["setting_ids"]:
+            definition: dict[str, Any] = {
+                "setting_id": setting_id, "component_id": component["component_id"],
+                "value_type": "structured" if setting_id.endswith(("_focus", "app_feature", "features", "social_proof", "faq")) else "string",
+            }
+            if setting_id in enum_values:
+                definition.update(value_type="enum", values=enum_values[setting_id])
+            elif setting_id in numeric:
+                definition.update(value_type="number", minimum=numeric[setting_id][0], maximum=numeric[setting_id][1])
+            elif setting_id.endswith("_color"):
+                definition["value_type"] = "color"
+            setting_definitions.append(definition)
     return {
-        "schema": "ptw.landing.catalog.v1", "template_id": LANDING_TEMPLATE_ID,
+        "schema": "ptw.landing.catalog.v2", "template_id": LANDING_TEMPLATE_ID,
         "template_version": LANDING_TEMPLATE_VERSION,
         "section_order": ["hero", "features", "social_proof", "visual_break", "contacts", "faq"],
         "font_families": list(LANDING_FONT_FAMILIES),
         "visual_slots": list(LANDING_VISUAL_SLOTS),
+        "components": [{**component, "setting_ids": list(component["setting_ids"])} for component in components],
+        "setting_definitions": setting_definitions,
         "presentation_defaults": _copy(DEFAULT_PRESENTATION),
         **_copy(design_catalog()),
         "sha256": sha256_json({"configuration": DEFAULT_CONFIGURATION, "content": DEFAULT_CONTENT, "presentation": DEFAULT_PRESENTATION, "design": design_catalog()}),

@@ -6,6 +6,10 @@ description: Populate one fixed private PTW Landing page from an approved Produc
 # Landing page composer
 
 - Treat the approved Product Brief as the complete marketing-claim authority.
+- Apply supplied typed skill snapshots using this precedence: fixed catalog,
+  brand, and Brief constraints; explicit owner direction; active Project rules;
+  active global spirit; then template defaults. Ignore inactive and tombstoned
+  rules, and never invent settings outside the supplied Landing catalog.
 - Treat the immutable Post version as frozen provenance. The server preserves its
   mapped design state; the model receives only bounded frozen Post copy for tone and
   continuity. Never claim that the Landing stays synchronized with the Post.
@@ -49,5 +53,6 @@ description: Populate one fixed private PTW Landing page from an approved Produc
   central horizontal band for a shallow landscape crop. Avoid repeating the same scene.
 - Proof is optional and absent entries are hidden by the renderer. Never replace an
   empty evidence section with placeholder claims or fabricated social proof.
-- The initial baseline is provenance, not feedback. It must not modify Landing or Post
-  learned skills until the owner explicitly saves or approves an edit.
+- The initial baseline and later Save/Approve checkpoints are provenance, not
+  performance evidence. Only reviewed Analytics learning or a direct owner Skill
+  revision may create an active immutable snapshot.

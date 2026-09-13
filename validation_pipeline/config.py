@@ -15,12 +15,12 @@ class Settings:
     model: str = "codex-cli-default"
     product_brief_skill_path: Path = Path("/run/ptw-auth/skills/product-brief-generator/SKILL.md")
     studio_composer_skill_path: Path = Path("/run/ptw-auth/skills/studio-creative-composer/SKILL.md")
-    studio_learner_skill_path: Path = Path("/run/ptw-auth/skills/studio-edit-learner/SKILL.md")
     studio_phone_skill_path: Path = Path("/run/ptw-auth/skills/studio-phone-hero-generator/SKILL.md")
     studio_workspace_path: Path = Path("/tmp/ptw-studio-workspace")
     landing_composer_skill_path: Path = Path("/run/ptw-auth/skills/landing-page-composer/SKILL.md")
-    landing_learner_skill_path: Path = Path("/run/ptw-auth/skills/landing-edit-learner/SKILL.md")
     landing_workspace_path: Path = Path("/tmp/ptw-landing-workspace")
+    creative_performance_skill_path: Path = Path("/run/ptw-auth/skills/creative-performance-learner/SKILL.md")
+    creative_visual_skill_path: Path = Path("/run/ptw-auth/skills/creative-visual-analyzer/SKILL.md")
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -47,9 +47,6 @@ class Settings:
             studio_composer_skill_path=Path(os.environ.get(
                 "STUDIO_COMPOSER_SKILL_PATH", "/run/ptw-auth/skills/studio-creative-composer/SKILL.md"
             )),
-            studio_learner_skill_path=Path(os.environ.get(
-                "STUDIO_LEARNER_SKILL_PATH", "/run/ptw-auth/skills/studio-edit-learner/SKILL.md"
-            )),
             studio_phone_skill_path=Path(os.environ.get(
                 "STUDIO_PHONE_SKILL_PATH", "/run/ptw-auth/skills/studio-phone-hero-generator/SKILL.md"
             )),
@@ -59,10 +56,15 @@ class Settings:
             landing_composer_skill_path=Path(os.environ.get(
                 "LANDING_COMPOSER_SKILL_PATH", "/run/ptw-auth/skills/landing-page-composer/SKILL.md",
             )),
-            landing_learner_skill_path=Path(os.environ.get(
-                "LANDING_LEARNER_SKILL_PATH", "/run/ptw-auth/skills/landing-edit-learner/SKILL.md",
-            )),
             landing_workspace_path=Path(os.environ.get(
                 "LANDING_WORKSPACE_PATH", "/tmp/ptw-landing-workspace",
+            )),
+            creative_performance_skill_path=Path(os.environ.get(
+                "CREATIVE_PERFORMANCE_SKILL_PATH",
+                "/run/ptw-auth/skills/creative-performance-learner/SKILL.md",
+            )),
+            creative_visual_skill_path=Path(os.environ.get(
+                "CREATIVE_VISUAL_SKILL_PATH",
+                "/run/ptw-auth/skills/creative-visual-analyzer/SKILL.md",
             )),
         )

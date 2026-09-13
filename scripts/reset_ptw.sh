@@ -117,6 +117,10 @@ BEGIN
     ('meta_ads_presets', (SELECT count(*) FROM meta_ads_preset_versions)),
     ('instagram_publications', (SELECT count(*) FROM instagram_publications)),
     ('instagram_publication_attempts', (SELECT count(*) FROM instagram_publication_attempts)),
+    ('tiktok_connections', (SELECT count(*) FROM tiktok_account_connections)),
+    ('tiktok_oauth_states', (SELECT count(*) FROM tiktok_oauth_states)),
+    ('tiktok_publications', (SELECT count(*) FROM tiktok_publications)),
+    ('tiktok_publication_attempts', (SELECT count(*) FROM tiktok_publication_attempts)),
     ('meta_ads_workspaces', (SELECT count(*) FROM meta_ads_workspaces)),
     ('meta_ads_audiences', (SELECT count(*) FROM meta_ads_audience_versions)),
     ('meta_ads_deployments', (SELECT count(*) FROM meta_ads_deployments)),
@@ -124,7 +128,16 @@ BEGIN
     ('meta_ads_snapshots', (SELECT count(*) FROM meta_ads_status_snapshots)),
     ('meta_ads_controls', (SELECT count(*) FROM meta_ads_control_actions)),
     ('meta_ads_insights', (SELECT count(*) FROM meta_ads_insight_snapshots)),
-    ('meta_ads_recommendations', (SELECT count(*) FROM meta_ads_recommendations))
+    ('meta_ads_recommendations', (SELECT count(*) FROM meta_ads_recommendations)),
+    ('creative_attribution_sources', (SELECT count(*) FROM creative_attribution_sources)),
+    ('creative_insight_snapshots', (SELECT count(*) FROM creative_insight_snapshots)),
+    ('landing_analytics_events', (SELECT count(*) FROM landing_analytics_events)),
+    ('landing_analytics_rollups', (SELECT count(*) FROM landing_analytics_rollup_snapshots)),
+    ('creative_visual_descriptors', (SELECT count(*) FROM creative_visual_descriptors)),
+    ('creative_visual_descriptor_sources', (SELECT count(*) FROM creative_visual_descriptor_sources)),
+    ('creative_learning_runs', (SELECT count(*) FROM creative_learning_runs)),
+    ('creative_skill_snapshots', (SELECT count(*) FROM creative_skill_snapshots)),
+    ('creative_learning_decisions', (SELECT count(*) FROM creative_learning_decisions))
   ) AS counts(label,value) WHERE value <> 0;
   IF failures IS NOT NULL THEN
     RAISE EXCEPTION 'Product Brief reset postcondition failed: %', failures;
@@ -164,8 +177,11 @@ BEGIN
        SELECT 1 FROM commander_schema_migrations WHERE name='003_ptw_meta_ads_v1.sql'
      ) OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='004_public_landing_v1.sql'
-     ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='005_instagram_publication_v1.sql') THEN
-    RAISE EXCEPTION 'Product Brief, Studio, Landing, and Meta Ads migrations are incomplete';
+     ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='005_instagram_publication_v1.sql'
+     ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='006_meta_ads_control_v1.sql'
+     ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='007_tiktok_publication_v1.sql'
+     ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='008_analytics_creative_learning_v1.sql') THEN
+    RAISE EXCEPTION 'Product Brief, Studio, Landing, Meta Ads, social publishing, and Analytics migrations are incomplete';
   END IF;
 END $$;
 SQL
@@ -194,4 +210,4 @@ do
   [ -z "$container_id" ] || docker rm --force "$container_id" >/dev/null
 done
 
-echo "PTW Product Brief v1 reset complete; all owned business data, including Landing publications, is empty and platform counts are unchanged"
+echo "PTW reset complete; all owned business data, including Analytics lineage and Landing events, is empty and platform counts are unchanged"

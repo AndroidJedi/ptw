@@ -115,17 +115,18 @@ before the requested database exists; that is not migration-test readiness.
 
 ## Production contract
 
-- Bridge JSON modes are exactly `product_brief`,
-  `product_brief_revision`, `studio_creative_generation`, and
-  `studio_edit_learning`.
+- Bridge structured modes are exactly `product_brief`,
+  `product_brief_revision`, `studio_creative_generation`,
+  `creative_performance_learning`, and `creative_visual_analysis`.
 - Media mode is exactly `content_non_human_graphic_generation`; enhancement
   accepts zero or one validated square PNG reference and records its digest.
 - PostgreSQL owns Projects, Sources, Briefs, corrections, approvals,
-  project-scoped Studio creatives/files/assets/versions, append-only
-  generation and learning runs, immutable edit checkpoints and skill snapshots,
-  proposals/decisions, audit, graph lineage, and emergency control.
+  project-scoped Studio creatives/files/assets/versions, append-only generation
+  runs, immutable edit checkpoints, Analytics snapshots/rollups, frozen
+  performance runs, reviewed typed skill snapshots/decisions, audit, graph
+  lineage, and emergency control. Historical Save-era learning rows are inert.
 - Brief approval transactionally reserves the first creative. Restart recovery
-  resumes queued composition, phone-image, and learning stages idempotently.
+  resumes queued composition and phone-image stages idempotently.
 - Bare Studio mutation routes, `/api/v1/posts`, candidate/critic modes,
   historical schema adapters, and singleton assignment flows are absent.
 - A completed structured bridge job can still be unusable when its response
@@ -176,12 +177,10 @@ before the requested database exists; that is not migration-test readiness.
   regression. Reconcile the affected action once after rollout, require HTTP
   200 with no new version, then restart Validation and prove the version IDs,
   state/render digests, latest checkpoint, and recovery queues are unchanged.
-  Both preserving deployers must reject any Studio checkpoint without a
-  completed learning run before taking the authority snapshot: Validation
-  restart recovery is intentionally mutating and would otherwise make a healthy
-  rollout fail its own preservation comparison. Never bypass that comparison;
-  let recovery finish on the current release, verify the queue is empty, and
-  restart the candidate rollout from preflight.
+  Save/Approve checkpoints never gate deployment and have no restart learning
+  recovery. Performance learning runs are explicit Analytics work: retain their
+  frozen manifests and status, but do not mutate or resume them merely because a
+  service restarted. Never bypass the authority preservation comparison.
 - Telegram accepts only `/help`, `/status`, and `/stop`.
   Deployment verifies the existing bot identity with the read-only canary.
   Sending a test message requires explicit messaging authorization; deployment
@@ -193,12 +192,11 @@ before the requested database exists; that is not migration-test readiness.
   `DatabaseLandingAuthority._edge` call order, and preserve the Project for one
   post-fix retry. This incident does not justify a production reset.
 - A repeated Landing Save 409 can be the aftermath of a successful server-side
-  checkpoint whose response outlived the browser's generic request deadline.
+  checkpoint whose response outlived the browser's request deadline.
   Compare the page `state_sha256`, `landing_workspace_files.updated_at`,
   `landing_checkpoints`, versions, and Gateway request statuses before retrying.
-  Landing Save/Approve clients must share the existing bounded 480-second
-  Gateway deadline because synchronous Landing learning may legitimately exceed
-  15 seconds. Reconcile only an exact configuration/content match; otherwise
+  Save/Approve no longer invokes learning or a learning-specific retry path.
+  Reconcile only an exact configuration/content match; otherwise
   preserve both the newer server state and the owner's pending browser input.
   Do not delete the completed checkpoint or reset the Project.
 
@@ -227,11 +225,10 @@ already contain a candidate rejected by preflight. Do not advance that state
 file until all checks accept the release. A preflight failure must not invoke
 rollback because no cutover began. Preserve checksum and architecture checks,
 and allow a retry to send `PRESENT` only when the target image already exists
-with the exact source-revision label. When an incomplete Studio learning
-checkpoint is blocked specifically by the old deterministic-response replay
-bug, load the verified candidate Validation image first, run the tracked exact
-checkpoint retry through normal domain services under the maintenance lock,
-and require it to complete before restarting the release from preflight.
+with the exact source-revision label. Historical Studio and Landing learning
+rows are audit records only. Never retry, recover, or activate them; new
+learning starts explicitly from Analytics and every candidate remains inert
+until an owner review decision.
 
 When a release originates in the hosted Commander checkout, treat its output as
 a development handoff. Require a pushed immutable commit, a clean source tree,
@@ -327,9 +324,10 @@ unchanged independent platform data, database-backed readiness, and the current
 PWA cache.
 
 After cutover exercise create Project/Brief → approve with template → automatic
-creative composition/phone image → edit → Save learning → global decision →
-Approve creative, then restart services and verify the same IDs/digests plus
-empty recovery queues. Never claim readiness from health checks alone.
+creative composition/phone image → edit → Save with zero learning calls →
+Approve creative → explicit Analytics run/review, then restart services and
+verify the same IDs/digests plus empty generation recovery queues. Never claim
+readiness from health checks alone.
 When a serial release schedules the resource follow-up, the transient systemd
 unit is `ptw-validation-24h-audit.timer`; require `active/waiting` and a concrete
 next elapse time. Checking a guessed timer name is not evidence of failure.

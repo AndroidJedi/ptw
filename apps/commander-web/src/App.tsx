@@ -13,6 +13,7 @@ import { LandingView } from './views/LandingView'
 import { AdsView } from './views/AdsView'
 import { SettingsView } from './views/SettingsView'
 import { CommanderChat } from './components/CommanderChat'
+import { AnalyticsView } from './views/AnalyticsView'
 
 const OWNER = 'sgolovaschuk@gmail.com'
 export const AUTH_BOOT_TIMEOUT_MS = 10_000
@@ -37,8 +38,8 @@ function persistLanguage(language: Language) {
 function initialConsoleLocation(): { page: Page; projectId: string | null; creativeId: string | null; landingId: string | null } {
   const params = new URLSearchParams(window.location.search)
   const requestedPage = params.get('page')
-  const page: Page = requestedPage === 'posts' || requestedPage === 'landing' || requestedPage === 'ads' || requestedPage === 'settings' || requestedPage === 'commander' ? requestedPage : 'briefs'
-  if (requestedPage && !['briefs', 'posts', 'landing', 'ads', 'settings', 'commander'].includes(requestedPage)) {
+  const page: Page = requestedPage === 'posts' || requestedPage === 'landing' || requestedPage === 'ads' || requestedPage === 'analytics' || requestedPage === 'settings' || requestedPage === 'commander' ? requestedPage : 'briefs'
+  if (requestedPage && !['briefs', 'posts', 'landing', 'ads', 'analytics', 'settings', 'commander'].includes(requestedPage)) {
     params.delete('page')
     const search = params.toString()
     window.history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
@@ -221,6 +222,7 @@ function Console({ user, localApp = false, liveProduction = false }: { user: Use
     {page === 'posts' && <StudioView api={api} language={language} tuneMode={localApp} projectId={validatedProjectId} creativeId={creativeId} onCreative={selectCreative} />}
     {page === 'landing' && <LandingView api={api} language={language} projectId={validatedProjectId} projectName={projects?.find(item => item.project_id === validatedProjectId)?.name || ''} landingId={landingId} onLanding={selectLanding} />}
     {page === 'ads' && <AdsView api={api} language={language} projectId={validatedProjectId} />}
+    {page === 'analytics' && <AnalyticsView api={api} language={language} projectId={validatedProjectId} />}
     {page === 'settings' && <SettingsView api={api} language={language} onLanguage={changeLanguage} />}
     {page === 'commander' && <CommanderChat api={api} language={language} />}
   </Shell>

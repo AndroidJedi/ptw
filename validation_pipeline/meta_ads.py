@@ -1193,6 +1193,7 @@ class MetaAdsService:
         self.studio = studio
         self.configuration = configuration
         self.adapter = adapter
+        self.analytics: Any | None = None
         self.landing_publications = landing_publications
         self._lock = threading.RLock()
 
@@ -1493,6 +1494,7 @@ class MetaAdsService:
                      spec["welcome_message"] == _text(request["welcome_message"], "welcome message", 1, 1000)))
             if not matches:
                 raise ValueError("idempotency request ID was reused with different input")
+            self._register_attribution(previous)
             return previous, False
         if not self.configuration.configured or self.adapter is None:
             raise RuntimeError("Meta Ads staging is disabled until the local credentials and asset IDs are configured")
@@ -1512,6 +1514,7 @@ class MetaAdsService:
         record, rendered = artifact["record"], artifact["rendered"]
         preset = self.authority.get_preset(_uuid(request["preset_id"], "preset_id"))
         categories = _categories(request["special_ad_categories"])
+        deployment_id = new_uuid7()
         specification = {
             "schema": "ptw.meta-ads.deployment-spec.v1",
             "identity": {"ad_account_id": self.configuration.ad_account_id, "page_id": self.configuration.page_id,
@@ -1530,11 +1533,17 @@ class MetaAdsService:
             landing = self.landing(project_id)
             if not landing or landing["event_id"] != request["landing_event_id"]:
                 raise RuntimeError("Published Landing changed or is unavailable. Refresh and review the destination.")
+            prepared = None if self.analytics is None else self.analytics.prepare_attribution(landing)
+            tracked_landing = deepcopy(landing)
+            if prepared:
+                tracked_landing["untracked_canonical_url"] = landing["canonical_url"]
+                tracked_landing["canonical_url"] = prepared["tracked_url"]
             specification["identity"]["pixel_id"] = self.configuration.pixel_id
             specification.update(
                 schema="ptw.meta-ads.deployment-spec.v3", objective="OUTCOME_TRAFFIC",
                 optimization_goal="LANDING_PAGE_VIEWS", destination_type="WEBSITE",
-                call_to_action="LEARN_MORE", landing=landing,
+                call_to_action="LEARN_MORE", landing=tracked_landing,
+                analytics=prepared,
                 measurement={"pixel_id": self.configuration.pixel_id, "event": "PageView"},
             )
         specification_sha = _sha(specification)
@@ -1545,7 +1554,6 @@ class MetaAdsService:
         campaign_name = experiment["campaign_name"]
         ad_set_name = f"{self.configuration.name_prefix} [campaign:{experiment['experiment_id']}] [preset:{preset['specification_sha256']}]"[:255]
         audience = self.authority.ensure_audience(experiment["experiment_id"], preset, ad_set_name)
-        deployment_id = new_uuid7()
         fingerprint = {
             "project_id": project_id, "creative_id": creative_id, "version": version,
             "version_sha256": record["version_sha256"], "render_sha256": record["render_sha256"],
@@ -1567,7 +1575,21 @@ class MetaAdsService:
         }
         stored = {key: item for key, item in value.items() if key != "_render_bytes"}
         deployment, created = self.authority.reserve_deployment(stored)
+        self._register_attribution(deployment)
         return deployment, created
+
+    def _register_attribution(self, deployment: Mapping[str, Any]) -> None:
+        if self.analytics is None:
+            return
+        specification = deployment.get("specification") or {}
+        prepared = specification.get("analytics")
+        landing = specification.get("landing")
+        if prepared and landing:
+            self.analytics.register_attribution(
+                prepared=prepared, project_id=str(deployment["project_id"]),
+                channel="paid", provider="meta",
+                source_entity_id=str(deployment["deployment_id"]), landing=landing,
+            )
 
     @staticmethod
     def _error(error: Exception) -> dict[str, Any]:

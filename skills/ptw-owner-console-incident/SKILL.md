@@ -107,28 +107,23 @@ before changing code or runtime state.
   inode. Never expose the persisted credential or bridge token.
 - Verify raw idea → immutable Brief → correction lineage → honor confirmation
   plus template choice → HTTP 202 creative reservation/navigation.
-- Provider JSON modes are exactly `product_brief`,
-  `product_brief_revision`, `studio_creative_generation`, and
-  `studio_edit_learning`. The only media mode is bounded non-human graphic
-  generation with at most one digest-checked PNG enhancement reference.
+- Provider structured modes are exactly `product_brief`,
+  `product_brief_revision`, `studio_creative_generation`,
+  `creative_performance_learning`, and `creative_visual_analysis`. The only
+  generation media mode is bounded non-human graphic generation. Visual
+  analysis and enhancement accept at most one digest-checked PNG reference.
 - Composition must record Brief, template, global-skill, and Project-skill IDs
   and hashes, validate output against the live selected template, and start a
   fresh text-free phone hero for `phone_metrics`.
-- Save/Approve creates learning only when accumulated owner edits changed state.
-  Confirm immutable checkpoint, append-only attempts, automatic Project skill,
-  sanitized global proposal, explicit owner decision, and retry without rollback.
-- A Studio learning retry after deterministic output validation must advance its
-  provider idempotency attempt so it cannot replay the completed rejected result.
-  A transport, provider, timeout, or persistence failure retains the same provider
-  attempt for safe reconciliation. Append a learning-run attempt for every retry;
-  never delete the failed runs or alter the saved Creative/checkpoint.
-- Global-proposal privacy checks may compare full owner copy and specific asset
-  provenance values, including IDs, hashes, URLs, filenames, provider identity,
-  and visual direction. Do not classify generic renderer vocabulary such as an
-  asset `slot` value as private: a reusable rule about `logo` visibility must not
-  fail merely because the Creative has a `logo` slot. Cover both acceptance of
-  semantic Studio terms and rejection of an exact provenance identifier.
-- Restart recovery resumes queued composition/image/learning exactly once.
+- Save/Approve must make zero learning calls. Confirm only the immutable changed
+  checkpoint, saved state, and (for Approve) immutable version. There is no
+  learning dialog, route, retry, or recovery queue at this boundary.
+- Performance learning starts only from Analytics, freezes its complete eligible
+  dataset, returns inactive typed candidates, and requires a reviewed Activate or
+  Reject decision. A failed run must leave active skills unchanged. Global rules
+  are spirit-only; Project rules are catalog-validated and Brief-subordinate.
+- Restart recovery resumes queued composition/image exactly once; Save-era
+  learning recovery is retired.
   PostgreSQL remains authority; per-creative renderer files are disposable cache.
 - When an already-approved Brief returns HTTP 409 from `/approve`, inspect its
   ordinal-1 Studio workspace before retrying. Approval and first-Creative
@@ -175,7 +170,8 @@ before changing code or runtime state.
   acceptance must additionally traverse real HTTP route handlers and domain
   services for approval, direction save/replacement/idempotency, stale-state
   and cross-Project rejection, fresh generation, exact-reference enhancement,
-  history integrity, selection, Save/learning, approval/version, failure/retry,
+  history integrity, selection, Save with zero learning, approval/version,
+  performance-learning review, failure/retry,
   and restart recovery. The release is blocked if the browser, Gateway,
   Validation, persistence, or provider boundary is only mocked at the point
   whose compatibility is being claimed.
@@ -197,15 +193,14 @@ before changing code or runtime state.
   the original action once, require HTTP 200 with no additional version, and
   prove a service restart retains the same IDs, digests, version count, and
   empty recovery queues.
-  Before a preserving rollout, reject any checkpoint that lacks a completed
-  learning run. Candidate startup resumes queued Studio learning and therefore
-  mutates append-only authority; it must finish on the current release before
-  the deploy snapshot is taken. A preservation mismatch is never waived merely
-  because the writes are valid recovery writes.
+  Save checkpoints no longer require or start learning. Do not block a
+  preserving rollout because a historical checkpoint lacks a completed legacy
+  learning run, and do not resume that work on startup. A preservation mismatch
+  is never waived merely because another write is valid.
 - Treat that Studio failure as one example of a general contract-drift class,
   not a field-specific exception. Every structured Product Brief, revision,
-  Universal Post, Phone Metrics, Landing composition, Studio-learning, and
-  Landing-learning call must supply a deterministic domain response validator.
+  Universal Post, Phone Metrics, Landing composition, performance-learning, and
+  visual-analysis call must supply a deterministic domain response validator.
   A provider/schema-valid object is never sufficient by itself. Keep renderer
   and Landing bounds, enums, patterns, fixed values, content lengths, and
   privacy constraints in shared domain constants consumed by both the strict
@@ -265,10 +260,9 @@ before changing code or runtime state.
   not mistaken for state gating.
 - When Landing Save returns repeated `Landing changed; reload before saving`
   conflicts, correlate the request window with the page digest and Landing
-  checkpoint rows before asking the owner to re-enter anything. Landing Save
-  performs synchronous learning behind a 480-second Gateway boundary; the web
-  client must use that same bounded deadline rather than its generic 15-second
-  deadline. An early client timeout can leave a completed checkpoint on the
+  checkpoint rows before asking the owner to re-enter anything. Landing Save no
+  longer invokes learning; treat the retained longer client timeout as a bounded
+  compatibility allowance, not a learning contract. An early client timeout can leave a completed checkpoint on the
   server and a stale digest in the browser. On the exact stale-state 409, fetch
   the current page once: treat it as reconciled only when its complete
   configuration and content exactly equal the owner's pending document. If any
@@ -359,7 +353,7 @@ elapse time. Do not infer a monitoring outage from a guessed unit name.
   Keep GET read-only; on an explicit unchanged legacy Save, persist normalized
   files before advancing metadata so a fresh restore still verifies. Exercise
   both newly loaded and already-open clients, stale-state rejection, unchanged
-  Save, completed learning, and immutable PNG preservation through real HTTP
+  Save, zero learning rows, and immutable PNG preservation through real HTTP
   and disposable PostgreSQL with `scripts/verify_studio_save_restart.py`.
   A rejected 409 is not a successful save: compare checkpoint timestamps before
   claiming a restart lost committed edits. Never reconstruct rejected owner
@@ -369,8 +363,8 @@ elapse time. Do not infer a monitoring outage from a guessed unit name.
   into the viewport and keyboard focus, retain pending input, and never show
   success after rejection. Keep preview failures separate so a late render
   response cannot replace a Save error or make a committed Save look failed.
-  In both Post templates, Save/Approve share the Gateway's bounded 480-second
-  learning deadline. Test a delayed 409 after scrolling away on desktop, 360px,
+  Save and Approve no longer invoke learning and use the normal bounded Gateway
+  mutation deadline. Test a delayed 409 after scrolling away on desktop, 360px,
   and iPhone WebKit; require the actual error heading in the viewport, retained
   field values, one request, and no success notice. Tell the owner to copy
   pending edits before reloading. Bump the PWA shell cache for the release.

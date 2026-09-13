@@ -104,6 +104,34 @@ const brief = {
   ...briefDocument,
 }
 
+function analyticsWorkspace(scope: 'project' | 'global', windowDays: number) {
+  const selected = scope === 'project'
+  return {
+    schema: 'ptw.analytics.workspace.v1', scope,
+    project_id: selected ? projectId : null, project_ids: [projectId], window_days: windowDays,
+    readiness: {
+      instagram: { available: true },
+      tiktok: { available: false, explanation: 'Public-photo canary is not yet audited.' },
+      meta: { available: true }, landing: { available: true },
+    },
+    organic: selected ? [{
+      provider: 'instagram', publication_id: '018f07ea-7f20-7000-8000-000000000020',
+      project_id: projectId, published_at: '2026-08-26T08:00:00Z', age_hours: 96,
+      metrics: { views: 100, likes: 5, comments: 2, shares: 1, saves: 1 },
+      funnel: { landing_view: 10, primary_cta_click: 3, contact_click: 2 },
+      rates: { outbound_contact: 0.02, primary_cta: 0.03, high_intent: 0.04, interaction: 0.09, view_velocity_per_day: 25 },
+      insight: { capture_kind: 'milestone', created_at: '2026-08-30T08:00:00Z' },
+    }] : [],
+    paid: [],
+    landing_funnel: selected
+      ? { landing_view: 10, primary_cta_click: 3, contact_click: 2, primary_cta_rate: 0.3, outbound_contact_rate: 0.2, surfaces: { page: 10, hero: 3, telegram: 2 }, conversion_label: 'Outbound contact click · conversion proxy' }
+      : { landing_view: 0, primary_cta_click: 0, contact_click: 0, primary_cta_rate: null, outbound_contact_rate: null, surfaces: {}, conversion_label: 'Outbound contact click · conversion proxy' },
+    skills: { snapshot: null, rules: [] }, learning_runs: [], learning_curve: [],
+    freshness: { instagram: selected ? '2026-08-30T08:00:00Z' : null, tiktok: null },
+    metric_definitions: selected ? { outbound_contact_rate: { numerator: 'attributed contact_click', denominator: 'provider reach/views', source: 'PTW Landing + provider snapshot', limitation: 'conversion proxy; not a lead or sale' } } : {},
+  }
+}
+
 test.beforeEach(async ({ page }) => {
   let currentStudio = structuredClone(studioDetail)
   await page.route('**/api/v1/**', async (route) => {
@@ -113,6 +141,8 @@ test.beforeEach(async ({ page }) => {
       status, contentType: 'application/json', body: JSON.stringify(value),
     })
     if (url.pathname === '/api/v1/projects') return json({ items: [project], next_cursor: null })
+    if (url.pathname === `/api/v1/analytics/${projectId}/workspace`) return json(analyticsWorkspace('project', Number(url.searchParams.get('window') || 30)))
+    if (url.pathname === '/api/v1/analytics/global/workspace') return json(analyticsWorkspace('global', Number(url.searchParams.get('window') || 30)))
     if (url.pathname === '/api/v1/studio/templates' && method === 'GET') return json({ items: [
       { template_id: 'universal_ad', name: 'Universal ad', description: 'Square composition', canvas: { width: 1080, height: 1080 }, template_version: 11, template_sha256: 'a'.repeat(64) },
       { template_id: 'phone_metrics', name: 'Phone & metrics', description: 'Phone composition', canvas: { width: 1080, height: 1350 }, template_version: 17, template_sha256: 'b'.repeat(64) },
@@ -182,17 +212,9 @@ test.beforeEach(async ({ page }) => {
           checkpoint_id: '018f07ea-7f20-7000-8000-000000000005',
           creative_id: creativeId, project_id: projectId, kind: 'save',
           before_state_sha256: '1'.repeat(64), after_state_sha256: '2'.repeat(64),
-          changed_paths: ['content.hero_title'], status: 'completed',
-          edit_summary: 'Shortened the headline and strengthened contrast.',
-          project_lesson: 'Use a concise promise for this Project.',
+          changed_paths: ['content.hero_title'], status: 'saved',
         },
-        learning_proposal: {
-          proposal_id: '018f07ea-7f20-7000-8000-000000000006',
-          checkpoint_id: '018f07ea-7f20-7000-8000-000000000005',
-          project_skill_snapshot_id: '018f07ea-7f20-7000-8000-000000000007',
-          global_rule: 'Prefer concise promises when the template has limited space.',
-          global_rule_sha256: '3'.repeat(64), decision: 'pending',
-        },
+        learning_proposal: null,
       })
     }
     if (url.pathname === `${studioBasePath}/approve` && method === 'POST') {
@@ -212,20 +234,11 @@ test.beforeEach(async ({ page }) => {
           checkpoint_id: '018f07ea-7f20-7000-8000-000000000008',
           creative_id: creativeId, project_id: projectId, kind: 'approve',
           before_state_sha256: '2'.repeat(64), after_state_sha256: '4'.repeat(64),
-          changed_paths: ['content.hero_title'], status: 'completed',
-          edit_summary: 'Approved a more specific final headline.',
-          project_lesson: 'Prefer a specific final headline for this Project.',
+          changed_paths: ['content.hero_title'], status: 'saved',
         },
-        learning_proposal: {
-          proposal_id: '018f07ea-7f20-7000-8000-000000000009',
-          checkpoint_id: '018f07ea-7f20-7000-8000-000000000008',
-          project_skill_snapshot_id: '018f07ea-7f20-7000-8000-000000000010',
-          global_rule: 'Prefer specific final headlines before approval.',
-          global_rule_sha256: '5'.repeat(64), decision: 'pending',
-        },
+        learning_proposal: null,
       })
     }
-    if (url.pathname.includes('/learning/') && method === 'POST') return json({ decision: route.request().postDataJSON().decision })
     if (url.pathname === `/api/v1/briefs/${briefId}/approve` && method === 'POST') return json({
       brief: { ...brief, approved: true }, approved_now: true,
       creative: { creative_id: creativeId, project_id: projectId, source_brief_id: briefId, ordinal: 1, origin: 'brief_generation', template_id: 'universal_ad', template_version: 11, template_sha256: 'a'.repeat(64), status: 'queued', state_sha256: 'f'.repeat(64), approved_version_count: 0, generation: { stage: 'queued' }, created_at: '2026-08-26T08:06:00Z', updated_at: '2026-08-26T08:06:00Z' }, creative_created: true,
@@ -441,13 +454,8 @@ test('opens the Post editor and persists its bounded configuration', async ({ pa
   expect(request.postDataJSON().configuration.typography.font_family).toBe('Oswald')
   expect(request.postDataJSON().configuration.typography.benefits_font_family).toBe('Cormorant Garamond')
   expect(request.postDataJSON().content.hero_title).toBe('TEST A CLEAR PROMISE')
-  const learning = page.getByRole('alertdialog', { name: 'Project skill updated' })
-  await expect(learning).toBeVisible()
-  await expect(learning).toContainText('Shortened the headline and strengthened contrast.')
-  await expect(learning).toContainText('Use a concise promise for this Project.')
-  await expect(learning).toContainText('Prefer concise promises when the template has limited space.')
-  await learning.getByRole('button', { name: 'Keep project-only' }).click()
-  await expect(page.getByRole('status')).toContainText('lesson remains Project-only')
+  await expect(page.getByRole('status')).toContainText('Creative saved with an edit checkpoint.')
+  await expect(page.getByRole('alertdialog', { name: 'Project skill updated' })).toHaveCount(0)
   const metadataRequest = page.waitForRequest((candidate) =>
     candidate.url().endsWith('/component-settings'),
   )
@@ -466,10 +474,8 @@ test('opens the Post editor and persists its bounded configuration', async ({ pa
     content: { hero_title: 'A SPECIFIC FINAL PROMISE' },
     change_note: 'Owner-approved first creative',
   })
-  const approvalLearning = page.getByRole('alertdialog', { name: 'Project skill updated' })
-  await expect(approvalLearning).toContainText('Approved a more specific final headline.')
-  await approvalLearning.getByRole('button', { name: 'Apply globally' }).click()
-  await expect(page.getByRole('status')).toContainText('global Studio skill')
+  await expect(page.getByRole('status')).toContainText('Immutable creative and configuration version saved.')
+  await expect(page.getByRole('alertdialog', { name: 'Project skill updated' })).toHaveCount(0)
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
 })
 
@@ -528,6 +534,24 @@ test('manually previews every bounded sticker placement control', async ({ page 
   }
   await expect(page.getByText('Прев’ю відповідає незбереженим змінам')).toBeVisible()
   await expect(page.locator('body')).not.toHaveCSS('overflow-x', 'scroll')
+})
+
+test('shows Project and All Projects analytics without automatic activation', async ({ page }) => {
+  await page.goto(`/?e2e=1&page=analytics&project=${projectId}`)
+  await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
+  await page.reload()
+
+  await expect(page.getByRole('heading', { name: 'Creative Analytics' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Landing funnel' })).toBeVisible()
+  await expect(page.getByText('Post leaderboard')).toBeVisible()
+  await expect(page.getByText('2.0%')).toBeVisible()
+  await expect(page.getByText('Public-photo canary is not yet audited.')).toBeVisible()
+  await expect(page.getByText('No active snapshot yet.')).toBeVisible()
+  await page.getByRole('button', { name: 'All Projects' }).click()
+  await expect(page.getByText('No provider snapshots in this window.')).toBeVisible()
+  await expect(page.getByText('GLOBAL SPIRIT')).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: `.local/analytics-${test.info().project.name}.png`, fullPage: true })
 })
 
 test('opens the local Tune wizard and submits all three generation inputs', async ({ page }) => {

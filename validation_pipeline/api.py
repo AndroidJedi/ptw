@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+import logging
 from typing import Any, Mapping
 from uuid import UUID
 
@@ -32,10 +33,20 @@ from .meta_ads import (
 from .meta_ads_routes import meta_ads_router
 from .instagram_publication import InstagramAdapter, InstagramPublicationService, DatabaseInstagramAuthority
 from .instagram_publication_routes import instagram_router, instagram_media_router
+from .tiktok_publication import DatabaseTikTokAuthority, TikTokPublicationService
+from .tiktok_publication_routes import tiktok_router, tiktok_media_router
+from .social_publishing.providers.tiktok import TikTokConfiguration
 from .studio_creatives import StudioCreativeService
 from .studio_repository import DatabaseCreativeWorkspace, DatabaseStudioAuthority
 from .studio_routes import studio_creative_router
 from .studio_workspace import UniversalStudioWorkspace
+from .creative_analytics import CreativeAnalyticsService, DatabaseCreativeAnalyticsAuthority
+from .creative_analytics_routes import (
+    creative_analytics_owner_router, creative_analytics_public_router,
+)
+
+
+logger = logging.getLogger(__name__)
 
 
 def create_studio_creative_service(
@@ -68,7 +79,6 @@ def create_studio_creative_service(
         root=settings.studio_workspace_path, authority=authority,
         workspace_factory=workspace_factory, structured_provider=bridge,
         composer_skill_path=settings.studio_composer_skill_path,
-        learner_skill_path=settings.studio_learner_skill_path,
         phone_skill_path=settings.studio_phone_skill_path,
     )
 
@@ -85,6 +95,8 @@ def create_app(
     landing_publication_service: Any | None = None,
     meta_ads_service: MetaAdsService | None = None,
     instagram_service: Any | None = None,
+    tiktok_service: Any | None = None,
+    analytics_service: Any | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_environment()
     repository = repository or ValidationRepository(settings.database_url)
@@ -110,7 +122,6 @@ def create_app(
                 LandingWorkspace(path, image_provider=landing_images), landing_authority, path.name,
             ),
             structured_provider=bridge, composer_skill_path=settings.landing_composer_skill_path,
-            learner_skill_path=settings.landing_learner_skill_path,
         )
     if meta_ads_service is None:
         meta_configuration = MetaAdsConfiguration.from_environment()
@@ -129,6 +140,27 @@ def create_app(
             DatabaseInstagramAuthority(settings.database_url), meta_ads_service,
             InstagramAdapter(ig_configuration) if ig_configuration.access_token else None,
         )
+    if tiktok_service is None:
+        tiktok_service = TikTokPublicationService(
+            DatabaseTikTokAuthority(settings.database_url), studio_creatives,
+            TikTokConfiguration.from_environment(),
+        )
+    analytics = analytics_service or CreativeAnalyticsService(
+        DatabaseCreativeAnalyticsAuthority(settings.database_url),
+        studio=studio_creatives, landing_pages=landing_pages,
+        landing_publications=landing_publications, meta_ads=meta_ads_service,
+        structured_provider=bridge,
+        performance_skill_path=settings.creative_performance_skill_path,
+        visual_skill_path=settings.creative_visual_skill_path,
+        instagram=instagram_service, tiktok=tiktok_service,
+    )
+    studio_creatives.analytics = analytics
+    landing_pages.analytics = analytics
+    meta_ads_service.analytics = analytics
+    if getattr(instagram_service, "engine", None) is not None:
+        instagram_service.engine.analytics = analytics
+    if getattr(tiktok_service, "engine", None) is not None:
+        tiktok_service.engine.analytics = analytics
     runner_error: Exception | None = None
     if runner is None:
         try:
@@ -156,15 +188,20 @@ def create_app(
             task = asyncio.create_task(asyncio.to_thread(instagram_service.execute, publication_id))
             tasks.add(task)
             task.add_done_callback(tasks.discard)
-        for deployment_id in await asyncio.to_thread(meta_ads_service.recover_interrupted):
-            task = asyncio.create_task(asyncio.to_thread(meta_ads_service.execute, deployment_id))
+        if getattr(getattr(tiktok_service, "configuration", None), "configured", False):
+            for publication_id in await asyncio.to_thread(tiktok_service.recover_interrupted):
+                task = asyncio.create_task(asyncio.to_thread(tiktok_service.execute, publication_id))
+                tasks.add(task)
+                task.add_done_callback(tasks.discard)
+            async def maintain_tiktok() -> None:
+                while True:
+                    await asyncio.to_thread(tiktok_service.maintain)
+                    await asyncio.sleep(30)
+            task = asyncio.create_task(maintain_tiktok())
             tasks.add(task)
             task.add_done_callback(tasks.discard)
-        for item in await asyncio.to_thread(studio_creatives.recover_learning):
-            task = asyncio.create_task(asyncio.to_thread(
-                studio_creatives.retry_learning, item["project_id"],
-                item["creative_id"], item["checkpoint_id"],
-            ))
+        for deployment_id in await asyncio.to_thread(meta_ads_service.recover_interrupted):
+            task = asyncio.create_task(asyncio.to_thread(meta_ads_service.execute, deployment_id))
             tasks.add(task)
             task.add_done_callback(tasks.discard)
         if callable(getattr(meta_ads_service, "maintain_controls", None)):
@@ -175,6 +212,16 @@ def create_app(
             task = asyncio.create_task(maintain_meta_ads())
             tasks.add(task)
             task.add_done_callback(tasks.discard)
+        async def maintain_analytics() -> None:
+            while True:
+                await asyncio.sleep(900)
+                try:
+                    await asyncio.to_thread(analytics.maintain)
+                except Exception:
+                    logger.exception("Analytics maintenance cycle failed")
+        task = asyncio.create_task(maintain_analytics())
+        tasks.add(task)
+        task.add_done_callback(tasks.discard)
         yield
         for task in tasks:
             task.cancel()
@@ -207,8 +254,21 @@ def create_app(
     app.include_router(instagram_media_router(
         instagram_service, prefix="/internal/v1/public/instagram-media", dependencies=[Depends(authorize)],
     ))
+    app.include_router(tiktok_router(
+        tiktok_service, prefix="/internal/v1/tiktok", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(tiktok_media_router(
+        tiktok_service, prefix="/internal/v1/public/tiktok-media", dependencies=[Depends(authorize)],
+    ))
     app.include_router(meta_ads_router(
         meta_ads_service, prefix="/internal/v1/ads", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(creative_analytics_owner_router(
+        analytics, prefix="/internal/v1/analytics", dependencies=[Depends(authorize)],
+    ))
+    app.include_router(creative_analytics_public_router(
+        analytics, prefix="/internal/v1/public/landing-analytics",
+        dependencies=[Depends(authorize)],
     ))
 
     def require_brief_runner() -> ValidationRunner:

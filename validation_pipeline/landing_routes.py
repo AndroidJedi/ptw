@@ -138,20 +138,4 @@ def landing_page_router(service: Any, *, prefix: str, dependencies: Sequence[Dep
         except (KeyError, ValueError) as error:
             raise fail(error) from error
 
-    @router.post("/projects/{project_id}/pages/{landing_id}/learning/{proposal_id}")
-    def learning(project_id: str, landing_id: str, proposal_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
-        fields(request, {"decision"}, "Landing learning decision is required")
-        try:
-            return service.decide_learning(project_id, landing_id, proposal_id, str(request["decision"]))
-        except (KeyError, ValueError, RuntimeError) as error:
-            raise fail(error) from error
-
-    @router.post("/projects/{project_id}/pages/{landing_id}/learning/{checkpoint_id}/retry")
-    def retry_learning(project_id: str, landing_id: str, checkpoint_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
-        fields(request, set(), "Landing learning retry has no input fields")
-        try:
-            return service.retry_learning(project_id, landing_id, checkpoint_id)
-        except (KeyError, ValueError, RuntimeError) as error:
-            raise fail(error) from error
-
     return router

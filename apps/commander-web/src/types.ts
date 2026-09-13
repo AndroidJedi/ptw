@@ -1,4 +1,4 @@
-export type Page = 'briefs' | 'posts' | 'landing' | 'ads' | 'settings' | 'commander'
+export type Page = 'briefs' | 'posts' | 'landing' | 'ads' | 'analytics' | 'settings' | 'commander'
 export type I18n<T = string> = { en: T; uk: T }
 
 export interface MetaAdsConnection {
@@ -80,6 +80,7 @@ export interface MetaAdsDeployment {
     welcome_message?: string
     destination_type?: 'WEBSITE' | 'INSTAGRAM_DIRECT'
     landing?: PublishedLandingReference
+    analytics?: { token: string; token_sha256: string; tracked_url: string } | null
     special_ad_categories: string[]
     preset: MetaAdsPresetVersion['specification']
   }
@@ -93,6 +94,79 @@ export interface MetaAdsDeployment {
   error?: { error_type?: string; error_message?: string; provider_context?: Record<string, unknown> } | null
   created_at: string
   updated_at: string
+}
+
+export type CreativeRuleFamily = 'ui' | 'copy' | 'image' | 'domain' | 'spirit'
+export type CreativeRuleSurface = 'post' | 'landing' | 'both'
+
+export interface CreativeSkillRule {
+  rule_id: string
+  candidate_id?: string
+  scope: 'project' | 'global'
+  project_id: string | null
+  surface: CreativeRuleSurface
+  family: CreativeRuleFamily
+  instruction: string
+  target: Record<string, unknown>
+  evidence: Record<string, unknown>
+  confidence: { sample_size: number; project_count?: number; level: 'exploratory' | 'directional' | 'strong' | 'owner'; [key: string]: unknown }
+  active: boolean
+  tombstone: boolean
+}
+
+export interface CreativeSkillSnapshot {
+  skill_snapshot_id: string
+  request_id: string
+  scope: 'project' | 'global'
+  project_id: string | null
+  version: number
+  rules: CreativeSkillRule[]
+  rules_sha256: string
+  source_learning_run_id: string | null
+  requested_by: string
+  created_at: string
+}
+
+export interface CreativeLearningRun {
+  learning_run_id: string
+  scope: 'project' | 'global'
+  project_id: string | null
+  surface: 'post' | 'landing'
+  status: 'running' | 'completed' | 'insufficient_data' | 'failed'
+  dataset: { sample_size: number; confidence: string; [key: string]: unknown }
+  dataset_sha256: string
+  candidates: CreativeSkillRule[]
+  decision?: { decision: 'activate' | 'reject' } | null
+  error_message?: string | null
+  created_at: string
+}
+
+export interface AnalyticsOrganicRow {
+  provider: 'instagram' | 'tiktok'
+  publication_id: string
+  project_id: string
+  published_at: string
+  age_hours: number
+  metrics: { views: number; likes: number; comments: number; shares: number; saves: number }
+  funnel: { landing_view: number; primary_cta_click: number; contact_click: number }
+  rates: { outbound_contact: number | null; primary_cta: number | null; high_intent: number | null; interaction: number | null; view_velocity_per_day: number }
+  insight?: { capture_kind: string; created_at: string } | null
+}
+
+export interface AnalyticsWorkspace {
+  schema: 'ptw.analytics.workspace.v1'
+  scope: 'project' | 'global'
+  project_id: string | null
+  window_days: 0 | 7 | 30 | 90
+  readiness: Record<string, { available?: boolean | null; configured?: boolean; explanation?: string }>
+  organic: AnalyticsOrganicRow[]
+  paid: Array<{ project_id: string; deployment_id: string; destination_type?: string; status: string; latest_insight?: MetaAdsInsightSnapshot | null }>
+  landing_funnel: { landing_view: number; primary_cta_click: number; contact_click: number; primary_cta_rate: number | null; outbound_contact_rate: number | null; surfaces: Record<string, number>; conversion_label: string }
+  skills: { snapshot: CreativeSkillSnapshot | null; rules: CreativeSkillRule[] }
+  learning_runs: CreativeLearningRun[]
+  learning_curve: Array<{ project_skill_snapshot_id: string | null; global_skill_snapshot_id: string | null; items: number; views: number; contact_clicks: number }>
+  freshness: Record<'instagram' | 'tiktok', string | null>
+  metric_definitions: Record<string, { numerator: string; denominator: string; source: string; limitation?: string }>
 }
 
 export interface MetaAdsControlAction {
@@ -501,15 +575,6 @@ export interface StudioCreativeSummary {
   updated_at: string
 }
 
-export interface StudioLearningProposal {
-  proposal_id: string
-  checkpoint_id: string
-  project_skill_snapshot_id: string
-  global_rule: string
-  global_rule_sha256: string
-  decision: 'pending'
-}
-
 export interface StudioEditCheckpoint {
   checkpoint_id: string
   creative_id: string
@@ -518,10 +583,7 @@ export interface StudioEditCheckpoint {
   before_state_sha256: string
   after_state_sha256: string
   changed_paths: string[]
-  status: 'completed' | 'queued'
-  edit_summary: string
-  project_lesson?: string
-  error_message?: string
+  status: 'saved'
 }
 
 export interface StudioCheckpointResponse<T> {
@@ -529,7 +591,7 @@ export interface StudioCheckpointResponse<T> {
   checkpoint_created: boolean
   version_created: boolean
   checkpoint: StudioEditCheckpoint | null
-  learning_proposal: StudioLearningProposal | null
+  learning_proposal: null
 }
 
 export interface StudioPhoneMetricsDetail {
@@ -781,7 +843,16 @@ export interface PublishedLandingReference {
   landing_version_sha256: string
   canonical_url: string
 }
+export interface PublicationAnalyticsProjection {
+  readiness: { provider: string; available: boolean; explanation?: string }
+  freshness: string | null
+  capture_kind: string | null
+  attribution_token: string | null
+  attribution_source_id: string | null
+  tracked_url: string | null
+}
 export interface InstagramPublication {
+  provider?: 'instagram'
   publication_id: string
   project_id: string
   request_id: string
@@ -797,10 +868,55 @@ export interface InstagramPublication {
   permalink?: string | null
   error?: string | null
   created_at: string
+  source?: { creative_id: string; version: number }
+  content?: { title: string; description: string }
+  settings?: Record<string, never>
+  phase?: InstagramPublication['status']
+  external?: { transfer_id?: string | null; post_ids: string[]; permalink?: string | null; transfer_started: boolean; commit_started: boolean; provider_status?: string | null }
+  retryable?: boolean
+  syncable?: boolean
+  analytics?: PublicationAnalyticsProjection | null
+  published_at?: string | null
 }
 export interface InstagramWorkspace {
   connection: MetaAdsConnection & { media_ready: boolean }
   sources: MetaAdsSourceVersion[]
   landing?: PublishedLandingReference | null
   publications: InstagramPublication[]
+}
+export interface TikTokPublication {
+  provider: 'tiktok'
+  publication_id: string
+  project_id: string
+  request_id: string
+  source: { creative_id: string; version: number; version_id?: string }
+  content: { title: string; description: string }
+  settings: {
+    privacy_level: string; allow_comment: boolean; auto_add_music: boolean
+    commercial_content: { enabled: boolean; own_brand: boolean; branded_content: boolean }
+  }
+  account: { open_id: string; username: string; nickname?: string | null }
+  phase: 'queued' | 'preparing' | 'publishing' | 'published' | 'published_unresolved' | 'uncertain' | 'failed'
+  external: { transfer_id?: string | null; post_ids: string[]; permalink?: string | null; transfer_started: boolean; commit_started: boolean; provider_status?: string | null }
+  retryable: boolean
+  syncable: boolean
+  error?: string | null
+  specification: { is_aigc: boolean }
+  analytics?: PublicationAnalyticsProjection | null
+  published_at?: string | null
+  created_at: string
+}
+export interface TikTokConnection {
+  provider: 'tiktok'; configured: boolean; verified: boolean; media_ready: boolean
+  direct_post_audited: boolean; expected_username: string; explanation?: string
+  account?: { open_id: string; username: string; nickname?: string | null }
+  creator?: { open_id: string; username: string; nickname?: string | null; privacy_level_options: string[]; comment_disabled: boolean }
+  creator_snapshot_sha256?: string
+}
+export interface TikTokWorkspace {
+  provider: 'tiktok'
+  connection: TikTokConnection
+  sources: MetaAdsSourceVersion[]
+  landing?: PublishedLandingReference | null
+  publications: TikTokPublication[]
 }

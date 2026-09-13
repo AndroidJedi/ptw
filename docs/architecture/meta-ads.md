@@ -1,5 +1,9 @@
 # Instagram publishing and project-scoped Meta Ads
 
+For the complete owner-facing Meta Business setup, asset-assignment, token,
+verification, Pixel, and launch procedure, see
+[`../operations/meta-account-setup.md`](../operations/meta-account-setup.md).
+
 Post keeps its promotional CTA artwork and editor controls. Approved Post versions
 have separate **Publish to Instagram** and **Create Instagram ad** actions.
 An organic image's drawn CTA is not a native clickable website button. The
@@ -11,11 +15,13 @@ website ad configures a separate Meta **Learn more** button.
 Landing shell, so the apex and every published `ai|la|wa` route have the same
 measurement boundary. The Pixel ID is public configuration, never part of the
 system-user token secret. Meta's browser library and `PageView` event are loaded
-only after the visitor explicitly allows analytics; rejection is persisted
-locally and sends no request to Meta. Keep Firebase Hosting CSP, production
-bundle verification, and desktop/mobile browser tests synchronized with this
-boundary. Individual Landing records and immutable versions must not acquire
-analytics fields.
+only after the visitor explicitly allows Meta analytics; rejection is persisted
+locally and sends no request to Meta. The always-on cookieless PTW Landing
+events are a separate first-party contract and do not initialize the Pixel or
+store the consent choice. Keep Firebase Hosting CSP, production bundle
+verification, and desktop/mobile browser tests synchronized with this boundary.
+Individual Landing records and immutable versions remain content authority;
+measurement is linked through separate Analytics tables.
 
 ## Approved sources and export
 
@@ -72,7 +78,8 @@ permalink by caption matching. A saved media ID allows later permalink recovery.
 Ads supports **Instagram Direct** and **Website**. Direct retains engagement,
 conversations, and SEND_MESSAGE. Website uses OUTCOME_TRAFFIC,
 LANDING_PAGE_VIEWS, WEBSITE, and LEARN_MORE with the current Project landing's
-canonical HTTPS URL. Each Website Ad carries an offsite-conversion tracking
+opaque tracked HTTPS URL. The immutable specification retains both that URL and
+the untracked canonical URL. Each Website Ad carries an offsite-conversion tracking
 spec for the configured Ad Account Pixel and omits welcome-message and messaging
 promoted-object fields. Both use
 Instagram Feed, impressions billing, lowest-cost bidding, and opted-out standard
@@ -99,8 +106,9 @@ read without changing their status; new child ads stay paused. IDs are saved
 immediately after each successful creation. Project execution locks prevent
 concurrent workers from racing Meta creation. Sync appends current statuses and
 issues. The owner opens Ads Manager to review, set schedules, launch, or pause
-paid delivery; PTW exposes no ACTIVE mutation, spend execution, insights,
-conversion tracking, or batch launch.
+paid delivery; PTW exposes no ACTIVE mutation, spend execution, or batch launch.
+Analytics can read existing immutable paid-insight snapshots but cannot mutate
+an ad.
 
 ## Persistence and APIs
 

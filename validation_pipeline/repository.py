@@ -159,32 +159,6 @@ class ValidationRepository:
                    ) VALUES(%s,%s,NULL,%s,'owner',%s)""",
                 (project_id, request_uuid, normalized, requested_by),
             )
-            from .studio_creatives import _skill_document
-            project_skill_id = UUID(new_uuid7())
-            project_skill_content = _skill_document(
-                "studio-runtime-project", "Project Studio skill", [],
-            )
-            connection.execute(
-                "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'studio_skill_snapshot',%s)",
-                (project_skill_id, Jsonb({"scope": "project", "version": 1})),
-            )
-            connection.execute(
-                """INSERT INTO studio_skill_snapshots(
-                       entity_id,scope,project_id,version,content,content_sha256
-                   ) VALUES(%s,'project',%s,1,%s,%s)""",
-                (
-                    project_skill_id, project_id, project_skill_content,
-                    hashlib.sha256(project_skill_content.encode()).hexdigest(),
-                ),
-            )
-            connection.execute(
-                """INSERT INTO commander_relationships(id,source_id,relation,target_id,attributes)
-                   VALUES(%s,%s,'contains',%s,%s)""",
-                (
-                    UUID(new_uuid7()), project_id, project_skill_id,
-                    Jsonb({"member": "studio_skill_snapshot"}),
-                ),
-            )
         return self.get_project(str(project_id)), True
 
     def create_brief(

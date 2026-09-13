@@ -14,26 +14,10 @@ import { translate, type Language } from '../i18n'
 import { operationFailureMessage } from '../operation-errors'
 import type {
   StudioUniversalComponentSettings, StudioUniversalConfiguration, StudioUniversalContent,
-  StudioCheckpointResponse, StudioCreativeSummary, StudioLearningProposal,
+  StudioCheckpointResponse, StudioCreativeSummary,
   ProductBrief, StudioTemplateSummary, StudioUniversalDetail, StudioUniversalFontFamily,
   StudioPhoneHeroCreativeDirection,
 } from '../types'
-
-function LearningDialog({ proposal, summary, projectLesson, busy, language, onDecision }: {
-  proposal: StudioLearningProposal
-  summary: string
-  projectLesson: string
-  busy: boolean
-  language: Language
-  onDecision: (decision: 'global' | 'project_only') => void
-}) {
-  const tr = (en: string, uk: string) => translate(language, en, uk)
-  return <div className="modal-backdrop" role="presentation"><section className="panel studio-learning-dialog" role="alertdialog" aria-modal="true" aria-labelledby="studio-learning-title">
-    <header><div><small>{tr('CREATIVE LEARNING', 'НАВЧАННЯ НА КРЕАТИВІ')}</small><h2 id="studio-learning-title">{tr('Project skill updated', 'Навичку проєкту оновлено')}</h2></div></header>
-    <dl><dt>{tr('Saved edits', 'Збережені зміни')}</dt><dd>{summary}</dd><dt>{tr('Project lesson', 'Урок проєкту')}</dt><dd>{projectLesson}</dd><dt>{tr('Proposed global rule', 'Запропоноване глобальне правило')}</dt><dd>{proposal.global_rule}</dd></dl>
-    <div className="studio-learning-actions"><button className="secondary" disabled={busy} onClick={() => onDecision('project_only')}><X />{tr('Keep project-only', 'Лише для проєкту')}</button><button className="primary" disabled={busy} onClick={() => onDecision('global')}><Check />{tr('Apply globally', 'Застосувати глобально')}</button></div>
-  </section></div>
-}
 
 function fileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -166,9 +150,6 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
   const [creatives, setCreatives] = useState<StudioCreativeSummary[] | null>(null)
   const [approvedBriefs, setApprovedBriefs] = useState<ProductBrief[] | null>(null)
   const [initialTemplates, setInitialTemplates] = useState<StudioTemplateSummary[] | null>(null)
-  const [learning, setLearning] = useState<{
-    proposal: StudioLearningProposal; summary: string; projectLesson: string
-  } | null>(null)
   const [firstCreativeSelection, setFirstCreativeSelection] = useState<{
     brief: ProductBrief; templateId: 'phone_metrics'; direction: PhoneHeroDirectionDraft
   } | null>(null)
@@ -321,16 +302,9 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
       const value = result.creative
       applyDetail(value)
-      if (result.learning_proposal && result.checkpoint) setLearning({
-        proposal: result.learning_proposal,
-        summary: result.checkpoint.edit_summary,
-        projectLesson: result.checkpoint.project_lesson || '',
-      })
       setNotice(!result.checkpoint_created
-        ? tr('Creative is already saved; no new learning was created.', 'Креатив уже збережено; нового навчання не створено.')
-        : result.checkpoint?.status === 'queued'
-          ? tr('Creative saved. Learning is queued for retry.', 'Креатив збережено. Навчання поставлено в чергу на повтор.')
-          : tr('Creative saved and the Project skill was updated.', 'Креатив збережено, навичку проєкту оновлено.'))
+        ? tr('Creative is already saved.', 'Креатив уже збережено.')
+        : tr('Creative saved with an edit checkpoint.', 'Креатив збережено з контрольною точкою змін.'))
       try { await renderPreview(value) } catch (cause) { setPreviewError((cause as Error).message) }
     } catch (cause) {
       setError(`${tr('Save was not confirmed. Your edits are still in the editor.', 'Збереження не підтверджено. Ваші зміни залишаються в редакторі.')}\n${tr('Copy your edits before reloading this page.', 'Скопіюйте зміни перед перезавантаженням сторінки.')}\n${(cause as Error).message}`)
@@ -482,18 +456,8 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
       const value = result.creative
       applyDetail(value)
-      if (result.learning_proposal && result.checkpoint) setLearning({
-        proposal: result.learning_proposal,
-        summary: result.checkpoint.edit_summary,
-        projectLesson: result.checkpoint.project_lesson || '',
-      })
       setChangeNote('')
-      setNotice(result.checkpoint?.status === 'queued'
-        ? tr(
-          'Immutable creative version saved. Learning is queued for retry.',
-          'Незмінну версію креативу збережено. Навчання поставлено в чергу на повтор.',
-        )
-        : tr('Immutable creative and configuration version saved.', 'Незмінну версію креативу й конфігурації збережено.'))
+      setNotice(tr('Immutable creative and configuration version saved.', 'Незмінну версію креативу й конфігурації збережено.'))
     } catch (cause) {
       setError((cause as Error).message)
     } finally {
@@ -514,18 +478,6 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
     } finally {
       setBusy(false)
     }
-  }
-
-  const decideLearning = async (decision: 'global' | 'project_only') => {
-    if (!learning || !basePath) return
-    setBusy(true); setError('')
-    try {
-      await api.post(`${basePath}/learning/${learning.proposal.proposal_id}`, { decision })
-      setNotice(decision === 'global'
-        ? tr('The reusable rule was added to the global Studio skill.', 'Повторно використовуване правило додано до глобальної навички Studio.')
-        : tr('The lesson remains Project-only.', 'Урок залишено лише для цього проєкту.'))
-      setLearning(null)
-    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
 
   const retryGeneration = async () => {
@@ -629,12 +581,8 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       onDetail={(value) => applyDetail(value as StudioUniversalDetail)}
       onCheckpoint={(result) => {
         applyDetail(result.creative as unknown as StudioUniversalDetail)
-        if (result.learning_proposal && result.checkpoint) setLearning({
-          proposal: result.learning_proposal, summary: result.checkpoint.edit_summary,
-          projectLesson: result.checkpoint.project_lesson || '',
-        })
       }}
-    /><PostPublishing key={`${projectId}:${detail.creative_id}:${detail.versions.length}`} api={api} language={language} projectId={projectId} creativeId={detail.creative_id!} versions={detail.versions} />{variantDirectionOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-label={tr('Choose a direction for the new creative', 'Оберіть напрям нового креативу')}><header><div><small>{tr('NEW PHONE METRICS CREATIVE', 'НОВИЙ КРЕАТИВ PHONE METRICS')}</small><h2>{tr('Choose image direction', 'Оберіть напрям зображення')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setVariantDirectionOpen(false)}><X /></button></header><PhoneHeroDirectionPicker language={language} value={variantDirection} onChange={setVariantDirection} disabled={busy} idPrefix="variant-creative-direction" /><button className="primary large" disabled={busy || !creativeDirectionFromDraft(variantDirection)} onClick={() => void createVariant()}><Plus />{tr('Create creative', 'Створити креатив')}</button></section></div>}{learning && <LearningDialog proposal={learning.proposal} summary={learning.summary} projectLesson={learning.projectLesson} busy={busy} language={language} onDecision={(decision) => void decideLearning(decision)} />}</>
+    /><PostPublishing key={`${projectId}:${detail.creative_id}:${detail.versions.length}`} api={api} language={language} projectId={projectId} creativeId={detail.creative_id!} versions={detail.versions} />{variantDirectionOpen && <div className="modal-backdrop" role="presentation"><section className="panel brief-template-dialog" role="dialog" aria-modal="true" aria-label={tr('Choose a direction for the new creative', 'Оберіть напрям нового креативу')}><header><div><small>{tr('NEW PHONE METRICS CREATIVE', 'НОВИЙ КРЕАТИВ PHONE METRICS')}</small><h2>{tr('Choose image direction', 'Оберіть напрям зображення')}</h2></div><button className="icon-button" aria-label={tr('Close', 'Закрити')} onClick={() => setVariantDirectionOpen(false)}><X /></button></header><PhoneHeroDirectionPicker language={language} value={variantDirection} onChange={setVariantDirection} disabled={busy} idPrefix="variant-creative-direction" /><button className="primary large" disabled={busy || !creativeDirectionFromDraft(variantDirection)} onClick={() => void createVariant()}><Plus />{tr('Create creative', 'Створити креатив')}</button></section></div>}</>
   }
 
   const setBullet = (index: number, value: string) => setContent((current) => {
@@ -882,6 +830,5 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
     </section>
     <PostPublishing key={`${projectId}:${detail.creative_id}:${detail.versions.length}`} api={api} language={language} projectId={projectId} creativeId={detail.creative_id!} versions={detail.versions} />
     {tuneMode && <StudioTuneWizard api={api} language={language} open={tuneOpen} studioPreviewUrl={previewUrl} onClose={() => setTuneOpen(false)} />}
-    {learning && <LearningDialog proposal={learning.proposal} summary={learning.summary} projectLesson={learning.projectLesson} busy={busy} language={language} onDecision={(decision) => void decideLearning(decision)} />}
   </div>
 }

@@ -362,7 +362,7 @@ describe('Universal Ad Studio', () => {
       }),
       { deadlineMs: 480_000 },
     ))
-    expect(await screen.findByRole('status')).toHaveTextContent('Creative saved and the Project skill was updated.')
+    expect(await screen.findByRole('status')).toHaveTextContent('Creative saved with an edit checkpoint.')
   })
 
   it('renders unsaved component toggles through the manual draft preview', async () => {

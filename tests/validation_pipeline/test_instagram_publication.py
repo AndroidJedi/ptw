@@ -107,12 +107,29 @@ class InstagramPublicationTests(unittest.TestCase):
 
     def test_replay_and_changed_input(self):
         first = self.reserve()
+        self.assertIn('media_expires_at', first)
         self.ads.configuration = MetaAdsConfiguration()  # Reconciliation must not require a still-valid token.
         same, created = self.service.reserve(PROJECT_ID, self.request, 'owner-test')
         self.assertFalse(created)
         self.assertEqual(first['publication_id'], same['publication_id'])
         with self.assertRaises(ValueError):
             self.service.reserve(PROJECT_ID, {**self.request, 'caption': 'changed'}, 'owner-test')
+
+    def test_normalized_request_keeps_legacy_response_aliases(self):
+        request = {
+            'request_id': '01900000-0000-7000-8000-000000000077',
+            'source': {'creative_id': CREATIVE_ID, 'version': 1},
+            'content': {'title': '', 'description': 'Normalized caption'},
+            'settings': {}, 'creator_snapshot_sha256': None, 'consent': {},
+        }
+        value, created = self.service.reserve(PROJECT_ID, request, 'owner-test')
+        self.assertTrue(created)
+        self.assertEqual('instagram', value['provider'])
+        self.assertEqual('queued', value['phase'])
+        self.assertEqual('queued', value['status'])
+        self.assertEqual('Normalized caption', value['content']['description'])
+        self.assertEqual('Normalized caption', value['specification']['caption'])
+        self.assertIn('media_expires_at', value)
 
     def test_uncertain_publish_never_republishes_after_restart_or_sync(self):
         value = self.reserve()

@@ -85,11 +85,24 @@ commander_relationships
 commander_schema_migrations
 commander_sources
 commander_weight_updates
+creative_attribution_sources
+creative_insight_snapshots
+creative_learning_decisions
+creative_learning_runs
+creative_skill_snapshots
+creative_visual_descriptors
+creative_visual_descriptor_sources
 instagram_publication_attempts
 instagram_publications
+tiktok_account_connections
+tiktok_oauth_states
+tiktok_publication_attempts
+tiktok_publications
 landing_assets
 landing_checkpoints
 landing_generation_runs
+landing_analytics_events
+landing_analytics_rollup_snapshots
 landing_learning_proposals
 landing_publication_events
 landing_publications
@@ -148,9 +161,13 @@ BEGIN
      ) OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='005_instagram_publication_v1.sql'
      ) OR NOT EXISTS (
-       SELECT 1 FROM commander_schema_migrations WHERE name='006_meta_ads_control_v1.sql'
+     SELECT 1 FROM commander_schema_migrations WHERE name='006_meta_ads_control_v1.sql'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM commander_schema_migrations WHERE name='007_tiktok_publication_v1.sql'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM commander_schema_migrations WHERE name='008_analytics_creative_learning_v1.sql'
      ) THEN
-    RAISE EXCEPTION 'the database must contain the Product Brief, Studio, Landing, and Meta Ads migrations';
+    RAISE EXCEPTION 'the database must contain the Product Brief, Studio, Landing, Meta Ads, social publishing, and Analytics migrations';
   END IF;
   IF (SELECT count(*) FROM commander_control) <> 1
      OR (SELECT count(*) FROM commander_operation_guard) <> 1 THEN
@@ -160,6 +177,19 @@ BEGIN
       WHERE table_schema='public' AND table_name='validation_projects'
         AND column_name='owner_idea_source_id') <> 'YES' THEN
     RAISE EXCEPTION 'empty Projects are not permitted after migration 004';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='tiktok_connection_protected' AND NOT tgisinternal)
+     OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='tiktok_publications_protected' AND NOT tgisinternal)
+     OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='tiktok_attempts_immutable' AND NOT tgisinternal) THEN
+    RAISE EXCEPTION 'TikTok immutable identity and attempt triggers are incomplete';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='creative_learning_runs_frozen' AND NOT tgisinternal)
+     OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='creative_learning_runs_no_delete' AND NOT tgisinternal)
+     OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='landing_analytics_events_retention_guard' AND NOT tgisinternal)
+     OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='creative_visual_descriptor_sources_immutable' AND NOT tgisinternal)
+     OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='creative_skill_snapshots_immutable' AND NOT tgisinternal)
+     OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='creative_learning_decisions_immutable' AND NOT tgisinternal) THEN
+    RAISE EXCEPTION 'Analytics learning lineage triggers are incomplete';
   END IF;
 END $$;
 
@@ -175,4 +205,4 @@ BEGIN
 END $$;
 SQL
 
-echo "Verified Product Brief, project-scoped Studio, immutable public Landing publication, and PAUSED Meta Ads migrations and idempotent journey."
+echo "Verified Product Brief, Studio, public Landing, PAUSED Meta Ads, social publishing, and Analytics migrations and idempotent journey."

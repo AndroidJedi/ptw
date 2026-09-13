@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 import hashlib
+import base64
 import json
 import os
 from pathlib import Path
@@ -21,7 +22,7 @@ import threading
 import time
 from typing import Any
 
-from .provider import bridge_idempotency_key, bridge_request_fingerprint
+from .provider import _input_artifacts, bridge_idempotency_key, bridge_request_fingerprint
 
 
 class LocalCodexError(RuntimeError):
@@ -113,7 +114,7 @@ class LocalCodexStructuredProvider:
 
     def _command(
         self, *, workdir: Path, schema_path: Path, output_path: Path,
-        reasoning_effort: str,
+        reasoning_effort: str, image_paths: Sequence[Path] = (),
     ) -> list[str]:
         command = [
             self.codex_binary, "exec", "--ephemeral", "--ignore-rules",
@@ -124,6 +125,8 @@ class LocalCodexStructuredProvider:
         ]
         if self.model:
             command.extend(("--model", self.model))
+        for path in image_paths:
+            command.extend(("--image", str(path)))
         command.append("-")
         return command
 
@@ -232,10 +235,16 @@ class LocalCodexStructuredProvider:
         response_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]],
         cancel_event: threading.Event | None = None,
         reasoning_effort: str | None = None,
+        input_artifacts: Sequence[Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
         if not callable(response_validator):
             raise ValueError("local structured calls require a domain response validator")
         attempts: list[dict[str, Any]] = []
+        artifacts, artifact_digests, artifact_bytes = _input_artifacts(input_artifacts)
+        if artifacts and mode != "creative_visual_analysis":
+            raise ValueError("structured input artifacts are not allowed for this mode")
+        if mode == "creative_visual_analysis" and not artifacts:
+            raise ValueError("structured visual analysis requires an approved PNG")
         input_digest = sha256_json(sanitized(input_payload))
         last_error: Exception | None = None
         selected_effort = reasoning_effort or self.reasoning_effort
@@ -245,6 +254,7 @@ class LocalCodexStructuredProvider:
             mode=mode, system_prompt=system_prompt, input_payload=input_payload,
             output_schema=output_schema, prompt_version=prompt_version,
             model=self.model or "codex-cli-default",
+            input_artifact_digests=artifact_digests,
         )
         for attempt in range(1, self.maximum_attempts + 1):
             with tempfile.TemporaryDirectory(prefix="ptw-local-codex-") as temporary:
@@ -252,9 +262,14 @@ class LocalCodexStructuredProvider:
                 schema_path = root / "output-schema.json"
                 output_path = root / "response.json"
                 schema_path.write_text(canonical_json(output_schema), encoding="utf-8")
+                image_paths: list[Path] = []
+                for artifact in artifacts:
+                    image_path = root / "approved.png"
+                    image_path.write_bytes(base64.b64decode(artifact["bytes_base64"]))
+                    image_paths.append(image_path)
                 command = self._command(
                     workdir=root, schema_path=schema_path, output_path=output_path,
-                    reasoning_effort=selected_effort,
+                    reasoning_effort=selected_effort, image_paths=image_paths,
                 )
                 record: dict[str, Any] = {
                     "attempt": attempt,
@@ -270,6 +285,8 @@ class LocalCodexStructuredProvider:
                     "timeout_seconds": self.timeout_seconds,
                     "sandbox": "read-only",
                     "ephemeral": True,
+                    "input_artifacts": artifact_digests,
+                    "input_artifact_bytes": artifact_bytes,
                 }
                 completed_response = False
                 try:

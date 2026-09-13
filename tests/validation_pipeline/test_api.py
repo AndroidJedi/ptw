@@ -21,10 +21,6 @@ class ValidationApiRouteTests(unittest.TestCase):
         def recover_interrupted():
             return []
 
-        @staticmethod
-        def recover_learning():
-            return []
-
     class Landing:
         @staticmethod
         def recover_interrupted():
@@ -48,6 +44,10 @@ class ValidationApiRouteTests(unittest.TestCase):
             bridge_token="bridge-token",
             pexels_api_key="pexels-key",
             product_brief_skill_path=Path("unused-product-brief-skill"),
+            creative_performance_skill_path=Path(
+                "skills/creative-performance-learner/SKILL.md"
+            ),
+            creative_visual_skill_path=Path("skills/creative-visual-analyzer/SKILL.md"),
         )
 
     def test_background_starting_routes_execute_on_the_event_loop(self) -> None:

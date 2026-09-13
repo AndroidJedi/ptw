@@ -200,10 +200,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       applyDetail(next)
       onCheckpoint(result)
       setNotice(!result.checkpoint_created
-        ? tr('Creative is already saved; no new learning was created.', 'Креатив уже збережено; нового навчання не створено.')
-        : result.checkpoint?.status === 'queued'
-          ? tr('Creative saved. Learning is queued for retry.', 'Креатив збережено. Навчання поставлено в чергу на повтор.')
-          : tr('Creative saved and Project learning updated.', 'Креатив збережено, навчання проєкту оновлено.'))
+        ? tr('Creative is already saved.', 'Креатив уже збережено.')
+        : tr('Creative saved with an edit checkpoint.', 'Креатив збережено з контрольною точкою змін.'))
     } catch (cause) {
       setError(`${tr('Save was not confirmed. Your edits are still in the editor.', 'Збереження не підтверджено. Ваші зміни залишаються в редакторі.')}\n${tr('Copy your edits before reloading this page.', 'Скопіюйте зміни перед перезавантаженням сторінки.')}\n${(cause as Error).message}`)
     } finally { setBusy(false) }
@@ -292,12 +290,9 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
       }, { deadlineMs: STUDIO_CHECKPOINT_DEADLINE_MS })
       const next = result.creative
       onCheckpoint(result)
-      applyDetail(next); setNotice(result.checkpoint?.status === 'queued'
-        ? tr(
-          'Immutable phone creative saved. Learning is queued for retry.',
-          'Незмінний креатив з телефоном збережено. Навчання поставлено в чергу на повтор.',
-        )
-        : tr('Immutable phone creative saved.', 'Незмінний креатив з телефоном збережено.'))
+      applyDetail(next); setNotice(tr(
+        'Immutable phone creative saved.', 'Незмінний креатив з телефоном збережено.',
+      ))
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   const setStat = (index: number, key: 'value' | 'label', value: string) => setContent((current) => ({
@@ -396,9 +391,9 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             ? tr('Eyebrow visible', 'Надзаголовок видимий')
             : tr('Eyebrow removed', 'Надзаголовок прибрано')}
           </span></label>
-          {configuration.offer.enabled && <label><span>{tr('Eyebrow', 'Надзаголовок')}</span><input value={content.offer} maxLength={32} onChange={(event) => setContent({ ...content, offer: event.target.value })} /></label>}
+          {configuration.offer.enabled && <label><span>{tr('Eyebrow', 'Надзаголовок')}</span><input value={content.offer} maxLength={32} onChange={(event) => setContent(current => ({ ...current, offer: event.target.value }))} /></label>}
           <div className="phone-rich-copy">
-            <label><span>{tr('Headline', 'Заголовок')}</span><textarea ref={heroTitleRef} aria-label={tr('Headline', 'Заголовок')} rows={4} value={content.hero_title} maxLength={140} onChange={(event) => setContent({ ...content, hero_title: event.target.value })} /></label>
+            <label><span>{tr('Headline', 'Заголовок')}</span><textarea ref={heroTitleRef} aria-label={tr('Headline', 'Заголовок')} rows={4} value={content.hero_title} maxLength={140} onChange={(event) => setContent(current => ({ ...current, hero_title: event.target.value }))} /></label>
             <div className="phone-markup-toolbar" role="toolbar" aria-label={tr('Headline formatting', 'Форматування заголовка')}>
               <button type="button" className="secondary" onClick={() => markSelection('hero_title', heroTitleRef.current, '**', 140)} aria-label={tr('Bold selected headline words', 'Виділити вибрані слова заголовка жирним')}><Bold /></button>
               <button type="button" className="secondary" onClick={() => markSelection('hero_title', heroTitleRef.current, '==', 140)} aria-label={tr('Colour selected headline words', 'Підсвітити вибрані слова заголовка кольором')}><Highlighter /></button>
@@ -409,7 +404,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             </div>
           </div>
           <div className="phone-rich-copy">
-            <label><span>{tr('Supporting text', 'Пояснювальний текст')}</span><textarea ref={supportingTextRef} rows={4} value={content.supporting_text} maxLength={220} onChange={(event) => setContent({ ...content, supporting_text: event.target.value })} /></label>
+            <label><span>{tr('Supporting text', 'Пояснювальний текст')}</span><textarea ref={supportingTextRef} rows={4} value={content.supporting_text} maxLength={220} onChange={(event) => setContent(current => ({ ...current, supporting_text: event.target.value }))} /></label>
             <div className="phone-markup-toolbar" role="toolbar" aria-label={tr('Supporting text formatting', 'Форматування пояснювального тексту')}>
               <button type="button" className="secondary" onClick={() => markSelection('supporting_text', supportingTextRef.current, '**', 220)} aria-label={tr('Bold selected words', 'Виділити вибрані слова жирним')}><Bold /></button>
               <button type="button" className="secondary" onClick={() => markSelection('supporting_text', supportingTextRef.current, '==', 220)} aria-label={tr('Highlight selected words', 'Підсвітити вибрані слова кольором')}><Highlighter /></button>
@@ -430,14 +425,14 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             : tr('Bottom CTA removed', 'Нижній CTA прибрано')}
           </span></label>
           {configuration.cta.enabled && <>
-            <label><span>{tr('CTA label', 'Текст CTA')}</span><input aria-label={tr('CTA label', 'Текст CTA')} aria-describedby="phone-cta-hint" value={content.cta} maxLength={60} onChange={(event) => setContent({ ...content, cta: event.target.value })} /></label>
+            <label><span>{tr('CTA label', 'Текст CTA')}</span><input aria-label={tr('CTA label', 'Текст CTA')} aria-describedby="phone-cta-hint" value={content.cta} maxLength={60} onChange={(event) => setContent(current => ({ ...current, cta: event.target.value }))} /></label>
             <p id="phone-cta-hint" className="universal-section-note">{tr('Leave empty to hide the CTA band.', 'Залиште порожнім, щоб приховати смугу CTA.')}</p>
             <div className="phone-rich-settings">
               <label className="universal-color-field"><span>{tr('CTA background', 'Фон CTA')}<code>{configuration.cta.background_color}</code></span><input aria-label={tr('CTA background color', 'Колір фону CTA')} type="color" value={configuration.cta.background_color} onChange={(event) => setConfiguration({ ...configuration, cta: { ...configuration.cta, background_color: event.target.value.toUpperCase() } })} /></label>
               <label className="universal-color-field"><span>{tr('CTA text', 'Текст CTA')}<code>{configuration.cta.text_color}</code></span><input aria-label={tr('CTA text color', 'Колір тексту CTA')} type="color" value={configuration.cta.text_color} onChange={(event) => setConfiguration({ ...configuration, cta: { ...configuration.cta, text_color: event.target.value.toUpperCase() } })} /></label>
             </div>
           </>}
-          <label><span>{tr('Optional in-phone title', 'Необов’язковий заголовок у телефоні')}</span><input value={content.phone_hero_title} maxLength={72} onChange={(event) => setContent({ ...content, phone_hero_title: event.target.value })} /></label>
+          <label><span>{tr('Optional in-phone title', 'Необов’язковий заголовок у телефоні')}</span><input value={content.phone_hero_title} maxLength={72} onChange={(event) => setContent(current => ({ ...current, phone_hero_title: event.target.value }))} /></label>
         </section>
         <section className="panel universal-section"><small>{tr('BRAND VISIBILITY', 'ВИДИМІСТЬ БРЕНДУ')}</small><h2>{tr('Natal logos', 'Логотипи Natal')}</h2>
           <label className="universal-toggle"><input

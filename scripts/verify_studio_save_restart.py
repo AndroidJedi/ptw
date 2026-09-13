@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise legacy editor Save through real HTTP and disposable PostgreSQL."""
+"""Exercise editor Save without learning through real HTTP and PostgreSQL."""
 
 from copy import deepcopy
 import json
@@ -47,8 +47,6 @@ def verify(url, root):
         connection.execute("INSERT INTO validation_projects(entity_id,request_id,owner_idea_source_id,name,name_source,requested_by) VALUES(%s,%s,%s,'Test','owner','test')", (project_id, uuid4(), source_id))
         connection.execute("INSERT INTO product_briefs(entity_id,project_id,request_id,owner_idea_source_id,status,requested_by) VALUES(%s,%s,%s,%s,'completed','test')", (brief_id, project_id, uuid4(), source_id))
         connection.execute("INSERT INTO universal_studio_workspaces(entity_id,project_id,source_brief_id,ordinal,origin,template_id,status,requested_by) VALUES(%s,%s,%s,1,'brief_generation','phone_metrics','draft','test')", (cid, project_id, brief_id))
-    authority.ensure_project_skill(project_id)
-    authority.ensure_global_skill()
     workspace = UniversalStudioWorkspace(root / "original", image_provider=FakeImageProvider())
     detail = workspace.apply_template(base_sha256=workspace.detail()["state_sha256"], template_id="phone_metrics")
     detail = workspace.generate_phone_screen(base_sha256=detail["state_sha256"], visual_direction="A calm blue glass staircase")
@@ -71,7 +69,6 @@ def verify(url, root):
             workspace_factory=lambda path: DatabaseCreativeWorkspace(UniversalStudioWorkspace(path), authority.repository, path.name),
             structured_provider=FakeStructuredProvider(),
             composer_skill_path=ROOT / "skills/studio-creative-composer/SKILL.md",
-            learner_skill_path=ROOT / "skills/studio-edit-learner/SKILL.md",
             phone_skill_path=ROOT / "skills/studio-phone-hero-generator/SKILL.md")
 
     original_files = authority.repository.load_creative(cid)
@@ -98,7 +95,7 @@ def verify(url, root):
             "configuration": detail["configuration"], "content": changed})
         assert response.status_code == 200, response.text
         saved = response.json()
-        assert saved["checkpoint_created"] and saved["checkpoint"]["status"] == "completed", saved
+        assert saved["checkpoint_created"] and saved["checkpoint"]["status"] == "saved", saved
         assert saved["creative"]["content"] == changed
         assert client.post(path + "/save", json={"base_sha256": legacy,
             "configuration": detail["configuration"], "content": changed}).status_code == 409
@@ -112,12 +109,14 @@ def verify(url, root):
         configuration=actual["configuration"], content=actual["content"])
     assert not repeated["checkpoint_created"]
     assert authority.repository.load_creative(cid) == before_repeat
+    checkpoint_id = saved["checkpoint"]["checkpoint_id"]
     with psycopg.connect(url) as connection:
         assert connection.execute("SELECT count(*) FROM studio_edit_checkpoints WHERE workspace_id=%s", (cid,)).fetchone()[0] == 1
         assert connection.execute("SELECT count(*) FROM universal_studio_versions WHERE workspace_id=%s", (cid,)).fetchone()[0] == 1
-        checkpoint_id = saved["checkpoint"]["checkpoint_id"]
+        assert connection.execute("SELECT count(*) FROM studio_learning_runs WHERE checkpoint_id=%s", (checkpoint_id,)).fetchone()[0] == 0
+        assert connection.execute("SELECT count(*) FROM studio_learning_proposals WHERE checkpoint_id=%s", (checkpoint_id,)).fetchone()[0] == 0
         assert connection.execute("SELECT count(*) FROM commander_relationships WHERE source_id=%s AND target_id=%s AND relation='contains'", (cid, checkpoint_id)).fetchone()[0] == 1
-    print("PASS: real HTTP/PostgreSQL legacy Save, unchanged Save, completed learning, fresh service/cache restore, stale rejection, immutable PNG and checkpoint lineage.")
+    print("PASS: real HTTP/PostgreSQL legacy Save normalization, zero learning calls, fresh service/cache restore, stale rejection, immutable PNG and checkpoint lineage.")
 
 
 def main():

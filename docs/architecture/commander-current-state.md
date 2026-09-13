@@ -5,10 +5,10 @@ Branch: `main`
 Deployment: unified Commander is live and accepted. Hosted GOD, Plan,
 release control and Validation use the verified candidate images; compatible
 Commander, Owner Gateway and provider images were preserved. The Owner Console
-and cache v9 are live. The accepted marker, production checkout and canonical
-`main` all identify the same revision.
+and cache v10 are live. The accepted marker and production checkout identify
+revision `b8ae473491188c038557251b2c6c0ad52bed7897`.
 
-## Meta campaign control and preset recovery — verified release candidate
+## Meta campaign control and preset recovery — live and accepted
 
 The next additive release repairs Ads preset recovery: the Owner Console rejects
 invalid name, geography, age, and daily-budget fields before sending a request;
@@ -27,14 +27,28 @@ pause, Ad Set budget/schedule, and replacement paused audience/creative flows
 are available only for PTW-created objects. Insights can recommend on-target,
 above-target, or insufficient data, but never change spend automatically.
 
-The candidate includes migration `006_meta_ads_control_v1.sql`, which is
-additive and preserves existing authority data. Local Commander/demo, Owner,
-targeted built-image API, disposable PostgreSQL migration, schema/release,
-skill, build, and whitespace checks pass. A guarded migration-bearing
-production release is pending through the release controller; afterwards the
-owner must select an approved Website deployment and separately confirm the
-first bounded activation and later pause from PTW. No live activation or spend
-has occurred for this candidate.
+Migration `006_meta_ads_control_v1.sql` is installed. The accepted serial release
+created a root-only checksummed PostgreSQL backup, proved every pre-existing
+business row unchanged, and passed all nine live bridge canaries, Pexels,
+schema, dependency, skill, 1 GB resource, approved-Post, Owner unit/build, all
+81 desktop/mobile/WebKit flows, Firebase publication, and the live Owner audit.
+Commander, Validation, Owner Gateway, and all three platform services run tag
+`meta-control-20260913-b8ae473`; the dedicated GOD, Plan, and release services
+remain on their previously accepted image. Owner Hosting version
+`6c0c21b898ee88ad` is live with cache v10.
+
+Two guarded attempts stopped safely before acceptance. The first rejected old
+platform archive tags before cutover. The next exposed the serial deployer's
+obsolete single-application-tag assumption after accepted selective releases;
+the corrected rollback now preserves Commander, Validation, and Gateway image
+lineage independently. A later post-migration check tried to normalize the
+unchanged dedicated GOD service to the Validation image; it rolled back all
+application and platform images while retaining the additive migration and an
+unchanged authority fingerprint. The accepted correction leaves GOD untouched.
+
+No Meta campaign was activated and no spend occurred during release. The owner
+can now select an approved Website deployment and separately confirm the first
+bounded activation and later pause from PTW.
 
 ## Unified Commander workspace — live and accepted
 

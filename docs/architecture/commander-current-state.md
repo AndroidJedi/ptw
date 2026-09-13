@@ -1,16 +1,19 @@
 # Commander current state
 
 Updated: 2026-09-13
-Branch: `main`
-Deployment: unified Commander is live and accepted. Hosted GOD, Plan,
-release control and Validation use the verified candidate images; compatible
-Commander, Owner Gateway and provider images were preserved. The Owner Console
-and cache v10 are live. The accepted marker and production checkout identify
-revision `b8ae473491188c038557251b2c6c0ad52bed7897`.
+Branch: `analytics-creative-learning-20260913`
+Deployment: Analytics, reviewed Creative Skills, modular social publishing, and
+the companion multimodal bridge are live and accepted. Commander, Validation,
+Owner Gateway, and all three bridge services use release
+`analytics-learning-20260913-7a07925`; hosted GOD/Plan/release remain on their
+compatible accepted images. Owner cache v10 and the public Landing shell are
+live. The accepted marker and production checkout identify PTW revision
+`7a07925b99930f5bb284b061d2ac0b61b80291f9`; the companion platform checkout
+identifies `fc2dfccc7989aafa1a95b07f76303334eee20ab3`.
 
-## Analytics-driven Creative Skills — implemented and locally verified
+## Analytics-driven Creative Skills — live and accepted
 
-The current candidate removes every active Post/Landing Save and
+The accepted release removes every active Post/Landing Save and
 Approve learning call, dialog, retry/recovery route, and deployment blocker while
 preserving the historical tables and immutable edit checkpoints. Save now saves;
 Approve saves and versions. Neither can create or activate a rule.
@@ -33,7 +36,7 @@ separately consent-gated. Instagram insights and TikTok `video.list` readiness
 are independent from publishing. TikTok photo Analytics remains unavailable
 until its audited real public-post canary.
 
-The companion bridge candidate replaces the retired `studio_edit_learning`
+The companion bridge release replaces the retired `studio_edit_learning`
 mode with `creative_performance_learning` and `creative_visual_analysis`, and
 adds one ephemeral, digest-checked approved-PNG attachment for visual analysis.
 The bridge never persists those PNG bytes in a job and advertises its
@@ -42,18 +45,32 @@ multimodal mode explicitly.
 Canonical contracts, metric definitions, privacy, precedence, failure behavior,
 and rollout gates are in
 [`analytics-and-creative-learning.md`](analytics-and-creative-learning.md).
-The final local candidate passes 45 companion-platform tests, the disposable PostgreSQL migration/idempotency
-rehearsal, 275 Validation tests, 14 Owner Gateway tests, 40 Commander tests with
+The accepted release passes 45 companion-platform tests, the disposable PostgreSQL migration/idempotency
+rehearsal, 276 Validation tests, 14 Owner Gateway tests, 40 Commander tests with
 five expected isolated-container skips plus the demo, 101 Owner web unit tests and its
 production build, eight public Landing unit tests and its production build, all
 84 Owner desktop/360px/WebKit browser flows, all 20 public Landing browser
 flows, the Studio deterministic visual audit, and the canonical skill verifier.
 Analytics has no horizontal overflow and never activates a rule automatically.
 
-Nothing from this candidate has been deployed, no provider reauthorization or
-live event acceptance has run, and no post/ad was created or spend incurred.
+The first rollout stopped before migration when the Codex CLI rejected open
+nested objects in the performance-learning output schema. Recovery restored the
+accepted PTW/platform source, mounted skills, six prior images, and both Hosting
+sites; migration count remained six. The corrected schema closes every object
+recursively and passed the exact CLI boundary before the one permitted retry.
+Fresh bridge jobs 845–853 then completed on attempt 1, including performance
+learning, visual analysis, generation, and exact-reference enhancement.
 
-## Modular Instagram and TikTok publishing — implemented candidate
+The accepted in-place rollout applied additive migrations 007 and 008, preserved
+every pre-existing Commander business row and five immutable approved PNGs, and
+left all six release services healthy. Live acceptance recorded one real
+cookieless Landing view and one immutable rollup, refreshed the existing
+Instagram publication into one insight snapshot, and exposed both through the
+Analytics workspace. Instagram/TikTok publication, Meta deployment, control,
+and stage-run counts remained `1/0/2/0/5`; no post or ad was created or changed,
+and no spend occurred.
+
+## Modular Instagram and TikTok publishing — live and accepted
 
 Instagram is now behind a provider-neutral publishing engine while retaining its
 legacy request/response aliases, tables, IDs, graph lineage, and public media URL.
@@ -1087,13 +1104,10 @@ and no approved version. No reset ran.
 
 ## Next work
 
-Finish the candidate verification matrix, then deploy only through the
-documented preserving sequence: companion bridge capabilities/canaries,
-migration and Validation API, Owner Gateway, public Landing shell, Owner
-Console, provider reauthorization, and read-only live acceptance. Acceptance
-must prove a real Landing event appears in Analytics and existing provider rows
-refresh without creating a post, mutating an ad, or spending money. TikTok photo
-acceptance stays gated by the owner-approved audited public post.
+Observe the scheduled 24-hour resource audit and continue normal owner review
+of Analytics evidence and inactive Creative Skill candidates. TikTok photo
+acceptance stays gated by an owner-selected approved public post and must not be
+inferred from the deployment or private-only readiness.
 
 Exercise an owner-directed Post or Landing generation with a temporary reference
 image, verify the requested visual change, and confirm that navigation or

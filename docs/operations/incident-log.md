@@ -1,6 +1,40 @@
 # PTW incident log
 
-Updated: 2026-09-11
+Updated: 2026-09-13
+
+## 2026-09-13 — Performance-learning schema rejected before model execution
+
+The first Analytics/Creative Skills rollout reached the fresh companion bridge
+canary but failed its performance-learning request before any PTW migration or
+application cutover. The outer rollback restored prior platform images, but the
+old Validation image initially became unhealthy because candidate source had
+removed the retired mounted learning skills it expected. Bounded recovery
+restored accepted PTW/platform revisions and accepted skill links before
+restarting Validation, then restored both Firebase sites. All prior services
+were healthy, the migration ledger remained at six, and the failed bridge job
+was retained as append-only evidence.
+
+The exact local Codex CLI boundary reproduced the cause: the new strict output
+schema left nested target, evidence, and confidence objects open, which the CLI
+rejects before inference even while authorization and ordinary health checks
+pass. The schema now closes every object recursively, enumerates the bounded
+target variants, and has a regression requiring declared properties and
+required fields to match at every object depth. The performance learner skill
+documents the exact closed evidence/confidence shapes. Release cleanup now
+restores accepted source and skill links before prior images, and the serial
+publisher snapshots accepted Hosting versions before changing the public shell.
+
+The single corrected retry passed the exact CLI probe and all nine fresh bridge
+canaries on attempt 1, applied additive migrations 007 and 008, preserved every
+pre-existing Commander business row and five immutable approved PNGs, and left
+all six application/bridge services healthy. Local and Linux/amd64 verification
+passed 276 Validation, 40 Commander, 14 Gateway, 45 companion-platform, 101
+Owner unit, 84 Owner browser, and eight public Landing unit tests plus builds,
+the Commander demo, migration rehearsals, skill checks, live web audits, Pexels,
+authorization, dependency, and 1 GB resource checks. One real cookieless Landing
+view and one existing Instagram insight appeared in Analytics; publication,
+Meta deployment/control, and stage counts were unchanged, so no post/ad was
+created or changed and no spend occurred.
 
 ## 2026-09-11 — Unified workspace controlled-release acceptance
 

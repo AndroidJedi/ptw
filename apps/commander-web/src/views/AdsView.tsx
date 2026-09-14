@@ -500,7 +500,7 @@ export function AdsView({ api, language, projectId = null }: {
     </section>
 
     <details className="panel ads-setup" open={!connected || undefined}>
-      <summary className="ads-section-title"><div><small>{tr('READINESS & CONSOLES', 'ГОТОВНІСТЬ І КОНСОЛІ')}</small><h2>{tr('Meta setup', 'Налаштування Meta')}</h2></div><span>{setupChecks.filter(item => item.ok).length}/{setupChecks.length}</span></summary>
+      <summary className="ads-section-title"><div><small>{tr('READINESS & CONSOLES', 'ГОТОВНІСТЬ І КОНСОЛІ')}</small><h2>{connected ? tr('Meta setup', 'Налаштування Meta') : tr('What is still needed', 'Що ще потрібно')}</h2></div><span>{setupChecks.filter(item => item.ok).length}/{setupChecks.length}</span></summary>
       <div className="ads-setup-grid">
         <div className="ads-checklist">
           {setupChecks.map(item => <div key={item.en} className={`ads-check ${item.ok ? 'is-ok' : 'is-pending'}`}>

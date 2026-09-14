@@ -64,8 +64,18 @@ function isBudgetTooLow(deployment: MetaAdsDeployment) {
   return String(deployment.error?.provider_context?.subcode || '') === '1885272'
 }
 
+function isLegacyCreativeLookupFailure(deployment: MetaAdsDeployment) {
+  return deployment.status === 'failed'
+    && deployment.error?.error_message?.startsWith('Meta adcreatives reconciliation failed.') === true
+    && String(deployment.error?.provider_context?.code || '') === '100'
+    && Boolean(deployment.meta_campaign_id && deployment.meta_ad_set_id && deployment.meta_image_hash)
+    && !deployment.meta_creative_id
+    && !deployment.meta_ad_id
+}
+
 function isMetaAppDevelopmentMode(deployment: MetaAdsDeployment) {
   return String(deployment.error?.provider_context?.subcode || '') === '1885183'
+    || isLegacyCreativeLookupFailure(deployment)
 }
 
 export function AdsView({ api, language, projectId = null }: {
@@ -398,6 +408,7 @@ export function AdsView({ api, language, projectId = null }: {
   const latestRunning = Boolean(latestDeployment && runningStates.has(latestDeployment.status))
   const latestBudgetFailure = Boolean(latestDeployment && isBudgetTooLow(latestDeployment))
   const latestAppModeFailure = Boolean(latestDeployment && isMetaAppDevelopmentMode(latestDeployment))
+  const latestLegacyCreativeFailure = Boolean(latestDeployment && isLegacyCreativeLookupFailure(latestDeployment))
   const latestFailureMessage = latestBudgetFailure && minimumDailyBudget
     ? tr(
       `Meta rejected the Ad Set because ${budgetLabel(latestDeployment!.specification.preset.daily_budget_minor, accountCurrency, language)} is below the current minimum of ${budgetLabel(minimumDailyBudget, accountCurrency, language)}. Create and select a new immutable preset; retrying this unchanged request would fail again.`,
@@ -405,8 +416,12 @@ export function AdsView({ api, language, projectId = null }: {
     )
     : latestAppModeFailure
       ? tr(
-        'Meta blocked Creative creation because the PTW Local Ads app is still in Development mode. The Campaign, Ad Set, and approved image are already saved and PAUSED.',
-        'Meta заблокувала створення Creative, бо застосунок PTW Local Ads досі в режимі Development. Campaign, Ad Set і затверджене зображення вже збережені та залишаються PAUSED.',
+        latestLegacyCreativeFailure
+          ? 'The saved error came from the former Creative lookup, which PTW has fixed. A separate non-mutating check of this exact Creative shows that PTW Local Ads is still in Development mode. The Campaign, Ad Set, and approved image are saved and PAUSED.'
+          : 'Meta blocked Creative creation because the PTW Local Ads app is still in Development mode. The Campaign, Ad Set, and approved image are already saved and PAUSED.',
+        latestLegacyCreativeFailure
+          ? 'Збережена помилка виникла у старому пошуку Creative, який PTW уже виправив. Окрема перевірка цього самого Creative без змін показала, що PTW Local Ads досі в режимі Development. Campaign, Ad Set і затверджене зображення збережені та залишаються PAUSED.'
+          : 'Meta заблокувала створення Creative, бо застосунок PTW Local Ads досі в режимі Development. Campaign, Ad Set і затверджене зображення вже збережені та залишаються PAUSED.',
       )
     : latestDeployment?.error?.error_message || ''
   const activeCreationIndex = latestDeployment ? ({

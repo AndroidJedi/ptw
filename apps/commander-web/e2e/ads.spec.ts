@@ -97,7 +97,7 @@ test('shows the exact Meta app Live action for a Creative-stage stop', async ({ 
             publisher_platforms: ['instagram'], instagram_positions: ['stream'], location_types: ['home'],
           },
         },
-        error: { error_message: 'generic old error', provider_context: { http_status: 400, code: '100', subcode: '1885183', transient: false } },
+        error: { error_message: 'Meta adcreatives reconciliation failed. Check the Meta connection and retry from Ads. (http=400, code=100)', provider_context: { http_status: 400, code: '100', transient: false } },
       }],
     })
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{"detail":"not found"}' })
@@ -107,7 +107,8 @@ test('shows the exact Meta app Live action for a Creative-stage stop', async ({ 
   await page.evaluate(() => localStorage.setItem('ptw-owner-language-v1', 'en'))
   await page.reload()
   await expect(page.getByText('Creation stopped at Creative. Nothing was activated.').first()).toBeVisible()
-  await expect(page.getByText(/PTW Local Ads app is still in Development mode/)).toBeVisible()
+  await expect(page.getByText(/saved error came from the former Creative lookup/)).toBeVisible()
+  await expect(page.getByText(/PTW Local Ads is still in Development mode/)).toBeVisible()
   await expect(page.getByRole('link', { name: /Open Meta app dashboard/ })).toHaveAttribute('href', 'https://developers.facebook.com/apps/')
   await expect(page.getByRole('button', { name: 'App is Live — retry this deployment once' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Retry safely' })).toHaveCount(0)

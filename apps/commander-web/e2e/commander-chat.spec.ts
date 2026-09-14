@@ -6,7 +6,6 @@ test('dedicated Commander supports send, reload, stop, and mobile layout', async
   const base = '/api/v1/settings/commander'
   let status = 'completed'
   let message = ''
-  let attachmentName = ''
   await page.route('**/api/v1/**', route => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith('/capabilities')) return route.fulfill({ json: capabilities })
@@ -20,7 +19,6 @@ test('dedicated Commander supports send, reload, stop, and mobile layout', async
     if (path.endsWith('/messages')) {
       const body = route.request().postDataJSON()
       message = body.message
-      attachmentName = body.attachments?.[0]?.name || ''
       status = 'running'
     }
     if (path.endsWith('/stop')) status = 'cancelled'
@@ -30,12 +28,17 @@ test('dedicated Commander supports send, reload, stop, and mobile layout', async
   await page.goto('/?e2e=1&page=commander')
   await expect(page.getByRole('heading', { name: 'Commander GOD mode' })).toBeVisible()
   await page.getByLabel('Attach images').setInputFiles({
-    name: 'settings-screen.png', mimeType: 'image/png', buffer: Buffer.from('temporary screenshot'),
+    name: 'settings-screen.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XxRcbAAAAABJRU5ErkJggg==', 'base64'),
   })
-  await expect(page.getByText('settings-screen.png')).toBeVisible()
+  await expect(page.getByText('settings-screen.png')).toBeVisible({ timeout: 15_000 })
   await page.getByLabel('Message Commander').fill('Add a carousel creation tab with slide editing')
+  const messageRequest = page.waitForRequest(request => (
+    new URL(request.url()).pathname.endsWith('/messages') && request.method() === 'POST'
+  ), { timeout: 15_000 })
   await page.getByRole('button', { name: 'Send', exact: true }).click()
-  await expect.poll(() => attachmentName).toBe('settings-screen.png')
+  const request = await messageRequest
+  expect(request.postDataJSON().attachments?.[0]?.name).toBe('settings-screen.png')
   await expect(page.getByText('Working… You can reply below.')).toBeVisible()
   await page.reload()
   await expect(page.getByText(message, { exact: true })).toBeVisible()

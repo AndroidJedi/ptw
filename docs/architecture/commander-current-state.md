@@ -31,7 +31,7 @@ Creative payload also received a non-mutating provider validation. It exposed a
 separate external gate: code `100`, subcode `1885183`, because **PTW Local Ads**
 is still in Development mode. Backend and existing-history UI now explain the
 Meta App Dashboard → Live action and label the same-deployment retry explicitly;
-the generic retry is no longer presented for this condition. Owner cache v13
+the generic retry is no longer presented for this condition. Owner cache v14
 forces installed consoles to load that corrected action.
 
 Production retry and real Creative/Ad readback must wait until the owner switches

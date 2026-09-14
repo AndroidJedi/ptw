@@ -1,8 +1,9 @@
 # Commander current state
 
-Updated: 2026-09-13
-Branch: `analytics-creative-learning-20260913`
-Deployment: Analytics, reviewed Creative Skills, modular social publishing, and
+Updated: 2026-09-14
+Branch: `incident/meta-ads-feedback-20260914`
+Deployment: The Meta Ads feedback/budget correction is a verified local
+candidate and is not deployed. Analytics, reviewed Creative Skills, modular social publishing, and
 the companion multimodal bridge are live and accepted. Commander, Validation,
 Owner Gateway, and all three bridge services use release
 `analytics-learning-20260913-7a07925`; hosted GOD/Plan/release remain on their
@@ -10,6 +11,36 @@ compatible accepted images. Owner cache v10 and the public Landing shell are
 live. The accepted marker and production checkout identify PTW revision
 `7a07925b99930f5bb284b061d2ac0b61b80291f9`; the companion platform checkout
 identifies `fc2dfccc7989aafa1a95b07f76303334eee20ab3`.
+
+## Meta Ads creation feedback and live budget guard — verified candidate
+
+Production diagnosis for the Natal Website request found one PAUSED Campaign,
+then an Ad Set failure with Meta code `100`, subcode `1885272`. The immutable
+audience preset stored `200` UAH minor units (₴2.00), while the live Ad Account
+reported `min_daily_budget=4491` (₴44.91). Exact non-mutating Ad Set validation
+failed below `4491` and passed at `4491`; the deployment therefore never reached
+image upload, Creative creation, or Ad creation. The generic `New Traffic Ad`
+shown in Ads Manager is a separate manual draft, not the PTW deployment.
+
+The candidate reads and exposes Meta's current minimum, rejects a stale low
+preset before reserving a new deployment, and offers a copied immutable preset
+at the compliant minimum. Budget-subcode failures explain the correction and
+cannot retry the unchanged request. The Ads action now shows a local request
+acknowledgement, live per-object progress, approved-render digest, frozen Landing
+URL, and an exact deepest-object Ads Manager link once Meta IDs exist.
+
+Owner polling is serialized and waits for each response before scheduling the
+next. Slow responses are no longer invalidated by later interval ticks, and a
+verified connection is reused during quiet status refreshes. The latest outcome
+is visible at the top; healthy setup diagnostics collapse; a request review
+shows the exact image, Landing, audience, and PAUSED safety contract; and a
+five-step tracker gives one next action while keeping IDs/digests secondary.
+Local verification passes 279 Validation tests, 14 Gateway tests, 40 Commander
+tests with five expected isolated-container skips plus the demo, 103 Owner web
+tests and the production build, six affected desktop/360px/WebKit browser flows,
+both disposable PostgreSQL journeys, Python compilation, the canonical skill
+verifier, and whitespace checks. Production remains on the accepted release;
+no deployment, retry, activation, or spend change has been made.
 
 ## Analytics-driven Creative Skills — live and accepted
 

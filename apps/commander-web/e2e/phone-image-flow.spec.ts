@@ -381,6 +381,7 @@ test(`approved Instagram Post and exact website Ads handoff (${configured ? 'moc
   const publications: any[] = []
   const tiktokPublications: any[] = []
   const adRequests: any[] = []
+  const deployments: any[] = []
   await page.route('**/api/v1/**', async route => {
     const path = new URL(route.request().url()).pathname
     const method = route.request().method()
@@ -410,8 +411,23 @@ test(`approved Instagram Post and exact website Ads handoff (${configured ? 'moc
       tiktokPublications.push({ provider: 'tiktok', publication_id: briefId, request_id: request.request_id, source: request.source, content: request.content, settings: request.settings, specification: { is_aigc: false }, phase: 'published', retryable: false, syncable: true, external: { transfer_started: true, commit_started: true, transfer_id: 'publish-1', post_ids: ['post-1'], permalink: null } })
       return json({ publication: tiktokPublications[0], created: true }, 202)
     }
-    if (path === `/api/v1/ads/projects/${projectId}`) return json({ schema: 'ptw.meta-ads.workspace.v1', project_id: projectId, project_name: 'Publishing test', connection: { configured, verified: configured, graph_version: 'v26.0', account: { id: '123', currency: 'USD' }, instagram: { id: '789', username: 'example' }, pixel: configured ? { id: '101', name: 'Website Pixel' } : null }, sources, landing, deployments: [], experiment: null, presets: [{ preset_id: briefId, version: 1, specification_sha256: digest, specification: { name: 'Local audience', countries: ['UA'], age_min: 25, age_max: 44, gender: 'all', daily_budget_minor: 500 } }] })
-    if (path.endsWith('/deployments') && method === 'POST') { adRequests.push(route.request().postDataJSON()); return json({ deployment: {}, created: true }, 202) }
+    if (path === `/api/v1/ads/projects/${projectId}`) return json({ schema: 'ptw.meta-ads.workspace.v1', project_id: projectId, project_name: 'Publishing test', connection: { configured, verified: configured, graph_version: 'v26.0', account: { id: '123', currency: 'USD', minimum_daily_budget_minor: 100 }, instagram: { id: '789', username: 'example' }, pixel: configured ? { id: '101', name: 'Website Pixel' } : null }, sources, landing, deployments, experiment: null, presets: [{ preset_id: briefId, version: 1, specification_sha256: digest, specification: { name: 'Local audience', countries: ['UA'], age_min: 25, age_max: 44, gender: 'all', daily_budget_minor: 500 } }] })
+    if (path.endsWith('/deployments') && method === 'POST') {
+      const request = route.request().postDataJSON()
+      adRequests.push(request)
+      const deployment = {
+        deployment_id: 'ad-deployment-1', request_id: request.request_id,
+        project_id: projectId, source_creative_id: creativeId, source_version: 1,
+        render_sha256: digest, status: 'queued', created_at: '', updated_at: '',
+        specification: {
+          headline: request.headline, primary_text: request.primary_text,
+          destination_type: 'WEBSITE', landing, special_ad_categories: request.special_ad_categories,
+          preset: { name: 'Local audience', countries: ['UA'], age_min: 25, age_max: 44, gender: 'all', daily_budget_minor: 500 },
+        },
+      }
+      deployments.unshift(deployment)
+      return json({ deployment, created: true }, 202)
+    }
     return json({ detail: 'not found' }, 404)
   })
   await page.goto(`/?e2e=1&page=posts&project=${projectId}&creative=${creativeId}`)
@@ -455,16 +471,19 @@ test(`approved Instagram Post and exact website Ads handoff (${configured ? 'moc
   await expect(page.getByLabel('Destination')).toHaveValue('WEBSITE')
   await expect(page.getByLabel('Headline')).toHaveValue('Approved title 1')
   await expect(page.getByLabel('Initial Direct message')).toHaveCount(0)
-  await expect(page.getByRole('link', { name: landing.canonical_url, exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: landing.canonical_url, exact: true }).first()).toBeVisible()
   if (configured) {
     await expect(page.getByText('LANDING_PAGE_VIEWS')).toBeVisible()
+    await page.getByText('Meta setup', { exact: true }).click()
     await expect(page.getByText('Website Pixel', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'Create PAUSED campaign structure' }).click()
+    await page.getByText('Meta setup', { exact: true }).click()
+    await page.getByRole('button', { name: 'Create complete PAUSED ad in Meta' }).click()
     await expect.poll(() => adRequests.length).toBe(1)
+    await expect(page.getByText('Request accepted — creating Campaign…').first()).toBeVisible()
     expect(adRequests[0]).toMatchObject({ creative_id: creativeId, version: 1, destination_type: 'WEBSITE', landing_event_id: briefId })
     expect(adRequests[0]).not.toHaveProperty('welcome_message')
   } else {
-    await expect(page.getByRole('button', { name: 'Create PAUSED campaign structure' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Create complete PAUSED ad in Meta' })).toBeDisabled()
     await expect(page.getByRole('button', { name: 'Download image', exact: true })).toBeEnabled()
     expect(adRequests).toHaveLength(0)
   }

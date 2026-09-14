@@ -13,7 +13,7 @@ import httpx
 
 from validation_pipeline.local_brief_store import LocalBriefStore, sha256_json, utc_now
 from validation_pipeline.meta_ads import (
-    LocalMetaAdsAuthority, MetaAdsAdapter, MetaAdsConfiguration, MetaAdsService,
+    LocalMetaAdsAuthority, MetaAdsAdapter, MetaAdsConfiguration, MetaAdsProviderError, MetaAdsService,
     normalize_preset,
 )
 
@@ -45,7 +45,7 @@ class MetaAdsAdapterTests(unittest.TestCase):
             if request.method == "GET" and path.endswith("/act_123"):
                 return httpx.Response(200, json={
                     "id": "act_123", "name": "Local test", "currency": "USD",
-                    "account_status": 1,
+                    "account_status": 1, "min_daily_budget": "4491",
                 })
             if request.method == "GET" and path.endswith("/me/accounts"):
                 return httpx.Response(200, json={"data": [{
@@ -91,8 +91,10 @@ class MetaAdsAdapterTests(unittest.TestCase):
         connection = self.adapter.connection()
         self.assertTrue(connection["verified"])
         self.assertEqual("101", connection["pixel"]["id"])
+        self.assertEqual(4491, connection["account"]["minimum_daily_budget_minor"])
         account_read = next(request for request in self.requests if request.url.path.endswith("/act_123"))
         self.assertNotIn("promote_pages", account_read.url.params["fields"])
+        self.assertIn("min_daily_budget", account_read.url.params["fields"])
         self.assertTrue(any(request.url.path.endswith("/me/accounts") for request in self.requests))
         campaign = self.adapter.ensure_campaign("[PTW LOCAL] project", ["NONE"])
         ad_set = self.adapter.ensure_ad_set("[PTW LOCAL] audience", campaign_id=campaign["id"], preset={
@@ -172,6 +174,24 @@ class MetaAdsAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "objective"):
             self.adapter.ensure_campaign("website", ["NONE"], "OUTCOME_TRAFFIC")
         self.assertFalse(any(request.method == "POST" for request in self.requests))
+
+    def test_ads_manager_url_selects_the_created_ad(self) -> None:
+        value = self.adapter.ads_manager_url("campaign-1", "adset-1", "ad-1")
+        self.assertIn("/manage/ads?", value)
+        self.assertIn("act=123", value)
+        self.assertIn("selected_campaign_ids=campaign-1", value)
+        self.assertIn("selected_adset_ids=adset-1", value)
+        self.assertIn("selected_ad_ids=ad-1", value)
+
+    def test_budget_too_low_has_a_safe_owner_action(self) -> None:
+        error = MetaAdsProviderError(
+            "Meta ad set creation failed", status_code=400,
+            error_code="100", error_subcode="1885272",
+        )
+        record = error.record()
+        self.assertIn("daily budget", record["error_message"])
+        self.assertIn("higher immutable audience preset", record["error_message"])
+        self.assertNotIn("provider", record["error_message"].lower())
 
     def test_rejects_changed_png_before_upload(self) -> None:
         with self.assertRaisesRegex(ValueError, "digest mismatch"):
@@ -345,7 +365,12 @@ class FakeAdapter:
 
     def connection(self) -> dict[str, object]:
         self._record("connection")
-        return {"configured": True, "verified": True, "graph_version": "v26.0"}
+        return {
+            "configured": True, "verified": True, "graph_version": "v26.0",
+            "account": {
+                "currency": "USD", "minimum_daily_budget_minor": 100,
+            },
+        }
 
     def ensure_campaign(self, name: str, categories: list[str], objective: str = "OUTCOME_ENGAGEMENT") -> dict[str, str]:
         self._record("campaign")
@@ -387,7 +412,10 @@ class FakeAdapter:
             {"action_type": "landing_page_view", "value": "8.00"},
         ]}
 
-    def ads_manager_url(self, campaign_id: str | None = None) -> str:
+    def ads_manager_url(
+        self, campaign_id: str | None = None, ad_set_id: str | None = None,
+        ad_id: str | None = None,
+    ) -> str:
         return "https://adsmanager.facebook.com/test"
 
 
@@ -467,6 +495,18 @@ class MetaAdsServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Meta Pixel is not configured"):
             self.service.reserve(PROJECT_ID, request)
         self.assertEqual([], self.authority.list_deployments(PROJECT_ID))
+
+    def test_staging_rejects_a_preset_below_the_live_meta_minimum_before_reservation(self):
+        low = self.service.create_preset({
+            "name": "Too low", "countries": ["UA"], "age_min": 25,
+            "age_max": 44, "gender": "women", "daily_budget_minor": 99,
+        })["preset"]
+        request = self.request("01900000-0000-7000-8000-000000000020")
+        request["preset_id"] = low["preset_id"]
+        with self.assertRaisesRegex(ValueError, "below Meta's current minimum"):
+            self.service.reserve(PROJECT_ID, request)
+        self.assertEqual([], self.authority.list_deployments(PROJECT_ID))
+        self.assertIsNone(self.authority.get_experiment(PROJECT_ID))
 
     def test_idempotent_request_and_complete_staging(self) -> None:
         deployment, created = self.service.reserve(PROJECT_ID, self.request())

@@ -7,7 +7,7 @@ export interface MetaAdsConnection {
   graph_version: string
   explanation?: string
   required_permissions?: string[]
-  account?: { id?: string; name?: string; currency?: string; timezone_name?: string; account_status?: number }
+  account?: { id?: string; name?: string; currency?: string; timezone_name?: string; account_status?: number; minimum_daily_budget_minor?: number | null }
   page?: { id: string; name?: string | null }
   instagram?: { id: string; username?: string | null }
   pixel?: { id: string; name?: string | null } | null

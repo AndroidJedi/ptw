@@ -57,8 +57,9 @@ before changing code or runtime state.
 - When Ads Manager reports missing media on a generic manual draft such as
   `New Traffic Ad`, correlate it with PTW's lineage-tagged campaign, Ad Set,
   creative, and Ad names before changing creative code. A deployment that failed
-  at `creating_campaign` with no image hash or creative/Ad ID never reached media
-  upload; the manual draft is a separate object. For Graph API v26 Ad Set-budget
+  before `uploading_image`, including at `creating_campaign` or `creating_ad_set`,
+  with no image hash or creative/Ad ID never reached media upload; the manual
+  draft is a separate object. For Graph API v26 Ad Set-budget
   campaigns, send `is_adset_budget_sharing_enabled=false` explicitly and confirm
   with a validate-only provider request before retrying the same PAUSED deployment.
   Graph API v26 Direct Ad Sets accept only the Page in `promoted_object`; retain
@@ -68,6 +69,23 @@ before changing code or runtime state.
   Acceptance requires the stored image hash, creative ID, Ad ID, and Meta's
   creative readback to match the approved render lineage; never activate it as
   part of incident recovery.
+- Treat Meta code `100`, subcode `1885272` at Ad Set creation as a possible
+  account-minimum budget rejection. Read `min_daily_budget` from the exact Ad
+  Account, parse it as integer minor units, retain the account currency, and use
+  `execution_options=["validate_only"]` on the exact prospective Ad Set payload
+  to prove the threshold without creating an object. Never infer major currency
+  units from the raw integer. If an immutable preset is below the live minimum,
+  do not reserve or retry it unchanged; require a new reviewed preset version at
+  or above the current minimum. Preserve any PAUSED Campaign already created as
+  incident evidence.
+- Status polling must be sequential and coalesced per Project. A workspace read
+  can take longer than the polling cadence; do not invalidate a valid response
+  merely because another timer fired, and do not repeat remote connection
+  verification during every quiet poll after one verified result. Show the POST
+  acknowledgement beside the initiating action, then an explicit Campaign / Ad
+  Set / image / Creative / Ad checklist and terminal failure action. A generic
+  Ads Manager link is not proof of prefilled fields; expose the deepest exact
+  PTW-created object URL only when that object ID exists.
 
 ## Brief, Studio, and provider checks
 

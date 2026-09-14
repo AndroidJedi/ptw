@@ -4,7 +4,7 @@ import { downloadBlob } from '../components/PostPublishing'
 import type { ApiClient } from '../api'
 import { Empty, ErrorState, Loading } from '../components/State'
 import { translate, type Language } from '../i18n'
-import type { MetaAdsControlAction, MetaAdsDeployment, MetaAdsLocation, MetaAdsPresetVersion, MetaAdsProjectWorkspace, MetaAdsSourceVersion } from '../types'
+import type { MetaAdsConnection, MetaAdsControlAction, MetaAdsDeployment, MetaAdsLocation, MetaAdsPresetVersion, MetaAdsProjectWorkspace, MetaAdsSourceVersion } from '../types'
 
 const runningStates = new Set(['queued', 'creating_campaign', 'creating_ad_set', 'uploading_image', 'creating_creative', 'creating_ad'])
 const categories = ['NONE', 'CREDIT', 'EMPLOYMENT', 'HOUSING', 'ISSUES_ELECTIONS_POLITICS', 'FINANCIAL_PRODUCTS_SERVICES', 'ONLINE_GAMBLING_AND_GAMING']
@@ -26,7 +26,7 @@ function presetGeography(preset: MetaAdsPresetVersion['specification']) {
     : preset.countries.join(', ')
 }
 
-interface PresetCity extends MetaAdsLocation { radius_km: number }
+interface PresetCity { key: string; name: string; country_code: string; radius_km: number }
 interface PresetDraft {
   name: string
   geo_mode: 'countries' | 'cities'
@@ -44,6 +44,23 @@ function objectStatus(value: unknown) {
   const status = String(item.effective_status || item.status || '—')
   const issues = Array.isArray(item.issues_info) && item.issues_info.length ? ` · ${item.issues_info.length} issue(s)` : ''
   return `${status}${issues}`
+}
+
+function budgetLabel(value: number, currency: string | undefined, language: Language) {
+  if (!currency) return `${value} ${language === 'uk' ? 'мін. од.' : 'minor units'}`
+  try {
+    const formatter = new Intl.NumberFormat(language === 'uk' ? 'uk-UA' : 'en-US', {
+      style: 'currency', currency,
+    })
+    const fractionDigits = formatter.resolvedOptions().maximumFractionDigits ?? 2
+    return `${formatter.format(value / (10 ** fractionDigits))} (${value} ${language === 'uk' ? 'мін. од.' : 'minor units'})`
+  } catch {
+    return `${value} ${currency} ${language === 'uk' ? 'мін. од.' : 'minor units'}`
+  }
+}
+
+function isBudgetTooLow(deployment: MetaAdsDeployment) {
+  return String(deployment.error?.provider_context?.subcode || '') === '1885272'
 }
 
 export function AdsView({ api, language, projectId = null }: {
@@ -78,12 +95,20 @@ export function AdsView({ api, language, projectId = null }: {
   const [locationResults, setLocationResults] = useState<MetaAdsLocation[]>([])
   const [locationBusy, setLocationBusy] = useState(false)
   const [locationError, setLocationError] = useState('')
+  const [stageError, setStageError] = useState('')
   const epoch = useRef(0)
+  const activeProject = useRef<string | null>(null)
+  const reloadInFlight = useRef<{ projectId: string; promise: Promise<void> } | null>(null)
+  const verifiedConnection = useRef<MetaAdsConnection | null>(null)
+  const presetSection = useRef<HTMLElement | null>(null)
   const tr = (en: string, uk: string) => translate(language, en, uk)
   const base = projectId ? `/api/v1/ads/projects/${projectId}` : ''
 
   const applyWorkspace = (value: MetaAdsProjectWorkspace) => {
-    setWorkspace(value)
+    const connection = !value.connection.verified && verifiedConnection.current?.verified
+      ? verifiedConnection.current
+      : value.connection
+    setWorkspace({ ...value, connection })
     setSelectedPresetId(current => value.presets.some(item => item.preset_id === current) ? current : value.presets[0]?.preset_id || '')
     setSelectedSource(current => value.sources.find(item => item.creative_id === current?.creative_id && item.version === current.version) || value.sources.find(item => item.creative_id === initialSource.current.creative && item.version === initialSource.current.version) || (initialSource.current.creative ? null : value.sources[0]) || null)
     setError('')
@@ -91,21 +116,46 @@ export function AdsView({ api, language, projectId = null }: {
 
   const reload = async (quiet = false) => {
     if (!projectId) return
-    const current = ++epoch.current
-    if (!quiet) { setWorkspace(null); setError(''); setNotice('') }
-    try {
-      const value = await api.get<MetaAdsProjectWorkspace>(base)
-      if (current === epoch.current) applyWorkspace(value)
-      if (value.connection.configured && !value.connection.verified) {
-        const connection = await api.get<MetaAdsProjectWorkspace['connection']>('/api/v1/ads/connection', { deadlineMs: 120_000 })
-        if (current === epoch.current) setWorkspace(existing => existing ? { ...existing, connection } : existing)
+    if (activeProject.current !== projectId) {
+      activeProject.current = projectId
+      epoch.current += 1
+      verifiedConnection.current = null
+    }
+    if (reloadInFlight.current?.projectId === projectId) return reloadInFlight.current.promise
+    const current = epoch.current
+    const requestProject = projectId
+    if (!quiet) { setWorkspace(null); setError(''); setNotice(''); setStageError('') }
+    const promise = (async () => {
+      try {
+        const value = await api.get<MetaAdsProjectWorkspace>(base)
+        if (value.connection.verified) verifiedConnection.current = value.connection
+        if (current === epoch.current) applyWorkspace(value)
+        const cached = verifiedConnection.current
+        if (value.connection.configured && !value.connection.verified && (!quiet || !cached?.verified)) {
+          const connection = await api.get<MetaAdsProjectWorkspace['connection']>('/api/v1/ads/connection', { deadlineMs: 120_000 })
+          if (connection.verified) verifiedConnection.current = connection
+          if (current === epoch.current) setWorkspace(existing => existing ? { ...existing, connection } : existing)
+        }
+      } catch (cause) {
+        if (current === epoch.current) setError(cause instanceof Error ? cause.message : String(cause))
       }
-    } catch (cause) {
-      if (current === epoch.current) setError(cause instanceof Error ? cause.message : String(cause))
+    })()
+    reloadInFlight.current = { projectId: requestProject, promise }
+    try { await promise } finally {
+      if (reloadInFlight.current?.promise === promise) reloadInFlight.current = null
     }
   }
 
-  useEffect(() => { if (projectId) void reload(); else { setWorkspace(null); setSelectedSource(null) } }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (projectId) void reload()
+    else {
+      activeProject.current = null
+      epoch.current += 1
+      verifiedConnection.current = null
+      setWorkspace(null)
+      setSelectedSource(null)
+    }
+  }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!selectedSource) return
@@ -131,15 +181,48 @@ export function AdsView({ api, language, projectId = null }: {
   }, [api, projectId, selectedSource?.creative_id, selectedSource?.version, selectedSource?.render_sha256])
 
   useEffect(() => {
-    if (!workspace?.deployments.some(item => runningStates.has(item.status))) return
-    const timer = window.setInterval(() => void reload(true), 2_500)
-    return () => window.clearInterval(timer)
-  }, [workspace?.deployments.map(item => item.status).join('|')]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (error || !workspace?.deployments.some(item => runningStates.has(item.status))) return
+    let cancelled = false
+    let timer = window.setTimeout(async function poll() {
+      await reload(true)
+      if (!cancelled) timer = window.setTimeout(poll, 2_500)
+    }, 2_500)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [workspace?.deployments.map(item => item.status).join('|'), error]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedPreset = useMemo(
     () => workspace?.presets.find(item => item.preset_id === selectedPresetId) || null,
     [workspace?.presets, selectedPresetId],
   )
+  const minimumDailyBudget = workspace?.connection.account?.minimum_daily_budget_minor
+  const accountCurrency = workspace?.connection.account?.currency
+  const selectedPresetBudgetLow = Boolean(
+    selectedPreset && minimumDailyBudget
+    && selectedPreset.specification.daily_budget_minor < minimumDailyBudget,
+  )
+
+  useEffect(() => {
+    if (!minimumDailyBudget) return
+    setPreset(current => current.daily_budget_minor < minimumDailyBudget
+      ? { ...current, daily_budget_minor: minimumDailyBudget }
+      : current)
+  }, [minimumDailyBudget])
+
+  const prepareCompliantPreset = (source = selectedPreset?.specification) => {
+    if (!source || !minimumDailyBudget) return
+    setPreset({
+      name: `${source.name} · ${tr('Meta minimum', 'мінімум Meta')}`.slice(0, 80),
+      geo_mode: source.cities?.length ? 'cities' : 'countries',
+      countries: source.countries.join(', '),
+      city_country_code: source.cities?.[0]?.country_code || source.countries[0] || 'UA',
+      cities: (source.cities || []).map(city => ({ ...city })),
+      age_min: source.age_min, age_max: source.age_max, gender: source.gender,
+      daily_budget_minor: Math.max(source.daily_budget_minor, minimumDailyBudget),
+    })
+    setPresetErrors({})
+    setPresetOpen(true)
+    window.requestAnimationFrame(() => presetSection.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }))
+  }
 
   const createPreset = async () => {
     const errors: Record<string, string> = {}
@@ -149,6 +232,12 @@ export function AdsView({ api, language, projectId = null }: {
     if (!Number.isInteger(preset.age_min) || preset.age_min < 18 || preset.age_min > 65) errors.age_min = tr('Use an integer age from 18 to 65.', 'Вкажіть цілий вік від 18 до 65.')
     if (!Number.isInteger(preset.age_max) || preset.age_max < preset.age_min || preset.age_max > 65) errors.age_max = tr('Maximum age must be an integer from the minimum age to 65.', 'Максимальний вік має бути цілим числом від мінімального віку до 65.')
     if (!Number.isInteger(preset.daily_budget_minor) || preset.daily_budget_minor < 1) errors.daily_budget_minor = tr('Enter a positive whole-number daily budget.', 'Введіть додатний цілий денний бюджет.')
+    else if (minimumDailyBudget && preset.daily_budget_minor < minimumDailyBudget) {
+      errors.daily_budget_minor = tr(
+        `Meta currently requires at least ${budgetLabel(minimumDailyBudget, accountCurrency, language)}.`,
+        `Meta зараз вимагає щонайменше ${budgetLabel(minimumDailyBudget, accountCurrency, language)}.`,
+      )
+    }
     setPresetErrors(errors)
     if (Object.keys(errors).length) return
     setBusy(true); setError('')
@@ -240,7 +329,7 @@ export function AdsView({ api, language, projectId = null }: {
 
   const stage = async () => {
     if (!selectedSource || !selectedPreset) return
-    setBusy(true); setError(''); setNotice('')
+    setBusy(true); setError(''); setNotice(''); setStageError('')
     try {
       const payload = {
         creative_id: selectedSource.creative_id,
@@ -255,10 +344,18 @@ export function AdsView({ api, language, projectId = null }: {
       const previous = saved ? JSON.parse(saved) as { fingerprint: string; request_id: string } : null
       const requestId = previous?.fingerprint === fingerprint ? previous.request_id : crypto.randomUUID()
       sessionStorage.setItem(storageKey, JSON.stringify({ fingerprint, request_id: requestId }))
-      await api.post(`${base}/deployments`, { ...payload, request_id: requestId }, { deadlineMs: 120_000 })
-      setNotice(tr('Staging reserved. PTW is creating PAUSED Meta objects.', 'Staging зарезервовано. PTW створює об’єкти Meta зі статусом PAUSED.'))
+      const result = await api.post<{ deployment: MetaAdsDeployment; created: boolean }>(
+        `${base}/deployments`, { ...payload, request_id: requestId }, { deadlineMs: 120_000 },
+      )
+      setWorkspace(existing => existing ? {
+        ...existing,
+        deployments: [result.deployment, ...existing.deployments.filter(item => item.deployment_id !== result.deployment.deployment_id)],
+      } : existing)
       await reload(true)
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause)
+      setError(message); setStageError(message)
+    } finally { setBusy(false) }
   }
 
   const exportImage = async () => {
@@ -276,6 +373,10 @@ export function AdsView({ api, language, projectId = null }: {
   }
 
   const deploymentAction = async (deployment: MetaAdsDeployment, action: 'retry' | 'sync') => {
+    if (action === 'retry' && isBudgetTooLow(deployment)) {
+      prepareCompliantPreset(deployment.specification.preset)
+      return
+    }
     setBusy(true); setError('')
     try { await api.post(`${base}/deployments/${deployment.deployment_id}/${action}`, {}); await reload(true) }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } finally { setBusy(false) }
@@ -288,6 +389,44 @@ export function AdsView({ api, language, projectId = null }: {
   const connected = workspace.connection.configured && workspace.connection.verified
   const websiteReady = connected && Boolean(workspace.connection.pixel)
   const adsManagerUrl = workspace.ads_manager_url || 'https://adsmanager.facebook.com/adsmanager/manage/campaigns'
+  const latestDeployment = workspace.deployments[0] || null
+  const latestRunning = Boolean(latestDeployment && runningStates.has(latestDeployment.status))
+  const latestBudgetFailure = Boolean(latestDeployment && isBudgetTooLow(latestDeployment))
+  const latestFailureMessage = latestBudgetFailure && minimumDailyBudget
+    ? tr(
+      `Meta rejected the Ad Set because ${budgetLabel(latestDeployment!.specification.preset.daily_budget_minor, accountCurrency, language)} is below the current minimum of ${budgetLabel(minimumDailyBudget, accountCurrency, language)}. Create and select a new immutable preset; retrying this unchanged request would fail again.`,
+      `Meta відхилила Ad Set, бо ${budgetLabel(latestDeployment!.specification.preset.daily_budget_minor, accountCurrency, language)} нижче поточного мінімуму ${budgetLabel(minimumDailyBudget, accountCurrency, language)}. Створіть і виберіть новий незмінний пресет; повторення цього незміненого запиту знову завершиться помилкою.`,
+    )
+    : latestDeployment?.error?.error_message || ''
+  const activeCreationIndex = latestDeployment ? ({
+    queued: 0, creating_campaign: 0, creating_ad_set: 1, uploading_image: 2,
+    creating_creative: 3, creating_ad: 4, staged: 4, failed: -1,
+  } as const)[latestDeployment.status] : -1
+  const creationSteps = latestDeployment ? [
+    { label: tr('Campaign', 'Кампанія'), complete: Boolean(latestDeployment.meta_campaign_id), id: latestDeployment.meta_campaign_id, waiting: tr('Waiting to create', 'Очікує створення') },
+    { label: 'Ad Set', complete: Boolean(latestDeployment.meta_ad_set_id), id: latestDeployment.meta_ad_set_id, waiting: tr('Waiting for Campaign', 'Очікує Campaign') },
+    { label: tr('Approved image', 'Затверджене зображення'), complete: Boolean(latestDeployment.meta_image_hash), id: latestDeployment.meta_image_hash, waiting: tr('Waiting for Ad Set', 'Очікує Ad Set') },
+    { label: tr('Creative', 'Креатив'), complete: Boolean(latestDeployment.meta_creative_id), id: latestDeployment.meta_creative_id, waiting: tr('Waiting for image upload', 'Очікує завантаження зображення') },
+    { label: tr('Ad', 'Реклама'), complete: Boolean(latestDeployment.meta_ad_id), id: latestDeployment.meta_ad_id, waiting: tr('Waiting for Creative', 'Очікує Creative') },
+  ].map((step, index, steps) => {
+    const firstMissing = steps.findIndex(item => !item.complete)
+    const state = step.complete ? 'complete'
+      : latestDeployment.status === 'failed' && index === firstMissing ? 'failed'
+        : latestRunning && index === activeCreationIndex ? 'active'
+          : 'waiting'
+    const detail = state === 'complete'
+      ? index === 0 ? tr('Created · PAUSED', 'Створено · PAUSED') : index === 2 ? tr('Uploaded from approved Post', 'Завантажено із затвердженого допису') : tr('Created', 'Створено')
+      : state === 'active' ? tr('Creating now…', 'Створюється зараз…')
+        : state === 'failed' ? tr('Stopped here', 'Зупинено тут') : step.waiting
+    return { ...step, index, state, detail }
+  }) : []
+  const stoppedStep = creationSteps.find(step => step.state === 'failed')
+  const activeStep = creationSteps.find(step => step.state === 'active')
+  const creationTitle = latestDeployment?.status === 'staged'
+    ? tr('Complete — the Meta Ad is created and PAUSED.', 'Готово — рекламу створено в Meta зі статусом PAUSED.')
+    : latestDeployment?.status === 'failed'
+      ? tr(`Creation stopped at ${stoppedStep?.label || 'Meta'}. Nothing was activated.`, `Створення зупинилось на етапі «${stoppedStep?.label || 'Meta'}». Нічого не активовано.`)
+      : tr(`Request accepted — creating ${activeStep?.label || 'the Campaign'}…`, `Запит прийнято — створюється «${activeStep?.label || 'Campaign'}»…`)
   const setupChecks = [
     {
       ok: workspace.connection.configured,
@@ -337,6 +476,10 @@ export function AdsView({ api, language, projectId = null }: {
     </header>
     {error && <ErrorState message={error} retry={() => void reload(true)} language={language} />}
     {notice && <p className="notice" role="status">{notice}</p>}
+    {latestDeployment && <a className={`ads-current-status is-${latestDeployment.status}`} href="#ads-creation-status">
+      <span><small>{tr('LATEST META REQUEST', 'ОСТАННІЙ ЗАПИТ META')}</small><strong>{creationTitle}</strong></span>
+      <span>{tr('View 5 creation steps', 'Переглянути 5 етапів')} ↓</span>
+    </a>}
     {pendingControl && <section className="panel" aria-label={tr('Confirm Meta control', 'Підтвердити керування Meta')}>
       <small>{tr('OWNER CONFIRMATION REQUIRED', 'ПОТРІБНЕ ПІДТВЕРДЖЕННЯ ВЛАСНИКА')}</small>
       <h2>{tr('Review the exact paid-delivery change', 'Перевірте точну зміну платного показу')}</h2>
@@ -351,13 +494,13 @@ export function AdsView({ api, language, projectId = null }: {
       <small>{tr('CONNECTION', 'ПІДКЛЮЧЕННЯ')}</small>
       <div className="ads-connection-grid">
         <div>{connected ? <CheckCircle2 /> : <AlertTriangle />}<span><strong>{connected ? tr('Meta assets verified', 'Активи Meta перевірено') : tr('Meta staging disabled', 'Staging Meta вимкнено')}</strong><small>{workspace.connection.explanation || tr('System user and assigned assets are available.', 'Системний користувач і призначені активи доступні.')}</small></span></div>
-        <dl><div><dt>{tr('Ad Account', 'Рекламний акаунт')}</dt><dd>{workspace.connection.account?.name || '—'} <code>{short(workspace.connection.account?.id)}</code></dd></div><div><dt>Facebook Page</dt><dd>{workspace.connection.page?.name || '—'} <code>{short(workspace.connection.page?.id)}</code></dd></div><div><dt>Instagram</dt><dd>{workspace.connection.instagram?.username ? `@${workspace.connection.instagram.username}` : '—'} <code>{short(workspace.connection.instagram?.id)}</code></dd></div><div><dt>Meta Pixel</dt><dd>{workspace.connection.pixel?.name || '—'} <code>{short(workspace.connection.pixel?.id)}</code></dd></div></dl>
+        <dl><div><dt>{tr('Ad Account', 'Рекламний акаунт')}</dt><dd>{workspace.connection.account?.name || '—'} <code>{short(workspace.connection.account?.id)}</code></dd></div><div><dt>{tr('Minimum daily budget', 'Мінімальний денний бюджет')}</dt><dd>{minimumDailyBudget ? budgetLabel(minimumDailyBudget, accountCurrency, language) : '—'}</dd></div><div><dt>Facebook Page</dt><dd>{workspace.connection.page?.name || '—'} <code>{short(workspace.connection.page?.id)}</code></dd></div><div><dt>Instagram</dt><dd>{workspace.connection.instagram?.username ? `@${workspace.connection.instagram.username}` : '—'} <code>{short(workspace.connection.instagram?.id)}</code></dd></div><div><dt>Meta Pixel</dt><dd>{workspace.connection.pixel?.name || '—'} <code>{short(workspace.connection.pixel?.id)}</code></dd></div></dl>
         {workspace.connection.available && <p className="ads-available">{tr('Available to this system user', 'Доступно цьому системному користувачу')}: {workspace.connection.available.ad_accounts.length} Ad Account · {workspace.connection.available.pages.length} Page · {workspace.connection.available.instagram_accounts.length} Instagram · {workspace.connection.available.pixels?.length || 0} Pixel</p>}
       </div>
     </section>
 
-    <section className="panel ads-setup">
-      <div className="ads-section-title"><div><small>{tr('READINESS & CONSOLES', 'ГОТОВНІСТЬ І КОНСОЛІ')}</small><h2>{tr('What is still needed', 'Що ще потрібно')}</h2></div><span>{setupChecks.filter(item => item.ok).length}/{setupChecks.length}</span></div>
+    <details className="panel ads-setup" open={!connected || undefined}>
+      <summary className="ads-section-title"><div><small>{tr('READINESS & CONSOLES', 'ГОТОВНІСТЬ І КОНСОЛІ')}</small><h2>{tr('Meta setup', 'Налаштування Meta')}</h2></div><span>{setupChecks.filter(item => item.ok).length}/{setupChecks.length}</span></summary>
       <div className="ads-setup-grid">
         <div className="ads-checklist">
           {setupChecks.map(item => <div key={item.en} className={`ads-check ${item.ok ? 'is-ok' : 'is-pending'}`}>
@@ -372,7 +515,7 @@ export function AdsView({ api, language, projectId = null }: {
           <a className="ads-console-link" href={adsManagerUrl} target="_blank" rel="noreferrer"><span><strong>Ads Manager</strong><small>{tr('Campaign, Ad Set, Creative and Ad status', 'Статуси Campaign, Ad Set, Creative та Ad')}</small></span><ExternalLink /></a>
         </div>
       </div>
-    </section>
+    </details>
 
     <section className="ads-compose-grid">
       <div className="panel ads-sources">
@@ -391,18 +534,52 @@ export function AdsView({ api, language, projectId = null }: {
             <label>{tr('Headline', 'Заголовок')}<input value={headline} maxLength={255} onChange={event => setHeadline(event.target.value)} /></label>
             <label>{tr('Primary text', 'Основний текст')}<textarea rows={5} value={primaryText} maxLength={2200} onChange={event => setPrimaryText(event.target.value)} /></label>
             {destination === 'INSTAGRAM_DIRECT' && <label>{tr('Initial Direct message', 'Початкове повідомлення Direct')}<textarea rows={2} value={welcomeMessage} maxLength={1000} onChange={event => setWelcomeMessage(event.target.value)} /></label>}
-            <label>{tr('Audience preset version', 'Версія пресета аудиторії')}<select value={selectedPresetId} onChange={event => setSelectedPresetId(event.target.value)}><option value="">{tr('Create a preset first', 'Спочатку створіть пресет')}</option>{workspace.presets.map(item => <option key={item.preset_id} value={item.preset_id}>v{item.version} · {item.specification.name} · {item.specification.daily_budget_minor} {workspace.connection.account?.currency || tr('minor units', 'мін. од.')}</option>)}</select></label>
+            <label>{tr('Audience preset version', 'Версія пресета аудиторії')}<select value={selectedPresetId} onChange={event => setSelectedPresetId(event.target.value)}><option value="">{tr('Create a preset first', 'Спочатку створіть пресет')}</option>{workspace.presets.map(item => <option key={item.preset_id} value={item.preset_id}>v{item.version} · {item.specification.name} · {budgetLabel(item.specification.daily_budget_minor, accountCurrency, language)}</option>)}</select></label>
             <label>{tr('Special ad category', 'Спеціальна категорія реклами')}<select value={category} onChange={event => setCategory(event.target.value)}>{categories.map(item => <option key={item}>{item}</option>)}</select></label>
           </div>
           <div className="ads-fixed"><span>Instagram Feed</span><span>{destination === 'WEBSITE' ? 'OUTCOME_TRAFFIC' : 'OUTCOME_ENGAGEMENT'}</span><span>{destination === 'WEBSITE' ? 'Website · Learn more' : 'Instagram Direct'}</span><span>{destination === 'WEBSITE' ? 'LANDING_PAGE_VIEWS' : 'CONVERSATIONS'}</span><span>IMPRESSIONS</span><span>Lowest cost</span><span>Enhancements: OFF</span></div>
-          <button className="primary large" disabled={!connected || !selectedPreset || busy || !headline.trim() || !primaryText.trim() || !previewUrl || (destination === 'WEBSITE' ? (!workspace.landing || !websiteReady) : !welcomeMessage.trim())} onClick={() => void stage()}><Megaphone />{busy ? tr('Working…', 'Виконується…') : tr('Create PAUSED campaign structure', 'Створити PAUSED-структуру кампанії')}</button>
+          <div className="ads-request-review" role="group" aria-label={tr('Details PTW will send to Meta', 'Дані, які PTW надішле в Meta')}>
+            <small>{tr('THIS CLICK WILL USE', 'ЦЕЙ КЛІК ВИКОРИСТАЄ')}</small>
+            <dl>
+              <div><dt>{tr('Image', 'Зображення')}</dt><dd><CheckCircle2 /> Post {selectedSource.creative_ordinal} · v{selectedSource.version} · {tr('approved PNG', 'затверджений PNG')}</dd></div>
+              <div><dt>{tr('Destination', 'Призначення')}</dt><dd>{destination === 'WEBSITE' && workspace.landing ? <a href={workspace.landing.canonical_url} target="_blank" rel="noreferrer">{workspace.landing.canonical_url}</a> : 'Instagram Direct'}</dd></div>
+              <div><dt>{tr('Audience', 'Аудиторія')}</dt><dd>{selectedPreset ? `v${selectedPreset.version} · ${selectedPreset.specification.name} · ${budgetLabel(selectedPreset.specification.daily_budget_minor, accountCurrency, language)}` : tr('Not selected', 'Не вибрано')}</dd></div>
+              <div><dt>{tr('Safety', 'Безпека')}</dt><dd>PAUSED · {tr('no activation or spend', 'без активації та витрат')}</dd></div>
+            </dl>
+          </div>
+          {selectedPresetBudgetLow && <div className="ads-stage-feedback is-failed" role="alert"><strong>{tr('This preset cannot be staged.', 'Цей пресет не можна передати в staging.')}</strong><p>{tr(
+            `${budgetLabel(selectedPreset!.specification.daily_budget_minor, accountCurrency, language)} is below Meta's current minimum of ${budgetLabel(minimumDailyBudget!, accountCurrency, language)}.`,
+            `${budgetLabel(selectedPreset!.specification.daily_budget_minor, accountCurrency, language)} нижче поточного мінімуму Meta ${budgetLabel(minimumDailyBudget!, accountCurrency, language)}.`,
+          )}</p><button type="button" className="secondary" onClick={() => prepareCompliantPreset()}>{tr('Prepare a compliant preset version', 'Підготувати допустиму версію пресета')}</button></div>}
+          <button className="primary large" disabled={!connected || !selectedPreset || selectedPresetBudgetLow || busy || !headline.trim() || !primaryText.trim() || !previewUrl || (destination === 'WEBSITE' ? (!workspace.landing || !websiteReady) : !welcomeMessage.trim())} onClick={() => void stage()}><Megaphone />{busy ? tr('Working…', 'Виконується…') : tr('Create complete PAUSED ad in Meta', 'Створити повну PAUSED-рекламу в Meta')}</button>
+          {stageError && <div className="ads-stage-feedback is-failed" role="alert"><strong>{tr('The request was not reserved.', 'Запит не зарезервовано.')}</strong><p>{stageError}</p></div>}
+          {latestDeployment && <div id="ads-creation-status" className={`ads-stage-feedback is-${latestDeployment.status}`} role={latestDeployment.status === 'failed' ? 'alert' : 'status'} aria-live="polite">
+            <div className="ads-stage-heading">{latestDeployment.status === 'failed' ? <AlertTriangle /> : latestDeployment.status === 'staged' ? <CheckCircle2 /> : <RefreshCcw className="spin" />}<span><small>{tr('CREATION STATUS', 'СТАТУС СТВОРЕННЯ')}</small><strong>{creationTitle}</strong></span></div>
+            <ol className="ads-creation-progress" aria-label={tr('Meta creation progress', 'Хід створення в Meta')}>
+              {creationSteps.map(step => <li key={step.label} className={`is-${step.state}`}>
+                <span className="ads-step-marker">{step.state === 'complete' ? <CheckCircle2 /> : step.state === 'failed' ? <AlertTriangle /> : step.state === 'active' ? <RefreshCcw className="spin" /> : step.index + 1}</span>
+                <span><strong>{step.label}</strong><small>{step.detail}{step.id ? ` · ${short(step.id)}` : ''}</small></span>
+              </li>)}
+            </ol>
+            <p className="ads-next-action"><strong>{tr('Next:', 'Далі:')}</strong> {latestRunning
+              ? tr('Wait here; this status updates automatically.', 'Залишайтесь тут; статус оновиться автоматично.')
+              : latestDeployment.status === 'staged'
+                ? tr('Open the created Ad and review its image, copy, and destination in Meta.', 'Відкрийте створену рекламу та перевірте зображення, текст і призначення в Meta.')
+                : latestBudgetFailure && minimumDailyBudget
+                  ? tr(`Create a new preset at or above ${budgetLabel(minimumDailyBudget, accountCurrency, language)}, select it, and create again.`, `Створіть новий пресет не нижче ${budgetLabel(minimumDailyBudget, accountCurrency, language)}, виберіть його й запустіть створення ще раз.`)
+                  : tr('Read the error below, then use the safe retry in deployment history.', 'Прочитайте помилку нижче, потім скористайтеся безпечним повтором в історії deployment.')}</p>
+            {latestFailureMessage && <p>{latestFailureMessage}</p>}
+            <details><summary>{tr('Technical details', 'Технічні деталі')}</summary><small>PTW <code>{short(latestDeployment.deployment_id)}</code> · {latestDeployment.status} · SHA-256 <code>{short(latestDeployment.render_sha256)}</code></small>{latestDeployment.specification.landing?.canonical_url && <a href={latestDeployment.specification.landing.canonical_url} target="_blank" rel="noreferrer">{latestDeployment.specification.landing.canonical_url}</a>}</details>
+            {latestBudgetFailure && minimumDailyBudget && <button type="button" className="secondary" onClick={() => prepareCompliantPreset(latestDeployment.specification.preset)}>{tr('Prepare a higher-budget preset', 'Підготувати пресет із вищим бюджетом')}</button>}
+            {latestDeployment.status === 'staged' && latestDeployment.ads_manager_url && <a className="secondary" href={latestDeployment.ads_manager_url} target="_blank" rel="noreferrer">{tr('Open the created PTW Ad', 'Відкрити створену PTW-рекламу')} <ExternalLink /></a>}
+          </div>}
           <div className="post-publishing-actions"><button className="secondary" disabled={busy} onClick={() => void exportImage()}>{tr('Download image', 'Завантажити зображення')}</button><button className="secondary" onClick={() => void copy([headline, primaryText].filter(Boolean).join('\n\n'))}>{tr('Copy ad text', 'Копіювати текст реклами')}</button>{workspace.landing && <button className="secondary" onClick={() => void copy(workspace.landing!.canonical_url)}>{tr('Copy landing URL', 'Копіювати URL лендінгу')}</button>}<a className="secondary" href={adsManagerUrl} target="_blank" rel="noreferrer">{tr('Open in Ads Manager', 'Відкрити в Ads Manager')}</a></div>
-          <p>{tr('Export is available without Meta access. Create or review the ad and start paid delivery in Ads Manager. These links open Meta; they do not fill its forms.', 'Експорт доступний без підключення Meta. Створіть або перевірте рекламу та запустіть покази в Ads Manager. Посилання відкривають Meta, але не заповнюють форми.')}</p>
+          <p>{tr('Export is available without Meta access. The generic Ads Manager link is manual and does not fill its forms; after PTW completes all five steps, use “Open the created PTW Ad” above.', 'Експорт доступний без підключення Meta. Загальне посилання Ads Manager призначене для ручної роботи й не заповнює форми; після завершення PTW усіх п’яти етапів використайте «Відкрити створену PTW-рекламу» вище.')}</p>
         </> : <p>{tr('Select an approved Post version.' , 'Виберіть затверджену версію допису.')}</p>}
       </div>
     </section>
 
-    <section className="panel ads-presets">
+    <section className="panel ads-presets" ref={presetSection}>
       <div className="ads-section-title"><div><small>{tr('VERSIONED TARGETING', 'ВЕРСІЙНИЙ TARGETING')}</small><h2>{tr('Audience presets', 'Пресети аудиторії')}</h2></div><button className="secondary" onClick={() => setPresetOpen(value => !value)}>{presetOpen ? tr('Close', 'Закрити') : tr('New preset', 'Новий пресет')}</button></div>
       {presetOpen && <div className="ads-preset-form">
         <label>{tr('Name', 'Назва')}<input value={preset.name} maxLength={80} onChange={event => setPreset(current => ({ ...current, name: event.target.value }))} />{presetErrors.name && <small role="alert">{presetErrors.name}</small>}</label>
@@ -421,15 +598,15 @@ export function AdsView({ api, language, projectId = null }: {
         <label>{tr('Minimum age', 'Мінімальний вік')}<input type="number" min="18" max="65" value={preset.age_min} onChange={event => setPreset(current => ({ ...current, age_min: Number(event.target.value) }))} />{presetErrors.age_min && <small role="alert">{presetErrors.age_min}</small>}</label>
         <label>{tr('Maximum age', 'Максимальний вік')}<input type="number" min="18" max="65" value={preset.age_max} onChange={event => setPreset(current => ({ ...current, age_max: Number(event.target.value) }))} />{presetErrors.age_max && <small role="alert">{presetErrors.age_max}</small>}</label>
         <label>{tr('Gender', 'Стать')}<select value={preset.gender} onChange={event => setPreset(current => ({ ...current, gender: event.target.value }))}><option value="all">{tr('All', 'Усі')}</option><option value="women">{tr('Women', 'Жінки')}</option><option value="men">{tr('Men', 'Чоловіки')}</option></select></label>
-        <label>{tr('Daily budget (minor currency units)', 'Денний бюджет (мінімальні одиниці валюти)')}<input type="number" min="1" value={preset.daily_budget_minor} onChange={event => setPreset(current => ({ ...current, daily_budget_minor: Number(event.target.value) }))} />{presetErrors.daily_budget_minor && <small role="alert">{presetErrors.daily_budget_minor}</small>}</label>
+        <label>{tr('Daily budget (Meta minor units)', 'Денний бюджет (мінімальні одиниці Meta)')}<input type="number" min={minimumDailyBudget || 1} value={preset.daily_budget_minor} onChange={event => setPreset(current => ({ ...current, daily_budget_minor: Number(event.target.value) }))} /><small>{tr('Entered amount', 'Введена сума')}: {budgetLabel(preset.daily_budget_minor || 0, accountCurrency, language)}{minimumDailyBudget ? ` · ${tr('Meta minimum', 'мінімум Meta')}: ${budgetLabel(minimumDailyBudget, accountCurrency, language)}` : ''}</small>{presetErrors.daily_budget_minor && <small role="alert">{presetErrors.daily_budget_minor}</small>}</label>
         <button className="primary" disabled={busy || !preset.name.trim() || (preset.geo_mode === 'cities' ? !preset.cities.length : !preset.countries.trim())} onClick={() => void createPreset()}>{tr('Save immutable version', 'Зберегти незмінну версію')}</button>
       </div>}
-      {!presetOpen && <div className="ads-preset-list">{workspace.presets.map(item => <button key={item.preset_id} className={selectedPresetId === item.preset_id ? 'selected' : ''} onClick={() => setSelectedPresetId(item.preset_id)}><strong>v{item.version} · {item.specification.name}</strong><span>{presetGeography(item.specification)} · {item.specification.age_min}–{item.specification.age_max} · {item.specification.gender}</span><code>{short(item.specification_sha256)}</code></button>)}</div>}
+      {!presetOpen && <div className="ads-preset-list">{workspace.presets.map(item => <button key={item.preset_id} className={selectedPresetId === item.preset_id ? 'selected' : ''} onClick={() => setSelectedPresetId(item.preset_id)}><strong>v{item.version} · {item.specification.name}</strong><span>{presetGeography(item.specification)} · {item.specification.age_min}–{item.specification.age_max} · {item.specification.gender}</span><span>{tr('Daily', 'На день')}: {budgetLabel(item.specification.daily_budget_minor, accountCurrency, language)}{minimumDailyBudget && item.specification.daily_budget_minor < minimumDailyBudget ? ` · ${tr('below Meta minimum', 'нижче мінімуму Meta')}` : ''}</span><code>{short(item.specification_sha256)}</code></button>)}</div>}
     </section>
 
     <section className="panel ads-history">
       <div className="ads-section-title"><div><small>{tr('APPEND-ONLY HISTORY', 'APPEND-ONLY ІСТОРІЯ')}</small><h2>{tr('Staging deployments', 'Staging deployments')}</h2></div>{workspace.ads_manager_url && <a className="secondary" href={workspace.ads_manager_url} target="_blank" rel="noreferrer">Ads Manager <ExternalLink /></a>}</div>
-      {workspace.deployments.length === 0 ? <p>{tr('No deployment has been staged for this Project.', 'Для цього Project ще немає staging deployment.')}</p> : <div className="ads-deployment-list">{workspace.deployments.map(item => <article key={item.deployment_id} className={`ads-deployment is-${item.status}`}><header><div><strong>Post v{item.source_version}</strong><code>{short(item.deployment_id)}</code></div><span>{runningStates.has(item.status) && <RefreshCcw className="spin" />}{item.status === 'staged' ? tr('Created in Meta', 'Створено в Meta') : item.status}</span></header><dl><div><dt>Campaign</dt><dd>{short(item.meta_campaign_id)} · {objectStatus(item.status_snapshot?.campaign)}</dd></div><div><dt>Ad Set</dt><dd>{short(item.meta_ad_set_id)} · {objectStatus(item.status_snapshot?.ad_set)}</dd></div><div><dt>Creative</dt><dd>{short(item.meta_creative_id)}</dd></div><div><dt>Ad</dt><dd>{short(item.meta_ad_id)} · {objectStatus(item.status_snapshot?.ad)}</dd></div></dl>{workspace.recommendations?.[item.deployment_id]?.[0] && <p>{tr('7-day recommendation', 'Рекомендація за 7 днів')}: <strong>{workspace.recommendations[item.deployment_id][0].record.status}</strong></p>}{item.error?.error_message && <p role="alert">{item.error.error_message}</p>}<footer>{item.ads_manager_url && <a className="secondary" href={item.ads_manager_url} target="_blank" rel="noreferrer">{tr('Open in Ads Manager', 'Відкрити в Ads Manager')}</a>}{item.status === 'failed' && <button className="secondary" disabled={busy} onClick={() => void deploymentAction(item, 'retry')}><RotateCcw />{tr('Retry safely', 'Безпечно повторити')}</button>}{item.status === 'staged' && <><button className="secondary" disabled={busy} onClick={() => void deploymentAction(item, 'sync')}><RefreshCcw />{tr('Sync status', 'Синхронізувати статус')}</button><button className="secondary" disabled={busy} onClick={() => void proposeControl(item, 'activate')}>{tr('Activate with confirmation', 'Активувати з підтвердженням')}</button><button className="secondary" disabled={busy} onClick={() => void proposeControl(item, 'pause')}>{tr('Pause with confirmation', 'Пауза з підтвердженням')}</button><label>{tr('Daily budget', 'Денний бюджет')}<input type="number" min="1" value={budgetDraft[item.deployment_id] || ''} onChange={event => setBudgetDraft(current => ({ ...current, [item.deployment_id]: event.target.value }))} /></label><button className="secondary" disabled={busy || !budgetDraft[item.deployment_id]} onClick={() => void proposeControl(item, 'set_budget')}>{tr('Review budget change', 'Перевірити зміну бюджету')}</button><label>{tr('Start (local time)', 'Початок (місцевий час)')}<input type="datetime-local" value={scheduleDraft[item.deployment_id]?.start || ''} onChange={event => setScheduleDraft(current => ({ ...current, [item.deployment_id]: { start: event.target.value, end: current[item.deployment_id]?.end || '' } }))} /></label><label>{tr('End (local time)', 'Кінець (місцевий час)')}<input type="datetime-local" value={scheduleDraft[item.deployment_id]?.end || ''} onChange={event => setScheduleDraft(current => ({ ...current, [item.deployment_id]: { start: current[item.deployment_id]?.start || '', end: event.target.value } }))} /></label><button className="secondary" disabled={busy || !(scheduleDraft[item.deployment_id]?.start || scheduleDraft[item.deployment_id]?.end)} onClick={() => void proposeControl(item, 'set_schedule')}>{tr('Review schedule change', 'Перевірити зміну розкладу')}</button><button className="secondary" disabled={busy} onClick={() => void refreshInsights(item)}>{tr('Refresh 7-day results', 'Оновити результати за 7 днів')}</button></>}</footer></article>)}</div>}
+      {workspace.deployments.length === 0 ? <p>{tr('No deployment has been staged for this Project.', 'Для цього Project ще немає staging deployment.')}</p> : <div className="ads-deployment-list">{workspace.deployments.map(item => <article key={item.deployment_id} className={`ads-deployment is-${item.status}`}><header><div><strong>Post v{item.source_version}</strong><code>{short(item.deployment_id)}</code></div><span>{runningStates.has(item.status) && <RefreshCcw className="spin" />}{item.status === 'staged' ? tr('Created in Meta', 'Створено в Meta') : item.status}</span></header><dl><div><dt>Campaign</dt><dd>{short(item.meta_campaign_id)} · {objectStatus(item.status_snapshot?.campaign)}</dd></div><div><dt>Ad Set</dt><dd>{short(item.meta_ad_set_id)} · {objectStatus(item.status_snapshot?.ad_set)}</dd></div><div><dt>{tr('Approved image', 'Затверджене зображення')}</dt><dd>{item.meta_image_hash ? tr('Uploaded to Meta', 'Завантажено в Meta') : tr('Not uploaded', 'Не завантажено')} · <code>{short(item.render_sha256)}</code></dd></div><div><dt>Creative</dt><dd>{short(item.meta_creative_id)}</dd></div><div><dt>Ad</dt><dd>{short(item.meta_ad_id)} · {objectStatus(item.status_snapshot?.ad)}</dd></div>{item.specification.landing?.canonical_url && <div><dt>Landing</dt><dd><a href={item.specification.landing.canonical_url} target="_blank" rel="noreferrer">{item.specification.landing.canonical_url}</a></dd></div>}</dl>{workspace.recommendations?.[item.deployment_id]?.[0] && <p>{tr('7-day recommendation', 'Рекомендація за 7 днів')}: <strong>{workspace.recommendations[item.deployment_id][0].record.status}</strong></p>}{item.error?.error_message && <p role="alert">{isBudgetTooLow(item) && minimumDailyBudget ? tr(`The saved budget is below Meta's current minimum of ${budgetLabel(minimumDailyBudget, accountCurrency, language)}. Prepare a new preset; do not retry this unchanged request.`, `Збережений бюджет нижче поточного мінімуму Meta ${budgetLabel(minimumDailyBudget, accountCurrency, language)}. Підготуйте новий пресет; не повторюйте цей незмінений запит.`) : item.error.error_message}</p>}<footer>{item.ads_manager_url && <a className="secondary" href={item.ads_manager_url} target="_blank" rel="noreferrer">{item.meta_ad_id ? tr('Open created PTW Ad', 'Відкрити створену PTW-рекламу') : tr('Open created Meta objects', 'Відкрити створені об’єкти Meta')}</a>}{item.status === 'failed' && (isBudgetTooLow(item) && minimumDailyBudget ? <button className="secondary" disabled={busy} onClick={() => prepareCompliantPreset(item.specification.preset)}>{tr('Prepare higher-budget preset', 'Підготувати пресет із вищим бюджетом')}</button> : <button className="secondary" disabled={busy} onClick={() => void deploymentAction(item, 'retry')}><RotateCcw />{tr('Retry safely', 'Безпечно повторити')}</button>)}{item.status === 'staged' && <><button className="secondary" disabled={busy} onClick={() => void deploymentAction(item, 'sync')}><RefreshCcw />{tr('Sync status', 'Синхронізувати статус')}</button><button className="secondary" disabled={busy} onClick={() => void proposeControl(item, 'activate')}>{tr('Activate with confirmation', 'Активувати з підтвердженням')}</button><button className="secondary" disabled={busy} onClick={() => void proposeControl(item, 'pause')}>{tr('Pause with confirmation', 'Пауза з підтвердженням')}</button><label>{tr('Daily budget', 'Денний бюджет')}<input type="number" min={minimumDailyBudget || 1} value={budgetDraft[item.deployment_id] || ''} onChange={event => setBudgetDraft(current => ({ ...current, [item.deployment_id]: event.target.value }))} /></label><button className="secondary" disabled={busy || !budgetDraft[item.deployment_id]} onClick={() => void proposeControl(item, 'set_budget')}>{tr('Review budget change', 'Перевірити зміну бюджету')}</button><label>{tr('Start (local time)', 'Початок (місцевий час)')}<input type="datetime-local" value={scheduleDraft[item.deployment_id]?.start || ''} onChange={event => setScheduleDraft(current => ({ ...current, [item.deployment_id]: { start: event.target.value, end: current[item.deployment_id]?.end || '' } }))} /></label><label>{tr('End (local time)', 'Кінець (місцевий час)')}<input type="datetime-local" value={scheduleDraft[item.deployment_id]?.end || ''} onChange={event => setScheduleDraft(current => ({ ...current, [item.deployment_id]: { start: current[item.deployment_id]?.start || '', end: event.target.value } }))} /></label><button className="secondary" disabled={busy || !(scheduleDraft[item.deployment_id]?.start || scheduleDraft[item.deployment_id]?.end)} onClick={() => void proposeControl(item, 'set_schedule')}>{tr('Review schedule change', 'Перевірити зміну розкладу')}</button><button className="secondary" disabled={busy} onClick={() => void refreshInsights(item)}>{tr('Refresh 7-day results', 'Оновити результати за 7 днів')}</button></>}</footer></article>)}</div>}
     </section>
   </div>
 }

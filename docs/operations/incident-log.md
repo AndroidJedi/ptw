@@ -1,6 +1,46 @@
 # PTW incident log
 
-Updated: 2026-09-13
+Updated: 2026-09-14
+
+## 2026-09-14 — Meta Ads request appeared to loop and created only a Campaign
+
+The owner clicked `Create PAUSED campaign structure` for a Website ad and saw
+repeated Project workspace requests without nearby completion or failure
+feedback. Ads Manager showed a generic `New Traffic Ad` with no image or Website
+URL. The staging POST did return HTTP 202 and persisted its immutable request,
+but the latest deployment failed while creating the Ad Set. PTW created one
+PAUSED Campaign and no Ad Set, image hash, Creative, or Ad; the approved render
+and frozen Landing URL remained present in PTW authority.
+
+The provider failure was Meta HTTP 400, code `100`, subcode `1885272`. The saved
+preset used `200` UAH minor units (₴2.00), while the live Ad Account exposed a
+minimum of `4491` (₴44.91). Exact non-mutating `validate_only` calls against the
+same Ad Set shape failed below `4491` and passed at `4491`. Because execution
+stopped before image upload, the blank generic Ads Manager draft was unrelated
+to the PTW lineage and could not contain the approved image or Landing URL.
+
+The apparent loop was a separate client defect. The Project workspace took
+roughly 2.4–7.8 seconds while the UI started another request every 2.5 seconds;
+each new request invalidated the prior response, so terminal status could be
+discarded indefinitely. Production logs showed 115 successful CORS preflights,
+five successful workspace GETs, and one successful staging POST in the observed
+window.
+
+The verified candidate serializes polling, coalesces same-Project refreshes,
+accepts completed responses, and reuses the verified connection during quiet
+polls. It keeps the latest result visible at the top, collapses healthy setup
+diagnostics, reviews the selected image/Landing/audience before the click, and
+shows Campaign, Ad Set, image, Creative, and Ad as five visible steps with one
+next action; technical IDs and digests remain available secondarily.
+It reads the account's live minimum, labels currency and minor units, blocks a
+low preset before reservation, offers a new compliant immutable preset, maps
+subcode `1885272` to that safe action, and suppresses unchanged retries. Exact
+Meta links now select the deepest created PTW object instead of opening only a
+generic manual workspace. Full affected domain/Gateway/Commander/web suites,
+six desktop/mobile/WebKit flows, both disposable database journeys, the Owner
+build, and skill/compile/whitespace checks pass. The candidate is not deployed;
+the existing campaign remains PAUSED, and no retry, activation, data deletion,
+or spend change occurred.
 
 ## 2026-09-13 — Performance-learning schema rejected before model execution
 

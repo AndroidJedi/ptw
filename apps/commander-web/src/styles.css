@@ -507,6 +507,9 @@ button svg { width: 17px; height: 17px; }
 .ads-console-link svg { width: 14px; height: 14px; flex: 0 0 auto; }
 .ads-compose-grid { display: grid; grid-template-columns: minmax(210px, .34fr) minmax(0, 1fr); gap: 14px; align-items: start; }
 .ads-section-title { margin-bottom: 13px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ads-setup > summary { margin-bottom: 0; cursor: pointer; list-style: none; }
+.ads-setup > summary::-webkit-details-marker { display: none; }
+.ads-setup[open] > summary { margin-bottom: 13px; }
 .ads-section-title h2 { margin: 4px 0 0; }
 .ads-section-title > span { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; font-size: 10px; }
 .ads-section-title > svg { width: 24px; }
@@ -536,6 +539,46 @@ button svg { width: 17px; height: 17px; }
 .ads-fixed { display: flex; flex-wrap: wrap; gap: 6px; }
 .ads-fixed span { padding: 6px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--soft); font-size: 8px; }
 .ads-editor > .primary { width: 100%; }
+.ads-current-status { min-width: 0; padding: 13px 15px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-left: 4px solid var(--white); border-radius: 10px; color: var(--white); background: #111; text-decoration: none; }
+.ads-current-status.is-failed { border-left-style: double; }
+.ads-current-status > span:first-child { min-width: 0; display: grid; gap: 4px; }
+.ads-current-status small { color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .12em; }
+.ads-current-status strong { font-size: 11px; line-height: 1.4; }
+.ads-current-status > span:last-child { flex: 0 0 auto; color: var(--soft); font-size: 9px; }
+.ads-request-review { padding: 11px; display: grid; gap: 9px; border: 1px solid var(--line); border-radius: 10px; background: #111; }
+.ads-request-review > small { color: var(--muted); font-size: 8px; font-weight: 900; letter-spacing: .12em; }
+.ads-request-review dl { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ads-request-review dl > div { min-width: 0; padding: 8px; display: grid; gap: 4px; border: 1px solid #242424; border-radius: 8px; }
+.ads-request-review dt { color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.ads-request-review dd { min-width: 0; margin: 0; display: flex; align-items: center; gap: 5px; color: var(--white); font-size: 9px; overflow-wrap: anywhere; }
+.ads-request-review dd svg { width: 13px; height: 13px; flex: 0 0 auto; }
+.ads-request-review a { color: inherit; overflow-wrap: anywhere; }
+.ads-stage-feedback { padding: 14px; display: grid; gap: 12px; border: 1px solid var(--line); border-radius: 10px; background: #0d0d0d; scroll-margin-top: 16px; }
+.ads-stage-feedback.is-staged { border-color: #777; }
+.ads-stage-feedback.is-failed { border-style: dashed; }
+.ads-stage-feedback strong { font-size: 10px; }
+.ads-stage-feedback p, .ads-stage-feedback small { margin: 0; color: var(--soft); font-size: 9px; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
+.ads-stage-feedback .secondary { width: fit-content; max-width: 100%; min-height: 34px; text-decoration: none; }
+.ads-stage-heading { display: flex; align-items: flex-start; gap: 9px; }
+.ads-stage-heading > svg { width: 20px; height: 20px; flex: 0 0 auto; }
+.ads-stage-heading > span { display: grid; gap: 4px; }
+.ads-stage-heading small { font-weight: 900; letter-spacing: .12em; }
+.ads-stage-heading strong { font-size: 12px; line-height: 1.35; }
+.ads-creation-progress { margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; list-style: none; }
+.ads-creation-progress li { min-width: 0; padding: 8px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px; align-items: start; border: 1px solid #242424; border-radius: 8px; opacity: .55; }
+.ads-creation-progress li.is-complete, .ads-creation-progress li.is-active, .ads-creation-progress li.is-failed { opacity: 1; }
+.ads-creation-progress li.is-active { border-color: #777; }
+.ads-creation-progress li.is-failed { border-style: dashed; }
+.ads-creation-progress li > span:last-child { min-width: 0; display: grid; gap: 3px; }
+.ads-creation-progress li strong { font-size: 9px; }
+.ads-creation-progress li small { font-size: 8px; }
+.ads-step-marker { width: 20px; height: 20px; display: grid; place-items: center; border: 1px solid #444; border-radius: 50%; color: var(--soft); font-size: 8px; }
+.ads-step-marker svg { width: 12px; height: 12px; }
+.ads-next-action { padding: 9px; border-left: 3px solid #777; background: #151515; }
+.ads-stage-feedback details { padding-top: 2px; color: var(--muted); font-size: 9px; }
+.ads-stage-feedback details summary { cursor: pointer; }
+.ads-stage-feedback details small { margin-top: 7px; display: block; }
+.ads-stage-feedback details a { margin-top: 5px; display: block; color: var(--soft); overflow-wrap: anywhere; }
 .ads-preset-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: end; }
 .ads-preset-form .primary { min-height: 42px; }
 .ads-city-targeting { grid-column: 1 / -1; display: grid; gap: 9px; }
@@ -672,13 +715,15 @@ button svg { width: 17px; height: 17px; }
   .studio-tune-actions button { width: 100%; }
   .ads-header { align-items: stretch; flex-direction: column; }
   .ads-safety { min-width: 0; }
-  .ads-connection-grid, .ads-setup-grid, .ads-compose-grid, .ads-fields, .ads-preset-form, .ads-city-search { grid-template-columns: 1fr; }
+  .ads-connection-grid, .ads-setup-grid, .ads-compose-grid, .ads-fields, .ads-preset-form, .ads-city-search, .ads-request-review dl { grid-template-columns: 1fr; }
   .ads-selected-cities article { grid-template-columns: minmax(0, 1fr) auto; }
   .ads-selected-cities article > label { grid-column: 1 / -1; grid-row: 2; }
   .ads-selected-cities article > .icon-button { grid-column: 2; grid-row: 1; }
   .ads-console-grid { grid-template-columns: 1fr; }
   .ads-fields label:nth-child(2), .ads-fields label:nth-child(3) { grid-column: auto; }
   .ads-deployment-list { grid-template-columns: 1fr; }
+  .ads-creation-progress { grid-template-columns: 1fr; }
+  .ads-current-status { align-items: flex-start; flex-direction: column; }
   .ads-section-title { align-items: flex-start; }
   .ads-section-title > .secondary { min-height: 36px; padding: 7px 9px; }
   .analytics-header { align-items: stretch; flex-direction: column; }

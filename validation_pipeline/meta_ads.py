@@ -229,8 +229,16 @@ class MetaAdsProviderError(RuntimeError):
         super().__init__(f"{outcome}. Check the Meta connection and retry from Ads.{f' ({context})' if context else ''}")
 
     def record(self) -> dict[str, Any]:
+        message = str(self)[:1000]
+        if self.error_subcode == "1885272":
+            message = (
+                "Meta Ad Set was not created because the reviewed daily budget is below "
+                "Meta's current minimum. Create and select a higher immutable audience "
+                "preset, then create the PAUSED structure again. "
+                "(code=100, subcode=1885272)"
+            )
         return {
-            "error_type": type(self).__name__, "error_message": str(self)[:1000],
+            "error_type": type(self).__name__, "error_message": message,
             "provider_context": {
                 "http_status": self.status_code, "code": self.error_code,
                 "subcode": self.error_subcode, "transient": self.transient,
@@ -307,7 +315,7 @@ class MetaAdsAdapter:
         )
         account = self._call(
             "GET", self.account_node,
-            params={"fields": "id,name,currency,timezone_name,account_status,disable_reason"},
+            params={"fields": "id,name,currency,timezone_name,account_status,disable_reason,min_daily_budget"},
             outcome="Meta ad account verification failed",
         )
         pages_value = self._call(
@@ -351,9 +359,19 @@ class MetaAdsAdapter:
                                    and str(item.get("id")) == self.configuration.pixel_id), None)
             if selected_pixel is None:
                 raise MetaAdsProviderError("Configured Meta Pixel is not assigned to this ad account")
+        minimum_daily_budget = account.get("min_daily_budget")
+        try:
+            minimum_daily_budget = int(str(minimum_daily_budget))
+        except (TypeError, ValueError):
+            minimum_daily_budget = None
+        if minimum_daily_budget is not None and minimum_daily_budget < 1:
+            minimum_daily_budget = None
         return {
             "configured": True, "verified": True, "graph_version": self.configuration.graph_version,
-            "account": {key: account.get(key) for key in ("id", "name", "currency", "timezone_name", "account_status")},
+            "account": {
+                **{key: account.get(key) for key in ("id", "name", "currency", "timezone_name", "account_status")},
+                "minimum_daily_budget_minor": minimum_daily_budget,
+            },
             "page": {"id": self.configuration.page_id, "name": selected_page.get("name")},
             "instagram": {"id": self.configuration.instagram_actor_id, "username": selected_ig.get("username")},
             "pixel": None if selected_pixel is None else {
@@ -628,9 +646,20 @@ class MetaAdsAdapter:
         item = next((entry for entry in result.get("data", []) if isinstance(entry, Mapping)), {})
         return {key: item.get(key) for key in ("spend", "impressions", "reach", "clicks", "ctr", "cpc", "cpm", "actions", "cost_per_action_type")}
 
-    def ads_manager_url(self, campaign_id: str | None = None) -> str:
-        base = f"https://adsmanager.facebook.com/adsmanager/manage/campaigns?act={quote(self.configuration.ad_account_id)}"
-        return base if not campaign_id else f"{base}&selected_campaign_ids={quote(str(campaign_id))}"
+    def ads_manager_url(
+        self, campaign_id: str | None = None, ad_set_id: str | None = None,
+        ad_id: str | None = None,
+    ) -> str:
+        level = "ads" if ad_id else "adsets" if ad_set_id else "campaigns"
+        base = f"https://adsmanager.facebook.com/adsmanager/manage/{level}?act={quote(self.configuration.ad_account_id)}"
+        selected = (
+            ("selected_campaign_ids", campaign_id),
+            ("selected_adset_ids", ad_set_id),
+            ("selected_ad_ids", ad_id),
+        )
+        return base + "".join(
+            f"&{name}={quote(str(identifier))}" for name, identifier in selected if identifier
+        )
 
 
 class LocalMetaAdsAuthority:
@@ -1290,15 +1319,20 @@ class MetaAdsService:
     def workspace(self, project_id: str) -> dict[str, Any]:
         project = self.authority.project(_uuid(project_id, "project_id"))
         experiment = self.authority.get_experiment(project_id)
-        deployments = [
-            {
+        deployments = []
+        for item in self.authority.list_deployments(project_id):
+            audience = self.authority.get_audience(item["audience_id"])
+            item_experiment = self.authority.get_experiment(project_id, item["experiment_id"]) or {}
+            campaign_id = item_experiment.get("meta_campaign_id")
+            ad_set_id = audience.get("meta_ad_set_id")
+            deployments.append({
                 **item,
-                "meta_ad_set_id": self.authority.get_audience(item["audience_id"]).get("meta_ad_set_id"),
-                "meta_campaign_id": (self.authority.get_experiment(project_id, item["experiment_id"]) or {}).get("meta_campaign_id"),
-                "ads_manager_url": self.adapter.ads_manager_url((self.authority.get_experiment(project_id, item["experiment_id"]) or {}).get("meta_campaign_id")) if self.adapter else None,
-            }
-            for item in self.authority.list_deployments(project_id)
-        ]
+                "meta_ad_set_id": ad_set_id,
+                "meta_campaign_id": campaign_id,
+                "ads_manager_url": self.adapter.ads_manager_url(
+                    campaign_id, ad_set_id, item.get("meta_ad_id"),
+                ) if self.adapter else None,
+            })
         if self.adapter is not None:
             manager_url = self.adapter.ads_manager_url(None if experiment is None else experiment.get("meta_campaign_id"))
         else:
@@ -1513,6 +1547,17 @@ class MetaAdsService:
         artifact = self._artifact(project_id, creative_id, version)
         record, rendered = artifact["record"], artifact["rendered"]
         preset = self.authority.get_preset(_uuid(request["preset_id"], "preset_id"))
+        account = connection.get("account") or {}
+        minimum_daily_budget = account.get("minimum_daily_budget_minor")
+        if (isinstance(minimum_daily_budget, int) and not isinstance(minimum_daily_budget, bool)
+                and preset["specification"]["daily_budget_minor"] < minimum_daily_budget):
+            currency = str(account.get("currency") or "account currency")
+            raise ValueError(
+                "Selected audience preset daily budget "
+                f"({preset['specification']['daily_budget_minor']} minor units) is below "
+                f"Meta's current minimum ({minimum_daily_budget} minor units, {currency}). "
+                "Create and select a new immutable preset at or above that minimum."
+            )
         categories = _categories(request["special_ad_categories"])
         deployment_id = new_uuid7()
         specification = {

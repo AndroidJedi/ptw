@@ -26,7 +26,7 @@ discarded indefinitely. Production logs showed 115 successful CORS preflights,
 five successful workspace GETs, and one successful staging POST in the observed
 window.
 
-The verified candidate serializes polling, coalesces same-Project refreshes,
+The deployed correction serializes polling, coalesces same-Project refreshes,
 accepts completed responses, and reuses the verified connection during quiet
 polls. It keeps the latest result visible at the top, collapses healthy setup
 diagnostics, reviews the selected image/Landing/audience before the click, and
@@ -37,10 +37,20 @@ low preset before reservation, offers a new compliant immutable preset, maps
 subcode `1885272` to that safe action, and suppresses unchanged retries. Exact
 Meta links now select the deepest created PTW object instead of opening only a
 generic manual workspace. Full affected domain/Gateway/Commander/web suites,
-six desktop/mobile/WebKit flows, both disposable database journeys, the Owner
-build, and skill/compile/whitespace checks pass. The candidate is not deployed;
-the existing campaign remains PAUSED, and no retry, activation, data deletion,
-or spend change occurred.
+all 84 desktop/mobile/WebKit flows, both disposable database journeys, the Owner
+build, and skill/compile/whitespace checks pass.
+
+The first preserving pass accepted the Validation image after nine fresh bridge
+and media canaries plus Pexels, dependency, resource, authority, and approved-
+Post checks, but correctly withheld Firebase Hosting when the full Ads browser
+test retained an obsolete blocked-setup heading. The follow-up keeps unavailable
+setup expanded as **What is still needed** while healthy setup remains collapsed
+as **Meta setup**. The complete browser gate passed and Owner Hosting version
+`66a5b23c6fa82191` is live with cache v11. Live bundle, Gateway, authentication,
+private-route, and CORS audits pass. The accepted revision is `bb51985`; all
+three historical deployment rows predate the release, the existing Campaign
+remains PAUSED, no Ad Set/image/Creative/Ad exists for the latest request, and no
+retry, control action, activation, data deletion, or spend change occurred.
 
 ## 2026-09-13 — Performance-learning schema rejected before model execution
 

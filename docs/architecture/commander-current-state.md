@@ -2,17 +2,18 @@
 
 Updated: 2026-09-14
 Branch: `incident/meta-ads-feedback-20260914`
-Deployment: The Meta Ads feedback/budget correction is a verified local
-candidate and is not deployed. Analytics, reviewed Creative Skills, modular social publishing, and
+Deployment: The Meta Ads feedback/budget correction is live and accepted.
+Analytics, reviewed Creative Skills, modular social publishing, and
 the companion multimodal bridge are live and accepted. Commander, Validation,
-Owner Gateway, and all three bridge services use release
-`analytics-learning-20260913-7a07925`; hosted GOD/Plan/release remain on their
-compatible accepted images. Owner cache v10 and the public Landing shell are
+Owner Gateway, and all three bridge services retain their compatible accepted
+images except Validation, which uses
+`meta-ads-feedback-20260914-e5e47b4`; hosted GOD/Plan/release remain on their
+compatible accepted images. Owner cache v11 and the public Landing shell are
 live. The accepted marker and production checkout identify PTW revision
-`7a07925b99930f5bb284b061d2ac0b61b80291f9`; the companion platform checkout
+`bb519856c809cf4b820e51524eb36ebf69484544`; the companion platform checkout
 identifies `fc2dfccc7989aafa1a95b07f76303334eee20ab3`.
 
-## Meta Ads creation feedback and live budget guard — verified candidate
+## Meta Ads creation feedback and live budget guard — live and accepted
 
 Production diagnosis for the Natal Website request found one PAUSED Campaign,
 then an Ad Set failure with Meta code `100`, subcode `1885272`. The immutable
@@ -37,10 +38,26 @@ shows the exact image, Landing, audience, and PAUSED safety contract; and a
 five-step tracker gives one next action while keeping IDs/digests secondary.
 Local verification passes 279 Validation tests, 14 Gateway tests, 40 Commander
 tests with five expected isolated-container skips plus the demo, 103 Owner web
-tests and the production build, six affected desktop/360px/WebKit browser flows,
+tests and the production build, all 84 desktop/360px/WebKit browser flows,
 both disposable PostgreSQL journeys, Python compilation, the canonical skill
-verifier, and whitespace checks. Production remains on the accepted release;
-no deployment, retry, activation, or spend change has been made.
+verifier, and whitespace checks.
+
+The first preserving pass replaced only Validation and passed fresh bridge jobs
+855–863 on attempt 1, Pexels, dependencies, resources, authority preservation,
+and approved-Post access. The outer publisher correctly withheld Owner Hosting
+because one full-suite Ads test still expected the prior blocked-setup heading.
+The correction keeps unavailable setup expanded as **What is still needed** and
+healthy setup collapsed as **Meta setup**. The complete 84-case browser gate then
+passed; the second preserving pass reused every container and published Owner
+Hosting version `66a5b23c6fa82191`. The live audit resolves entry bundle
+`index-CI89oYRI.js`, App bundle `App-BKfd4HLT.js`, cache v11, Gateway health,
+private-route rejection, CORS, and the required UI contract.
+
+Production PostgreSQL retains all three historical Meta deployment requests; the
+latest remains the original 2026-09-14 08:33 UTC failure. Campaign
+`120251775220490671` remains PAUSED, and the request still has no Ad Set, image
+hash, Creative, or Ad. No Meta deployment/control record was added during the
+release, and no retry, activation, data deletion, or spend change occurred.
 
 ## Analytics-driven Creative Skills — live and accepted
 

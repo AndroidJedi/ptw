@@ -31,6 +31,19 @@ completion remains blocked until the owner changes **PTW Local Ads** to Live;
 no retry, activation, spend change, or duplicate Meta object was performed
 during diagnosis.
 
+The preserving release accepted PTW revision
+`31ff9ab127f610000c2766a96dcdfb8824a97a20`, Validation image
+`meta-creative-recovery-20260914-9ca2243`, and Firebase Hosting version
+`176cfad6c2db2878` with Owner cache v14. The backend passed all 281 tests in the
+real Linux/amd64 Validation image plus the live bridge/media and Pexels canaries;
+the Owner Console passed 104 component tests and all 87 desktop/mobile/WebKit
+browser flows. A compatibility guard recognizes the exact legacy saved
+reconciliation error even though its persisted provider context predates the
+later `1885183` validation, so the current deployment shows the Live-mode action
+without mutating history. Post-release reads confirmed exactly three stage
+records, zero retry/control records, no Creative/Ad ID, and provider status
+`PAUSED`/`PAUSED` for both saved parent objects.
+
 ## 2026-09-14 — Meta Ads request appeared to loop and created only a Campaign
 
 The owner clicked `Create PAUSED campaign structure` for a Website ad and saw

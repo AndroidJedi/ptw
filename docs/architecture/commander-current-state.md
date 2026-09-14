@@ -2,18 +2,20 @@
 
 Updated: 2026-09-14
 Branch: `incident/meta-ads-feedback-20260914`
-Deployment: The Meta Ads feedback/budget correction is live and accepted.
+Deployment: The Meta Creative reconciliation and app-mode UI correction is live
+and accepted; real Creative/Ad completion waits only on the owner switching the
+Meta app to Live.
 Analytics, reviewed Creative Skills, modular social publishing, and
 the companion multimodal bridge are live and accepted. Commander, Validation,
 Owner Gateway, and all three bridge services retain their compatible accepted
 images except Validation, which uses
-`meta-ads-feedback-20260914-e5e47b4`; hosted GOD/Plan/release remain on their
-compatible accepted images. Owner cache v11 and the public Landing shell are
+`meta-creative-recovery-20260914-9ca2243`; hosted GOD/Plan/release remain on
+their compatible accepted images. Owner cache v14 and the public Landing shell are
 live. The accepted marker and production checkout identify PTW revision
-`bb519856c809cf4b820e51524eb36ebf69484544`; the companion platform checkout
+`31ff9ab127f610000c2766a96dcdfb8824a97a20`; the companion platform checkout
 identifies `fc2dfccc7989aafa1a95b07f76303334eee20ab3`.
 
-## Meta Creative reconciliation and app-mode guard — release candidate
+## Meta Creative reconciliation and app-mode guard — live and accepted
 
 The owner's next Website deployment reached Creative after creating PAUSED
 Campaign `120251775220490671`, PAUSED Ad Set `120251776379740671`, and uploading
@@ -23,7 +25,7 @@ Campaign-style exact-name `filtering` expression on the Ad Account's
 succeeds with no matching PTW Creative while the filtered edge returns HTTP
 400/code `100`; Campaign, Ad Set, and Ad filters remain accepted.
 
-The candidate reconciles Creative names across bounded cursor pages without
+The deployed adapter reconciles Creative names across bounded cursor pages without
 using Meta's full credential-bearing next URL, retains duplicate detection, and
 adds a production-shaped regression that rejects the old filter and exercises
 the complete Website staging path through a final PAUSED Ad. The exact saved
@@ -37,6 +39,17 @@ forces installed consoles to load that corrected action.
 Production retry and real Creative/Ad readback must wait until the owner switches
 the Meta app to Live. The existing Campaign and Ad Set remain provider-verified
 PAUSED, the image hash remains saved, and no activation or spend occurred.
+
+The preserving release accepted Validation image
+`meta-creative-recovery-20260914-9ca2243` after all 281 tests in its real
+Linux/amd64 image, nine live bridge/media jobs, Pexels, dependency, resource,
+authority, approved-Post, and one-GB server audits. The final UI release
+`meta-creative-ui-final-20260914-31ff9ab` published Firebase Hosting version
+`176cfad6c2db2878`; 104 component tests and all 87 desktop/360px/WebKit browser
+flows passed. Live audit confirmed entry `index-DOiPzgwa.js`, app
+`App-D27qEzyf.js`, cache v14, healthy Gateway, protected-route 401s, and CORS.
+The saved deployment still has exactly three stage records, no retry/control
+record, no Creative/Ad ID, and the same uploaded image hash.
 
 ## Meta Ads creation feedback and live budget guard — live and accepted
 

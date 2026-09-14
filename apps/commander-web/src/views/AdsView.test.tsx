@@ -181,6 +181,33 @@ it('shows the live Meta budget minimum and prepares a compliant immutable preset
   })))
 })
 
+it('explains the Meta app mode blocker and retries only after the owner confirms Live mode', async () => {
+  const workspace = fixture()
+  workspace.deployments = [{
+    ...deployment('failed'),
+    meta_campaign_id: 'campaign-1', meta_ad_set_id: 'adset-1', meta_image_hash: 'image-hash',
+    error: {
+      error_message: 'Meta adcreatives reconciliation failed.',
+      provider_context: { http_status: 400, code: '100', subcode: '1885183', transient: false },
+    },
+  }]
+  const { api, post } = apiFor(workspace)
+  render(<AdsView api={api} language="en" projectId={projectId} />)
+
+  expect(await screen.findAllByText('Creation stopped at Creative. Nothing was activated.')).toHaveLength(2)
+  expect(screen.getByText(/PTW Local Ads app is still in Development mode/)).toBeVisible()
+  expect(screen.getByText(/switch PTW Local Ads from Development to Live/)).toBeVisible()
+  expect(screen.getByRole('link', { name: /Open Meta app dashboard/ })).toHaveAttribute(
+    'href', 'https://developers.facebook.com/apps/',
+  )
+  expect(screen.queryByRole('button', { name: 'Retry safely' })).not.toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: 'App is Live — retry this deployment once' }))
+  await waitFor(() => expect(post).toHaveBeenCalledWith(
+    `/api/v1/ads/projects/${projectId}/deployments/55555555-5555-4555-8555-555555555555/retry`, {},
+  ))
+})
+
 it('serializes slow deployment polling and applies the completed response', async () => {
   vi.useFakeTimers()
   try {

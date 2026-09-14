@@ -78,6 +78,21 @@ before changing code or runtime state.
   do not reserve or retry it unchanged; require a new reviewed preset version at
   or above the current minimum. Preserve any PAUSED Campaign already created as
   incident evidence.
+- Graph API v26 can accept exact-name `filtering` on Campaign, Ad Set, and Ad
+  edges while rejecting the same expression on the Ad Account's `adcreatives`
+  edge with code `100`. Prove that distinction with read-only requests. Reconcile
+  creatives by scanning bounded pages and matching the complete PTW name
+  client-side; follow only the opaque `after` cursor, never Meta's full `next`
+  URL because it may contain a credential. Detect duplicate exact names across
+  every page before creating anything.
+- Treat code `100`, subcode `1885183` at Creative creation as the Meta app being
+  in Development mode. Campaign, Ad Set, image upload, and ordinary connection
+  reads can all succeed before this gate. Validate the exact saved Creative
+  payload with `execution_options=["validate_only"]`, show an App Dashboard →
+  switch to Live action, and suppress the generic retry wording. After the owner
+  confirms the app is Live, retry the same failed deployment once so it reuses
+  the saved PAUSED parents and image; require Creative and Ad IDs plus PAUSED
+  provider readback before declaring the flow complete.
 - Status polling must be sequential and coalesced per Project. A workspace read
   can take longer than the polling cadence; do not invalidate a valid response
   merely because another timer fired, and do not repeat remote connection

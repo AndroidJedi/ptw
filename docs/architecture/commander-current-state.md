@@ -13,6 +13,31 @@ live. The accepted marker and production checkout identify PTW revision
 `bb519856c809cf4b820e51524eb36ebf69484544`; the companion platform checkout
 identifies `fc2dfccc7989aafa1a95b07f76303334eee20ab3`.
 
+## Meta Creative reconciliation and app-mode guard — release candidate
+
+The owner's next Website deployment reached Creative after creating PAUSED
+Campaign `120251775220490671`, PAUSED Ad Set `120251776379740671`, and uploading
+the exact approved image. It then failed because Graph API v26 rejects the
+Campaign-style exact-name `filtering` expression on the Ad Account's
+`adcreatives` edge. Read-only production calls proved that the unfiltered edge
+succeeds with no matching PTW Creative while the filtered edge returns HTTP
+400/code `100`; Campaign, Ad Set, and Ad filters remain accepted.
+
+The candidate reconciles Creative names across bounded cursor pages without
+using Meta's full credential-bearing next URL, retains duplicate detection, and
+adds a production-shaped regression that rejects the old filter and exercises
+the complete Website staging path through a final PAUSED Ad. The exact saved
+Creative payload also received a non-mutating provider validation. It exposed a
+separate external gate: code `100`, subcode `1885183`, because **PTW Local Ads**
+is still in Development mode. Backend and existing-history UI now explain the
+Meta App Dashboard → Live action and label the same-deployment retry explicitly;
+the generic retry is no longer presented for this condition. Owner cache v12
+forces installed consoles to load that corrected action.
+
+Production retry and real Creative/Ad readback must wait until the owner switches
+the Meta app to Live. The existing Campaign and Ad Set remain provider-verified
+PAUSED, the image hash remains saved, and no activation or spend occurred.
+
 ## Meta Ads creation feedback and live budget guard — live and accepted
 
 Production diagnosis for the Natal Website request found one PAUSED Campaign,

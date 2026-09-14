@@ -2,6 +2,35 @@
 
 Updated: 2026-09-14
 
+## 2026-09-14 — Website deployment reached image upload and stopped at Creative
+
+The owner's corrected Website request created and retained PAUSED Campaign
+`120251775220490671`, PAUSED Ad Set `120251776379740671`, and the exact approved
+image hash, then stopped before Creative and Ad creation. Deployment
+`01a09f65-28e3-7163-80b6-2b9a89471bb4` stored HTTP 400/code `100` from the
+Ad Account `adcreatives` reconciliation read. A read-only production
+differential proved Campaign, Ad Set, and Ad exact-name filters return HTTP 200,
+while the same filter on `adcreatives` returns HTTP 400; the unfiltered Creative
+edge returns HTTP 200 and contains no matching PTW name.
+
+The correction scans bounded Creative pages and matches the complete immutable
+PTW name client-side, following only opaque cursors so Meta's credential-bearing
+next URL is never reused or exposed. Production-like adapter tests now make a
+server-side Creative filter fail and cover later-page reconciliation plus the
+complete Website Campaign → Ad Set → approved image → Creative → PAUSED Ad
+path without duplicate provider writes.
+
+An exact non-mutating `validate_only` request for the saved Creative payload
+then exposed the independent provider gate: HTTP 400/code `100`, subcode
+`1885183`, classified from Meta's bounded fields as the issuing app remaining
+in Development mode. PTW now maps that subcode to the precise App Dashboard →
+Live instruction, shows it even for the already-persisted failure, and replaces
+the generic retry label with an explicit post-Live retry of the same deployment.
+That retry will reuse the saved Campaign, Ad Set, and image. Real Creative/Ad
+completion remains blocked until the owner changes **PTW Local Ads** to Live;
+no retry, activation, spend change, or duplicate Meta object was performed
+during diagnosis.
+
 ## 2026-09-14 — Meta Ads request appeared to loop and created only a Campaign
 
 The owner clicked `Create PAUSED campaign structure` for a Website ad and saw

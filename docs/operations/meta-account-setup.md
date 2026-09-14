@@ -116,6 +116,14 @@ including `business_management`, `pages_manage_ads`,
 permissions above. Analytics verifies `instagram_manage_insights` independently;
 an account may be publishing-ready while insights remain unavailable.
 
+Before generating the system-user token, switch **PTW Local Ads** from
+**Development** to **Live** in the Meta App Dashboard. Meta can allow connection
+checks, Campaign and Ad Set creation, and image upload while the app remains in
+Development, then reject Creative creation with code `100`, subcode `1885183`.
+Complete any App Dashboard requirements Meta shows for the Live switch, such as
+the app category and privacy-policy URL. This is the app publication switch,
+not permission to activate a PTW ad; PTW still creates every paid object PAUSED.
+
 ## 6. Generate the system-user token last
 
 Generate the token only after completing all asset assignments:
@@ -240,6 +248,7 @@ for the test or use a clean browser profile if Events Manager remains empty.
 | `Configured Meta Pixel is not available to this Ad Account` | The Pixel is not assigned to the selected Ad Account. | Connect Pixel `1056720310312959` to `509909256695612`. |
 | HTTP `403` for the Ad Account | Token scopes may be granted, but the system user lacks that specific asset. | Fix the asset assignment; do not switch to Crush Test merely because it is visible. |
 | HTTP `400` during Page verification | Meta can allow Page discovery while rejecting a direct Page lookup, or curl may expand braces. | Use the tracked helper, which verifies through `/me/accounts` and disables curl URL globbing. |
+| HTTP `400`, subcode `1885183`, at Creative | The app that issued the token is still in Development mode. Earlier Campaign, Ad Set, and image steps may already be complete. | Open the Meta App Dashboard, switch **PTW Local Ads** to **Live**, then retry the same failed PTW deployment once. Do not create another Campaign. |
 | Pixel network request appears but Test Events is empty | Consent, browser blocking, Meta filtering, or UI delay can hide the event. | Allow analytics, disable blockers, verify the exact Pixel ID in the network request, and retry in a clean browser. |
 
 ## Security and operating boundaries

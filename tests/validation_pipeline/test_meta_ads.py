@@ -62,7 +62,10 @@ class MetaAdsAdapterTests(unittest.TestCase):
                     {"key": "not-a-city", "name": "Ukraine", "type": "country", "country_code": "UA"},
                 ]})
             if request.method == "GET" and path.rsplit("/", 1)[-1] in {"campaigns", "adsets", "adcreatives", "ads"}:
-                return httpx.Response(200, json={"data": self.existing.get(path.rsplit("/", 1)[-1], [])})
+                edge = path.rsplit("/", 1)[-1]
+                if edge == "adcreatives" and "filtering" in request.url.params:
+                    return httpx.Response(400, json={"error": {"code": 100}})
+                return httpx.Response(200, json={"data": self.existing.get(edge, [])})
             if request.method == "POST" and path.endswith("/campaigns"):
                 return httpx.Response(200, json={"id": "campaign-1"})
             if request.method == "POST" and path.endswith("/adsets"):
@@ -193,6 +196,17 @@ class MetaAdsAdapterTests(unittest.TestCase):
         self.assertIn("higher immutable audience preset", record["error_message"])
         self.assertNotIn("provider", record["error_message"].lower())
 
+    def test_development_mode_creative_failure_has_a_safe_owner_action(self) -> None:
+        error = MetaAdsProviderError(
+            "Meta ad creative creation failed", status_code=400,
+            error_code="100", error_subcode="1885183",
+        )
+        record = error.record()
+        self.assertIn("Development mode", record["error_message"])
+        self.assertIn("Switch that app to Live", record["error_message"])
+        self.assertIn("retry this same failed deployment once", record["error_message"])
+        self.assertIn("PAUSED Campaign, Ad Set, and uploaded image", record["error_message"])
+
     def test_rejects_changed_png_before_upload(self) -> None:
         with self.assertRaisesRegex(ValueError, "digest mismatch"):
             self.adapter.upload_image(b"changed", "0" * 64)
@@ -296,6 +310,59 @@ class MetaAdsAdapterTests(unittest.TestCase):
             campaign["id"], ad_set["id"], creative["id"], ad["id"],
         ))
         self.assertFalse(any(request.method == "POST" for request in self.requests))
+        creative_reads = [
+            request for request in self.requests
+            if request.method == "GET" and request.url.path.endswith("/adcreatives")
+        ]
+        self.assertEqual(1, len(creative_reads))
+        self.assertNotIn("filtering", creative_reads[0].url.params)
+        for edge in ("campaigns", "adsets", "ads"):
+            request = next(item for item in self.requests if item.url.path.endswith(f"/{edge}"))
+            self.assertIn("filtering", request.url.params)
+
+    def test_adcreative_reconciliation_scans_every_page_without_server_name_filter(self) -> None:
+        requests: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            self.assertTrue(request.url.path.endswith("/adcreatives"))
+            if "filtering" in request.url.params:
+                return httpx.Response(400, json={"error": {"code": 100}})
+            if request.url.params.get("after") is None:
+                return httpx.Response(200, json={
+                    "data": [{"id": "unrelated", "name": "another creative"}],
+                    "paging": {
+                        "cursors": {"after": "opaque-page-2"},
+                        "next": "https://graph.facebook.com/next?after=opaque-page-2&access_token=must-not-be-used",
+                    },
+                })
+            self.assertEqual("opaque-page-2", request.url.params["after"])
+            return httpx.Response(200, json={"data": [{
+                "id": "creative-old", "name": "creative marker",
+                "object_story_spec": {
+                    "page_id": "456", "instagram_user_id": "789",
+                    "link_data": {
+                        "image_hash": "hash", "name": "Headline", "message": "Primary",
+                        "call_to_action": {
+                            "type": "SEND_MESSAGE",
+                            "value": {"app_destination": "INSTAGRAM_DIRECT"},
+                        },
+                    },
+                },
+            }]})
+
+        previous = self.adapter._client
+        self.adapter._client = httpx.Client(transport=httpx.MockTransport(handler))
+        previous.close()
+        creative = self.adapter.ensure_creative(
+            "creative marker", image_hash="hash", specification={
+                "headline": "Headline", "primary_text": "Primary", "welcome_message": "Hello",
+            },
+        )
+        self.assertEqual("creative-old", creative["id"])
+        self.assertEqual(2, len(requests))
+        self.assertTrue(all("filtering" not in request.url.params for request in requests))
+        self.assertTrue(all("access_token" not in request.url.params for request in requests))
 
 
 class FakeWorkspace:

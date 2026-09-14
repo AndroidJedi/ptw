@@ -237,6 +237,14 @@ class MetaAdsProviderError(RuntimeError):
                 "preset, then create the PAUSED structure again. "
                 "(code=100, subcode=1885272)"
             )
+        elif self.error_subcode == "1885183":
+            message = (
+                "Meta Creative was not created because the Meta app that issued the "
+                "current system-user token is still in Development mode. Switch that "
+                "app to Live in Meta for Developers, then retry this same failed "
+                "deployment once. The saved PAUSED Campaign, Ad Set, and uploaded image "
+                "will be reused. (code=100, subcode=1885183)"
+            )
         return {
             "error_type": type(self).__name__, "error_message": message,
             "provider_context": {
@@ -415,20 +423,39 @@ class MetaAdsAdapter:
         return items
 
     def _find(self, edge: str, name: str, *, fields: str) -> dict[str, Any] | None:
-        result = self._call(
-            "GET", f"{self.account_node}/{edge}",
-            params={
-                "fields": fields, "limit": 100,
-                "filtering": _canonical([{"field": "name", "operator": "EQUAL", "value": name}]),
-            }, outcome=f"Meta {edge} reconciliation failed",
-        )
-        matches = [
-            dict(item) for item in result.get("data", [])
-            if isinstance(item, Mapping) and item.get("name") == name
-        ]
-        if len(matches) > 1:
-            raise MetaAdsProviderError(f"Meta {edge} reconciliation found duplicate PTW names")
-        return matches[0] if matches else None
+        params = {"fields": fields, "limit": 100}
+        # Graph v26 rejects the otherwise-supported name filtering expression on
+        # the Ad Account's adcreatives edge. Scan that edge client-side and keep
+        # following only its opaque cursor so a retry cannot create a duplicate
+        # merely because the matching PTW creative is on a later page.
+        if edge != "adcreatives":
+            params["filtering"] = _canonical([
+                {"field": "name", "operator": "EQUAL", "value": name},
+            ])
+        matches: list[dict[str, Any]] = []
+        seen_cursors: set[str] = set()
+        for _ in range(100):
+            result = self._call(
+                "GET", f"{self.account_node}/{edge}", params=params,
+                outcome=f"Meta {edge} reconciliation failed",
+            )
+            matches.extend(
+                dict(item) for item in result.get("data", [])
+                if isinstance(item, Mapping) and item.get("name") == name
+            )
+            if len(matches) > 1:
+                raise MetaAdsProviderError(f"Meta {edge} reconciliation found duplicate PTW names")
+            paging = result.get("paging")
+            next_page = paging.get("next") if isinstance(paging, Mapping) else None
+            if not next_page:
+                return matches[0] if matches else None
+            cursors = paging.get("cursors") if isinstance(paging, Mapping) else None
+            cursor = cursors.get("after") if isinstance(cursors, Mapping) else None
+            if not isinstance(cursor, str) or not cursor or len(cursor) > 4096 or cursor in seen_cursors:
+                raise MetaAdsProviderError(f"Meta {edge} reconciliation returned invalid paging")
+            seen_cursors.add(cursor)
+            params["after"] = cursor
+        raise MetaAdsProviderError(f"Meta {edge} reconciliation exceeded its safe page limit")
 
     def ensure_campaign(self, name: str, categories: list[str], objective: str = "OUTCOME_ENGAGEMENT") -> dict[str, Any]:
         existing = self._find("campaigns", name, fields="id,name,status,effective_status,objective,special_ad_categories")

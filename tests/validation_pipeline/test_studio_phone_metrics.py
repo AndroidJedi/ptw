@@ -425,15 +425,15 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         config = deepcopy(DEFAULT_PHONE_CONFIG)
         config["metric_cards"] = [
             {
-                "style": "outlined", "text_color": "#101B31",
+                "enabled": True, "style": "outlined", "text_color": "#101B31",
                 "background_color": "#CEDD3C", "shape": "square",
             },
             {
-                "style": "filled", "text_color": "#101B31",
+                "enabled": True, "style": "filled", "text_color": "#101B31",
                 "background_color": "#CEDD3C", "shape": "pill",
             },
             {
-                "style": "filled", "text_color": "#FFFFFF",
+                "enabled": True, "style": "filled", "text_color": "#FFFFFF",
                 "background_color": "#D12F7A", "shape": "rounded",
             },
         ]
@@ -538,15 +538,15 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         config = deepcopy(DEFAULT_PHONE_CONFIG)
         config["phone_buttons"] = [
             {
-                "style": "outlined", "text_color": "#101B31",
+                "enabled": True, "style": "outlined", "text_color": "#101B31",
                 "background_color": "#D12F7A", "shape": "square",
             },
             {
-                "style": "filled", "text_color": "#101B31",
+                "enabled": True, "style": "filled", "text_color": "#101B31",
                 "background_color": "#CEDD3C", "shape": "square",
             },
             {
-                "style": "elevated", "text_color": "#FFFFFF",
+                "enabled": True, "style": "elevated", "text_color": "#FFFFFF",
                 "background_color": "#2457C8", "shape": "rounded",
             },
         ]
@@ -650,7 +650,11 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             visible_nodes["hero_title"]["props"]["y"],
         )
         self.assertEqual(
-            ["offer", "post_logo", "phone_logo", "cta"],
+            [
+                "offer", "hero_title", "supporting_text", "post_logo",
+                "phone_logo", "phone_title", "phone_device", "metric_cards",
+                "phone_buttons", "cta",
+            ],
             phone_metrics_catalog()["variation"]["optional_elements"],
         )
 
@@ -660,6 +664,33 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             content=DEFAULT_PHONE_CONTENT,
         )
         self.assertNotIn("offer", preview["resolved"]["nodes"])
+
+    def test_every_foreground_group_and_repeated_item_can_be_hidden(self) -> None:
+        config = deepcopy(DEFAULT_PHONE_CONFIG)
+        for group in ("logo", "offer", "hero_title", "supporting_text", "cta", "device"):
+            config[group]["enabled"] = False
+        config["phone_screen"]["logo_enabled"] = False
+        config["phone_screen"]["title_enabled"] = False
+        for item in [*config["metric_cards"], *config["phone_buttons"]]:
+            item["enabled"] = False
+
+        template = build_phone_metrics_template(config, DEFAULT_PHONE_CONTENT)
+        self.assertEqual({"background"}, set(template.document["semantic_roles"]))
+        self.assertEqual({}, phone_metrics_semantic_data(config, DEFAULT_PHONE_CONTENT))
+        self.assertFalse({
+            "logo", "offer", "hero_title", "supporting_text", "phone_device",
+            "metric_card_1", "metric_card_2", "metric_card_3", "cta",
+        } & {node["id"] for node in template.document["root"]["children"]})
+
+        phone = self._phone()
+        preview = self.workspace.render_preview(
+            state_sha256=phone["state_sha256"], configuration=config,
+            content=DEFAULT_PHONE_CONTENT,
+        )
+        self.assertFalse({
+            "logo", "offer", "hero_title", "supporting_text", "phone_device",
+            "metric_card_1", "metric_card_2", "metric_card_3", "cta",
+        } & set(preview["resolved"]["nodes"]))
 
     def test_logo_toggles_are_independent_and_existing_v8_drafts_stay_visible(self) -> None:
         from PIL import Image
@@ -710,7 +741,11 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
         self.assertFalse(settings["configuration.logo.enabled"])
         self.assertFalse(settings["configuration.phone_screen.logo_enabled"])
         self.assertEqual(
-            ["offer", "post_logo", "phone_logo", "cta"],
+            [
+                "offer", "hero_title", "supporting_text", "post_logo",
+                "phone_logo", "phone_title", "phone_device", "metric_cards",
+                "phone_buttons", "cta",
+            ],
             phone_metrics_catalog()["variation"]["optional_elements"],
         )
 
@@ -933,7 +968,7 @@ class PhoneMetricsTemplateTests(unittest.TestCase):
             normalize_phone_metrics_config(invalid)
 
         config = deepcopy(DEFAULT_PHONE_CONFIG)
-        config["supporting_text"] = {"highlight_color": "#D12F7A"}
+        config["supporting_text"] = {"enabled": True, "highlight_color": "#D12F7A"}
         config["typography"]["supporting_text"] = {
             "font_family": "Source Sans 3", "font_size": 36,
         }

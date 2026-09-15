@@ -1,19 +1,51 @@
 # Commander current state
 
-Updated: 2026-09-14
-Branch: `incident/meta-ads-feedback-20260914`
-Deployment: The Meta Creative reconciliation and app-mode UI correction is live
-and accepted; real Creative/Ad completion waits only on the owner switching the
-Meta app to Live.
-Analytics, reviewed Creative Skills, modular social publishing, and
-the companion multimodal bridge are live and accepted. Commander, Validation,
-Owner Gateway, and all three bridge services retain their compatible accepted
-images except Validation, which uses
-`meta-creative-recovery-20260914-9ca2243`; hosted GOD/Plan/release remain on
-their compatible accepted images. Owner cache v14 and the public Landing shell are
-live. The accepted marker and production checkout identify PTW revision
-`31ff9ab127f610000c2766a96dcdfb8824a97a20`; the companion platform checkout
-identifies `fc2dfccc7989aafa1a95b07f76303334eee20ab3`.
+Updated: 2026-09-15
+Branch: `feature/instagram-manual-validation`
+Deployment: local implementation only; not committed, pushed, or deployed.
+The last production deployment remains the previously accepted revision
+`31ff9ab127f610000c2766a96dcdfb8824a97a20` described in the historical sections
+below.
+
+## Instagram-first manual validation — local candidate
+
+The candidate refocuses PTW on fast business-idea tests. Active social UI/API is
+Instagram only. Organic direct publishing remains, and manual **Copy all texts**
+creates an immutable exact-Post package with a unique tracked Landing URL.
+Meta Ads API and TikTok routes, jobs, and UI are unmounted; their modules and
+historical PostgreSQL tables stay preserved behind the new
+`legacy-social-automation-recovery` skill.
+
+Paid testing now freezes one published Landing plus 2–6 distinct approved Posts,
+creates a ZIP launch kit for one manually configured Campaign → one Ad Set → all
+Ads, and never stores audience input. First-party Landing views/CTA/contact events
+are attributed automatically per arm. Meta Ads Manager delivery enters through
+CSV auto-detection, preview, matched/ignored-row confirmation, and immutable
+import snapshots. Cost per primary CTA drives an informational leader only.
+
+Studio can clone one selected approved Post into a new editable same-template
+draft without AI. Approved raw assets are digest-frozen for cloning; legacy
+versions fail closed if their exact raw asset is no longer present. In both Post
+templates, only the background is mandatory. Every foreground group, every
+Universal bullet, every Phone metric card, and every in-phone button is
+individually optional with deterministic reflow.
+
+Migration `009_instagram_manual_validation_v1.sql` adds clone lineage, manual
+Post packages, validation tests/arms/lifecycle events, and CSV import authority.
+The canonical behavior is in
+[`instagram-manual-validation.md`](instagram-manual-validation.md). Verification
+passes 289 Validation tests in the current runtime image, 14 Owner Gateway
+tests, 41 local Commander tests with seven expected environment skips plus the
+Commander demo, 95 Owner web tests and the production build, six focused
+desktop/360px/WebKit browser flows, the disposable PostgreSQL migration and
+idempotency rehearsal, Python compilation, the deterministic Studio visual
+audit, the canonical skill verifier, and whitespace checks. The mandated older
+`ptw-commander-api:latest` test image ran but cannot execute five Git-dependent
+tests because that runtime image does not contain the `git` binary; those same
+tests pass locally. Do not treat this candidate as deployed or
+provider-accepted.
+
+## Earlier accepted production history
 
 ## Meta Creative reconciliation and app-mode guard — live and accepted
 

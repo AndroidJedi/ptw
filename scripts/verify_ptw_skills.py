@@ -21,6 +21,7 @@ SKILLS = (
     "studio-ui-visual-audit",
     "ptw-owner-console-incident",
     "ptw-vps-operations",
+    "legacy-social-automation-recovery",
 )
 
 

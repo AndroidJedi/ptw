@@ -65,6 +65,23 @@ def studio_creative_router(
         except (KeyError, ValueError, RuntimeError) as error:
             raise fail(error) from error
 
+    @router.post("/projects/{project_id}/creatives/clones", status_code=201)
+    def clone_variant(project_id: str, request: Mapping[str, Any]) -> dict[str, Any]:
+        fields(
+            request, {"request_id", "source_creative_id", "source_version"},
+            "Studio creative clone fields are invalid",
+        )
+        try:
+            creative, created = service.clone_approved_version(
+                project_id=project_id,
+                source_creative_id=str(request["source_creative_id"]),
+                source_version=request["source_version"],
+                request_id=str(request["request_id"]), requested_by="owner-web",
+            )
+            return {"creative": creative, "created": created}
+        except (KeyError, ValueError, RuntimeError) as error:
+            raise fail(error) from error
+
     def creative(project_id: str, creative_id: str) -> dict[str, Any]:
         return service.detail(project_id, creative_id)
 

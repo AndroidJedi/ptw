@@ -559,6 +559,44 @@ class StudioCreativeServiceTests(unittest.TestCase):
             [item["version"] for item in self.service._workspace(detail["creative_id"]).detail()["versions"]],
         )
 
+    def test_clone_inherits_the_selected_approved_post_and_frozen_raw_asset(self) -> None:
+        project_id, _brief_id, detail = self.generate_creative("phone_metrics")
+        approved_asset_sha = detail["phone_screen_history"][0]["sha256"]
+        approved = self.service.checkpoint(
+            project_id, detail["creative_id"], kind="approve",
+            base_sha256=detail["state_sha256"], configuration=detail["configuration"],
+            content=detail["content"], change_note="Clone source",
+        )["creative"]
+        changed = self.service.mutate(
+            project_id, detail["creative_id"], "generate_phone_screen",
+            base_sha256=approved["state_sha256"],
+            visual_direction="A different cobalt object for the mutable source draft",
+            enhance_current=False,
+        )
+        self.assertNotEqual(
+            approved_asset_sha, changed["phone_screen_history"][0]["sha256"],
+        )
+
+        request_id = new_uuid7()
+        cloned, created = self.service.clone_approved_version(
+            project_id=project_id, source_creative_id=detail["creative_id"],
+            source_version=1, request_id=request_id, requested_by="test",
+        )
+        clone_detail = self.service.detail(project_id, cloned["creative_id"])
+        approved_version = self.service._workspace(detail["creative_id"]).version_detail(1)
+        self.assertTrue(created)
+        self.assertEqual("approved_clone", clone_detail["origin"])
+        self.assertEqual(approved_version["configuration"], clone_detail["configuration"])
+        self.assertEqual(approved_version["content"], clone_detail["content"])
+        self.assertEqual(approved_asset_sha, clone_detail["phone_screen_history"][0]["sha256"])
+        self.assertEqual(0, clone_detail["approved_version_count"])
+        duplicate, created = self.service.clone_approved_version(
+            project_id=project_id, source_creative_id=detail["creative_id"],
+            source_version=1, request_id=request_id, requested_by="test",
+        )
+        self.assertFalse(created)
+        self.assertEqual(cloned["creative_id"], duplicate["creative_id"])
+
     def test_save_ignores_obsolete_learning_provider_failures(self) -> None:
         project_id, _brief_id, detail = self.generate_creative()
         content = deepcopy(detail["content"])

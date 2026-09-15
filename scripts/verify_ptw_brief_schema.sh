@@ -92,8 +92,15 @@ creative_learning_runs
 creative_skill_snapshots
 creative_visual_descriptors
 creative_visual_descriptor_sources
+instagram_manual_post_events
+instagram_manual_post_packages
 instagram_publication_attempts
 instagram_publications
+instagram_validation_arms
+instagram_validation_import_rows
+instagram_validation_imports
+instagram_validation_test_events
+instagram_validation_tests
 tiktok_account_connections
 tiktok_oauth_states
 tiktok_publication_attempts
@@ -166,8 +173,10 @@ BEGIN
        SELECT 1 FROM commander_schema_migrations WHERE name='007_tiktok_publication_v1.sql'
      ) OR NOT EXISTS (
        SELECT 1 FROM commander_schema_migrations WHERE name='008_analytics_creative_learning_v1.sql'
+     ) OR NOT EXISTS (
+       SELECT 1 FROM commander_schema_migrations WHERE name='009_instagram_manual_validation_v1.sql'
      ) THEN
-    RAISE EXCEPTION 'the database must contain the Product Brief, Studio, Landing, Meta Ads, social publishing, and Analytics migrations';
+    RAISE EXCEPTION 'the database must contain the Product Brief, Studio, Landing, Instagram validation, and Analytics migrations';
   END IF;
   IF (SELECT count(*) FROM commander_control) <> 1
      OR (SELECT count(*) FROM commander_operation_guard) <> 1 THEN
@@ -191,6 +200,11 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='creative_learning_decisions_immutable' AND NOT tgisinternal) THEN
     RAISE EXCEPTION 'Analytics learning lineage triggers are incomplete';
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='instagram_manual_packages_immutable' AND NOT tgisinternal)
+     OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='instagram_validation_tests_immutable' AND NOT tgisinternal)
+     OR NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='instagram_validation_import_rows_immutable' AND NOT tgisinternal) THEN
+    RAISE EXCEPTION 'Instagram manual validation immutable triggers are incomplete';
+  END IF;
 END $$;
 
 INSERT INTO commander_entities(id,kind) VALUES
@@ -205,4 +219,4 @@ BEGIN
 END $$;
 SQL
 
-echo "Verified Product Brief, Studio, public Landing, PAUSED Meta Ads, social publishing, and Analytics migrations and idempotent journey."
+echo "Verified Product Brief, Studio, public Landing, manual Instagram validation, preserved social history, and Analytics migrations."

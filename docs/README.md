@@ -9,7 +9,7 @@ needed for the task.
 | Product Brief | [`architecture/simplified-validation-pipeline.md`](architecture/simplified-validation-pipeline.md) and `skills/product-brief-generator/SKILL.md` |
 | Project Post and Landing Studio | [`architecture/universal-ad-studio.md`](architecture/universal-ad-studio.md) and [`architecture/landing-studio.md`](architecture/landing-studio.md), plus their composer, phone-hero, Tune, and visual-audit skills |
 | Analytics and reviewed Creative Skills | [`architecture/analytics-and-creative-learning.md`](architecture/analytics-and-creative-learning.md), plus `skills/creative-performance-learner` and `skills/creative-visual-analyzer` |
-| Instagram/TikTok publishing and landing-linked Meta Ads | [`architecture/social-publishing.md`](architecture/social-publishing.md), [`architecture/meta-ads.md`](architecture/meta-ads.md), and the owner-facing [`operations/tiktok-account-setup.md`](operations/tiktok-account-setup.md) / [`operations/meta-account-setup.md`](operations/meta-account-setup.md) |
+| Instagram publishing and manual paid validation | [`architecture/instagram-manual-validation.md`](architecture/instagram-manual-validation.md), [`architecture/social-publishing.md`](architecture/social-publishing.md), and [`architecture/meta-ads.md`](architecture/meta-ads.md) |
 | Owner UI and authentication | [`operations/owner-gateway.md`](operations/owner-gateway.md) and [`../DESIGN_RULES.md`](../DESIGN_RULES.md) |
 | Deployment and reset | [`operations/commander.md`](operations/commander.md), [`operations/natal-domain-cutover.md`](operations/natal-domain-cutover.md), and [`operations/disaster-recovery.md`](operations/disaster-recovery.md) |
 | Telegram emergency boundary | [`operations/telegram-runtime.md`](operations/telegram-runtime.md) |
@@ -18,8 +18,8 @@ needed for the task.
 
 - `ptw_commander.public` owns Product Brief validation and project-scoped
   Studio creatives, files/PNG bytes, runs, checkpoints, proposals, decisions,
-  skill snapshots, immutable versions, Instagram/TikTok publications and attempts,
-  encrypted TikTok connection state, Meta Ads records, analytics snapshots,
+  skill snapshots, immutable versions, active Instagram publications/manual
+  validation tests, preserved historical TikTok/Meta Ads records, analytics snapshots,
   cookieless Landing events/rollups, reviewed Creative Skills, and graph lineage.
 - `.local/owner-briefs` is the loopback append-only metadata authority;
   `.local/studio-workspace/creatives` holds per-creative renderer files.

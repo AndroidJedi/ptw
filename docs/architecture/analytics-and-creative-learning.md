@@ -1,7 +1,7 @@
 # Analytics and reviewed Creative Skills
 
 Analytics is a project-aware Owner Console workspace that joins immutable social
-outcomes, cookieless Landing funnel events, paid Meta snapshots, exact creative
+outcomes, cookieless Landing funnel events, reviewed Meta CSV snapshots, exact creative
 versions, and reviewed Creative Skill snapshots. It does not publish content,
 change an ad, spend money, or activate a performance-generated rule.
 
@@ -40,16 +40,13 @@ Publishing readiness and analytics readiness are independent.
 - Instagram publishing checks remain separate from
   `instagram_manage_insights`. Analytics reads media insights only when that
   separate capability is authorized.
-- TikTok analytics requires the separately authorized `video.list` scope and
-  uses the official v2 video query for view, like, comment, and share counts.
-  PTW never scrapes TikTok pages. Photo analytics must stay unavailable until a
-  real public-photo canary has been audited and
-  `TIKTOK_PHOTO_ANALYTICS_AUDITED=true` is configured. This gate is separate
-  from `TIKTOK_DIRECT_POST_AUDITED`, which controls public publishing.
-- Paid Meta rows use the existing immutable insight snapshots. Refresh is
-  read-only and never stages, activates, pauses, or edits an ad.
+- Paid Instagram-test rows use immutable, owner-reviewed Meta Ads Manager CSV
+  imports. First-party Landing events update independently and automatically.
+  Analytics never stages, activates, pauses, or edits an ad.
+- Historical TikTok and Meta Ads API snapshots remain authority records but
+  their collectors are inactive and are not readiness claims.
 
-For Instagram and TikTok, the scheduler records immutable snapshots at 24h,
+For direct Instagram publications, the scheduler records immutable snapshots at 24h,
 72h, 7d, 14d, and 30d after publication. `capture_key` makes each scheduled
 milestone unique. The 15-minute scheduler accepts a bounded six-hour milestone
 window; after that it cannot truthfully reconstruct the missed total. Manual
@@ -106,12 +103,11 @@ Meta Pixel remains a separate browser integration that loads and sends
 `PageView` only after explicit consent. First-party events never imply Meta
 consent.
 
-Each future organic publication receives one opaque 43-character attribution
-token and tracked Landing URL. The social caption is unchanged; the tracked URL
-is exposed separately in the publication projection. Future Website ads use the
-tracked URL automatically while retaining the untracked canonical URL in their
-immutable specification. Instagram Direct ads are unchanged. Tokens identify a
-publication source, not a visitor, and resolve only on the server.
+Each future organic publication or manual Post package receives one opaque
+43-character attribution token and tracked Landing URL. Copy/export surfaces put
+that URL at the end of the caption and also expose it separately. Each manual
+paid-test arm receives its own tracked Website URL for Meta Ads Manager. Tokens
+identify a Post/Ad arm, not a visitor, and resolve only on the server.
 
 ## Metrics
 
@@ -133,12 +129,12 @@ high-intent engagement, general interaction rate, then reach/view velocity.
 | --- | --- | --- | --- | --- |
 | Outbound-contact rate | Attributed `contact_click` count | Provider reach/views | Immutable Landing daily aggregate plus latest provider snapshot; display includes snapshot time | Conversion proxy only; not a lead, appointment, or sale. Cross-device and untracked visits are absent. |
 | Primary CTA rate | Attributed `primary_cta_click` count | Provider reach/views | Landing aggregate plus latest provider snapshot | Measures a click toward contact, not completed contact. Hero and phone clicks can occur in one visit. |
-| High-intent rate | Comments + shares + saves | Provider reach/views | Latest provider snapshot; TikTok saves are unavailable and treated as zero | Provider definitions differ; engagement does not prove purchase intent. |
+| High-intent rate | Comments + shares + saves | Instagram reach/views | Latest immutable Instagram snapshot | Engagement does not prove purchase intent. |
 | Interaction rate | Likes + comments + shares + saves | Provider reach/views | Latest provider snapshot | Platform-specific interaction definitions are not merged for learning. |
 | Reach/view velocity | Provider reach/views | Age in days, minimum one day | Publication timestamp plus latest provider snapshot | A coarse age normalization; it does not model distribution decay or paid spillover. |
 | Landing primary CTA rate | `primary_cta_click` | `landing_view` | Immutable first-party daily aggregates; near-real-time after accepted events | Cookieless event ratio, not unique visitors. |
 | Landing outbound-contact rate | `contact_click` | `landing_view` | Immutable first-party daily aggregates; near-real-time after accepted events | Conversion proxy, not leads or sales; one visit may click multiple contacts. |
-| Paid Meta result | Values in latest Meta insight snapshot | Provider-defined exposure/result denominator | Existing Meta snapshot and its captured time | Read-only reporting; attribution and optimization rules remain Meta-defined. |
+| Paid Meta result | Spend, impressions, clicks, and Landing-page views from the latest matched import | Matching imported delivery totals | Immutable owner-reviewed Meta Ads Manager CSV plus automatic first-party Landing events | Meta controls delivery/reporting definitions; PTW does not call the Ads API. |
 
 An unavailable provider produces an explicit readiness state, not zeros. A
 missing snapshot produces a missing/stale value, not inferred performance.
@@ -225,7 +221,7 @@ or be deleted.
 Owner routes are under `/api/v1/analytics/{project_uuid|global}`:
 
 - `GET /workspace?window=7|30|90|0`;
-- `POST /refresh` with `provider=all|instagram|tiktok|meta` and a labelled
+- `POST /refresh` with `provider=all|instagram` and a labelled
   `backfill` boolean;
 - `POST /learning-runs` for `post|landing`;
 - `POST /learning-runs/{run_id}/decision`;
@@ -251,5 +247,5 @@ Rollout order is fixed: companion bridge capabilities and canaries; PostgreSQL
 migration and Validation API; Owner Gateway; public Landing shell; Owner
 Console; provider reauthorization; then read-only live acceptance. Acceptance
 must prove one real Landing event reaches Analytics and existing provider rows
-refresh without creating a post, mutating an ad, or spending money. TikTok photo
-analytics remains gated until its audited real public post exists.
+refresh without creating a post, mutating an ad, or spending money. Manual paid
+acceptance additionally verifies exact per-arm URLs and reviewed CSV mapping.

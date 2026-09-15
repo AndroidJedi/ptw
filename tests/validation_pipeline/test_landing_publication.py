@@ -122,6 +122,31 @@ class LandingPublicationTests(unittest.TestCase):
         self.assertEqual(first["event"]["event_id"], repeated["event"]["event_id"])
         self.assertEqual("https://natal-service.com/ai/owner-project", first["publication"]["canonical_url"])
 
+    def test_active_test_guard_blocks_mutation_but_not_idempotent_replay(self) -> None:
+        request_id = str(uuid4())
+        first = self.service.publish(
+            project_id=self.project_id, request_id=request_id,
+            landing_id=self.landing_id, version=1, namespace="ai", slug="guarded",
+            requested_by="test-owner",
+        )
+        def blocked(_project_id: str) -> None:
+            raise RuntimeError("active Instagram test")
+
+        self.service.mutation_guard = blocked
+        replay = self.service.publish(
+            project_id=self.project_id, request_id=request_id,
+            landing_id=self.landing_id, version=1, namespace="ai", slug="guarded",
+            requested_by="test-owner",
+        )
+        self.assertFalse(replay["created"])
+        self.assertEqual(first["event"]["event_id"], replay["event"]["event_id"])
+        with self.assertRaisesRegex(RuntimeError, "active Instagram test"):
+            self.service.publish(
+                project_id=self.project_id, request_id=str(uuid4()),
+                landing_id=self.landing_id, version=2, namespace=None, slug=None,
+                requested_by="test-owner",
+            )
+
     def test_collision_and_cross_project_versions_fail_closed(self) -> None:
         self._publish(1, namespace="la", slug="stable-path")
         other_project = self._project("Other")

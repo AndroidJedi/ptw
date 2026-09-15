@@ -1,0 +1,4 @@
+interface:
+  display_name: "Legacy Social Recovery"
+  short_description: "Safely recover inactive Meta Ads or TikTok automation"
+  default_prompt: "Use $legacy-social-automation-recovery to recover only the explicitly requested inactive PTW social automation surface while preserving manual Instagram validation and historical data."

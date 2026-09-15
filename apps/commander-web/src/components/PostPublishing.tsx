@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '../api'
 import { translate, type Language } from '../i18n'
-import type { InstagramPublication, InstagramWorkspace, MetaAdsSourceVersion, TikTokPublication, TikTokWorkspace } from '../types'
+import type { InstagramPublication, InstagramWorkspace, MetaAdsSourceVersion } from '../types'
 
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -25,7 +25,7 @@ type CorePublication = {
 }
 type ShellProps<P extends CorePublication, W extends CommonWorkspace<P>> = {
   api: ApiClient; language: Language; projectId: string; creativeId: string; version: number
-  renderSha256: string; provider: 'instagram' | 'tiktok'; label: string
+  renderSha256: string; provider: 'instagram'; label: string
   draftKey: string; request: (requestId: string) => Record<string, unknown>; valid: boolean
   fields: (workspace: W | null, source: MetaAdsSourceVersion | undefined) => ReactNode
   account: (workspace: W | null) => string; openUrl: string; onWorkspace?: (workspace: W) => void
@@ -55,7 +55,7 @@ function PublishingShell<P extends CorePublication, W extends CommonWorkspace<P>
     void api.get<W>(base).then(async value => {
       if (!active) return
       setWorkspace(value); props.onWorkspace?.(value)
-      if (provider === 'tiktok' || (value.connection.configured && !value.connection.verified)) {
+      if (value.connection.configured && !value.connection.verified) {
         const connection = await api.get<W['connection']>(`/api/v1/${provider}/connection`, { deadlineMs: 120_000 })
         if (active) {
           const next = { ...value, connection }
@@ -119,7 +119,7 @@ function PublishingShell<P extends CorePublication, W extends CommonWorkspace<P>
         const permalink = item.external?.permalink || item.permalink; const transfer = item.external?.transfer_id || item.container_id
         const trackedUrl = item.analytics?.tracked_url
         const phaseLabel = ({ published: tr('Published', 'Опубліковано'), published_unresolved: tr('Published · link pending', 'Опубліковано · посилання очікується'), uncertain: tr('Outcome uncertain', 'Результат невідомий'), failed: tr('Failed', 'Помилка'), queued: tr('Queued', 'У черзі'), preparing: tr('Preparing', 'Підготовка'), creating_container: tr('Preparing', 'Підготовка'), publishing: tr('Publishing', 'Публікація') } as Record<string, string>)[phase] || phase.replaceAll('_', ' ')
-        return <article key={item.publication_id}><strong>v{sourceVersion} · {phaseLabel}</strong><code>{item.publication_id}</code>{transfer && <code>Transfer: {transfer}</code>}{item.error && <p role="alert">{item.error}</p>}{trackedUrl && <div className="tracked-publication-url"><p>{tr('Tracked Landing URL · caption unchanged', 'Відстежуваний URL лендінгу · підпис не змінено')}</p><a href={trackedUrl} target="_blank" rel="noreferrer">{trackedUrl}</a><button className="secondary" type="button" onClick={() => void navigator.clipboard.writeText(trackedUrl)}>{tr('Copy tracked URL', 'Копіювати відстежуваний URL')}</button></div>}<div className="post-publishing-actions">
+        return <article key={item.publication_id}><strong>v{sourceVersion} · {phaseLabel}</strong><code>{item.publication_id}</code>{transfer && <code>Transfer: {transfer}</code>}{item.error && <p role="alert">{item.error}</p>}{trackedUrl && <div className="tracked-publication-url"><p>{tr('This exact tracked Landing URL was appended to the published caption.', 'Саме цей відстежуваний URL лендінгу додано до опублікованого підпису.')}</p><a href={trackedUrl} target="_blank" rel="noreferrer">{trackedUrl}</a><button className="secondary" type="button" onClick={() => void navigator.clipboard.writeText(trackedUrl)}>{tr('Copy tracked URL', 'Копіювати відстежуваний URL')}</button></div>}<div className="post-publishing-actions">
           {permalink && <a href={permalink} target="_blank" rel="noreferrer">{tr('View published post', 'Переглянути опублікований допис')}</a>}
           {item.retryable && <button className="secondary" disabled={busy} onClick={() => void act(item, 'retry')}>{tr('Retry preparation', 'Повторити підготовку')}</button>}
           {item.syncable && <button className="secondary" disabled={busy} onClick={() => void act(item, 'sync')}>{tr('Sync status', 'Синхронізувати статус')}</button>}
@@ -131,58 +131,53 @@ function PublishingShell<P extends CorePublication, W extends CommonWorkspace<P>
 }
 
 function InstagramPanel(props: Omit<ShellProps<InstagramPublication, InstagramWorkspace>, 'provider' | 'label' | 'draftKey' | 'request' | 'valid' | 'fields' | 'account' | 'openUrl'>) {
-  const { language, creativeId, version } = props
+  const { api, language, projectId, creativeId, version } = props
   const tr = (en: string, uk: string) => translate(language, en, uk)
   const [caption, setCaption] = useState('')
   const [sourceKey, setSourceKey] = useState('')
+  const [manualPackage, setManualPackage] = useState<{ package_id: string; caption: string; tracked_url: string; state: string } | null>(null)
+  const [manualBusy, setManualBusy] = useState(false)
+  const [manualError, setManualError] = useState('')
   const key = `${creativeId}:${version}`
+  const manualRequestKey = `ptw-instagram-manual-request:${projectId}:${key}`
   const copy = (text: string) => { void navigator.clipboard.writeText(text) }
+  const copyAll = async () => {
+    setManualBusy(true); setManualError('')
+    try {
+      const requestId = sessionStorage.getItem(manualRequestKey) || crypto.randomUUID()
+      sessionStorage.setItem(manualRequestKey, requestId)
+      const result = await api.post<{ package: { package_id: string; caption: string; tracked_url: string; state: string } }>(
+        `/api/v1/instagram-tests/projects/${projectId}/manual-packages`,
+        { request_id: requestId, source: { creative_id: creativeId, version } },
+      )
+      setManualPackage(result.package)
+      await navigator.clipboard.writeText(result.package.caption)
+    } catch (cause) { setManualError(String(cause)) }
+    finally { setManualBusy(false) }
+  }
+  const markPublished = async () => {
+    if (!manualPackage) return
+    setManualBusy(true); setManualError('')
+    try {
+      const result = await api.post<{ package: typeof manualPackage }>(
+        `/api/v1/instagram-tests/projects/${projectId}/manual-packages/${manualPackage.package_id}/published`,
+        { request_id: crypto.randomUUID() },
+      )
+      setManualPackage(result.package)
+      sessionStorage.removeItem(manualRequestKey)
+    } catch (cause) { setManualError(String(cause)) }
+    finally { setManualBusy(false) }
+  }
   return <PublishingShell<InstagramPublication, InstagramWorkspace> {...props} provider="instagram" label="Instagram" draftKey={JSON.stringify({ creativeId, version, caption })}
     valid={sourceKey === key} request={requestId => ({ request_id: requestId, source: { creative_id: creativeId, version }, content: { title: '', description: caption }, settings: {}, creator_snapshot_sha256: null, consent: {} })}
-    onWorkspace={workspace => { const source = workspace.sources.find(item => item.creative_id === creativeId && item.version === version); setCaption([source?.defaults.headline, source?.defaults.primary_text].filter(Boolean).join('\n\n').slice(0, 2200)); setSourceKey(key) }}
+    onWorkspace={workspace => { const source = workspace.sources.find(item => item.creative_id === creativeId && item.version === version); setCaption((source?.defaults.instagram_caption || [source?.defaults.headline, source?.defaults.primary_text].filter(Boolean).join('\n\n')).slice(0, 2200)); setSourceKey(key) }}
     openUrl="https://www.instagram.com/" account={workspace => workspace?.connection.instagram?.username ? `@${workspace.connection.instagram.username}` : tr('Instagram account unavailable', 'Акаунт Instagram недоступний')}
     fields={(workspace, source) => <>
-      <label>{tr('Instagram caption', 'Підпис Instagram')}<textarea rows={6} maxLength={2200} value={sourceKey === key ? caption : [source?.defaults.headline, source?.defaults.primary_text].filter(Boolean).join('\n\n').slice(0, 2200)} onChange={event => { setSourceKey(key); setCaption(event.target.value) }} /></label>
+      <label>{tr('Instagram caption', 'Підпис Instagram')}<textarea rows={6} maxLength={2200} value={sourceKey === key ? caption : (source?.defaults.instagram_caption || [source?.defaults.headline, source?.defaults.primary_text].filter(Boolean).join('\n\n')).slice(0, 2200)} onChange={event => { setSourceKey(key); setCaption(event.target.value) }} /></label>
+      {manualError && <p role="alert">{manualError}</p>}
+      <div className="post-publishing-actions"><button className="primary" type="button" disabled={manualBusy || !workspace?.landing} onClick={() => void copyAll()}>{tr('Copy all texts', 'Копіювати всі тексти')}</button>{manualPackage?.state === 'prepared' && <button className="secondary" type="button" disabled={manualBusy} onClick={() => void markPublished()}>{tr('Mark manually published', 'Позначити опублікованим вручну')}</button>}</div>
+      {manualPackage && <div className="tracked-publication-url"><p>{tr('A unique tracked Landing URL was appended to this copy. Feed-caption links are usually not clickable; use this exact URL in the bio or a Story link for measurable organic traffic.', 'До цієї копії додано унікальний відстежуваний URL лендінгу. Посилання в підписі Feed зазвичай не клікабельне; для вимірюваного органічного трафіку використайте саме цей URL у bio або Story.')}</p><a href={manualPackage.tracked_url} target="_blank" rel="noreferrer">{manualPackage.tracked_url}</a><code>{manualPackage.package_id}</code></div>}
       {workspace?.landing && <><p><a href={workspace.landing.canonical_url} target="_blank" rel="noreferrer">{workspace.landing.canonical_url}</a></p><button className="secondary" type="button" onClick={() => copy(workspace.landing!.canonical_url)}>{tr('Copy landing URL', 'Копіювати URL лендінгу')}</button></>}
-    </>} />
-}
-
-function TikTokPanel(props: Omit<ShellProps<TikTokPublication, TikTokWorkspace>, 'provider' | 'label' | 'draftKey' | 'request' | 'valid' | 'fields' | 'account' | 'openUrl'>) {
-  const { api, language, creativeId, version } = props
-  const tr = (en: string, uk: string) => translate(language, en, uk)
-  const [connection, setConnection] = useState<TikTokWorkspace['connection'] | null>(null)
-  const [connectError, setConnectError] = useState('')
-  const [title, setTitle] = useState(''); const [description, setDescription] = useState('')
-  const [draftSource, setDraftSource] = useState('')
-  const [privacy, setPrivacy] = useState(''); const [comments, setComments] = useState(false); const [music, setMusic] = useState(false)
-  const [commercialChoice, setCommercialChoice] = useState<'none' | 'own' | 'branded' | 'both' | ''>(''); const [consent, setConsent] = useState(false)
-  const ownBrand = commercialChoice === 'own' || commercialChoice === 'both'; const branded = commercialChoice === 'branded' || commercialChoice === 'both'; const commercial = Boolean(ownBrand || branded)
-  const valid = Boolean(privacy && consent && commercialChoice && connection?.creator_snapshot_sha256 && !(branded && privacy === 'SELF_ONLY'))
-  const draft = JSON.stringify({ creativeId, version, title, description, privacy, comments, music, commercialChoice, consent, snapshot: connection?.creator_snapshot_sha256 })
-  const connect = async () => {
-    setConnectError('')
-    try {
-      const value = await api.post<{ authorization_url: string }>('/api/v1/tiktok/oauth/start', { return_to: window.location.pathname + window.location.search })
-      window.location.assign(value.authorization_url)
-    } catch (cause) { setConnectError(String(cause)) }
-  }
-  return <PublishingShell<TikTokPublication, TikTokWorkspace> {...props} provider="tiktok" label="TikTok" draftKey={draft} valid={valid} onWorkspace={workspace => {
-    setConnection(workspace.connection)
-    const source = workspace.sources.find(item => item.creative_id === creativeId && item.version === version)
-    if (draftSource !== `${creativeId}:${version}`) { setTitle(String(source?.defaults.headline || '').slice(0, 90)); setDescription(String(source?.defaults.primary_text || '').slice(0, 4000)); setDraftSource(`${creativeId}:${version}`); setPrivacy(''); setConsent(false); setCommercialChoice('') }
-  }} request={requestId => ({ request_id: requestId, source: { creative_id: creativeId, version }, content: { title, description }, settings: { privacy_level: privacy, allow_comment: comments, auto_add_music: music, commercial_content: { enabled: commercial, own_brand: ownBrand, branded_content: branded } }, creator_snapshot_sha256: connection?.creator_snapshot_sha256, consent: { music_usage_confirmed: consent } })}
-    openUrl="https://www.tiktok.com/@natal_cast" account={workspace => workspace?.connection.account?.username ? `@${workspace.connection.account.username}` : tr('TikTok account unavailable', 'Акаунт TikTok недоступний')}
-    fields={workspace => <>
-      {connectError && <p role="alert">{connectError}</p>}
-      {!workspace?.connection.verified ? <button className="secondary" type="button" onClick={() => void connect()} disabled={!workspace?.connection.configured}>{workspace?.connection.account ? tr('Reconnect @natal_cast', 'Повторно під’єднати @natal_cast') : tr('Connect @natal_cast', 'Під’єднати @natal_cast')}</button> : null}
-      <label>{tr('TikTok photo title', 'Заголовок фото TikTok')}<input maxLength={90} value={title} onChange={event => setTitle(event.target.value)} /></label>
-      <label>{tr('TikTok description', 'Опис TikTok')}<textarea rows={6} maxLength={4000} value={description} onChange={event => setDescription(event.target.value)} /></label>
-      <label>{tr('Privacy (choose manually)', 'Приватність (оберіть вручну)')}<select value={privacy} onChange={event => setPrivacy(event.target.value)}><option value="">{tr('Choose privacy…', 'Оберіть приватність…')}</option>{workspace?.connection.creator?.privacy_level_options.map(option => <option key={option} value={option}>{option.replaceAll('_', ' ')}</option>)}</select></label>
-      <label><input type="checkbox" checked={comments} disabled={workspace?.connection.creator?.comment_disabled} onChange={event => setComments(event.target.checked)} /> {tr('Allow comments', 'Дозволити коментарі')}</label>
-      <label><input type="checkbox" checked={music} onChange={event => setMusic(event.target.checked)} /> {tr('Automatically add recommended music', 'Автоматично додати рекомендовану музику')}</label>
-      <label>{tr('Commercial-content disclosure (choose manually)', 'Розкриття комерційного вмісту (оберіть вручну)')}<select value={commercialChoice} onChange={event => setCommercialChoice(event.target.value as typeof commercialChoice)}><option value="">{tr('Choose disclosure…', 'Оберіть розкриття…')}</option><option value="none">{tr('No brand promotion', 'Без просування бренду')}</option><option value="own">{tr("Creator's own brand", 'Власний бренд автора')}</option><option value="branded">{tr('Paid partnership / third-party brand', 'Платне партнерство / сторонній бренд')}</option><option value="both">{tr('Own brand and paid partnership', 'Власний бренд і платне партнерство')}</option></select></label>
-      <p>{tr('AI-generated labeling is determined by the immutable approved asset provenance.', 'Позначка ШІ визначається походженням незмінного затвердженого ресурсу.')}</p>
-      <label><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} /> {tr("By posting, you agree to TikTok's Music Usage Confirmation.", 'Публікуючи, ви погоджуєтеся з TikTok Music Usage Confirmation.')}</label>
     </>} />
 }
 
@@ -198,8 +193,8 @@ export function PostPublishing({ api, language, projectId, creativeId, versions 
   const adUrl = `?page=ads&project=${encodeURIComponent(projectId)}&ad_creative=${encodeURIComponent(creativeId)}&ad_version=${version}&destination=WEBSITE`
   return <section className="panel post-publishing" aria-label={tr('Publish approved Post', 'Опублікувати затверджений допис')}>
     <h2>{tr('Publish approved Post', 'Опублікувати затверджений допис')}</h2>
-    <p>{tr('Both publishers use this exact approved image. Provider controls and consent are reviewed separately.', 'Обидва канали використовують саме це затверджене зображення. Налаштування й згода перевіряються окремо.')}</p>
+    <p>{tr('Use the exact approved image for Instagram. Copy all texts creates its own tracked Landing URL for exact attribution.', 'Використовуйте саме це затверджене зображення в Instagram. «Копіювати всі тексти» створює окремий відстежуваний URL лендінгу для точної атрибуції.')}</p>
     <label>{tr('Approved version', 'Затверджена версія')}<select value={version} onChange={event => setVersion(Number(event.target.value))}>{[...versions].sort((a, b) => b.version - a.version).map(item => <option key={item.version} value={item.version}>v{item.version} · {item.change_note}</option>)}</select></label>
-    <div className="post-publishing-actions"><InstagramPanel {...common} /><TikTokPanel {...common} /><a className="primary" href={adUrl}>{tr('Create Instagram ad', 'Створити рекламу Instagram')}</a></div>
+    <div className="post-publishing-actions"><InstagramPanel {...common} /><a className="primary" href={adUrl}>{tr('Prepare Instagram test', 'Підготувати Instagram-тест')}</a></div>
   </section>
 }

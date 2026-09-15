@@ -27,15 +27,12 @@ from .landing_publication_routes import (
     landing_publication_owner_router, landing_publication_read_router,
 )
 from .landing_workspace import LandingWorkspace
-from .meta_ads import (
-    DatabaseMetaAdsAuthority, MetaAdsAdapter, MetaAdsConfiguration, MetaAdsService,
-)
-from .meta_ads_routes import meta_ads_router
+from .meta_ads import MetaAdsConfiguration
+from .approved_posts import ApprovedPostSources
 from .instagram_publication import InstagramAdapter, InstagramPublicationService, DatabaseInstagramAuthority
 from .instagram_publication_routes import instagram_router, instagram_media_router
-from .tiktok_publication import DatabaseTikTokAuthority, TikTokPublicationService
-from .tiktok_publication_routes import tiktok_router, tiktok_media_router
-from .social_publishing.providers.tiktok import TikTokConfiguration
+from .instagram_validation import DatabaseInstagramValidationAuthority, InstagramValidationService
+from .instagram_validation_routes import instagram_validation_router
 from .studio_creatives import StudioCreativeService
 from .studio_repository import DatabaseCreativeWorkspace, DatabaseStudioAuthority
 from .studio_routes import studio_creative_router
@@ -93,7 +90,7 @@ def create_app(
     studio_creative_service: StudioCreativeService | None = None,
     landing_page_service: LandingService | None = None,
     landing_publication_service: Any | None = None,
-    meta_ads_service: MetaAdsService | None = None,
+    meta_ads_service: Any | None = None,
     instagram_service: Any | None = None,
     tiktok_service: Any | None = None,
     analytics_service: Any | None = None,
@@ -123,44 +120,35 @@ def create_app(
             ),
             structured_provider=bridge, composer_skill_path=settings.landing_composer_skill_path,
         )
-    if meta_ads_service is None:
-        meta_configuration = MetaAdsConfiguration.from_environment()
-        meta_adapter = MetaAdsAdapter(meta_configuration) if meta_configuration.configured else None
-        meta_ads_service = MetaAdsService(
-            DatabaseMetaAdsAuthority(settings.database_url), studio_creatives,
-            meta_configuration, meta_adapter,
-        )
     landing_publications = landing_publication_service or DatabaseLandingPublicationAuthority(
         settings.database_url
     )
-    meta_ads_service.landing_publications = landing_publications
+    meta_configuration = MetaAdsConfiguration.from_environment()
+    approved_posts = ApprovedPostSources(
+        studio_creatives, landing_publications, meta_configuration,
+    )
     if instagram_service is None:
-        ig_configuration = meta_ads_service.configuration
         instagram_service = InstagramPublicationService(
-            DatabaseInstagramAuthority(settings.database_url), meta_ads_service,
-            InstagramAdapter(ig_configuration) if ig_configuration.access_token else None,
-        )
-    if tiktok_service is None:
-        tiktok_service = TikTokPublicationService(
-            DatabaseTikTokAuthority(settings.database_url), studio_creatives,
-            TikTokConfiguration.from_environment(),
+            DatabaseInstagramAuthority(settings.database_url), approved_posts,
+            InstagramAdapter(meta_configuration) if meta_configuration.access_token else None,
         )
     analytics = analytics_service or CreativeAnalyticsService(
         DatabaseCreativeAnalyticsAuthority(settings.database_url),
         studio=studio_creatives, landing_pages=landing_pages,
-        landing_publications=landing_publications, meta_ads=meta_ads_service,
+        landing_publications=landing_publications, meta_ads=None,
         structured_provider=bridge,
         performance_skill_path=settings.creative_performance_skill_path,
         visual_skill_path=settings.creative_visual_skill_path,
-        instagram=instagram_service, tiktok=tiktok_service,
+        instagram=instagram_service, tiktok=None,
     )
+    instagram_validation = InstagramValidationService(
+        DatabaseInstagramValidationAuthority(settings.database_url), approved_posts, analytics,
+    )
+    landing_publications.mutation_guard = instagram_validation.assert_landing_mutation_allowed
     studio_creatives.analytics = analytics
     landing_pages.analytics = analytics
-    meta_ads_service.analytics = analytics
     if getattr(instagram_service, "engine", None) is not None:
         instagram_service.engine.analytics = analytics
-    if getattr(tiktok_service, "engine", None) is not None:
-        tiktok_service.engine.analytics = analytics
     runner_error: Exception | None = None
     if runner is None:
         try:
@@ -186,30 +174,6 @@ def create_app(
             task.add_done_callback(tasks.discard)
         for publication_id in await asyncio.to_thread(instagram_service.recover_interrupted):
             task = asyncio.create_task(asyncio.to_thread(instagram_service.execute, publication_id))
-            tasks.add(task)
-            task.add_done_callback(tasks.discard)
-        if getattr(getattr(tiktok_service, "configuration", None), "configured", False):
-            for publication_id in await asyncio.to_thread(tiktok_service.recover_interrupted):
-                task = asyncio.create_task(asyncio.to_thread(tiktok_service.execute, publication_id))
-                tasks.add(task)
-                task.add_done_callback(tasks.discard)
-            async def maintain_tiktok() -> None:
-                while True:
-                    await asyncio.to_thread(tiktok_service.maintain)
-                    await asyncio.sleep(30)
-            task = asyncio.create_task(maintain_tiktok())
-            tasks.add(task)
-            task.add_done_callback(tasks.discard)
-        for deployment_id in await asyncio.to_thread(meta_ads_service.recover_interrupted):
-            task = asyncio.create_task(asyncio.to_thread(meta_ads_service.execute, deployment_id))
-            tasks.add(task)
-            task.add_done_callback(tasks.discard)
-        if callable(getattr(meta_ads_service, "maintain_controls", None)):
-            async def maintain_meta_ads() -> None:
-                while True:
-                    await asyncio.to_thread(meta_ads_service.maintain_controls)
-                    await asyncio.sleep(900)
-            task = asyncio.create_task(maintain_meta_ads())
             tasks.add(task)
             task.add_done_callback(tasks.discard)
         async def maintain_analytics() -> None:
@@ -254,14 +218,8 @@ def create_app(
     app.include_router(instagram_media_router(
         instagram_service, prefix="/internal/v1/public/instagram-media", dependencies=[Depends(authorize)],
     ))
-    app.include_router(tiktok_router(
-        tiktok_service, prefix="/internal/v1/tiktok", dependencies=[Depends(authorize)],
-    ))
-    app.include_router(tiktok_media_router(
-        tiktok_service, prefix="/internal/v1/public/tiktok-media", dependencies=[Depends(authorize)],
-    ))
-    app.include_router(meta_ads_router(
-        meta_ads_service, prefix="/internal/v1/ads", dependencies=[Depends(authorize)],
+    app.include_router(instagram_validation_router(
+        instagram_validation, prefix="/internal/v1/instagram-tests", dependencies=[Depends(authorize)],
     ))
     app.include_router(creative_analytics_owner_router(
         analytics, prefix="/internal/v1/analytics", dependencies=[Depends(authorize)],

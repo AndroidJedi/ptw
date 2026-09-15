@@ -117,6 +117,13 @@ BEGIN
     ('meta_ads_presets', (SELECT count(*) FROM meta_ads_preset_versions)),
     ('instagram_publications', (SELECT count(*) FROM instagram_publications)),
     ('instagram_publication_attempts', (SELECT count(*) FROM instagram_publication_attempts)),
+    ('instagram_manual_post_packages', (SELECT count(*) FROM instagram_manual_post_packages)),
+    ('instagram_manual_post_events', (SELECT count(*) FROM instagram_manual_post_events)),
+    ('instagram_validation_tests', (SELECT count(*) FROM instagram_validation_tests)),
+    ('instagram_validation_arms', (SELECT count(*) FROM instagram_validation_arms)),
+    ('instagram_validation_test_events', (SELECT count(*) FROM instagram_validation_test_events)),
+    ('instagram_validation_imports', (SELECT count(*) FROM instagram_validation_imports)),
+    ('instagram_validation_import_rows', (SELECT count(*) FROM instagram_validation_import_rows)),
     ('tiktok_connections', (SELECT count(*) FROM tiktok_account_connections)),
     ('tiktok_oauth_states', (SELECT count(*) FROM tiktok_oauth_states)),
     ('tiktok_publications', (SELECT count(*) FROM tiktok_publications)),
@@ -180,8 +187,9 @@ BEGIN
      ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='005_instagram_publication_v1.sql'
      ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='006_meta_ads_control_v1.sql'
      ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='007_tiktok_publication_v1.sql'
-     ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='008_analytics_creative_learning_v1.sql') THEN
-    RAISE EXCEPTION 'Product Brief, Studio, Landing, Meta Ads, social publishing, and Analytics migrations are incomplete';
+     ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='008_analytics_creative_learning_v1.sql'
+     ) OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='009_instagram_manual_validation_v1.sql') THEN
+    RAISE EXCEPTION 'Product Brief, Studio, Landing, manual Instagram validation, preserved social history, and Analytics migrations are incomplete';
   END IF;
 END $$;
 SQL

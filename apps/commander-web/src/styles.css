@@ -611,6 +611,13 @@ button svg { width: 17px; height: 17px; }
 .ads-deployment footer { display: flex; justify-content: flex-end; }
 .ads-deployment footer:empty { display: none; }
 .ads-deployment footer button { min-height: 34px; padding: 7px 9px; font-size: 9px; }
+.ads-insights { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.ads-insights table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 9px; }
+.ads-insights th, .ads-insights td { padding: 9px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.ads-insights th { color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.ads-insights td:first-child { display: grid; gap: 3px; }
+.ads-insights td:first-child small { color: var(--muted); }
+.ads-insights tr.selected td { background: #181818; }
 
 .analytics-view { width: min(100%, 1400px); margin: 0 auto; display: grid; gap: 16px; }
 .analytics-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; }

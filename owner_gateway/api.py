@@ -11,7 +11,7 @@ from uuid import UUID
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import Response
 
 from .auth import FirebaseVerifier, OwnerDependency, OwnerIdentity
 from .settings import Settings
@@ -399,6 +399,15 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
     ) -> dict[str, Any]:
         return (await validation_bridge(
             "POST", f"/internal/v1/studio/projects/{project_id}/creatives",
+            body=request, actor=actor(identity), timeout=60,
+        )).json()
+
+    @app.post("/api/v1/studio/projects/{project_id}/creatives/clones", status_code=201)
+    async def studio_clone_approved_post(
+        project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
+    ) -> dict[str, Any]:
+        return (await validation_bridge(
+            "POST", f"/internal/v1/studio/projects/{project_id}/creatives/clones",
             body=request, actor=actor(identity), timeout=60,
         )).json()
 
@@ -796,152 +805,46 @@ def create_app(settings: Settings, verifier: FirebaseVerifier | None = None) -> 
             "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, noarchive",
         })
 
-    @app.get("/api/v1/tiktok/connection")
-    async def tiktok_connection(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("GET", "/internal/v1/tiktok/connection", timeout=120)).json()
+    @app.get("/api/v1/instagram-tests/projects/{project_id}")
+    async def instagram_validation_workspace(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", f"/internal/v1/instagram-tests/projects/{project_id}", timeout=60)).json()
 
-    @app.get("/api/v1/tiktok/projects/{project_id}")
-    async def tiktok_workspace(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("GET", f"/internal/v1/tiktok/projects/{project_id}", timeout=120)).json()
+    @app.get("/api/v1/instagram-tests/projects/{project_id}/manual-packages")
+    async def instagram_manual_packages(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("GET", f"/internal/v1/instagram-tests/projects/{project_id}/manual-packages", timeout=60)).json()
 
-    @app.get("/api/v1/tiktok/projects/{project_id}/publications")
-    async def tiktok_publications(project_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("GET", f"/internal/v1/tiktok/projects/{project_id}/publications", timeout=60)).json()
+    @app.post("/api/v1/instagram-tests/projects/{project_id}/manual-packages", status_code=201)
+    async def instagram_manual_package(project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/instagram-tests/projects/{project_id}/manual-packages", body=request, actor=actor(identity), timeout=60)).json()
 
-    @app.get("/api/v1/tiktok/projects/{project_id}/publications/{publication_id}")
-    async def tiktok_publication(project_id: str, publication_id: str, _identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("GET", f"/internal/v1/tiktok/projects/{project_id}/publications/{publication_id}", timeout=60)).json()
+    @app.post("/api/v1/instagram-tests/projects/{project_id}/manual-packages/{package_id}/{action}")
+    async def instagram_manual_package_action(project_id: str, package_id: str, action: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/instagram-tests/projects/{project_id}/manual-packages/{package_id}/{action}", body=request, actor=actor(identity), timeout=60)).json()
 
-    @app.post("/api/v1/tiktok/projects/{project_id}/publications", status_code=202)
-    async def tiktok_publish(project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("POST", f"/internal/v1/tiktok/projects/{project_id}/publications", body=request, actor=actor(identity), timeout=120)).json()
+    @app.post("/api/v1/instagram-tests/projects/{project_id}/tests", status_code=201)
+    async def instagram_validation_create(project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/instagram-tests/projects/{project_id}/tests", body=request, actor=actor(identity), timeout=120)).json()
 
-    @app.post("/api/v1/tiktok/projects/{project_id}/publications/{publication_id}/retry", status_code=202)
-    async def tiktok_retry(project_id: str, publication_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("POST", f"/internal/v1/tiktok/projects/{project_id}/publications/{publication_id}/retry", body=request, actor=actor(identity), timeout=60)).json()
+    @app.post("/api/v1/instagram-tests/projects/{project_id}/tests/{test_id}/imports/preview")
+    async def instagram_validation_csv_preview(project_id: str, test_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/instagram-tests/projects/{project_id}/tests/{test_id}/imports/preview", body=request, actor=actor(identity), timeout=60)).json()
 
-    @app.post("/api/v1/tiktok/projects/{project_id}/publications/{publication_id}/sync")
-    async def tiktok_sync(project_id: str, publication_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("POST", f"/internal/v1/tiktok/projects/{project_id}/publications/{publication_id}/sync", body=request, actor=actor(identity), timeout=60)).json()
+    @app.post("/api/v1/instagram-tests/projects/{project_id}/tests/{test_id}/imports", status_code=201)
+    async def instagram_validation_csv_import(project_id: str, test_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/instagram-tests/projects/{project_id}/tests/{test_id}/imports", body=request, actor=actor(identity), timeout=60)).json()
 
-    @app.post("/api/v1/tiktok/oauth/start")
-    async def tiktok_oauth_start(request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("POST", "/internal/v1/tiktok/oauth/start", body=request, actor=actor(identity), timeout=60)).json()
+    # Keep the static imports route ahead of the dynamic lifecycle action.
+    @app.post("/api/v1/instagram-tests/projects/{project_id}/tests/{test_id}/{action}")
+    async def instagram_validation_transition(project_id: str, test_id: str, action: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
+        return (await validation_bridge("POST", f"/internal/v1/instagram-tests/projects/{project_id}/tests/{test_id}/{action}", body=request, actor=actor(identity), timeout=60)).json()
 
-    @app.get("/api/v1/tiktok/oauth/callback")
-    async def tiktok_oauth_callback(
-        code: str = Query(min_length=1, max_length=1024),
-        state: str = Query(min_length=43, max_length=43),
-    ) -> RedirectResponse:
-        result = (await validation_bridge("GET", "/internal/v1/tiktok/oauth/callback", params={"code": code, "state": state}, timeout=60)).json()
-        return_to = str(result.get("return_to") or "/")
-        if not re.fullmatch(r"/[A-Za-z0-9_/?&=.-]{0,500}", return_to) or return_to.startswith("//"):
-            return_to = "/"
-        return RedirectResponse(f"{settings.public_origin.rstrip('/')}{return_to}", status_code=303)
-
-    @app.post("/api/v1/tiktok/disconnect")
-    async def tiktok_disconnect(request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("POST", "/internal/v1/tiktok/disconnect", body=request, actor=actor(identity), timeout=60)).json()
-
-    @app.api_route("/api/v1/public/tiktok-media/{token}.jpg", methods=["GET", "HEAD"])
-    async def tiktok_media(token: str) -> Response:
-        if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
-            raise HTTPException(404, "Media unavailable")
-        response = await validation_bridge("GET", f"/internal/v1/public/tiktok-media/{token}.jpg", timeout=60)
-        return Response(response.content, media_type="image/jpeg", headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, noarchive"})
-
-    @app.get("/api/v1/ads/connection")
-    async def meta_ads_connection(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("GET", "/internal/v1/ads/connection", timeout=120)).json()
-
-    @app.get("/api/v1/ads/presets")
-    async def meta_ads_presets(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:
-        return (await validation_bridge("GET", "/internal/v1/ads/presets", timeout=60)).json()
-
-    @app.get("/api/v1/ads/locations")
-    async def meta_ads_locations(
-        query: str = Query(min_length=2, max_length=80),
-        country_code: str = Query(min_length=2, max_length=2),
-        _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "GET", "/internal/v1/ads/locations",
-            params={"query": query, "country_code": country_code}, timeout=60,
-        )).json()
-
-    @app.post("/api/v1/ads/presets", status_code=201)
-    async def meta_ads_create_preset(
-        request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", "/internal/v1/ads/presets", body=request,
-            actor=actor(identity), timeout=60,
-        )).json()
-
-    @app.get("/api/v1/ads/projects/{project_id}")
-    async def meta_ads_workspace(
-        project_id: str, _identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "GET", f"/internal/v1/ads/projects/{project_id}", timeout=60,
-        )).json()
-
-    @app.post("/api/v1/ads/projects/{project_id}/deployments", status_code=202)
-    async def meta_ads_deploy(
-        project_id: str, request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/ads/projects/{project_id}/deployments",
-            body=request, actor=actor(identity), timeout=120,
-        )).json()
-
-    @app.post("/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/retry", status_code=202)
-    async def meta_ads_retry(
-        project_id: str, deployment_id: str, request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/ads/projects/{project_id}/deployments/{deployment_id}/retry",
-            body=request, actor=actor(identity), timeout=60,
-        )).json()
-
-    @app.post("/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/sync")
-    async def meta_ads_sync(
-        project_id: str, deployment_id: str, request: Mapping[str, Any],
-        identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/ads/projects/{project_id}/deployments/{deployment_id}/sync",
-            body=request, actor=actor(identity), timeout=60,
-        )).json()
-
-    @app.post("/api/v1/ads/projects/{project_id}/controls", status_code=201)
-    async def meta_ads_propose_control(
-        project_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/ads/projects/{project_id}/controls",
-            body=request, actor=actor(identity), timeout=60,
-        )).json()
-
-    @app.post("/api/v1/ads/projects/{project_id}/controls/{action_id}/confirm")
-    async def meta_ads_confirm_control(
-        project_id: str, action_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/ads/projects/{project_id}/controls/{action_id}/confirm",
-            body=request, actor=actor(identity), timeout=120,
-        )).json()
-
-    @app.post("/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/insights")
-    async def meta_ads_insights(
-        project_id: str, deployment_id: str, request: Mapping[str, Any], identity: OwnerIdentity = Depends(owner),
-    ) -> dict[str, Any]:
-        return (await validation_bridge(
-            "POST", f"/internal/v1/ads/projects/{project_id}/deployments/{deployment_id}/insights",
-            body=request, actor=actor(identity), timeout=120,
-        )).json()
+    @app.get("/api/v1/instagram-tests/projects/{project_id}/tests/{test_id}/launch-kit")
+    async def instagram_validation_launch_kit(project_id: str, test_id: str, _identity: OwnerIdentity = Depends(owner)) -> Response:
+        response = await validation_bridge("GET", f"/internal/v1/instagram-tests/projects/{project_id}/tests/{test_id}/launch-kit", timeout=120)
+        return Response(response.content, media_type="application/zip", headers={
+            "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+            **({"X-PTW-Content-SHA256": response.headers["x-ptw-content-sha256"]} if response.headers.get("x-ptw-content-sha256") else {}),
+        })
 
     @app.get("/api/v1/system/health")
     async def system_health(_identity: OwnerIdentity = Depends(owner)) -> dict[str, Any]:

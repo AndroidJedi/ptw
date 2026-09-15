@@ -145,21 +145,18 @@ Post, or Landing learning entities or cross their lesson namespaces.
 - Post publishing is an approved-artifact boundary. Keep renderer/editor CTA
   controls, pending edits, historical PNGs, and learning namespaces unchanged.
   Verify the selected approved digest for preview/export; a website ad's native
-  CTA is independent. Load export sources before remote capability checks so
-  missing advertising permissions cannot block organic publishing or export.
+  CTA is independent. Direct and manual Instagram posts append a unique tracked
+  Landing URL to the exact approved copy. Paid tests export 2–6 immutable arms
+  for one manually created Meta Campaign and Ad Set; audience input stays only
+  in Meta, while first-party Landing events and reviewed Meta CSV remain separate.
 - Instagram publish timeouts are ambiguous external mutations. Persist the
   request and container, then persist the publish-start flag before the POST.
   Restart/sync must reuse that container without replaying media_publish. Save
   the returned media ID before requesting its permalink. Exercise response loss,
   restart, duplicate input, account changes, and media expiry in regression tests.
-- Social publishers share orchestration, never provider persistence. Drive commit
-  timing from adapter capabilities, and persist the mutation-start marker before
-  every irreversible provider call. For TikTok Direct Post, `content/init` is the
-  commit: a lost response is uncertain and must never be replayed. Pin the OAuth
-  `open_id` plus expected username, encrypt rotating tokens, fetch creator options
-  before review and reservation, derive AIGC from approved asset provenance, keep
-  pull media for its full expiry, and gate non-private visibility on recorded app
-  audit approval.
+- Meta Ads API automation and TikTok publishing are preserved but inactive.
+  Do not remount their routes, jobs, or UI during ordinary Commander work. Use
+  `$legacy-social-automation-recovery` only after an explicit owner request.
 - Public Landing analytics belong to the single `apps/landing-web` shell, not
   immutable Landing snapshots. A Meta Pixel ID is public configuration; keep
   tokens out of the browser. Load the external library and emit `PageView` only

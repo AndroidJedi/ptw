@@ -23,6 +23,7 @@ from .studio_creatives import (
 _MUTATING_METHODS = frozenset({
     "save_configuration", "apply_template", "upload_asset", "select_phone_screen",
     "generate_phone_screen", "source_pexels", "approve_version", "approve_configuration",
+    "restore_approved_clone",
 })
 
 
@@ -545,6 +546,80 @@ class DatabaseStudioAuthority:
                 connection, creative_id, "derived_from", UUID(brief_id),
                 {"input": "approved_product_brief"},
             )
+        value = self.get_creative(str(creative_id))
+        value["project_name"] = project["name"]
+        return value, True
+
+    def create_clone_creative(
+        self, *, project_id: str, source_creative_id: str, source_version_id: str,
+        source_version: int, request_id: str, requested_by: str,
+    ) -> tuple[dict[str, Any], bool]:
+        from psycopg.types.json import Jsonb
+
+        project_id = str(UUID(project_id))
+        source_creative_id = str(UUID(source_creative_id))
+        source_version_id = str(UUID(source_version_id))
+        request_id = str(UUID(request_id))
+        project = self.project(project_id)
+        with self.connection() as connection:
+            connection.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",
+                (f"studio-clone-request:{request_id}",),
+            )
+            prior = connection.execute(
+                "SELECT entity_id,project_id,clone_source_version_id FROM universal_studio_workspaces WHERE clone_request_id=%s",
+                (UUID(request_id),),
+            ).fetchone()
+            if prior is not None:
+                if str(prior[1]) != project_id or str(prior[2]) != source_version_id:
+                    raise ValueError("idempotency request ID was reused with different clone input")
+                return self.get_creative(str(prior[0])), False
+            source = connection.execute(
+                """SELECT workspace.source_brief_id,workspace.template_id,workspace.generation,
+                          version.version,version.version_sha256
+                     FROM universal_studio_workspaces workspace
+                     JOIN universal_studio_versions version ON version.workspace_id=workspace.entity_id
+                    WHERE workspace.entity_id=%s AND workspace.project_id=%s AND version.entity_id=%s""",
+                (UUID(source_creative_id), UUID(project_id), UUID(source_version_id)),
+            ).fetchone()
+            if source is None or int(source[3]) != source_version:
+                raise ValueError("Clone source must be an approved Post version in this Project")
+            connection.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",
+                (f"studio-brief:{source[0]}",),
+            )
+            ordinal = int(connection.execute(
+                "SELECT count(*)+1 FROM universal_studio_workspaces WHERE source_brief_id=%s",
+                (source[0],),
+            ).fetchone()[0])
+            creative_id = UUID(new_uuid7())
+            generation = {
+                "clone_request_id": request_id,
+                "clone_source_creative_id": source_creative_id,
+                "clone_source_version_id": source_version_id,
+                "clone_source_version": source_version,
+                "clone_source_version_sha256": source[4],
+                **({"creative_direction": dict(source[2]).get("creative_direction")}
+                   if dict(source[2] or {}).get("creative_direction") else {}),
+            }
+            connection.execute(
+                "INSERT INTO commander_entities(id,kind,attributes) VALUES(%s,'studio_workspace',%s)",
+                (creative_id, Jsonb({"schema_version": 1, "project_id": project_id, "origin": "approved_clone"})),
+            )
+            connection.execute(
+                """INSERT INTO universal_studio_workspaces(
+                       entity_id,project_id,source_brief_id,ordinal,origin,template_id,status,
+                       requested_by,generation,clone_source_version_id,clone_request_id
+                   ) VALUES(%s,%s,%s,%s,'approved_clone',%s,'queued',%s,%s,%s,%s)""",
+                (creative_id, UUID(project_id), source[0], ordinal, source[1], requested_by,
+                 Jsonb(generation), UUID(source_version_id), UUID(request_id)),
+            )
+            self.repository._insert_edge(connection, UUID(project_id), "contains", creative_id,
+                                         {"member": "studio_creative", "ordinal": ordinal})
+            self.repository._insert_edge(connection, creative_id, "derived_from", source[0],
+                                         {"input": "approved_product_brief"})
+            self.repository._insert_edge(connection, creative_id, "derived_from", UUID(source_version_id),
+                                         {"input": "approved_post_clone"})
         value = self.get_creative(str(creative_id))
         value["project_name"] = project["name"]
         return value, True

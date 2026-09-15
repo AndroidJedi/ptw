@@ -57,7 +57,7 @@ export interface MetaAdsSourceVersion {
   version_sha256: string
   render_sha256: string
   change_note: string
-  defaults: { headline: string; primary_text: string; welcome_message: string }
+  defaults: { headline: string; primary_text: string; instagram_caption?: string; welcome_message: string }
 }
 
 export interface MetaAdsStatusSnapshot {
@@ -142,7 +142,7 @@ export interface CreativeLearningRun {
 }
 
 export interface AnalyticsOrganicRow {
-  provider: 'instagram' | 'tiktok'
+  provider: 'instagram'
   publication_id: string
   project_id: string
   published_at: string
@@ -165,7 +165,7 @@ export interface AnalyticsWorkspace {
   skills: { snapshot: CreativeSkillSnapshot | null; rules: CreativeSkillRule[] }
   learning_runs: CreativeLearningRun[]
   learning_curve: Array<{ project_skill_snapshot_id: string | null; global_skill_snapshot_id: string | null; items: number; views: number; contact_clicks: number }>
-  freshness: Record<'instagram' | 'tiktok', string | null>
+  freshness: Record<'instagram', string | null>
   metric_definitions: Record<string, { numerator: string; denominator: string; source: string; limitation?: string }>
 }
 
@@ -251,7 +251,7 @@ export type StudioUniversalFontFamily =
   | 'Lora' | 'Lora Italic'
 
 export interface StudioUniversalConfiguration {
-  schema: 'ptw.studio.universal-ad-config.v6'
+  schema: 'ptw.studio.universal-ad-config.v6' | 'ptw.studio.universal-ad-config.v7'
   background: {
     mode: 'solid' | 'texture' | 'image'
     color: string
@@ -284,8 +284,12 @@ export interface StudioUniversalConfiguration {
     content_width: number
     gap: number
   }
-  bullets: { enabled: boolean; style: 'check' | 'circle' | 'circle_outline' }
+  hero_title?: { enabled: boolean }
+  supporting_text?: { enabled: boolean }
+  offer?: { enabled: boolean }
+  bullets: { enabled: boolean; style: 'check' | 'circle' | 'circle_outline'; items_enabled?: [boolean, boolean, boolean] }
   cta: {
+    enabled?: boolean
     style: 'filled' | 'gradient' | 'reverse' | 'link' | 'outlined'
     position: 'below_text' | 'bottom_left' | 'bottom_right'
     background_color: string
@@ -354,10 +358,10 @@ export interface StudioUniversalComponentDefinition {
 }
 
 export interface StudioUniversalComponentSettings {
-  schema: 'ptw.studio.universal-ad-component-settings.v3'
+  schema: 'ptw.studio.universal-ad-component-settings.v3' | 'ptw.studio.universal-ad-component-settings.v4'
   template_id: 'universal_ad'
   template_version: number
-  configuration_schema: 'ptw.studio.universal-ad-config.v6'
+  configuration_schema: 'ptw.studio.universal-ad-config.v6' | 'ptw.studio.universal-ad-config.v7'
   components: Array<Omit<StudioUniversalComponentDefinition, 'setting_ids'> & {
     settings: Array<{ setting_id: string; value: unknown }>
   }>
@@ -367,7 +371,7 @@ export interface StudioUniversalComponentSettings {
 export interface StudioUniversalSettingDefinition {
   setting_id: string
   component_id: string
-  value_type: 'boolean' | 'color' | 'enum' | 'integer' | 'number'
+  value_type: 'boolean' | 'color' | 'enum' | 'integer' | 'number' | 'structured'
   aliases: string[]
   minimum?: number
   maximum?: number
@@ -421,7 +425,7 @@ export interface StudioUniversalDetail {
   project_id: string
   source_brief_id: string
   ordinal: number
-  origin: 'brief_generation' | 'approved_variant'
+  origin: 'brief_generation' | 'approved_variant' | 'approved_clone'
   status: StudioCreativeStatus
   generation: StudioCreativeSummary['generation']
   approved_version_count: number
@@ -466,6 +470,7 @@ export interface StudioPhoneTypographyConfiguration {
 }
 
 export interface StudioPhoneMetricCardConfiguration {
+  enabled?: boolean
   style: StudioPhoneMetricCardStyle
   text_color: string
   background_color: string
@@ -473,6 +478,7 @@ export interface StudioPhoneMetricCardConfiguration {
 }
 
 export interface StudioPhoneActionButtonConfiguration {
+  enabled?: boolean
   style: StudioPhoneActionButtonStyle
   text_color: string
   background_color: string
@@ -481,7 +487,7 @@ export interface StudioPhoneActionButtonConfiguration {
 
 export interface StudioPhoneMetricsConfiguration {
   visual_mode?: 'phone' | 'image'
-  schema: 'ptw.studio.phone-metrics-config.v11'
+  schema: 'ptw.studio.phone-metrics-config.v11' | 'ptw.studio.phone-metrics-config.v12'
   background: {
     color: string
     texture: StudioPhoneBackgroundTexture
@@ -491,13 +497,13 @@ export interface StudioPhoneMetricsConfiguration {
   logo: { enabled: boolean }
   offer: { enabled: boolean }
   cta: { enabled: boolean; background_color: string; text_color: string }
-  hero_title: { highlight_color: string }
-  supporting_text: { highlight_color: string }
+  hero_title: { enabled?: boolean; highlight_color: string }
+  supporting_text: { enabled?: boolean; highlight_color: string }
   typography: Record<StudioPhoneTypographyRole, StudioPhoneTypographyConfiguration>
-  phone_screen: { texture: StudioPhoneScreenTexture; logo_enabled: boolean }
+  phone_screen: { texture: StudioPhoneScreenTexture; logo_enabled: boolean; title_enabled?: boolean }
   metric_cards: StudioPhoneMetricCardConfiguration[]
   phone_buttons: StudioPhoneActionButtonConfiguration[]
-  device: { x: number; y: number; width: number; rotation: number }
+  device: { enabled?: boolean; x: number; y: number; width: number; rotation: number }
 }
 
 export interface StudioPhoneMetricsContent {
@@ -557,7 +563,7 @@ export interface StudioCreativeSummary {
   project_id: string
   source_brief_id: string
   ordinal: number
-  origin: 'brief_generation' | 'approved_variant'
+  origin: 'brief_generation' | 'approved_variant' | 'approved_clone'
   template_id: 'universal_ad' | 'phone_metrics'
   template_version: number | null
   template_sha256: string | null
@@ -599,7 +605,7 @@ export interface StudioPhoneMetricsDetail {
   project_id: string
   source_brief_id: string
   ordinal: number
-  origin: 'brief_generation' | 'approved_variant'
+  origin: 'brief_generation' | 'approved_variant' | 'approved_clone'
   status: StudioCreativeStatus
   generation: StudioCreativeSummary['generation']
   approved_version_count: number

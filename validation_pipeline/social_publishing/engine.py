@@ -13,6 +13,7 @@ from uuid import NAMESPACE_URL, uuid5
 from commander.ids import new_uuid7
 from validation_pipeline.local_brief_store import utc_now
 from validation_pipeline.meta_ads import _uuid
+from validation_pipeline.approved_posts import caption_with_url
 
 
 TERMINAL_PHASES = {"published", "published_unresolved", "uncertain", "failed"}
@@ -154,9 +155,14 @@ class SocialPublishingEngine:
             publication_id = new_uuid7()
             landing = self.sources.landing(project_id)
             analytics = None if self.analytics is None else self.analytics.prepare_attribution(landing)
+            published_content = deepcopy(review.get("content") or {})
+            if analytics and landing and self.provider == "instagram":
+                published_content["description"] = caption_with_url(
+                    published_content.get("description", ""), analytics["tracked_url"],
+                )
             specification = {
                 "source": source_spec,
-                "content": deepcopy(review.get("content") or {}),
+                "content": published_content,
                 "settings": deepcopy(review.get("settings") or {}),
                 "account": self.adapter.account(connection),
                 "creator_snapshot_sha256": review.get("creator_snapshot_sha256"),
@@ -169,6 +175,8 @@ class SocialPublishingEngine:
             specification.update(self.adapter.provider_specification(
                 review, artifact, connection, delivery,
             ))
+            if analytics and landing and self.provider == "instagram":
+                specification["caption"] = published_content["description"]
             expires = datetime.now(timezone.utc) + timedelta(hours=1)
             initial = self.adapter.state_patch(
                 phase="queued", transfer_id=None, post_ids=[], permalink=None,

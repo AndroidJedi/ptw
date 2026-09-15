@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { ApiClient } from '../api'
-import type { InstagramPublication, InstagramWorkspace, TikTokWorkspace } from '../types'
+import type { InstagramPublication, InstagramWorkspace } from '../types'
 import { PostPublishing } from './PostPublishing'
 
 const projectId = '11111111-1111-4111-8111-111111111111'
@@ -14,7 +14,7 @@ const workspace = (ready: boolean, publications: InstagramPublication[] = []): I
 })
 function setup(ready = true, publications: InstagramPublication[] = []) {
   const get = vi.fn(async (path: string) => path.endsWith('/publications') ? { items: publications } : workspace(ready, publications))
-  const post = vi.fn(async () => ({ publication: { publication_id: 'publication' }, created: true }))
+  const post = vi.fn(async (_path: string, _body?: unknown, _options?: unknown): Promise<unknown> => ({ publication: { publication_id: 'publication' }, created: true }))
   const image = vi.fn(async () => new Blob(['approved png'], { type: 'image/png' }))
   render(<PostPublishing api={{ get, post, image } as unknown as ApiClient} language="en" projectId={projectId} creativeId={creativeId} versions={versions} />)
   return { get, post, image }
@@ -28,7 +28,7 @@ beforeEach(() => {
 it('selects exact approved version for preview, publication, and ad handoff', async () => {
   const { post, image } = setup()
   fireEvent.change(screen.getByLabelText('Approved version'), { target: { value: '1' } })
-  expect(screen.getByRole('link', { name: 'Create Instagram ad' }).getAttribute('href')).toContain('ad_version=1&destination=WEBSITE')
+  expect(screen.getByRole('link', { name: 'Prepare Instagram test' }).getAttribute('href')).toContain('ad_version=1&destination=WEBSITE')
   fireEvent.click(screen.getByRole('button', { name: 'Publish to Instagram' }))
   await waitFor(() => expect(screen.getByLabelText('Instagram caption')).toHaveValue('Title 1\n\nApproved copy'))
   expect(image).toHaveBeenCalledWith(expect.stringContaining('/versions/1/render'), 'image/png', '1'.repeat(64))
@@ -46,7 +46,7 @@ it('keeps export and landing-copy available without publishing credentials', asy
   expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://natal-service.com/la/example')
   expect(post).not.toHaveBeenCalled()
 })
-it('shows the publication-specific tracked Landing URL without changing the caption', async () => {
+it('shows the exact tracked Landing URL appended to the direct publication caption', async () => {
   const trackedUrl = 'https://natal-service.com/la/example?ptw_attribution=opaque-token'
   const publication: InstagramPublication = {
     publication_id: '33333333-3333-4333-8333-333333333333', project_id: projectId,
@@ -58,7 +58,7 @@ it('shows the publication-specific tracked Landing URL without changing the capt
   }
   setup(true, [publication])
   fireEvent.click(screen.getByRole('button', { name: 'Publish to Instagram' }))
-  expect(await screen.findByText('Tracked Landing URL · caption unchanged')).toBeInTheDocument()
+  expect(await screen.findByText('This exact tracked Landing URL was appended to the published caption.')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: trackedUrl })).toHaveAttribute('href', trackedUrl)
   fireEvent.click(screen.getByRole('button', { name: 'Copy tracked URL' }))
   expect(navigator.clipboard.writeText).toHaveBeenCalledWith(trackedUrl)
@@ -74,22 +74,36 @@ it('reuses the request ID after an uncertain HTTP response', async () => {
   await waitFor(() => expect(post).toHaveBeenCalledTimes(2))
   expect(post.mock.calls[0]).toEqual(post.mock.calls[1])
 })
-it('uses the shared shell with explicit TikTok review and consent', async () => {
-  const tiktok: TikTokWorkspace = {
-    provider: 'tiktok', sources: workspace(true).sources, publications: [], landing: null,
-    connection: { provider: 'tiktok', configured: true, verified: true, media_ready: true, direct_post_audited: true, expected_username: 'natal_cast', account: { open_id: 'open-1', username: 'natal_cast' }, creator: { open_id: 'open-1', username: 'natal_cast', privacy_level_options: ['PUBLIC_TO_EVERYONE', 'SELF_ONLY'], comment_disabled: false }, creator_snapshot_sha256: 'c'.repeat(64) },
-  }
-  const get = vi.fn(async (path: string) => path.endsWith('/publications') ? { items: [] } : path === '/api/v1/tiktok/connection' ? tiktok.connection : path.includes('/tiktok/') ? tiktok : workspace(true))
-  const post = vi.fn(async () => ({ publication: { publication_id: 'publication' }, created: true }))
-  const image = vi.fn(async () => new Blob(['approved png'], { type: 'image/png' }))
-  render(<PostPublishing api={{ get, post, image } as unknown as ApiClient} language="en" projectId={projectId} creativeId={creativeId} versions={versions} />)
-  fireEvent.click(screen.getByRole('button', { name: 'Publish to TikTok' }))
-  await waitFor(() => expect(screen.getByText('@natal_cast')).toBeInTheDocument())
-  fireEvent.change(screen.getByLabelText('Privacy (choose manually)'), { target: { value: 'PUBLIC_TO_EVERYONE' } })
-  fireEvent.change(screen.getByLabelText('Commercial-content disclosure (choose manually)'), { target: { value: 'own' } })
-  fireEvent.click(screen.getByLabelText("By posting, you agree to TikTok's Music Usage Confirmation."))
-  const publish = screen.getByRole('button', { name: 'Publish now' })
-  await waitFor(() => expect(publish).toBeEnabled())
-  fireEvent.click(publish)
-  await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/tiktok/projects/${projectId}/publications`, expect.objectContaining({ source: { creative_id: creativeId, version: 2 }, creator_snapshot_sha256: 'c'.repeat(64), settings: expect.objectContaining({ privacy_level: 'PUBLIC_TO_EVERYONE' }) }), { deadlineMs: 120_000 }))
+it('creates one tracked manual Post package, copies it, and records publication', async () => {
+  const { post } = setup(false)
+  const trackedUrl = 'https://natal-service.com/la/example?ptw_attribution=manual-token'
+  post.mockImplementation(async (path: string) => {
+    if (path.endsWith('/manual-packages')) return { package: {
+      package_id: '55555555-5555-4555-8555-555555555555',
+      caption: `Title 2\n\nApproved copy\n\n${trackedUrl}`, tracked_url: trackedUrl, state: 'prepared',
+    } }
+    if (path.endsWith('/published')) return { package: {
+      package_id: '55555555-5555-4555-8555-555555555555',
+      caption: `Title 2\n\nApproved copy\n\n${trackedUrl}`, tracked_url: trackedUrl, state: 'published',
+    } }
+    return { publication: { publication_id: 'publication' }, created: true }
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Publish to Instagram' }))
+  const copy = await screen.findByRole('button', { name: 'Copy all texts' })
+  fireEvent.click(copy)
+  await waitFor(() => expect(post).toHaveBeenCalledWith(
+    `/api/v1/instagram-tests/projects/${projectId}/manual-packages`,
+    expect.objectContaining({ source: { creative_id: creativeId, version: 2 } }),
+  ))
+  expect(navigator.clipboard.writeText).toHaveBeenCalledWith(`Title 2\n\nApproved copy\n\n${trackedUrl}`)
+  fireEvent.click(copy)
+  await waitFor(() => expect(post.mock.calls.filter(call => String(call[0]).endsWith('/manual-packages'))).toHaveLength(2))
+  const packageRequests = post.mock.calls.filter(call => String(call[0]).endsWith('/manual-packages'))
+  expect(packageRequests[0][1]).toEqual(packageRequests[1][1])
+  fireEvent.click(await screen.findByRole('button', { name: 'Mark manually published' }))
+  await waitFor(() => expect(post).toHaveBeenCalledWith(
+    `/api/v1/instagram-tests/projects/${projectId}/manual-packages/55555555-5555-4555-8555-555555555555/published`,
+    expect.objectContaining({ request_id: expect.any(String) }),
+  ))
+  expect(screen.queryByRole('button', { name: 'Publish to TikTok' })).not.toBeInTheDocument()
 })

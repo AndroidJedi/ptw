@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 import { Shell } from './Shell'
 
-it('shows Product Briefs, Post, Landing, Ads, and Analytics destinations without a separate Studio destination', () => {
+it('shows Product Briefs, Post, Landing, Instagram tests, and Analytics destinations without a separate Studio destination', () => {
   const props = {
     page: 'briefs' as const, onPage: vi.fn(), language: 'en' as const,
     onLanguage: vi.fn(), children: <p>content</p>,
@@ -10,7 +10,7 @@ it('shows Product Briefs, Post, Landing, Ads, and Analytics destinations without
   const view = render(<Shell {...props} />)
   expect(screen.getAllByRole('button', { name: /^Post$/ })).toHaveLength(2)
   expect(screen.getAllByRole('button', { name: /^Landing$/ })).toHaveLength(2)
-  expect(screen.getAllByRole('button', { name: /^Ads$/ })).toHaveLength(2)
+  expect(screen.getAllByRole('button', { name: /^Instagram tests$/ })).toHaveLength(2)
   expect(screen.getAllByRole('button', { name: /^Analytics$/ })).toHaveLength(2)
   expect(screen.getAllByRole('button', { name: 'Brief' })).toHaveLength(2)
   expect(screen.getAllByRole('button', { name: 'Settings' })).toHaveLength(2)
@@ -22,7 +22,7 @@ it('shows Product Briefs, Post, Landing, Ads, and Analytics destinations without
   view.rerender(<Shell {...props} language="uk" />)
   expect(screen.getAllByRole('button', { name: /^Допис$/ })).toHaveLength(2)
   expect(screen.getAllByRole('button', { name: /^Лендінг$/ })).toHaveLength(2)
-  expect(screen.getAllByRole('button', { name: /^Реклама$/ })).toHaveLength(2)
+  expect(screen.getAllByRole('button', { name: /^Instagram-тести$/ })).toHaveLength(2)
   expect(screen.getAllByRole('button', { name: /^Аналітика$/ })).toHaveLength(2)
   expect(screen.getAllByRole('button', { name: 'Бриф' })).toHaveLength(2)
   expect(screen.queryByRole('button', { name: /^Студія$/ })).not.toBeInTheDocument()

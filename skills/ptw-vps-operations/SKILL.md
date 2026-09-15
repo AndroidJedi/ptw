@@ -336,17 +336,14 @@ Owner-facing error acceptance also covers failure paths: each API or persisted
 background failure shows what failed, why in plain language, the next safe
 action, and bounded technical context without raw provider/5xx output.
 
-## Instagram publishing and website Ads
+## Instagram publishing and manual validation
 
-- Consult `docs/architecture/meta-ads.md`. Verify publishing permissions and
-  advertising permissions independently; workspace/export reads must not wait
-  for remote verification. Real acceptance needs a selected approved version,
-  an Instagram permalink, and a website ad verified PAUSED in Meta.
-- Configure secrets only through `scripts/configure_meta_ads.sh` hidden prompts.
-  Keep the production secret file's six-key contract compatible with rollback
-  images. `META_INSTAGRAM_MEDIA_ORIGIN` is a nonsecret Validation Compose setting,
-  not an additional production secret-file key. Loopback publishing requires an
-  explicitly configured public HTTPS origin reaching the same local authority.
+- Consult `docs/architecture/instagram-manual-validation.md`. Organic publishing
+  and manual Post export must remain independent: unavailable direct-publish
+  credentials cannot block copying tracked text or downloading an approved PNG.
+- Configure organic Instagram secrets only through the existing hidden prompt.
+  Keep its secret-file contract compatible with rollback images.
+  `META_INSTAGRAM_MEDIA_ORIGIN` is a nonsecret Validation Compose setting.
 - When the organic configurator returns Meta HTTP 400 but a token-safe
   `GET /me/accounts?fields=id,name,tasks,instagram_business_account{id,username}`
   returns the assigned Page and linked professional account, do not keep rotating
@@ -356,14 +353,6 @@ action, and bounded technical context without raw provider/5xx output.
   response, match the exact Page ID and Instagram username, and require
   `pages_show_list` alongside the publishing permissions. Never record the token
   or opaque paging cursors.
-- Advertising configuration must verify the system user's assigned Ad Account
-  through `/me/adaccounts`, its assigned Page and linked professional account
-  through `/me/accounts`, and the Instagram actor through the Ad Account's
-  `instagram_accounts` edge. Do not gate valid credentials on the Ad Account's
-  `promote_pages` field; it can omit an independently assigned Page even when
-  the three authoritative assignment checks pass. Website LPV readiness also
-  requires the exact non-secret `META_PIXEL_ID` on the Ad Account `adspixels`
-  edge. Keep that ID in Compose, never in the six-key token file.
 - Keep curl URL globbing disabled for Meta Graph queries containing nested field
   expressions such as `instagram_business_account{id,username}`. Without
   `--globoff`, curl expands the braces into multiple malformed field requests;
@@ -377,12 +366,12 @@ action, and bounded technical context without raw provider/5xx output.
 - Expose only the bounded opaque temporary JPEG route, never Studio files or
   metadata. Disable HTTP access logs that could retain bearer media URLs. Test
   expiry after completion and timeout through Gateway and Validation.
-- Before a schema-five rollout, refuse active Instagram work and preserve all
-  prior business tables, including Landing. Fingerprint the baseline column
-  projection so an additive defaulted campaign objective does not look like a
-  prior-row mutation. Exercise the exact SQL/psql transport against disposable
-  PostgreSQL; do not weaken preservation checks or the in-place confirmation.
-- A saved publish-start flag requires reconciliation, never automatic replay or
-  a replacement post. Retain attempts and existing container/media IDs. Read
-  externally activated ad parents without changing their status; new ads remain
-  PAUSED and campaign identity includes project, objective, and categories.
+- Before a schema rollout, refuse active Instagram work and preserve all prior
+  business tables, including inactive Meta Ads and TikTok history. Exercise the
+  exact SQL transport against disposable PostgreSQL; do not weaken preservation
+  checks.
+- A saved organic publish-start flag requires reconciliation, never automatic
+  replay or a replacement post. Retain attempts and existing container/media IDs.
+  Paid tests have no provider mutation or polling jobs: verify unique arm URLs,
+  launch-kit integrity, CSV preview/confirmation, first-party event attribution,
+  and the prepared → active → completed/abandoned lifecycle.

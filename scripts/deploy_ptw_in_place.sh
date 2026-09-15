@@ -194,6 +194,7 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='006_meta_ads_control_v1.sql')
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='007_tiktok_publication_v1.sql')
      OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='008_analytics_creative_learning_v1.sql')
+     OR NOT EXISTS (SELECT 1 FROM commander_schema_migrations WHERE name='009_instagram_manual_validation_v1.sql')
      OR to_regclass('public.instagram_publications') IS NULL
      OR to_regclass('public.instagram_publication_attempts') IS NULL
      OR to_regclass('public.tiktok_publications') IS NULL
@@ -211,10 +212,17 @@ BEGIN
      OR to_regclass('public.creative_learning_runs') IS NULL
      OR to_regclass('public.creative_skill_snapshots') IS NULL
      OR to_regclass('public.creative_learning_decisions') IS NULL
+     OR to_regclass('public.instagram_manual_post_packages') IS NULL
+     OR to_regclass('public.instagram_manual_post_events') IS NULL
+     OR to_regclass('public.instagram_validation_tests') IS NULL
+     OR to_regclass('public.instagram_validation_arms') IS NULL
+     OR to_regclass('public.instagram_validation_test_events') IS NULL
+     OR to_regclass('public.instagram_validation_imports') IS NULL
+     OR to_regclass('public.instagram_validation_import_rows') IS NULL
      OR NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='landing_publications')
      OR NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='landing_publication_events')
      OR (SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='validation_projects' AND column_name='owner_idea_source_id') <> 'YES' THEN
-    RAISE EXCEPTION 'Landing, social publishing, Meta Ads, and Analytics migrations are incomplete';
+    RAISE EXCEPTION 'Landing, manual Instagram validation, preserved social history, and Analytics migrations are incomplete';
   END IF;
 END $$;
 SQL

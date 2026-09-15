@@ -432,6 +432,23 @@ class ReleaseStreamContractTests(unittest.TestCase):
         for script in (reset, schema, deploy):
             self.assertIn("008_analytics_creative_learning_v1.sql", script)
 
+    def test_reset_schema_and_deployment_cover_manual_instagram_validation(self) -> None:
+        reset = (ROOT / "scripts/reset_ptw.sh").read_text()
+        schema = (ROOT / "scripts/verify_ptw_brief_schema.sh").read_text()
+        deploy = (ROOT / "scripts/deploy_ptw_in_place.sh").read_text()
+        tables = (
+            "instagram_manual_post_packages", "instagram_manual_post_events",
+            "instagram_validation_tests", "instagram_validation_arms",
+            "instagram_validation_test_events", "instagram_validation_imports",
+            "instagram_validation_import_rows",
+        )
+        for table in tables:
+            self.assertIn(table, reset)
+            self.assertIn(table, schema)
+            self.assertIn(table, deploy)
+        for script in (reset, schema, deploy):
+            self.assertIn("009_instagram_manual_validation_v1.sql", script)
+
     def test_meta_token_is_a_validation_only_file_secret(self) -> None:
         compose = (ROOT / "docker-compose.validation.yml").read_text()
         gateway = (ROOT / "docker-compose.commander.yml").read_text()
@@ -454,9 +471,9 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("chmod 0600", configurator)
         self.assertNotIn("--oauth2-bearer", configurator)
 
-        self.assertIn("TIKTOK_SECRETS_PATH: /run/ptw-tiktok/config.env", compose)
-        self.assertIn("TIKTOK_PHOTO_ANALYTICS_AUDITED: ${TIKTOK_PHOTO_ANALYTICS_AUDITED:-false}", compose)
-        self.assertIn("/opt/ptw/secrets/tiktok:/run/ptw-tiktok:ro", compose)
+        self.assertNotIn("TIKTOK_SECRETS_PATH", compose)
+        self.assertNotIn("TIKTOK_PHOTO_ANALYTICS_AUDITED", compose)
+        self.assertNotIn("/opt/ptw/secrets/tiktok", compose)
         self.assertNotIn("TIKTOK_CLIENT_SECRET", compose)
         self.assertNotIn("ptw-tiktok", gateway)
         tiktok_configurator = (ROOT / "scripts/configure_tiktok.sh").read_text()

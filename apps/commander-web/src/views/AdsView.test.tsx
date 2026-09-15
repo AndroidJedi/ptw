@@ -1,308 +1,108 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, expect, it, vi } from 'vitest'
 import type { ApiClient } from '../api'
-import type { MetaAdsDeployment, MetaAdsProjectWorkspace } from '../types'
 import { AdsView } from './AdsView'
 
 const projectId = '11111111-1111-4111-8111-111111111111'
-const creativeId = '22222222-2222-4222-8222-222222222222'
-const presetId = '33333333-3333-4333-8333-333333333333'
+const testId = '22222222-2222-4222-8222-222222222222'
+const sources = [1, 2].map(ordinal => ({
+  creative_id: `${ordinal}1111111-1111-4111-8111-111111111111`, creative_ordinal: ordinal,
+  template_id: 'universal_ad', version: 1, version_id: `${ordinal}2222222-2222-4222-8222-222222222222`,
+  version_sha256: String(ordinal).repeat(64), render_sha256: String(ordinal + 2).repeat(64),
+  change_note: `Approved ${ordinal}`, defaults: {
+    headline: `Idea ${ordinal}`, primary_text: 'Support\n\nOffer',
+    instagram_caption: `Idea ${ordinal}\n\nSupport\n\nOffer`, welcome_message: '',
+  },
+}))
 
-function fixture(verified = true): MetaAdsProjectWorkspace {
+function workspace(withTest = false) {
   return {
-    schema: 'ptw.meta-ads.workspace.v1', project_id: projectId, project_name: 'Natal idea',
-    connection: verified ? {
-      configured: true, verified: true, graph_version: 'v26.0',
-      account: { id: 'act_123', name: 'Local Ads', currency: 'USD', minimum_daily_budget_minor: 100 },
-      page: { id: '456', name: 'Natal' }, instagram: { id: '789', username: 'natal' },
-      pixel: { id: '101', name: 'Natal Website' },
-    } : {
-      configured: false, verified: false, graph_version: 'v26.0',
-      explanation: 'Add the Meta system-user token and assigned asset IDs to the local secrets file.',
-      required_permissions: ['ads_management', 'ads_read'],
+    schema: 'ptw.instagram-validation.workspace.v1', project_id: projectId, project_name: 'Idea',
+    sources, landing: {
+      publication_id: '33333333-3333-4333-8333-333333333333',
+      event_id: '44444444-4444-4444-8444-444444444444', landing_version: 1,
+      landing_version_sha256: 'a'.repeat(64), canonical_url: 'https://natal-service.com/ai/idea',
     },
-    presets: [{
-      preset_id: presetId, version: 1, specification_sha256: 'b'.repeat(64), created_at: '',
-      specification: {
-        schema: 'ptw.meta-ads.preset.v1', name: 'Ukraine women', countries: ['UA'],
-        age_min: 25, age_max: 44, gender: 'women', daily_budget_minor: 500,
-        publisher_platforms: ['instagram'], instagram_positions: ['stream'], location_types: ['home'],
-      },
-    }],
-    sources: [{
-      creative_id: creativeId, creative_ordinal: 1, template_id: 'universal_ad', version: 2,
-      version_sha256: 'a'.repeat(64), render_sha256: 'c'.repeat(64), change_note: 'Approved',
-      defaults: { headline: 'Natal headline', primary_text: 'Guidance\n\nOffer', welcome_message: 'Вітаю! Хочу дізнатися більше.' },
-    }],
-    experiment: null, deployments: [], ads_manager_url: 'https://adsmanager.facebook.com/test',
+    ads_manager_url: 'https://adsmanager.facebook.com/adsmanager/manage/campaigns',
+    tests: withTest ? [{
+      test_id: testId, name: 'Two Posts', state: 'active', total_budget_minor: 5000,
+      daily_budget_minor: 1000, currency: 'USD', duration_days: 5,
+      campaign_name: 'PTW-test', ad_set_name: 'PTW-test-ADSET', current_leader_arm_id: null,
+      imports: [], arms: sources.map((source, index) => ({
+        arm_id: `${index + 5}1111111-1111-4111-8111-111111111111`, ordinal: index + 1,
+        source_creative_id: source.creative_id, source_version: 1,
+        ad_name: `PTW-test-AD-0${index + 1}`, headline: source.defaults.headline,
+        primary_text: `${source.defaults.instagram_caption}\n\nhttps://natal-service.com/ai/idea?ptw_attribution=token${index}`,
+        tracked_url: `https://natal-service.com/ai/idea?ptw_attribution=token${index}`,
+        paid: {}, funnel: { landing_view: index + 2, primary_cta_click: index, contact_click: 0 },
+        cost_per_primary_cta_minor: null,
+      })),
+    }] : [],
   }
 }
 
-function deployment(status: MetaAdsDeployment['status'] = 'queued'): MetaAdsDeployment {
-  return {
-    deployment_id: '55555555-5555-4555-8555-555555555555',
-    request_id: '44444444-4444-4444-8444-444444444444',
-    project_id: projectId, source_creative_id: creativeId, source_version: 2,
-    render_sha256: 'c'.repeat(64), status,
-    specification: {
-      headline: 'Natal headline', primary_text: 'Guidance\n\nOffer',
-      special_ad_categories: ['NONE'], preset: fixture().presets[0].specification,
-    },
-    created_at: '', updated_at: '',
-  }
-}
-
-function apiFor(workspace: MetaAdsProjectWorkspace) {
-  const get = vi.fn(async (path: string): Promise<unknown> => {
-    expect(path).toBe(`/api/v1/ads/projects/${projectId}`)
-    return workspace
+function setup(withTest = false) {
+  const value = workspace(withTest)
+  const get = vi.fn(async (path: string) => {
+    expect(path).toBe(`/api/v1/instagram-tests/projects/${projectId}`)
+    return value
   })
-  const post = vi.fn(async () => ({
-    deployment: deployment(),
-    created: true,
-  }))
-  const image = vi.fn(async () => new Blob(['png'], { type: 'image/png' }))
-  return { api: { get, post, image } as unknown as ApiClient, get, post, image }
+  const post = vi.fn(async (path: string) => {
+    if (path.endsWith('/imports/preview')) return {
+      csv_sha256: 'b'.repeat(64), headers: ['Ad name', 'Amount spent (USD)'],
+      mapping: { ad_name: 'Ad name', spend: 'Amount spent (USD)', impressions: null, link_clicks: null, landing_page_views: null },
+      matched_rows: [{ row: 2, ad_name: 'PTW-test-AD-01', matched_arm_id: value.tests[0].arms[0].arm_id }],
+      ignored_rows: [], can_import: true,
+    }
+    return { created: true, test: value.tests[0] }
+  })
+  const download = vi.fn(async () => new Blob(['zip'], { type: 'application/zip' }))
+  const api = { get, post, download } as unknown as ApiClient
+  render(<AdsView api={api} language="en" projectId={projectId} />)
+  return { get, post, download }
 }
 
-it('stages the selected approved artifact with deterministic defaults and a fresh request ID', async () => {
-  const { api, post, image } = apiFor(fixture())
-  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:approved-post') })
-  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
-  Object.defineProperty(globalThis.crypto, 'randomUUID', { configurable: true, value: vi.fn(() => '44444444-4444-4444-8444-444444444444') })
-  render(<AdsView api={api} language="uk" projectId={projectId} />)
-
-  expect(await screen.findByText('Активи Meta перевірено')).toBeVisible()
-  fireEvent.click(screen.getByText('Налаштування Meta'))
-  expect(screen.getByText('Затверджено для Ads')).toBeVisible()
-  expect(screen.getByRole('link', { name: /Відкрити в Post Studio/ })).toHaveAttribute(
-    'href', `?page=posts&project=${projectId}&creative=${creativeId}`,
-  )
-  expect(screen.getByRole('link', { name: /Системні користувачі/ })).toHaveAttribute(
-    'href', 'https://business.facebook.com/settings/system-users',
-  )
-  expect(screen.getByRole('link', { name: /Статуси Campaign, Ad Set/ })).toHaveAttribute(
-    'href', 'https://adsmanager.facebook.com/test',
-  )
-  await waitFor(() => expect(screen.getByLabelText('Заголовок')).toHaveValue('Natal headline'))
-  expect(screen.getByLabelText('Основний текст')).toHaveValue('Guidance\n\nOffer')
-  await waitFor(() => expect(image).toHaveBeenCalledWith(
-    `/api/v1/studio/projects/${projectId}/creatives/${creativeId}/versions/2/render`,
-    'image/png', 'c'.repeat(64),
-  ))
-  fireEvent.click(screen.getByRole('button', { name: 'Створити повну PAUSED-рекламу в Meta' }))
-  await waitFor(() => expect(post).toHaveBeenCalledWith(`/api/v1/ads/projects/${projectId}/deployments`, {
-    request_id: '44444444-4444-4444-8444-444444444444', creative_id: creativeId,
-    version: 2, preset_id: presetId, headline: 'Natal headline',
-    primary_text: 'Guidance\n\nOffer', welcome_message: 'Вітаю! Хочу дізнатися більше.',
-    special_ad_categories: ['NONE'],
-  }, { deadlineMs: 120_000 }))
+beforeEach(() => {
+  Object.defineProperty(globalThis.crypto, 'randomUUID', {
+    configurable: true, value: vi.fn(() => '99999999-9999-4999-8999-999999999999'),
+  })
 })
 
-it('disables staging and explains safe local configuration when Meta is missing', async () => {
-  const disconnected = fixture(false)
-  const { api } = apiFor(disconnected)
-  render(<AdsView api={api} language="en" projectId={projectId} />)
-  expect(await screen.findByText('Meta staging disabled')).toBeVisible()
-  expect(screen.getByText(/Add the Meta system-user token/)).toBeVisible()
-  expect(screen.getByText('Secure system-user token')).toBeVisible()
-  expect(screen.getByRole('button', { name: 'Create complete PAUSED ad in Meta' })).toBeDisabled()
-})
-
-it('links an empty Ads source list back to Post Studio and exposes the generic Ads Manager', async () => {
-  const disconnected = fixture(false)
-  disconnected.sources = []
-  disconnected.ads_manager_url = null
-  const { api } = apiFor(disconnected)
-  render(<AdsView api={api} language="en" projectId={projectId} />)
-  await screen.findByText('Meta staging disabled')
-  expect(screen.getByRole('link', { name: 'Open Post Studio' })).toHaveAttribute(
-    'href', `?page=posts&project=${projectId}`,
-  )
-  expect(screen.getByRole('link', { name: /Token debugger/ })).toHaveAttribute(
-    'href', 'https://developers.facebook.com/tools/debug/accesstoken/',
-  )
-  expect(screen.getByRole('link', { name: /Campaign, Ad Set/ })).toHaveAttribute(
-    'href', 'https://adsmanager.facebook.com/adsmanager/manage/campaigns',
-  )
-})
-
-it('creates a versioned audience preset', async () => {
-  const { api, post } = apiFor(fixture())
-  render(<AdsView api={api} language="en" projectId={projectId} />)
-  fireEvent.click(await screen.findByRole('button', { name: 'New preset' }))
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Kyiv test' } })
-  fireEvent.change(screen.getByLabelText('Countries (ISO, comma-separated)'), { target: { value: 'ua, pl' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Save immutable version' }))
-  await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/ads/presets', {
-    name: 'Kyiv test', countries: ['UA', 'PL'], age_min: 25, age_max: 55,
-    gender: 'all', daily_budget_minor: 500,
-  }))
-})
-
-it('normalizes leading-zero audience numbers and blocks an invalid preset before the API call', async () => {
-  const { api, post } = apiFor(fixture())
-  render(<AdsView api={api} language="en" projectId={projectId} />)
-  fireEvent.click(await screen.findByRole('button', { name: 'New preset' }))
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Leading zeros' } })
-  fireEvent.change(screen.getByLabelText('Minimum age'), { target: { value: '020' } })
-  fireEvent.change(screen.getByLabelText('Maximum age'), { target: { value: '035' } })
-  fireEvent.change(screen.getByLabelText(/^Daily budget \(Meta minor units\)/), { target: { value: '0200' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Save immutable version' }))
-  await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/ads/presets', expect.objectContaining({ age_min: 20, age_max: 35, daily_budget_minor: 200 })))
-
-  post.mockClear()
-  fireEvent.change(screen.getByLabelText('Maximum age'), { target: { value: '' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Save immutable version' }))
-  expect(await screen.findByText('Maximum age must be an integer from the minimum age to 65.')).toBeVisible()
-  expect(post).not.toHaveBeenCalled()
-})
-
-it('shows the live Meta budget minimum and prepares a compliant immutable preset', async () => {
-  const workspace = fixture()
-  workspace.connection.account!.minimum_daily_budget_minor = 4491
-  workspace.deployments = [{
-    ...deployment('failed'), meta_campaign_id: 'campaign-1',
-    error: { error_message: 'Meta request failed.', provider_context: { subcode: '1885272' } },
-  }]
-  const { api, post } = apiFor(workspace)
-  render(<AdsView api={api} language="en" projectId={projectId} />)
-
-  expect(await screen.findByText(/This preset cannot be staged/)).toBeVisible()
-  expect(screen.getAllByText('Creation stopped at Ad Set. Nothing was activated.')).toHaveLength(2)
-  expect(screen.getByText(/Meta rejected the Ad Set because/)).toBeVisible()
-  expect(screen.getAllByText(/below Meta's current minimum of \$44\.91 \(4491 minor units\)/)).toHaveLength(2)
-  expect(screen.getByRole('button', { name: 'Create complete PAUSED ad in Meta' })).toBeDisabled()
-  fireEvent.click(screen.getByRole('button', { name: 'Prepare a compliant preset version' }))
-  expect(screen.getByLabelText(/^Daily budget \(Meta minor units\)/)).toHaveValue(4491)
-  fireEvent.click(screen.getByRole('button', { name: 'Save immutable version' }))
-  await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/ads/presets', expect.objectContaining({
-    daily_budget_minor: 4491,
-  })))
-})
-
-it('explains the Meta app mode blocker and retries only after the owner confirms Live mode', async () => {
-  const workspace = fixture()
-  workspace.deployments = [{
-    ...deployment('failed'),
-    meta_campaign_id: 'campaign-1', meta_ad_set_id: 'adset-1', meta_image_hash: 'image-hash',
-    error: {
-      error_message: 'Meta adcreatives reconciliation failed.',
-      provider_context: { http_status: 400, code: '100', transient: false },
-    },
-  }]
-  const { api, post } = apiFor(workspace)
-  render(<AdsView api={api} language="en" projectId={projectId} />)
-
-  expect(await screen.findAllByText('Creation stopped at Creative. Nothing was activated.')).toHaveLength(2)
-  expect(screen.getByText(/saved error came from the former Creative lookup/)).toBeVisible()
-  expect(screen.getByText(/PTW Local Ads is still in Development mode/)).toBeVisible()
-  expect(screen.getByText(/switch PTW Local Ads from Development to Live/)).toBeVisible()
-  expect(screen.getByRole('link', { name: /Open Meta app dashboard/ })).toHaveAttribute(
-    'href', 'https://developers.facebook.com/apps/',
-  )
-  expect(screen.queryByRole('button', { name: 'Retry safely' })).not.toBeInTheDocument()
-
-  fireEvent.click(screen.getByRole('button', { name: 'App is Live — retry this deployment once' }))
+it('prepares two approved Posts to compete inside one manual Instagram campaign', async () => {
+  const { post } = setup()
+  expect(await screen.findByRole('heading', { name: 'Instagram tests' })).toBeVisible()
+  expect(screen.getByText(/Do not use “Boost post”/)).toBeVisible()
+  expect(screen.getByText('Instagram Feed only')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: /Post 1 · v1/ }))
+  fireEvent.click(screen.getByRole('button', { name: /Post 2 · v1/ }))
+  fireEvent.change(screen.getByLabelText('Test name'), { target: { value: 'Fast validation' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Prepare launch kit' }))
   await waitFor(() => expect(post).toHaveBeenCalledWith(
-    `/api/v1/ads/projects/${projectId}/deployments/55555555-5555-4555-8555-555555555555/retry`, {},
+    `/api/v1/instagram-tests/projects/${projectId}/tests`, {
+      request_id: '99999999-9999-4999-8999-999999999999', name: 'Fast validation',
+      total_budget_minor: 5000, currency: 'USD', duration_days: 5,
+      arms: sources.map(source => ({ creative_id: source.creative_id, version: 1 })),
+    }, { deadlineMs: 120_000 },
   ))
 })
 
-it('serializes slow deployment polling and applies the completed response', async () => {
-  vi.useFakeTimers()
-  try {
-    const running = fixture()
-    running.deployments = [deployment('creating_ad_set')]
-    const failed = fixture()
-    failed.deployments = [{
-      ...deployment('failed'),
-      meta_campaign_id: 'campaign-1',
-      error: { error_message: 'Meta rejected the Ad Set.', provider_context: { subcode: 'other' } },
-    }]
-    let finishPoll: (value: MetaAdsProjectWorkspace) => void = () => undefined
-    const slowPoll = new Promise<MetaAdsProjectWorkspace>(resolve => { finishPoll = resolve })
-    const { api, get } = apiFor(running)
-    get.mockResolvedValueOnce(running).mockImplementation(() => slowPoll)
+it('previews CSV mapping and completes only after explicit Meta stop confirmation', async () => {
+  const { post } = setup(true)
+  expect(await screen.findByText('ACTIVE · PTW-test')).toBeVisible()
+  const csv = { text: vi.fn(async () => 'Ad name,Amount spent (USD)\nPTW-test-AD-01,10') }
+  fireEvent.change(screen.getByLabelText('Meta Ads Manager CSV'), { target: { files: [csv] } })
+  expect(await screen.findByText('Matched: 1 · Ignored: 0')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Import results' }))
+  await waitFor(() => expect(post).toHaveBeenCalledWith(
+    `/api/v1/instagram-tests/projects/${projectId}/tests/${testId}/imports`,
+    expect.objectContaining({ accept_ignored_rows: true }),
+  ))
 
-    render(<AdsView api={api} language="en" projectId={projectId} />)
-    await act(async () => { await Promise.resolve(); await Promise.resolve() })
-    expect(screen.getAllByText('Request accepted — creating Ad Set…')).toHaveLength(2)
-
-    await act(async () => { await vi.advanceTimersByTimeAsync(2_500) })
-    expect(get).toHaveBeenCalledTimes(2)
-    await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
-    expect(get).toHaveBeenCalledTimes(2)
-
-    await act(async () => { finishPoll(failed); await slowPoll; await Promise.resolve() })
-    expect(screen.getAllByText('Creation stopped at Ad Set. Nothing was activated.')).toHaveLength(2)
-    expect(screen.getAllByText('Meta rejected the Ad Set.')).toHaveLength(2)
-    const progress = screen.getByRole('list', { name: 'Meta creation progress' })
-    expect(within(progress).getAllByRole('listitem')).toHaveLength(5)
-    expect(within(progress).getByText(/Created · PAUSED/)).toBeVisible()
-    expect(within(progress).getByText('Stopped here')).toBeVisible()
-  } finally {
-    vi.useRealTimers()
-  }
-})
-
-it('searches Meta and saves an immutable city-radius preset without country broadening', async () => {
-  const workspace = fixture()
-  const { api, get, post } = apiFor(workspace)
-  get.mockImplementation(async (path: string) => {
-    if (path === `/api/v1/ads/projects/${projectId}`) return workspace
-    if (path === '/api/v1/ads/locations?query=Kyiv&country_code=UA') return { items: [{
-      key: '2420605', name: 'Kyiv', type: 'city', country_code: 'UA',
-      country_name: 'Ukraine', region: 'Kyiv',
-    }] }
-    throw new Error(`Unexpected path ${path}`)
-  })
-
-  render(<AdsView api={api} language="en" projectId={projectId} />)
-  fireEvent.click(await screen.findByRole('button', { name: 'New preset' }))
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Kyiv 25 km' } })
-  fireEvent.change(screen.getByLabelText('Geography'), { target: { value: 'cities' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Search Meta' }))
-  fireEvent.click(await screen.findByRole('button', { name: /Kyiv.*Add/ }))
-  fireEvent.change(screen.getByLabelText('Radius, km'), { target: { value: '25' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Save immutable version' }))
-
-  await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/ads/presets', {
-    name: 'Kyiv 25 km', countries: [], cities: [{
-      key: '2420605', name: 'Kyiv', country_code: 'UA', radius_km: 25,
-    }],
-    age_min: 25, age_max: 55, gender: 'all', daily_budget_minor: 500,
-  }))
-})
-
-it('creates a website ad using the published landing and omits Direct copy', async () => {
-  sessionStorage.clear()
-  const value = fixture()
-  value.landing = { publication_id: 'landing', event_id: 'event', landing_version: 1, landing_version_sha256: 'd'.repeat(64), canonical_url: 'https://natal-service.com/la/example' }
-  const { api, post } = apiFor(value)
-  render(<AdsView api={api} language="en" projectId={projectId} />)
-  await screen.findByText('Meta assets verified')
-  fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'WEBSITE' } })
-  expect(screen.getByText('LANDING_PAGE_VIEWS')).toBeVisible()
-  expect(screen.getAllByText('Natal Website')).toHaveLength(2)
-  expect(screen.queryByLabelText('Initial Direct message')).not.toBeInTheDocument()
-  const requestReview = screen.getByRole('group', { name: 'Details PTW will send to Meta' })
-  expect(within(requestReview).getByText(/approved PNG/)).toBeVisible()
-  expect(within(requestReview).getByRole('link', { name: value.landing.canonical_url })).toHaveAttribute('href', value.landing.canonical_url)
-  expect(screen.getAllByRole('link', { name: value.landing.canonical_url })[0]).toHaveAttribute('href', value.landing.canonical_url)
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Create complete PAUSED ad in Meta' })).toBeEnabled())
-  fireEvent.click(screen.getByRole('button', { name: 'Create complete PAUSED ad in Meta' }))
-  await waitFor(() => expect(post).toHaveBeenCalled())
-  expect((post.mock.calls as unknown[][])[0]?.[1]).toEqual(expect.objectContaining({ destination_type: 'WEBSITE', landing_event_id: 'event', version: 2 }))
-  expect((post.mock.calls as unknown[][])[0]?.[1]).not.toHaveProperty('welcome_message')
-})
-
-it('blocks website staging without a published landing while keeping export available', async () => {
-  const { api, post } = apiFor(fixture(false))
-  render(<AdsView api={api} language="en" projectId={projectId} />)
-  await screen.findByText('Meta staging disabled')
-  fireEvent.change(screen.getByLabelText('Destination'), { target: { value: 'WEBSITE' } })
-  expect(screen.getByRole('button', { name: 'Create complete PAUSED ad in Meta' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: 'Download image' })).toBeEnabled()
-  expect(post).not.toHaveBeenCalled()
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Stopped in Meta · complete' }))
+  await waitFor(() => expect(post).toHaveBeenCalledWith(
+    `/api/v1/instagram-tests/projects/${projectId}/tests/${testId}/completed`, {
+      request_id: '99999999-9999-4999-8999-999999999999', campaign_stopped: true,
+    },
+  ))
 })

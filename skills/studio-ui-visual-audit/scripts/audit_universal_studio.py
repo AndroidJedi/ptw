@@ -778,7 +778,9 @@ def main() -> None:
         hidden_phone_config["background"]["texture"] = "grain"
         hidden_phone_config["copy_background"]["texture"] = "concrete"
         hidden_phone_config["phone_screen"]["texture"] = "paper"
-        hidden_phone_config["supporting_text"] = {"highlight_color": "#C43A7A"}
+        hidden_phone_config["supporting_text"] = {
+            "enabled": True, "highlight_color": "#C43A7A",
+        }
         hidden_phone_config["typography"]["supporting_text"]["font_size"] = 38
         hidden_phone_preview = phone_workspace.render_preview(
             state_sha256=phone["state_sha256"], configuration=hidden_phone_config,
@@ -815,28 +817,34 @@ def main() -> None:
         }
         tuned_metric_config["metric_cards"] = [
             {
+                "enabled": True,
                 "style": "outlined", "text_color": "#101B31",
                 "background_color": "#D12F7A", "shape": "square",
             },
             {
+                "enabled": True,
                 "style": "filled", "text_color": "#101B31",
                 "background_color": "#CEDD3C", "shape": "pill",
             },
             {
+                "enabled": True,
                 "style": "filled", "text_color": "#FFFFFF",
                 "background_color": "#2457C8", "shape": "rounded",
             },
         ]
         tuned_metric_config["phone_buttons"] = [
             {
+                "enabled": True,
                 "style": "outlined", "text_color": "#101B31",
                 "background_color": "#D12F7A", "shape": "square",
             },
             {
+                "enabled": True,
                 "style": "filled", "text_color": "#101B31",
                 "background_color": "#CEDD3C", "shape": "square",
             },
             {
+                "enabled": True,
                 "style": "elevated", "text_color": "#FFFFFF",
                 "background_color": "#2457C8", "shape": "rounded",
             },

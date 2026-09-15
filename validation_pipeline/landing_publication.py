@@ -197,6 +197,9 @@ class DatabaseLandingPublicationAuthority:
         prior = self._request_event(request_id, request_sha256)
         if prior is not None:
             return {"publication": self.get(project_id), "event": prior, "created": False}
+        guard = getattr(self, "mutation_guard", None)
+        if callable(guard):
+            guard(project_id)
         try:
             with self.connection() as connection:
                 connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (f"landing-publication-request:{request_id}",))
@@ -291,6 +294,9 @@ class DatabaseLandingPublicationAuthority:
         prior = self._request_event(request_id, request_sha256)
         if prior is not None:
             return {"publication": self.get(project_id), "event": prior, "created": False}
+        guard = getattr(self, "mutation_guard", None)
+        if callable(guard):
+            guard(project_id)
         with self.connection() as connection:
             connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (f"landing-publication-request:{request_id}",))
             connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (f"landing-publication:{project_id}",))
@@ -451,6 +457,18 @@ class LocalLandingPublicationAuthority:
             raise ValueError("Project public URL is permanently reserved")
         version_item = self._version(project_id, landing_id, version)
         fingerprint = {"action": "publish", "project_id": project_id, "landing_id": landing_id, "version": version, "namespace": namespace, "slug": slug}
+        prior_event_id = self.store.lookup_request(
+            scope="landing-publication", request_id=request_id, fingerprint=fingerprint,
+        )
+        if prior_event_id is not None:
+            return {
+                "publication": self.get(project_id),
+                "event": self.store.get("landing_publication_events", prior_event_id),
+                "created": False,
+            }
+        guard = getattr(self, "mutation_guard", None)
+        if callable(guard):
+            guard(project_id)
         event_id, created = self.store.reserve_request(scope="landing-publication", request_id=request_id, fingerprint=fingerprint)
         if not created:
             event = self.store.get("landing_publication_events", event_id)
@@ -480,6 +498,9 @@ class LocalLandingPublicationAuthority:
                 "event": self.store.get("landing_publication_events", prior_event_id),
                 "created": False,
             }
+        guard = getattr(self, "mutation_guard", None)
+        if callable(guard):
+            guard(project_id)
         publication = self._publication(project_id)
         if publication is None:
             raise KeyError(project_id)

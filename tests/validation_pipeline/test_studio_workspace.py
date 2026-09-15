@@ -100,14 +100,17 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         setting_definitions = {
             item["setting_id"]: item for item in detail["catalog"]["setting_definitions"]
         }
-        self.assertFalse(any(key.startswith("configuration.logo.") for key in setting_definitions))
+        self.assertEqual(
+            ["configuration.logo.enabled"],
+            [key for key in setting_definitions if key.startswith("configuration.logo.")],
+        )
         sticker_width = setting_definitions["configuration.sticker.width"]
         self.assertEqual("universal_ad.sticker", sticker_width["component_id"])
         self.assertEqual((120, 720, 1), (
             sticker_width["minimum"], sticker_width["maximum"], sticker_width["step"],
         ))
         self.assertIn("розмір стікера", sticker_width["aliases"])
-        self.assertEqual(12, detail["catalog"]["template_version"])
+        self.assertEqual(13, detail["catalog"]["template_version"])
         self.assertEqual(list(SEMANTIC_ROLES), detail["catalog"]["semantic_roles"])
         self.assertEqual(
             [f"universal_ad.{role}" for role in SEMANTIC_ROLES],
@@ -394,7 +397,10 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         initial = self.workspace.render_preview(state_sha256=base["state_sha256"])
         config = {**base["configuration"], "background": {
             **base["configuration"]["background"], "mode": "texture", "texture": "grain",
-        }, "bullets": {"enabled": True, "style": "circle_outline"}}
+        }, "bullets": {
+            "enabled": True, "items_enabled": [True, True, True],
+            "style": "circle_outline",
+        }}
         content = {**base["content"], "bullets": ["One promise", "One audience", "One action"]}
         changed = self.workspace.save_configuration(
             base_sha256=base["state_sha256"], configuration=config, content=content,
@@ -690,14 +696,14 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
         background = next(item for item in uploaded["assets"] if item["slot"] == "background_image")
         self.assertEqual("owner_upload", background["source"]["origin"])
 
-    def test_owner_logo_upload_is_rejected_and_natal_remains_enabled(self) -> None:
+    def test_owner_logo_upload_is_rejected_and_natal_can_be_hidden(self) -> None:
         detail = self.workspace.detail()
         config = copy.deepcopy(detail["configuration"])
         config["logo"]["enabled"] = False
         detail = self.workspace.save_configuration(
             base_sha256=detail["state_sha256"], configuration=config, content=detail["content"],
         )
-        self.assertTrue(detail["configuration"]["logo"]["enabled"])
+        self.assertFalse(detail["configuration"]["logo"]["enabled"])
         with self.assertRaisesRegex(ValueError, "fixed Studio identity"):
             self.workspace.upload_asset(
                 "logo", base_sha256=detail["state_sha256"], mime_type="image/png",
@@ -705,9 +711,9 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             )
         rendered = self.workspace.render_preview(state_sha256=detail["state_sha256"])
         self.assertNotIn("logo_surface", rendered["resolved"]["nodes"])
-        self.assertIn("logo", rendered["resolved"]["nodes"])
+        self.assertNotIn("logo", rendered["resolved"]["nodes"])
 
-    def test_logo_position_width_remain_bounded_but_toggle_is_ignored(self) -> None:
+    def test_logo_position_width_remain_bounded_and_toggle_hides_it(self) -> None:
         detail = self.workspace.detail()
         baseline = self.workspace.render_preview(state_sha256=detail["state_sha256"])
         top_left = copy.deepcopy(detail["configuration"])
@@ -754,7 +760,7 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             content=detail["content"],
         )
         self.assertNotIn("logo_surface", hidden_render["resolved"]["nodes"])
-        self.assertIn("logo", hidden_render["resolved"]["nodes"])
+        self.assertNotIn("logo", hidden_render["resolved"]["nodes"])
 
     def test_image_sticker_logo_and_immutable_version(self) -> None:
         detail = self.workspace.detail()
@@ -869,9 +875,9 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
                 content=current["content"],
             )
 
-    def test_template_builder_keeps_optional_roles_mapped_when_omitted(self) -> None:
+    def test_template_builder_maps_only_enabled_optional_roles(self) -> None:
         template = build_universal_template(DEFAULT_CONFIG, DEFAULT_CONTENT)
-        self.assertEqual(set(SEMANTIC_ROLES), set(template.document["semantic_roles"]))
+        self.assertEqual(set(SEMANTIC_ROLES) - {"sticker"}, set(template.document["semantic_roles"]))
         self.assertEqual("approved", template.document["status"])
         self.assertEqual([], template.document["provenance"]["reference_ids"])
         sticker = next(
@@ -882,11 +888,44 @@ class UniversalStudioWorkspaceTests(unittest.TestCase):
             node for node in template.document["root"]["children"]
             if node["id"] == "logo"
         )
-        self.assertEqual(["sticker_object"], template.document["semantic_roles"]["sticker"])
+        self.assertNotIn("sticker", template.document["semantic_roles"])
         self.assertEqual(["logo"], template.document["semantic_roles"]["logo"])
         self.assertEqual("#FFFFFF", sticker["props"]["alpha_outline_color"])
         self.assertEqual(0.06, sticker["props"]["alpha_outline_width_ratio"])
         self.assertEqual(10, logo["props"]["z_index"])
+
+    def test_every_foreground_component_is_optional_and_copy_reflows(self) -> None:
+        visible = build_universal_template(DEFAULT_CONFIG, DEFAULT_CONTENT)
+        visible_nodes = {
+            node["id"]: node for node in visible.document["root"]["children"]
+        }
+        without_hero = copy.deepcopy(DEFAULT_CONFIG)
+        without_hero["hero_title"]["enabled"] = False
+        reflowed = build_universal_template(without_hero, DEFAULT_CONTENT)
+        reflowed_nodes = {
+            node["id"]: node for node in reflowed.document["root"]["children"]
+        }
+        self.assertLess(
+            reflowed_nodes["supporting_text"]["props"]["y"],
+            visible_nodes["supporting_text"]["props"]["y"],
+        )
+
+        hidden = copy.deepcopy(DEFAULT_CONFIG)
+        for group in ("hero_title", "supporting_text", "offer", "cta", "sticker", "logo"):
+            hidden[group]["enabled"] = False
+        hidden["bullets"]["enabled"] = False
+        hidden["bullets"]["items_enabled"] = [False, False, False]
+        template = build_universal_template(hidden, DEFAULT_CONTENT)
+        self.assertEqual({"background"}, set(template.document["semantic_roles"]))
+        self.assertEqual({}, semantic_data(hidden, DEFAULT_CONTENT))
+        preview = self.workspace.render_preview(
+            state_sha256=self.workspace.detail()["state_sha256"],
+            configuration=hidden, content=DEFAULT_CONTENT,
+        )
+        self.assertFalse(set(preview["resolved"]["nodes"]) & {
+            "hero_title", "supporting_text", "offer", "cta", "sticker_object",
+            "logo", "bullet_1", "bullet_2", "bullet_3",
+        })
 
 @unittest.skipUnless(HAS_PILLOW and HAS_FASTAPI, "FastAPI and Pillow are required")
 class UniversalStudioApiTests(unittest.TestCase):

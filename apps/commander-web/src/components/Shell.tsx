@@ -7,7 +7,7 @@ const items: Array<{ id: Page; en: string; uk: string; icon: typeof Target }> = 
   { id: 'briefs', en: 'Brief', uk: 'Бриф', icon: Target },
   { id: 'posts', en: 'Post', uk: 'Допис', icon: Image },
   { id: 'landing', en: 'Landing', uk: 'Лендінг', icon: LayoutTemplate },
-  { id: 'ads', en: 'Ads', uk: 'Реклама', icon: Megaphone },
+  { id: 'ads', en: 'Instagram tests', uk: 'Instagram-тести', icon: Megaphone },
   { id: 'analytics', en: 'Analytics', uk: 'Аналітика', icon: BarChart3 },
   { id: 'commander', en: 'Commander', uk: 'Commander', icon: Bot },
 ]

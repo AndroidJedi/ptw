@@ -513,6 +513,22 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
 
+  const cloneApprovedPost = async () => {
+    if (!projectId || !detail?.versions.length) return
+    const sourceVersion = Math.max(...detail.versions.map(item => item.version))
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const result = await api.post<{ creative: StudioCreativeSummary }>(
+        `/api/v1/studio/projects/${projectId}/creatives/clones`, {
+          request_id: crypto.randomUUID(), source_creative_id: detail.creative_id,
+          source_version: sourceVersion,
+        },
+      )
+      onCreative(result.creative.creative_id)
+    } catch (cause) { setError((cause as Error).message) }
+    finally { setBusy(false) }
+  }
+
   const createFirstCreative = async (
     brief: ProductBrief, templateId: StudioTemplateSummary['template_id'],
     direction: StudioPhoneHeroCreativeDirection | null = null,
@@ -531,7 +547,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
   const creativePicker = creatives && creatives.length > 0 && <section className="panel studio-creative-picker" aria-label={tr('Project creatives', 'Креативи проєкту')}>
     <div><small>{tr('PROJECT CREATIVES', 'КРЕАТИВИ ПРОЄКТУ')}</small><strong>{tr('Creative history', 'Історія креативів')}</strong></div>
     <div>{creatives.map((item) => <button key={item.creative_id} className={item.creative_id === creativeId ? 'is-active' : ''} onClick={() => onCreative(item.creative_id)}><strong>#{item.ordinal} · {item.template_id}</strong><small>{item.status} · {item.approved_version_count} {tr('approved', 'схвалено')}</small></button>)}</div>
-    {detail?.source_brief_id && (detail.approved_version_count || 0) > 0 && <button className="secondary" disabled={busy} onClick={() => void createVariant()}><Plus />{tr('New creative from this Brief', 'Новий креатив із цього брифу')}</button>}
+    {detail?.source_brief_id && (detail.approved_version_count || 0) > 0 && <><button className="primary" disabled={busy} onClick={() => void cloneApprovedPost()}><Plus />{tr('Clone latest approved Post', 'Клонувати останній затверджений допис')}</button><button className="secondary" disabled={busy} onClick={() => void createVariant()}><Sparkles />{tr('Generate another from Brief', 'Згенерувати інший із брифу')}</button></>}
   </section>
 
   if (!projectId) return <Empty><ImagePlus className="empty-mark" /><h2>{tr('Choose a Project', 'Оберіть проєкт')}</h2><p>{tr('Every Studio creative belongs to one Project.', 'Кожен креатив Studio належить одному проєкту.')}</p></Empty>
@@ -644,14 +660,14 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
     <section className="panel universal-component-dock" aria-labelledby="studio-components-title">
       <header>
         <div><small>{tr('CREATIVE COMPONENTS', 'КОМПОНЕНТИ КРЕАТИВУ')}</small><h2 id="studio-components-title">{tr('Build the composition at a glance', 'Керуйте композицією з одного погляду')}</h2></div>
-        <p>{tr('Required roles stay visible. Toggle optional roles here and judge the result immediately in the live preview.', 'Обов’язкові ролі завжди видимі. Перемикайте необов’язкові ролі тут і одразу оцінюйте результат у живому прев’ю.')}</p>
+        <p>{tr('Only the background is required. Toggle every foreground role here and judge the auto-reflowed result in the preview.', 'Обов’язковим є лише фон. Перемикайте кожен елемент переднього плану й оцінюйте результат з автоматичним компонуванням у прев’ю.')}</p>
       </header>
       <div className="universal-component-grid">
         <div className="universal-component-card is-required"><span>{tr('ALWAYS ON', 'ЗАВЖДИ')}</span><strong>{tr('Background', 'Фон')}</strong><small>{tr('Mood & contrast', 'Настрій і контраст')}</small></div>
-        <div className="universal-component-card is-required"><span>{tr('ALWAYS ON', 'ЗАВЖДИ')}</span><strong>{tr('Headline', 'Заголовок')}</strong><small>{tr('Primary hook', 'Головний хук')}</small></div>
-        <div className="universal-component-card is-required"><span>{tr('ALWAYS ON', 'ЗАВЖДИ')}</span><strong>{tr('Supporting copy', 'Пояснення')}</strong><small>{tr('Reason to care', 'Причина зупинитись')}</small></div>
-        <div className="universal-component-card is-required"><span>{tr('ALWAYS ON', 'ЗАВЖДИ')}</span><strong>{tr('Offer', 'Пропозиція')}</strong><small>{tr('Protected value', 'Захищена цінність')}</small></div>
-        <div className="universal-component-card is-required"><span>{tr('ALWAYS ON', 'ЗАВЖДИ')}</span><strong>CTA</strong><small>{tr('Next action', 'Наступна дія')}</small></div>
+        <label className={`universal-component-card is-toggle ${configuration.hero_title?.enabled !== false ? 'is-active' : ''}`}><input aria-label="Enable headline" type="checkbox" checked={configuration.hero_title?.enabled !== false} onChange={(event) => patchConfig('hero_title', { enabled: event.target.checked })} /><span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Headline', 'Заголовок')}</strong><small>{configuration.hero_title?.enabled !== false ? tr('Visible', 'Видимий') : tr('Hidden', 'Прихований')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b></label>
+        <label className={`universal-component-card is-toggle ${configuration.supporting_text?.enabled !== false ? 'is-active' : ''}`}><input aria-label="Enable supporting copy" type="checkbox" checked={configuration.supporting_text?.enabled !== false} onChange={(event) => patchConfig('supporting_text', { enabled: event.target.checked })} /><span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Supporting copy', 'Пояснення')}</strong><small>{configuration.supporting_text?.enabled !== false ? tr('Visible', 'Видиме') : tr('Hidden', 'Приховане')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b></label>
+        <label className={`universal-component-card is-toggle ${configuration.offer?.enabled !== false ? 'is-active' : ''}`}><input aria-label="Enable offer" type="checkbox" checked={configuration.offer?.enabled !== false} onChange={(event) => patchConfig('offer', { enabled: event.target.checked })} /><span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Offer', 'Пропозиція')}</strong><small>{configuration.offer?.enabled !== false ? tr('Visible', 'Видима') : tr('Hidden', 'Прихована')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b></label>
+        <label className={`universal-component-card is-toggle ${configuration.cta.enabled !== false ? 'is-active' : ''}`}><input aria-label="Enable CTA" type="checkbox" checked={configuration.cta.enabled !== false} onChange={(event) => patchConfig('cta', { enabled: event.target.checked })} /><span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>CTA</strong><small>{configuration.cta.enabled !== false ? tr('Visible', 'Видимий') : tr('Hidden', 'Прихований')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b></label>
         <label className={`universal-component-card is-toggle ${configuration.bullets.enabled ? 'is-active' : ''}`}>
           <input aria-label="Enable bullets" type="checkbox" checked={configuration.bullets.enabled} onChange={(event) => patchConfig('bullets', { enabled: event.target.checked })} />
           <span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Benefits', 'Переваги')}</strong><small>{configuration.bullets.enabled ? tr('Visible', 'Видимі') : tr('Hidden', 'Приховані')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b>
@@ -666,7 +682,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
           }} />
           <span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>{tr('Sticker', 'Стікер')}</strong><small>{!stickerAvailable ? detail.pexels_available ? tr('Click to source object', 'Натисніть, щоб знайти об’єкт') : tr('Pexels unavailable', 'Pexels недоступний') : configuration.sticker.enabled ? tr('Visible', 'Видимий') : tr('Hidden', 'Прихований')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b>
         </label>
-        <div className="universal-component-card is-required"><span>{tr('FIXED', 'ФІКСОВАНО')}</span><strong>Natal</strong><small>{tr('Canonical brand lock-up', 'Канонічний бренд-локап')}</small></div>
+        <label className={`universal-component-card is-toggle ${configuration.logo.enabled ? 'is-active' : ''}`}><input aria-label="Enable logo" type="checkbox" checked={configuration.logo.enabled} onChange={(event) => patchConfig('logo', { enabled: event.target.checked })} /><span>{tr('OPTIONAL', 'ОПЦІЙНО')}</span><strong>Natal</strong><small>{configuration.logo.enabled ? tr('Visible', 'Видимий') : tr('Hidden', 'Прихований')}</small><b className="universal-component-switch" aria-hidden="true"><i /></b></label>
       </div>
     </section>
 
@@ -691,10 +707,10 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
       <aside className="universal-controls">
         <section className="panel universal-section">
           <small>{tr('SEMANTIC CONTENT', 'СЕМАНТИЧНИЙ ВМІСТ')}</small><h2>{tr('Compact ad message', 'Компактне рекламне повідомлення')}</h2>
-          <label><span>{tr('Hero Title', 'Головний заголовок')}</span><textarea aria-label="Hero Title" rows={3} value={content.hero_title} onChange={(event) => setContent({ ...content, hero_title: event.target.value })} /></label>
-          <label><span>{tr('Supporting Text', 'Пояснювальний текст')}</span><textarea aria-label="Supporting Text" rows={3} value={content.supporting_text} onChange={(event) => setContent({ ...content, supporting_text: event.target.value })} /></label>
-          <label><span>{tr('Offer', 'Пропозиція')}</span><textarea aria-label="Offer" rows={2} maxLength={160} value={content.offer} onChange={(event) => setContent({ ...content, offer: event.target.value })} /></label>
-          <label><span>CTA</span><input aria-label="CTA" value={content.cta} onChange={(event) => setContent({ ...content, cta: event.target.value })} /></label>
+          {configuration.hero_title?.enabled !== false && <label><span>{tr('Hero Title', 'Головний заголовок')}</span><textarea aria-label="Hero Title" rows={3} value={content.hero_title} onChange={(event) => setContent({ ...content, hero_title: event.target.value })} /></label>}
+          {configuration.supporting_text?.enabled !== false && <label><span>{tr('Supporting Text', 'Пояснювальний текст')}</span><textarea aria-label="Supporting Text" rows={3} value={content.supporting_text} onChange={(event) => setContent({ ...content, supporting_text: event.target.value })} /></label>}
+          {configuration.offer?.enabled !== false && <label><span>{tr('Offer', 'Пропозиція')}</span><textarea aria-label="Offer" rows={2} maxLength={160} value={content.offer} onChange={(event) => setContent({ ...content, offer: event.target.value })} /></label>}
+          {configuration.cta.enabled !== false && <label><span>CTA</span><input aria-label="CTA" value={content.cta} onChange={(event) => setContent({ ...content, cta: event.target.value })} /></label>}
           {configuration.bullets.enabled && <div className="universal-bullets">
             <label><span>{tr('Bullet style', 'Стиль маркера')}</span><select
               aria-label="Bullet style" value={configuration.bullets.style}
@@ -704,7 +720,7 @@ export function StudioView({ api, language, projectId = null, creativeId = null,
               <option value="circle">{tr('Filled circle', 'Заповнене коло')}</option>
               <option value="circle_outline">{tr('Outlined circle', 'Контурне коло')}</option>
             </select></label>
-            {[0, 1, 2].map((index) => <input key={index} aria-label={`Bullet ${index + 1}`} placeholder={`${tr('Bullet', 'Пункт')} ${index + 1}`} value={content.bullets[index] || ''} onChange={(event) => setBullet(index, event.target.value)} />)}
+            {[0, 1, 2].map((index) => <label key={index}><span><input type="checkbox" aria-label={`Enable bullet ${index + 1}`} checked={configuration.bullets.items_enabled?.[index] !== false} onChange={(event) => { const next = [...(configuration.bullets.items_enabled || [true, true, true])] as [boolean, boolean, boolean]; next[index] = event.target.checked; patchConfig('bullets', { items_enabled: next }) }} /> {tr('Visible', 'Видимий')}</span>{configuration.bullets.items_enabled?.[index] !== false && <input aria-label={`Bullet ${index + 1}`} placeholder={`${tr('Bullet', 'Пункт')} ${index + 1}`} value={content.bullets[index] || ''} onChange={(event) => setBullet(index, event.target.value)} />}</label>)}
           </div>}
           {!configuration.bullets.enabled && <p className="universal-section-note">{tr('Benefits are hidden. Enable that component above when the message needs scannable proof points.', 'Переваги приховані. Увімкніть цей компонент вище, коли повідомленню потрібні короткі докази.')}</p>}
         </section>

@@ -26,7 +26,8 @@ before changing code or runtime state.
   DENY`. Google Identity/reCAPTCHA response policies are third-party diagnostics
   and cannot be repaired by weakening PTW's enforcing policy.
 - The app exposes only Brief / Бриф, Post / Допис, Landing / Лендінг,
-  Ads / Реклама, Commander, and Settings. Brief, Post, and Landing retain their required Project scope;
+  Instagram tests / Instagram-тести, Analytics, Commander, and Settings. Brief,
+  Post, Landing, and Instagram tests retain their required Project scope;
   every Studio mutation is Project/creative-scoped.
 - Commander is a dedicated, Project-independent workspace. When its UI changes,
   update live bundle acceptance markers with the visible conversation, native
@@ -46,61 +47,18 @@ before changing code or runtime state.
   MIME against decoded bytes before persistence.
 - Telegram remains only `/help`, `/status`, and `/stop`; all other input
   returns the web-console link and cannot mutate state.
-- For PTW-managed Meta delivery, never turn a browser control directly into a
-  provider mutation. Persist an immutable, Project-scoped proposal with its
-  current object snapshot; require a second owner confirmation, re-read the
-  PTW-owned Meta IDs under the Project execution lock, and record the outcome
-  as completed, failed, or uncertain. A scheduler may reconcile statuses and
-  import insights, but must never replay activation, budget, schedule, audience,
-  or creative changes. Preserve the original PAUSED deployment, audience preset,
-  and approved source lineage.
-- When Ads Manager reports missing media on a generic manual draft such as
-  `New Traffic Ad`, correlate it with PTW's lineage-tagged campaign, Ad Set,
-  creative, and Ad names before changing creative code. A deployment that failed
-  before `uploading_image`, including at `creating_campaign` or `creating_ad_set`,
-  with no image hash or creative/Ad ID never reached media upload; the manual
-  draft is a separate object. For Graph API v26 Ad Set-budget
-  campaigns, send `is_adset_budget_sharing_enabled=false` explicitly and confirm
-  with a validate-only provider request before retrying the same PAUSED deployment.
-  Graph API v26 Direct Ad Sets accept only the Page in `promoted_object`; retain
-  the Instagram actor on `object_story_spec`, and explicitly set
-  `targeting_automation.advantage_audience=0` so Meta cannot expand the immutable
-  owner-reviewed audience.
-  Acceptance requires the stored image hash, creative ID, Ad ID, and Meta's
-  creative readback to match the approved render lineage; never activate it as
-  part of incident recovery.
-- Treat Meta code `100`, subcode `1885272` at Ad Set creation as a possible
-  account-minimum budget rejection. Read `min_daily_budget` from the exact Ad
-  Account, parse it as integer minor units, retain the account currency, and use
-  `execution_options=["validate_only"]` on the exact prospective Ad Set payload
-  to prove the threshold without creating an object. Never infer major currency
-  units from the raw integer. If an immutable preset is below the live minimum,
-  do not reserve or retry it unchanged; require a new reviewed preset version at
-  or above the current minimum. Preserve any PAUSED Campaign already created as
-  incident evidence.
-- Graph API v26 can accept exact-name `filtering` on Campaign, Ad Set, and Ad
-  edges while rejecting the same expression on the Ad Account's `adcreatives`
-  edge with code `100`. Prove that distinction with read-only requests. Reconcile
-  creatives by scanning bounded pages and matching the complete PTW name
-  client-side; follow only the opaque `after` cursor, never Meta's full `next`
-  URL because it may contain a credential. Detect duplicate exact names across
-  every page before creating anything.
-- Treat code `100`, subcode `1885183` at Creative creation as the Meta app being
-  in Development mode. Campaign, Ad Set, image upload, and ordinary connection
-  reads can all succeed before this gate. Validate the exact saved Creative
-  payload with `execution_options=["validate_only"]`, show an App Dashboard →
-  switch to Live action, and suppress the generic retry wording. After the owner
-  confirms the app is Live, retry the same failed deployment once so it reuses
-  the saved PAUSED parents and image; require Creative and Ad IDs plus PAUSED
-  provider readback before declaring the flow complete.
-- Status polling must be sequential and coalesced per Project. A workspace read
-  can take longer than the polling cadence; do not invalidate a valid response
-  merely because another timer fired, and do not repeat remote connection
-  verification during every quiet poll after one verified result. Show the POST
-  acknowledgement beside the initiating action, then an explicit Campaign / Ad
-  Set / image / Creative / Ad checklist and terminal failure action. A generic
-  Ads Manager link is not proof of prefilled fields; expose the deepest exact
-  PTW-created object URL only when that object ID exists.
+- Paid Instagram validation is manual. PTW freezes one published Landing and
+  2–6 approved Posts, assigns one tracked URL and deterministic Ad name per arm,
+  and exports a launch kit for one Campaign → one Ad Set → all Ads. The audience
+  exists only in Meta Ads Manager. PTW automatically records first-party Landing
+  events and imports paid delivery through owner-reviewed CSV mapping.
+- One Project may have only one active Instagram test. While active, changing
+  the published Landing must fail closed. Completion requires explicit owner
+  confirmation that both Campaign and Ad Set are stopped. A current leader by
+  cost per primary CTA is informational and never an automatic winner.
+- Active Owner/Validation APIs must return 404 for `/ads`, `/tiktok`, and public
+  TikTok media surfaces. Historical modules and tables remain recovery material;
+  use `$legacy-social-automation-recovery` only on an explicit owner request.
 
 ## Brief, Studio, and provider checks
 

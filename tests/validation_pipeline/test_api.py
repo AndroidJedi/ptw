@@ -74,22 +74,7 @@ class ValidationApiRouteTests(unittest.TestCase):
         self.assertEqual(background_routes, set(handlers))
         self.assertTrue(all(inspect.iscoroutinefunction(handler) for handler in handlers.values()))
 
-    def test_meta_ads_staging_route_is_authenticated_and_runs_in_background(self) -> None:
-        deployment_id = "01900000-0000-7000-8000-000000000010"
-
-        class MetaAds(self.MetaAds):
-            def __init__(self) -> None:
-                self.called = threading.Event()
-
-            @staticmethod
-            def reserve(project_id, request):
-                return ({"deployment_id": deployment_id, "project_id": project_id, "request_id": request["request_id"]}, True)
-
-            def execute(self, identifier):
-                if identifier == deployment_id:
-                    self.called.set()
-
-        meta = MetaAds()
+    def test_meta_ads_staging_route_is_not_exposed(self) -> None:
         class Repository:
             @staticmethod
             def recover_interrupted():
@@ -97,29 +82,14 @@ class ValidationApiRouteTests(unittest.TestCase):
         app = create_app(
             self.settings(), repository=Repository(), runner=object(),
             studio_creative_service=self.Studio(), landing_page_service=self.Landing(),
-            meta_ads_service=meta, instagram_service=self.Landing(),
+            meta_ads_service=self.MetaAds(), instagram_service=self.Landing(),
         )
-        request = {
-            "request_id": "01900000-0000-7000-8000-000000000011",
-            "creative_id": "01900000-0000-7000-8000-000000000012", "version": 1,
-            "preset_id": "01900000-0000-7000-8000-000000000013",
-            "headline": "Headline", "primary_text": "Primary",
-            "welcome_message": "Hello", "special_ad_categories": ["NONE"],
-        }
         with TestClient(app) as client:
-            denied = client.post(
-                f"/internal/v1/ads/projects/01900000-0000-7000-8000-000000000014/deployments",
-                json=request,
-            )
-            self.assertEqual(401, denied.status_code)
-            response = client.post(
-                f"/internal/v1/ads/projects/01900000-0000-7000-8000-000000000014/deployments",
-                headers={"X-PTW-Owner-Gateway-Token": "owner-token"}, json=request,
-            )
-            self.assertEqual(202, response.status_code, response.text)
-            self.assertTrue(meta.called.wait(timeout=1))
+            path = "/internal/v1/ads/projects/01900000-0000-7000-8000-000000000014/deployments"
+            self.assertEqual(404, client.post(path, json={}).status_code)
+            self.assertEqual(404, client.post(path, headers={"X-PTW-Owner-Gateway-Token": "owner-token"}, json={}).status_code)
 
-    def test_meta_ads_location_search_is_authenticated(self) -> None:
+    def test_meta_ads_location_search_is_not_exposed(self) -> None:
         class Repository:
             @staticmethod
             def recover_interrupted():
@@ -132,10 +102,8 @@ class ValidationApiRouteTests(unittest.TestCase):
         )
         with TestClient(app) as client:
             path = "/internal/v1/ads/locations?query=Kyiv&country_code=UA"
-            self.assertEqual(401, client.get(path).status_code)
-            response = client.get(path, headers={"X-PTW-Owner-Gateway-Token": "owner-token"})
-            self.assertEqual(200, response.status_code, response.text)
-            self.assertEqual("Kyiv", response.json()["items"][0]["name"])
+            self.assertEqual(404, client.get(path).status_code)
+            self.assertEqual(404, client.get(path, headers={"X-PTW-Owner-Gateway-Token": "owner-token"}).status_code)
 
     def test_public_read_authority_is_bridge_authenticated_and_get_head_only(self) -> None:
         class Repository:

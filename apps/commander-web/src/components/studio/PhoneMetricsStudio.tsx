@@ -378,6 +378,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
         <section className="panel universal-section">
           <VisualModeSelect language={language} value={configuration.visual_mode} disabled={busy}
             onChange={visual_mode => setConfiguration(current => ({ ...current, visual_mode }))} />
+          <label className="universal-toggle"><input aria-label={tr('Show device', 'Показувати телефон')} type="checkbox" checked={configuration.device.enabled !== false} onChange={(event) => setConfiguration(current => ({ ...current, device: { ...current.device, enabled: event.target.checked } }))} /><span>{configuration.device.enabled !== false ? tr('Device visible', 'Телефон видимий') : tr('Device removed', 'Телефон прибрано')}</span></label>
           <p className="universal-section-note">{tr('Image only shows the selected artwork without the phone or its interface. Phone settings are kept when you switch back.', 'Лише зображення показує обрану ілюстрацію без телефону та його інтерфейсу. Налаштування телефону збережуться для повернення.')}</p>
         </section>
         <section className="panel universal-section"><small>{tr('OWNER COPY', 'ТЕКСТ ВЛАСНИКА')}</small><h2>{tr('Visible content', 'Видимий вміст')}</h2>
@@ -392,7 +393,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             : tr('Eyebrow removed', 'Надзаголовок прибрано')}
           </span></label>
           {configuration.offer.enabled && <label><span>{tr('Eyebrow', 'Надзаголовок')}</span><input value={content.offer} maxLength={32} onChange={(event) => setContent(current => ({ ...current, offer: event.target.value }))} /></label>}
-          <div className="phone-rich-copy">
+          <label className="universal-toggle"><input aria-label={tr('Show headline', 'Показувати заголовок')} type="checkbox" checked={configuration.hero_title.enabled !== false} onChange={(event) => setConfiguration(current => ({ ...current, hero_title: { ...current.hero_title, enabled: event.target.checked } }))} /><span>{configuration.hero_title.enabled !== false ? tr('Headline visible', 'Заголовок видимий') : tr('Headline removed', 'Заголовок прибрано')}</span></label>
+          {configuration.hero_title.enabled !== false && <div className="phone-rich-copy">
             <label><span>{tr('Headline', 'Заголовок')}</span><textarea ref={heroTitleRef} aria-label={tr('Headline', 'Заголовок')} rows={4} value={content.hero_title} maxLength={140} onChange={(event) => setContent(current => ({ ...current, hero_title: event.target.value }))} /></label>
             <div className="phone-markup-toolbar" role="toolbar" aria-label={tr('Headline formatting', 'Форматування заголовка')}>
               <button type="button" className="secondary" onClick={() => markSelection('hero_title', heroTitleRef.current, '**', 140)} aria-label={tr('Bold selected headline words', 'Виділити вибрані слова заголовка жирним')}><Bold /></button>
@@ -400,10 +402,11 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               <small>{tr('Select words, then use bold or colour.', 'Виберіть слова, потім застосуйте жирний шрифт або колір.')}</small>
             </div>
             <div className="phone-rich-settings">
-              <label className="universal-color-field"><span>{tr('Word colour', 'Колір слів')}<code>{configuration.hero_title.highlight_color}</code></span><input aria-label={tr('Headline highlight color', 'Колір виділення заголовка')} type="color" value={configuration.hero_title.highlight_color} onChange={(event) => setConfiguration({ ...configuration, hero_title: { highlight_color: event.target.value.toUpperCase() } })} /></label>
+              <label className="universal-color-field"><span>{tr('Word colour', 'Колір слів')}<code>{configuration.hero_title.highlight_color}</code></span><input aria-label={tr('Headline highlight color', 'Колір виділення заголовка')} type="color" value={configuration.hero_title.highlight_color} onChange={(event) => setConfiguration({ ...configuration, hero_title: { ...configuration.hero_title, highlight_color: event.target.value.toUpperCase() } })} /></label>
             </div>
-          </div>
-          <div className="phone-rich-copy">
+          </div>}
+          <label className="universal-toggle"><input aria-label={tr('Show supporting text', 'Показувати пояснювальний текст')} type="checkbox" checked={configuration.supporting_text.enabled !== false} onChange={(event) => setConfiguration(current => ({ ...current, supporting_text: { ...current.supporting_text, enabled: event.target.checked } }))} /><span>{configuration.supporting_text.enabled !== false ? tr('Supporting text visible', 'Пояснювальний текст видимий') : tr('Supporting text removed', 'Пояснювальний текст прибрано')}</span></label>
+          {configuration.supporting_text.enabled !== false && <div className="phone-rich-copy">
             <label><span>{tr('Supporting text', 'Пояснювальний текст')}</span><textarea ref={supportingTextRef} rows={4} value={content.supporting_text} maxLength={220} onChange={(event) => setContent(current => ({ ...current, supporting_text: event.target.value }))} /></label>
             <div className="phone-markup-toolbar" role="toolbar" aria-label={tr('Supporting text formatting', 'Форматування пояснювального тексту')}>
               <button type="button" className="secondary" onClick={() => markSelection('supporting_text', supportingTextRef.current, '**', 220)} aria-label={tr('Bold selected words', 'Виділити вибрані слова жирним')}><Bold /></button>
@@ -413,7 +416,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
             <div className="phone-rich-settings">
               <label className="universal-color-field"><span>{tr('Word colour', 'Колір слів')}<code>{configuration.supporting_text.highlight_color}</code></span><input aria-label={tr('Highlight color', 'Колір підсвічування')} type="color" value={configuration.supporting_text.highlight_color} onChange={(event) => setConfiguration({ ...configuration, supporting_text: { ...configuration.supporting_text, highlight_color: event.target.value.toUpperCase() } })} /></label>
             </div>
-          </div>
+          </div>}
           <label className="universal-toggle"><input
             aria-label={tr('Show bottom CTA', 'Показувати нижній CTA')}
             type="checkbox" checked={configuration.cta.enabled}
@@ -432,7 +435,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
               <label className="universal-color-field"><span>{tr('CTA text', 'Текст CTA')}<code>{configuration.cta.text_color}</code></span><input aria-label={tr('CTA text color', 'Колір тексту CTA')} type="color" value={configuration.cta.text_color} onChange={(event) => setConfiguration({ ...configuration, cta: { ...configuration.cta, text_color: event.target.value.toUpperCase() } })} /></label>
             </div>
           </>}
-          <label><span>{tr('Optional in-phone title', 'Необов’язковий заголовок у телефоні')}</span><input value={content.phone_hero_title} maxLength={72} onChange={(event) => setContent(current => ({ ...current, phone_hero_title: event.target.value }))} /></label>
+          <label className="universal-toggle"><input aria-label={tr('Show in-phone title', 'Показувати заголовок у телефоні')} type="checkbox" checked={configuration.phone_screen.title_enabled !== false} onChange={(event) => setConfiguration(current => ({ ...current, phone_screen: { ...current.phone_screen, title_enabled: event.target.checked } }))} /><span>{configuration.phone_screen.title_enabled !== false ? tr('In-phone title visible', 'Заголовок у телефоні видимий') : tr('In-phone title removed', 'Заголовок у телефоні прибрано')}</span></label>
+          {configuration.phone_screen.title_enabled !== false && <label><span>{tr('Optional in-phone title', 'Необов’язковий заголовок у телефоні')}</span><input value={content.phone_hero_title} maxLength={72} onChange={(event) => setContent(current => ({ ...current, phone_hero_title: event.target.value }))} /></label>}
         </section>
         <section className="panel universal-section"><small>{tr('BRAND VISIBILITY', 'ВИДИМІСТЬ БРЕНДУ')}</small><h2>{tr('Natal logos', 'Логотипи Natal')}</h2>
           <label className="universal-toggle"><input
@@ -498,8 +502,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           {content.phone_buttons.map((text, index) => {
             const button = configuration.phone_buttons[index]
             return <div className="phone-metrics-stat-input phone-action-button-input" key={index}>
-              <strong>{index + 1}</strong>
-              <div className="phone-metric-fields">
+              <label className="universal-toggle"><input aria-label={tr(`Show phone button ${index + 1}`, `Показувати кнопку в телефоні ${index + 1}`)} type="checkbox" checked={button.enabled !== false} onChange={(event) => setPhoneButton(index, 'enabled', event.target.checked)} /><span>{index + 1} · {button.enabled !== false ? tr('Visible', 'Видима') : tr('Hidden', 'Прихована')}</span></label>
+              {button.enabled !== false && <div className="phone-metric-fields">
                 <div className="universal-field-grid">
                   <label><span>{tr('Text', 'Текст')}</span><input aria-label={tr(`Phone button ${index + 1} text`, `Текст кнопки в телефоні ${index + 1}`)} value={text} maxLength={48} onChange={(event) => setPhoneButtonText(index, event.target.value)} /></label>
                   <label><span>{tr('Style', 'Стиль')}</span><select aria-label={tr(`Phone button ${index + 1} style`, `Стиль кнопки в телефоні ${index + 1}`)} value={button.style} onChange={(event) => setPhoneButton(index, 'style', event.target.value as StudioPhoneActionButtonConfiguration['style'])}>
@@ -516,7 +520,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
                   <label className="universal-color-field"><span>{tr('Text colour', 'Колір тексту')}<code>{button.text_color}</code></span><input aria-label={tr(`Phone button ${index + 1} text color`, `Колір тексту кнопки в телефоні ${index + 1}`)} type="color" value={button.text_color} onChange={(event) => setPhoneButton(index, 'text_color', event.target.value.toUpperCase())} /></label>
                   <label className="universal-color-field"><span>{tr('Background / border', 'Фон / контур')}<code>{button.background_color}</code></span><input aria-label={tr(`Phone button ${index + 1} background color`, `Колір фону кнопки в телефоні ${index + 1}`)} type="color" value={button.background_color} onChange={(event) => setPhoneButton(index, 'background_color', event.target.value.toUpperCase())} /></label>
                 </div>
-              </div>
+              </div>}
             </div>
           })}
           <p className="universal-section-note">{tr('Each action is independent and stays inside the iPhone. The screenshot defaults are blue filled, elevated white, and blue text-only.', 'Кожна дія налаштовується окремо й залишається всередині iPhone. Типові стилі зі скриншота: синя заливка, біла кнопка з тінню та лише синій текст.')}</p>
@@ -525,8 +529,8 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
           {content.stats.map((stat, index) => {
             const card = configuration.metric_cards[index]
             return <div className="phone-metrics-stat-input" key={index}>
-              <strong>{index + 1}</strong>
-              <div className="phone-metric-fields">
+              <label className="universal-toggle"><input aria-label={tr(`Show metric ${index + 1}`, `Показувати метрику ${index + 1}`)} type="checkbox" checked={card.enabled !== false} onChange={(event) => setMetricCard(index, 'enabled', event.target.checked)} /><span>{index + 1} · {card.enabled !== false ? tr('Visible', 'Видима') : tr('Hidden', 'Прихована')}</span></label>
+              {card.enabled !== false && <div className="phone-metric-fields">
                 <div className="universal-field-grid">
                   <label><span>{tr('Value', 'Значення')}</span><input aria-label={tr(`Metric ${index + 1} value`, `Значення метрики ${index + 1}`)} value={stat.value} maxLength={24} onChange={(event) => setStat(index, 'value', event.target.value)} /></label>
                   <label><span>{tr('Label', 'Підпис')}</span><input aria-label={tr(`Metric ${index + 1} label`, `Підпис метрики ${index + 1}`)} value={stat.label} maxLength={38} onChange={(event) => setStat(index, 'label', event.target.value)} /></label>
@@ -541,7 +545,7 @@ export function PhoneMetricsStudio({ api, language, basePath, detail: initialDet
                   <label className="universal-color-field"><span>{tr('Text colour', 'Колір тексту')}<code>{card.text_color}</code></span><input aria-label={tr(`Metric ${index + 1} text color`, `Колір тексту метрики ${index + 1}`)} type="color" value={card.text_color} onChange={(event) => setMetricCard(index, 'text_color', event.target.value.toUpperCase())} /></label>
                   <label className="universal-color-field"><span>{tr('Background', 'Фон')}<code>{card.background_color}</code></span><input aria-label={tr(`Metric ${index + 1} background color`, `Колір фону метрики ${index + 1}`)} type="color" value={card.background_color} onChange={(event) => setMetricCard(index, 'background_color', event.target.value.toUpperCase())} /></label>
                 </div>
-              </div>
+              </div>}
             </div>
           })}
           <p className="universal-section-note">{tr('Each button is independent. The default is the reference cobalt fill, white text, and rounded shape.', 'Кожна кнопка налаштовується окремо. Типово використано еталонну синю заливку, білий текст і заокруглену форму.')}</p>

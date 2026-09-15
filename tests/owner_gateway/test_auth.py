@@ -80,11 +80,8 @@ class OwnerClaimsTests(unittest.TestCase):
             if not path.startswith("/api/v1/"):
                 continue
             methods = set(getattr(route, "methods", set()))
-            if path.startswith(("/api/v1/public/landings/", "/api/v1/public/instagram-media/", "/api/v1/public/tiktok-media/")) or path == "/api/v1/public/landing-analytics/events":
+            if path.startswith(("/api/v1/public/landings/", "/api/v1/public/instagram-media/")) or path == "/api/v1/public/landing-analytics/events":
                 public_methods[path] = methods
-                continue
-            if path == "/api/v1/tiktok/oauth/callback":
-                self.assertEqual({"GET"}, methods)
                 continue
             dependencies = getattr(getattr(route, "dependant", None), "dependencies", [])
             if not any(isinstance(getattr(item, "call", None), OwnerDependency) for item in dependencies):
@@ -116,7 +113,8 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/settings/commander/chats/{chat_id}/turns/{turn_id}/stop",
             "/api/v1/settings/commander/deployments",
             "/api/v1/studio/templates",
-            "/api/v1/studio/projects/{project_id}/creatives", creative,
+            "/api/v1/studio/projects/{project_id}/creatives",
+            "/api/v1/studio/projects/{project_id}/creatives/clones", creative,
             f"{creative}/retry", f"{creative}/creative-direction",
             f"{creative}/configuration", f"{creative}/save",
             f"{creative}/templates/apply", f"{creative}/assets/{{slot}}",
@@ -143,14 +141,14 @@ class OwnerClaimsTests(unittest.TestCase):
             "/api/v1/landings/projects/{project_id}/publication/unpublish",
             "/api/v1/public/landings/{namespace}/{slug}",
             "/api/v1/public/landings/{namespace}/{slug}/versions/{version_sha256}/assets/{slot}/{sha256}.png",
-            "/api/v1/ads/connection", "/api/v1/ads/presets", "/api/v1/ads/locations",
-            "/api/v1/ads/projects/{project_id}",
-            "/api/v1/ads/projects/{project_id}/deployments",
-            "/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/retry",
-            "/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/sync",
-            "/api/v1/ads/projects/{project_id}/deployments/{deployment_id}/insights",
-            "/api/v1/ads/projects/{project_id}/controls",
-            "/api/v1/ads/projects/{project_id}/controls/{action_id}/confirm",
+            "/api/v1/instagram-tests/projects/{project_id}",
+            "/api/v1/instagram-tests/projects/{project_id}/manual-packages",
+            "/api/v1/instagram-tests/projects/{project_id}/manual-packages/{package_id}/{action}",
+            "/api/v1/instagram-tests/projects/{project_id}/tests",
+            "/api/v1/instagram-tests/projects/{project_id}/tests/{test_id}/{action}",
+            "/api/v1/instagram-tests/projects/{project_id}/tests/{test_id}/imports/preview",
+            "/api/v1/instagram-tests/projects/{project_id}/tests/{test_id}/imports",
+            "/api/v1/instagram-tests/projects/{project_id}/tests/{test_id}/launch-kit",
             "/api/v1/public/landing-analytics/events",
             "/api/v1/analytics/{scope}/workspace",
             "/api/v1/analytics/{scope}/refresh",
@@ -165,6 +163,7 @@ class OwnerClaimsTests(unittest.TestCase):
         self.assertNotIn("/api/v1/project-assets", paths)
         self.assertNotIn("/api/v1/project-brand-kits", paths)
         self.assertFalse([path for path in paths if "/content-runs" in path])
+        self.assertFalse([path for path in paths if path.startswith(("/api/v1/ads", "/api/v1/tiktok", "/api/v1/public/tiktok"))])
         forbidden_fragments = ("ad-batches", "ad-creatives", "ad-studio", "campaign")
         self.assertFalse([
             path for path in paths if any(fragment in path for fragment in forbidden_fragments)
@@ -307,7 +306,9 @@ class OwnerClaimsTests(unittest.TestCase):
         gateway = create_app(self.settings, verifier=Verifier())
         def routes(items, prefix):
             return {(method, route.path.replace(prefix, "", 1)) for route in items
-                    if getattr(route, "path", "").startswith(prefix) for method in route.methods}
+                    if (getattr(route, "path", "") == prefix
+                        or getattr(route, "path", "").startswith(prefix + "/"))
+                    for method in route.methods}
         self.assertEqual(routes(gateway.routes, "/api/v1/instagram"),
                          routes(instagram_router(object(), prefix="/internal/v1/instagram").routes, "/internal/v1/instagram"))
         self.assertEqual(routes(gateway.routes, "/api/v1/public/instagram-media"),
@@ -331,32 +332,13 @@ class OwnerClaimsTests(unittest.TestCase):
             self.assertEqual(404, client.get("/api/v1/public/instagram-media/bad.jpg").status_code)
         self.assertEqual("bridge", forwarded.call_args.kwargs["headers"]["X-PTW-Owner-Gateway-Token"])
 
-    def test_tiktok_routes_match_validation_and_keep_oauth_and_media_boundaries(self):
-        from validation_pipeline.tiktok_publication_routes import tiktok_router, tiktok_media_router
-        class Verifier:
-            def verify(self, token, app_check_token):
-                return OwnerIdentity(uid="owner-uid", email="sgolovaschuk@gmail.com")
-        gateway = create_app(self.settings, verifier=Verifier())
-        def routes(items, prefix):
-            return {(method, route.path.replace(prefix, "", 1)) for route in items
-                    if getattr(route, "path", "").startswith(prefix) for method in route.methods}
-        self.assertEqual(routes(gateway.routes, "/api/v1/tiktok"),
-                         routes(tiktok_router(object(), prefix="/internal/v1/tiktok").routes, "/internal/v1/tiktok"))
-        self.assertEqual(routes(gateway.routes, "/api/v1/public/tiktok-media"),
-                         routes(tiktok_media_router(object(), prefix="/internal/v1/public/tiktok-media").routes, "/internal/v1/public/tiktok-media"))
-        payload = {"request_id": "request", "source": {"creative_id": "creative", "version": 2}, "content": {"title": "Title", "description": "Description"}, "settings": {}, "creator_snapshot_sha256": "a" * 64, "consent": {}}
-        forwarded = AsyncMock(return_value=httpx.Response(202, json={"publication": {"publication_id": "pub"}}))
-        path = "/api/v1/tiktok/projects/project/publications"
-        with patch("httpx.AsyncClient.request", forwarded), TestClient(gateway) as client:
-            self.assertEqual(401, client.post(path, json=payload).status_code)
-            self.assertEqual(202, client.post(path, json=payload, headers={"Authorization":"Bearer test", "X-Firebase-AppCheck":"test"}).status_code)
-        self.assertEqual(payload, forwarded.call_args.kwargs["json"])
-        forwarded = AsyncMock(return_value=httpx.Response(200, content=b"jpeg"))
-        media = "/api/v1/public/tiktok-media/" + "a" * 43 + ".jpg"
-        with patch("httpx.AsyncClient.request", forwarded), TestClient(gateway) as client:
-            self.assertEqual(200, client.get(media).status_code)
-            self.assertEqual(405, client.post(media, json={}).status_code)
-            self.assertEqual(404, client.get("/api/v1/public/tiktok-media/bad.jpg").status_code)
+    def test_tiktok_and_automated_ads_routes_are_not_exposed(self):
+        gateway = create_app(self.settings, verifier=object())
+        paths = {route.path for route in gateway.routes}
+        self.assertFalse([
+            path for path in paths
+            if path.startswith(("/api/v1/tiktok", "/api/v1/public/tiktok", "/api/v1/ads"))
+        ])
 
     def test_creative_direction_crosses_authenticated_gateway_with_exact_contract(self) -> None:
         class Verifier:

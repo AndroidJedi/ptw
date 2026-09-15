@@ -280,6 +280,8 @@ def _post_ui_catalog() -> dict[tuple[str, str, str], dict[str, Any]]:
     phone_booleans = {
         "configuration.logo.enabled", "configuration.offer.enabled",
         "configuration.cta.enabled", "configuration.phone_screen.logo_enabled",
+        "configuration.hero_title.enabled", "configuration.supporting_text.enabled",
+        "configuration.phone_screen.title_enabled", "configuration.device.enabled",
     }
     phone_colors = {
         "configuration.cta.background_color", "configuration.cta.text_color",
@@ -1035,7 +1037,7 @@ class CreativeAnalyticsService:
     def _publications(self, project_ids: Sequence[str]) -> list[tuple[str, Any, dict[str, Any]]]:
         selected = set(project_ids)
         result: list[tuple[str, Any, dict[str, Any]]] = []
-        for provider, service in (("instagram", self.instagram), ("tiktok", self.tiktok)):
+        for provider, service in (("instagram", self.instagram),):
             if service is None:
                 continue
             for record in service.authority.list():
@@ -1045,19 +1047,14 @@ class CreativeAnalyticsService:
 
     def _analytics_readiness(self) -> dict[str, Any]:
         result: dict[str, Any] = {}
-        for provider, service in (("instagram", self.instagram), ("tiktok", self.tiktok)):
+        for provider, service in (("instagram", self.instagram),):
             if service is None:
                 result[provider] = {"available": False, "explanation": f"{provider.title()} service is unavailable"}
                 continue
             checker = getattr(service, "analytics_connection", None)
             result[provider] = checker(verify=True) if callable(checker) else {"available": False, "explanation": f"{provider.title()} analytics capability is unavailable"}
-        meta_checker = getattr(self.meta_ads, "connection", None)
-        meta = meta_checker(verify=True) if callable(meta_checker) else {
-            "verified": False, "explanation": "Meta Ads analytics capability is unavailable",
-        }
-        result["meta"] = {
-            **meta, "available": bool(meta.get("verified")), "separate_from_organic": True,
-        }
+        result["meta"] = {"available": False, "manual_csv": True,
+                          "explanation": "Paid results are imported from Meta Ads Manager CSV."}
         result["landing"] = {"available": True, "cookieless": True, "consent_required": False}
         return result
 
@@ -1076,7 +1073,7 @@ class CreativeAnalyticsService:
             return previous
         if self.structured_provider is None:
             return None
-        artifact = self.meta_ads._artifact(publication["project_id"], str(source["creative_id"]), int(source["version"]))
+        artifact = self._studio_artifact(publication["project_id"], str(source["creative_id"]), int(source["version"]))
         png = bytes(artifact["rendered"]["bytes"])
         if hashlib.sha256(png).hexdigest() != digest:
             raise ValueError("approved PNG digest changed before visual analysis")
@@ -1085,7 +1082,7 @@ class CreativeAnalyticsService:
         return self.authority.record_descriptor({"artifact_sha256": digest, "source_version_id": source_version_id, "project_id": publication["project_id"], "descriptor": descriptor, "descriptor_sha256": _sha(descriptor), "provider": sanitized(result.get("invocation") or {})})
 
     def refresh(self, *, project_id: str | None, provider: str, backfill: bool = False, scheduled: bool = False) -> dict[str, Any]:
-        if provider not in {"all", "instagram", "tiktok", "meta"}:
+        if provider not in {"all", "instagram"}:
             raise ValueError("analytics provider is invalid")
         project_ids = self._project_ids(project_id)
         existing_capture_keys = {
@@ -1135,18 +1132,7 @@ class CreativeAnalyticsService:
                     skipped += int(not created)
             except Exception as error:
                 errors.append({"provider": name, "publication_id": publication["publication_id"], "detail": str(error)[:300]})
-        paid = 0
-        if not scheduled and provider in {"all", "meta"}:
-            for selected_project in project_ids:
-                for deployment in self.meta_ads.authority.list_deployments(selected_project):
-                    if not deployment.get("meta_ad_id"):
-                        continue
-                    try:
-                        self.meta_ads.refresh_insights(selected_project, deployment["deployment_id"], 7)
-                        paid += 1
-                    except Exception as error:
-                        errors.append({"provider": "meta", "deployment_id": deployment["deployment_id"], "detail": str(error)[:300]})
-        return {"recorded": recorded, "skipped": skipped, "paid_refreshed": paid, "errors": errors, "visual_errors": visual_errors, "backfill": backfill, "scheduled": scheduled}
+        return {"recorded": recorded, "skipped": skipped, "paid_refreshed": 0, "errors": errors, "visual_errors": visual_errors, "backfill": backfill, "scheduled": scheduled}
 
     def maintain(self) -> dict[str, Any]:
         result = self.refresh(project_id=None, provider="all", backfill=False, scheduled=True)
@@ -1217,12 +1203,13 @@ class CreativeAnalyticsService:
         ), reverse=True)
 
     def _paid_rows(self, project_ids: Sequence[str]) -> list[dict[str, Any]]:
-        result = []
-        for project_id in project_ids:
-            for deployment in self.meta_ads.authority.list_deployments(project_id):
-                insights = self.meta_ads.authority.list_insights(deployment["deployment_id"])
-                result.append({"project_id": project_id, "deployment_id": deployment["deployment_id"], "destination_type": deployment["specification"].get("destination_type"), "status": deployment["status"], "meta_ad_id": deployment.get("meta_ad_id"), "latest_insight": insights[0] if insights else None})
-        return result
+        return []
+
+    def _studio_artifact(self, project_id: str, creative_id: str, version: int) -> dict[str, Any]:
+        detail = self.studio.detail(project_id, creative_id)
+        record = self.studio._workspace(creative_id).version_detail(version)
+        rendered = self.studio._workspace(creative_id).version_render(version)
+        return {"detail": detail, "record": record, "rendered": rendered}
 
     @staticmethod
     def _funnel(rollups: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -1256,7 +1243,7 @@ class CreativeAnalyticsService:
         learning_curve: dict[str, dict[str, Any]] = {}
         for item in organic:
             try:
-                artifact = self.meta_ads._artifact(item["project_id"], item["source"]["creative_id"], int(item["source"]["version"]))
+                artifact = self._studio_artifact(item["project_id"], item["source"]["creative_id"], int(item["source"]["version"]))
                 generation = artifact["record"].get("generation") or artifact["detail"].get("generation") or {}
             except Exception:
                 generation = {}
@@ -1268,16 +1255,16 @@ class CreativeAnalyticsService:
             "landing_primary_cta_rate": {"numerator": "primary_cta_click", "denominator": "landing_view", "source": "cookieless PTW daily rollups; near-real-time", "limitation": "click intent, not completed contact"},
             "landing_outbound_contact_rate": {"numerator": "contact_click", "denominator": "landing_view", "source": "cookieless PTW daily rollups; near-real-time", "limitation": "conversion proxy; not a lead or sale"},
             "measured_posts": {"numerator": "published posts represented in the selected window", "denominator": "1", "source": "PTW publication authority plus latest immutable provider snapshot", "limitation": "an unavailable snapshot remains missing rather than zero"},
-            "provider_views": {"numerator": "provider reach or views", "denominator": "1", "source": "latest immutable provider snapshot; row shows capture time", "limitation": "Instagram and TikTok definitions differ"},
+            "provider_views": {"numerator": "Instagram reach or views", "denominator": "1", "source": "latest immutable Instagram snapshot; row shows capture time", "limitation": "provider totals do not prove business demand"},
             "outbound_contact_rate": {"numerator": "attributed contact_click", "denominator": "provider reach/views", "source": "PTW Landing rollup plus latest provider snapshot", "limitation": "conversion proxy; not a lead or sale"},
             "primary_cta_rate": {"numerator": "attributed primary_cta_click", "denominator": "provider reach/views", "source": "PTW Landing rollup plus latest provider snapshot", "limitation": "click intent, not completed contact"},
-            "high_intent_rate": {"numerator": "comments + shares + saves", "denominator": "provider reach/views", "source": "latest immutable provider snapshot", "limitation": "TikTok saves are unavailable and platform definitions differ"},
+            "high_intent_rate": {"numerator": "comments + shares + saves", "denominator": "Instagram reach/views", "source": "latest immutable Instagram snapshot", "limitation": "engagement does not prove purchase intent"},
             "interaction_rate": {"numerator": "likes + comments + shares + saves", "denominator": "provider reach/views", "source": "latest immutable provider snapshot", "limitation": "platform-separated for learning"},
             "view_velocity": {"numerator": "provider reach/views", "denominator": "age in days (minimum 1)", "source": "publication time plus latest provider snapshot", "limitation": "coarse normalization; does not model distribution decay"},
-            "paid_snapshot": {"numerator": "provider-reported result", "denominator": "provider-defined exposure/result denominator", "source": "latest immutable Meta insight snapshot and capture time", "limitation": "read-only; Meta controls attribution and optimization definitions"},
+            "paid_snapshot": {"numerator": "owner-confirmed Meta Ads Manager CSV result", "denominator": "the matching imported delivery total", "source": "latest immutable reviewed CSV import", "limitation": "Meta controls delivery and reporting definitions; PTW does not call the Ads API"},
             "learning_curve_cohort": {"numerator": "views and attributed contact clicks for generations using the same skill snapshot IDs", "denominator": "items in that cohort", "source": "generation provenance, provider snapshots, and PTW rollups", "limitation": "observational cohort; not causal proof"},
         }
-        return {"schema": "ptw.analytics.workspace.v1", "scope": scope, "project_id": scoped_project, "project_ids": project_ids, "window_days": window, "readiness": self._analytics_readiness(), "organic": organic, "paid": self._paid_rows(project_ids), "landing_funnel": self._funnel(rollups), "skills": {"snapshot": skill, "rules": [] if skill is None else skill["rules"]}, "learning_runs": runs, "learning_curve": list(learning_curve.values()), "freshness": {provider: max((item["insight"]["created_at"] for item in organic if item["provider"] == provider and item["insight"]), default=None) for provider in ("instagram", "tiktok")}, "metric_definitions": metric_definitions}
+        return {"schema": "ptw.analytics.workspace.v1", "scope": scope, "project_id": scoped_project, "project_ids": project_ids, "window_days": window, "readiness": self._analytics_readiness(), "organic": organic, "paid": self._paid_rows(project_ids), "landing_funnel": self._funnel(rollups), "skills": {"snapshot": skill, "rules": [] if skill is None else skill["rules"]}, "learning_runs": runs, "learning_curve": list(learning_curve.values()), "freshness": {"instagram": max((item["insight"]["created_at"] for item in organic if item["provider"] == "instagram" and item["insight"]), default=None)}, "metric_definitions": metric_definitions}
 
     def _dataset(self, *, project_id: str | None, surface: str) -> dict[str, Any]:
         workspace = self.workspace(project_id=project_id, window=0)
@@ -1290,7 +1277,7 @@ class CreativeAnalyticsService:
             ) >= 2]
             for item in comparable:
                 item["age_band_hours"] = comparison_age_band(item["age_hours"])
-                artifact = self.meta_ads._artifact(
+                artifact = self._studio_artifact(
                     item["project_id"], item["source"]["creative_id"],
                     int(item["source"]["version"]),
                 )

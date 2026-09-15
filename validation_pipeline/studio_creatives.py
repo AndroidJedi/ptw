@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from copy import deepcopy
 import hashlib
 import json
@@ -9,7 +10,7 @@ from pathlib import Path
 import tempfile
 import threading
 from typing import Any, Callable, Mapping
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from commander.ids import new_uuid7
 
@@ -432,6 +433,67 @@ class LocalStudioAuthority:
         )
         return value, True
 
+    def create_clone_creative(
+        self, *, project_id: str, source_creative_id: str, source_version_id: str,
+        source_version: int, request_id: str, requested_by: str,
+    ) -> tuple[dict[str, Any], bool]:
+        """Reserve one idempotent same-Project draft derived from an approved version."""
+
+        with self._lock:
+            project_id = _uuid(project_id, "project_id")
+            source_creative_id = _uuid(source_creative_id, "source_creative_id")
+            source_version_id = _uuid(source_version_id, "source_version_id")
+            request_id = _uuid(request_id, "request_id")
+            existing = next((
+                item for item in self.store.list("studio_creatives")
+                if (item.get("generation") or {}).get("clone_request_id") == request_id
+            ), None)
+            if existing:
+                lineage = existing.get("generation") or {}
+                if (
+                    existing["project_id"] != project_id
+                    or lineage.get("clone_source_version_id") != source_version_id
+                ):
+                    raise ValueError("idempotency request ID was reused with different clone input")
+                return existing, False
+            source = self.get_creative(source_creative_id)
+            if source["project_id"] != project_id:
+                raise ValueError("Clone source belongs to another Project")
+            siblings = [
+                item for item in self.store.list("studio_creatives")
+                if item["source_brief_id"] == source["source_brief_id"]
+            ]
+            creative_id = new_uuid7()
+            now = utc_now()
+            generation = {
+                "clone_request_id": request_id,
+                "clone_source_creative_id": source_creative_id,
+                "clone_source_version_id": source_version_id,
+                "clone_source_version": source_version,
+                **({"creative_direction": deepcopy(source.get("generation", {}).get("creative_direction"))}
+                   if source.get("generation", {}).get("creative_direction") else {}),
+            }
+            value = {
+                "creative_id": creative_id, "project_id": project_id,
+                "project_name": self.project(project_id)["name"],
+                "source_brief_id": source["source_brief_id"],
+                "ordinal": len(siblings) + 1, "template_id": source["template_id"],
+                "template_version": None, "template_sha256": None,
+                "status": "queued", "origin": "approved_clone", "state_sha256": None,
+                "generation": generation, "learning_baseline": None,
+                "learning_baseline_sha256": None, "approved_version_count": 0,
+                "latest_checkpoint_id": None, "requested_by": requested_by,
+                "created_at": now, "updated_at": now,
+            }
+            self.store.append("studio_creatives", creative_id, value)
+            self.store.edge(source_id=project_id, relation="contains", target_id=creative_id,
+                            evidence={"member": "studio_creative", "ordinal": value["ordinal"]})
+            self.store.edge(source_id=creative_id, relation="derived_from", target_id=source["source_brief_id"],
+                            evidence={"input": "approved_product_brief"})
+            self.store.edge(source_id=creative_id, relation="derived_from", target_id=source_version_id,
+                            evidence={"input": "approved_post_clone"})
+            return value, True
+
     def get_creative(self, creative_id: str) -> dict[str, Any]:
         return self.store.get("studio_creatives", _uuid(creative_id, "creative_id"))
 
@@ -709,6 +771,69 @@ class StudioCreativeService:
         )
         if created:
             self._initialize_workspace(creative)
+        return self.summary(str(creative["creative_id"])), created
+
+    def clone_approved_version(
+        self, *, project_id: str, source_creative_id: str, source_version: int,
+        request_id: str, requested_by: str,
+    ) -> tuple[dict[str, Any], bool]:
+        """Create one editable same-template draft from an immutable approved Post."""
+
+        project_id = _uuid(project_id, "project_id")
+        source_creative_id = _uuid(source_creative_id, "source_creative_id")
+        request_id = _uuid(request_id, "request_id")
+        if isinstance(source_version, bool) or not isinstance(source_version, int) or source_version < 1:
+            raise ValueError("source_version must be a positive integer")
+        self.detail(project_id, source_creative_id)
+        source_workspace = self._workspace(source_creative_id)
+        version_record = source_workspace.version_detail(source_version)
+        frozen_assets = source_workspace.version_clone_assets(source_version)
+        source_version_id = str(version_record.get("version_id") or uuid5(
+            NAMESPACE_URL,
+            f"ptw-studio-version:{source_creative_id}:{source_version}:{version_record['version_sha256']}",
+        ))
+        if hasattr(self.authority, "store") and not self.authority.store.history("studio_versions", source_version_id):
+            self.authority.store.append("studio_versions", source_version_id, {
+                "version_id": source_version_id, "creative_id": source_creative_id,
+                "version": source_version, "version_sha256": version_record["version_sha256"],
+            })
+        creative, created = self.authority.create_clone_creative(
+            project_id=project_id, source_creative_id=source_creative_id,
+            source_version_id=source_version_id, source_version=source_version,
+            request_id=request_id, requested_by=requested_by,
+        )
+        if not created and creative.get("status") != "queued":
+            return self.summary(str(creative["creative_id"])), False
+
+        destination = self._workspace(str(creative["creative_id"]))
+        destination_detail = self._initialize_workspace(creative)
+        clone_assets = [{
+            "slot": selected["slot"], "mime_type": selected["mime_type"],
+            "bytes_base64": base64.b64encode(bytes(selected["bytes"])).decode(),
+            "source": {
+                **deepcopy(selected["source"]),
+                "cloned_from_version_id": source_version_id,
+            },
+        } for selected in frozen_assets]
+        destination_detail = destination.restore_approved_clone(
+            base_sha256=destination_detail["state_sha256"],
+            configuration=version_record["configuration"], content=version_record["content"],
+            assets=clone_assets,
+        )
+        snapshot = _state_snapshot(destination_detail)
+        generation = {
+            **dict(creative.get("generation") or {}),
+            "stage": "cloned", "status": "completed",
+            "clone_source_version_sha256": version_record["version_sha256"],
+            "clone_source_render_sha256": version_record["render_sha256"],
+        }
+        self.authority.update_creative(
+            str(creative["creative_id"]), status="draft",
+            template_version=destination_detail["catalog"]["template_version"],
+            template_sha256=destination_detail["template_sha256"],
+            state_sha256=destination_detail["state_sha256"], generation=generation,
+            learning_baseline=snapshot, learning_baseline_sha256=sha256_json(snapshot),
+        )
         return self.summary(str(creative["creative_id"])), created
 
     def approve_brief_and_reserve(

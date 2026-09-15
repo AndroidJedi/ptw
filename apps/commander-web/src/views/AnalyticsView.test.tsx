@@ -14,8 +14,8 @@ function fixture(review = false): AnalyticsWorkspace {
     window_days: 30,
     readiness: {
       instagram: { available: true },
-      tiktok: { available: false, explanation: 'Photo analytics canary not audited.' },
-      meta: { available: true }, landing: { available: true },
+      meta: { available: false, explanation: 'Paid results are imported from Meta Ads Manager CSV.' },
+      landing: { available: true },
     },
     organic: [], paid: [],
     landing_funnel: {
@@ -37,7 +37,7 @@ function fixture(review = false): AnalyticsWorkspace {
         active: false, tombstone: false,
       }],
     }] : [],
-    learning_curve: [], freshness: { instagram: null, tiktok: null },
+    learning_curve: [], freshness: { instagram: null },
     metric_definitions: {},
   }
 }
@@ -55,7 +55,7 @@ it('labels unavailable analytics and runs learning only from the explicit button
   const api = { get, post } as unknown as ApiClient
   render(<AnalyticsView api={api} language="en" projectId={projectId} />)
 
-  expect(await screen.findByText('Photo analytics canary not audited.')).toBeVisible()
+  expect(await screen.findByText('Paid results are imported from Meta Ads Manager CSV.')).toBeVisible()
   expect(screen.getByText('No provider snapshots in this window.')).toBeVisible()
   expect(post).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Run Post learning' }))

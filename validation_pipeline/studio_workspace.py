@@ -325,11 +325,11 @@ class UniversalStudioWorkspace:
             normalized_content = self._content() if content is None else normalize_phone_metrics_content(content)
             screen = self._asset_record("phone_screen")
             device = compose_phone_device_asset(
-                None if screen is None else screen["bytes"], normalized_content["phone_hero_title"],
+                None if screen is None else screen["bytes"], normalized_content["phone_hero_title"] if config["phone_screen"]["title_enabled"] else "",
                 normalized_content["cta"],
                 str(config["phone_screen"]["texture"]),
-                list(normalized_content["phone_buttons"]),
-                list(config["phone_buttons"]),
+                [text for text, appearance in zip(normalized_content["phone_buttons"], config["phone_buttons"], strict=True) if appearance["enabled"]],
+                [appearance for appearance in config["phone_buttons"] if appearance["enabled"]],
                 config["typography"],
                 bool(config["phone_screen"]["logo_enabled"]),
                 visual_mode=str(config.get("visual_mode", "phone")),
@@ -441,6 +441,7 @@ class UniversalStudioWorkspace:
                 "ptw.studio.phone-metrics-config.v8",
                 "ptw.studio.phone-metrics-config.v9",
                 "ptw.studio.phone-metrics-config.v10",
+                "ptw.studio.phone-metrics-config.v11",
             }
         ):
             return None
@@ -609,6 +610,41 @@ class UniversalStudioWorkspace:
         self._assert_state(base_sha256)
         normalized_config = self._normalize_configuration(configuration)
         normalized_content = self._normalize_content(content)
+        self._atomic_json(self.root / "configuration.json", normalized_config)
+        self._atomic_json(self.root / "content.json", normalized_content)
+        return self.detail()
+
+    def restore_approved_clone(
+        self, *, base_sha256: str, configuration: Mapping[str, Any],
+        content: Mapping[str, Any], assets: list[Mapping[str, Any]],
+    ) -> dict[str, Any]:
+        """Restore one approved snapshot as a new mutable draft without versions."""
+
+        self._assert_state(base_sha256)
+        normalized_config = self._normalize_configuration(configuration)
+        normalized_content = self._normalize_content(content)
+        allowed = {"phone_screen"} if self._selected_template_id() == PHONE_METRICS_TEMPLATE_ID else {"background_image", "sticker_object"}
+        seen: set[str] = set()
+        copied_phone: dict[str, Any] | None = None
+        for item in assets:
+            if not isinstance(item, Mapping) or set(item) != {"slot", "mime_type", "bytes_base64", "source"}:
+                raise ValueError("Studio clone asset fields are invalid")
+            slot = str(item["slot"])
+            if slot not in allowed or slot in seen or not isinstance(item["source"], Mapping):
+                raise ValueError("Studio clone asset is outside the selected template")
+            try:
+                data = base64.b64decode(str(item["bytes_base64"]), validate=True)
+            except (TypeError, ValueError) as error:
+                raise ValueError("Studio clone asset bytes are not valid base64") from error
+            self._store_asset(
+                slot, mime_type=str(item["mime_type"]), data=data,
+                source=dict(item["source"]),
+            )
+            seen.add(slot)
+            if slot == "phone_screen":
+                copied_phone = self._asset_record(slot)
+        if copied_phone is not None:
+            self._write_phone_screen_history([copied_phone])
         self._atomic_json(self.root / "configuration.json", normalized_config)
         self._atomic_json(self.root / "content.json", normalized_content)
         return self.detail()
@@ -964,6 +1000,26 @@ class UniversalStudioWorkspace:
         versions = self._version_records()
         version = len(versions) + 1
         template_id = self._selected_template_id()
+        stem = f"{template_id}_v{version}"
+        raw_slots = ("phone_screen",) if template_id == PHONE_METRICS_TEMPLATE_ID else (
+            "background_image", "sticker_object",
+        )
+        clone_assets: list[dict[str, Any]] = []
+        clone_asset_bytes: list[tuple[str, bytes]] = []
+        for slot in raw_slots:
+            selected = self._asset_record(slot)
+            if selected is None:
+                continue
+            extension = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[
+                selected["mime_type"]
+            ]
+            filename = f"{stem}.asset.{slot}.{extension}"
+            clone_assets.append({
+                "slot": slot, "filename": filename,
+                "mime_type": selected["mime_type"], "sha256": selected["sha256"],
+                "source": json.loads(json.dumps(selected["source"])),
+            })
+            clone_asset_bytes.append((filename, bytes(selected["bytes"])))
         record = {
             "schema": _TEMPLATE_VERSION_SCHEMA,
             "template_id": template_id,
@@ -976,18 +1032,28 @@ class UniversalStudioWorkspace:
             "content": content,
             "component_settings": self._component_settings(config, content),
             "assets": self._snapshot()["assets"],
+            "clone_assets": clone_assets,
             "primitive_template": template.document,
         }
-        stem = f"{template_id}_v{version}"
         record["render_filename"] = f"{stem}.png"
         raw, digest = _canonical(record)
         record = {**json.loads(raw), "version_sha256": digest}
         json_path = self.versions / f"{stem}.json"
         png_path = self.versions / f"{stem}.png"
-        if json_path.exists() or png_path.exists():
+        asset_paths = [self.versions / filename for filename, _data in clone_asset_bytes]
+        if json_path.exists() or png_path.exists() or any(path.exists() for path in asset_paths):
             raise FileExistsError("Studio template version already exists")
-        self._atomic_bytes(png_path, preview["bytes"])
-        self._atomic_json(json_path, record)
+        try:
+            self._atomic_bytes(png_path, preview["bytes"])
+            for path, (_filename, data) in zip(asset_paths, clone_asset_bytes, strict=True):
+                self._atomic_bytes(path, data)
+            self._atomic_json(json_path, record)
+        except Exception:
+            json_path.unlink(missing_ok=True)
+            png_path.unlink(missing_ok=True)
+            for path in asset_paths:
+                path.unlink(missing_ok=True)
+            raise
         return self.detail()
 
     def approve_configuration(
@@ -1022,6 +1088,8 @@ class UniversalStudioWorkspace:
                     self._atomic_bytes(path, previous)
             (self.versions / f"{version_stem}.json").unlink(missing_ok=True)
             (self.versions / f"{version_stem}.png").unlink(missing_ok=True)
+            for path in self.versions.glob(f"{version_stem}.asset.*"):
+                path.unlink()
             raise
 
     def version_detail(self, version: int) -> dict[str, Any]:
@@ -1031,6 +1099,52 @@ class UniversalStudioWorkspace:
         if version > len(records):
             raise KeyError(f"Studio version not found: {version}")
         return json.loads(json.dumps(records[version - 1], ensure_ascii=False))
+
+    def version_clone_assets(self, version: int) -> list[dict[str, Any]]:
+        """Read digest-verified raw assets frozen with one approved version."""
+
+        record = self.version_detail(version)
+        frozen = record.get("clone_assets")
+        results: list[dict[str, Any]] = []
+        if isinstance(frozen, list):
+            for item in frozen:
+                if not isinstance(item, Mapping) or set(item) != {
+                    "slot", "filename", "mime_type", "sha256", "source",
+                }:
+                    raise ValueError("Studio version clone asset metadata is invalid")
+                filename = str(item["filename"])
+                if Path(filename).name != filename:
+                    raise ValueError("Studio version clone asset filename is invalid")
+                try:
+                    data = (self.versions / filename).read_bytes()
+                except OSError as error:
+                    raise ValueError("Studio version clone asset is unavailable") from error
+                if hashlib.sha256(data).hexdigest() != item["sha256"]:
+                    raise ValueError("Studio version clone asset digest mismatch")
+                results.append({**json.loads(json.dumps(item)), "bytes": data})
+            return results
+
+        # Legacy approved versions did not persist raw asset files. They can be
+        # cloned only while the mutable source still contains the identical
+        # digest recorded at approval; never substitute a newer asset.
+        allowed = {"phone_screen"} if record["template_id"] == PHONE_METRICS_TEMPLATE_ID else {
+            "background_image", "sticker_object",
+        }
+        for summary in record.get("assets") or []:
+            if summary.get("slot") not in allowed or not summary.get("available"):
+                continue
+            selected = self._asset_record(str(summary["slot"]))
+            if selected is None or selected["sha256"] != summary.get("sha256"):
+                raise RuntimeError(
+                    "This legacy approved Post no longer has its exact raw asset; "
+                    "choose another approved version"
+                )
+            results.append({
+                "slot": summary["slot"], "mime_type": selected["mime_type"],
+                "sha256": selected["sha256"], "source": selected["source"],
+                "bytes": bytes(selected["bytes"]),
+            })
+        return results
 
     def version_render(self, version: int) -> dict[str, Any]:
         if isinstance(version, bool) or version < 1:

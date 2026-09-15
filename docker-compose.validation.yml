@@ -19,16 +19,9 @@ services:
       META_ADS_SECRETS_PATH: /run/ptw-meta-ads/config.env
       META_INSTAGRAM_MEDIA_ORIGIN: ${META_INSTAGRAM_MEDIA_ORIGIN:-https://commander.proove-them-wrong.com}
       META_PIXEL_ID: ${META_PIXEL_ID:-1056720310312959}
-      TIKTOK_SECRETS_PATH: /run/ptw-tiktok/config.env
-      TIKTOK_MEDIA_ORIGIN: ${TIKTOK_MEDIA_ORIGIN:-https://commander.proove-them-wrong.com}
-      TIKTOK_REDIRECT_URI: ${TIKTOK_REDIRECT_URI:-https://commander.proove-them-wrong.com/api/v1/tiktok/oauth/callback}
-      TIKTOK_EXPECTED_USERNAME: ${TIKTOK_EXPECTED_USERNAME:-natal_cast}
-      TIKTOK_DIRECT_POST_AUDITED: ${TIKTOK_DIRECT_POST_AUDITED:-false}
-      TIKTOK_PHOTO_ANALYTICS_AUDITED: ${TIKTOK_PHOTO_ANALYTICS_AUDITED:-false}
     volumes:
       - ./skills:/run/ptw-auth/skills:ro
       - /opt/ptw/secrets/meta-ads:/run/ptw-meta-ads:ro
-      - /opt/ptw/secrets/tiktok:/run/ptw-tiktok:ro
     networks:
       existing-ptw-backend:
         aliases: [ptw-validation-api]

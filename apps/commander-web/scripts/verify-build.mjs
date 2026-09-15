@@ -24,13 +24,13 @@ const requiredMarkers = {
   'single universal Studio': 'universal_ad · v',
   'private Landing Studio': 'PRIVATE LANDING',
   'Landing publication control': 'PUBLIC NATAL PAGE',
-  'owner-confirmed Meta Ads controls': 'OWNER CONFIRMATION REQUIRED',
+  'manual Instagram launch kit': 'FIXED LAUNCH CONTRACT',
   'approved Brief existing-Creative resolution': 'approved-brief-existing-creative-v1',
   'draft-bound phone preview state': 'Updating preview…',
   'recent-image credential coalescing': 'firebase-token-coalescing-v1',
   'optional Landing Instagram contact': 'Instagram profile link',
   'approved Instagram publication': 'Publish approved Post',
-  'website native CTA': 'Learn more',
+  'manual campaign handoff': 'Open Meta Ads Manager',
   'publication uncertainty': 'Outcome uncertain',
   'visible failed Creative Save': 'Save was not confirmed. Your edits are still in the editor.',
 }
@@ -56,6 +56,8 @@ const forbiddenMarkers = {
   'retired Result review': 'Five verified creative directions',
   'automatic decision trace': 'ResultDecisionTrace',
   'automatic final selection': 'Final selection',
+  'active TikTok surface': 'Publish to TikTok',
+  'automatic Meta campaign mutation': 'OWNER CONFIRMATION REQUIRED',
 }
 const exposed = Object.entries(forbiddenMarkers)
   .filter(([, marker]) => bundle.includes(marker))
@@ -91,4 +93,4 @@ if (chromatic.length) {
   throw new Error(`Commander chrome must remain monochrome; found: ${chromatic.join(', ')}`)
 }
 
-process.stdout.write('Verified Product Brief, Studio, private Landing, and PAUSED Meta Ads flows; App Check, Safari Auth, monochrome chrome, and service-worker markers are present.\n')
+process.stdout.write('Verified Product Brief, Studio, private Landing, and manual Instagram validation flows; App Check, Safari Auth, monochrome chrome, and service-worker markers are present.\n')

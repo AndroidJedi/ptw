@@ -3,8 +3,8 @@
 The owner sees Studio as **Post / Допис**. Every creative belongs to one Project
 and derives from one approved Product Brief. Studio has no owner-wide singleton
 or separate Studio page. Approved versions expose an Instagram publishing/export
-panel and an exact-version handoff to the separate **Ads / Реклама** workspace.
-[Publishing and Ads](meta-ads.md) records are separate from editing and learning.
+panel and an exact-version handoff to **Instagram tests / Instagram-тести**.
+[Instagram manual validation](instagram-manual-validation.md) records are separate from editing and learning.
 Both renderers and their promotional image CTA controls remain unchanged; a paid
 ad's native clickable CTA is configured separately in Ads.
 
@@ -32,14 +32,19 @@ template. Invalid fields, values, counts, or schemas fail the run and leave a
 retryable creative. The common catalog is always authoritative over skills.
 
 A corrected/replacement Brief receives a new creative. Creating another
-creative from the same Brief is allowed only after the latest sibling has at
-least one immutable approved version.
+AI-composed creative from the same Brief is allowed only after the latest sibling
+has an immutable approved version. The owner can also clone a selected approved
+Post into a new same-template draft without AI; configuration, content, and the
+approved raw-asset snapshot are inherited, while identity and approval history
+start fresh.
 
 ## Common bounded templates
 
-`universal_ad` is a 1080×1080 composition with background, optional screened
-photographic sticker, hero title, supporting text, benefits, CTA, and fixed
-Natal identity.
+`universal_ad` v13 is a 1080×1080 composition where only the background is
+required. Hero title, supporting text, offer, CTA, screened photographic sticker,
+Natal identity, and the benefits group are optional; each of the three benefits
+is optional independently. Hidden values remain editable state, disappear from
+semantic/render output, and the remaining blocks reflow deterministically.
 
 Both templates expose a separate bounded font family and size for every
 editable text role. The common ten-family catalog includes neutral, condensed,
@@ -49,9 +54,11 @@ same pixels. Repeated phone metrics and app actions share role-level typography,
 while their copy and visual surfaces remain independently editable. Natal
 identity and iPhone system chrome keep their fixed renderer-owned typography.
 
-`phone_metrics` is a 1080×1350 composition with an off-white material
-background, an optional canonical Natal lock-up, left-safe copy, a front-facing black iPhone,
-three equal metric controls, and an independently optional full-width CTA band. The CTA retains
+`phone_metrics` v27 is a 1080×1350 composition with an off-white material
+background and optional Natal lock-up, eyebrow, hero, supporting copy,
+front-facing black iPhone, in-phone title, full-width CTA band, and three metric
+controls. Each metric and each of the three in-phone actions is independently
+optional. Remaining metrics/buttons redistribute across their bounded row. The CTA retains
 its saved label and typography while hidden and exposes bounded background and text colors.
 Empty CTA copy also removes the entire band. Save and Approve accept empty copy;
 nonempty CTA copy remains bounded to 60 characters.
@@ -95,10 +102,13 @@ image-derived fade into the lower background. Alpha cutouts keep their
 transparent screen surface and never stretch subject pixels upward into the
 fixed header.
 
+Current drafts use Universal config v7 and Phone Metrics config v12. Earlier
+mutable supported drafts receive a one-save visibility uplift with previously
+implicit elements kept visible; immutable approved versions are never rewritten.
+
 Template application replaces the current mutable configuration/content/assets
 inside that creative. It never rewrites an immutable approved version. Payloads
-must use current exact schemas; no historical schema upgrader or alternate
-version format exists.
+must use the current exact schema after that bounded uplift.
 
 ## Phone hero generation
 
@@ -224,14 +234,13 @@ Failures preserve the current generated image and require re-upload for a
 reference retry. Generated results use ordinary asset/history/version behavior.
 Only a reference SHA-256 is retained as generation provenance.
 
-## Social publishing
+## Instagram validation handoff
 
-Every approved Post version can enter the shared Instagram/TikTok publishing
-shell. Both panels verify and export the same immutable PNG, preserve request UUIDs
-across uncertain browser responses, and share status/retry/sync/history behavior.
-Provider descriptors supply only their review fields: Instagram caption, or
-TikTok title, description, live privacy/comment options, music, commercial
-disclosure, and consent. See [`social-publishing.md`](social-publishing.md).
+Every approved Post version can be cloned without AI, exported through the
+Instagram-only Post surface, or selected as one of 2–6 immutable paid-test arms.
+Manual packages and paid arms bind the exact approved PNG/version digest to one
+unique tracked Landing URL. TikTok and automated Meta Ads surfaces are inactive;
+see [`instagram-manual-validation.md`](instagram-manual-validation.md).
 
 The companion platform bridge must advertise
 `image_reference_retention: ephemeral` before PTW sends reference bytes. It

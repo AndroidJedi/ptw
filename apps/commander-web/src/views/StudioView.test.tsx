@@ -45,7 +45,7 @@ const detail: StudioUniversalDetail = {
   schema: 'ptw.studio.workspace.v8',
   catalog: {
     schema: 'ptw.studio.universal-ad-catalog.v7',
-    template_id: 'universal_ad', template_version: 12,
+    template_id: 'universal_ad', template_version: 13,
     semantic_roles: ['background', 'sticker', 'hero_title', 'supporting_text', 'offer', 'bullet_list', 'cta', 'logo'],
     components: componentDefinitions,
     asset_slots: {},
@@ -59,13 +59,13 @@ const detail: StudioUniversalDetail = {
       cta_font_size: { minimum: 18, maximum: 42, default: 27 },
       sticker_positions: ['top_left', 'top_right', 'bottom_left', 'bottom_right', 'right_edge', 'bottom_edge', 'bullet_list', 'hero_title', 'cta'],
       font_families: ['Inter', 'Roboto Condensed', 'Manrope', 'Montserrat', 'Source Sans 3', 'Oswald', 'Cormorant Garamond', 'Cormorant Garamond Italic', 'Lora', 'Lora Italic'],
-      optional_elements: ['sticker', 'bullet_list', 'logo'],
+      optional_elements: ['hero_title', 'supporting_text', 'offer', 'bullet_list', 'cta', 'sticker', 'logo'],
     },
     sha256: 'b'.repeat(64),
   },
   state_sha256: 'a'.repeat(64), template_sha256: 'c'.repeat(64),
   configuration: {
-    schema: 'ptw.studio.universal-ad-config.v6',
+    schema: 'ptw.studio.universal-ad-config.v7',
     background: {
       mode: 'image', color: '#10233F', texture: 'stone', texture_intensity: 0.7,
       image_layout: 'full', image_percent: 75, image_fit: 'cover',
@@ -79,8 +79,12 @@ const detail: StudioUniversalDetail = {
       text_color: '#FFFFFF', alignment: 'left',
     },
     layout: { content_x: 76, content_y: 128, content_width: 650, gap: 20 },
-    bullets: { enabled: true, style: 'check' },
+    hero_title: { enabled: true },
+    supporting_text: { enabled: true },
+    offer: { enabled: true },
+    bullets: { enabled: true, items_enabled: [true, true, true], style: 'check' },
     cta: {
+      enabled: true,
       style: 'filled', position: 'below_text', background_color: '#FFD84D',
       text_color: '#10233F', radius: 24, font_family: 'Inter', font_size: 27,
     },
@@ -102,9 +106,9 @@ const detail: StudioUniversalDetail = {
     cta: 'ЗНАЙТИ СВОЄ',
   },
   component_settings: {
-    schema: 'ptw.studio.universal-ad-component-settings.v3',
-    template_id: 'universal_ad', template_version: 12,
-    configuration_schema: 'ptw.studio.universal-ad-config.v6',
+    schema: 'ptw.studio.universal-ad-component-settings.v4',
+    template_id: 'universal_ad', template_version: 13,
+    configuration_schema: 'ptw.studio.universal-ad-config.v7',
     components: componentDefinitions.map(({ setting_ids, ...component }) => ({
       ...component,
       settings: setting_ids.map((setting_id) => ({ setting_id, value: true })),
@@ -231,7 +235,7 @@ function studioApi(tuneRuns: StudioTuneRun[] = [], initialDetail: StudioUniversa
       if (path === `/api/v1/studio/projects/${projectId}/creatives`) return { items: [{
         creative_id: creativeId, project_id: projectId,
         source_brief_id: current.source_brief_id, ordinal: 1,
-        origin: 'brief_generation', template_id: 'universal_ad', template_version: 11,
+        origin: 'brief_generation', template_id: 'universal_ad', template_version: 13,
         template_sha256: current.template_sha256, status: current.status,
         state_sha256: current.state_sha256, approved_version_count: current.versions.length,
         generation: current.generation, created_at: '2026-09-04T00:00:00Z',
@@ -329,7 +333,7 @@ describe('Universal Ad Studio', () => {
     const { api, post } = studioApi()
     render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
-    expect(await screen.findByText('universal_ad · v12')).toBeInTheDocument()
+    expect(await screen.findByText('universal_ad · v13')).toBeInTheDocument()
     expect(screen.getByLabelText('CTA font size')).toHaveValue(27)
     expect(screen.queryByText('ONE TEMPLATE · CONFIGURATION-FIRST')).not.toBeInTheDocument()
     expect(screen.queryByText('Universal Ad Studio')).not.toBeInTheDocument()
@@ -339,13 +343,17 @@ describe('Universal Ad Studio', () => {
     expect(screen.queryByText('Primitive tree')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Feedback & iterations' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Build the composition at a glance' })).toBeInTheDocument()
-    expect(screen.getAllByText('ALWAYS ON')).toHaveLength(5)
+    expect(screen.getAllByText('ALWAYS ON')).toHaveLength(1)
+    expect(screen.getByLabelText('Enable headline')).toBeChecked()
+    expect(screen.getByLabelText('Enable supporting copy')).toBeChecked()
+    expect(screen.getByLabelText('Enable offer')).toBeChecked()
+    expect(screen.getByLabelText('Enable CTA')).toBeChecked()
+    expect(screen.getByLabelText('Enable logo')).toBeChecked()
     expect(screen.getByLabelText('Enable sticker')).toBeChecked()
     expect(screen.queryByLabelText('Upload sticker_object asset')).not.toBeInTheDocument()
     expect(screen.getByText('Pexels photograph only')).toBeInTheDocument()
     expect(screen.getByText('Natal')).toBeInTheDocument()
-    expect(screen.getByText('Canonical brand lock-up')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Enable logo')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Enable logo')).toBeInTheDocument()
     expect(screen.queryByLabelText('Upload logo')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Bullet 3')).toHaveValue('Наступний крок без зайвого шуму')
 
@@ -442,12 +450,14 @@ describe('Universal Ad Studio', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Pexels asset sourced with provenance and rendered.')
   })
 
-  it('keeps the canonical Natal lock-up fixed in every new Studio draft', async () => {
+  it('lets the owner hide the Natal lock-up without replacing its canonical asset', async () => {
     const { api, post } = studioApi()
     render(<StudioView api={api} language="en" projectId={projectId} creativeId={creativeId} />)
 
-    expect(await screen.findByText('Canonical brand lock-up')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Enable logo')).not.toBeInTheDocument()
+    const logo = await screen.findByLabelText('Enable logo')
+    expect(logo).toBeChecked()
+    fireEvent.click(logo)
+    expect(logo).not.toBeChecked()
     expect(screen.queryByLabelText('Show logo')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Upload logo')).not.toBeInTheDocument()
     expect(post).not.toHaveBeenCalledWith(
@@ -632,7 +642,7 @@ describe('Universal Ad Studio', () => {
       schema: 'ptw.studio.universal-ad-export.v4',
       template_id: 'universal_ad',
       component_settings: {
-        schema: 'ptw.studio.universal-ad-component-settings.v3',
+        schema: 'ptw.studio.universal-ad-component-settings.v4',
         sha256: '9'.repeat(64),
       },
       configuration: { cta: { style: 'outlined' } },

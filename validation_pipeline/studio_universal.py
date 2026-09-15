@@ -22,10 +22,11 @@ from .studio_primitives import PrimitiveTemplate
 
 
 UNIVERSAL_AD_TEMPLATE_ID = "universal_ad"
-UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v6"
+UNIVERSAL_AD_CONFIG_SCHEMA = "ptw.studio.universal-ad-config.v7"
 UNIVERSAL_AD_CONTENT_SCHEMA = "ptw.studio.universal-ad-content.v2"
-UNIVERSAL_AD_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.universal-ad-component-settings.v3"
-UNIVERSAL_AD_TEMPLATE_VERSION = 12
+UNIVERSAL_AD_COMPONENT_SETTINGS_SCHEMA = "ptw.studio.universal-ad-component-settings.v4"
+UNIVERSAL_AD_TEMPLATE_VERSION = 13
+_LEGACY_UNIVERSAL_CONFIG_SCHEMAS = {"ptw.studio.universal-ad-config.v6"}
 
 FONT_FAMILIES = STUDIO_FONT_FAMILIES
 TEXTURE_PRESETS = (
@@ -108,7 +109,7 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "node_ids": ("hero_title",),
         "asset_slot_ids": (),
         "setting_ids": (
-            "content.hero_title", "configuration.typography.font_family",
+            "content.hero_title", "configuration.hero_title.enabled", "configuration.typography.font_family",
             "configuration.typography.hero_size", "configuration.typography.hero_weight",
             "configuration.typography.text_color", "configuration.typography.alignment",
             "configuration.layout.content_x", "configuration.layout.content_y",
@@ -121,7 +122,7 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "node_ids": ("supporting_text",),
         "asset_slot_ids": (),
         "setting_ids": (
-            "content.supporting_text", "configuration.typography.supporting_font_family",
+            "content.supporting_text", "configuration.supporting_text.enabled", "configuration.typography.supporting_font_family",
             "configuration.typography.supporting_size", "configuration.typography.text_color",
             "configuration.typography.alignment", "configuration.layout.content_x",
             "configuration.layout.content_y", "configuration.layout.content_width",
@@ -134,7 +135,7 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "node_ids": ("offer",),
         "asset_slot_ids": (),
         "setting_ids": (
-            "content.offer", "configuration.typography.offer_font_family",
+            "content.offer", "configuration.offer.enabled", "configuration.typography.offer_font_family",
             "configuration.typography.offer_size", "configuration.typography.text_color",
             "configuration.typography.alignment", "configuration.layout.content_x",
             "configuration.layout.content_y", "configuration.layout.content_width",
@@ -150,7 +151,7 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
         ),
         "asset_slot_ids": (),
         "setting_ids": (
-            "content.bullets", "configuration.bullets.enabled",
+            "content.bullets", "configuration.bullets.enabled", "configuration.bullets.items_enabled",
             "configuration.bullets.style", "configuration.typography.benefits_font_family",
             "configuration.typography.benefits_size", "configuration.typography.text_color",
             "configuration.layout.content_x", "configuration.layout.content_y",
@@ -164,7 +165,7 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "node_ids": ("cta",),
         "asset_slot_ids": (),
         "setting_ids": (
-            "content.cta", "configuration.cta.style",
+            "content.cta", "configuration.cta.enabled", "configuration.cta.style",
             "configuration.cta.position",
             "configuration.cta.background_color", "configuration.cta.text_color",
             "configuration.cta.radius", "configuration.cta.font_size",
@@ -179,9 +180,7 @@ COMPONENT_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "role": "logo",
         "node_ids": ("logo",),
         "asset_slot_ids": ("logo",),
-        # Natal is a fixed brand lock-up. The retained configuration members
-        # exist only to read older saved drafts and immutable versions.
-        "setting_ids": (),
+        "setting_ids": ("configuration.logo.enabled",),
     },
 )
 
@@ -345,6 +344,21 @@ UNIVERSAL_SETTING_DEFINITIONS: dict[str, dict[str, Any]] = {
     "configuration.bullets.enabled": _setting(
         "universal_ad.bullet_list", "boolean", ("bullets", "bullet list", "маркери", "список переваг"),
     ),
+    "configuration.bullets.items_enabled": _setting(
+        "universal_ad.bullet_list", "structured", ("individual bullets", "окремі маркери"),
+    ),
+    "configuration.hero_title.enabled": _setting(
+        "universal_ad.hero_title", "boolean", ("headline visibility", "показувати заголовок"),
+    ),
+    "configuration.supporting_text.enabled": _setting(
+        "universal_ad.supporting_text", "boolean", ("supporting text visibility", "показувати пояснення"),
+    ),
+    "configuration.offer.enabled": _setting(
+        "universal_ad.offer", "boolean", ("offer visibility", "показувати пропозицію"),
+    ),
+    "configuration.cta.enabled": _setting(
+        "universal_ad.cta", "boolean", ("cta visibility", "показувати cta"),
+    ),
     "configuration.bullets.style": _setting(
         "universal_ad.bullet_list", "enum", ("bullet style", "стиль маркерів"),
         values=("check", "circle", "circle_outline"),
@@ -481,11 +495,16 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "content_width": 650,
         "gap": 20,
     },
+    "hero_title": {"enabled": True},
+    "supporting_text": {"enabled": True},
+    "offer": {"enabled": True},
     "bullets": {
         "enabled": True,
+        "items_enabled": [True, True, True],
         "style": "check",
     },
     "cta": {
+        "enabled": True,
         "style": "filled",
         "position": "below_text",
         "background_color": "#FFD84D",
@@ -598,16 +617,33 @@ def normalize_universal_setting(setting_id: str, value: Any) -> Any:
         return _integer(value, label, definition["minimum"], definition["maximum"])
     if value_type == "number":
         return _number(value, label, definition["minimum"], definition["maximum"])
+    if value_type == "structured":
+        return json.loads(json.dumps(value, ensure_ascii=False))
     raise ValueError(f"Studio setting has unsupported registered type: {setting_id}")
 
 
 def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
+    if isinstance(value, Mapping) and value.get("schema") in _LEGACY_UNIVERSAL_CONFIG_SCHEMAS:
+        value = deepcopy(dict(value))
+        value["schema"] = UNIVERSAL_AD_CONFIG_SCHEMA
+        value.setdefault("hero_title", {"enabled": True})
+        value.setdefault("supporting_text", {"enabled": True})
+        value.setdefault("offer", {"enabled": True})
+        bullets = dict(value.get("bullets") or {})
+        bullets.setdefault("items_enabled", [True, True, True])
+        value["bullets"] = bullets
+        cta = dict(value.get("cta") or {})
+        cta.setdefault("enabled", True)
+        value["cta"] = cta
     root = _object(value, set(DEFAULT_CONFIG), "Studio universal configuration")
     if root["schema"] != UNIVERSAL_AD_CONFIG_SCHEMA:
         raise ValueError("Studio universal configuration schema is invalid")
     background = _object(root["background"], set(DEFAULT_CONFIG["background"]), "background")
     typography = _object(root["typography"], set(DEFAULT_CONFIG["typography"]), "typography")
     layout = _object(root["layout"], set(DEFAULT_CONFIG["layout"]), "layout")
+    hero_title = _object(root["hero_title"], {"enabled"}, "hero_title")
+    supporting_text = _object(root["supporting_text"], {"enabled"}, "supporting_text")
+    offer = _object(root["offer"], {"enabled"}, "offer")
     bullets = _object(root["bullets"], set(DEFAULT_CONFIG["bullets"]), "bullets")
     cta = _object(root["cta"], set(DEFAULT_CONFIG["cta"]), "cta")
     sticker = _object(root["sticker"], set(DEFAULT_CONFIG["sticker"]), "sticker")
@@ -616,6 +652,9 @@ def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
     logo_background_color = _color(
         logo["background_color"], "logo.background_color",
     )
+    items_enabled = bullets["items_enabled"]
+    if not isinstance(items_enabled, list) or len(items_enabled) != 3 or any(not isinstance(item, bool) for item in items_enabled):
+        raise ValueError("bullets.items_enabled must contain exactly three booleans")
     normalized = {
         "schema": UNIVERSAL_AD_CONFIG_SCHEMA,
         "background": {
@@ -630,9 +669,13 @@ def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
             key: normalize_universal_setting(f"configuration.layout.{key}", layout[key])
             for key in DEFAULT_CONFIG["layout"]
         },
+        "hero_title": {"enabled": _boolean(hero_title["enabled"], "hero_title.enabled")},
+        "supporting_text": {"enabled": _boolean(supporting_text["enabled"], "supporting_text.enabled")},
+        "offer": {"enabled": _boolean(offer["enabled"], "offer.enabled")},
         "bullets": {
-            key: normalize_universal_setting(f"configuration.bullets.{key}", bullets[key])
-            for key in DEFAULT_CONFIG["bullets"]
+            "enabled": normalize_universal_setting("configuration.bullets.enabled", bullets["enabled"]),
+            "items_enabled": list(items_enabled),
+            "style": normalize_universal_setting("configuration.bullets.style", bullets["style"]),
         },
         "cta": {
             key: normalize_universal_setting(f"configuration.cta.{key}", cta[key])
@@ -643,9 +686,7 @@ def normalize_universal_config(value: Mapping[str, Any]) -> dict[str, Any]:
             for key in DEFAULT_CONFIG["sticker"]
         },
         "logo": {
-            # Every draft renders the canonical Natal identity. The explicit
-            # values keep deterministic version and render digests.
-            "enabled": True,
+            "enabled": _boolean(logo["enabled"], "logo.enabled"),
             "position": normalize_universal_setting("configuration.logo.position", logo["position"]),
             "width": normalize_universal_setting("configuration.logo.width", logo["width"]),
             # The logo component has no backing-surface node.
@@ -760,9 +801,10 @@ def universal_ad_catalog() -> dict[str, Any]:
         "setting_definitions": [
             {"setting_id": setting_id, **deepcopy(definition)}
             for setting_id, definition in UNIVERSAL_SETTING_DEFINITIONS.items()
-            # Fixed identity values remain renderer-owned and do not become
-            # editable controls.
+            # Brand geometry remains renderer-owned; visibility is an owner
+            # choice like every other foreground component.
             if not setting_id.startswith("configuration.logo.")
+            or setting_id == "configuration.logo.enabled"
         ],
         "variation": {
             "background_modes": ["solid", "texture", "image"],
@@ -775,7 +817,10 @@ def universal_ad_catalog() -> dict[str, Any]:
             "cta_font_size": {"minimum": 18, "maximum": 42, "default": 27},
             "sticker_positions": list(STICKER_POSITIONS),
             "font_families": list(FONT_FAMILIES),
-            "optional_elements": ["sticker", "bullet_list"],
+            "optional_elements": [
+                "hero_title", "supporting_text", "offer", "bullet_list",
+                "cta", "sticker", "logo",
+            ],
         },
     }
     _, digest = _canonical(value)
@@ -879,7 +924,15 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
     background, typography = config["background"], config["typography"]
     layout, sticker, logo = config["layout"], config["sticker"], config["logo"]
     cta = config["cta"]
-    bullets_enabled = config["bullets"]["enabled"] and bool(content["bullets"])
+    hero_enabled = config["hero_title"]["enabled"]
+    supporting_enabled = config["supporting_text"]["enabled"]
+    offer_enabled = config["offer"]["enabled"]
+    cta_enabled = config["cta"]["enabled"]
+    visible_bullet_indexes = [
+        index for index in range(len(content["bullets"]))
+        if config["bullets"]["enabled"] and config["bullets"]["items_enabled"][index]
+    ]
+    bullets_enabled = bool(visible_bullet_indexes)
     background_asset = {
         "texture": "background_texture", "image": "background_image",
     }.get(background["mode"])
@@ -919,26 +972,41 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
         )
     hero_height = max(170, round(typography["hero_size"] * 2.25))
     supporting_height = max(96, round(typography["supporting_size"] * 3.2))
-    bullet_count = len(content["bullets"]) if bullets_enabled else 0
+    bullet_count = len(visible_bullet_indexes)
     bullet_step = max(44, round(typography["benefits_size"] * 1.55))
     offer_height = max(62, round(typography["offer_size"] * 2.0))
-    gap_count = 4 if bullet_count else 3
-    ideal_before_cta = (
-        hero_height + supporting_height + offer_height + bullet_step * bullet_count
-        + layout["gap"] * gap_count
-    )
+    flow_heights = [
+        height for enabled, height in (
+            (hero_enabled, hero_height), (supporting_enabled, supporting_height),
+            (offer_enabled, offer_height), (bullets_enabled, bullet_step * bullet_count),
+        ) if enabled
+    ]
+    gap_count = max(0, len(flow_heights) - 1) + (1 if cta_enabled and cta["position"] == "below_text" and flow_heights else 0)
+    ideal_before_cta = sum(flow_heights) + layout["gap"] * gap_count
     available_before_cta = alignment_bottom - 82 - content_y
-    vertical_scale = min(1.0, available_before_cta / ideal_before_cta)
+    vertical_scale = 1.0 if ideal_before_cta <= 0 else min(1.0, available_before_cta / ideal_before_cta)
     hero_height = round(hero_height * vertical_scale)
     supporting_height = round(supporting_height * vertical_scale)
     offer_height = round(offer_height * vertical_scale)
     bullet_step = round(bullet_step * vertical_scale)
     effective_gap = round(layout["gap"] * vertical_scale)
-    supporting_y = content_y + hero_height + effective_gap
-    offer_y = supporting_y + supporting_height + effective_gap
-    bullet_y = offer_y + offer_height + effective_gap
-    bullet_space = bullet_step * bullet_count + effective_gap if bullets_enabled else 0
-    flowing_cta_y = bullet_y + bullet_space
+    cursor = content_y
+    positions: dict[str, int] = {}
+    visible_roles = [
+        role for role, enabled in (
+            ("hero", hero_enabled), ("supporting", supporting_enabled),
+            ("offer", offer_enabled), ("bullets", bullets_enabled),
+        ) if enabled
+    ]
+    scaled_heights = {"hero": hero_height, "supporting": supporting_height,
+                      "offer": offer_height, "bullets": bullet_step * bullet_count}
+    for role in visible_roles:
+        positions[role] = cursor
+        cursor += scaled_heights[role] + effective_gap
+    supporting_y = positions.get("supporting", content_y)
+    offer_y = positions.get("offer", content_y)
+    bullet_y = positions.get("bullets", content_y)
+    flowing_cta_y = cursor if visible_roles else content_y
     common_text = {
         "position": "absolute", "x": content_x, "width": layout["content_width"],
         "font_family": typography["font_family"], "color": typography["text_color"],
@@ -966,20 +1034,22 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
             **common_text, "y": content_y, "height": hero_height,
             "font_size": typography["hero_size"], "min_font_size": 44,
             "font_weight": typography["hero_weight"], "line_height": 0.94,
-            "letter_spacing": -2.0, "max_lines": 3,
-        }, binding=("text", "content.hero_title", True)),
+            "letter_spacing": -2.0, "max_lines": 3, "visible": hero_enabled,
+        }, binding=("text", "content.hero_title", hero_enabled)),
         _node("supporting_text", "text", {
             **common_text, "y": supporting_y, "height": supporting_height,
             "font_family": typography["supporting_font_family"],
             "font_size": typography["supporting_size"], "min_font_size": 18,
             "font_weight": 500, "line_height": 1.18, "max_lines": 4,
-        }, binding=("text", "content.supporting_text", True)),
+            "visible": supporting_enabled,
+        }, binding=("text", "content.supporting_text", supporting_enabled)),
         _node("offer", "text", {
             **common_text, "y": offer_y, "height": offer_height,
             "font_family": typography["offer_font_family"],
             "font_size": typography["offer_size"], "min_font_size": 18,
             "font_weight": 800, "line_height": 1.1, "max_lines": 2,
-        }, binding=("text", "content.offer", True)),
+            "visible": offer_enabled,
+        }, binding=("text", "content.offer", offer_enabled)),
     ]
     marker_width = 38
     marker_gap = 12
@@ -987,9 +1057,10 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
     bullet_x = content_x + bullet_group_inset
     bullet_width = layout["content_width"] - bullet_group_inset * 2
     for index in range(3):
-        visible = bullets_enabled and index < len(content["bullets"])
+        visible = index in visible_bullet_indexes
+        visible_position = visible_bullet_indexes.index(index) if visible else 0
         children.append(_node(f"bullet_marker_{index + 1}", "text", {
-            **common_text, "x": bullet_x, "y": bullet_y + index * bullet_step,
+            **common_text, "x": bullet_x, "y": bullet_y + visible_position * bullet_step,
             "width": marker_width, "height": bullet_step, "font_family": "Inter",
             "font_size": typography["benefits_size"], "min_font_size": 16,
             "font_weight": 700, "line_height": 1.1, "max_lines": 1,
@@ -997,7 +1068,7 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
         }, binding=("text", f"content.bullet_marker_{index + 1}", False)))
         children.append(_node(f"bullet_{index + 1}", "text", {
             **common_text, "x": bullet_x + marker_width + marker_gap,
-            "y": bullet_y + index * bullet_step,
+            "y": bullet_y + visible_position * bullet_step,
             "width": bullet_width - marker_width - marker_gap, "height": bullet_step,
             "font_family": typography["benefits_font_family"], "text_align": "left",
             "font_size": typography["benefits_size"], "min_font_size": 16,
@@ -1052,9 +1123,9 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
             "font_family": cta["font_family"], "font_size": cta["font_size"],
             "min_font_size": 18,
             "font_weight": 800, "text_align": "center", "vertical_align": "center",
-            "text_fit": "shrink", "max_lines": 2,
+            "text_fit": "shrink", "max_lines": 2, "visible": cta_enabled,
             "padding": {"top": 10, "right": 24, "bottom": 10, "left": 24},
-        }, binding=("label", "content.cta", True)),
+        }, binding=("label", "content.cta", cta_enabled)),
         _node("sticker_object", "image", {
             "position": "absolute", "x": object_x, "y": object_y,
             "width": object_width, "height": object_height, "z_index": 9,
@@ -1086,16 +1157,16 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
         },
         "semantic_roles": {
             "background": ["canvas", "background_media", "readability_overlay"],
-            "sticker": ["sticker_object"],
-            "hero_title": ["hero_title"],
-            "supporting_text": ["supporting_text"],
-            "offer": ["offer"],
-            "bullet_list": [
+            **({"sticker": ["sticker_object"]} if sticker["enabled"] else {}),
+            **({"hero_title": ["hero_title"]} if hero_enabled else {}),
+            **({"supporting_text": ["supporting_text"]} if supporting_enabled else {}),
+            **({"offer": ["offer"]} if offer_enabled else {}),
+            **({"bullet_list": [
                 "bullet_marker_1", "bullet_1", "bullet_marker_2", "bullet_2",
                 "bullet_marker_3", "bullet_3",
-            ],
-            "cta": ["cta"],
-            "logo": ["logo"],
+            ]} if bullets_enabled else {}),
+            **({"cta": ["cta"]} if cta_enabled else {}),
+            **({"logo": ["logo"]} if logo["enabled"] else {}),
         },
         "assets": {
             key: {
@@ -1112,7 +1183,14 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
         "rules": [
             *[
                 {"id": f"role_{role}", "scope": "template", "type": "required_role", "params": {"role": role}}
-                for role in SEMANTIC_ROLES
+                for role in ("background", *(
+                    role for role, enabled in (
+                        ("sticker", sticker["enabled"]), ("hero_title", hero_enabled),
+                        ("supporting_text", supporting_enabled), ("offer", offer_enabled),
+                        ("bullet_list", bullets_enabled), ("cta", cta_enabled),
+                        ("logo", logo["enabled"]),
+                    ) if enabled
+                ))
             ],
             {"id": "fixed_tree", "scope": "template", "type": "max_nodes", "params": {"maximum": 17}},
         ],
@@ -1128,18 +1206,17 @@ def build_universal_template(config: Mapping[str, Any], content: Mapping[str, An
 def semantic_data(config: Mapping[str, Any], content: Mapping[str, Any]) -> dict[str, str]:
     config = normalize_universal_config(config)
     content = normalize_universal_content(content)
-    data = {
-        "content.hero_title": content["hero_title"],
-        "content.supporting_text": content["supporting_text"],
-        "content.offer": content["offer"],
-        "content.cta": content["cta"],
-    }
+    data: dict[str, str] = {}
+    for key in ("hero_title", "supporting_text", "offer", "cta"):
+        if config[key]["enabled"]:
+            data[f"content.{key}"] = content[key]
     marker = {
         "check": "✓", "circle": "●", "circle_outline": "○",
     }[config["bullets"]["style"]]
     for index, item in enumerate(content["bullets"], 1):
-        data[f"content.bullet_marker_{index}"] = marker
-        data[f"content.bullet_{index}"] = item
+        if config["bullets"]["enabled"] and config["bullets"]["items_enabled"][index - 1]:
+            data[f"content.bullet_marker_{index}"] = marker
+            data[f"content.bullet_{index}"] = item
     return data
 
 

@@ -375,3 +375,7 @@ action, and bounded technical context without raw provider/5xx output.
   Paid tests have no provider mutation or polling jobs: verify unique arm URLs,
   launch-kit integrity, CSV preview/confirmation, first-party event attribution,
   and the prepared → active → completed/abandoned lifecycle.
+- Keep the approved-Post post-cutover canary aligned to mounted product routes.
+  Under the manual Instagram boundary it must compare both `/instagram` and
+  `/instagram-tests` source projections with PostgreSQL; `/ads` returning 404 is
+  expected and must never remain a release-canary dependency.

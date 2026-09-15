@@ -200,6 +200,13 @@ class ReleaseStreamContractTests(unittest.TestCase):
         deployer = (ROOT / "scripts/deploy_ptw_serial.sh").read_text()
         self.assertIn('send_ptw_bot_canary.py" --read-only', deployer)
 
+    def test_approved_post_release_canary_uses_only_active_instagram_routes(self) -> None:
+        canary = (ROOT / "validation_pipeline/verify_approved_post_access.py").read_text()
+
+        self.assertIn("('instagram', 'instagram-tests')", canary)
+        self.assertNotIn("('ads', 'instagram')", canary)
+        self.assertIn("organic and manual Instagram sources match PostgreSQL", canary)
+
     def test_skill_verifier_ignores_generated_python_cache_artifacts(self) -> None:
         script = ROOT / "scripts/verify_ptw_skills.py"
         spec = importlib.util.spec_from_file_location("verify_ptw_skills", script)

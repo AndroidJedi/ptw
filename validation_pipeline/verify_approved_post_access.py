@@ -19,7 +19,9 @@ def main() -> None:
                      headers={'X-PTW-Owner-Gateway-Token': settings.owner_gateway_token}) as client:
         for project_id in projects:
             project_expected = {key: digest for key, digest in expected.items() if key[0] == project_id}
-            for route in ('ads', 'instagram'):
+            # Both active Instagram workspaces must expose the same immutable
+            # approved Post authority. The retired Ads API intentionally 404s.
+            for route in ('instagram', 'instagram-tests'):
                 response = client.get(f'/internal/v1/{route}/projects/{project_id}')
                 if response.status_code != 200:
                     raise RuntimeError(f'{route} source access failed for Project {project_id}: HTTP {response.status_code}')
@@ -31,7 +33,10 @@ def main() -> None:
                 response = client.get(f'/internal/v1/studio/projects/{project_id}/creatives/{creative_id}/versions/{version}/render')
                 if response.status_code != 200 or hashlib.sha256(response.content).hexdigest() != digest:
                     raise RuntimeError(f'Approved PNG verification failed for Creative {creative_id} version {version}')
-    print(f'Approved Post access verified: {len(projects)} Projects, {len(expected)} immutable PNGs; Ads and Instagram sources match PostgreSQL.')
+    print(
+        f'Approved Post access verified: {len(projects)} Projects, {len(expected)} immutable PNGs; '
+        'organic and manual Instagram sources match PostgreSQL.'
+    )
 
 
 if __name__ == '__main__':

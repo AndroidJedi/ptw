@@ -276,6 +276,14 @@ false failed status.
 Normal preserving deployments target 2–4 minutes for a single PTW component and
 under 10 minutes when Validation/provider execution is required. Keep authority
 snapshots, rollback, health/resource checks, and approved artifact verification.
+When a release retires or renames a navigation or provider surface, run the full
+Owner Playwright suite before the first cutover; a focused replacement spec is
+not sufficient. Search the remaining browser specs for the retired labels and
+actions, update them to assert the new boundary, and make the live Owner auditor
+require the new markers while rejecting the retired provider actions. Withhold
+Owner Hosting when that full browser gate fails, even if the server cutover is
+healthy; correct the tests and finish through a new clean, pushed preserving
+release rather than bypassing the gate.
 If a fresh post-cutover media enhancement canary alone returns `failed`, require
 the tracked deployer to restore the prior image and verify its deployed marker
 and health before retrying. Inspect only the bridge job's bounded status; never

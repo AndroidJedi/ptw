@@ -241,6 +241,10 @@ class ReleaseStreamContractTests(unittest.TestCase):
         self.assertIn("for attempt in range(5)", auditor)
         self.assertIn("time.sleep(2)", auditor)
         self.assertIn("Landing was already saved.", auditor)
+        self.assertIn('"manual Instagram testing destination": "Instagram tests"', auditor)
+        self.assertIn('"tracked manual Post package": "Copy all texts"', auditor)
+        self.assertIn('"Publish to TikTok"', auditor)
+        self.assertIn('"Create complete PAUSED ad in Meta"', auditor)
 
     def test_public_auditor_retries_spa_fallback_for_javascript(self):
         from unittest.mock import patch

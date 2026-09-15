@@ -369,8 +369,7 @@ test('runs the Phone Metrics browser UI direction and image workflow', async ({ 
 
 })
 
-for (const configured of [true, false]) {
-test(`approved Instagram Post and exact website Ads handoff (${configured ? 'mocked Meta' : 'offline export'})`, async ({ page }) => {
+test('approved Instagram Post manual package and exact tracked handoff', async ({ page }) => {
   const current: any = phoneDetail()
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64')
   const digest = createHash('sha256').update(png).digest('hex')
@@ -379,9 +378,9 @@ test(`approved Instagram Post and exact website Ads handoff (${configured ? 'moc
   const sources = current.versions.map((item: any) => ({ ...item, creative_id: creativeId, creative_ordinal: 1, template_id: 'phone_metrics', version_sha256: digest, defaults: { headline: `Approved title ${item.version}`, primary_text: 'Approved body', welcome_message: 'Hello' } }))
   const landing = { publication_id: projectId, event_id: briefId, landing_version: 1, landing_version_sha256: digest, canonical_url: 'https://natal-service.com/la/example' }
   const publications: any[] = []
-  const tiktokPublications: any[] = []
-  const adRequests: any[] = []
-  const deployments: any[] = []
+  const manualRequests: any[] = []
+  const packageId = '55555555-5555-4555-8555-555555555555'
+  const trackedUrl = `${landing.canonical_url}?ptw_attribution=manual-token`
   await page.route('**/api/v1/**', async route => {
     const path = new URL(route.request().url()).pathname
     const method = route.request().method()
@@ -390,7 +389,7 @@ test(`approved Instagram Post and exact website Ads handoff (${configured ? 'moc
     if (path === `/api/v1/studio/projects/${projectId}/creatives`) return json({ items: [current] })
     if (path === creativePath) return json(current)
     if (path.startsWith(creativePath) && (path.endsWith('/render') || path.endsWith('/preview') || path.includes('/history/'))) return route.fulfill({ contentType: 'image/png', body: png, headers: { 'X-PTW-Content-SHA256': digest } })
-    if (path === `/api/v1/instagram/projects/${projectId}`) return json({ connection: { configured, verified: configured, media_ready: configured, graph_version: 'v26.0', instagram: { id: '789', username: 'example' } }, sources, landing, publications })
+    if (path === `/api/v1/instagram/projects/${projectId}`) return json({ connection: { configured: false, verified: false, media_ready: false, graph_version: 'v26.0' }, sources, landing, publications })
     if (path === `/api/v1/instagram/projects/${projectId}/publications`) {
       if (method === 'GET') return json({ items: publications })
       const request = route.request().postDataJSON()
@@ -399,35 +398,13 @@ test(`approved Instagram Post and exact website Ads handoff (${configured ? 'moc
       publications.push({ provider: 'instagram', publication_id: projectId, request_id: request.request_id, source: request.source, specification: { creative_id: request.source.creative_id, version: request.source.version }, phase: 'published', status: 'published', retryable: false, syncable: true, external: { transfer_started: true, commit_started: true, transfer_id: 'container-1', post_ids: ['media-1'], permalink: 'https://www.instagram.com/p/example/' }, publish_started: true, media_id: 'media-1', permalink: 'https://www.instagram.com/p/example/' })
       return json({ publication: publications[0], created: true }, 202)
     }
-    const tiktokConnection = { provider: 'tiktok', configured: true, verified: true, media_ready: true, direct_post_audited: true, expected_username: 'natal_cast', account: { open_id: 'open-natal', username: 'natal_cast' }, creator: { open_id: 'open-natal', username: 'natal_cast', privacy_level_options: ['PUBLIC_TO_EVERYONE', 'SELF_ONLY'], comment_disabled: false }, creator_snapshot_sha256: 'c'.repeat(64) }
-    if (path === '/api/v1/tiktok/connection') return json(tiktokConnection)
-    if (path === `/api/v1/tiktok/projects/${projectId}`) return json({ provider: 'tiktok', connection: tiktokConnection, sources, landing, publications: tiktokPublications })
-    if (path === `/api/v1/tiktok/projects/${projectId}/publications`) {
-      if (method === 'GET') return json({ items: tiktokPublications })
+    if (path === `/api/v1/instagram-tests/projects/${projectId}/manual-packages` && method === 'POST') {
       const request = route.request().postDataJSON()
-      expect(request.source.version).toBe(1)
-      expect(request.settings.privacy_level).toBe('PUBLIC_TO_EVERYONE')
-      expect(request.consent.music_usage_confirmed).toBe(true)
-      tiktokPublications.push({ provider: 'tiktok', publication_id: briefId, request_id: request.request_id, source: request.source, content: request.content, settings: request.settings, specification: { is_aigc: false }, phase: 'published', retryable: false, syncable: true, external: { transfer_started: true, commit_started: true, transfer_id: 'publish-1', post_ids: ['post-1'], permalink: null } })
-      return json({ publication: tiktokPublications[0], created: true }, 202)
+      manualRequests.push(request)
+      return json({ package: { package_id: packageId, caption: `Approved title 1\n\nApproved body\n\n${trackedUrl}`, tracked_url: trackedUrl, state: 'prepared' }, created: true }, 201)
     }
-    if (path === `/api/v1/ads/projects/${projectId}`) return json({ schema: 'ptw.meta-ads.workspace.v1', project_id: projectId, project_name: 'Publishing test', connection: { configured, verified: configured, graph_version: 'v26.0', account: { id: '123', currency: 'USD', minimum_daily_budget_minor: 100 }, instagram: { id: '789', username: 'example' }, pixel: configured ? { id: '101', name: 'Website Pixel' } : null }, sources, landing, deployments, experiment: null, presets: [{ preset_id: briefId, version: 1, specification_sha256: digest, specification: { name: 'Local audience', countries: ['UA'], age_min: 25, age_max: 44, gender: 'all', daily_budget_minor: 500 } }] })
-    if (path.endsWith('/deployments') && method === 'POST') {
-      const request = route.request().postDataJSON()
-      adRequests.push(request)
-      const deployment = {
-        deployment_id: 'ad-deployment-1', request_id: request.request_id,
-        project_id: projectId, source_creative_id: creativeId, source_version: 1,
-        render_sha256: digest, status: 'queued', created_at: '', updated_at: '',
-        specification: {
-          headline: request.headline, primary_text: request.primary_text,
-          destination_type: 'WEBSITE', landing, special_ad_categories: request.special_ad_categories,
-          preset: { name: 'Local audience', countries: ['UA'], age_min: 25, age_max: 44, gender: 'all', daily_budget_minor: 500 },
-        },
-      }
-      deployments.unshift(deployment)
-      return json({ deployment, created: true }, 202)
-    }
+    if (path === `/api/v1/instagram-tests/projects/${projectId}/manual-packages/${packageId}/published` && method === 'POST') return json({ package: { package_id: packageId, caption: `Approved title 1\n\nApproved body\n\n${trackedUrl}`, tracked_url: trackedUrl, state: 'published' } })
+    if (path === `/api/v1/instagram-tests/projects/${projectId}`) return json({ schema: 'ptw.instagram-validation.workspace.v1', project_id: projectId, project_name: 'Publishing test', sources, landing, ads_manager_url: 'https://adsmanager.facebook.com/adsmanager/manage/campaigns', tests: [] })
     return json({ detail: 'not found' }, 404)
   })
   await page.goto(`/?e2e=1&page=posts&project=${projectId}&creative=${creativeId}`)
@@ -438,57 +415,29 @@ test(`approved Instagram Post and exact website Ads handoff (${configured ? 'moc
   await page.getByLabel('Approved version').selectOption('1')
   await page.getByRole('button', { name: 'Publish to Instagram', exact: true }).click()
   await expect(page.getByLabel('Instagram caption')).toHaveValue('Approved title 1\n\nApproved body')
-  await page.getByLabel('Instagram caption').fill('Reviewed Instagram caption')
-  if (configured) {
-    await page.getByRole('button', { name: 'Publish now', exact: true }).click()
-    await expect(page.getByRole('link', { name: 'View published post' })).toHaveAttribute('href', 'https://www.instagram.com/p/example/')
-  } else {
-    await expect(page.getByRole('button', { name: 'Publish now', exact: true })).toBeDisabled()
-    const downloadEvent = page.waitForEvent('download')
-    await page.getByRole('button', { name: 'Download image', exact: true }).click()
-    const download = await downloadEvent
-    expect(download.suggestedFilename()).toBe('post-v1.png')
-    const stream = await download.createReadStream()
-    const bytes: Buffer[] = []
-    for await (const chunk of stream!) bytes.push(Buffer.from(chunk))
-    expect(Buffer.concat(bytes)).toEqual(png)
-    await expect(page.getByRole('status')).toContainText('Exported')
-    await expect(page.getByRole('link', { name: 'View published post' })).toHaveCount(0)
-  }
+  await expect(page.getByRole('button', { name: 'Publish now', exact: true })).toBeDisabled()
+  const downloadEvent = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Download image', exact: true }).click()
+  const download = await downloadEvent
+  expect(download.suggestedFilename()).toBe('post-v1.png')
+  const stream = await download.createReadStream()
+  const bytes: Buffer[] = []
+  for await (const chunk of stream!) bytes.push(Buffer.from(chunk))
+  expect(Buffer.concat(bytes)).toEqual(png)
+  await expect(page.getByRole('status')).toContainText('Exported')
+  await expect(page.getByRole('link', { name: 'View published post' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Download image', exact: true })).toBeEnabled()
-  if (configured) {
-    await page.getByRole('button', { name: 'Publish to Instagram', exact: true }).click()
-    await page.getByRole('button', { name: 'Publish to TikTok', exact: true }).click()
-    await expect(page.getByText('@natal_cast')).toBeVisible()
-    await expect(page.getByLabel('TikTok photo title')).toHaveValue('Approved title 1')
-    await page.getByLabel('Privacy (choose manually)').selectOption('PUBLIC_TO_EVERYONE')
-    await page.getByLabel('Commercial-content disclosure (choose manually)').selectOption('own')
-    await page.getByLabel("By posting, you agree to TikTok's Music Usage Confirmation.").check()
-    await page.getByRole('button', { name: 'Publish now', exact: true }).click()
-    await expect(page.getByText(/publish-1/)).toBeVisible()
-  }
-  await page.getByRole('link', { name: 'Create Instagram ad', exact: true }).click()
-  await expect(page.getByLabel('Destination')).toHaveValue('WEBSITE')
-  await expect(page.getByLabel('Headline')).toHaveValue('Approved title 1')
-  await expect(page.getByLabel('Initial Direct message')).toHaveCount(0)
-  await expect(page.getByRole('link', { name: landing.canonical_url, exact: true }).first()).toBeVisible()
-  if (configured) {
-    await expect(page.getByText('LANDING_PAGE_VIEWS')).toBeVisible()
-    await page.getByText('Meta setup', { exact: true }).click()
-    await expect(page.getByText('Website Pixel', { exact: true })).toBeVisible()
-    await page.getByText('Meta setup', { exact: true }).click()
-    await page.getByRole('button', { name: 'Create complete PAUSED ad in Meta' }).click()
-    await expect.poll(() => adRequests.length).toBe(1)
-    await expect(page.getByText('Request accepted — creating Campaign…').first()).toBeVisible()
-    expect(adRequests[0]).toMatchObject({ creative_id: creativeId, version: 1, destination_type: 'WEBSITE', landing_event_id: briefId })
-    expect(adRequests[0]).not.toHaveProperty('welcome_message')
-  } else {
-    await expect(page.getByRole('button', { name: 'Create complete PAUSED ad in Meta' })).toBeDisabled()
-    await expect(page.getByRole('button', { name: 'Download image', exact: true })).toBeEnabled()
-    expect(adRequests).toHaveLength(0)
-  }
-  await page.screenshot({ path: `.local/publishing-${configured ? 'ready' : 'offline'}-${test.info().project.name}.png`, fullPage: true })
+  await page.getByRole('button', { name: 'Copy all texts', exact: true }).click()
+  await expect.poll(() => manualRequests.length).toBe(1)
+  expect(manualRequests[0]).toMatchObject({ source: { creative_id: creativeId, version: 1 } })
+  await expect(page.getByRole('link', { name: trackedUrl, exact: true })).toHaveAttribute('href', trackedUrl)
+  await expect(page.getByText(packageId, { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Mark manually published', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Mark manually published', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Publish to TikTok', exact: true })).toHaveCount(0)
+  await page.getByRole('link', { name: 'Prepare Instagram test', exact: true }).click()
+  await expect.poll(() => new URL(page.url()).searchParams.get('page')).toBe('ads')
+  await expect(page.getByRole('heading', { name: 'Instagram tests', exact: true })).toBeVisible()
+  await page.screenshot({ path: `.local/publishing-manual-${test.info().project.name}.png`, fullPage: true })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
 })
-
-}

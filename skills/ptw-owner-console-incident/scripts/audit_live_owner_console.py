@@ -105,6 +105,10 @@ def main() -> None:
         "Product Brief workspace": "Product Brief",
         "Post destination": "Post",
         "Landing destination": "Landing",
+        "manual Instagram testing destination": "Instagram tests",
+        "tracked manual Post package": "Copy all texts",
+        "manual campaign handoff": "Prepare Instagram test",
+        "Boost-post safety explanation": "Boost post",
         "Landing publication control": "PUBLIC NATAL PAGE",
         "Landing save timeout reconciliation": "Landing was already saved.",
         "ChatGPT authorization settings": "ChatGPT Authorization",
@@ -127,6 +131,8 @@ def main() -> None:
         "Improving the strongest direction", "WHY THIS DIRECTION",
         "Five verified creative directions", "Tune selected", "Regenerate all",
         "Retry notification", "Social posts",
+        "Publish to TikTok", "Create Instagram ad",
+        "Create complete PAUSED ad in Meta",
     ):
         require(retired_label not in app_bundle, f"Live App bundle still exposes {retired_label!r}")
 

@@ -2,14 +2,14 @@
 
 Updated: 2026-09-15
 Branch: `feature/instagram-manual-validation`
-Deployment: local implementation only; not committed, pushed, or deployed.
-The last production deployment remains the previously accepted revision
-`31ff9ab127f610000c2766a96dcdfb8824a97a20` described in the historical sections
-below.
+Deployment: live and accepted from this branch. Application and companion
+platform services run the exact Linux/amd64 artifacts tagged
+`instagram-manual-retry-20260915-d455ac4`; production source and its atomic
+deployed-revision marker were advanced through the final preserving release.
 
-## Instagram-first manual validation — local candidate
+## Instagram-first manual validation — live and accepted
 
-The candidate refocuses PTW on fast business-idea tests. Active social UI/API is
+PTW now focuses on fast business-idea tests. Active social UI/API is
 Instagram only. Organic direct publishing remains, and manual **Copy all texts**
 creates an immutable exact-Post package with a unique tracked Landing URL.
 Meta Ads API and TikTok routes, jobs, and UI are unmounted; their modules and
@@ -33,17 +33,37 @@ individually optional with deterministic reflow.
 Migration `009_instagram_manual_validation_v1.sql` adds clone lineage, manual
 Post packages, validation tests/arms/lifecycle events, and CSV import authority.
 The canonical behavior is in
-[`instagram-manual-validation.md`](instagram-manual-validation.md). Verification
-passes 289 Validation tests in the current runtime image, 14 Owner Gateway
-tests, 41 local Commander tests with seven expected environment skips plus the
-Commander demo, 95 Owner web tests and the production build, six focused
+[`instagram-manual-validation.md`](instagram-manual-validation.md). Production
+installed the additive migration from a checksummed, root-only pre-release
+backup and preserved every pre-existing Commander business row. The seven new
+authority tables remain empty after deployment, proving that release checks did
+not create a Post, test, CSV import, provider mutation, or spend.
+
+Acceptance passes 289 Validation tests in the release runtime image, 14 Owner
+Gateway tests, 42 Commander tests with seven expected local environment skips
+plus the Commander demo, 95 Owner web tests and the production build, all 84
 desktop/360px/WebKit browser flows, the disposable PostgreSQL migration and
-idempotency rehearsal, Python compilation, the deterministic Studio visual
-audit, the canonical skill verifier, and whitespace checks. The mandated older
-`ptw-commander-api:latest` test image ran but cannot execute five Git-dependent
-tests because that runtime image does not contain the `git` binary; those same
-tests pass locally. Do not treat this candidate as deployed or
-provider-accepted.
+idempotency rehearsal, Python compilation, deterministic Studio visual audit,
+canonical skill verifier, whitespace checks, live dependency/resource/OOM
+audits, and approved-Post route/data reconciliation. Fresh provider jobs 887–895
+all completed on attempt 1, including Product Brief/revision, both Post
+templates, compact Landing composition, both learning modes, image generation,
+image enhancement, and Pexels.
+
+The first in-place attempt was rejected after healthy cutover because the
+approved-Post release canary still requested retired `/ads`; the outer publisher
+restored every prior image and both Hosting sites. The canary now requires
+`/instagram` and `/instagram-tests`, with a static regression. A second attempt
+was rolled back after isolated compact-Landing job 886 reached its bounded
+provider deadline; a schema-bound dependency audit passed before the single
+permitted fresh retry. The accepted retry passed all provider work, migrations,
+authority and server audits. Its outer Owner gate then withheld Hosting because
+12 old browser expectations still named Ads/TikTok and the previous fixed-logo
+contract. Those tests now cover manual tracked packages, Instagram tests and
+optional foreground components; the final clean preserving release runs the
+complete 84-case suite and publishes the audited Owner Console. At no point did
+the release reset data, activate advertising, create a Meta/TikTok object, or
+send a Telegram message.
 
 ## Earlier accepted production history
 
